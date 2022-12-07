@@ -3,6 +3,15 @@
     using Squalr.Engine.Common;
     using System;
 
+    /// <summary>
+    /// An enum for possible pointer sizes.
+    /// </summary>
+    public enum PointerSize
+    {
+        Byte4,
+        Byte8,
+    }
+
     public static class PointerSizeExtensions
     {
         public static Int32 ToSize(this PointerSize pointerSize)
@@ -30,15 +39,6 @@
                     throw new ArgumentException("Unknown pointer size");
             }
         }
-    }
-
-    /// <summary>
-    /// An enum for possible pointer sizes.
-    /// </summary>
-    public enum PointerSize
-    {
-        Byte4,
-        Byte8,
     }
     //// End class
 }

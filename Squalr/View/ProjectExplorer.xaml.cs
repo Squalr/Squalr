@@ -16,8 +16,10 @@
     /// </summary>
     public partial class ProjectExplorer : UserControl
     {
+        private static readonly PropertyInfo IsSelectionChangeActiveProperty = typeof(TreeView).GetProperty("IsSelectionChangeActive", BindingFlags.NonPublic | BindingFlags.Instance);
+
         /// <summary>
-        /// Initializes a new instance of the <see cref="Settings" /> class.
+        /// Initializes a new instance of the <see cref="ProjectExplorer" /> class.
         /// </summary>
         public ProjectExplorer()
         {
@@ -28,8 +30,6 @@
             // It's shit, but it's a great place to start.
             AllowMultiSelection(ProjectExplorerTreeView);
         }
-
-        private static readonly PropertyInfo IsSelectionChangeActiveProperty = typeof(TreeView).GetProperty("IsSelectionChangeActive", BindingFlags.NonPublic | BindingFlags.Instance);
 
         public static void AllowMultiSelection(TreeView treeView)
         {
@@ -51,7 +51,7 @@
                 if (isShiftSelecting)
                 {
                     // Suppress selection change notification, select all selected items, then restore selection change notifications
-                    Object? isSelectionChangeActive = IsSelectionChangeActiveProperty.GetValue(treeView, null);
+                    Object isSelectionChangeActive = IsSelectionChangeActiveProperty.GetValue(treeView, null);
 
                     IsSelectionChangeActiveProperty.SetValue(treeView, true, null);
                     ProjectExplorer.ShiftSelect(treeView);
@@ -76,7 +76,7 @@
         private static void ReselectPriorSelectedItems(TreeView treeView)
         {
             // Suppress selection change notification, select all selected items, then restore selection change notifications
-            Object? isSelectionChangeActive = IsSelectionChangeActiveProperty.GetValue(treeView, null);
+            Object isSelectionChangeActive = IsSelectionChangeActiveProperty.GetValue(treeView, null);
 
             IsSelectionChangeActiveProperty.SetValue(treeView, true, null);
             ProjectExplorerViewModel.GetInstance().SelectedProjectItems?.ForEach(item => item.IsSelected = true);

@@ -6,15 +6,21 @@
     using System;
     using System.Threading;
 
-    public class ProcessQuery
+    /// <summary>
+    /// A static class for accessing an <see cref="IProcessQueryer"/> object instance.
+    /// </summary>
+    public static class ProcessQuery
     {
         /// <summary>
         /// Singleton instance of the <see cref="WindowsProcessInfo"/> class.
         /// </summary>
-        private static readonly Lazy<IProcessQueryer> windowsProcessInfoInstance = new Lazy<IProcessQueryer>(
+        private static readonly Lazy<IProcessQueryer> WindowsProcessInfoInstance = new Lazy<IProcessQueryer>(
             () => { return new WindowsProcessInfo(); },
             LazyThreadSafetyMode.ExecutionAndPublication);
 
+        /// <summary>
+        /// Gets an instance implementing <see cref="IProcessQueryer"/> for querying virtual pages in an external process./>
+        /// </summary>
         public static IProcessQueryer Instance
         {
             get
@@ -29,7 +35,7 @@
                     case PlatformID.Win32S:
                     case PlatformID.Win32Windows:
                     case PlatformID.WinCE:
-                        return ProcessQuery.windowsProcessInfoInstance.Value;
+                        return ProcessQuery.WindowsProcessInfoInstance.Value;
                     case PlatformID.Unix:
                         ex = new Exception("Unix operating system is not supported");
                         break;

@@ -23,22 +23,6 @@
             this.DotNetItem = dotNetItem;
         }
 
-        [Browsable(false)]
-        private DotNetItem DotNetItem
-        {
-            get
-            {
-                return this.dotNetItem;
-            }
-
-            set
-            {
-                this.dotNetItem = value;
-                this.ProjectItem = value;
-                this.RaisePropertyChanged(nameof(this.DotNetItem));
-            }
-        }
-
         [Browsable(true)]
         [RefreshProperties(RefreshProperties.All)]
         [SortedCategory(SortedCategory.CategoryType.Common), DisplayName("Identifier"), Description("The full namespace identifier for this item")]
@@ -182,6 +166,22 @@
             set
             {
                 this.DotNetItem.HotKey = value;
+            }
+        }
+
+        [Browsable(false)]
+        private DotNetItem DotNetItem
+        {
+            get
+            {
+                return this.dotNetItem;
+            }
+
+            set
+            {
+                this.dotNetItem = value;
+                this.ProjectItem = value;
+                this.RaisePropertyChanged(nameof(this.DotNetItem));
             }
         }
     }

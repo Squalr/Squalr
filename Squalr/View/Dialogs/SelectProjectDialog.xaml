@@ -31,6 +31,7 @@
             Foreground="{StaticResource SqualrColorWhite}">
             <shell:MenuItem Command="{Binding RenameSelectedProjectCommand}" Header="Rename Project" />
             <shell:MenuItem Command="{Binding DeleteSelectedProjectCommand}" Header="Delete Project" />
+            <shell:MenuItem Command="{Binding ShowSelectedProjectInFileExplorerCommand}" Header="Show in File Explorer" />
         </shell:ContextMenu>
     </shell:Window.Resources>
     <shell:Grid Background="{StaticResource SqualrColorPanel}">

@@ -10,7 +10,7 @@
     /// A keyboard hotkey builder, which is used to construct a keyboard hotkey.
     /// </summary>
     [DataContract]
-    public class KeyboardHotkeyBuilder : HotkeyBuilder, IObserver<KeyState>
+    public class KeyboardHotkeyBuilder : HotkeyBuilder, IObserver<KeyStates>
     {
         /// <summary>
         /// The default delay in miliseconds between hotkey activations.
@@ -26,7 +26,10 @@
         {
             this.SetHotkey(keyboardHotkey);
 
-            this.Subscription = InputManager.GetInstance().GetKeyboardCapture().WeakSubscribe(this);
+            this.KeyboardCapture = InputManager.GetInstance().GetKeyboardCapture().WeakSubscribe(this);
+
+            // TODO: this in a Dispose call?
+            // InputManager.GetInstance().GetKeyboardCapture().Unsubscribe(this.KeyboardCapture);
         }
 
         /// <summary>
@@ -34,9 +37,16 @@
         /// </summary>
         private KeyboardHotkey KeyboardHotkey { get; set; }
 
-        private IDisposable Subscription { get; set; }
+        /// <summary>
+        /// Gets or sets an object to subscribe to keyboard capture events.
+        /// </summary>
+        private IDisposable KeyboardCapture { get; set; }
 
-        public void OnNext(KeyState value)
+        /// <summary>
+        /// Subscription event for when a keyboard event is fired.
+        /// </summary>
+        /// <param name="value">The current keyboard key states.</param>
+        public void OnNext(KeyStates value)
         {
             if (value.DownKeys.IsNullOrEmpty())
             {
@@ -51,10 +61,17 @@
             this.OnHotkeysUpdated();
         }
 
+        /// <summary>
+        /// Notifies the observer that the provider has experienced an error condition.
+        /// </summary>
+        /// <param name="error">An object that provides additional information about the error.</param>
         public void OnError(Exception error)
         {
         }
 
+        /// <summary>
+        /// Notifies the observer that the provider has finished sending push-based notifications.
+        /// </summary>
         public void OnCompleted()
         {
         }
@@ -68,6 +85,10 @@
             this.OnHotkeysUpdated();
         }
 
+        /// <summary>
+        /// Sets the hotkey associated with this hotkey builder.
+        /// </summary>
+        /// <param name="keyboardHotkey">The hotkey associated with this hotkey builder.</param>
         public void SetHotkey(KeyboardHotkey keyboardHotkey)
         {
             this.KeyboardHotkey = (keyboardHotkey?.CopyTo(this.KeyboardHotkey) as KeyboardHotkey) ?? new KeyboardHotkey();
@@ -76,6 +97,7 @@
         /// <summary>
         /// Creates a hotkey from this hotkey builder.
         /// </summary>
+        /// <param name="targetHotkey">The hotkey to build.</param>
         /// <returns>The built hotkey.</returns>
         public override Hotkey Build(Hotkey targetHotkey)
         {

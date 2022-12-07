@@ -16,16 +16,16 @@
     public class OffsetEditorViewModel : ViewModelBase
     {
         /// <summary>
+        /// Singleton instance of the <see cref="OffsetEditorViewModel" /> class.
+        /// </summary>
+        private static readonly Lazy<OffsetEditorViewModel> OffsetEditorViewModelInstance = new Lazy<OffsetEditorViewModel>(
+                () => { return new OffsetEditorViewModel(); },
+                LazyThreadSafetyMode.ExecutionAndPublication);
+
+        /// <summary>
         /// The collection of offsets.
         /// </summary>
         private IList<PrimitiveBinding<Int32>> offsets;
-
-        /// <summary>
-        /// Singleton instance of the <see cref="OffsetEditorViewModel" /> class.
-        /// </summary>
-        private static Lazy<OffsetEditorViewModel> offsetEditorViewModelInstance = new Lazy<OffsetEditorViewModel>(
-                () => { return new OffsetEditorViewModel(); },
-                LazyThreadSafetyMode.ExecutionAndPublication);
 
         /// <summary>
         /// Initializes a new instance of the <see cref="OffsetEditorViewModel" /> class.
@@ -103,7 +103,7 @@
         /// <returns>A singleton instance of the class.</returns>
         public static OffsetEditorViewModel GetInstance()
         {
-            return OffsetEditorViewModel.offsetEditorViewModelInstance.Value;
+            return OffsetEditorViewModel.OffsetEditorViewModelInstance.Value;
         }
 
         /// <summary>

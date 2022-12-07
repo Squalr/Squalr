@@ -7,8 +7,11 @@
     using System.ComponentModel;
     using System.Runtime.Serialization;
 
+    /// <summary>
+    /// A project item referencing a native machine instruction in memory.
+    /// </summary>
     [DataContract]
-    public class InstructionItem : AddressItem
+    public class InstructionItem : AddressItem // TODO: Pointer item? Could be rare cases where an instruction is in the heap.
     {
         /// <summary>
         /// The extension for this project item type.
@@ -20,7 +23,7 @@
         /// </summary>
         [Browsable(false)]
         [DataMember]
-        public String instruction;
+        private String instruction;
 
         /// <summary>
         /// The identifier for the base address of this object.
@@ -36,26 +39,47 @@
         [DataMember]
         private UInt64 moduleOffset;
 
+        /// <summary>
+        /// The bytes that preceede this instruction. Used to help in finding this instruction later via an array of bytes scans if needed.
+        /// </summary>
         [Browsable(false)]
         [DataMember]
         private Byte[] precedingBytes;
 
+        /// <summary>
+        /// The raw instruction bytes for this instruction item.
+        /// </summary>
         [Browsable(false)]
         [DataMember]
         private Byte[] instructionBytes;
 
+        /// <summary>
+        /// The bytes that follow this instruction. Used to help in finding this instruction later via an array of bytes scans if needed.
+        /// </summary>
         [Browsable(false)]
         [DataMember]
         private Byte[] followingBytes;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="InstructionItem" /> class.
+        /// </summary>
+        /// <param name="processSession">A process session reference for accessing the current opened process.</param>
         public InstructionItem(ProcessSession processSession) : this(processSession, 0, null, null, null)
         {
         }
 
-        public InstructionItem(ProcessSession processSession, UInt64 BaseAddress, String moduleName, String instruction, Byte[] instructionBytes)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="InstructionItem" /> class.
+        /// </summary>
+        /// <param name="processSession">A process session reference for accessing the current opened process.</param>
+        /// <param name="moduleOffset">The module offset of this instruction item. If the address is not module based, this will be the raw address.</param>
+        /// <param name="moduleName">The module name from which this instruction is based.</param>
+        /// <param name="instruction">The disassembled instruction string.</param>
+        /// <param name="instructionBytes">The bytes of this instruction.</param>
+        public InstructionItem(ProcessSession processSession, UInt64 moduleOffset, String moduleName, String instruction, Byte[] instructionBytes)
             : base(processSession, ScannableType.NullByteArray, "New Instruction")
         {
-            this.ModuleOffset = BaseAddress;
+            this.ModuleOffset = moduleOffset;
             this.ModuleName = moduleName;
             this.Instruction = instruction;
             this.InstructionBytes = instructionBytes;
@@ -68,7 +92,7 @@
         {
             get
             {
-                return this.addressValue;
+                return base.AddressValue;
             }
 
             set
@@ -79,7 +103,7 @@
         }
 
         /// <summary>
-        /// Gets or sets the data type of the value at this address.
+        /// Gets or sets the bytes that preceede this instruction. Used to help in finding this instruction later via an array of bytes scans if needed.
         /// </summary>
         [Browsable(false)]
         public Byte[] PrecedingBytes
@@ -103,7 +127,7 @@
         }
 
         /// <summary>
-        /// Gets or sets the data type of the value at this address.
+        /// Gets or sets the raw instruction bytes for this instruction item.
         /// </summary>
         public virtual Byte[] InstructionBytes
         {
@@ -122,6 +146,29 @@
                 this.instructionBytes = value;
 
                 this.RaisePropertyChanged(nameof(this.InstructionBytes));
+                this.Save();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the bytes that follow this instruction. Used to help in finding this instruction later via an array of bytes scans if needed.
+        /// </summary>
+        public Byte[] FollowingBytes
+        {
+            get
+            {
+                return this.followingBytes;
+            }
+
+            set
+            {
+                if (this.followingBytes == value)
+                {
+                    return;
+                }
+
+                this.followingBytes = value;
+                this.RaisePropertyChanged(nameof(this.FollowingBytes));
                 this.Save();
             }
         }
@@ -156,6 +203,7 @@
 
             set
             {
+                throw new NotImplementedException();
             }
         }
 
@@ -171,29 +219,7 @@
 
             set
             {
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets the data type of the value at this address.
-        /// </summary>
-        public Byte[] FollowingBytes
-        {
-            get
-            {
-                return this.followingBytes;
-            }
-
-            set
-            {
-                if (this.followingBytes == value)
-                {
-                    return;
-                }
-
-                this.followingBytes = value;
-                this.RaisePropertyChanged(nameof(this.FollowingBytes));
-                this.Save();
+                throw new NotImplementedException();
             }
         }
 
@@ -268,6 +294,7 @@
         /// <summary>
         /// Gets the extension for this project item.
         /// </summary>
+        /// <returns>The extension for this project item.</returns>
         public override String GetExtension()
         {
             return InstructionItem.Extension;

@@ -13,7 +13,6 @@
     /// </summary>
     public class BorderGapMaskConverter : IMultiValueConverter
     {
-
         /// <summary>
         /// Convert a value.
         /// </summary>
@@ -26,13 +25,9 @@
         /// Visual Brush that is used as the opacity mask for the Border
         /// in the style for GroupBox.
         /// </returns>
-        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        public Object Convert(Object[] values, Type targetType, Object parameter, CultureInfo culture)
         {
-            //
-            // Parameter Validation
-            //
-
-            Type doubleType = typeof(double);
+            Type doubleType = typeof(Double);
 
             if (parameter == null ||
                 values == null ||
@@ -53,32 +48,28 @@
                 return DependencyProperty.UnsetValue;
             }
 
-            //
-            // Conversion
-            //
-
-            double headerWidth = (double)values[0];
-            double borderWidth = (double)values[1];
-            double borderHeight = (double)values[2];
+            Double headerWidth = (Double)values[0];
+            Double borderWidth = (Double)values[1];
+            Double borderHeight = (Double)values[2];
 
             // Doesn't make sense to have a Grid
             // with 0 as width or height
-            if (borderWidth == 0
-                || borderHeight == 0)
+            if (borderWidth == 0 || borderHeight == 0)
             {
                 return null;
             }
 
             // Width of the line to the left of the header
             // to be used to set the width of the first column of the Grid
-            double lineWidth;
+            Double lineWidth;
+
             if (parameter is string)
             {
-                lineWidth = Double.Parse(((string)parameter), NumberFormatInfo.InvariantInfo);
+                lineWidth = Double.Parse((string)parameter, NumberFormatInfo.InvariantInfo);
             }
             else
             {
-                lineWidth = (double)parameter;
+                lineWidth = (Double)parameter;
             }
 
             Grid grid = new Grid();
@@ -126,16 +117,16 @@
         }
 
         /// <summary>
-        /// Not Supported
+        /// Not Supported.
         /// </summary>
         /// <param name="value">value, as produced by target</param>
         /// <param name="targetTypes">target types</param>
         /// <param name="parameter">converter parameter</param>
         /// <param name="culture">culture information</param>
-        /// <returns>Nothing</returns>
-        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        /// <returns>An array containing a single DoNoting binding.</returns>
+        public Object[] ConvertBack(Object value, Type[] targetTypes, Object parameter, CultureInfo culture)
         {
-            return new object[] { Binding.DoNothing };
+            return new Object[] { Binding.DoNothing };
         }
     }
 }

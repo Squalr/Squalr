@@ -4,8 +4,18 @@
     using System.ComponentModel;
     using System.Reflection;
 
+    /// <summary>
+    /// A class defining extension methods for enums.
+    /// </summary>
     public static class EnumExtensions
     {
+        /// <summary>
+        /// Gets a description for the given enum value.
+        /// </summary>
+        /// <typeparam name="T">The enum type.</typeparam>
+        /// <param name="enumerationValue">The enum value for which a description is returned.</param>
+        /// <returns>The description of the given enum.</returns>
+        /// <exception cref="ArgumentException">An exception that is thrown if the given type is not an enum.</exception>
         public static String GetDescription<T>(this T enumerationValue) where T : struct
         {
             Type type = enumerationValue.GetType();

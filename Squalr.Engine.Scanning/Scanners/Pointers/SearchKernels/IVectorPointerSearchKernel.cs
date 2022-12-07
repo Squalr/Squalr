@@ -9,7 +9,7 @@
     /// </summary>
     internal interface IVectorPointerSearchKernel
     {
-        Func<Vector<Byte>> GetSearchKernel(SnapshotRegionVectorScanner snapshotRegionScanner);
+        Func<Vector<Byte>> GetSearchKernel(SnapshotRegionVectorScannerBase snapshotRegionScanner);
     }
     //// End interface
 }

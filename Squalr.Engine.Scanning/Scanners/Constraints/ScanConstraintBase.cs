@@ -3,12 +3,8 @@
     using Squalr.Engine.Common;
     using System;
 
-    public abstract class Constraint
+    public interface IScanConstraint
     {
-        public Constraint()
-        {
-        }
-
         /// <summary>
         /// Sets the element type to which all constraints apply.
         /// </summary>
@@ -21,8 +17,8 @@
         /// Clones this scan constraint.
         /// </summary>
         /// <returns>The cloned scan constraint.</returns>
-        public abstract Constraint Clone();
+        public abstract IScanConstraint Clone();
     }
-    //// End class
+    //// End interface
 }
 //// End namespace

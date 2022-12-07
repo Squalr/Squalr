@@ -7,6 +7,9 @@
     using System.Diagnostics;
     using System.Threading.Tasks;
 
+    /// <summary>
+    /// A class for managing snapshot history, allowing users to undo and redo scans.
+    /// </summary>
     public class SnapshotManager
     {
         /// <summary>
@@ -24,6 +27,14 @@
             this.DeletedSnapshots = new Stack<Snapshot>();
         }
 
+        public delegate void OnSnapshotsUpdated(SnapshotManager snapshotManager);
+
+        public delegate void OnNewSnapshot(SnapshotManager snapshotManager);
+
+        public event OnSnapshotsUpdated OnSnapshotsUpdatedEvent;
+
+        public event OnNewSnapshot OnNewSnapshotEvent;
+
         /// <summary>
         /// Gets the snapshots being managed.
         /// </summary>
@@ -39,15 +50,11 @@
         /// </summary>
         private Object AccessLock { get; set; }
 
-        public delegate void OnSnapshotsUpdated(SnapshotManager snapshotManager);
-        public delegate void OnNewSnapshot(SnapshotManager snapshotManager);
-
-        public event OnSnapshotsUpdated OnSnapshotsUpdatedEvent;
-        public event OnNewSnapshot OnNewSnapshotEvent;
-
         /// <summary>
         /// Returns the memory regions associated with the current snapshot. If none exist, a query will be done. Will not read any memory.
         /// </summary>
+        /// <param name="process"></param>
+        /// <param name="emulatorType"></param>
         /// <returns>The current active snapshot of memory in the target process.</returns>
         public Snapshot GetActiveSnapshotCreateIfNone(Process process, EmulatorType emulatorType = EmulatorType.None)
         {
@@ -134,12 +141,12 @@
                 // Nulling out the snapshot regions seems to make the GC work a little faster
                 foreach (Snapshot next in this.Snapshots)
                 {
-                    next.SetSnapshotRegions(null);
+                    next?.SetSnapshotRegions(null);
                 }
 
                 foreach (Snapshot next in this.DeletedSnapshots)
                 {
-                    next.SetSnapshotRegions(null);
+                    next?.SetSnapshotRegions(null);
                 }
 
                 this.Snapshots.Clear();
@@ -160,6 +167,11 @@
         /// <param name="snapshot">The snapshot to save.</param>
         public void SaveSnapshot(Snapshot snapshot)
         {
+            if (snapshot == null)
+            {
+                return;
+            }
+
             lock (this.AccessLock)
             {
                 // Remove null snapshot if exists

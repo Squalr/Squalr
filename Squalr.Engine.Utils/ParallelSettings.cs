@@ -4,6 +4,9 @@
     using System.Threading;
     using System.Threading.Tasks;
 
+    /// <summary>
+    /// A class defining different multi-threaded options.
+    /// </summary>
     public static class ParallelSettings
     {
         /// <summary>
@@ -108,14 +111,6 @@
             {
                 return parallelSettingsNone.Value;
             }
-        }
-
-        public static ParallelOptions Clone(this ParallelOptions parallelOptions)
-        {
-            ParallelOptions options = new ParallelOptions();
-            options.MaxDegreeOfParallelism = parallelOptions.MaxDegreeOfParallelism;
-
-            return options;
         }
     }
     //// End class

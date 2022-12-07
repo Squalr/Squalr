@@ -44,20 +44,6 @@
             return source.ShuffleIterator(new Random());
         }
 
-        private static IEnumerable<T> ShuffleIterator<T>(this IEnumerable<T> source, Random random)
-        {
-            IList<T> buffer = source.ToList();
-
-            for (Int32 index = 0; index < buffer.Count; index++)
-            {
-                Int32 j = random.Next(index, buffer.Count);
-
-                yield return buffer[j];
-
-                buffer[j] = buffer[index];
-            }
-        }
-
         public static IEnumerable<IEnumerable<T>> Batch<T>(this IEnumerable<T> source, Int32 size)
         {
             T[] bucket = null;
@@ -113,6 +99,7 @@
         /// <typeparam name="T">The type of the enumeration.</typeparam>
         /// <param name="enumeration">The enumeration to iterate through.</param>
         /// <param name="action">The action to perform for each item.</param>
+        /// <returns></returns>
         public static IEnumerable<T> ForEach<T>(this IEnumerable<T> enumeration, Action<T> action)
         {
             foreach (T item in enumeration)
@@ -177,6 +164,20 @@
             }
 
             return tail.Prepend<T>(head);
+        }
+
+        private static IEnumerable<T> ShuffleIterator<T>(this IEnumerable<T> source, Random random)
+        {
+            IList<T> buffer = source.ToList();
+
+            for (Int32 index = 0; index < buffer.Count; index++)
+            {
+                Int32 j = random.Next(index, buffer.Count);
+
+                yield return buffer[j];
+
+                buffer[j] = buffer[index];
+            }
         }
 
         /// <summary>

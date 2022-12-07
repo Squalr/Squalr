@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -12,8 +12,8 @@
     <NoWarn>$(NoWarn);NU1605</NoWarn>
     <SignAssembly>false</SignAssembly>
     <ApplicationManifest>Application.manifest</ApplicationManifest>
-    <AssemblyVersion>2.4.0</AssemblyVersion>
-    <FileVersion>2.4.0.0</FileVersion>
+    <AssemblyVersion>3.0.0</AssemblyVersion>
+    <FileVersion>3.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -145,6 +145,10 @@
     <PackageReference Include="Dirkster.AvalonDock.Themes.VS2013" Version="4.70.3" />
     <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.39" />
     <PackageReference Include="MvvmLightLibsStd10" Version="5.4.1.1" />
+    <PackageReference Include="StyleCop.MSBuild" Version="6.2.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="System.CodeDom" Version="7.0.0" />
     <PackageReference Include="System.Diagnostics.Debug" Version="4.3.0" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="7.0.0" />

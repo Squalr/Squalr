@@ -1,9 +1,11 @@
 ﻿namespace Squalr.Engine.Debuggers.Windows.DebugEngine
 {
     using Microsoft.Diagnostics.Runtime.Interop;
+    using Squalr.Engine.Architecture;
     using Squalr.Engine.Memory;
     using Squalr.Engine.Processes;
     using System;
+    using System.Diagnostics;
     using System.Linq;
     using System.Runtime.InteropServices;
     using System.Text;
@@ -51,6 +53,8 @@
                 return this.BaseClient as IDebugAdvanced3;
             }
         }
+
+        public Process TargetProcess { get; set; }
 
         public MemoryAccessCallback WriteCallback { get; set; }
 
@@ -120,9 +124,7 @@
             CodeTraceInfo codeTraceInfo = new CodeTraceInfo();
 
             String[] registers;
-            throw new NotImplementedException();
-            /*
-            Boolean isProcess32Bit = false;// ProcessQuery.Instance.IsProcessWindowed();
+            Boolean isProcess32Bit = ProcessQuery.Instance.IsProcess32Bit(this.TargetProcess);
 
             if (isProcess32Bit)
             {
@@ -160,9 +162,9 @@
             address = this.CorrectAddress(address);
 
             // Disassemble instruction
-            Byte[] bytes = null; // MemoryReader.Instance.ReadBytes(address, 15, out _);
-            throw new NotImplementedException();
-            codeTraceInfo.Instruction = Engine.Architecture.Disassembler.Default.Disassemble(bytes, isProcess32Bit, address).FirstOrDefault();
+            Byte[] bytes =  MemoryReader.Instance.ReadBytes(this.TargetProcess, address, 15, out _);
+
+            codeTraceInfo.Instruction = CpuArchitecture.GetInstance().GetDisassembler().Disassemble(bytes, isProcess32Bit, address).FirstOrDefault();
 
             // Invoke callbacks
             this.ReadCallback?.Invoke(codeTraceInfo);
@@ -171,7 +173,6 @@
 
             // Output.Output.Log(Output.LogLevel.Debug, "Breakpoint Hit: " + codeTraceInfo.Address);
             return (Int32)DEBUG_STATUS.BREAK;
-            */
         }
 
         public Int32 Exception([In] ref EXCEPTION_RECORD64 Exception, [In] uint FirstChance)
@@ -262,8 +263,8 @@
         {
             const UInt64 MaxInstructionSize = 15;
 
-            UInt32 disassemblySize = 0;
-            UInt64 endAddress = 0;
+            UInt32 disassemblySize;
+            UInt64 endAddress;
             UInt64 effectiveAddress = address - MaxInstructionSize - 1;
 
             do

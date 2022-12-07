@@ -22,22 +22,6 @@
             this.ScriptItem = scriptItem;
         }
 
-        [Browsable(false)]
-        private ScriptItem ScriptItem
-        {
-            get
-            {
-                return this.scriptItem;
-            }
-
-            set
-            {
-                this.scriptItem = value;
-                this.ProjectItem = value;
-                this.RaisePropertyChanged(nameof(this.ScriptItem));
-            }
-        }
-
         /// <summary>
         /// Gets or sets the description for this object.
         /// </summary>
@@ -76,6 +60,22 @@
             {
                 this.ScriptItem.Script = value;
                 this.RaisePropertyChanged(nameof(this.Script));
+            }
+        }
+
+        [Browsable(false)]
+        private ScriptItem ScriptItem
+        {
+            get
+            {
+                return this.scriptItem;
+            }
+
+            set
+            {
+                this.scriptItem = value;
+                this.ProjectItem = value;
+                this.RaisePropertyChanged(nameof(this.ScriptItem));
             }
         }
     }

@@ -1,13 +1,10 @@
 ﻿namespace Squalr.Engine.Scanning.Scanners.Comparers
 {
     using Squalr.Engine.Common;
-    using Squalr.Engine.Common.OS;
     using Squalr.Engine.Scanning.Scanners.Constraints;
     using Squalr.Engine.Scanning.Snapshots;
     using System;
-    using System.Buffers.Binary;
     using System.Collections.Generic;
-    using System.Numerics;
 
     /// <summary>
     /// A faster version of SnapshotElementComparer that takes advantage of vectorization/SSE instructions.
@@ -17,73 +14,20 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="SnapshotRegionScannerBase" /> class.
         /// </summary>
-        /// <param name="region">The parent region that contains this element.</param>
-        /// <param name="constraints">The set of constraints to use for the element comparisons.</param>
-        public SnapshotRegionScannerBase(SnapshotRegion region, ScanConstraints constraints)
+        public SnapshotRegionScannerBase()
         {
-            this.RunLengthEncoder = new SnapshotRegionRunLengthEncoder(region, constraints);
-            this.Region = region;
-            this.VectorSize = Vectors.VectorSize;
-            this.VectorReadBase = this.Region.ReadGroupOffset;
-            this.VectorReadOffset = 0;
-            this.DataType = constraints.ElementType;
-            this.DataTypeSize = constraints.ElementType.Size;
-
-            if (this.DataType is ByteArrayType)
-            {
-                this.Alignment = MemoryAlignment.Alignment1;
-            }
-            else
-            {
-                this.Alignment = constraints.Alignment == MemoryAlignment.Auto ? (MemoryAlignment)this.DataTypeSize : constraints.Alignment;
-            }
+            this.RunLengthEncoder = new SnapshotRegionRunLengthEncoder();
         }
-
-        /// <summary>
-        /// Gets or sets the index from which the next vector is read.
-        /// </summary>
-        public Int32 VectorReadOffset { get; protected set; }
-
-        /// <summary>
-        /// Gets or sets the alignment offset, which is also used for reading the next vector.
-        /// </summary>
-        public Int32 AlignmentReadOffset { get; protected set; }
-
-        /// <summary>
-        /// Gets the current values at the current vector read index.
-        /// </summary>
-        public UInt64 CurrentAddress
-        {
-            get
-            {
-                return Region.ReadGroup.BaseAddress + unchecked((UInt32)(this.VectorReadBase + this.VectorReadOffset + this.AlignmentReadOffset));
-            }
-        }
-
-        /// <summary>
-        /// Iterator for array of bytes vectorized chunks.
-        /// </summary>
-        protected Int32 ArrayOfBytesChunkIndex { get; set; }
 
         /// <summary>
         /// Gets or sets the parent snapshot region.
         /// </summary>
-        protected SnapshotRegion Region { get; set; }
+        protected SnapshotElementRange ElementRnage { get; set; }
 
         /// <summary>
-        /// Gets or sets a snapshot region run length encoder, which is used to create the snapshots from this scan.
+        /// Gets a snapshot region run length encoder, which is used to create the snapshots from this scan.
         /// </summary>
         protected SnapshotRegionRunLengthEncoder RunLengthEncoder { get; private set; }
-
-        /// <summary>
-        /// Gets or sets the index of this element.
-        /// </summary>
-        protected Int32 VectorReadBase { get; set; }
-
-        /// <summary>
-        /// Gets or sets the SSE vector size on the machine.
-        /// </summary>
-        protected Int32 VectorSize { get; set; }
 
         /// <summary>
         /// Gets or sets the size of the data type being compared.
@@ -101,12 +45,55 @@
         protected ScannableType DataType { get; set; }
 
         /// <summary>
-        /// Performs a scan over the given region, returning the discovered regions.
+        /// Gets or sets the action to perform when disposing this scanner.
         /// </summary>
-        /// <param name="region">The region to scan.</param>
+        private Action OnDispose { get; set; }
+
+        /// <summary>
+        /// Initializes this scanner for the given region and constaints.
+        /// </summary>
+        /// <param name="elementRange">The element range to scan.</param>
+        /// <param name="constraints">The set of constraints to use for the element comparisons.</param>
+        public virtual void Initialize(SnapshotElementRange elementRange, ScanConstraints constraints)
+        {
+            this.RunLengthEncoder.Initialize(elementRange);
+            this.ElementRnage = elementRange;
+            this.DataType = constraints.ElementType;
+            this.DataTypeSize = constraints.ElementType.Size;
+            this.Alignment = this.DataType is ByteArrayType ? MemoryAlignment.Alignment1
+                : (constraints.Alignment == MemoryAlignment.Auto ? (MemoryAlignment)this.DataTypeSize : constraints.Alignment);
+        }
+
+        /// <summary>
+        /// Sets the action to perform when the scanner is disposed. This callback is used to return this scanner instance to an object pool for recycling.
+        /// </summary>
+        /// <param name="onDispose">The dispose function callback.</param>
+        public void SetDisposeCallback(Action onDispose)
+        {
+            this.OnDispose = onDispose;
+        }
+
+        /// <summary>
+        /// Perform cleanup and release references, since this snapshot scanner instance may be recycled and exist in cached memory.
+        /// </summary>
+        public virtual void Dispose()
+        {
+            this.RunLengthEncoder.Dispose();
+            this.ElementRnage = null;
+
+            if (this.OnDispose != null)
+            {
+                this.OnDispose();
+            }
+        }
+
+        /// <summary>
+        /// Performs a scan over the given element range, returning the elements that match the scan.
+        /// </summary>
+        /// <param name="elementRange">The element range to scan.</param>
         /// <param name="constraints">The scan constraints.</param>
-        /// <returns>The resulting regions, if any.</returns>
-        public abstract IList<SnapshotRegion> ScanRegion(SnapshotRegion region, ScanConstraints constraints);
+        /// <returns>The resulting elements, if any.</returns>
+        public abstract IList<SnapshotElementRange> ScanRegion(SnapshotElementRange region, ScanConstraints constraints);
     }
     //// End class
 }

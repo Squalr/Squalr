@@ -19,7 +19,7 @@
                 LazyThreadSafetyMode.ExecutionAndPublication);
 
         /// <summary>
-        /// Prevents a default instance of the <see cref="ValueEditorViewModel" /> class.
+        /// Initializes a new instance of the <see cref="ValueEditorViewModel" /> class.
         /// </summary>
         public ValueEditorViewModel()
         {

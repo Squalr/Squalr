@@ -250,5 +250,17 @@ namespace Squalr.Engine.Scanning.Properties {
                 this["EmulatorType"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool UseMultiThreadScans {
+            get {
+                return ((bool)(this["UseMultiThreadScans"]));
+            }
+            set {
+                this["UseMultiThreadScans"] = value;
+            }
+        }
     }
 }

@@ -2,20 +2,13 @@
 {
     using System;
 
+    /// <summary>
+    /// A class containing the results of an assembler operation.
+    /// </summary>
     public class AssemblerResult
     {
         /// <summary>
-        /// Contains the results of an assembler operation.
-        /// </summary>
-        public AssemblerResult()
-        {
-            this.Bytes = null;
-            this.Message = null;
-            this.InnerMessage = null;
-        }
-
-        /// <summary>
-        /// Contains the results of an assembler operation.
+        /// Initializes a new instance of the <see cref="AssemblerResult" /> class.
         /// </summary>
         /// <param name="bytes">The compiled assembly.</param>
         /// <param name="message">The message of the compilation result.</param>
@@ -28,19 +21,19 @@
         }
 
         /// <summary>
-        /// The compiled assembly.
+        /// Gets the bytes from the compiled assembly.
         /// </summary>
-        public Byte[] Bytes { get; set; }
+        public Byte[] Bytes { get; private set; }
 
         /// <summary>
-        /// The message of the compilation result.
+        /// Gets the message of the compilation result.
         /// </summary>
-        public String Message { get; set; }
+        public String Message { get; private set; }
 
         /// <summary>
-        /// The inner message of the compilation result. Usually contains error data.
+        /// Gets the inner message of the compilation result. Usually contains error data.
         /// </summary>
-        public String InnerMessage { get; set; }
+        public String InnerMessage { get; private set; }
     }
     //// End class
 }

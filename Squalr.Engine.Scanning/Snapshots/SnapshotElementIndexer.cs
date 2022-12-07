@@ -15,28 +15,15 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="SnapshotElementIndexer" /> class.
         /// </summary>
-        /// <param name="region">The parent region that contains this element.</param>
+        /// <param name="elementRange">The element range that contains this element.</param>
         /// <param name="alignment">The memory alignment of the snapshot region being indexed.</param>
         /// <param name="elementIndex">The index of the element to begin pointing to.</param>
-        public unsafe SnapshotElementIndexer(SnapshotRegion region, MemoryAlignment alignment, Int32 elementIndex = 0)
+        public unsafe SnapshotElementIndexer(SnapshotElementRange elementRange, MemoryAlignment alignment, Int32 elementIndex = 0)
         {
-            this.Region = region;
+            this.ElementRange = elementRange;
             this.ElementIndex = elementIndex;
             this.Alignment = alignment;
         }
-
-        /// <summary>
-        /// Gets the base address of this element.
-        /// </summary>
-        public UInt64 GetBaseAddress(Int32 dataTypeSize)
-        {
-            return this.Region.ReadGroup.BaseAddress.Add(this.Region.ReadGroupOffset).Add(this.ElementIndex * dataTypeSize);
-        }
-
-        /// <summary>
-        /// Gets or sets the parent snapshot region.
-        /// </summary>
-        private SnapshotRegion Region { get; set; }
 
         /// <summary>
         /// Gets the index of this element.
@@ -48,9 +35,22 @@
         /// </summary>
         public MemoryAlignment Alignment { get; set; }
 
+        /// <summary>
+        /// Gets or sets the parent snapshot element range.
+        /// </summary>
+        private SnapshotElementRange ElementRange { get; set; }
+
+        /// <summary>
+        /// Gets the base address of this element.
+        /// </summary>
+        public UInt64 GetBaseAddress()
+        {
+            return unchecked(this.ElementRange.ParentRegion.BaseAddress + (UInt64)(this.ElementRange.RegionOffset + (this.ElementIndex * (Int32)this.Alignment)));
+        }
+
         public Object LoadCurrentValue(ScannableType dataType)
         {
-            fixed (Byte* pointerBase = &this.Region.ReadGroup.CurrentValues[this.Region.ReadGroupOffset + this.ElementIndex * unchecked((Int32)this.Alignment)])
+            fixed (Byte* pointerBase = &this.ElementRange.ParentRegion.CurrentValues[this.ElementRange.RegionOffset + this.ElementIndex * unchecked((Int32)this.Alignment)])
             {
                 return LoadValues(dataType, pointerBase);
             }
@@ -58,7 +58,7 @@
 
         public Object LoadPreviousValue(ScannableType dataType)
         {
-            fixed (Byte* pointerBase = &this.Region.ReadGroup.PreviousValues[this.Region.ReadGroupOffset + this.ElementIndex * unchecked((Int32)this.Alignment)])
+            fixed (Byte* pointerBase = &this.ElementRange.ParentRegion.PreviousValues[this.ElementRange.RegionOffset + this.ElementIndex * unchecked((Int32)this.Alignment)])
             {
                 return LoadValues(dataType, pointerBase);
             }
@@ -120,7 +120,7 @@
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe Boolean HasCurrentValue()
         {
-            if (this.Region.ReadGroup.CurrentValues.IsNullOrEmpty())
+            if (this.ElementRange.ParentRegion.CurrentValues.IsNullOrEmpty())
             {
                 return false;
             }
@@ -135,7 +135,7 @@
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe Boolean HasPreviousValue()
         {
-            if (this.Region.ReadGroup.PreviousValues.IsNullOrEmpty())
+            if (this.ElementRange.ParentRegion.PreviousValues.IsNullOrEmpty())
             {
                 return false;
             }

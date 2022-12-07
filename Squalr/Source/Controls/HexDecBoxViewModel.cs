@@ -32,7 +32,7 @@
         private Boolean supportsMasks;
 
         /// <summary>
-        /// 
+        /// Initializes a new instance of the <see cref="HexDecBoxViewModel" /> class.
         /// </summary>
         public HexDecBoxViewModel()
         {
@@ -270,7 +270,7 @@
         {
             if (this.IsHex && this.SupportsMask && this.IsValid)
             {
-                return Conversions.ParseByteArrayMask(this.Text);
+                return Conversions.ParseByteArrayWildcardMask(this.Text);
             }
 
             return null;

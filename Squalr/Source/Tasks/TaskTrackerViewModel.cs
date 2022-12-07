@@ -35,15 +35,6 @@
         }
 
         /// <summary>
-        /// Gets a singleton instance of the <see cref="TaskTrackerViewModel"/> class.
-        /// </summary>
-        /// <returns>A singleton instance of the class.</returns>
-        public static TaskTrackerViewModel GetInstance()
-        {
-            return TaskTrackerViewModel.actionSchedulerViewModelInstance.Value;
-        }
-
-        /// <summary>
         /// Gets a command to cancel a running task.
         /// </summary>
         public ICommand CancelTaskCommand { get; private set; }
@@ -62,6 +53,15 @@
         private Object TaskLock { get; set; }
 
         /// <summary>
+        /// Gets a singleton instance of the <see cref="TaskTrackerViewModel"/> class.
+        /// </summary>
+        /// <returns>A singleton instance of the class.</returns>
+        public static TaskTrackerViewModel GetInstance()
+        {
+            return TaskTrackerViewModel.actionSchedulerViewModelInstance.Value;
+        }
+
+        /// <summary>
         /// Tracks a given task until it is canceled or completed.
         /// </summary>
         /// <param name="task">The task to track.</param>
@@ -72,7 +72,7 @@
                 task.OnCanceledEvent += this.RemoveTask;
                 task.OnCompletedEvent += this.RemoveTask;
 
-                lock(this.TaskLock)
+                lock (this.TaskLock)
                 {
                     if (!task.IsCompleted && !task.IsCanceled)
                     {

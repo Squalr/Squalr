@@ -3,7 +3,6 @@
     using Source.DotNetExplorer;
     using Source.ScanResults;
     using Source.Snapshots;
-    using Squalr.Properties;
     using Squalr.Source.Debugger;
     using Squalr.Source.Editors.DataTypeEditor;
     using Squalr.Source.Editors.HotkeyEditor;
@@ -16,6 +15,7 @@
     using Squalr.Source.ProjectExplorer;
     using Squalr.Source.PropertyViewer;
     using Squalr.Source.Scanning;
+    using Squalr.Source.Settings;
     using System;
     using System.Collections.Generic;
     using System.Windows;
@@ -138,37 +138,6 @@
         /// Gets or sets the template for the Data Template Error display.
         /// </summary>
         public DataTemplate DataTemplateErrorViewTemplate { get; set; }
-
-        /// <summary>
-        /// Gets or sets the mapping for all data templates.
-        /// </summary>
-        protected Dictionary<Type, DataTemplate> DataTemplates { get; set; }
-
-        /// <summary>
-        /// Returns the required template to display the given view model.
-        /// </summary>
-        /// <param name="item">The view model.</param>
-        /// <param name="container">The dependency object.</param>
-        /// <returns>The template associated with the provided view model.</returns>
-        public override DataTemplate SelectTemplate(Object item, DependencyObject container)
-        {
-            if (item is ContentPresenter)
-            {
-                Object content = (item as ContentPresenter).Content;
-
-                if (content != null && this.DataTemplates.ContainsKey(content.GetType()))
-                {
-                    return this.DataTemplates[content.GetType()];
-                }
-            }
-
-            if (this.DataTemplates.ContainsKey(item.GetType()))
-            {
-                return this.DataTemplates[item.GetType()];
-            }
-
-            return this.DataTemplateErrorViewTemplate;
-        }
 
         /// <summary>
         /// Gets or sets the template for the Process Selector.
@@ -508,6 +477,37 @@
                 this.codeTracerViewTemplate = value;
                 this.DataTemplates[typeof(CodeTracerViewModel)] = value;
             }
+        }
+
+        /// <summary>
+        /// Gets or sets the mapping for all data templates.
+        /// </summary>
+        protected Dictionary<Type, DataTemplate> DataTemplates { get; set; }
+
+        /// <summary>
+        /// Returns the required template to display the given view model.
+        /// </summary>
+        /// <param name="item">The view model.</param>
+        /// <param name="container">The dependency object.</param>
+        /// <returns>The template associated with the provided view model.</returns>
+        public override DataTemplate SelectTemplate(Object item, DependencyObject container)
+        {
+            if (item is ContentPresenter)
+            {
+                Object content = (item as ContentPresenter).Content;
+
+                if (content != null && this.DataTemplates.ContainsKey(content.GetType()))
+                {
+                    return this.DataTemplates[content.GetType()];
+                }
+            }
+
+            if (this.DataTemplates.ContainsKey(item.GetType()))
+            {
+                return this.DataTemplates[item.GetType()];
+            }
+
+            return this.DataTemplateErrorViewTemplate;
         }
     }
     //// End class

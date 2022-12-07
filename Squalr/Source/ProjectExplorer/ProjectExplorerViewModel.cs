@@ -4,16 +4,16 @@
     using Squalr.Engine.Common;
     using Squalr.Engine.Common.DataStructures;
     using Squalr.Engine.Common.Logging;
+    using Squalr.Engine.Common.OS;
     using Squalr.Engine.Projects;
     using Squalr.Engine.Projects.Items;
-    using Squalr.Properties;
     using Squalr.Source.Controls;
     using Squalr.Source.Docking;
     using Squalr.Source.Editors.ScriptEditor;
     using Squalr.Source.Editors.ValueEditor;
     using Squalr.Source.ProjectExplorer.Dialogs;
     using Squalr.Source.ProjectExplorer.ProjectItems;
-    using Squalr.Source.PropertyViewer;
+    using Squalr.Source.Settings;
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
@@ -65,15 +65,6 @@
 
             DockingViewModel.GetInstance().RegisterViewModel(this);
             this.RunUpdateLoop();
-        }
-
-        /// <summary>
-        /// Gets a singleton instance of the <see cref="ProjectExplorerViewModel" /> class.
-        /// </summary>
-        /// <returns>A singleton instance of the class.</returns>
-        public static ProjectExplorerViewModel GetInstance()
-        {
-            return ProjectExplorerViewModel.projectExplorerViewModelInstance.Value;
         }
 
         /// <summary>
@@ -152,7 +143,7 @@
         public ICommand OpenFileExplorerCommand { get; private set; }
 
         /// <summary>
-        /// The project root tree of the current project.
+        /// Gets or sets the project root tree of the current project.
         /// </summary>
         public FullyObservableCollection<DirectoryItemView> ProjectRoot
         {
@@ -225,6 +216,15 @@
         private List<ProjectItemView> ClipBoard { get; set; }
 
         /// <summary>
+        /// Gets a singleton instance of the <see cref="ProjectExplorerViewModel" /> class.
+        /// </summary>
+        /// <returns>A singleton instance of the class.</returns>
+        public static ProjectExplorerViewModel GetInstance()
+        {
+            return ProjectExplorerViewModel.projectExplorerViewModelInstance.Value;
+        }
+
+        /// <summary>
         /// Runs the update loop, updating all scan results.
         /// </summary>
         public void RunUpdateLoop()
@@ -241,6 +241,23 @@
                     Thread.Sleep(50);
                 }
             });
+        }
+
+        public void AddProjectItems(params ProjectItem[] projectItems)
+        {
+            if (projectItems == null)
+            {
+                return;
+            }
+
+            this.CreateProjectIfNone();
+
+            DirectoryItemView directoryItemView = this.SelectedProjectItem as DirectoryItemView ?? this.ProjectRoot?.FirstOrDefault();
+
+            foreach (ProjectItem projectItem in projectItems)
+            {
+                directoryItemView?.AddChild(projectItem);
+            }
         }
 
         /// <summary>
@@ -282,10 +299,7 @@
         {
             try
             {
-                SelectProjectDialogViewModel.GetInstance().ShowDialog(System.Windows.Application.Current.MainWindow, (projectPath) =>
-                {
-                    this.DoOpenProject(projectPath);
-                });
+                SelectProjectDialogViewModel.GetInstance().ShowSelectProjectDialog(System.Windows.Application.Current.MainWindow, this.DoOpenProject);
 
                 if (!Directory.Exists(this.ProjectRoot?.FirstOrDefault()?.FilePath))
                 {
@@ -316,26 +330,11 @@
             this.ProjectRoot = new FullyObservableCollection<DirectoryItemView> { projectRootFolder };
         }
 
-        public void AddProjectItems(params ProjectItem[] projectItems)
-        {
-            if (projectItems == null)
-            {
-                return;
-            }
-
-            this.CreateProjectIfNone();
-
-            DirectoryItemView directoryItemView = this.SelectedProjectItem as DirectoryItemView ?? this.ProjectRoot?.FirstOrDefault();
-
-            foreach (ProjectItem projectItem in projectItems)
-            {
-                directoryItemView?.AddChild(projectItem);
-            }
-        }
-
         /// <summary>
         /// Adds a new address to the project items.
         /// </summary>
+        /// <param name="projectItemType"></param>
+        /// <param name="emulatorType"></param>
         private void AddNewProjectItem(Type projectItemType, EmulatorType emulatorType = EmulatorType.None)
         {
             this.CreateProjectIfNone();
@@ -401,7 +400,7 @@
 
                     for (Int32 appendedNumber = 0; appendedNumber < Int32.MaxValue; appendedNumber++)
                     {
-                        String suffix = (appendedNumber == 0 ? String.Empty : " " + appendedNumber.ToString());
+                        String suffix = appendedNumber == 0 ? String.Empty : " " + appendedNumber.ToString();
                         newProjectDirectory = Path.Combine(SettingsViewModel.GetInstance().ProjectRoot, "New Project" + suffix);
 
                         if (!Directory.Exists(newProjectDirectory))
@@ -442,6 +441,7 @@
         /// <summary>
         /// Deletes the selected project explorer items.
         /// </summary>
+        /// <param name="promptUser">A value indicating whether to prompt the user when deleting the selected project items.</param>
         private void DeleteSelection(Boolean promptUser = true)
         {
             if (this.SelectedProjectItems == null)
@@ -526,21 +526,7 @@
         {
             String directory = projectItemView.ProjectItem is DirectoryItem ? projectItemView.ProjectItem.FullPath : Path.GetDirectoryName(projectItemView.ProjectItem.FullPath);
 
-            if (Directory.Exists(directory))
-            {
-                try
-                {
-                    Process.Start("explorer.exe", @directory);
-                }
-                catch (Exception ex)
-                {
-                    Logger.Log(LogLevel.Error, "Error opening file explorer", ex);
-                }
-            }
-            else
-            {
-                Logger.Log(LogLevel.Error, "Unable to open file explorer. Directory does not exist");
-            }
+            OSUtils.OpenPathInFileExplorer(directory);
         }
     }
     //// End class

@@ -164,6 +164,10 @@
             return ((IEnumerable)this.hashSet).GetEnumerator();
         }
 
+        /// <summary>
+        /// Gets an enumerator to the underlying hash set.
+        /// </summary>
+        /// <returns>An enumerator to the underlying hash set.</returns>
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
         {
             return this.hashSet.GetEnumerator();

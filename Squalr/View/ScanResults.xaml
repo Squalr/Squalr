@@ -74,7 +74,7 @@
                     </MenuItem.Header>
                 </MenuItem>
                 <MenuItem VerticalAlignment="Center"
-                    Command="{Binding SnapshotManagerViewModel.ClearSnapshotsCommand}"
+                    Command="{Binding SnapshotManagerViewModel.ClearSnapshotsCommand, Source={StaticResource ViewModelLocator}}"
                     ToolTip="New Scan">
                     <MenuItem.Header>
                         <Image
@@ -239,7 +239,7 @@
                 </Menu>
                 <WrapPanel Grid.Column="1" HorizontalAlignment="Center">
                     <TextBlock Foreground="{StaticResource SqualrColorWhite}" Text="Page: " />
-                    <TextBlock Foreground="{StaticResource SqualrColorWhite}" Text="{Binding CurrentPage}" />
+                    <TextBox HorizontalContentAlignment="Center" Background="{StaticResource SqualrColorPanel}" MinWidth="48" Foreground="{StaticResource SqualrColorWhite}" Text="{Binding CurrentPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Foreground="{StaticResource SqualrColorWhite}" Text=" of " />
                     <TextBlock Foreground="{StaticResource SqualrColorWhite}" Text="{Binding PageCount}" />
                 </WrapPanel>

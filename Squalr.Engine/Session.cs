@@ -9,11 +9,18 @@
     /// </summary>
     public class Session : ProcessSession
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Session" /> class.
+        /// </summary>
+        /// <param name="processToOpen">The process to open for this session.</param>
         public Session(Process processToOpen) : base(processToOpen)
         {
             this.SnapshotManager = new SnapshotManager();
         }
 
+        /// <summary>
+        /// Gets a snapshot manager for managing scan history.
+        /// </summary>
         public SnapshotManager SnapshotManager { get; private set; }
     }
     //// End class

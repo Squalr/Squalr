@@ -27,6 +27,9 @@
             this.ToggleVisibility = new RelayCommand(() => this.ToggleVisibilityExecute(), () => true);
         }
 
+        /// <summary>
+        /// Gets the name of this tool panel.
+        /// </summary>
         public string Name { get; private set; }
 
         /// <summary>

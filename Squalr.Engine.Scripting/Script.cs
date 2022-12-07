@@ -13,11 +13,6 @@
     public abstract class Script
     {
         /// <summary>
-        /// Gets or sets a cancelation request for the update loop.
-        /// </summary>
-        private CancellationTokenSource CancelRequest { get; set; }
-
-        /// <summary>
         /// Time to wait for the update loop to finish on deactivation.
         /// </summary>
         private const Int32 AbortTime = 500;
@@ -28,28 +23,41 @@
         private const Int32 UpdateTime = 1000 / 15;
 
         /// <summary>
-        /// Gets or sets the task for the update loops.
+        /// Initializes a new instance of the <see cref="Script" /> class.
         /// </summary>
-        private Task Task { get; set; }
-
         protected Script()
         {
         }
 
-        public static Script FromAssembly(Assembly assembly)
-        {
-            dynamic script = assembly?.CreateInstance("Squalr.Engine.Scripting.Script");
-
-            return script;
-        }
-
+        /// <summary>
+        /// Gets or sets the text of this script.
+        /// </summary>
         public String Text { get; set; }
 
+        /// <summary>
+        /// Gets or sets the name of this script.
+        /// </summary>
         public String Name { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether this script is active.
+        /// </summary>
         public Boolean IsActivated { get; set; }
 
+        /// <summary>
+        /// Gets the compiled script assembly.
+        /// </summary>
         public String CompiledAssembly { get; private set; }
+
+        /// <summary>
+        /// Gets or sets the task for the update loops.
+        /// </summary>
+        private Task Task { get; set; }
+
+        /// <summary>
+        /// Gets or sets a cancelation request for the update loop.
+        /// </summary>
+        private CancellationTokenSource CancelRequest { get; set; }
 
         /// <summary>
         /// Gets or sets the compiled assembly object of a script.
@@ -57,10 +65,21 @@
         private dynamic ScriptObject { get; set; }
 
         /// <summary>
+        /// Creates a script object from the given assembly.
+        /// </summary>
+        /// <param name="assembly">The assembly from which to create the script.</param>
+        /// <returns>The script created from the assembly.</returns>
+        public static Script FromAssembly(Assembly assembly)
+        {
+            dynamic script = assembly?.CreateInstance("Squalr.Engine.Scripting.Script");
+
+            return script;
+        }
+
+        /// <summary>
         /// Runs the activation function in the script.
         /// </summary>
-        /// <param name="assembly">The script to run.</param>
-        /// <returns>Returns true if the function successfully ran, otherwise false.</returns>
+        /// <returns>Returns true if the activation function successfully ran, otherwise false.</returns>
         public Boolean RunActivationFunction()
         {
             try
@@ -90,7 +109,6 @@
         /// <summary>
         /// Continously runs the update function in the script.
         /// </summary>
-        /// <param name="script">The script to run.</param>
         public void RunUpdateFunction()
         {
             this.CancelRequest = new CancellationTokenSource();
@@ -148,7 +166,6 @@
         /// <summary>
         /// Runs the deactivation function in the script.
         /// </summary>
-        /// <param name="scriptItem">The script to run.</param>
         public void RunDeactivationFunction()
         {
             // Abort the update loop

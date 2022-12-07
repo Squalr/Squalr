@@ -54,8 +54,7 @@
             TrackableTask<Snapshot> valueCollectTask = ValueCollector.CollectValues(
                 SessionManager.Session?.OpenedProcess,
                 SessionManager.Session.SnapshotManager.GetActiveSnapshotCreateIfNone(SessionManager.Session.OpenedProcess, SessionManager.Session.DetectedEmulator),
-                TrackableTask.UniversalIdentifier
-            );
+                TrackableTask.UniversalIdentifier);
 
             TaskTrackerViewModel.GetInstance().TrackTask(valueCollectTask);
             SessionManager.Session.SnapshotManager.SaveSnapshot(valueCollectTask.Result);

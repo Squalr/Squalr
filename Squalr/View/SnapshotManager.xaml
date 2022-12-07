@@ -83,7 +83,7 @@
                                 <TextBlock
                                     Grid.Column="0"
                                     Foreground="{StaticResource SqualrColorGray40}"
-                                    Text="{Binding Path=ScanMethod}" />
+                                    Text="{Binding Path=SnapshotName}" />
                                 <TextBlock
                                     Grid.Column="1"
                                     Foreground="{StaticResource SqualrColorGray40}"

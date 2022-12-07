@@ -40,7 +40,7 @@
         <intr:EventTrigger EventName="Loaded">
             <intr:InvokeCommandAction Command="{Binding LoadLayoutCommand}" CommandParameter="{Binding ., ElementName=dockManager}" />
         </intr:EventTrigger>
-        <intr:EventTrigger EventName="Unloaded">
+        <intr:EventTrigger EventName="Closing">
             <intr:InvokeCommandAction Command="{Binding SaveLayoutCommand}" CommandParameter="{Binding ., ElementName=dockManager}" />
         </intr:EventTrigger>
         <intr:EventTrigger EventName="ContentRendered">
@@ -844,7 +844,7 @@
                                             <shell:Image
                                                 Width="16"
                                                 Height="16"
-                                                Source="{Binding Path=ActiveConstraint.Constraint, Converter={StaticResource ConstraintToIconConverter}}" />
+                                                Source="{Binding Path=ScanConstraint.Constraint, Converter={StaticResource ConstraintToIconConverter}}" />
                                             <shell:Grid
                                                 x:Name="arrowGlyph"
                                                 Grid.Column="1"
@@ -1072,7 +1072,7 @@
                                 BorderBrush="{StaticResource SqualrColorGray35}"
                                 BorderThickness="1"
                                 DataContext="{Binding ManualScannerViewModel, Source={StaticResource ViewModelLocator}}"
-                                Visibility="{Binding IsActiveScanConstraintValued, Converter={StaticResource BooleanToHiddenConverter}}">
+                                Visibility="{Binding IsScanConstraintValued, Converter={StaticResource BooleanToHiddenConverter}}">
                                 <Controls:HexDecBox
                                     x:Name="ValueHexDecBox"
                                     Width="196"

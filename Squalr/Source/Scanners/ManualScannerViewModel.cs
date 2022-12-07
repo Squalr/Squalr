@@ -26,7 +26,10 @@
                 () => { return new ManualScannerViewModel(); },
                 LazyThreadSafetyMode.ExecutionAndPublication);
 
-        private ScanConstraint activeConstraint;
+        /// <summary>
+        /// The current scan constraint.
+        /// </summary>
+        private ScanConstraint scanConstraint;
 
         /// <summary>
         /// Prevents a default instance of the <see cref="ManualScannerViewModel" /> class from being created.
@@ -51,7 +54,7 @@
             this.SelectNotEqualCommand = new RelayCommand(() => this.ChangeScanConstraintSelection(ScanConstraint.ConstraintType.NotEqual), () => true);
             this.SelectUnchangedCommand = new RelayCommand(() => this.ChangeScanConstraintSelection(ScanConstraint.ConstraintType.Unchanged), () => true);
 
-            this.ActiveConstraint = new ScanConstraint(ScanConstraint.ConstraintType.Equal, ScannableType.Int32);
+            this.ScanConstraint = new ScanConstraint(ScanConstraint.ConstraintType.Equal, ScannableType.Int32);
 
             // Not registering this as a dockable window, since it is just part of the top bar now
             // DockingViewModel.GetInstance().RegisterViewModel(this);
@@ -133,30 +136,30 @@
         public ICommand SelectUnchangedCommand { get; private set; }
 
         /// <summary>
-        /// Gets the current set of scan constraints added to the manager.
+        /// Gets or sets the current scan constraint.
         /// </summary>
-        public ScanConstraint ActiveConstraint
+        public ScanConstraint ScanConstraint
         {
             get
             {
-                return this.activeConstraint;
+                return this.scanConstraint;
             }
 
             set
             {
-                this.activeConstraint = value;
+                this.scanConstraint = value;
                 this.UpdateAllProperties();
             }
         }
 
         /// <summary>
-        /// Gets a value indicating if the current scan constraint requires a value.
+        /// Gets a value indicating whether the current scan constraint requires a value.
         /// </summary>
-        public Boolean IsActiveScanConstraintValued
+        public Boolean IsScanConstraintValued
         {
             get
             {
-                return this.ActiveConstraint?.IsValuedConstraint() ?? true;
+                return this.ScanConstraint?.IsValuedConstraint() ?? true;
             }
         }
 
@@ -176,7 +179,7 @@
         {
             // Create a constraint manager that includes the current active constraint
             ScannableType dataType = ScanResultsViewModel.GetInstance().ActiveType;
-            ScanConstraints scanConstraints = new ScanConstraints(dataType, this.ActiveConstraint?.Clone(), ScanSettings.Alignment);
+            ScanConstraints scanConstraints = new ScanConstraints(dataType, this.ScanConstraint?.Clone(), ScanSettings.Alignment);
 
             if (!scanConstraints.IsValid())
             {
@@ -190,13 +193,12 @@
                 TrackableTask<Snapshot> valueCollectorTask = ValueCollector.CollectValues(
                     SessionManager.Session.OpenedProcess,
                     SessionManager.Session.SnapshotManager.GetActiveSnapshotCreateIfNone(SessionManager.Session.OpenedProcess, SessionManager.Session.DetectedEmulator),
-                    TrackableTask.UniversalIdentifier
-                );
+                    TrackableTask.UniversalIdentifier);
 
                 TaskTrackerViewModel.GetInstance().TrackTask(valueCollectorTask);
 
                 // Perform manual scan on value collection complete
-                valueCollectorTask.OnCompletedEvent += ((completedValueCollectionTask) =>
+                valueCollectorTask.OnCompletedEvent += (completedValueCollectionTask) =>
                 {
                     Snapshot snapshot = valueCollectorTask.Result;
                     TrackableTask<Snapshot> scanTask = ManualScanner.Scan(
@@ -206,7 +208,7 @@
 
                     TaskTrackerViewModel.GetInstance().TrackTask(scanTask);
                     SessionManager.Session.SnapshotManager.SaveSnapshot(scanTask.Result);
-                });
+                };
             }
             catch (TaskConflictException)
             {
@@ -219,17 +221,17 @@
         /// <param name="newValue">The new value of the scan constraint.</param>
         private void UpdateActiveValue(Object newValue)
         {
-            this.ActiveConstraint.ConstraintValue = newValue;
+            this.ScanConstraint.ConstraintValue = newValue;
             this.UpdateAllProperties();
         }
 
         /// <summary>
-        /// Updates the value of the current scan constraint.
+        /// Updates the args of the current scan constraint.
         /// </summary>
-        /// <param name="newValue">The new value of the scan constraint.</param>
+        /// <param name="newArgs">The new args of the scan constraint.</param>
         private void UpdateActiveArgs(Object newArgs)
         {
-            this.ActiveConstraint.ConstraintArgs = newArgs;
+            this.ScanConstraint.ConstraintArgs = newArgs;
             this.UpdateAllProperties();
         }
 
@@ -239,7 +241,7 @@
         /// <param name="constraint">The new scan constraint.</param>
         private void ChangeScanConstraintSelection(ScanConstraint.ConstraintType constraint)
         {
-            this.ActiveConstraint.Constraint = constraint;
+            this.ScanConstraint.Constraint = constraint;
             this.UpdateAllProperties();
         }
 
@@ -248,8 +250,8 @@
         /// </summary>
         private void UpdateAllProperties()
         {
-            this.RaisePropertyChanged(nameof(this.ActiveConstraint));
-            this.RaisePropertyChanged(nameof(this.IsActiveScanConstraintValued));
+            this.RaisePropertyChanged(nameof(this.ScanConstraint));
+            this.RaisePropertyChanged(nameof(this.IsScanConstraintValued));
         }
     }
     //// End class

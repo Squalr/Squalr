@@ -29,6 +29,8 @@
         /// </summary>
         private HashSet<ToolViewModel> tools = new HashSet<ToolViewModel>();
 
+        private Tuple<string, Theme> selectedTheme = new Tuple<string, Theme>(nameof(Vs2013DarkTheme), new Vs2013DarkTheme());
+
         /// <summary>
         /// Prevents a default instance of the <see cref="DockingViewModel" /> class from being created.
         /// </summary>
@@ -36,11 +38,13 @@
         {
         }
 
-        private Tuple<string, Theme> selectedTheme = new Tuple<string, Theme>(nameof(Vs2013DarkTheme), new Vs2013DarkTheme());
-
         public Tuple<string, Theme> SelectedTheme
         {
-            get { return selectedTheme; }
+            get
+            {
+                return selectedTheme;
+            }
+
             set
             {
                 selectedTheme = value;
@@ -86,14 +90,14 @@
         /// Loads and deserializes the saved layout from disk. If no layout found, the default is loaded from resources.
         /// </summary>
         /// <param name="dockManager">The docking root to which content is loaded.</param>
-        /// <param name="fileName">Resource to load the layout from. This is optional.</param>
-        /// <param name="fileName">Resource to load the layout from. This is optional.</param>
-        public void LoadLayoutFromFile(DockingManager dockManager, String fileName, String fallbackResource = null)
+        /// <param name="layoutFilePath">The resource to load the layout from.</param>
+        /// <param name="fallbackResource">The fallback resource to load the layout from, if the first resource does not exist or contains errors.</param>
+        public void LoadLayoutFromFile(DockingManager dockManager, String layoutFilePath, String fallbackResource = null)
         {
             try
             {
                 XmlLayoutSerializer serializer = new XmlLayoutSerializer(dockManager);
-                serializer.Deserialize(fileName);
+                serializer.Deserialize(layoutFilePath);
             }
             catch
             {
@@ -139,14 +143,15 @@
         /// Saves and deserializes the saved layout from disk.
         /// </summary>
         /// <param name="dockManager">The docking root to save.</param>
-        public void SaveLayout(DockingManager dockManager, String fileName = null)
+        /// <param name="filePath">The file path of the layout file.</param>
+        public void SaveLayout(DockingManager dockManager, String filePath = null)
         {
             try
             {
                 XmlLayoutSerializer serializer = new XmlLayoutSerializer(dockManager);
-                serializer.Serialize(fileName);
+                serializer.Serialize(filePath);
             }
-            catch
+            catch (Exception)
             {
             }
         }

@@ -128,7 +128,7 @@
 
             try
             {
-                bool isAddressWritable = windowsMemoryQuery.IsAddressWritable(process, address);
+                bool isAddressWritable = this.windowsMemoryQuery.IsAddressWritable(process, address);
 
                 // Make address writable if it is not so already
                 if (!isAddressWritable)

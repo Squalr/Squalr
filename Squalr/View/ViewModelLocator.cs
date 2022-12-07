@@ -4,7 +4,6 @@
     using Source.Main;
     using Source.ScanResults;
     using Source.Snapshots;
-    using Squalr.Properties;
     using Squalr.Source.ChangeLog;
     using Squalr.Source.Controls;
     using Squalr.Source.Debugger;
@@ -22,6 +21,7 @@
     using Squalr.Source.ProjectExplorer.Dialogs;
     using Squalr.Source.PropertyViewer;
     using Squalr.Source.Scanning;
+    using Squalr.Source.Settings;
     using Squalr.Source.Tasks;
 
     /// <summary>

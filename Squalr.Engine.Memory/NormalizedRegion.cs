@@ -20,12 +20,18 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="NormalizedRegion" /> class.
         /// </summary>
+        public NormalizedRegion()
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="NormalizedRegion" /> class.
+        /// </summary>
         /// <param name="baseAddress">The base address of the region.</param>
         /// <param name="regionSize">The size of the region.</param>
         public NormalizedRegion(UInt64 baseAddress, Int32 regionSize)
         {
-            this.BaseAddress = baseAddress;
-            this.RegionSize = regionSize;
+            this.GenericConstructor(baseAddress, regionSize);
         }
 
         /// <summary>
@@ -56,36 +62,12 @@
         {
             get
             {
-                return this.BaseAddress.Add(this.RegionSize);
+                return unchecked(this.BaseAddress + (UInt64)this.RegionSize);
             }
 
             set
             {
                 this.RegionSize = value.Subtract(this.BaseAddress, wrapAround: false).ToInt32();
-            }
-        }
-
-        /// <summary>
-        /// Updates the base address of this region to match the provided alignment.
-        /// </summary>
-        /// <param name="alignment">The base address alignment.</param>
-        public void Align(MemoryAlignment alignment)
-        {
-            // The enum values are the same as the integer values
-            Int32 alignmentValue = unchecked((Int32)alignment);
-
-            if (alignmentValue <= 0 || this.BaseAddress.Mod(alignmentValue) == 0)
-            {
-                return;
-            }
-
-            // Enforce alignment constraint on base address
-            unchecked
-            {
-                UInt64 endAddress = this.EndAddress;
-                this.BaseAddress = this.BaseAddress.Subtract(this.BaseAddress.Mod(alignmentValue), wrapAround: false);
-                this.BaseAddress = this.BaseAddress.Add(alignmentValue);
-                this.EndAddress = endAddress;
             }
         }
 
@@ -131,6 +113,41 @@
         public static Boolean operator <=(NormalizedRegion first, NormalizedRegion second)
         {
             return first.BaseAddress <= second.BaseAddress;
+        }
+
+        /// <summary>
+        /// Explicitly the range of this region.
+        /// </summary>
+        /// <param name="baseAddress">The base address of the region.</param>
+        /// <param name="regionSize">The size of the region.</param>
+        public virtual void GenericConstructor(UInt64 baseAddress, Int32 regionSize)
+        {
+            this.BaseAddress = baseAddress;
+            this.RegionSize = regionSize;
+        }
+
+        /// <summary>
+        /// Updates the base address of this region to match the provided alignment.
+        /// </summary>
+        /// <param name="alignment">The base address alignment.</param>
+        public void Align(MemoryAlignment alignment)
+        {
+            // The enum values are the same as the integer values
+            Int32 alignmentValue = unchecked((Int32)alignment);
+
+            if (alignmentValue <= 0 || this.BaseAddress.Mod(alignmentValue) == 0)
+            {
+                return;
+            }
+
+            // Enforce alignment constraint on base address
+            unchecked
+            {
+                UInt64 endAddress = this.EndAddress;
+                this.BaseAddress = this.BaseAddress.Subtract(this.BaseAddress.Mod(alignmentValue), wrapAround: false);
+                this.BaseAddress = this.BaseAddress.Add(alignmentValue);
+                this.EndAddress = endAddress;
+            }
         }
 
         /// <summary>
@@ -188,45 +205,6 @@
 
                 yield return new NormalizedRegion(this.BaseAddress.Add(chunkSize * index), size);
             }
-        }
-
-        public static IEnumerable<NormalizedRegion> MergeAndSortRegions(IEnumerable<NormalizedRegion> regions)
-        {
-            if (regions == null || regions.Count() <= 0)
-            {
-                return null;
-            }
-
-            // First, sort by start address
-            IList<NormalizedRegion> sortedRegions = regions.OrderBy(x => x.BaseAddress).ToList();
-
-            // Create and initialize the stack with the first region
-            Stack<NormalizedRegion> combinedRegions = new Stack<NormalizedRegion>();
-            combinedRegions.Push(sortedRegions[0]);
-
-            // Build the remaining regions
-            for (Int32 index = combinedRegions.Count; index < sortedRegions.Count; index++)
-            {
-                NormalizedRegion top = combinedRegions.Peek();
-
-                if (top.EndAddress < sortedRegions[index].BaseAddress)
-                {
-                    // If the interval does not overlap, put it on the top of the stack
-                    combinedRegions.Push(sortedRegions[index]);
-                }
-                else if (top.EndAddress == sortedRegions[index].BaseAddress)
-                {
-                    // The regions are adjacent; merge them
-                    top.RegionSize = sortedRegions[index].EndAddress.Subtract(top.BaseAddress).ToInt32();
-                }
-                else if (top.EndAddress <= sortedRegions[index].EndAddress)
-                {
-                    // The regions overlap
-                    top.RegionSize = sortedRegions[index].EndAddress.Subtract(top.BaseAddress).ToInt32();
-                }
-            }
-
-            return combinedRegions.ToList().OrderBy(x => x.BaseAddress).ToList();
         }
     }
     //// End interface

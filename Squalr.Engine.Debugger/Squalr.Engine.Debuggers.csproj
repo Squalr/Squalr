@@ -32,6 +32,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="StyleCop.MSBuild" Version="6.2.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Squalr.Engine.Architecture\Squalr.Engine.Architecture.csproj" />
     <ProjectReference Include="..\Squalr.Engine.Memory\Squalr.Engine.Memory.csproj" />
     <ProjectReference Include="..\Squalr.Engine\Squalr.Engine.csproj" />

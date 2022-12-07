@@ -19,7 +19,11 @@
 
   <ItemGroup>
     <PackageReference Include="CS-Script.Core" Version="2.0.0" />
-    <PackageReference Include="System.CodeDom" Version="5.0.0" />
+    <PackageReference Include="StyleCop.MSBuild" Version="6.2.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="System.CodeDom" Version="7.0.0" />
   </ItemGroup>
 
   <ItemGroup>

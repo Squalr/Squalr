@@ -21,6 +21,11 @@
         }
 
         /// <summary>
+        /// An event that is raised when a property of this object changes.
+        /// </summary>
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        /// <summary>
         /// Gets or sets the primitive value.
         /// </summary>
         public T Value
@@ -36,8 +41,6 @@
                 this.RaisePropertyChanged(nameof(this.Value));
             }
         }
-
-        public event PropertyChangedEventHandler PropertyChanged;
 
         /// <summary>
         /// Indicates that a given property in this project item has changed.

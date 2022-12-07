@@ -69,10 +69,10 @@
         /// </summary>
         private void InitializeCompleteionWindow()
         {
-          //  this.CompletionData = new List<ICompletionData>();
-           // this.CompletionData.Add(new AutoCompleteData("Memory"));
-          //  this.CompletionData.Add(new AutoCompleteData("Engine"));
-          //  this.CompletionData.Add(new AutoCompleteData("Graphics"));
+            // this.CompletionData = new List<ICompletionData>();
+            // this.CompletionData.Add(new AutoCompleteData("Memory"));
+            // this.CompletionData.Add(new AutoCompleteData("Engine"));
+            // this.CompletionData.Add(new AutoCompleteData("Graphics"));
         }
 
         /// <summary>

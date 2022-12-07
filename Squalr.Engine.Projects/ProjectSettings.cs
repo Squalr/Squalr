@@ -5,8 +5,14 @@
     using System;
     using System.IO;
 
+    /// <summary>
+    /// A class for interfacing with saved project settings.
+    /// </summary>
     public static class ProjectSettings
     {
+        /// <summary>
+        /// Gets or sets the project root from which all projects are saved and read.
+        /// </summary>
         public static String ProjectRoot
         {
             get

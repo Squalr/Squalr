@@ -8,14 +8,37 @@
     /// </summary>
     internal static class NativeMethods
     {
+        /// <summary>
+        /// A callback function to be used in the EnumWindows() Windows API call.
+        /// </summary>
+        /// <param name="hwnd">A handle to the window.</param>
+        /// <param name="lParam">An application-defined value to be passed to the callback function.</param>
+        /// <returns>A value indicating whether enumeration should continue.</returns>
         public delegate Boolean EnumWindowsProc(IntPtr hwnd, Int32 lParam);
 
+        /// <summary>
+        /// Enumerates all top-level windows on the screen by passing the handle to each window, in turn, to an application-defined callback function.
+        /// </summary>
+        /// <param name="enumFunc">A pointer to an application-defined callback function.</param>
+        /// <param name="lParam">An application-defined value to be passed to the callback function.</param>
+        /// <returns>A value indicating whether the enumeration was successful. For more info, call GetLastError().</returns>
         [DllImport("user32")]
-        public static extern Boolean EnumWindows(EnumWindowsProc x, Int32 y);
+        public static extern Boolean EnumWindows(EnumWindowsProc enumFunc, Int32 lParam);
 
+        /// <summary>
+        /// Retrieves the identifier of the thread that created the specified window and, optionally, the identifier of the process that created the window.
+        /// </summary>
+        /// <param name="handle">A handle to the window.</param>
+        /// <param name="processId">A reference to a variable that receives the process identifier.</param>
+        /// <returns>The return value is the identifier of the thread that created the window.</returns>
         [DllImport("user32")]
         public static extern Int32 GetWindowThreadProcessId(IntPtr handle, out Int32 processId);
 
+        /// <summary>
+        /// Determines the visibility state of the specified window.
+        /// </summary>
+        /// <param name="hWnd">A handle to the window to be tested.</param>
+        /// <returns>Return true if the specified window or any of its parents are visibile.</returns>
         [DllImport("user32")]
         public static extern Boolean IsWindowVisible(IntPtr hWnd);
 

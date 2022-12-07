@@ -13,19 +13,19 @@
     public class HotkeyEditorViewModel : ToolViewModel
     {
         /// <summary>
+        /// Singleton instance of the <see cref="HotkeyEditorViewModel" /> class.
+        /// </summary>
+        private static readonly Lazy<HotkeyEditorViewModel> HotkeyEditorViewModelInstance = new Lazy<HotkeyEditorViewModel>(
+                () => { return new HotkeyEditorViewModel(); },
+                LazyThreadSafetyMode.ExecutionAndPublication);
+
+        /// <summary>
         /// The keyboard hotkey being constructed.
         /// </summary>
         private KeyboardHotkeyBuilder keyboardHotKeyBuilder;
 
         /// <summary>
-        /// Singleton instance of the <see cref="HotkeyEditorViewModel" /> class.
-        /// </summary>
-        private static Lazy<HotkeyEditorViewModel> hotkeyEditorViewModelInstance = new Lazy<HotkeyEditorViewModel>(
-                () => { return new HotkeyEditorViewModel(); },
-                LazyThreadSafetyMode.ExecutionAndPublication);
-
-        /// <summary>
-        /// Prevents a default instance of the <see cref="HotkeyEditorViewModel" /> class.
+        /// Prevents a default instance of the <see cref="HotkeyEditorViewModel" /> class from being created.
         /// </summary>
         private HotkeyEditorViewModel() : base("Hotkey Editor")
         {
@@ -41,7 +41,7 @@
         public ICommand ClearHotkeysCommand { get; private set; }
 
         /// <summary>
-        /// Gets or sets the active hotkey being edited.
+        /// Gets the active hotkey being edited.
         /// </summary>
         public HotkeyBuilder ActiveHotkey
         {
@@ -62,7 +62,7 @@
         /// <returns>A singleton instance of the class.</returns>
         public static HotkeyEditorViewModel GetInstance()
         {
-            return HotkeyEditorViewModel.hotkeyEditorViewModelInstance.Value;
+            return HotkeyEditorViewModel.HotkeyEditorViewModelInstance.Value;
         }
 
         public void SetActiveHotkey(Hotkey hotkey)

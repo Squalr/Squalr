@@ -20,6 +20,9 @@
         /// </summary>
         private String mnemonic;
 
+        /// <summary>
+        /// Bytes that preceede this instruction. Used to help in finding this instruction later via an array of bytes scans if needed.
+        /// </summary>
         private Byte[] precedingBytes;
 
         /// <summary>
@@ -27,6 +30,9 @@
         /// </summary>
         private Byte[] bytes;
 
+        /// <summary>
+        /// Bytes that follow this instruction. Used to help in finding this instruction later via an array of bytes scans if needed.
+        /// </summary>
         private Byte[] followingBytes;
 
         /// <summary>
@@ -50,7 +56,12 @@
         }
 
         /// <summary>
-        /// The instruction address.
+        /// An event that is raised when a property of this object changes.
+        /// </summary>
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        /// <summary>
+        /// Gets or sets the instruction address.
         /// </summary>
         [DataMember]
         public UInt64 Address
@@ -68,7 +79,7 @@
         }
 
         /// <summary>
-        /// Gets the string representation of the instruction.
+        /// Gets or sets the string representation of the instruction.
         /// </summary>
         [DataMember]
         public String Mnemonic
@@ -104,7 +115,7 @@
         }
 
         /// <summary>
-        /// Gets the instruction bytes.
+        /// Gets or sets the instruction bytes.
         /// </summary>
         [DataMember]
         public Byte[] Bytes
@@ -145,7 +156,7 @@
         }
 
         /// <summary>
-        /// Gets the size of this instruction.
+        /// Gets or sets the size of this instruction.
         /// </summary>
         [DataMember]
         public Int32 Size
@@ -161,11 +172,6 @@
                 this.RaisePropertyChanged(nameof(this.Size));
             }
         }
-
-        /// <summary>
-        /// Occurs after a property value changes.
-        /// </summary>
-        public event PropertyChangedEventHandler PropertyChanged;
 
         /// <summary>
         /// Indicates that a given property in this project item has changed.

@@ -85,12 +85,12 @@
         }
 
         /// <summary>
-        /// Gets or sets the command to extract a pointer.
+        /// Gets the command to extract a pointer.
         /// </summary>
         public ICommand ExtractPointerCommand { get; private set; }
 
         /// <summary>
-        /// Gets or sets the command to select scan results.
+        /// Gets the command to select scan results.
         /// </summary>
         public ICommand SelectScanResultsCommand { get; private set; }
 
@@ -228,11 +228,11 @@
 
         private void ExtractPointer(Int32 levelIndex)
         {
-            Pointer pointer = this.DiscoveredPointers.GetRandomPointer(levelIndex);
+            Pointer pointer = this.DiscoveredPointers.GetRandomPointer(SessionManager.Session.OpenedProcess, levelIndex);
 
             if (pointer != null)
             {
-                PointerItem pointerItem = new PointerItem(SessionManager.Session, pointer.BaseAddress, this.ActiveType, "New Pointer", null, pointer.Offsets);
+                PointerItem pointerItem = new PointerItem(SessionManager.Session, pointer.ModuleOffset, this.ActiveType, "New Pointer", pointer.ModuleName, pointer.Offsets);
                 ProjectExplorerViewModel.GetInstance().AddProjectItems(pointerItem);
             }
         }

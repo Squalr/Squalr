@@ -7,7 +7,7 @@
     /// <summary>
     /// Class to define a constraint for certain types of scans.
     /// </summary>
-    public class ScanConstraint : Constraint, INotifyPropertyChanged
+    public class ScanConstraint : IScanConstraint, INotifyPropertyChanged
     {
         /// <summary>
         /// The constraint type.
@@ -46,7 +46,7 @@
         }
 
         /// <summary>
-        /// Occurs after a property value changes.
+        /// An event that is raised when a property of this object changes.
         /// </summary>
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -157,7 +157,7 @@
             }
         }
 
-        public override void SetElementType(ScannableType elementType)
+        public void SetElementType(ScannableType elementType)
         {
             if (this.ConstraintValue == null)
             {
@@ -206,7 +206,7 @@
             }
         }
 
-        public override Boolean IsValid()
+        public Boolean IsValid()
         {
             if (!this.IsValuedConstraint())
             {
@@ -220,7 +220,7 @@
         /// Clones this scan constraint.
         /// </summary>
         /// <returns>The cloned scan constraint.</returns>
-        public override Constraint Clone()
+        public IScanConstraint Clone()
         {
             return new ScanConstraint(this.Constraint, this.ConstraintValue, this.ConstraintArgs);
         }

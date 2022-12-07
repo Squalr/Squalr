@@ -138,31 +138,52 @@
                     Grid.Row="1"
                     Grid.Column="0"
                     Margin="2">
-                    <GroupBox
-                        Padding="4"
-                        BorderBrush="{StaticResource SqualrColorGray74}"
-                        BorderThickness="2"
-                        Foreground="{StaticResource SqualrColorWhite}"
-                        Header="Memory Type">
-                        <StackPanel>
-                            <WrapPanel>
-                                <CheckBox Padding="0,0,4,0" IsChecked="{Binding MemoryTypeNone, Mode=TwoWay}" />
-                                <TextBlock VerticalAlignment="Center" Text="None" />
-                            </WrapPanel>
-                            <WrapPanel>
-                                <CheckBox Padding="0,0,4,0" IsChecked="{Binding MemoryTypePrivate, Mode=TwoWay}" />
-                                <TextBlock VerticalAlignment="Center" Text="Image" />
-                            </WrapPanel>
-                            <WrapPanel>
-                                <CheckBox Padding="0,0,4,0" IsChecked="{Binding MemoryTypeMapped, Mode=TwoWay}" />
-                                <TextBlock VerticalAlignment="Center" Text="Private" />
-                            </WrapPanel>
-                            <WrapPanel>
-                                <CheckBox Padding="0,0,4,0" IsChecked="{Binding MemoryTypeImage, Mode=TwoWay}" />
-                                <TextBlock VerticalAlignment="Center" Text="Mapped" />
-                            </WrapPanel>
-                        </StackPanel>
-                    </GroupBox>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition />
+                        </Grid.RowDefinitions>
+                        <GroupBox
+                            Grid.Row="0"
+                            Padding="4"
+                            BorderBrush="{StaticResource SqualrColorGray74}"
+                            BorderThickness="2"
+                            Foreground="{StaticResource SqualrColorWhite}"
+                            Header="Memory Type">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <CheckBox Padding="0,0,4,0" IsChecked="{Binding MemoryTypeNone, Mode=TwoWay}" />
+                                    <TextBlock VerticalAlignment="Center" Text="None" />
+                                </WrapPanel>
+                                <WrapPanel>
+                                    <CheckBox Padding="0,0,4,0" IsChecked="{Binding MemoryTypePrivate, Mode=TwoWay}" />
+                                    <TextBlock VerticalAlignment="Center" Text="Image" />
+                                </WrapPanel>
+                                <WrapPanel>
+                                    <CheckBox Padding="0,0,4,0" IsChecked="{Binding MemoryTypeMapped, Mode=TwoWay}" />
+                                    <TextBlock VerticalAlignment="Center" Text="Private" />
+                                </WrapPanel>
+                                <WrapPanel>
+                                    <CheckBox Padding="0,0,4,0" IsChecked="{Binding MemoryTypeImage, Mode=TwoWay}" />
+                                    <TextBlock VerticalAlignment="Center" Text="Mapped" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox
+                            Grid.Row="1"
+                            Padding="4"
+                            BorderBrush="{StaticResource SqualrColorGray74}"
+                            BorderThickness="2"
+                            Foreground="{StaticResource SqualrColorWhite}"
+                            Header="Advanced">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <CheckBox Padding="0,0,4,0" IsChecked="{Binding UseMultiThreadScans, Mode=TwoWay}" />
+                                    <TextBlock VerticalAlignment="Center" Text="Multi-thread Scans" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </GroupBox>
+                    </Grid>
                 </Grid>
                 <Grid
                     Grid.Row="1"
@@ -173,7 +194,7 @@
                         BorderBrush="{StaticResource SqualrColorGray74}"
                         BorderThickness="2"
                         Foreground="{StaticResource SqualrColorWhite}"
-                        Header="General">
+                        Header="Scans">
                         <StackPanel>
                             <WrapPanel>
                                 <TextBlock
@@ -198,14 +219,14 @@
                                     Foreground="{StaticResource SqualrColorWhite}"
                                     Text="1 Byte" />
                                 </WrapPanel>
-                                <WrapPanel Grid.Row="1" Grid.Column="0">
+                                <WrapPanel Grid.Row="0" Grid.Column="1" Margin="24 0 0 0">
                                     <RadioButton IsChecked="{Binding IsAlignment2, Mode=TwoWay}" />
                                     <TextBlock
                                     Padding="4,0,0,0"
                                     Foreground="{StaticResource SqualrColorWhite}"
                                     Text="2 Bytes" />
                                 </WrapPanel>
-                                <WrapPanel Grid.Row="0" Grid.Column="1" Margin="24 0 0 0">
+                                <WrapPanel Grid.Row="1" Grid.Column="0">
                                     <RadioButton IsChecked="{Binding IsAlignment4, Mode=TwoWay}" />
                                     <TextBlock
                                     Padding="4,0,0,0"
@@ -213,7 +234,7 @@
                                     Text="4 Bytes" />
                                 </WrapPanel>
                                 <WrapPanel Grid.Row="1" Grid.Column="1" Margin="24 0 0 0">
-                                    <RadioButton IsChecked="{Binding c, Mode=TwoWay}" />
+                                    <RadioButton IsChecked="{Binding IsAlignment8, Mode=TwoWay}" />
                                     <TextBlock
                                     Padding="4,0,0,0"
                                     Foreground="{StaticResource SqualrColorWhite}"
@@ -229,7 +250,7 @@
                             </Grid>
                             <WrapPanel>
                                 <TextBlock
-                                    Padding="0,0,4,0"
+                                    Padding="0,8,4,0"
                                     Foreground="{StaticResource SqualrColorWhite}"
                                     Text="Scan Range:" />
                             </WrapPanel>

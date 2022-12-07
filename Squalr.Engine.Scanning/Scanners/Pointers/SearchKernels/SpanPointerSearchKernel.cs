@@ -1,7 +1,7 @@
 ﻿namespace Squalr.Engine.Scanning.Scanners.Pointers.SearchKernels
 {
     using Squalr.Engine.Common.Extensions;
-    using Squalr.Engine.Common.OS;
+    using Squalr.Engine.Common.Hardware;
     using Squalr.Engine.Scanning.Scanners.Comparers.Vectorized;
     using Squalr.Engine.Scanning.Scanners.Pointers.Structures;
     using Squalr.Engine.Scanning.Snapshots;
@@ -38,9 +38,9 @@
 
         private UInt32[] UArray { get; set; }
 
-        private Comparer<UInt32> Comparer;
+        private Comparer<UInt32> Comparer { get; set; }
 
-        public Func<Vector<Byte>> GetSearchKernel(SnapshotRegionVectorScanner snapshotRegionScanner)
+        public Func<Vector<Byte>> GetSearchKernel(SnapshotRegionVectorScannerBase snapshotRegionScanner)
         {
             return new Func<Vector<Byte>>(() =>
             {

@@ -2,6 +2,7 @@
 {
     using System;
     using System.Linq.Expressions;
+    using System.Runtime.CompilerServices;
 
     /// <summary>
     /// Contains extension methods for integers.
@@ -13,6 +14,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="Int32"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Int32 ToInt32(this Int64 integer)
         {
             return unchecked((Int32)integer);
@@ -23,6 +25,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="Int32"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Int32 ToInt32(this UInt64 integer)
         {
             return unchecked((Int32)integer);
@@ -33,6 +36,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="Int32"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Int32 ToInt32(this UInt32 integer)
         {
             return unchecked((Int32)integer);
@@ -43,6 +47,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="UInt32"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UInt32 ToUInt32(this Int64 integer)
         {
             return unchecked((UInt32)integer);
@@ -53,6 +58,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="UInt32"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UInt32 ToUInt32(this UInt64 integer)
         {
             return unchecked((UInt32)integer);
@@ -63,6 +69,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="UInt32"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UInt32 ToUInt32(this Int32 integer)
         {
             return unchecked((UInt32)integer);
@@ -73,6 +80,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="UInt64"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UInt64 ToUInt64(this Int64 integer)
         {
             return unchecked((UInt64)integer);
@@ -83,6 +91,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="UInt64"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UInt64 ToUInt64(this Int32 integer)
         {
             return unchecked((UInt64)integer);
@@ -93,6 +102,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="UInt64"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UInt64 ToUInt64(this UInt32 integer)
         {
             return unchecked((UInt64)integer);
@@ -103,6 +113,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="Int64"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Int64 ToInt64(this UInt64 integer)
         {
             return unchecked((Int64)integer);
@@ -113,6 +124,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="Int64"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Int64 ToInt64(this Int32 integer)
         {
             return unchecked((Int64)integer);
@@ -123,6 +135,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="Int64"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Int64 ToInt64(this UInt32 integer)
         {
             return unchecked((Int64)integer);
@@ -133,6 +146,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="IntPtr"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static IntPtr ToIntPtr(this Int64 integer)
         {
             return unchecked((IntPtr)integer);
@@ -143,6 +157,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="IntPtr"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static IntPtr ToIntPtr(this UInt64 integer)
         {
             return unchecked((IntPtr)(Int64)integer);
@@ -153,6 +168,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="IntPtr"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static IntPtr ToIntPtr(this Int32 integer)
         {
             return unchecked((IntPtr)integer);
@@ -163,6 +179,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="IntPtr"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static IntPtr ToIntPtr(this UInt32 integer)
         {
             return unchecked((IntPtr)(Int64)integer);
@@ -173,6 +190,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="IntPtr"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UIntPtr ToUIntPtr(this Int64 integer)
         {
             return unchecked((UIntPtr)(UInt64)integer);
@@ -183,6 +201,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="IntPtr"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UIntPtr ToUIntPtr(this UInt64 integer)
         {
             return unchecked((UIntPtr)integer);
@@ -193,6 +212,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="IntPtr"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UIntPtr ToUIntPtr(this Int32 integer)
         {
             return unchecked((UIntPtr)(UInt64)integer);
@@ -203,6 +223,7 @@
         /// </summary>
         /// <param name="integer">The integer to convert.</param>
         /// <returns>The integer converted to a <see cref="IntPtr"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UIntPtr ToUIntPtr(this UInt32 integer)
         {
             return unchecked((UIntPtr)integer);
@@ -215,6 +236,7 @@
         /// <param name="right">The right side value.</param>
         /// <param name="wrapAround">Whether or not values will wrap if the operation overflows. Otherwise, cap out at Int64.MaxValue or Int64.MinValue.</param>
         /// <returns>The result of the operation.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Int64 Add(this Int64 left, dynamic right, Boolean wrapAround = true)
         {
             return IntegerExtensions.DoOperation(left.ToUInt64(), right, ExpressionType.Add, wrapAround).ToInt64();
@@ -227,6 +249,7 @@
         /// <param name="right">The right side value.</param>
         /// <param name="wrapAround">Whether or not values will wrap if the operation overflows. Otherwise, cap out at Int64.MaxValue or Int64.MinValue.</param>
         /// <returns>The result of the operation.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static UInt64 Add(this UInt64 left, dynamic right, Boolean wrapAround = true)
         {
             return IntegerExtensions.DoOperation(left, right, ExpressionType.Add, wrapAround);
@@ -325,6 +348,82 @@
         }
 
         /// <summary>
+        /// Extracts a single bit from an integer.
+        /// </summary>
+        /// <param name="value">The value from which a bit is extracted.</param>
+        /// <param name="bit">The index of the bit to extract.</param>
+        /// <returns>The extracted bit value as a boolean.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Boolean GetBit(this Int32 value, Int32 bit)
+        {
+            return (value & (1 << bit)) != 0;
+        }
+
+        /// <summary>
+        /// Extracts a single bit from an integer.
+        /// </summary>
+        /// <param name="value">The value from which a bit is extracted.</param>
+        /// <param name="bit">The index of the bit to extract.</param>
+        /// <returns>The extracted bit value as a boolean.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Boolean GetBit(this Int64 value, Int32 bit)
+        {
+            return (value & (1 << bit)) != 0;
+        }
+
+        /// <summary>
+        /// Extracts a single bit from an integer.
+        /// </summary>
+        /// <param name="value">The value from which a bit is extracted.</param>
+        /// <param name="bit">The index of the bit to extract.</param>
+        /// <returns>The extracted bit value as a boolean.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Boolean GetBit(this IntPtr value, Int32 bit)
+        {
+            return GetBit(value.ToInt64(), bit);
+        }
+
+        /// <summary>
+        /// Extracts a range of bits from an integer.
+        /// </summary>
+        /// <param name="value">The value from which a bit is extracted.</param>
+        /// <param name="bit">The bit index flags to extract.</param>
+        /// <returns>The extracted bit values as a new integer.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int32 GetBits(this Int32 value, Int32 bit, Int32 length)
+        {
+            Int32 mask = (1 << length) - 1;
+
+            return (value >> bit) & mask;
+        }
+
+        /// <summary>
+        /// Extracts a range of bits from an integer.
+        /// </summary>
+        /// <param name="value">The value from which a bit is extracted.</param>
+        /// <param name="bit">The bit index flags to extract.</param>
+        /// <returns>The extracted bit values as a new integer.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 GetBits(this Int64 value, Int32 bit, Int32 length)
+        {
+            Int64 mask = (1L << length) - 1L;
+
+            return (value >> bit) & mask;
+        }
+
+        /// <summary>
+        /// Extracts a range of bits from an integer.
+        /// </summary>
+        /// <param name="value">The value from which a bit is extracted.</param>
+        /// <param name="bit">The bit index flags to extract.</param>
+        /// <returns>The extracted bit values as a new integer.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Int64 GetBits(this IntPtr value, Int32 bit, Int32 length)
+        {
+            return GetBits(value.ToInt64(), bit, length);
+        }
+
+        /// <summary>
         /// Performs the given mathematical operation on the given left and right values.
         /// </summary>
         /// <param name="left">The left side value.</param>
@@ -332,6 +431,7 @@
         /// <param name="expression">The mathematical operation to perform.</param>
         /// <param name="wrapAround">Whether or not values will wrap if the operation overflows. Otherwise, cap out at Int64.MaxValue or Int64.MinValue.</param>
         /// <returns>The result of the operation.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static UInt32 DoOperation(UInt32 left, dynamic rightDynamic, ExpressionType expression, Boolean wrapAround = true)
         {
             UInt32 right;
@@ -387,18 +487,12 @@
         /// <param name="expression">The mathematical operation to perform.</param>
         /// <param name="wrapAround">Whether or not values will wrap if the operation overflows. Otherwise, cap out at Int64.MaxValue or Int64.MinValue.</param>
         /// <returns>The result of the operation.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static UInt64 DoOperation(UInt64 left, dynamic rightDynamic, ExpressionType expression, Boolean wrapAround = true)
         {
             UInt64 right;
 
-            if (wrapAround)
-            {
-                right = (UInt64)rightDynamic;
-            }
-            else
-            {
-                right = unchecked((UInt64)rightDynamic);
-            }
+            right = wrapAround ? (UInt64)rightDynamic : unchecked((UInt64)rightDynamic);
 
             try
             {
@@ -432,40 +526,6 @@
                         throw ex;
                 }
             }
-        }
-
-        public static Boolean GetBit(this Int32 result, Int32 bit)
-        {
-            return (result & (1 << bit)) != 0;
-        }
-
-        public static Boolean GetBit(this Int64 result, Int32 bit)
-        {
-            return (result & (1 << bit)) != 0;
-        }
-
-        public static Boolean GetBit(this IntPtr result, Int32 bit)
-        {
-            return GetBit(result.ToInt64(), bit);
-        }
-
-        public static Int32 GetBits(this int result, Int32 bit, Int32 length)
-        {
-            Int32 mask = (1 << length) - 1;
-
-            return (result >> bit) & mask;
-        }
-
-        public static Int64 GetBits(this Int64 result, Int32 bit, Int32 length)
-        {
-            Int64 mask = (1L << length) - 1L;
-
-            return (result >> bit) & mask;
-        }
-
-        public static Int64 GetBits(this IntPtr result, Int32 bit, Int32 length)
-        {
-            return GetBits(result.ToInt64(), bit, length);
         }
     }
     //// End class

@@ -22,14 +22,6 @@
     /// </summary>
     public class OutputViewModel : ToolViewModel, ILoggerObserver
     {
-
-        /// <summary>
-        /// Singleton instance of the <see cref="OutputViewModel" /> class.
-        /// </summary>
-        private static Lazy<OutputViewModel> outputViewModelInstance = new Lazy<OutputViewModel>(
-                () => { return new OutputViewModel(); },
-                LazyThreadSafetyMode.ExecutionAndPublication);
-
         /// <summary>
         /// The uri prefix for output inner message 'hyperlinks'.
         /// </summary>
@@ -44,6 +36,13 @@
         /// The minimum number of bytes to clear when going over capacity.
         /// </summary>
         private const Int32 MinimumClearSize = 4096;
+
+        /// <summary>
+        /// Singleton instance of the <see cref="OutputViewModel" /> class.
+        /// </summary>
+        private static Lazy<OutputViewModel> outputViewModelInstance = new Lazy<OutputViewModel>(
+                () => { return new OutputViewModel(); },
+                LazyThreadSafetyMode.ExecutionAndPublication);
 
         /// <summary>
         /// A value indicating whether the current inner message is visible.

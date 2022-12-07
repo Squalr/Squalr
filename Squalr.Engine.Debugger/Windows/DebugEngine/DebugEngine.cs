@@ -18,9 +18,8 @@
 
         private CancellationTokenSource accessCancellationToken;
 
-        public DebugEngine(Process targetProcess)
+        public DebugEngine()
         {
-            this.TargetProcess = targetProcess;
             this.DebugRequestCallback = null;
             this.EventCallBacks = new EventCallBacks();
             this.OutputCallBacks = new OutputCallBacks();
@@ -87,6 +86,12 @@
         private Boolean Interrupt { get; set; }
 
         private ConcurrentDictionary<CancellationTokenSource, IDebugBreakpoint2> BreakPoints { get; set; }
+
+        public void SetTargetProcess(Process process)
+        {
+            this.TargetProcess = process;
+            this.EventCallBacks.TargetProcess = process;
+        }
 
         public CancellationTokenSource FindWhatReads(UInt64 address, BreakpointSize size, MemoryAccessCallback callback)
         {

@@ -23,6 +23,7 @@
         /// Removes the provided subjects from the given string. Will remove the first match only.
         /// </summary>
         /// <param name="str">The provided string.</param>
+        /// <param name="ignoreCase">A value indicating whether to ignore case when removing suffixes.</param>
         /// <param name="suffixes">The suffixes to search for and remove.</param>
         /// <returns>The string with the trimmed suffix, if any were found.</returns>
         public static String RemoveSuffixes(this String str, Boolean ignoreCase, params String[] suffixes)

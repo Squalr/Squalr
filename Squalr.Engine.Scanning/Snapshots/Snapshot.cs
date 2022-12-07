@@ -1,6 +1,7 @@
 ﻿namespace Squalr.Engine.Scanning.Snapshots
 {
     using Squalr.Engine.Common;
+    using Squalr.Engine.Common.DataStructures;
     using Squalr.Engine.Common.Extensions;
     using System;
     using System.Collections.Generic;
@@ -13,17 +14,17 @@
     public class Snapshot : INotifyPropertyChanged
     {
         /// <summary>
-        /// The read groups of this snapshot.
+        /// The snapshot regions of this snapshot.
         /// </summary>
-        private IEnumerable<ReadGroup> readGroups;
+        private IEnumerable<SnapshotRegion> snapshotRegions;
 
         /// <summary>
-        /// The snapshot memory address alignment.
+        /// Initializes a new instance of the <see cref="Snapshot" /> class.
         /// </summary>
-        private MemoryAlignment alignment = MemoryAlignment.Alignment1;
-
-        // TODO: Not needed for current use cases, but it would be good to invoke this when proprties change.
-        public event PropertyChangedEventHandler PropertyChanged;
+        /// <param name="snapshotRegion">A single snapshot region with which to initialize this snapshot.</param>
+        public Snapshot(SnapshotRegion snapshotRegion) : this(new SnapshotRegion[1] { snapshotRegion })
+        {
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Snapshot" /> class.
@@ -45,26 +46,31 @@
         }
 
         /// <summary>
-        /// Gets the name associated with the method by which this snapshot was generated.
+        /// An event that is raised when a property of this object changes.
         /// </summary>
-        public String SnapshotName { get; private set; }
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        /// <summary>
+        /// Gets or sets the name associated with this snapshot. Usually this is the method by which this snapshot was generated.
+        /// </summary>
+        public String SnapshotName { get; set; }
 
         /// <summary>
         /// Gets the number of regions contained in this snapshot.
         /// </summary>
         /// <returns>The number of regions contained in this snapshot.</returns>
-        public Int32 RegionCount { get; set; }
+        public Int32 RegionCount { get; private set; }
 
         /// <summary>
         /// Gets the total number of bytes contained in this snapshot.
         /// </summary>
-        public UInt64 ByteCount { get; set; }
+        public UInt64 ByteCount { get; private set; }
 
         /// <summary>
         /// Gets the number of individual elements contained in this snapshot.
         /// </summary>
         /// <returns>The number of individual elements contained in this snapshot.</returns>
-        public UInt64 ElementCount { get; set; }
+        public UInt64 ElementCount { get; private set; }
 
         /// <summary>
         /// Gets the time since the last update was performed on this snapshot.
@@ -72,102 +78,68 @@
         public DateTime TimeSinceLastUpdate { get; private set; }
 
         /// <summary>
-        /// Gets or sets the read groups of this snapshot.
+        /// Gets the alignment of the elements within this snapshot.
         /// </summary>
-        public IEnumerable<ReadGroup> ReadGroups
+        public MemoryAlignment Alignment { get; private set; }
+
+        /// <summary>
+        /// Gets or sets the snapshot regions contained by this snapshot.
+        /// </summary>
+        public IEnumerable<SnapshotRegion> SnapshotRegions
         {
             get
             {
-                return this.readGroups;
+                return this.snapshotRegions;
             }
 
             set
             {
-                this.readGroups = value;
+                this.snapshotRegions = value;
             }
         }
 
         /// <summary>
-        /// Gets or sets the snapshot memory address alignment.
+        /// Gets the read groups in this snapshot, ordered descending by their region size. This is slightly more performant for reading values, as larger more intensive regions get read first.
+        /// This allows for a greedy scheduling algorithm and beter multi-thread resource utilization.
         /// </summary>
-        public MemoryAlignment Alignment
+        public IEnumerable<SnapshotRegion> ReadOptimizedSnapshotRegions
         {
             get
             {
-                return this.alignment;
-            }
-
-            set
-            {
-                this.alignment = value;
-                this.ReadGroups?.ForEach(readGroup => readGroup?.Align(this.alignment));
+                return this.SnapshotRegions?.OrderByDescending(snapshotRegion => snapshotRegion.RegionSize);
             }
         }
 
         /// <summary>
-        /// Gets the read groups in this snapshot, ordered descending by their region size. This is much more performant for multi-threaded access.
+        /// Gets or sets a lookup table used for querying scan results quickly.
         /// </summary>
-        public IEnumerable<ReadGroup> OptimizedReadGroups
-        {
-            get
-            {
-                return this.ReadGroups?.OrderByDescending(readGroup => readGroup.RegionSize);
-            }
-        }
-
-        /// <summary>
-        /// Gets the snapshot regions in this snapshot. These are the same regions from the read groups, except flattened as an array.
-        /// </summary>
-        public SnapshotRegion[] SnapshotRegions { get; private set; }
-
-        /// <summary>
-        /// Gets the snapshot regions in this snapshot, ordered descending by their region size. This is much more performant for multi-threaded access.
-        /// This is very similar to the greedy interval scheduling algorithm, and can result in significant scan speed gains.
-        /// </summary>
-        public IEnumerable<SnapshotRegion> OptimizedSnapshotRegions
-        {
-            get
-            {
-                return this.SnapshotRegions?.OrderByDescending(region => region.RegionSize);
-            }
-        }
+        private IntervalTree<UInt64, SnapshotRegion> SnapshotRegionIndexLookupTable { get; set; }
 
         /// <summary>
         /// Indexer to allow the retrieval of the element at the specified index. This does NOT index into a region.
         /// </summary>
         /// <param name="elementIndex">The index of the snapshot element.</param>
         /// <returns>Returns the snapshot element at the specified index.</returns>
-        public SnapshotElementIndexer this[UInt64 elementIndex, Int32 elementSize]
+        public SnapshotElementIndexer this[UInt64 elementIndex, MemoryAlignment alignment]
         {
             get
             {
-                SnapshotRegion region = this.BinaryRegionSearch(elementIndex, elementSize);
+                // Build the index lookup table if needed
+                if (this.SnapshotRegionIndexLookupTable == null || this.SnapshotRegionIndexLookupTable.Count <= 0)
+                {
+                    this.BuildLookupTable(alignment);
+                }
+
+                SnapshotRegion region = this.SnapshotRegionIndexLookupTable.QueryOne(elementIndex);
 
                 if (region == null)
                 {
                     return null;
                 }
 
-                SnapshotElementIndexer indexer = region[(elementIndex - region.BaseElementIndex).ToInt32(), this.Alignment];
+                SnapshotElementIndexer indexer = region[elementIndex, alignment];
 
                 return indexer;
-            }
-        }
-
-        /// <summary>
-        /// Aligns this snapshot to the provided alignment. If the provided alignment is Auto, the alignment will be set based on the provided data type.
-        /// </summary>
-        /// <param name="alignment">The alignment to set.</param>
-        /// <param name="dataType">The datatype to align to if the alignment is set to Auto.</param>
-        public void AlignAndResolveAuto(MemoryAlignment alignment, ScannableType dataType)
-        {
-            if (dataType is ByteArrayType)
-            {
-                this.Alignment = MemoryAlignment.Alignment1;
-            }
-            else
-            {
-                this.Alignment = alignment == MemoryAlignment.Auto ? (MemoryAlignment)dataType.Size : alignment;
             }
         }
 
@@ -177,109 +149,67 @@
         /// <param name="snapshotRegions">The snapshot regions to add.</param>
         public void SetSnapshotRegions(IEnumerable<SnapshotRegion> snapshotRegions)
         {
-            this.ReadGroups = snapshotRegions?.Select(x => x.ReadGroup)?.Distinct();
-            this.SnapshotRegions = snapshotRegions?.ToArray();
+            this.SnapshotRegions = snapshotRegions;
             this.TimeSinceLastUpdate = DateTime.Now;
             this.RegionCount = this.SnapshotRegions?.Count() ?? 0;
         }
 
         /// <summary>
-        /// Determines how many elements are contained in this snapshot, and how many bytes total are contained.
+        /// Sets the alignment of this snapshot. This will cause byte counts and element counts to be recomputed.
         /// </summary>
-        public void ComputeElementCount(Int32 elementSize)
+        public void SetAlignment(MemoryAlignment alignment)
         {
+            this.Alignment = alignment;
             this.ByteCount = 0;
             this.ElementCount = 0;
+            this.SnapshotRegionIndexLookupTable?.Clear();
 
-            this.SnapshotRegions?.ForEach(region =>
+            this.SnapshotRegions.OrderBy(region => region.BaseAddress)?.ForEach(region =>
             {
                 region.BaseElementIndex = this.ElementCount;
-                this.ByteCount += (region.RegionSize + elementSize - 1).ToUInt64();
-                this.ElementCount += region.GetElementCount(this.Alignment).ToUInt64();
+                this.ByteCount += region.ElementByteCount.ToUInt64();
+                this.ElementCount += region.TotalElementCount.ToUInt64();
             });
         }
 
         /// <summary>
-        /// Determines if an address is contained in this snapshot.
+        /// Sets the alignment of this snapshot. This will cause byte counts and element counts to be recomputed for all snapshot regions within this snapshot.
         /// </summary>
-        /// <param name="address">The address for which we are searching.</param>
-        /// <returns>True if the address is contained.</returns>
-        public Boolean ContainsAddress(UInt64 address)
+        public void SetAlignmentCascading(Int32 dataTypeSize, MemoryAlignment alignment)
         {
-            if (this.SnapshotRegions == null || this.SnapshotRegions.Length == 0)
-            {
-                return false;
-            }
+            this.Alignment = alignment;
+            this.ByteCount = 0;
+            this.ElementCount = 0;
+            this.SnapshotRegionIndexLookupTable?.Clear();
 
-            return this.ContainsAddressHelper(address, this.SnapshotRegions.Length / 2, 0, this.SnapshotRegions.Length);
+            this.SnapshotRegions.OrderBy(region => region.BaseAddress)?.ForEach(region =>
+            {
+                region.SetAlignment(alignment, dataTypeSize);
+                region.BaseElementIndex = this.ElementCount;
+                this.ByteCount += region.ElementByteCount.ToUInt64();
+                this.ElementCount += region.TotalElementCount.ToUInt64();
+            });
         }
 
         /// <summary>
-        /// Helper function for searching for an address in this snapshot. Binary search that assumes this snapshot has sorted regions.
+        /// Builds the element index lookup table for this snapshot. Used to display scan results.
         /// </summary>
-        /// <param name="address">The address for which we are searching.</param>
-        /// <param name="middle">The middle region index.</param>
-        /// <param name="min">The lower region index.</param>
-        /// <param name="max">The upper region index.</param>
-        /// <returns>True if the address was found.</returns>
-        private Boolean ContainsAddressHelper(UInt64 address, Int32 middle, Int32 min, Int32 max)
+        /// <param name="alignment">The alignment of the elements in this snapshot region.</param>
+        private void BuildLookupTable(MemoryAlignment alignment)
         {
-            if (middle < 0 || middle == this.SnapshotRegions.Length || max < min)
+            if (this.SnapshotRegionIndexLookupTable == null)
             {
-                return false;
-            }
-
-            if (address < this.SnapshotRegions[middle].BaseAddress)
-            {
-                return this.ContainsAddressHelper(address, (min + middle - 1) / 2, min, middle - 1);
-            }
-            else if (address > this.SnapshotRegions[middle].EndAddress)
-            {
-                return this.ContainsAddressHelper(address, (middle + 1 + max) / 2, middle + 1, max);
+                this.SnapshotRegionIndexLookupTable = new IntervalTree<UInt64, SnapshotRegion>();
             }
             else
             {
-                return true;
-            }
-        }
-
-        private SnapshotRegion BinaryRegionSearch(UInt64 elementIndex, Int32 elementSize)
-        {
-            if (this.SnapshotRegions == null || this.SnapshotRegions.Length == 0)
-            {
-                return null;
+                this.SnapshotRegionIndexLookupTable.Clear();
             }
 
-            return this.BinaryRegionSearchHelper(elementIndex, this.SnapshotRegions.Length / 2, 0, this.SnapshotRegions.Length, elementSize);
-        }
-
-        /// <summary>
-        /// Helper function for searching for an address in this snapshot. Binary search that assumes this snapshot has sorted regions.
-        /// </summary>
-        /// <param name="elementIndex">The address for which we are searching.</param>
-        /// <param name="middle">The middle region index.</param>
-        /// <param name="min">The lower region index.</param>
-        /// <param name="max">The upper region index.</param>
-        /// <returns>True if the address was found.</returns>
-        private SnapshotRegion BinaryRegionSearchHelper(UInt64 elementIndex, Int32 middle, Int32 min, Int32 max, Int32 elementSize)
-        {
-            if (middle < 0 || middle == this.SnapshotRegions.Length || max < min)
+            this.SnapshotRegions?.ForEach(region =>
             {
-                return null;
-            }
-
-            if (elementIndex < this.SnapshotRegions[middle].BaseElementIndex)
-            {
-                return this.BinaryRegionSearchHelper(elementIndex, (min + middle - 1) / 2, min, middle - 1, elementSize);
-            }
-            else if (elementIndex >= this.SnapshotRegions[middle].BaseElementIndex + this.SnapshotRegions[middle].GetElementCount(this.Alignment).ToUInt64())
-            {
-                return this.BinaryRegionSearchHelper(elementIndex, (middle + 1 + max) / 2, middle + 1, max, elementSize);
-            }
-            else
-            {
-                return this.SnapshotRegions[middle];
-            }
+                this.SnapshotRegionIndexLookupTable.Add(region.BaseElementIndex, region.BaseElementIndex + region.TotalElementCount.ToUInt64() - 1, region);
+            });
         }
     }
     //// End class

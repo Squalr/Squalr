@@ -3,7 +3,7 @@
     using GalaSoft.MvvmLight;
     using Squalr.Engine.Common.Logging;
     using Squalr.Engine.Projects;
-    using Squalr.Properties;
+    using Squalr.Source.Settings;
     using Squalr.View.Dialogs;
     using System;
     using System.IO;
@@ -28,15 +28,6 @@
 
         private RenameProjectDialogViewModel() : base()
         {
-        }
-
-        /// <summary>
-        /// Gets a singleton instance of the <see cref="RenameProjectDialogViewModel" /> class.
-        /// </summary>
-        /// <returns>A singleton instance of the class.</returns>
-        public static RenameProjectDialogViewModel GetInstance()
-        {
-            return RenameProjectDialogViewModel.renameProjectDialogViewModelInstance.Value;
         }
 
         public String NewProjectName
@@ -104,9 +95,20 @@
         }
 
         /// <summary>
+        /// Gets a singleton instance of the <see cref="RenameProjectDialogViewModel" /> class.
+        /// </summary>
+        /// <returns>A singleton instance of the class.</returns>
+        public static RenameProjectDialogViewModel GetInstance()
+        {
+            return RenameProjectDialogViewModel.renameProjectDialogViewModelInstance.Value;
+        }
+
+        /// <summary>
         /// Shows the rename project dialog, deleting the project if the dialog result was true.
         /// </summary>
+        /// <param name="owner">The window that owns this dialog.</param>
         /// <param name="projectName">The project name to potentially rename.</param>
+        /// <returns>A value indicating whether the rename was successful.</returns>
         public Boolean ShowDialog(Window owner, String projectName)
         {
             this.NewProjectName = String.Empty;

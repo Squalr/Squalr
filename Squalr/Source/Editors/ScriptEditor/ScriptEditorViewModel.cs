@@ -21,7 +21,7 @@
                 LazyThreadSafetyMode.ExecutionAndPublication);
 
         /// <summary>
-        /// Prevents a default instance of the <see cref="ScriptEditorViewModel" /> class.
+        /// Prevents a default instance of the <see cref="ScriptEditorViewModel" /> class from being created.
         /// </summary>
         private ScriptEditorViewModel() : base("Script Editor")
         {

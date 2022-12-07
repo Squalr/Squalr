@@ -163,18 +163,15 @@
         /// Returns an enumerator that iterates through the collection.
         /// </summary>
         /// <returns>An enumerator that iterates through the collection.</returns>
-        public IEnumerator<KeyValuePair<TFirst, TSecond>> GetEnumerator()
-        {
-            return this.firstToSecond.GetEnumerator();
-        }
+        IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
 
         /// <summary>
         /// Returns an enumerator that iterates through the collection.
         /// </summary>
         /// <returns>An enumerator that iterates through the collection.</returns>
-        IEnumerator IEnumerable.GetEnumerator()
+        public IEnumerator<KeyValuePair<TFirst, TSecond>> GetEnumerator()
         {
-            return this.GetEnumerator();
+            return this.firstToSecond.GetEnumerator();
         }
 
         /// <summary>

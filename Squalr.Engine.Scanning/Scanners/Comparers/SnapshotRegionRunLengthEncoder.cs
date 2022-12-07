@@ -1,7 +1,5 @@
 ﻿namespace Squalr.Engine.Scanning.Scanners.Comparers
 {
-    using Squalr.Engine.Common;
-    using Squalr.Engine.Scanning.Scanners.Constraints;
     using Squalr.Engine.Scanning.Snapshots;
     using System;
     using System.Collections.Generic;
@@ -12,28 +10,13 @@
     /// This is one of the magic tricks Squalr uses for fast scans. Each scan thread uses run length encoding to track the number of consecutive
     /// successful scan matches. Once a non-matching element is found, a snapshot region is created containing the contiguous block of successful results.
     /// </summary>
-    internal unsafe class SnapshotRegionRunLengthEncoder
+    internal unsafe class SnapshotRegionRunLengthEncoder : IDisposable
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="SnapshotRegionRunLengthEncoder" /> class.
         /// </summary>
-        /// <param name="region">The parent region that contains this element.</param>
-        /// <param name="constraints">The set of constraints to use for the element comparisons.</param>
-        public SnapshotRegionRunLengthEncoder(SnapshotRegion region, ScanConstraints constraints)
+        public SnapshotRegionRunLengthEncoder()
         {
-            this.Region = region;
-            this.DataTypeSize = constraints.ElementType.Size;
-            this.ResultRegions = new List<SnapshotRegion>();
-            this.RunLengthEncodeOffset = region?.ReadGroupOffset ?? 0;
-
-            if (constraints.ElementType is ByteArrayType)
-            {
-                this.Alignment = MemoryAlignment.Alignment1;
-            }
-            else
-            {
-                this.Alignment = constraints.Alignment == MemoryAlignment.Auto ? (MemoryAlignment)this.DataTypeSize : constraints.Alignment;
-            }
         }
 
         /// <summary>
@@ -52,46 +35,87 @@
         private Int32 RunLength { get; set; }
 
         /// <summary>
-        /// Gets or sets the size of the data type being compared.
-        /// </summary>
-        private Int32 DataTypeSize { get; set; }
-
-        /// <summary>
         /// Gets or sets the parent snapshot region.
         /// </summary>
-        private SnapshotRegion Region { get; set; }
+        private SnapshotElementRange ElementRange { get; set; }
 
         /// <summary>
         /// Gets or sets the list of discovered result regions.
         /// </summary>
-        private IList<SnapshotRegion> ResultRegions { get; set; }
+        private IList<SnapshotElementRange> ResultRegions { get; set; }
 
         /// <summary>
-        /// Gets or sets the enforced memory alignment for this scan.
+        /// Initializes this run legnth encoder for a given region being scanned and a set of scan constraints.
         /// </summary>
-        private MemoryAlignment Alignment { get; set; }
+        /// <param name="region">The parent region that contains this element.</param>
+        public void Initialize(SnapshotElementRange region)
+        {
+            this.ElementRange = region;
+            this.ResultRegions = new List<SnapshotElementRange>();
+            this.RunLengthEncodeOffset = region?.RegionOffset ?? 0;
+        }
+
+        /// <summary>
+        /// Perform cleanup and release references, this run length encoder may still be referenced by cached scanner instances.
+        /// </summary>
+        public void Dispose()
+        {
+            this.ElementRange = null;
+            this.ResultRegions = null;
+        }
 
         /// <summary>
         /// Finalizes any leftover snapshot regions and returns them.
         /// </summary>
-        public IList<SnapshotRegion> GatherCollectedRegions()
+        public IList<SnapshotElementRange> GetCollectedRegions()
         {
-            this.FinalizeCurrentEncode();
             return this.ResultRegions;
         }
 
+        public void AdjustForMisalignment(Int32 misalignmentOffset)
+        {
+            this.RunLengthEncodeOffset -= misalignmentOffset;
+        }
+
+        /// <summary>
+        /// Increases the run length encode by the provided byte count. If not currently encoding a region, encoding will begin.
+        /// </summary>
+        /// <param name="advanceByteCount">The byte count by which the run length encode is incremented.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void EncodeBatch(Int32 advanceByteCount)
+        public void EncodeRange(Int32 advanceByteCount)
         {
             this.RunLength += advanceByteCount;
             this.IsEncoding = true;
         }
 
+        /// <summary>
+        /// Encodes the current scan results if possible. This finalizes the current run-length encoded scan results to a snapshot region.
+        /// This check performs bounds checking to ensure that no run-length encoding captured extra bytes outside of the scan range.
+        /// </summary>
+        /// <param name="advanceByteCount">The number of failed bytes (ie values that did not match scans) to increment by.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void EncodeOne()
+        public void FinalizeCurrentEncodeChecked(Int32 advanceByteCount = 0)
         {
-            this.RunLength++;
-            this.IsEncoding = true;
+            // Create the final region if we are still encoding
+            if (this.IsEncoding)
+            {
+                // Run length is in bytes, but snapshot regions need to know total number of elements, which depends on the data type and alignment
+                UInt64 absoluteAddressStart = this.ElementRange.ParentRegion.BaseAddress + (UInt64)this.RunLengthEncodeOffset;
+                UInt64 absoluteAddressEnd = absoluteAddressStart + (UInt64)this.RunLength;
+
+                // Vector comparisons can produce some false positives since vectors can load values outside of the original snapshot range. This can result in next scans actually increasing the result count.
+                // This is particularly true in "next scans". This check catches any potential errors introduced this way.
+                if (absoluteAddressStart >= this.ElementRange.BaseElementAddress && absoluteAddressEnd <= this.ElementRange.EndElementAddress)
+                {
+                    this.ResultRegions.Add(new SnapshotElementRange(this.ElementRange.ParentRegion, this.RunLengthEncodeOffset, this.RunLength));
+                }
+
+                this.RunLengthEncodeOffset += this.RunLength;
+                this.RunLength = 0;
+                this.IsEncoding = false;
+            }
+
+            this.RunLengthEncodeOffset += advanceByteCount;
         }
 
         /// <summary>
@@ -99,23 +123,12 @@
         /// </summary>
         /// <param name="advanceByteCount">The number of failed bytes (ie values that did not match scans) to increment by.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void FinalizeCurrentEncode(Int32 advanceByteCount = 0)
+        public void FinalizeCurrentEncodeUnchecked(Int32 advanceByteCount = 0)
         {
             // Create the final region if we are still encoding
             if (this.IsEncoding)
             {
-                // Run length is in bytes, but snapshot regions need to know total number of elements, which depends on the data type and alignment
-                UInt64 absoluteAddressStart = this.Region.ReadGroup.BaseAddress + (UInt64)this.RunLengthEncodeOffset;
-                UInt64 absoluteAddressEnd = absoluteAddressStart + (UInt64)this.RunLength;
-
-                // Vector comparisons can produce some false positives since vectors can load values outside of the original snapshot range. This can result in next scans actually increasing the result count.
-                // This is particularly true in "next scans". This check catches any potential errors introduced this way.
-                // TODO: This is really bad and impacts performance. The vector scanner should handle this, rather than pushing this bug here.
-                if (absoluteAddressStart >= this.Region.BaseAddress && absoluteAddressEnd <= this.Region.EndAddress)
-                {
-                    this.ResultRegions.Add(new SnapshotRegion(this.Region.ReadGroup, this.RunLengthEncodeOffset, this.RunLength));
-                }
-
+                this.ResultRegions.Add(new SnapshotElementRange(this.ElementRange.ParentRegion, this.RunLengthEncodeOffset, this.RunLength));
                 this.RunLengthEncodeOffset += this.RunLength;
                 this.RunLength = 0;
                 this.IsEncoding = false;

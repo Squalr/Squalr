@@ -14,25 +14,12 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="DataTypeEditor" /> class.
         /// </summary>
-        /// <param name="offsets">The initial offsets to edit.</param>
         public DataTypeEditor()
         {
             this.InitializeComponent();
 
             this.DataTypeEditorViewModel.DataType = ScannableType.Int32;
             this.DataTypeEditorViewModel.PropertyChanged += DataTypeEditorViewModel_PropertyChanged;
-        }
-
-        protected override void OnDeactivated(EventArgs e)
-        {
-            base.OnDeactivated(e);
-
-            if (!this.HasClosed && this.DialogResult != true)
-            {
-                this.DialogResult = false;
-                this.HasClosed = true;
-                this.Close();
-            }
         }
 
         /// <summary>
@@ -47,13 +34,25 @@
         }
 
         /// <summary>
-        /// Gets or sets a boolean indicating if the modal has been attempted to be closed.
+        /// Gets or sets a value indicating whether the modal has been attempted to be closed.
         /// </summary>
-        private bool HasClosed { get; set; }
+        private Boolean HasClosed { get; set; }
 
-        private void DataTypeEditorViewModel_PropertyChanged(Object sender, PropertyChangedEventArgs e)
+        protected override void OnDeactivated(EventArgs eventArgs)
         {
-            if (e?.PropertyName == nameof(DataTypeEditorViewModel.DataType))
+            base.OnDeactivated(eventArgs);
+
+            if (!this.HasClosed && this.DialogResult != true)
+            {
+                this.DialogResult = false;
+                this.HasClosed = true;
+                this.Close();
+            }
+        }
+
+        private void DataTypeEditorViewModel_PropertyChanged(Object sender, PropertyChangedEventArgs eventArgs)
+        {
+            if (eventArgs?.PropertyName == nameof(DataTypeEditorViewModel.DataType))
             {
                 Application.Current.Dispatcher.Invoke(new Action(() =>
                 {

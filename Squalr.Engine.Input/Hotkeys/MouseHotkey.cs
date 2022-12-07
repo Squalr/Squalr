@@ -17,9 +17,11 @@
         {
         }
 
+        /// <summary>
+        /// Disposes of this hotkey object.
+        /// </summary>
         public override void Dispose()
         {
-
         }
 
         /// <summary>
@@ -34,6 +36,7 @@
         /// <summary>
         /// Clones the hotkey.
         /// </summary>
+        /// <param name="copyCallBackFunction">A value indicating whether to copy the callback function from this hotkey to the clone.</param>
         /// <returns>A clone of the hotkey.</returns>
         public override Hotkey Clone(Boolean copyCallBackFunction = false)
         {
@@ -43,6 +46,8 @@
         /// <summary>
         /// Copies the hotkey to another hotkey. A new hotkey is created if null is provided.
         /// </summary>
+        /// <param name="hotkey">The hotkey to which the properties of this hotkey are copied.</param>
+        /// <param name="copyCallBackFunction">A value indicating whether to copy the callback function from this hotkey to the given one.</param>
         /// <returns>A copy of the hotkey.</returns>
         public override Hotkey CopyTo(Hotkey hotkey, Boolean copyCallBackFunction = false)
         {

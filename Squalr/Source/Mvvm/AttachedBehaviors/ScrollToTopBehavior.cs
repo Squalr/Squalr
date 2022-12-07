@@ -13,8 +13,7 @@
             "ScrollToTop",
             typeof(Boolean),
             typeof(ScrollToTopBehavior),
-            new UIPropertyMetadata(false, OnScrollToTopPropertyChanged)
-        );
+            new UIPropertyMetadata(false, OnScrollToTopPropertyChanged));
 
         public static Boolean GetScrollToTop(DependencyObject obj)
         {

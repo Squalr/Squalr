@@ -36,8 +36,8 @@
         /// <returns>The updated values.</returns>
         public override Object EditValue(ITypeDescriptorContext context, IServiceProvider provider, Object value)
         {
-            System.Drawing.Point CursorPosition = System.Windows.Forms.Cursor.Position;
-            View.Editors.DataTypeEditor dataTypeEditor = new View.Editors.DataTypeEditor() { Owner = Application.Current.MainWindow, Left = CursorPosition.X, Top = CursorPosition.Y };
+            System.Drawing.Point cursorPosition = System.Windows.Forms.Cursor.Position;
+            View.Editors.DataTypeEditor dataTypeEditor = new View.Editors.DataTypeEditor() { Owner = Application.Current.MainWindow, Left = cursorPosition.X, Top = cursorPosition.Y };
 
             // Reposition window to open towards the left
             dataTypeEditor.Left = Math.Max(0, dataTypeEditor.Left - dataTypeEditor.Width);

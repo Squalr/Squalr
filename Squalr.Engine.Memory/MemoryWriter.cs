@@ -13,14 +13,13 @@
         /// <summary>
         /// Singleton instance of the <see cref="WindowsMemoryWriter"/> class.
         /// </summary>
-        private static readonly Lazy<WindowsMemoryWriter> windowsMemoryWriterInstance = new Lazy<WindowsMemoryWriter>(
+        private static readonly Lazy<WindowsMemoryWriter> WindowsMemoryWriterInstance = new Lazy<WindowsMemoryWriter>(
             () => { return new WindowsMemoryWriter(); },
             LazyThreadSafetyMode.ExecutionAndPublication);
 
         /// <summary>
-        /// Creates the memory writer for the current operating system.
+        /// Gets a <see cref="IMemoryWriter"/> object instance for the current operating system.
         /// </summary>
-        /// <param name="targetProcess">The process from which the memory writer writes memory.</param>
         /// <returns>An instance of a memory writer.</returns>
         public static IMemoryWriter Instance
         {
@@ -36,7 +35,7 @@
                     case PlatformID.Win32S:
                     case PlatformID.Win32Windows:
                     case PlatformID.WinCE:
-                        return MemoryWriter.windowsMemoryWriterInstance.Value;
+                        return MemoryWriter.WindowsMemoryWriterInstance.Value;
                     case PlatformID.Unix:
                         ex = new Exception("Unix operating system is not supported");
                         break;

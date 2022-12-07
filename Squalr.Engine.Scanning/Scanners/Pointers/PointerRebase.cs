@@ -1,5 +1,6 @@
 ﻿namespace Squalr.Engine.Scanning.Scanners.Pointers
 {
+    using SharpDX;
     using Squalr.Engine.Common;
     using Squalr.Engine.Common.Logging;
     using Squalr.Engine.Scanning.Scanners.Constraints;
@@ -25,21 +26,21 @@
         private const String Name = "Pointer Rescan";
 
         /// <summary>
-        /// Performs a pointer scan for a given address.
+        /// 
         /// </summary>
-        /// <param name="address">The address for which to perform a pointer scan.</param>
-        /// <param name="maxOffset">The maximum pointer offset.</param>
-        /// <param name="depth">The maximum pointer search depth.</param>
-        /// <param name="alignment">The pointer scan alignment.</param>
-        /// <param name="taskIdentifier">The unique identifier to prevent duplicate tasks.</param>
+        /// <param name="process"></param>
+        /// <param name="previousPointerBag"></param>
+        /// <param name="readMemory"></param>
+        /// <param name="taskIdentifier"></param>
         /// <returns>Atrackable task that returns the scan results.</returns>
-        public static TrackableTask<PointerBag> Scan(Process process, PointerBag previousPointerBag, Boolean readMemory, Boolean performUnchangedScan, String taskIdentifier = null)
+        public static TrackableTask<PointerBag> Scan(Process process, PointerBag previousPointerBag, Boolean readMemory, String taskIdentifier = null)
         {
             try
             {
                 TrackableTask<PointerBag> pointerScanTask = TrackableTask<PointerBag>.Create(PointerRebase.Name, taskIdentifier, out UpdateProgress updateProgress, out CancellationToken cancellationToken);
 
-                return pointerScanTask.With(Task<PointerBag>.Run(() =>
+                return pointerScanTask.With(Task<PointerBag>.Run(
+                    () =>
                     {
                         try
                         {
@@ -49,9 +50,6 @@
                             stopwatch.Start();
 
                             const MemoryAlignment alignment = MemoryAlignment.Alignment4;
-                            ScannableType pointerDataType = previousPointerBag.PointerSize.ToDataType();
-                            ScanConstraint scanConstraint = new ScanConstraint(ScanConstraint.ConstraintType.Unchanged);
-                            ScanConstraints scanConstraints = new ScanConstraints(pointerDataType, scanConstraint, alignment);
 
                             IList<Level> oldLevels = previousPointerBag.Levels;
                             IList<Level> newLevels = new List<Level>();
@@ -74,43 +72,31 @@
                                     }
 
                                     updatedStaticPointers = staticValueCollector.Result;
-                                }
-
-                                // Step 2) A neat (optional) trick: Scan for unchanged values to filter out dynamic pointers
-                                if (performUnchangedScan)
-                                {
-                                    TrackableTask<Snapshot> staticValueScanner = ManualScanner.Scan(updatedStaticPointers, scanConstraints);
-
-                                    // Does not apply to target address
-                                    if (levelIndex > 0)
-                                    {
-                                        TrackableTask<Snapshot> heapValueScanner = ManualScanner.Scan(updatedHeapPointers, scanConstraints);
-                                        updatedHeapPointers = heapValueScanner.Result;
-                                    }
-
-                                    updatedStaticPointers = staticValueScanner.Result;
+                                    updatedStaticPointers.SetAlignmentCascading(previousPointerBag.PointerSize.ToSize(), alignment);
                                 }
 
                                 Stopwatch levelStopwatch = new Stopwatch();
                                 levelStopwatch.Start();
 
-                                // Step 3) Rebase heap onto new previous heap
+                                // Step 2) Rebase new heap on to previous heap
                                 if (levelIndex > 0)
                                 {
                                     IVectorPointerSearchKernel heapSearchKernel = PointerSearchKernelFactory.GetSearchKernel(newLevels.Last().HeapPointers, previousPointerBag.MaxOffset, previousPointerBag.PointerSize);
                                     TrackableTask<Snapshot> heapFilterTask = PointerFilter.Filter(pointerScanTask, updatedHeapPointers, heapSearchKernel, previousPointerBag.PointerSize, newLevels.Last().HeapPointers, previousPointerBag.MaxOffset);
 
                                     updatedHeapPointers = heapFilterTask.Result;
+                                    updatedHeapPointers.SetAlignmentCascading(previousPointerBag.PointerSize.ToSize(), alignment);
                                 }
 
-                                // Step 4) Filter static pointers that still point into the updated heap
+                                // Step 3) Filter static pointers that still point into the updated heap
                                 IVectorPointerSearchKernel staticSearchKernel = PointerSearchKernelFactory.GetSearchKernel(updatedHeapPointers, previousPointerBag.MaxOffset, previousPointerBag.PointerSize);
                                 TrackableTask<Snapshot> staticFilterTask = PointerFilter.Filter(pointerScanTask, updatedStaticPointers, staticSearchKernel, previousPointerBag.PointerSize, updatedHeapPointers, previousPointerBag.MaxOffset);
 
                                 updatedStaticPointers = staticFilterTask.Result;
+                                updatedStaticPointers.SetAlignmentCascading(previousPointerBag.PointerSize.ToSize(), alignment);
 
                                 levelStopwatch.Stop();
-                                Logger.Log(LogLevel.Info, "Pointer rebase from level " + (levelIndex) + " => " + (levelIndex + 1) + " completed in: " + levelStopwatch.Elapsed);
+                                Logger.Log(LogLevel.Info, "Pointer rebase from level " + levelIndex + " => " + (levelIndex + 1) + " completed in: " + levelStopwatch.Elapsed);
 
                                 newLevels.Add(new Level(updatedHeapPointers, updatedStaticPointers));
                             }
@@ -135,7 +121,8 @@
                         }
 
                         return null;
-                    }, cancellationToken));
+                    },
+                    cancellationToken));
             }
             catch (TaskConflictException ex)
             {

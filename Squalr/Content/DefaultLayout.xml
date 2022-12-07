@@ -1,30 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LayoutRoot xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<LayoutRoot>
   <RootPanel Orientation="Horizontal">
     <LayoutAnchorablePaneGroup Orientation="Vertical" DockWidth="2.08129423945407*">
       <LayoutAnchorablePaneGroup Orientation="Horizontal" DockWidth="1.68960553196603*" DockHeight="1.29720571079385*">
         <LayoutAnchorablePane Id="bd1dfd76-4792-469f-ba48-65d989e701c8" DockWidth="0.962144854321346*" FloatingWidth="1270" FloatingHeight="726" FloatingLeft="-61" FloatingTop="476">
-          <LayoutAnchorable IsVisible="True" AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Project Explorer" IsSelected="True" ContentId="ProjectExplorerViewModel" FloatingLeft="-61" FloatingTop="476" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="06/02/2018 13:07:03" />
+          <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Project Explorer" IsSelected="True" ContentId="ProjectExplorerViewModel" FloatingLeft="-61" FloatingTop="476" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="06/02/2018 13:07:03" />
         </LayoutAnchorablePane>
         <LayoutAnchorablePane Id="9e24467d-d273-4039-b9f6-0170695cb8ff" DockWidth="1.61790914482819*" DockHeight="1.16110216099106*">
-          <LayoutAnchorable IsVisible="True" AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Pointer Scanner" ContentId="PointerScannerViewModel" LastActivationTimeStamp="06/02/2018 13:06:36" />
-          <LayoutAnchorable IsVisible="True" AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Settings" ContentId="SettingsViewModel" LastActivationTimeStamp="06/02/2018 13:06:36" />
+          <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Memory Viewer" IsSelected="True" ContentId="MemoryViewerViewModel" FloatingLeft="336" FloatingTop="333" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="12/05/2022 02:41:42" PreviousContainerId="bb71dcd2-1626-4824-96f1-9a2e1ffe7866" PreviousContainerIndex="3" />
+          <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Pointer Scanner" ContentId="PointerScannerViewModel" LastActivationTimeStamp="06/02/2018 13:06:36" />
+          <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Settings" ContentId="SettingsViewModel" LastActivationTimeStamp="12/05/2022 02:39:58" />
         </LayoutAnchorablePane>
       </LayoutAnchorablePaneGroup>
       <LayoutAnchorablePaneGroup Orientation="Horizontal" DockWidth="1.6191364741636*" DockHeight="0.702794289206155*" FloatingWidth="1270" FloatingHeight="899" FloatingLeft="-180" FloatingTop="567">
         <LayoutAnchorablePane Id="d19b7bf5-ef9e-4745-9a3b-03d44102084c" DockWidth="1.6191364741636*" FloatingWidth="1270" FloatingHeight="899" FloatingLeft="-180" FloatingTop="567">
-          <LayoutAnchorable IsVisible="True" AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Output" IsSelected="True" ContentId="OutputViewModel" FloatingLeft="-180" FloatingTop="567" FloatingWidth="1270" FloatingHeight="899" LastActivationTimeStamp="06/02/2018 13:06:36" />
+          <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Output" IsSelected="True" ContentId="OutputViewModel" FloatingLeft="-180" FloatingTop="567" FloatingWidth="1270" FloatingHeight="899" LastActivationTimeStamp="06/02/2018 13:06:36" />
         </LayoutAnchorablePane>
       </LayoutAnchorablePaneGroup>
     </LayoutAnchorablePaneGroup>
     <LayoutAnchorablePaneGroup Orientation="Vertical" DockWidth="0.848259170397292*" DockHeight="0.9383453431467*">
       <LayoutAnchorablePane Id="bb71dcd2-1626-4824-96f1-9a2e1ffe7866" DockWidth="1.23994787788533*" DockHeight="0.9383453431467*" FloatingWidth="1270" FloatingHeight="726" FloatingLeft="108" FloatingTop="361">
-        <LayoutAnchorable IsVisible="True" AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Snapshot Manager" IsSelected="True" ContentId="SnapshotManagerViewModel" FloatingLeft="108" FloatingTop="361" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="06/02/2018 13:06:36" />
-        <LayoutAnchorable IsVisible="True" AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Scan Results" ContentId="ScanResultsViewModel" FloatingLeft="108" FloatingTop="361" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="06/02/2018 13:06:36" />
-        <LayoutAnchorable IsVisible="True" AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Pointer Scan Results" ContentId="PointerScanResultsViewModel" FloatingLeft="108" FloatingTop="361" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="06/02/2018 13:06:36" />
+        <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Scan Results" IsSelected="True" ContentId="ScanResultsViewModel" FloatingLeft="972" FloatingTop="458" FloatingWidth="1270" FloatingHeight="710" LastActivationTimeStamp="12/05/2022 02:41:41" PreviousContainerId="bb71dcd2-1626-4824-96f1-9a2e1ffe7866" PreviousContainerIndex="1" />
+        <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Pointer Scan Results" ContentId="PointerScanResultsViewModel" FloatingLeft="910" FloatingTop="459" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="12/05/2022 02:41:35" PreviousContainerId="bb71dcd2-1626-4824-96f1-9a2e1ffe7866" PreviousContainerIndex="2" />
+        <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Snapshot Manager" ContentId="SnapshotManagerViewModel" FloatingLeft="108" FloatingTop="361" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="12/05/2022 02:39:59" />
       </LayoutAnchorablePane>
       <LayoutAnchorablePane Id="a4edc7de-b18b-44dc-89b2-711867f9c590" DockWidth="0.83497744988703*" FloatingWidth="1270" FloatingHeight="726" FloatingLeft="452" FloatingTop="421">
-        <LayoutAnchorable IsVisible="True" AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Property Viewer" IsSelected="True" ContentId="PropertyViewerViewModel" FloatingLeft="452" FloatingTop="421" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="06/02/2018 13:06:36" />
+        <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Property Viewer" IsSelected="True" ContentId="PropertyViewerViewModel" FloatingLeft="452" FloatingTop="421" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="06/02/2018 13:06:36" />
       </LayoutAnchorablePane>
     </LayoutAnchorablePaneGroup>
   </RootPanel>
@@ -34,10 +35,10 @@
   <BottomSide />
   <FloatingWindows />
   <Hidden>
-    <LayoutAnchorable IsVisible="False" AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Change Counter" ContentId="ChangeCounterViewModel" />
-    <LayoutAnchorable IsVisible="False" AutoHideMinWidth="100" AutoHideMinHeight="100" Title=".Net Explorer" ContentId="DotNetExplorerViewModel" LastActivationTimeStamp="06/02/2018 13:04:33" PreviousContainerId="9e24467d-d273-4039-b9f6-0170695cb8ff" PreviousContainerIndex="0" />
-    <LayoutAnchorable IsVisible="False" AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Process Selector" ContentId="ProcessSelectorViewModel" FloatingLeft="-425" FloatingTop="335" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="06/02/2018 13:06:46" PreviousContainerId="bd1dfd76-4792-469f-ba48-65d989e701c8" PreviousContainerIndex="0" />
-    <LayoutAnchorable IsVisible="False" AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Code Tracer" ContentId="CodeTracerViewModel" FloatingLeft="91" FloatingTop="436" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="06/02/2018 13:06:55" PreviousContainerId="9e24467d-d273-4039-b9f6-0170695cb8ff" PreviousContainerIndex="0" />
-    <LayoutAnchorable IsVisible="False" AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Disassembly" ContentId="DisassemblyViewModel" LastActivationTimeStamp="06/02/2018 13:06:57" PreviousContainerId="9e24467d-d273-4039-b9f6-0170695cb8ff" PreviousContainerIndex="0" />
+    <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Change Counter" IsSelected="True" ContentId="ChangeCounterViewModel" LastActivationTimeStamp="12/05/2022 02:41:23" />
+    <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title=".Net Explorer" IsSelected="True" ContentId="DotNetExplorerViewModel" LastActivationTimeStamp="12/05/2022 02:41:23" PreviousContainerId="9e24467d-d273-4039-b9f6-0170695cb8ff" PreviousContainerIndex="0" />
+    <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Process Selector" IsSelected="True" ContentId="ProcessSelectorViewModel" FloatingLeft="-425" FloatingTop="335" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="12/05/2022 02:41:23" PreviousContainerId="bd1dfd76-4792-469f-ba48-65d989e701c8" PreviousContainerIndex="0" />
+    <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Code Tracer" IsSelected="True" ContentId="CodeTracerViewModel" FloatingLeft="91" FloatingTop="436" FloatingWidth="1270" FloatingHeight="726" LastActivationTimeStamp="12/05/2022 02:41:23" PreviousContainerId="9e24467d-d273-4039-b9f6-0170695cb8ff" PreviousContainerIndex="0" />
+    <LayoutAnchorable AutoHideMinWidth="100" AutoHideMinHeight="100" Title="Disassembly" IsSelected="True" ContentId="DisassemblyViewModel" LastActivationTimeStamp="12/05/2022 02:41:23" PreviousContainerId="9e24467d-d273-4039-b9f6-0170695cb8ff" PreviousContainerIndex="0" />
   </Hidden>
 </LayoutRoot>

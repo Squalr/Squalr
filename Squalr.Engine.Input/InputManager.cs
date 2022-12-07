@@ -15,17 +15,17 @@
         /// <summary>
         /// Singleton instance of the <see cref="WindowsAdapter"/> class
         /// </summary>
-        private static Lazy<InputManager> inputManagerInstance = new Lazy<InputManager>(
+        private static readonly Lazy<InputManager> InputManagerInstance = new Lazy<InputManager>(
             () => { return new InputManager(); },
             LazyThreadSafetyMode.ExecutionAndPublication);
 
         /// <summary>
         /// The rate at which to collect input in ms. Currently 60 times per second.
         /// </summary>
-        private static TimeSpan InputCollectionInterval = TimeSpan.FromMilliseconds(1000.0 / 60.0);
+        private static readonly TimeSpan InputCollectionInterval = TimeSpan.FromMilliseconds(1000.0 / 60.0);
 
         /// <summary>
-        /// Prevents a default instance of the <see cref="InputManager" /> class.
+        /// Prevents a default instance of the <see cref="InputManager" /> class from being created.
         /// </summary>
         private InputManager()
         {
@@ -34,11 +34,6 @@
             this.MouseSubject = new MouseCapture();
 
             this.PollUpdates();
-        }
-
-        public static InputManager GetInstance()
-        {
-            return InputManager.inputManagerInstance.Value;
         }
 
         /// <summary>
@@ -55,6 +50,15 @@
         /// Gets or sets the mouse capture interface.
         /// </summary>
         private IMouseSubject MouseSubject { get; set; }
+
+        /// <summary>
+        /// Gets an instance of the <see cref="InputManager"/> class.
+        /// </summary>
+        /// <returns>An instance of the <see cref="InputManager"/> class.</returns>
+        public static InputManager GetInstance()
+        {
+            return InputManager.InputManagerInstance.Value;
+        }
 
         /// <summary>
         /// Gets the keyboard capture interface.

@@ -58,7 +58,7 @@
         }
 
         /// <summary>
-        /// Gets or sets the command to select instructions.
+        /// Gets the command to select instructions.
         /// </summary>
         public ICommand SelectInstructionsCommand { get; private set; }
 

@@ -29,7 +29,6 @@
         /// </summary>
         public static void UpdateApp()
         {
-
             if (!SqualrSettings.AutomaticUpdates)
             {
                 Logger.Log(LogLevel.Info, "Automatic updates disabled. Squalr will not check for updates this session.");
@@ -51,13 +50,14 @@
             {
                 try
                 {
-                    using (UpdateManager manager = new UpdateManager(new GithubSource(ApplicationUpdater.GithubRepositoryUrl, "", false)))
+                    using (UpdateManager manager = new UpdateManager(new GithubSource(ApplicationUpdater.GithubRepositoryUrl, String.Empty, false)))
                     {
                         UpdateInfo updates = await manager.CheckForUpdate();
 
                         TrackableTask<Boolean> checkForUpdatesTask = TrackableTask<Boolean>
                             .Create("Checking for Updates", out UpdateProgress updateProgress, out CancellationToken cancellationToken)
-                            .With(Task<Boolean>.Run(() =>
+                            .With(Task<Boolean>.Run(
+                            () =>
                             {
                                 try
                                 {
@@ -70,7 +70,8 @@
                                 }
 
                                 return true;
-                            }, cancellationToken));
+                            },
+                            cancellationToken));
 
                         TaskTrackerViewModel.GetInstance().TrackTask(checkForUpdatesTask);
 
@@ -91,7 +92,8 @@
 
                         TrackableTask<Boolean> updateTask = TrackableTask<Boolean>
                             .Create("Updating", out updateProgress, out cancellationToken)
-                            .With(Task<Boolean>.Run(() =>
+                            .With(Task<Boolean>.Run(
+                            () =>
                             {
                                 try
                                 {
@@ -104,7 +106,8 @@
                                 }
 
                                 return true;
-                            }, cancellationToken));
+                            },
+                            cancellationToken));
 
                         TaskTrackerViewModel.GetInstance().TrackTask(updateTask);
 

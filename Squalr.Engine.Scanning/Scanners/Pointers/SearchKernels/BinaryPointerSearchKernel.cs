@@ -1,8 +1,7 @@
 ﻿namespace Squalr.Engine.Scanning.Scanners.Pointers.SearchKernels
 {
     using Squalr.Engine.Common.Extensions;
-    using Squalr.Engine.Common.OS;
-    using Squalr.Engine.Scanning.Scanners.Comparers;
+    using Squalr.Engine.Common.Hardware;
     using Squalr.Engine.Scanning.Scanners.Comparers.Vectorized;
     using Squalr.Engine.Scanning.Scanners.Pointers.Structures;
     using Squalr.Engine.Scanning.Snapshots;
@@ -18,7 +17,7 @@
             this.BoundsSnapshot = boundsSnapshot;
             this.MaxOffset = maxOffset;
 
-            this.PowerOf2Padding = this.Log2((UInt32)this.BoundsSnapshot.SnapshotRegions.Length) << 1;
+            this.PowerOf2Padding = this.Log2((UInt32)this.BoundsSnapshot.SnapshotRegions.Count()) << 1;
 
             this.LowerBounds = this.GetLowerBounds();
             this.UpperBounds = this.GetUpperBounds();
@@ -41,7 +40,7 @@
 
         private UInt32 PowerOf2Padding { get; set; }
 
-        public Func<Vector<Byte>> GetSearchKernel(SnapshotRegionVectorScanner snapshotRegionScanner)
+        public Func<Vector<Byte>> GetSearchKernel(SnapshotRegionVectorScannerBase snapshotRegionScanner)
         {
             return new Func<Vector<Byte>>(() =>
             {
@@ -75,7 +74,7 @@
         {
             IEnumerable<UInt32> lowerBounds = this.BoundsSnapshot.SnapshotRegions.Select(region => unchecked((UInt32)region.BaseAddress.Subtract(this.MaxOffset, wrapAround: false)));
 
-            while (lowerBounds.Count() < PowerOf2Padding)
+            while (lowerBounds.Count() < this.PowerOf2Padding)
             {
                 lowerBounds = lowerBounds.Append<UInt32>(UInt32.MinValue);
             }
@@ -87,7 +86,7 @@
         {
             IEnumerable<UInt32> upperBounds = this.BoundsSnapshot.SnapshotRegions.Select(region => unchecked((UInt32)region.EndAddress.Add(this.MaxOffset, wrapAround: false)));
 
-            while (upperBounds.Count() < PowerOf2Padding)
+            while (upperBounds.Count() < this.PowerOf2Padding)
             {
                 upperBounds = upperBounds.Append<UInt32>(UInt32.MaxValue);
             }

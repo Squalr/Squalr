@@ -6,6 +6,8 @@
 
     public class SortedCategory : CategoryAttribute
     {
+        private const Char NonPrintableChar = '\t';
+
         public enum CategoryType
         {
             [Description("Stream")]
@@ -18,8 +20,6 @@
             Advanced = 3,
         }
 
-        private const Char NonPrintableChar = '\t';
-
         public SortedCategory(CategoryType category)
             : base(category.GetDescription().PadLeft(category.GetDescription().Length + Enum.GetNames(typeof(CategoryType)).Length - (Int32)category, SortedCategory.NonPrintableChar))
         {
@@ -28,4 +28,3 @@
     //// End class
 }
 //// End namespace
-///

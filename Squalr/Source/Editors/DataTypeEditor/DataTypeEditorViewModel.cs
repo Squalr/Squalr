@@ -16,7 +16,7 @@
         /// <summary>
         /// Singleton instance of the <see cref="DataTypeEditorViewModel" /> class.
         /// </summary>
-        private static Lazy<DataTypeEditorViewModel> DataTypeEditorViewModelInstance = new Lazy<DataTypeEditorViewModel>(
+        private static readonly Lazy<DataTypeEditorViewModel> DataTypeEditorViewModelInstance = new Lazy<DataTypeEditorViewModel>(
                 () => { return new DataTypeEditorViewModel(); },
                 LazyThreadSafetyMode.ExecutionAndPublication);
 

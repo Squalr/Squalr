@@ -45,7 +45,7 @@
             PropertyInfo[] allProperties = this.propertyGrid.GetType().GetProperties();
             IEnumerable<PropertyInfo> colorProperties = allProperties.Select(x => x).Where(x => x.PropertyType == typeof(Color));
 
-            foreach(PropertyInfo propertyInfo in colorProperties)
+            foreach (PropertyInfo propertyInfo in colorProperties)
             {
                 propertyInfo.SetValue(this.propertyGrid, DarkBrushes.SqualrColorPanel, null);
             }
@@ -89,9 +89,7 @@
             {
                 this.targetObjects = value?.Where(x => x != null)?.ToArray();
 
-                ControlThreadingHelper.InvokeControlAction(
-                    this.propertyGrid, () => { this.propertyGrid.SelectedObjects = targetObjects == null ? new Object[] { } : targetObjects; }
-                );
+                ControlThreadingHelper.InvokeControlAction(this.propertyGrid, () => { this.propertyGrid.SelectedObjects = targetObjects == null ? new Object[] { } : targetObjects; });
 
                 this.RaisePropertyChanged(nameof(this.TargetObjects));
                 this.NotifyObservers();
@@ -99,7 +97,7 @@
         }
 
         /// <summary>
-        /// Hosting container for the property grid windows form object. This is done because there is no good WPF equivalent of this control.
+        /// Gets a hosting container for the property grid windows form object. This is done because there is no good WPF equivalent of this control.
         /// Fortunately, Windows Forms has a .Net Core implementation, so we do not rely on .Net Framework at all for this.
         /// </summary>
         public WindowsFormsHost WindowsFormsHost

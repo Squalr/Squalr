@@ -4,17 +4,17 @@
 
     public class Pointer
     {
-        public Pointer(
-            UInt64 baseAddress,
-            PointerSize pointerSize,
-            Int32[] offsets = null)
+        public Pointer(String moduleName, UInt64 moduleOffset, PointerSize pointerSize, Int32[] offsets = null)
         {
-            this.BaseAddress = baseAddress;
+            this.ModuleName = moduleName;
+            this.ModuleOffset = moduleOffset;
             this.PointerSize = pointerSize;
             this.Offsets = offsets;
         }
 
-        public UInt64 BaseAddress { get; private set; }
+        public String ModuleName { get; private set; }
+
+        public UInt64 ModuleOffset { get; private set; }
 
         public Int32[] Offsets { get; private set; }
 

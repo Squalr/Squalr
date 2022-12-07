@@ -173,7 +173,13 @@
         /// <returns>The addresses of all matches.</returns>
         UInt64[] SearchAllAob(String pattern);
 
-        UInt64 EvaluatePointer(UInt64 address, IEnumerable<Int32> offsets);
+        /// <summary>
+        /// Evaluates a pointer given a base address and a set of offsets.
+        /// </summary>
+        /// <param name="baseAddress">The base address of the pointer.</param>
+        /// <param name="offsets">The offsets to use when evaluating the pointer.</param>
+        /// <returns>The evaluated pointer address.</returns>
+        UInt64 EvaluatePointer(UInt64 baseAddress, IEnumerable<Int32> offsets);
 
         /// <summary>
         /// Reads the Double at the given address.

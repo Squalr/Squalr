@@ -1,6 +1,7 @@
 ﻿namespace Squalr.Engine.Debuggers
 {
     using System;
+    using System.Diagnostics;
     using System.Threading;
 
     public delegate void MemoryAccessCallback(CodeTraceInfo codeTraceInfo);
@@ -17,6 +18,8 @@
 
     public interface IDebugger
     {
+        void SetTargetProcess(Process process);
+
         CancellationTokenSource FindWhatReads(UInt64 address, BreakpointSize size, MemoryAccessCallback callback);
 
         CancellationTokenSource FindWhatWrites(UInt64 address, BreakpointSize size, MemoryAccessCallback callback);

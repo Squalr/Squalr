@@ -1,19 +1,41 @@
-﻿
-/// <summary>
+﻿/// <summary>
 /// Custom data type classes, namespaced under System for consistency in naming patterns.
 /// This also avoids any potential project compatibility issues if Squalr namespaces change.
 /// Just be sure not to name any class something that might end up under the System namespace naturally.
 /// </summary>
 namespace System
 {
-    public class Int16BigEndian { };
-    public class Int32BigEndian { };
-    public class Int64BigEndian { };
-    public class UInt16BigEndian { };
-    public class UInt32BigEndian { };
-    public class UInt64BigEndian { };
-    public class SingleBigEndian { };
-    public class DoubleBigEndian { };
+    public class Int16BigEndian
+    {
+    }
+
+    public class Int32BigEndian
+    {
+    }
+
+    public class Int64BigEndian
+    {
+    }
+
+    public class UInt16BigEndian
+    {
+    }
+
+    public class UInt32BigEndian
+    {
+    }
+
+    public class UInt64BigEndian
+    {
+    }
+
+    public class SingleBigEndian
+    {
+    }
+
+    public class DoubleBigEndian
+    {
+    }
 }
 
 namespace Squalr.Engine.Common
@@ -37,8 +59,9 @@ namespace Squalr.Engine.Common
         /// <summary>
         /// Gets or sets the mask used during scanning. Not serialized.
         /// </summary>
+        [DataMember]
         public Byte[] Mask { get; set; }
-    };
+    }
 
     /// <summary>
     /// A class representing a serializable data type. This is a wrapper over the Type class.
@@ -46,27 +69,6 @@ namespace Squalr.Engine.Common
     [DataContract]
     public class ScannableType
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ScannableType" /> class.
-        /// </summary>
-        public ScannableType() : this(null)
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ScannableType" /> class.
-        /// </summary>
-        /// <param name="type">The default type.</param>
-        public ScannableType(Type type)
-        {
-            this.Type = type;
-        }
-
-        /// <summary>
-        /// Gets or sets the type wrapped by this class.
-        /// </summary>
-        public Type Type { get; set; }
-
         /// <summary>
         /// DataType for an array of bytes.
         /// </summary>
@@ -216,20 +218,40 @@ namespace Squalr.Engine.Common
             ScannableType.String,
         };
 
+        private Int32 size;
+
         /// <summary>
-        /// Gets primitive types that are available for scanning.
+        /// Initializes a new instance of the <see cref="ScannableType" /> class.
         /// </summary>
-        /// <returns>An enumeration of scannable types.</returns>
-        public static IEnumerable<ScannableType> GetScannableDataTypes()
+        public ScannableType() : this(null)
         {
-            return ScannableType.ScannableDataTypes;
         }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ScannableType" /> class.
+        /// </summary>
+        /// <param name="type">The default type.</param>
+        public ScannableType(Type type)
+        {
+            this.Type = type;
+        }
+
+        /// <summary>
+        /// Gets the type wrapped by this class.
+        /// </summary>
+        public Type Type { get; private set; }
 
         public Int32 Size
         {
             get
             {
-                return Conversions.SizeOf(this);
+                // Conversions.SizeOf() can be expensive if called repeatedly, so only perform this check once.
+                if (this.size == 0)
+                {
+                    this.size = Conversions.SizeOf(this);
+                }
+
+                return this.size;
             }
         }
 
@@ -352,6 +374,15 @@ namespace Squalr.Engine.Common
         public static Boolean operator !=(Type self, ScannableType other)
         {
             return !(self == other);
+        }
+
+        /// <summary>
+        /// Gets primitive types that are available for scanning.
+        /// </summary>
+        /// <returns>An enumeration of scannable types.</returns>
+        public static IEnumerable<ScannableType> GetScannableDataTypes()
+        {
+            return ScannableType.ScannableDataTypes;
         }
 
         /// <summary>

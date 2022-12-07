@@ -28,6 +28,7 @@
                 {
                     this.childItems.Add(projectItem);
                 }
+
                 this.DirectoryItem.ProjectItemAddedEvent = ProjectItemAdded;
                 this.DirectoryItem.ProjectItemDeletedEvent = ProjectItemDeleted;
             }

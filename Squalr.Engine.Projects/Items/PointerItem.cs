@@ -25,33 +25,38 @@
         /// The identifier for the base address of this object.
         /// </summary>
         [DataMember]
-        protected String moduleName;
+        private String moduleName;
 
         /// <summary>
         /// The base address of this object. This will be added as an offset from the resolved base identifier.
         /// </summary>
         [DataMember]
-        protected UInt64 moduleOffset;
+        private UInt64 moduleOffset;
 
         /// <summary>
         /// The pointer offsets of this address item.
         /// </summary>
         [DataMember]
-        protected IEnumerable<Int32> pointerOffsets;
-
-        [DataMember]
-        EmulatorType emulatorType;
+        private IEnumerable<Int32> pointerOffsets;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="AddressItem" /> class.
+        /// The emulator type associated with this pointer item, if any.
         /// </summary>
+        [DataMember]
+        private EmulatorType emulatorType;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="PointerItem" /> class.
+        /// </summary>
+        /// <param name="processSession">A process session reference for accessing the current opened process.</param>
         public PointerItem(ProcessSession processSession) : this(processSession, 0, ScannableType.Int32, "New Address")
         {
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="AddressItem" /> class.
+        /// Initializes a new instance of the <see cref="PointerItem" /> class.
         /// </summary>
+        /// <param name="processSession">A process session reference for accessing the current opened process.</param>
         /// <param name="baseAddress">The base address. This will be added as an offset from the resolved base identifier.</param>
         /// <param name="dataType">The data type of the value at this address.</param>
         /// <param name="description">The description of this address.</param>
@@ -197,7 +202,7 @@
         }
 
         /// <summary>
-        /// Gets a value indicating if this pointer/address is static.
+        /// Gets a value indicating whether this pointer/address is static.
         /// </summary>
         [Browsable(false)]
         public Boolean IsStatic
@@ -209,7 +214,7 @@
         }
 
         /// <summary>
-        /// Gets a value indicating if this object is a true pointer and not just an address.
+        /// Gets a value indicating whether this object is a true pointer and not just an address.
         /// </summary>
         [Browsable(false)]
         public Boolean IsPointer
@@ -223,6 +228,7 @@
         /// <summary>
         /// Gets the extension for this project item.
         /// </summary>
+        /// <returns>The extension for this project item.</returns>
         public override String GetExtension()
         {
             return PointerItem.Extension;
@@ -234,7 +240,7 @@
         /// <returns>The base address of this object.</returns>
         protected override UInt64 ResolveAddress()
         {
-            switch(this.emulatorType)
+            switch (this.emulatorType)
             {
                 case EmulatorType.Dolphin:
                     return ResolveDolphinEmulatorAddress();

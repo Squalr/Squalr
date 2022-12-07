@@ -11,6 +11,8 @@
 
     internal class LinearPointerSearchKernel : IVectorPointerSearchKernel
     {
+        private const Int32 UnrollSize = 8;
+
         public LinearPointerSearchKernel(Snapshot boundsSnapshot, UInt32 maxOffset, PointerSize pointerSize)
         {
             this.BoundsSnapshot = boundsSnapshot;
@@ -28,9 +30,7 @@
 
         private UInt32[] UpperBounds { get; set; }
 
-        private const Int32 UnrollSize = 8;
-
-        public Func<Vector<Byte>> GetSearchKernel(SnapshotRegionVectorScanner snapshotRegionScanner)
+        public Func<Vector<Byte>> GetSearchKernel(SnapshotRegionVectorScannerBase snapshotRegionScanner)
         {
             return new Func<Vector<Byte>>(() =>
             {

@@ -68,7 +68,7 @@
 
             SessionManager.Session = new Session(process);
 
-            if (ScanSettings.EmulatorType == EmulatorType.Auto)
+            if (ScanSettings.EmulatorType == EmulatorType.AutoDetect)
             {
                 TrackableTask<EmulatorType> emulatorDector = EmulatorDetector.DetectEmulator(process);
 

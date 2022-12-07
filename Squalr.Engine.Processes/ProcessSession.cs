@@ -10,40 +10,47 @@
     /// </summary>
     public class ProcessSession
     {
+        /// <summary>
+        /// The current opened process.
+        /// </summary>
         private Process openedProcess;
 
-        public ProcessSession(Process processToOpen)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ProcessSession" /> class.
+        /// </summary>
+        /// <param name="processToOpen">The optional initial process to open for this session.</param>
+        public ProcessSession(Process processToOpen = null)
         {
             if (processToOpen != null)
             {
                 Logger.Log(LogLevel.Info, "Attached to process: " + processToOpen.ProcessName + " (" + processToOpen.Id.ToString() + ")");
             }
 
-            DetectedEmulator = EmulatorType.None;
+            this.DetectedEmulator = EmulatorType.None;
             this.OpenedProcess = processToOpen;
 
             this.ListenForProcessDeath();
         }
 
         /// <summary>
-        /// Gets a reference to the target process.
+        /// Gets or sets a reference to the current target process.
         /// </summary>
         public Process OpenedProcess
         {
             get
             {
-                return openedProcess;
+                return this.openedProcess;
             }
 
             set
             {
                 if (value == DetachProcess.Instance)
                 {
-                    openedProcess = null;
+                    this.openedProcess = null;
                 }
                 else
                 {
-                    openedProcess = value;
+                    this.openedProcess = value;
                 }
             }
         }
@@ -53,10 +60,6 @@
         /// It is up to the caller to store and reuse the detected emulator type here.
         /// </summary>
         public EmulatorType DetectedEmulator { get; set; }
-
-        public void Destroy()
-        {
-        }
 
         /// <summary>
         /// Listens for process death and detaches from the process if it closes.

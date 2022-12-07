@@ -16,6 +16,9 @@
             this.subscription = observable.Subscribe(this);
         }
 
+        /// <summary>
+        /// Notifies the observer that the provider has finished sending push-based notifications.
+        /// </summary>
         void IObserver<T>.OnCompleted()
         {
             IObserver<T> observer = (IObserver<T>)this.reference.Target;
@@ -30,6 +33,10 @@
             }
         }
 
+        /// <summary>
+        /// Notifies the observer that the provider has experienced an error condition.
+        /// </summary>
+        /// <param name="error">An object that provides additional information about the error.</param>
         void IObserver<T>.OnError(Exception error)
         {
             IObserver<T> observer = (IObserver<T>)this.reference.Target;
@@ -44,6 +51,10 @@
             }
         }
 
+        /// <summary>
+        /// Subscription event for when an event is fired.
+        /// </summary>
+        /// <param name="value">The value associated with this event.</param>
         void IObserver<T>.OnNext(T value)
         {
             IObserver<T> observer = (IObserver<T>)this.reference.Target;

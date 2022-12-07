@@ -26,13 +26,13 @@
         /// <summary>
         /// Performs a pointer scan for a given address.
         /// </summary>
-        /// <param name="address">The address for which to perform a pointer scan.</param>
-        /// <param name="maxOffset">The maximum pointer offset.</param>
-        /// <param name="depth">The maximum pointer search depth.</param>
+        /// <param name="process"></param>
+        /// <param name="newAddress"></param>
         /// <param name="alignment">The pointer scan alignment.</param>
+        /// <param name="oldPointerBag"></param>
         /// <param name="taskIdentifier">The unique identifier to prevent duplicate tasks.</param>
         /// <returns>Atrackable task that returns the scan results.</returns>
-        public static TrackableTask<PointerBag> Scan(Process process, UInt64 newAddress, Int32 alignment, PointerBag oldPointerBag, String taskIdentifier = null)
+        public static TrackableTask<PointerBag> Scan(Process process, UInt64 newAddress, MemoryAlignment alignment, PointerBag oldPointerBag, String taskIdentifier = null)
         {
             try
             {
@@ -48,7 +48,8 @@
                         stopwatch.Start();
 
                         // Step 1) Create a snapshot of the new target address
-                        Snapshot targetAddress = new Snapshot(new SnapshotRegion[] { new SnapshotRegion(new ReadGroup(newAddress, oldPointerBag.PointerSize.ToSize()), 0, oldPointerBag.PointerSize.ToSize()) });
+                        Snapshot targetAddress = new Snapshot(new SnapshotRegion(newAddress, oldPointerBag.PointerSize.ToSize()));
+                        targetAddress.SetAlignmentCascading(oldPointerBag.PointerSize.ToSize(), alignment);
 
                         // Step 2) Collect heap pointers
                         Snapshot heapPointers = SnapshotQuery.GetSnapshot(process, SnapshotQuery.SnapshotRetrievalMode.FromHeaps);
@@ -75,7 +76,7 @@
 
                         // Step 4) Perform a rebase from the old static addresses onto the new heaps
                         PointerBag newPointerBag = new PointerBag(levels, oldPointerBag.MaxOffset, oldPointerBag.PointerSize);
-                        TrackableTask<PointerBag> pointerRebaseTask = PointerRebase.Scan(process, newPointerBag, readMemory: true, performUnchangedScan: true);
+                        TrackableTask<PointerBag> pointerRebaseTask = PointerRebase.Scan(process, newPointerBag, readMemory: true);
                         PointerBag rebasedPointerBag = pointerRebaseTask.Result;
 
                         stopwatch.Stop();

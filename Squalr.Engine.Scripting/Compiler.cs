@@ -15,11 +15,12 @@
     public static class Compiler
     {
         /// <summary>
-        /// Compiles the given ModScript.
+        /// Compiles the given script.
         /// </summary>
-        /// <param name="scriptPath"></param>
-        /// <param name="isRelease"></param>
-        /// <returns></returns>
+        /// <param name="scriptPath">The path to the script.</param>
+        /// <param name="scriptContents">The contents of the script.</param>
+        /// <param name="isRelease">A value indicating whether to compile the script as debug or release.</param>
+        /// <returns>The compiled script assembly.</returns>
         public static Assembly Compile(String scriptPath, String scriptContents, Boolean isRelease)
         {
             try
@@ -36,21 +37,22 @@
                 String pdbPath = Path.Combine(buildPath, fileName + ".pdb");
                 String sourceCode = scriptContents;
 
-                CSharpParseOptions cSharpParseOptions = new CSharpParseOptions(kind: SourceCodeKind.Regular, languageVersion: LanguageVersion.Latest);
-                SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(sourceCode, cSharpParseOptions);
+                CSharpParseOptions parseOptions = new CSharpParseOptions(kind: SourceCodeKind.Regular, languageVersion: LanguageVersion.Latest);
+                SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(sourceCode, parseOptions);
 
-                IReadOnlyCollection<MetadataReference> references = new[] {
+                IReadOnlyCollection<MetadataReference> references = new[]
+                {
                         MetadataReference.CreateFromFile(typeof(Binder).GetTypeInfo().Assembly.Location),
                         MetadataReference.CreateFromFile(typeof(ValueTuple<>).GetTypeInfo().Assembly.Location),
                         MetadataReference.CreateFromFile(typeof(Script).GetTypeInfo().Assembly.Location)
                 };
 
-                CSharpCompilationOptions cSharpCompilationOptions = new CSharpCompilationOptions(
+                CSharpCompilationOptions compilationOptions = new CSharpCompilationOptions(
                     OutputKind.DynamicallyLinkedLibrary,
                     optimizationLevel: isRelease ? OptimizationLevel.Release : OptimizationLevel.Debug,
                     allowUnsafe: true);
 
-                CSharpCompilation compilation = CSharpCompilation.Create(fileName, options: cSharpCompilationOptions, references: references);
+                CSharpCompilation compilation = CSharpCompilation.Create(fileName, options: compilationOptions, references: references);
 
                 using (FileStream dllStream = new FileStream(dllPath, FileMode.OpenOrCreate))
                 {

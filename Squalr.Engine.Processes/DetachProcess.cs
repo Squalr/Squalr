@@ -1,13 +1,16 @@
-﻿using System.Diagnostics;
-
-namespace Squalr.Engine.Processes
+﻿namespace Squalr.Engine.Processes
 {
+    using System.Diagnostics;
+
     /// <summary>
     /// Defines an instance of an empty process. This can be displayed in GUIs.
     /// Attempting to attach to this process actually will cause a detach from the current target process.
     /// </summary>
     public class DetachProcess : Process
     {
+        /// <summary>
+        /// A special static instance of an empty process used to display a "detach" option in user interfaces.
+        /// </summary>
         private static DetachProcess instance = new DetachProcess();
 
         /// <summary>

@@ -11,14 +11,14 @@
     /// <summary>
     /// Class to capture keyboard input.
     /// </summary>
-    public class KeyboardCapture : IObservable<KeyState>
+    public class KeyboardCapture : IObservable<KeyStates>
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="KeyboardCapture" /> class.
         /// </summary>
         public KeyboardCapture()
         {
-            this.Observers = new HashSet<IObserver<KeyState>>();
+            this.Observers = new HashSet<IObserver<KeyStates>>();
             this.ObserverLock = new Object();
             this.FindKeyboard();
         }
@@ -46,7 +46,7 @@
         /// <summary>
         /// Gets or sets the observers that are observing keyboard events.
         /// </summary>
-        private HashSet<IObserver<KeyState>> Observers { get; set; }
+        private HashSet<IObserver<KeyStates>> Observers { get; set; }
 
         /// <summary>
         /// Gets or sets a lock for the observer list.
@@ -57,13 +57,14 @@
         /// Subscribes to keyboard capture events.
         /// </summary>
         /// <param name="observer">The observer to subscribe.</param>
-        public IDisposable Subscribe(IObserver<KeyState> observer)
+        /// <returns>An object reference that can be disposed to allow unsubscribing later.</returns>
+        public IDisposable Subscribe(IObserver<KeyStates> observer)
         {
             lock (this.ObserverLock)
             {
                 this.Observers.Add(observer);
 
-                return new Unsubscriber<KeyState>(this.Observers, observer);
+                return new Unsubscriber<KeyStates>(this.Observers, observer);
             }
         }
 
@@ -71,7 +72,7 @@
         /// Unsubscribes from keyboard capture events.
         /// </summary>
         /// <param name="subject">The observer to unsubscribe.</param>
-        public void Unsubscribe(IObserver<KeyState> subject)
+        public void Unsubscribe(IObserver<KeyStates> subject)
         {
             lock (this.ObserverLock)
             {
@@ -116,7 +117,7 @@
                 heldKeys.ExceptWith(this.PreviousKeyboardState.PressedKeys);
                 releasedKeys.ExceptWith(this.CurrentKeyboardState.PressedKeys);
 
-                KeyState keyState = new KeyState(heldKeys, releasedKeys, downKeys, heldKeys);
+                KeyStates keyState = new KeyStates(heldKeys, releasedKeys, downKeys, heldKeys);
 
                 this.NotifyKeyState(keyState);
 
@@ -138,13 +139,13 @@
         /// Notifies observers of the current keyboard state.
         /// </summary>
         /// <param name="keyState">The keyboard state.</param>
-        public void NotifyKeyState(KeyState keyState)
+        public void NotifyKeyState(KeyStates keyState)
         {
             lock (this.ObserverLock)
             {
-                IObserver<KeyState>[] observers = this.Observers.ToArray();
+                IObserver<KeyStates>[] observers = this.Observers.ToArray();
 
-                foreach (IObserver<KeyState> observer in observers)
+                foreach (IObserver<KeyStates> observer in observers)
                 {
                     if (keyState == null)
                     {
@@ -156,13 +157,12 @@
                     }
                 }
 
-                foreach (IObserver<KeyState> observer in observers)
+                foreach (IObserver<KeyStates> observer in observers)
                 {
                     observer.OnCompleted();
                 }
             }
         }
-
 
         /// <summary>
         /// Finds any connected keyboard devices.

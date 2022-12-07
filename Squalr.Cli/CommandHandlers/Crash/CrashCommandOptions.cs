@@ -40,11 +40,14 @@
             // Start overwriting any memory that changed with 0s
             foreach (SnapshotRegion region in scanTask.Result.SnapshotRegions)
             {
-                for (Int32 index = 0; index < region.GetElementCount(alignment); index++)
+                foreach (SnapshotElementRange elementRange in region)
                 {
-                    if (random.NextDouble() <= Intensity)
+                    for (Int32 index = 0; index < elementRange.GetAlignedElementCount(alignment); index++)
                     {
-                        MemoryWriter.Instance.Write<Int32>(SessionManager.Session.OpenedProcess, region[index, alignment].GetBaseAddress(ScannableType.Byte.Size), 0);
+                        if (random.NextDouble() <= Intensity)
+                        {
+                            MemoryWriter.Instance.Write<Int32>(SessionManager.Session.OpenedProcess, elementRange[index, alignment].GetBaseAddress(), 0);
+                        }
                     }
                 }
             }

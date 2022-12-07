@@ -8,7 +8,7 @@
     {
         public static IVectorPointerSearchKernel GetSearchKernel(Snapshot boundsSnapshot, UInt32 maxOffset, PointerSize pointerSize)
         {
-            if (boundsSnapshot.SnapshotRegions.Length < 64)
+            if (boundsSnapshot.ByteCount < 64)
             {
                 // Linear is fast for small region sizes
                 return new LinearPointerSearchKernel(boundsSnapshot, maxOffset, pointerSize);

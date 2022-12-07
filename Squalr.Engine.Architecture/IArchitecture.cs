@@ -2,6 +2,7 @@
 {
     using Assemblers;
     using Disassemblers;
+    using System.Runtime.InteropServices;
 
     /// <summary>
     /// An interface defining an object that can assemble and disassemble instructions.
@@ -9,16 +10,36 @@
     public interface IArchitecture
     {
         /// <summary>
-        /// Gets an instruction assembler
+        /// Gets the architecture of the CPU running Squalr.
         /// </summary>
-        /// <returns>An object implementing the IAssembler interface.</returns>
+        /// <returns>The architecture of the CPU running Squalr.</returns>
+        Architecture GetCpuArchitecture();
+
+        /// <summary>
+        /// Gets an instruction assembler for the current CPU architecture.
+        /// </summary>
+        /// <returns>An instruction assembler for the current CPU architecture.</returns>
         IAssembler GetAssembler();
 
         /// <summary>
-        /// Gets an instruction disassembler
+        /// Gets an instruction assembler of the specified architecture.
         /// </summary>
-        /// <returns>An object implementing the IDisassembler interface.</returns>
+        /// <param name="architecture">The cpu architexture for the assembler.</param>
+        /// <returns>An instruction assembler of the specified architecture.</returns>
+        IAssembler GetAssembler(Architecture architecture);
+
+        /// <summary>
+        /// Gets an instruction disassembler for the current CPU architecture.
+        /// </summary>
+        /// <returns>An instruction disassembler for the current CPU architecture.</returns>
         IDisassembler GetDisassembler();
+
+        /// <summary>
+        /// Gets an instruction disassembler of the specified architecture.
+        /// </summary>
+        /// <param name="architecture">The cpu architexture for the disassembler.</param>
+        /// <returns>An instruction disassembler of the specified architecture.</returns>
+        IDisassembler GetDisassembler(Architecture architecture);
     }
     //// End architecture
 }

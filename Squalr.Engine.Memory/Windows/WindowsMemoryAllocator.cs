@@ -33,9 +33,11 @@
         }
 
         /// <summary>
-        /// Allocates memory in the opened process.
+        /// Allocates memory in the specified process.
         /// </summary>
+        /// <param name="process">The process in which to allocate the memory.</param>
         /// <param name="size">The size of the memory allocation.</param>
+        /// <param name="allocAddress">The rough address of where the allocation should take place.</param>
         /// <returns>A pointer to the location of the allocated memory.</returns>
         public UInt64 AllocateMemory(Process process, Int32 size)
         {
@@ -54,8 +56,9 @@
         }
 
         /// <summary>
-        /// Deallocates memory in the opened process.
+        /// Deallocates memory in the specified process.
         /// </summary>
+        /// <param name="process">The process in which to deallocate the memory.</param>
         /// <param name="address">The address to perform the region wide deallocation.</param>
         public void DeallocateMemory(Process process, UInt64 address)
         {
@@ -91,27 +94,27 @@
                 Int32 retryCount = 0;
 
                 // Request all chunks of unallocated memory. These will be very large in a 64-bit process.
-                IEnumerable<MemoryBasicInformation64> freeMemory = WindowsMemoryQuery.QueryUnallocatedMemory(
+                IEnumerable<MemoryBasicInformation64> unallocatedMemory = WindowsMemoryQuery.QueryUnallocatedMemory(
                     processHandle,
                     allocAddress.Subtract(Int32.MaxValue >> 1, wrapAround: false),
                     allocAddress.Add(Int32.MaxValue >> 1, wrapAround: false));
 
                 // Convert to normalized regions
-                IEnumerable<NormalizedRegion> regions = freeMemory.Select(x => new NormalizedRegion(x.BaseAddress.ToUInt64(), x.RegionSize.ToInt32()));
+                IEnumerable<NormalizedRegion> unallocatedRegions = unallocatedMemory.Select(x => new NormalizedRegion(x.BaseAddress.ToUInt64(), x.RegionSize.ToInt32()));
 
                 // Chunk the large regions into smaller regions based on the allocation size (minimum size is the alloc alignment to prevent creating too many chunks)
-                List<NormalizedRegion> subRegions = new List<NormalizedRegion>();
-                foreach (NormalizedRegion region in regions)
+                List<NormalizedRegion> unallocatedSubRegions = new List<NormalizedRegion>();
+                foreach (NormalizedRegion region in unallocatedRegions)
                 {
                     region.BaseAddress = region.BaseAddress.Subtract(region.BaseAddress.Mod(WindowsMemoryAllocator.AllocAlignment), wrapAround: false);
-                    IEnumerable<NormalizedRegion> chunkedRegions = region.ChunkNormalizedRegion(Math.Max(size, WindowsMemoryAllocator.AllocAlignment)).Take(128).Where(x => x.RegionSize >= size);
-                    subRegions.AddRange(chunkedRegions);
+                    IEnumerable<NormalizedRegion> unallocatedRegionChunks = region.ChunkNormalizedRegion(Math.Max(size, WindowsMemoryAllocator.AllocAlignment)).Take(128).Where(x => x.RegionSize >= size);
+                    unallocatedSubRegions.AddRange(unallocatedRegionChunks);
                 }
 
                 do
                 {
                     // Sample a random chunk and attempt to allocate the memory
-                    result = subRegions.ElementAt(StaticRandom.Next(0, subRegions.Count())).BaseAddress;
+                    result = unallocatedSubRegions.ElementAt(StaticRandom.Next(0, unallocatedSubRegions.Count())).BaseAddress;
                     result = NativeMethods.VirtualAllocEx(processHandle, result.ToIntPtr(), size, allocationFlags, protectionFlags).ToUInt64();
 
                     if (result != 0 || retryCount >= WindowsMemoryAllocator.AllocateRetryCount)

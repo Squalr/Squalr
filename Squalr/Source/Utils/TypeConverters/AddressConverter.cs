@@ -39,7 +39,7 @@
         public override Object ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, Object value)
         {
             String valueAsStr = value?.ToString() ?? String.Empty;
-            valueAsStr = Regex.Replace(valueAsStr, @"\s+", "");
+            valueAsStr = Regex.Replace(valueAsStr, @"\s+", String.Empty);
 
             if (SyntaxChecker.CanParseAddress(valueAsStr))
             {

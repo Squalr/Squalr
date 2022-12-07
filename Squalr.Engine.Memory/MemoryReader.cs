@@ -13,14 +13,13 @@
         /// <summary>
         /// Singleton instance of the <see cref="WindowsMemoryReader"/> class.
         /// </summary>
-        private static readonly Lazy<WindowsMemoryReader> windowsMemoryReaderInstance = new Lazy<WindowsMemoryReader>(
+        private static readonly Lazy<WindowsMemoryReader> WindowsMemoryReaderInstance = new Lazy<WindowsMemoryReader>(
             () => { return new WindowsMemoryReader(); },
             LazyThreadSafetyMode.ExecutionAndPublication);
 
         /// <summary>
-        /// Creates the memory reader for the current operating system.
+        /// Gets a <see cref="IMemoryReader"/> object instance for the current operating system.
         /// </summary>
-        /// <param name="targetProcess">The process from which the memory reader reads memory.</param>
         /// <returns>An instance of a memory reader.</returns>
         public static IMemoryReader Instance
         {
@@ -36,7 +35,7 @@
                     case PlatformID.Win32S:
                     case PlatformID.Win32Windows:
                     case PlatformID.WinCE:
-                        return MemoryReader.windowsMemoryReaderInstance.Value;
+                        return MemoryReader.WindowsMemoryReaderInstance.Value;
                     case PlatformID.Unix:
                         ex = new Exception("Unix operating system is not supported");
                         break;

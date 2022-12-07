@@ -12,8 +12,7 @@
             "ScrollToCenter",
             typeof(Boolean),
             typeof(ScrollToCenterBehavior),
-            new UIPropertyMetadata(false, OnScrollToCenterPropertyChanged)
-        );
+            new UIPropertyMetadata(false, OnScrollToCenterPropertyChanged));
 
         public static Boolean GetScrollToCenter(DependencyObject obj)
         {

@@ -19,22 +19,6 @@
             this.JavaItem = javaItem;
         }
 
-        [Browsable(false)]
-        private JavaItem JavaItem
-        {
-            get
-            {
-                return this.javaItem;
-            }
-
-            set
-            {
-                this.javaItem = value;
-                this.ProjectItem = value;
-                this.RaisePropertyChanged(nameof(this.JavaItem));
-            }
-        }
-
         /// <summary>
         /// Gets or sets the data type of the value at this address.
         /// </summary>
@@ -107,6 +91,22 @@
             get
             {
                 return this.JavaItem.CalculatedAddress;
+            }
+        }
+
+        [Browsable(false)]
+        private JavaItem JavaItem
+        {
+            get
+            {
+                return this.javaItem;
+            }
+
+            set
+            {
+                this.javaItem = value;
+                this.ProjectItem = value;
+                this.RaisePropertyChanged(nameof(this.JavaItem));
             }
         }
     }

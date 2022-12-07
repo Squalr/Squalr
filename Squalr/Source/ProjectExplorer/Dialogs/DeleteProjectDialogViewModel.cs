@@ -2,7 +2,7 @@
 {
     using GalaSoft.MvvmLight;
     using Squalr.Engine.Common.Logging;
-    using Squalr.Properties;
+    using Squalr.Source.Settings;
     using Squalr.View.Dialogs;
     using System;
     using System.IO;
@@ -27,15 +27,6 @@
 
         private DeleteProjectDialogViewModel() : base()
         {
-        }
-
-        /// <summary>
-        /// Gets a singleton instance of the <see cref="DeleteProjectDialogViewModel" /> class.
-        /// </summary>
-        /// <returns>A singleton instance of the class.</returns>
-        public static DeleteProjectDialogViewModel GetInstance()
-        {
-            return DeleteProjectDialogViewModel.deleteProjectDialogViewModelInstance.Value;
         }
 
         public String ConfirmDeleteText
@@ -76,9 +67,20 @@
         }
 
         /// <summary>
+        /// Gets a singleton instance of the <see cref="DeleteProjectDialogViewModel" /> class.
+        /// </summary>
+        /// <returns>A singleton instance of the class.</returns>
+        public static DeleteProjectDialogViewModel GetInstance()
+        {
+            return DeleteProjectDialogViewModel.deleteProjectDialogViewModelInstance.Value;
+        }
+
+        /// <summary>
         /// Shows the delete project dialog, deleting the project if the dialog result was true.
         /// </summary>
+        /// <param name="owner">The window that owns this dialog.</param>
         /// <param name="projectName">The project name to potentially delete.</param>
+        /// <returns>A value indicating whether the project deletion was successful.</returns>
         public Boolean ShowDialog(Window owner, String projectName)
         {
             this.ConfirmDeleteText = String.Empty;

@@ -7,8 +7,10 @@
     using Squalr.Engine.Scanning.Scanners.Constraints;
     using Squalr.Engine.Scanning.Snapshots;
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using static Squalr.Engine.Common.TrackableTask;
@@ -34,14 +36,13 @@
         {
             try
             {
+                //// TODO: This has been updated to scan in-place (ie edit the snapshot that has been provided). It may be worth adding an option
+                //// to create a new snapshot.
+
                 return TrackableTask<Snapshot>
                     .Create(ManualScanner.Name, taskIdentifier, out UpdateProgress updateProgress, out CancellationToken cancellationToken)
                     .With(Task<Snapshot>.Run(() =>
                     {
-                        Snapshot result = null;
-
-                        snapshot.AlignAndResolveAuto(constraints.Alignment, constraints.ElementType);
-
                         try
                         {
                             cancellationToken.ThrowIfCancellationRequested();
@@ -50,49 +51,78 @@
                             stopwatch.Start();
 
                             Int32 processedPages = 0;
-                            ConcurrentScanBag resultRegions = new ConcurrentScanBag();
+                            //// ConcurrentScanRegionBag resultRegions = new ConcurrentScanRegionBag(); // Reimplement if we ever decide to reimplement manual scanner creating new snapshots
 
-                            ParallelOptions options = ParallelSettings.ParallelSettingsFastest.Clone();
+                            ParallelOptions options = ScanSettings.UseMultiThreadScans ? ParallelSettings.ParallelSettingsFastest : ParallelSettings.ParallelSettingsNone;
+
+                            if (!ScanSettings.UseMultiThreadScans)
+                            {
+                                Logger.Log(LogLevel.Warn, "Multi-threaded scans are disabled in settings. Scan performance will be significantly decreased.");
+                            }
+
                             options.CancellationToken = cancellationToken;
 
                             Parallel.ForEach(
-                                snapshot.OptimizedSnapshotRegions,
+                                snapshot.SnapshotRegions,
                                 options,
-                                (region) =>
+                                (snapshotRegion) =>
                                 {
                                     // Check for canceled scan
                                     cancellationToken.ThrowIfCancellationRequested();
 
-                                    if (!region.ReadGroup.CanCompare(constraints: constraints))
+                                    if (!snapshotRegion.CanCompare(constraints: constraints))
                                     {
                                         return;
                                     }
 
-                                    ISnapshotRegionScanner scanner = SnapshotRegionScannerFactory.CreateScannerInstance(region: region, constraints: constraints);
-                                    IList<SnapshotRegion> results = scanner.ScanRegion(region: region, constraints: constraints);
+                                    snapshotRegion.Align(constraints.Alignment);
 
-                                    if (!results.IsNullOrEmpty())
-                                    {
-                                        resultRegions.Add(results);
-                                    }
+                                    ConcurrentBag<SnapshotElementRange> scanResults = new ConcurrentBag<SnapshotElementRange>();
+
+                                    // For most workloads, the nested parallel for loop will be ever-so-slightly slower than a regular loop, however this is worth it because
+                                    // there are some cases where this saves a significant amount of time, as there may be a small number of snapshot regions with a substantial number of elements.
+                                    // This extra parallel loop helps divide that work up among otherwise idle threads.
+                                    Parallel.ForEach(
+                                        snapshotRegion,
+                                        options,
+                                        (elementRange) =>
+                                        {
+                                            using (ISnapshotRegionScanner scanner = SnapshotRegionScannerFactory.AquireScannerInstance(elementRange: elementRange, constraints: constraints))
+                                            {
+                                                IList<SnapshotElementRange> results = scanner.ScanRegion(elementRange: elementRange, constraints: constraints);
+
+                                                if (!results.IsNullOrEmpty())
+                                                {
+                                                    foreach (SnapshotElementRange element in results)
+                                                    {
+                                                        scanResults.Add(element);
+                                                    }
+                                                }
+                                            }
+                                        });
+
+                                    snapshotRegion.SnapshotElementRanges = scanResults;
+                                    snapshotRegion.SetAlignment(constraints.Alignment, constraints.ElementType.Size);
 
                                     // Update progress every N regions
                                     if (Interlocked.Increment(ref processedPages) % 32 == 0)
                                     {
+                                        // Technically this callback is a data race, but it does not really matter if scan progress is not reported perfectly accurately
                                         updateProgress((float)processedPages / (float)snapshot.RegionCount * 100.0f);
                                     }
                                 });
-                            //// End foreach Region
+                            //// End foreach region
 
-                            // Exit if canceled
                             cancellationToken.ThrowIfCancellationRequested();
 
-                            result = new Snapshot(ManualScanner.Name, resultRegions);
-                            result.AlignAndResolveAuto(constraints.Alignment, constraints.ElementType);
+                            snapshot.SetSnapshotRegions(snapshot.SnapshotRegions?.Where(region => region.HasCurrentValues && region.TotalElementCount > 0));
+                            snapshot.SetAlignment(constraints.Alignment);
+                            snapshot.SnapshotName = "Manual Scan";
+
                             stopwatch.Stop();
+
                             Logger.Log(LogLevel.Info, "Scan complete in: " + stopwatch.Elapsed);
-                            result.ComputeElementCount(constraints.ElementType.Size);
-                            Logger.Log(LogLevel.Info, "Results: " + result.ElementCount + " (" + Conversions.ValueToMetricSize(result.ByteCount) + ")");
+                            Logger.Log(LogLevel.Info, "Results: " + snapshot.ElementCount + " (" + Conversions.ValueToMetricSize(snapshot.ByteCount) + ")");
                         }
                         catch (OperationCanceledException ex)
                         {
@@ -103,7 +133,7 @@
                             Logger.Log(LogLevel.Error, "Error performing scan", ex);
                         }
 
-                        return result;
+                        return snapshot;
                     }, cancellationToken));
             }
             catch (TaskConflictException ex)

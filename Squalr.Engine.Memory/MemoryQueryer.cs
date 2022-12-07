@@ -6,7 +6,7 @@
     using System.Threading;
 
     /// <summary>
-    /// Instantiates the proper memory queryer based on the host OS.
+    /// A static class for accessing an object uses to query memory in a target process.
     /// </summary>
     public static class MemoryQueryer
     {
@@ -18,7 +18,7 @@
             LazyThreadSafetyMode.ExecutionAndPublication);
 
         /// <summary>
-        /// Creates the memory queryer for the current operating system.
+        /// Gets a <see cref="IMemoryQueryer"/> object instance for the current operating system.
         /// </summary>
         /// <returns>An instance of a memory queryer.</returns>
         public static IMemoryQueryer Instance

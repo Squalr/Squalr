@@ -19,22 +19,6 @@
             this.InstructionItem = instructionItem;
         }
 
-        [Browsable(false)]
-        private InstructionItem InstructionItem
-        {
-            get
-            {
-                return this.instructionItem;
-            }
-
-            set
-            {
-                this.instructionItem = value;
-                this.ProjectItem = value;
-                this.RaisePropertyChanged(nameof(this.InstructionItem));
-            }
-        }
-
         /// <summary>
         /// Gets or sets the value at this address.
         /// </summary>
@@ -178,6 +162,22 @@
             get
             {
                 return this.InstructionItem.CalculatedAddress;
+            }
+        }
+
+        [Browsable(false)]
+        private InstructionItem InstructionItem
+        {
+            get
+            {
+                return this.instructionItem;
+            }
+
+            set
+            {
+                this.instructionItem = value;
+                this.ProjectItem = value;
+                this.RaisePropertyChanged(nameof(this.InstructionItem));
             }
         }
     }

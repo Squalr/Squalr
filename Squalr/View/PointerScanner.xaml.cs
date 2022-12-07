@@ -14,7 +14,7 @@
     public partial class PointerScanner : UserControl
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="ManualScanner"/> class.
+        /// Initializes a new instance of the <see cref="PointerScanner"/> class.
         /// </summary>
         public PointerScanner()
         {
@@ -39,6 +39,46 @@
             this.PointerRadiusHexDecBoxViewModel.PropertyChanged += PointerRadiusHexDecBoxViewModelPropertyChanged;
             this.PointerRadiusHexDecBoxViewModel.DataType = ScannableType.Int32;
             this.PointerRadiusHexDecBoxViewModel.SetValue(PointerScannerViewModel.DefaultPointerScanRadius);
+        }
+
+        /// <summary>
+        /// Gets the view model associated with this view.
+        /// </summary>
+        public PointerScannerViewModel PointerScannerViewModel
+        {
+            get
+            {
+                return this.DataContext as PointerScannerViewModel;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the hex dec box view model used to display the current pointer scan address being edited.
+        /// </summary>
+        private HexDecBoxViewModel PointerScanAddressHexDecBoxViewModel { get; set; }
+
+        /// <summary>
+        /// Gets or sets the value hex dec box view model used to display the current pointer rescan address being edited.
+        /// </summary>
+        private HexDecBoxViewModel PointerRetargetAddressHexDecBoxViewModel { get; set; }
+
+        /// <summary>
+        /// Gets or sets the value hex dec box view model used to display the current depth being edited.
+        /// </summary>
+        private HexDecBoxViewModel DepthHexDecBoxViewModel { get; set; }
+
+        /// <summary>
+        /// Gets or sets the value hex dec box view model used to display the current pointer radius being edited.
+        /// </summary>
+        private HexDecBoxViewModel PointerRadiusHexDecBoxViewModel { get; set; }
+
+        /// <summary>
+        /// Updates the active type.
+        /// </summary>
+        /// <param name="activeType">The new active type.</param>
+        public void Update(ScannableType activeType)
+        {
+            this.PointerRetargetAddressHexDecBoxViewModel.DataType = activeType;
         }
 
         private void PointerScanAddressHexDecBoxViewModelPropertyChanged(Object sender, PropertyChangedEventArgs args)
@@ -94,46 +134,6 @@
                 Object value = this.PointerRadiusHexDecBoxViewModel.GetValue();
                 this.PointerScannerViewModel.SetPointerRadiusCommand.Execute(value == null ? 0 : Conversions.ParsePrimitiveStringAsPrimitive(ScannableType.Int32, value.ToString()));
             }
-        }
-
-        /// <summary>
-        /// Gets the view model associated with this view.
-        /// </summary>
-        public PointerScannerViewModel PointerScannerViewModel
-        {
-            get
-            {
-                return this.DataContext as PointerScannerViewModel;
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets the hex dec box view model used to display the current pointer scan address being edited.
-        /// </summary>
-        private HexDecBoxViewModel PointerScanAddressHexDecBoxViewModel { get; set; }
-
-        /// <summary>
-        /// Gets or sets the value hex dec box view model used to display the current pointer rescan address being edited.
-        /// </summary>
-        private HexDecBoxViewModel PointerRetargetAddressHexDecBoxViewModel { get; set; }
-
-        /// <summary>
-        /// Gets or sets the value hex dec box view model used to display the current depth being edited.
-        /// </summary>
-        private HexDecBoxViewModel DepthHexDecBoxViewModel { get; set; }
-
-        /// <summary>
-        /// Gets or sets the value hex dec box view model used to display the current pointer radius being edited.
-        /// </summary>
-        private HexDecBoxViewModel PointerRadiusHexDecBoxViewModel { get; set; }
-
-        /// <summary>
-        /// Updates the active type.
-        /// </summary>
-        /// <param name="activeType">The new active type.</param>
-        public void Update(ScannableType activeType)
-        {
-            this.PointerRetargetAddressHexDecBoxViewModel.DataType = activeType;
         }
     }
     //// End class

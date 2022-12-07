@@ -1,6 +1,5 @@
-﻿namespace Squalr.Engine.Memory
+﻿namespace Squalr.Engine.Memory.Clr
 {
-    using Squalr.Engine.Memory.Clr;
     using System;
     using System.Collections.Generic;
     using System.Threading;
@@ -116,7 +115,6 @@
         /// </summary>
         protected void OnEnd()
         {
-
         }
 
         /// <summary>

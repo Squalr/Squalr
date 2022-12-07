@@ -3,7 +3,8 @@
     using GalaSoft.MvvmLight;
     using GalaSoft.MvvmLight.Command;
     using Squalr.Engine.Common.Logging;
-    using Squalr.Properties;
+    using Squalr.Engine.Common.OS;
+    using Squalr.Source.Settings;
     using Squalr.View.Dialogs;
     using System;
     using System.Collections;
@@ -38,6 +39,17 @@
             this.NewProjectCommand = new RelayCommand(() => this.CreateNewProject());
             this.DeleteProjectCommand = new RelayCommand<String>((project) => this.DeleteProject(project));
             this.DeleteSelectedProjectCommand = new RelayCommand(() => this.DeleteProject(this.SelectedProject));
+            this.ShowSelectedProjectInFileExplorerCommand = new RelayCommand(() => this.ShowProjectInFileExplorer(this.SelectedProject));
+            this.FileSystemWatcher = new FileSystemWatcher(SettingsViewModel.GetInstance().ProjectRoot, "*.*")
+            {
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName,
+                EnableRaisingEvents = true
+            };
+
+            this.FileSystemWatcher.Changed += this.OnProjectDirectoriesChanged;
+            this.FileSystemWatcher.Created += this.OnProjectDirectoriesChanged;
+            this.FileSystemWatcher.Renamed += this.OnProjectDirectoriesChanged;
+            this.FileSystemWatcher.Deleted += this.OnProjectDirectoriesChanged;
         }
 
         /// <summary>
@@ -74,6 +86,11 @@
         /// Gets the command to delete the selected project.
         /// </summary>
         public ICommand DeleteSelectedProjectCommand { get; private set; }
+
+        /// <summary>
+        /// Gets the command to open the selected project in file explorer.
+        /// </summary>
+        public ICommand ShowSelectedProjectInFileExplorerCommand { get; private set; }
 
         /// <summary>
         /// Gets a list of projects in the project root.
@@ -182,6 +199,11 @@
             }
         }
 
+        /// <summary>
+        /// Gets or sets an object to watch for file system changes under the project root directory.
+        /// </summary>
+        private FileSystemWatcher FileSystemWatcher { get; set; }
+
         private SelectProjectDialog SelectProjectDialog { get; set; }
 
         /// <summary>
@@ -193,7 +215,7 @@
             return SelectProjectDialogViewModel.selectProjectDialogViewModelInstance.Value;
         }
 
-        public void ShowDialog(Window owner, Action<String> projectPathCallback)
+        public void ShowSelectProjectDialog(Window owner, Action<String> projectPathCallback)
         {
             this.SelectedProject = String.Empty;
             this.SelectProjectDialog = new SelectProjectDialog() { Owner = owner };
@@ -209,12 +231,27 @@
             }
         }
 
+        private void OnProjectDirectoriesChanged(Object sender, FileSystemEventArgs e)
+        {
+            // Refresh project list
+            this.RaisePropertyChanged(nameof(this.ProjectSearchTerm));
+            this.RaisePropertyChanged(nameof(this.FilteredProjects));
+        }
+
+        /// <summary>
+        /// Opens the specified project.
+        /// </summary>
+        /// <param name="project">The project name to open.</param>
         private void OpenProject(String project)
         {
             this.SelectedProject = project;
             this.SelectProjectDialog.SelectProject(this.SelectedProject);
         }
 
+        /// <summary>
+        /// Opens a dialog to rename the given project.
+        /// </summary>
+        /// <param name="project">The project name to rename.</param>
         private void RenameProject(String project)
         {
             RenameProjectDialogViewModel renameProjectDialog = RenameProjectDialogViewModel.GetInstance();
@@ -226,6 +263,9 @@
             }
         }
 
+        /// <summary>
+        /// Creates a new project folder.
+        /// </summary>
         private void CreateNewProject()
         {
             CreateProjectDialogViewModel createProjectDialog = CreateProjectDialogViewModel.GetInstance();
@@ -236,6 +276,10 @@
             }
         }
 
+        /// <summary>
+        /// Deletes the given project from disk.
+        /// </summary>
+        /// <param name="project">The name of the project to delete.</param>
         private void DeleteProject(String project)
         {
             if (String.IsNullOrEmpty(project))
@@ -257,6 +301,17 @@
                 this.RaisePropertyChanged(nameof(this.Projects));
                 this.RaisePropertyChanged(nameof(this.FilteredProjects));
             }
+        }
+
+        /// <summary>
+        /// Opens the given project in file explorer.
+        /// </summary>
+        /// <param name="project">The project name which will be opened in file explorer.</param>
+        private void ShowProjectInFileExplorer(String project)
+        {
+            String projectPath = Path.Combine(SettingsViewModel.GetInstance().ProjectRoot, project);
+
+            OSUtils.OpenPathInFileExplorer(projectPath);
         }
     }
     //// End class

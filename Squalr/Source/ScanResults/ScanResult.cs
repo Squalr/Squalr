@@ -25,7 +25,7 @@
             this.ProjectItemView = projectItem;
             this.PreviousValue = previousValue;
             
-            this.ProjectItemView.PropertyChanged += PointerItemChanged;
+            this.ProjectItemView.PropertyChanged += this.PointerItemChanged;
         }
 
         /// <summary>
@@ -51,7 +51,7 @@
         }
 
         /// <summary>
-        /// Gets or sets the address specifier of the scan result.
+        /// Gets the address specifier of the scan result.
         /// </summary>
         [Browsable(false)]
         public String AddressSpecifier
@@ -87,7 +87,7 @@
         }
 
         /// <summary>
-        /// Occurs after a property value changes.
+        /// An event that is raised when a property of this object changes.
         /// </summary>
         public event PropertyChangedEventHandler PropertyChanged;
 

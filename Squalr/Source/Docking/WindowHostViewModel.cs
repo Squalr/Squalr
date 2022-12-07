@@ -13,7 +13,7 @@
     public abstract class WindowHostViewModel : ViewModelBase
     {
         /// <summary>
-        /// Creates an instance of the <see cref="WindowHostViewModel" /> class.
+        /// Initializes a new instance of the <see cref="WindowHostViewModel" /> class.
         /// </summary>
         public WindowHostViewModel()
         {
@@ -22,12 +22,12 @@
             this.MaximizeRestoreCommand = new RelayCommand<Window>((window) => this.MaximizeRestore(window), (window) => true);
             this.MinimizeCommand = new RelayCommand<Window>((window) => this.Minimize(window), (window) => true);
 
-            this.ResetLayoutCommand = new RelayCommand<DockingManager>((dockingManager)
-                => DockingViewModel.GetInstance().LoadLayoutFromResource(dockingManager, this.DefaultLayoutResource), (dockingManager) => true);
-            this.LoadLayoutCommand = new RelayCommand<DockingManager>((dockingManager)
-                => DockingViewModel.GetInstance().LoadLayoutFromFile(dockingManager, this.LayoutSaveFile, this.DefaultLayoutResource), (dockingManager) => true);
-            this.SaveLayoutCommand = new RelayCommand<DockingManager>((dockingManager)
-                => DockingViewModel.GetInstance().SaveLayout(dockingManager, this.LayoutSaveFile), (dockingManager) => true);
+            this.ResetLayoutCommand = new RelayCommand<DockingManager>(
+                (dockingManager) => DockingViewModel.GetInstance().LoadLayoutFromResource(dockingManager, this.DefaultLayoutResource), (dockingManager) => true);
+            this.LoadLayoutCommand = new RelayCommand<DockingManager>(
+                (dockingManager) => DockingViewModel.GetInstance().LoadLayoutFromFile(dockingManager, this.LayoutSaveFile, this.DefaultLayoutResource), (dockingManager) => true);
+            this.SaveLayoutCommand = new RelayCommand<DockingManager>(
+                (dockingManager) => DockingViewModel.GetInstance().SaveLayout(dockingManager, this.LayoutSaveFile), (dockingManager) => true);
         }
 
         /// <summary>
@@ -61,12 +61,12 @@
         public ICommand SaveLayoutCommand { get; private set; }
 
         /// <summary>
-        /// Gets or sets the fallback default layout resource to load when there is no save file.
+        /// Gets the fallback default layout resource to load when there is no save file.
         /// </summary>
         protected abstract String DefaultLayoutResource { get; }
 
         /// <summary>
-        /// Gets or sets the layout save file.
+        /// Gets the layout save file.
         /// </summary>
         protected abstract String LayoutSaveFile { get; }
 

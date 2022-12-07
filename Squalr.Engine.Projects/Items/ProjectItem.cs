@@ -35,32 +35,39 @@
         protected String name;
 
         /// <summary>
+        /// The process session reference for accessing the current opened process.
+        /// </summary>
+        [Browsable(false)]
+        protected ProcessSession processSession;
+
+        /// <summary>
         /// The description of this project item.
         /// </summary>
         [Browsable(false)]
         [DataMember]
-        protected String description;
+        private String description;
 
         /// <summary>
         /// The hotkey associated with this project item.
         /// </summary>
         [Browsable(false)]
-        protected Hotkey hotkey;
+        private Hotkey hotkey;
 
         /// <summary>
         /// A value indicating whether this project item has been activated.
         /// </summary>
         [Browsable(false)]
-        protected Boolean isActivated;
+        private Boolean isActivated;
 
-        [Browsable(false)]
-        protected ProcessSession processSession;
-
+        /// <summary>
+        /// The parent directory item that contains this project item.
+        /// </summary>
         private DirectoryItem parent;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ProjectItem" /> class.
         /// </summary>
+        /// <param name="processSession">A process session reference for accessing the current opened process.</param>
         internal ProjectItem(ProcessSession processSession) : this(processSession, String.Empty)
         {
         }
@@ -68,6 +75,7 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="ProjectItem" /> class.
         /// </summary>
+        /// <param name="processSession">A process session reference for accessing the current opened process.</param>
         /// <param name="name">The name of the project item.</param>
         internal ProjectItem(ProcessSession processSession, String name)
         {
@@ -78,110 +86,8 @@
             this.ActivationLock = new Object();
         }
 
-        public static ProjectItem FromFile(ProcessSession processSession, String filePath, DirectoryItem parent)
-        {
-            try
-            {
-                if (!File.Exists(filePath))
-                {
-                    throw new Exception("File does not exist: " + filePath);
-                }
-
-                using (FileStream fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                {
-                    if (fileStream.Length == 0)
-                    {
-                        return null;
-                    }
-
-                    Type type = null;
-
-                    switch (new FileInfo(filePath).Extension.ToLower())
-                    {
-                        case ScriptItem.Extension:
-                            type = typeof(ScriptItem);
-                            break;
-                        case PointerItem.Extension:
-                            type = typeof(PointerItem);
-                            break;
-                        case InstructionItem.Extension:
-                            type = typeof(InstructionItem);
-                            break;
-                        case DotNetItem.Extension:
-                            type = typeof(DotNetItem);
-                            break;
-                        case JavaItem.Extension:
-                            type = typeof(JavaItem);
-                            break;
-                        default:
-                            return null;
-                    }
-
-                    DataContractJsonSerializer serializer = new DataContractJsonSerializer(type);
-
-                    ProjectItem projectItem = serializer.ReadObject(fileStream) as ProjectItem;
-
-                    // Bypass setters to avoid triggering write-back to disk
-                    projectItem.name = Path.GetFileNameWithoutExtension(filePath);
-                    projectItem.parent = parent;
-                    projectItem.processSession = processSession;
-
-                    return projectItem;
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Log(LogLevel.Error, "Error loading file", ex);
-                throw ex;
-            }
-        }
-
         /// <summary>
-        /// Saves this project item by serializing it to disk.
-        /// </summary>
-        public virtual void Save()
-        {
-            try
-            {
-                using (FileStream fileStream = new FileStream(this.FullPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
-                {
-                    DataContractJsonSerializer serializer = new DataContractJsonSerializer(this.GetType());
-                    serializer.WriteObject(fileStream, this);
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Log(LogLevel.Error, "Error saving file", ex);
-            }
-        }
-
-        private void Rename(String newName)
-        {
-            if (!this.HasAssociatedFileOrFolder || this.Name.Equals(newName, StringComparison.OrdinalIgnoreCase))
-            {
-                this.name = newName;
-                return;
-            }
-
-            newName = this.MakeNameUnique(newName);
-            String newPath = this.GetFilePathForName(newName);
-
-            // Attempt to move the existing associated file if possible
-            try
-            {
-                File.Move(this.FullPath, newPath);
-            }
-            catch (Exception ex)
-            {
-                Logger.Log(LogLevel.Error, "Error moving existing project file during rename. The old file may still exist.", ex);
-            }
-
-            this.name = newName;
-            this.Save();
-        }
-
-        /// <summary>
-        /// Occurs after a property value changes.
+        /// An event that is raised when a property of this object changes.
         /// </summary>
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -192,7 +98,7 @@
         {
             get
             {
-                return parent;
+                return this.parent;
             }
 
             set
@@ -206,7 +112,7 @@
         }
 
         /// <summary>
-        /// A view that has been mapped onto this item. This is an abstraction violation, but a useful optimization.
+        /// Gets or sets a view that has been mapped onto this item. This is an abstraction violation, but a useful optimization.
         /// </summary>
         public Object MappedView { get; set; }
 
@@ -327,7 +233,7 @@
         }
 
         /// <summary>
-        /// Gets a value indicating if this project item is enabled.
+        /// Gets a value indicating whether this project item is enabled.
         /// </summary>
         [Browsable(false)]
         public virtual Boolean IsEnabled
@@ -339,7 +245,7 @@
         }
 
         /// <summary>
-        /// Gets the display value to represent this project item.
+        /// Gets or sets the display value to represent this project item.
         /// </summary>
         public virtual String DisplayValue
         {
@@ -350,6 +256,7 @@
 
             set
             {
+                throw new NotImplementedException();
             }
         }
 
@@ -366,17 +273,102 @@
         }
 
         /// <summary>
+        /// Gets or sets a lock for activating project items.
+        /// </summary>
+        private Object ActivationLock { get; set; }
+
+        /// <summary>
+        /// Deserializes a project item from the given file path.
+        /// </summary>
+        /// <param name="processSession">A process session reference for accessing the current opened process.</param>
+        /// <param name="filePath">The file path of the project item to deserialize.</param>
+        /// <param name="parent">The parent directory item that contains this project item.</param>
+        /// <returns>The deserialized project item.</returns>
+        public static ProjectItem FromFile(ProcessSession processSession, String filePath, DirectoryItem parent)
+        {
+            try
+            {
+                if (!File.Exists(filePath))
+                {
+                    throw new Exception("File does not exist: " + filePath);
+                }
+
+                using (FileStream fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    if (fileStream.Length == 0)
+                    {
+                        return null;
+                    }
+
+                    Type type = null;
+
+                    switch (new FileInfo(filePath).Extension.ToLower())
+                    {
+                        case ScriptItem.Extension:
+                            type = typeof(ScriptItem);
+                            break;
+                        case PointerItem.Extension:
+                            type = typeof(PointerItem);
+                            break;
+                        case InstructionItem.Extension:
+                            type = typeof(InstructionItem);
+                            break;
+                        case DotNetItem.Extension:
+                            type = typeof(DotNetItem);
+                            break;
+                        case JavaItem.Extension:
+                            type = typeof(JavaItem);
+                            break;
+                        default:
+                            return null;
+                    }
+
+                    DataContractJsonSerializer serializer = new DataContractJsonSerializer(type);
+
+                    ProjectItem projectItem = serializer.ReadObject(fileStream) as ProjectItem;
+
+                    // Bypass setters to avoid triggering write-back to disk
+                    projectItem.name = Path.GetFileNameWithoutExtension(filePath);
+                    projectItem.parent = parent;
+                    projectItem.processSession = processSession;
+
+                    return projectItem;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log(LogLevel.Error, "Error loading file", ex);
+                throw ex;
+            }
+        }
+
+        /// <summary>
         /// Gets the extension for this project item.
         /// </summary>
+        /// <returns>The extension for this project item.</returns>
         public virtual String GetExtension()
         {
             return String.Empty;
         }
 
         /// <summary>
-        /// Gets or sets a lock for activating project items.
+        /// Saves this project item by serializing it to disk.
         /// </summary>
-        private Object ActivationLock { get; set; }
+        public virtual void Save()
+        {
+            try
+            {
+                using (FileStream fileStream = new FileStream(this.FullPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+                {
+                    DataContractJsonSerializer serializer = new DataContractJsonSerializer(this.GetType());
+                    serializer.WriteObject(fileStream, this);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log(LogLevel.Error, "Error saving file", ex);
+            }
+        }
 
         /// <summary>
         /// Invoked when this object is deserialized.
@@ -398,8 +390,9 @@
         /// <summary>
         /// Clones the project item.
         /// </summary>
+        /// <param name="rename">A value indicating whether to rename this project item to a default after cloning.</param>
         /// <returns>The clone of the project item.</returns>
-        public virtual ProjectItem Clone(bool rename)
+        public virtual ProjectItem Clone(Boolean rename)
         {
             // Serialize this project item to a byte array
             using (MemoryStream serializeMemoryStream = new MemoryStream())
@@ -433,6 +426,9 @@
             this.HotKey?.SetCallBackFunction(() => this.IsActivated = !this.IsActivated);
         }
 
+        /// <summary>
+        /// Disposes of this project item.
+        /// </summary>
         public void Dispose()
         {
             this.HotKey?.Dispose();
@@ -512,11 +508,43 @@
         }
 
         /// <summary>
+        /// Renames this project item. If there is a conflict, the provided name may change to ensure uniqueness.
+        /// </summary>
+        /// <param name="newName">The new name for this project item.</param>
+        private void Rename(String newName)
+        {
+            if (!this.HasAssociatedFileOrFolder || this.Name.Equals(newName, StringComparison.OrdinalIgnoreCase))
+            {
+                this.name = newName;
+                return;
+            }
+
+            newName = this.MakeNameUnique(newName);
+            String newPath = this.GetFilePathForName(newName);
+
+            // Attempt to move the existing associated file if possible
+            try
+            {
+                File.Move(this.FullPath, newPath);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log(LogLevel.Error, "Error moving existing project file during rename. The old file may still exist.", ex);
+            }
+
+            this.name = newName;
+            this.Save();
+        }
+
+        /// <summary>
         /// Resolves the name conflict for this unassociated project item.
         /// </summary>
+        /// <param name="originalName">The project name to make unique on disk.</param>
         /// <returns>The resolved name, which appends a number at the end of the name to ensure uniqueness.</returns>
-        private String MakeNameUnique(String newName)
+        private String MakeNameUnique(String originalName)
         {
+            String newName = originalName;
+
             if (this.Parent == null || this.Parent.ChildItems == null || !this.HasAssociatedFileOrFolder)
             {
                 return newName;
@@ -554,7 +582,12 @@
             return newName;
         }
 
-        String GetFilePathForName(String name)
+        /// <summary>
+        /// Gets the file path for the given project name.
+        /// </summary>
+        /// <param name="name">The proejct name.</param>
+        /// <returns>The file path for the given project name.</returns>
+        private String GetFilePathForName(String name)
         {
             return Path.Combine(this.Parent?.FullPath ?? ProjectSettings.ProjectRoot, name + this.GetExtension());
         }

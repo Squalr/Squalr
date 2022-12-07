@@ -24,6 +24,7 @@
         /// <summary>
         /// Creates a hotkey from this hotkey builder.
         /// </summary>
+        /// <param name="targetHotkey">The hotkey to build.</param>
         /// <returns>The built hotkey.</returns>
         public abstract Hotkey Build(Hotkey targetHotkey);
 

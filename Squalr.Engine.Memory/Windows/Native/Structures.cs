@@ -44,7 +44,7 @@
             public IntPtr InheritedFromUniqueProcessId;
 
             /// <summary>
-            /// The size of this structure.
+            /// Gets the size of this structure.
             /// </summary>
             public Int32 Size
             {
@@ -177,22 +177,29 @@
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct MemoryWorkSetExBlock
+        internal struct MemoryWorkSetExBlock
         {
             private IntPtr flags;
 
-            public Int64 Flags => flags.ToInt64();
-            public Boolean Valid => Flags.GetBit(0);
-            public Int64 ShareCount => Flags.GetBits(1, 3);
-            public MemoryProtectionFlags Win32Protection => (MemoryProtectionFlags)Flags.GetBits(4, 11);
-            public Boolean Shared => Flags.GetBit(15);
-            public Int64 Node => Flags.GetBits(16, 6);
-            public Boolean Locked => Flags.GetBit(22);
-            public Boolean Bad => Flags.GetBit(31);
+            public Int64 Flags => this.flags.ToInt64();
+
+            public Boolean Valid => this.Flags.GetBit(0);
+
+            public Int64 ShareCount => this.Flags.GetBits(1, 3);
+
+            public MemoryProtectionFlags Win32Protection => (MemoryProtectionFlags)this.Flags.GetBits(4, 11);
+
+            public Boolean Shared => this.Flags.GetBit(15);
+
+            public Int64 Node => this.Flags.GetBits(16, 6);
+
+            public Boolean Locked => this.Flags.GetBit(22);
+
+            public Boolean Bad => this.Flags.GetBit(31);
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct MemoryWorkingSetExInformation
+        internal struct MemoryWorkingSetExInformation
         {
             public IntPtr VirtualAddress;
             public MemoryWorkSetExBlock VirtualAttributes;

@@ -2,7 +2,7 @@
 {
     using GalaSoft.MvvmLight;
     using Squalr.Engine.Common.Logging;
-    using Squalr.Properties;
+    using Squalr.Source.Settings;
     using Squalr.View.Dialogs;
     using System;
     using System.IO;
@@ -27,15 +27,6 @@
 
         private CreateProjectDialogViewModel() : base()
         {
-        }
-
-        /// <summary>
-        /// Gets a singleton instance of the <see cref="CreateProjectDialogViewModel" /> class.
-        /// </summary>
-        /// <returns>A singleton instance of the class.</returns>
-        public static CreateProjectDialogViewModel GetInstance()
-        {
-            return CreateProjectDialogViewModel.createProjectDialogViewModelInstance.Value;
         }
 
         public String NewProjectName
@@ -103,9 +94,19 @@
         }
 
         /// <summary>
+        /// Gets a singleton instance of the <see cref="CreateProjectDialogViewModel" /> class.
+        /// </summary>
+        /// <returns>A singleton instance of the class.</returns>
+        public static CreateProjectDialogViewModel GetInstance()
+        {
+            return CreateProjectDialogViewModel.createProjectDialogViewModelInstance.Value;
+        }
+
+        /// <summary>
         /// Shows the create project dialog, deleting the project if the dialog result was true.
         /// </summary>
-        /// <param name="projectName">The project name to potentially create.</param>
+        /// <param name="owner">The window that owns this dialog.</param>
+        /// <returns>A value indicating whether the project creation was successful.</returns>
         public Boolean ShowDialog(Window owner)
         {
             CreateProjectDialog createProjectDialog = new CreateProjectDialog() { Owner = owner };

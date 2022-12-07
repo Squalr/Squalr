@@ -37,17 +37,6 @@
             DockingViewModel.GetInstance().RegisterViewModel(this);
         }
 
-        private void SnapshotManagerOnSnapshotsUpdatedEvent(SnapshotManager snapshotManager)
-        {
-            this.RaisePropertyChanged(nameof(this.Snapshots));
-            this.RaisePropertyChanged(nameof(this.DeletedSnapshots));
-        }
-
-        private void NewSnapshotEvent(SnapshotManager snapshotManager)
-        {
-            SystemSounds.Exclamation.Play();
-        }
-
         /// <summary>
         /// Gets a command to start a new scan.
         /// </summary>
@@ -92,6 +81,17 @@
         public static SnapshotManagerViewModel GetInstance()
         {
             return SnapshotManagerViewModel.snapshotManagerViewModelInstance.Value;
+        }
+
+        private void SnapshotManagerOnSnapshotsUpdatedEvent(SnapshotManager snapshotManager)
+        {
+            this.RaisePropertyChanged(nameof(this.Snapshots));
+            this.RaisePropertyChanged(nameof(this.DeletedSnapshots));
+        }
+
+        private void NewSnapshotEvent(SnapshotManager snapshotManager)
+        {
+            SystemSounds.Exclamation.Play();
         }
     }
     //// End class

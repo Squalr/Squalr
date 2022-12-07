@@ -453,6 +453,13 @@
             }
         }
 
+        /// <summary>
+        /// Parses a string representation of an array of bytes into an actual byte array.
+        /// </summary>
+        /// <param name="value">The array of bytes string representation.</param>
+        /// <param name="isHex">A value indicating whether the array of bytes string has hex values.</param>
+        /// <param name="filterMasks">A value indicating whether mask values (?, *, x) should be replaced with a value of 0.</param>
+        /// <returns></returns>
         public static Byte[] ParseByteArrayString(String value, Boolean isHex = true, Boolean filterMasks = false)
         {
             if (isHex && filterMasks)
@@ -467,7 +474,12 @@
             return result;
         }
 
-        public static Byte[] ParseByteArrayMask(String value)
+        /// <summary>
+        /// Creates a byte array mask from the given array of bytes hex string. All ?, *, and x characters will be mapped to the byte 0xF, and all others are mapped to 0x0.
+        /// </summary>
+        /// <param name="value">An array of bytes hex string.</param>
+        /// <returns>The array of bytes wildcard mask.</returns>
+        public static Byte[] ParseByteArrayWildcardMask(String value)
         {
             Regex hexRegex = new Regex("[a-fA-F0-9]");
             Regex wildcardRegex = new Regex("[?*x]");
@@ -480,6 +492,12 @@
             return result;
         }
 
+        /// <summary>
+        /// Partitions an array of bytes string into an enumerable collection of strings, each of which contains a string representation of a single byte.
+        /// </summary>
+        /// <param name="value">The array of byte string to parse.</param>
+        /// <param name="isHex">A value indicating whether the elements of the provided array are represented in hex.</param>
+        /// <returns>An enumerable collection of strings, each of which contains a string representation of a single byte.</returns>
         public static IEnumerable<String> SplitByteArrayString(String value, Boolean isHex = true)
         {
             // First split on whitespace, which has priority for separating bytes
@@ -500,6 +518,11 @@
             }
         }
 
+        /// <summary>
+        /// Converts a given value into a metric information storage size (ie KB, MB, GB, TB, etc.)
+        /// </summary>
+        /// <param name="value">A value representing the number of bytes.</param>
+        /// <returns>The value as its corresponding metric size string.</returns>
         public static String ValueToMetricSize(UInt64 value)
         {
             // Note: UInt64s run out around EB

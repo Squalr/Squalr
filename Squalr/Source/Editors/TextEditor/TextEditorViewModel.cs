@@ -19,7 +19,7 @@
                 LazyThreadSafetyMode.ExecutionAndPublication);
 
         /// <summary>
-        /// Prevents a default instance of the <see cref="TextEditorViewModel" /> class.
+        /// Prevents a default instance of the <see cref="TextEditorViewModel" /> class from being created.
         /// </summary>
         private TextEditorViewModel() : base("Text Editor")
         {

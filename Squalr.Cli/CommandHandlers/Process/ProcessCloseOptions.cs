@@ -15,7 +15,6 @@
                 return -1;
             }
 
-            SessionManager.Session.Destroy();
             SessionManager.Session = null;
 
             Console.WriteLine("Detached from process.");

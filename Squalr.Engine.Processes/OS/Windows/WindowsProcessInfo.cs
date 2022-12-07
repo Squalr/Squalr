@@ -6,7 +6,6 @@
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Drawing;
-    using System.Linq;
 
     /// <summary>
     /// A class responsible for collecting all running processes on a Windows system.
@@ -14,43 +13,42 @@
     internal class WindowsProcessInfo : IProcessQueryer
     {
         /// <summary>
+        /// Represents an empty icon.
+        /// </summary>
+        private const Icon NoIcon = null;
+
+        /// <summary>
+        /// Collection of process ids that have caused access issues.
+        /// </summary>
+        private static readonly TtlCache<Int32> SystemProcessCache = new TtlCache<Int32>(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(15));
+
+        /// <summary>
+        /// Collection of process ids for which an icon could not be fetched.
+        /// </summary>
+        private static readonly TtlCache<Int32> NoIconProcessCache = new TtlCache<Int32>(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(15));
+
+        /// <summary>
+        /// Collection of icons fetched from processes. TODO: For now we will not expire the TTL icons.
+        /// This may cause cosmetic bugs. Icons are currently not disposed, so putting a TTL on this would cause a memory leak.
+        /// </summary>
+        private static readonly TtlCache<Int32, Icon> IconCache = new TtlCache<Int32, Icon>(TimeSpan.MaxValue);
+
+        /// <summary>
+        /// Collection of processes with a window.
+        /// </summary>
+        private static readonly TtlCache<Int32> WindowedProcessCache = new TtlCache<Int32>(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(15));
+
+        /// <summary>
+        /// Collection of processes without a window.
+        /// </summary>
+        private static readonly TtlCache<Int32> NoWindowProcessCache = new TtlCache<Int32>(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5));
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="WindowsProcessInfo" /> class.
         /// </summary>
         public WindowsProcessInfo()
         {
         }
-
-        /// <summary>
-        /// Collection of process ids that have caused access issues.
-        /// </summary>
-        private static TtlCache<Int32> SystemProcessCache = new TtlCache<Int32>(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(15));
-
-        /// <summary>
-        /// Collection of process ids for which an icon could not be fetched.
-        /// </summary>
-        private static TtlCache<Int32> NoIconProcessCache = new TtlCache<Int32>(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(15));
-
-        /// <summary>
-        /// Collection of icons fetched from processes.
-        // TODO: For now we will not expire the TTL icons. This may cause cosmetic bugs. Icons are currently not disposed,
-        // so putting a TTL on this would cause a memory leak.
-        /// </summary>
-        private static TtlCache<Int32, Icon> IconCache = new TtlCache<Int32, Icon>();
-
-        /// <summary>
-        /// Collection of processes with a window.
-        /// </summary>
-        private static TtlCache<Int32> WindowedProcessCache = new TtlCache<Int32>(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(15));
-
-        /// <summary>
-        /// Collection of processes without a window.
-        /// </summary>
-        private static TtlCache<Int32> NoWindowProcessCache = new TtlCache<Int32>(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5));
-
-        /// <summary>
-        /// Represents an empty icon.
-        /// </summary>
-        private const Icon NoIcon = null;
 
         /// <summary>
         /// Gets all running processes on the system.
@@ -73,12 +71,6 @@
                 return true;
             }
 
-            if (process.SessionId == 0 || process.BasePriority == 13)
-            {
-                WindowsProcessInfo.SystemProcessCache.Add(process.Id);
-                return true;
-            }
-
             try
             {
                 if (process.PriorityBoostEnabled)
@@ -88,7 +80,7 @@
                     return false;
                 }
             }
-            catch
+            catch (Exception)
             {
                 WindowsProcessInfo.SystemProcessCache.Add(process.Id);
                 return true;
@@ -131,7 +123,8 @@
             // Window handle was not set, so to be certain we must enumerate the process threads, looking for window threads
             foreach (ProcessThread threadInfo in process.Threads)
             {
-                if (NativeMethods.EnumWindows((IntPtr hWnd, Int32 lParam) =>
+                if (NativeMethods.EnumWindows(
+                    (IntPtr hWnd, Int32 lParam) =>
                     {
                         if (NativeMethods.GetWindowThreadProcessId(hWnd, out _) == lParam)
                         {
@@ -143,7 +136,8 @@
                         }
 
                         return false;
-                    }, threadInfo.Id))
+                    },
+                    threadInfo.Id))
                 {
                     return true;
                 }
@@ -153,13 +147,6 @@
             return false;
         }
 
-        private static IntPtr[] GetWindowHandlesForThread(Int32 threadHandle)
-        {
-            List<IntPtr> results = new List<IntPtr>();
-
-            return results.ToArray();
-        }
-
         /// <summary>
         /// Fetches the icon associated with the provided process.
         /// </summary>
@@ -167,7 +154,7 @@
         /// <returns>An Icon associated with the given process. Returns null if there is no icon.</returns>
         public Icon GetIcon(Process process)
         {
-            Icon icon = null;
+            Icon icon;
 
             if (process == DetachProcess.Instance || WindowsProcessInfo.NoIconProcessCache.Contains(process.Id))
             {

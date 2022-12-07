@@ -11,8 +11,9 @@
     public class Project : DirectoryItem
     {
         /// <summary>
-        /// Creates a new project from the given path or project name. If given as a project name, Squalr will use the user settings to decide where to place the folder.
+        /// Initializes a new instance of the <see cref="Project" /> class.
         /// </summary>
+        /// <param name="processSession">A process session reference for accessing the current opened process.</param>
         /// <param name="projectFilePathOrName">The project path, or the project name.</param>
         public Project(ProcessSession processSession, String projectFilePathOrName) : base(processSession, Project.ToDirectory(projectFilePathOrName), null)
         {
@@ -22,7 +23,7 @@
         /// Converts a project name into a project path, if necessary.
         /// </summary>
         /// <param name="projectFilePathOrName">The project path, or the project name.</param>
-        /// <returns></returns>
+        /// <returns>The full path for this project file name.</returns>
         private static String ToDirectory(String projectFilePathOrName)
         {
             if (!Path.IsPathRooted(projectFilePathOrName))

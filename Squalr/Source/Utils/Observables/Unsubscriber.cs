@@ -17,9 +17,9 @@
 
         public void Dispose()
         {
-            if (Observers.Contains(this.Observer))
+            if (this.Observers.Contains(this.Observer))
             {
-                Observers.Remove(this.Observer);
+                this.Observers.Remove(this.Observer);
             }
         }
     }

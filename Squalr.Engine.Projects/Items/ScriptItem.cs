@@ -1,17 +1,8 @@
 ﻿namespace Squalr.Engine.Projects.Items
 {
-    using Microsoft.CodeAnalysis;
-    using Microsoft.CodeAnalysis.CSharp;
-    using Microsoft.CodeAnalysis.Emit;
-    using Microsoft.CodeAnalysis.Scripting;
-    using Squalr.Engine.Common.Logging;
     using Squalr.Engine.Processes;
-    using Squalr.Engine.Scripting;
     using System;
-    using System.Collections.Generic;
     using System.ComponentModel;
-    using System.IO;
-    using System.Reflection;
     using System.Runtime.Serialization;
 
     /// <summary>
@@ -42,6 +33,7 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="ScriptItem" /> class.
         /// </summary>
+        /// <param name="processSession">A process session reference for accessing the current opened process.</param>
         public ScriptItem(ProcessSession processSession) : this(processSession, "New Script", null)
         {
         }
@@ -49,9 +41,9 @@
         /// <summary>
         /// Initializes a new instance of the <see cref="ScriptItem" /> class.
         /// </summary>
+        /// <param name="processSession">A process session reference for accessing the current opened process.</param>
         /// <param name="description">The description of the project item.</param>
         /// <param name="script">The raw script text.</param>
-        /// <param name="compiled">Whether or not this script is compiled.</param>
         public ScriptItem(ProcessSession processSession, String description, String script) : base(processSession, description)
         {
             // Initialize script and bypass setters
@@ -77,6 +69,7 @@
         /// <summary>
         /// Gets the extension for this project item.
         /// </summary>
+        /// <returns>The extension for this project item.</returns>
         public override String GetExtension()
         {
             return ScriptItem.Extension;
@@ -92,6 +85,9 @@
             base.OnDeserialized(streamingContext);
         }
 
+        /// <summary>
+        /// Called when activation is toggled on this script.
+        /// </summary>
         protected override void OnActivationChanged()
         {
             if (this.IsActivated)

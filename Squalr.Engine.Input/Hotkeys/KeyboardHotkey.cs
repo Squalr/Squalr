@@ -12,7 +12,7 @@
     /// A keyboard hotkey, which is activated by a given set of input.
     /// </summary>
     [DataContract]
-    public class KeyboardHotkey : Hotkey, IObserver<KeyState>
+    public class KeyboardHotkey : Hotkey, IObserver<KeyStates>
     {
         /// <summary>
         /// The default delay in miliseconds between hotkey activations.
@@ -29,9 +29,8 @@
             this.ActivationKeys = new HashSet<Key>(activationKeys);
             this.LastActivated = DateTime.MinValue;
             this.ActivationDelay = KeyboardHotkey.DefaultActivationDelay;
-            this.AccessLock = new object();
-
-            this.Subscription = InputManager.GetInstance().GetKeyboardCapture().WeakSubscribe(this);
+            this.ActivationKeysLock = new Object();
+            this.KeyboardCapture = InputManager.GetInstance().GetKeyboardCapture().WeakSubscribe(this);
         }
 
         /// <summary>
@@ -40,9 +39,15 @@
         [DataMember]
         private HashSet<Key> ActivationKeys { get; set; }
 
-        private Object AccessLock { get; set; }
+        /// <summary>
+        /// Gets or sets a lock object to provide thread-safe access to the ActivationKeys object.
+        /// </summary>
+        private Object ActivationKeysLock { get; set; }
 
-        private IDisposable Subscription { get; set; }
+        /// <summary>
+        /// Gets or sets an object to subscribe to keyboard capture events.
+        /// </summary>
+        private IDisposable KeyboardCapture { get; set; }
 
         /// <summary>
         /// Invoked when this object is deserialized.
@@ -53,19 +58,26 @@
         {
             this.LastActivated = DateTime.MinValue;
             this.ActivationDelay = KeyboardHotkey.DefaultActivationDelay;
-            this.AccessLock = new object();
+            this.ActivationKeysLock = new object();
 
-            this.Subscription = InputManager.GetInstance().GetKeyboardCapture().WeakSubscribe(this);
+            this.KeyboardCapture = InputManager.GetInstance().GetKeyboardCapture().WeakSubscribe(this);
         }
 
+        /// <summary>
+        /// Disposes of this hotkey object.
+        /// </summary>
         public override void Dispose()
         {
-            InputManager.GetInstance().GetKeyboardCapture().Unsubscribe(this.Subscription);
+            InputManager.GetInstance().GetKeyboardCapture().Unsubscribe(this.KeyboardCapture);
         }
 
-        public void OnNext(KeyState value)
+        /// <summary>
+        /// Subscription event for when a keyboard event is fired.
+        /// </summary>
+        /// <param name="value">The current keyboard key states.</param>
+        public void OnNext(KeyStates value)
         {
-            lock (this.AccessLock)
+            lock (this.ActivationKeysLock)
             {
                 if (this.ActivationKeys.IsNullOrEmpty())
                 {
@@ -92,33 +104,51 @@
             }
         }
 
+        /// <summary>
+        /// Notifies the observer that the provider has experienced an error condition.
+        /// </summary>
+        /// <param name="error">An object that provides additional information about the error.</param>
         public void OnError(Exception error)
         {
         }
 
+        /// <summary>
+        /// Notifies the observer that the provider has finished sending push-based notifications.
+        /// </summary>
         public void OnCompleted()
         {
         }
 
+        /// <summary>
+        /// Gets the set of activation keys needed to activate this hotkey.
+        /// </summary>
+        /// <returns>The set of activation keys needed to activate this hotkey.</returns>
         public IEnumerable<Key> GetActivationKeys()
         {
-            lock (this.AccessLock)
+            lock (this.ActivationKeysLock)
             {
                 return this.ActivationKeys.ToArray();
             }
         }
 
+        /// <summary>
+        /// Adds a key needed to activate this hotkey.
+        /// </summary>
+        /// <param name="hotkey">The key needed to activate this hotkey.</param>
         public void AddKey(Key hotkey)
         {
-            lock (this.AccessLock)
+            lock (this.ActivationKeysLock)
             {
                 this.ActivationKeys.Add(hotkey);
             }
         }
 
+        /// <summary>
+        /// Clears the set of keys needed to activate this hotkey.
+        /// </summary>
         public void ClearHotkey()
         {
-            lock (this.AccessLock)
+            lock (this.ActivationKeysLock)
             {
                 this.ActivationKeys.Clear();
             }
@@ -130,7 +160,7 @@
         /// <returns>True if there are hotkeys, otherwise false.</returns>
         public override Boolean HasHotkey()
         {
-            lock (this.AccessLock)
+            lock (this.ActivationKeysLock)
             {
                 return this.ActivationKeys == null ? false : this.ActivationKeys.Count > 0;
             }
@@ -139,10 +169,11 @@
         /// <summary>
         /// Clones the hotkey.
         /// </summary>
+        /// <param name="copyCallBackFunction">A value indicating whether to copy the callback function from this hotkey to the clone.</param>
         /// <returns>A clone of the hotkey.</returns>
         public override Hotkey Clone(Boolean copyCallBackFunction = false)
         {
-            lock (this.AccessLock)
+            lock (this.ActivationKeysLock)
             {
                 KeyboardHotkey hotkey = new KeyboardHotkey(copyCallBackFunction ? this.CallBackFunction : null);
                 hotkey.ActivationKeys = new HashSet<Key>(this.ActivationKeys);
@@ -153,10 +184,12 @@
         /// <summary>
         /// Copies the hotkey to another hotkey. A new hotkey is created if null is provided.
         /// </summary>
+        /// <param name="hotkey">The hotkey to which the properties of this hotkey are copied.</param>
+        /// <param name="copyCallBackFunction">A value indicating whether to copy the callback function from this hotkey to the given one.</param>
         /// <returns>A copy of the hotkey.</returns>
         public override Hotkey CopyTo(Hotkey hotkey, Boolean copyCallBackFunction = false)
         {
-            lock (this.AccessLock)
+            lock (this.ActivationKeysLock)
             {
                 KeyboardHotkey keyboardHotkey = hotkey as KeyboardHotkey;
 
@@ -182,7 +215,7 @@
         /// <returns>The string representation of hotkey inputs.</returns>
         public override String ToString()
         {
-            lock (this.AccessLock)
+            lock (this.ActivationKeysLock)
             {
                 String hotKeyString = String.Empty;
 

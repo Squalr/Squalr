@@ -31,6 +31,7 @@
         /// Initializes a new instance of the <see cref="ProjectItemHotkey" /> class.
         /// </summary>
         /// <param name="hotkey">The initial hotkey bound to the project item.</param>
+        /// <param name="projectItemGuid">The guid identifying the project item to which this hotkey is bound.</param>
         public ProjectItemHotkey(Hotkey hotkey, Guid projectItemGuid)
         {
             this.ProjectItemGuid = projectItemGuid;
@@ -38,7 +39,7 @@
         }
 
         /// <summary>
-        /// Occurs after a property value changes.
+        /// An event that is raised when a property of this object changes.
         /// </summary>
         public event PropertyChangedEventHandler PropertyChanged;
 
