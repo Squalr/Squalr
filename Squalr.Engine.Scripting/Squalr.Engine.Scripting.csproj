@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <LangVersion>latest</LangVersion>
-    <Version>2.3.1</Version>
+    <Version>3.0.1</Version>
     <Description>Squalr engine component for scripting. This library exposes a set of APIs to allow for C# scripts to leverage the other Squalr engine components.</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
@@ -15,6 +15,8 @@
   <PropertyGroup>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+    <FileVersion>3.0.1</FileVersion>
+    <AssemblyVersion>3.0.1</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>

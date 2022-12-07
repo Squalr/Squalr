@@ -4,13 +4,15 @@
     <TargetFramework>netstandard2.1</TargetFramework>
     <LangVersion>latest</LangVersion>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.3.1</Version>
+    <Version>3.0.1</Version>
     <Description>Squalr engine component for assemblers and disassemblers. Currently, this supports x86 and x64 processors.</Description>
   </PropertyGroup>
   
   <PropertyGroup>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+    <AssemblyVersion>3.0.1</AssemblyVersion>
+    <FileVersion>3.0.1</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

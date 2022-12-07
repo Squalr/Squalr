@@ -4,7 +4,6 @@
     <TargetFramework>netstandard2.1</TargetFramework>
     <LangVersion>latest</LangVersion>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>2.3.1</Version>
     <RootNamespace>Squalr.Engine</RootNamespace>
   </PropertyGroup>
 
@@ -16,7 +15,7 @@
     <Copyright></Copyright>
     <PackageTags></PackageTags>
     <NeutralLanguage />
-    <Version>2.3.1</Version>
+    <Version>3.0.1</Version>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
   </PropertyGroup>
 
@@ -31,6 +30,8 @@
   <PropertyGroup>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+    <AssemblyVersion>3.0.1</AssemblyVersion>
+    <FileVersion>3.0.1</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

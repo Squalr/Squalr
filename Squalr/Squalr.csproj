@@ -12,8 +12,8 @@
     <NoWarn>$(NoWarn);NU1605</NoWarn>
     <SignAssembly>false</SignAssembly>
     <ApplicationManifest>Application.manifest</ApplicationManifest>
-    <AssemblyVersion>3.0.0</AssemblyVersion>
-    <FileVersion>3.0.0</FileVersion>
+    <AssemblyVersion>3.0.1</AssemblyVersion>
+    <FileVersion>3.0.1</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
