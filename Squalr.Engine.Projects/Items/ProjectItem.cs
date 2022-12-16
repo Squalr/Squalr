@@ -145,7 +145,6 @@
                 }
 
                 this.Rename(value);
-                this.RaisePropertyChanged(nameof(this.Name));
             }
         }
 
@@ -533,6 +532,7 @@
             }
 
             this.name = newName;
+            this.RaisePropertyChanged(nameof(this.Name));
             this.Save();
         }
 

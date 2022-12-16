@@ -1,16 +1,16 @@
 ﻿<UserControl
     x:Class="Squalr.View.MemoryViewer"
-    xmlns:src="clr-namespace:Squalr.View;assembly=Squalr"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:Controls="clr-namespace:Squalr.View.Controls"
     xmlns:behaviors="clr-namespace:Squalr.Source.Mvvm.AttachedBehaviors"
     xmlns:content="clr-namespace:Squalr.Content"
-    xmlns:hexEditor="clr-namespace:WpfHexaEditor;assembly=WPFHexaEditor"
-    xmlns:Controls="clr-namespace:Squalr.View.Controls"
     xmlns:converters="clr-namespace:Squalr.Source.Mvvm.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:hexEditor="clr-namespace:WpfHexaEditor;assembly=WPFHexaEditor"
     xmlns:intr="http://schemas.microsoft.com/xaml/behaviors"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:src="clr-namespace:Squalr.View;assembly=Squalr"
     x:Name="SqualrMemoryViewer"
     d:DesignHeight="256"
     d:DesignWidth="512"
@@ -34,53 +34,54 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <Border Grid.Row="0" Background="{StaticResource SqualrColorFrame}">
-            <Menu
-                Grid.Column="1"
-                Padding="0 2 0 2"
-                Background="{StaticResource SqualrColorFrame}"
-                BorderBrush="{StaticResource SqualrColorWhite}"
-                Foreground="{StaticResource SqualrColorWhite}">
-                <MenuItem VerticalAlignment="Center" Command="{Binding GoToAddressCommand}">
-                    <MenuItem.Header>
-                        <StackPanel Orientation="Horizontal">
-                            <Controls:HexDecBox
-                                x:Name="AddressHexDecBox"
-                                Width="196"
-                                HorizontalAlignment="Left"
-                                BorderBrush="{StaticResource SqualrColorWhite}"
-                                BorderThickness="1" />
-                            <Image
-                                Margin="4 0 0 0"
-                                Width="16"
-                                Height="16"
-                                Source="{x:Static content:Images.RightArrow}"
-                                ToolTip="Add Selected Items" />
-                        </StackPanel>
-                    </MenuItem.Header>
-                </MenuItem>
-            </Menu>
+            <WrapPanel>
+                <Controls:HexDecBox
+                    x:Name="AddressHexDecBox"
+                    Width="196"
+                    HorizontalAlignment="Left"
+                    BorderThickness="1" />
+                <Menu
+                    Grid.Column="1"
+                    Padding="0,2,0,2"
+                    Background="{StaticResource SqualrColorFrame}"
+                    BorderBrush="{StaticResource SqualrColorWhite}"
+                    Foreground="{StaticResource SqualrColorWhite}">
+                    <MenuItem VerticalAlignment="Center" Command="{Binding GoToAddressCommand}">
+                        <MenuItem.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <Image
+                                    Width="16"
+                                    Height="16"
+                                    Margin="4,0,0,0"
+                                    Source="{x:Static content:Images.RightArrow}"
+                                    ToolTip="Add Selected Items" />
+                            </StackPanel>
+                        </MenuItem.Header>
+                    </MenuItem>
+                </Menu>
+            </WrapPanel>
         </Border>
         <Grid Grid.Row="1">
             <hexEditor:HexEditor
                 Name="hexEditor"
-                SizeChanged="HexEditorSizeChanged"
-                Background="{StaticResource SqualrColorPanel}"
-                Foreground="{StaticResource SqualrColorWhite}"
-                ForegroundHighLightOffSetHeaderColor="{StaticResource SqualrColorWhite}"
-                ForegroundOffSetHeaderColor="{StaticResource SqualrColorWhite}"
-                ForegroundSecondColor="{StaticResource SqualrColorGray85}"
-                ForegroundContrast="{StaticResource SqualrColorWhite}"
-                MouseOverColor="{StaticResource SqualrColorHighlight}"
-                HighLightColor="{StaticResource SqualrColorHighlight}"
-                StatusBarVisibility="Collapsed"
-                OffSetPanelFixedWidthVisual="Fixed"
-                Stream="{Binding MemoryStream}"
+                Width="Auto"
+                Height="Auto"
                 AllowAutoHighLightSelectionByte="False"
                 AllowAutoSelectSameByteAtDoubleClick="True"
-                Width="Auto"
-                Height="Auto"/>
-            <!--ContextMenu="{Binding Wat}"-->
-            <!--BarChartPanelVisibility="Visible"-->
+                Background="{StaticResource SqualrColorPanel}"
+                Foreground="{StaticResource SqualrColorWhite}"
+                ForegroundContrast="{StaticResource SqualrColorWhite}"
+                ForegroundHighLightOffSetHeaderColor="{StaticResource SqualrColorWhite}"
+                ForegroundOffSetHeaderColor="{StaticResource SqualrColorWhite}"
+                ForegroundSecondColor="{StaticResource SqualrColorOffWhite}"
+                HighLightColor="{StaticResource SqualrColorHighlight}"
+                MouseOverColor="{StaticResource SqualrColorHighlight}"
+                OffSetPanelFixedWidthVisual="Fixed"
+                SizeChanged="HexEditorSizeChanged"
+                StatusBarVisibility="Collapsed"
+                Stream="{Binding MemoryStream}" />
+            <!--  ContextMenu="{Binding Wat}"  -->
+            <!--  BarChartPanelVisibility="Visible"  -->
         </Grid>
         <Border Grid.Row="2" Background="{StaticResource SqualrColorFrame}">
             <Grid>
@@ -120,7 +121,12 @@
                 </Menu>
                 <WrapPanel Grid.Column="1" HorizontalAlignment="Center">
                     <TextBlock Foreground="{StaticResource SqualrColorWhite}" Text="Page: " />
-                    <TextBox HorizontalContentAlignment="Center" Background="{StaticResource SqualrColorPanel}" MinWidth="48" Foreground="{StaticResource SqualrColorWhite}" Text="{Binding CurrentPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox
+                        MinWidth="48"
+                        HorizontalContentAlignment="Center"
+                        Background="{StaticResource SqualrColorPanel}"
+                        Foreground="{StaticResource SqualrColorWhite}"
+                        Text="{Binding CurrentPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Foreground="{StaticResource SqualrColorWhite}" Text=" of " />
                     <TextBlock Foreground="{StaticResource SqualrColorWhite}" Text="{Binding PageCount}" />
                 </WrapPanel>

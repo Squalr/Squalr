@@ -24,14 +24,14 @@
         <shell:WindowChrome CaptionHeight="{Binding ActualHeight, ElementName=titlebar}" />
     </shell:WindowChrome.WindowChrome>
 
-    <shell:Grid Background="{StaticResource SqualrColorBlack}">
+    <shell:Grid Background="{StaticResource SqualrColorFrame}">
         <shell:Grid.Resources>
             <converters:HotkeyToStringConverter x:Key="HotkeyToStringConverter" />
         </shell:Grid.Resources>
         <shell:Grid.RowDefinitions>
             <shell:RowDefinition Height="Auto" />
+            <shell:RowDefinition Height="*" />
             <shell:RowDefinition Height="Auto" />
-            <shell:RowDefinition />
         </shell:Grid.RowDefinitions>
         <shell:Grid
             x:Name="titlebar"
@@ -42,38 +42,41 @@
                 New Hotkey
             </shell:TextBlock>
         </shell:Grid>
-        <shell:Grid Grid.Row="1" Margin="8,8,8,0">
-            <shell:Grid.ColumnDefinitions>
-                <shell:ColumnDefinition Width="*" />
-                <shell:ColumnDefinition Width="Auto" />
-            </shell:Grid.ColumnDefinitions>
-            <shell:Border
-                Grid.Column="0"
-                BorderBrush="{StaticResource SqualrColorWhite}"
-                BorderThickness="1">
-                <shell:TextBox
-                    Background="{StaticResource SqualrColorBlack}"
-                    Foreground="{StaticResource SqualrColorWhite}"
-                    IsReadOnly="True"
-                    Style="{StaticResource PlaceHolder}"
-                    Tag="(Press any keys)"
-                    Text="{Binding ActiveHotkey, Mode=OneWay, Converter={StaticResource HotkeyToStringConverter}}" />
-            </shell:Border>
-            <shell:WrapPanel
-                Grid.Column="1"
-                Margin="8,0,0,0"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Center">
-                <shell:Button Background="Transparent" Command="{Binding ClearHotkeysCommand}">
+        <shell:StackPanel Grid.Row="1" Background="{StaticResource SqualrColorPanel}">
+            <shell:Grid Margin="8,8,8,0">
+                <shell:Grid.ColumnDefinitions>
+                    <shell:ColumnDefinition Width="*" />
+                    <shell:ColumnDefinition Width="Auto" />
+                </shell:Grid.ColumnDefinitions>
+                <shell:Border
+                    Grid.Column="0"
+                    BorderBrush="{StaticResource SqualrColorWhite}"
+                    BorderThickness="1">
+                    <shell:TextBox
+                        Background="{StaticResource SqualrColorInput}"
+                        Foreground="{StaticResource SqualrColorWhite}"
+                        IsReadOnly="True"
+                        Style="{StaticResource PlaceHolder}"
+                        Tag="(Press any keys)"
+                        Text="{Binding ActiveHotkey, Mode=OneWay, Converter={StaticResource HotkeyToStringConverter}}" />
+                </shell:Border>
+                <shell:Button
+                    Grid.Column="1"
+                    Margin="4,0,0,0"
+                    Background="Transparent"
+                    Command="{Binding ClearHotkeysCommand}">
                     <shell:Image
                         Width="16"
                         Height="16"
                         Source="{x:Static content:Images.Cancel}"
                         ToolTip="Clear Current Input" />
                 </shell:Button>
-            </shell:WrapPanel>
-        </shell:Grid>
-        <shell:Grid Grid.Row="2" Margin="8">
+            </shell:Grid>
+        </shell:StackPanel>
+        <shell:Grid
+            Grid.Row="2"
+            Margin="8"
+            Background="{StaticResource SqualrColorFrame}">
             <shell:Button
                 Width="96"
                 Height="20"

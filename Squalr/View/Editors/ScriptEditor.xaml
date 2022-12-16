@@ -22,7 +22,7 @@
         <shell:WindowChrome CaptionHeight="{Binding ActualHeight, ElementName=titlebar}" />
     </shell:WindowChrome.WindowChrome>
 
-    <shell:Grid Background="{StaticResource SqualrColorGray20}">
+    <shell:Grid Background="{StaticResource SqualrColorFrame}">
         <shell:Grid.RowDefinitions>
             <shell:RowDefinition Height="Auto" />
             <shell:RowDefinition Height="Auto" />
@@ -34,7 +34,7 @@
             x:Name="titlebar"
             Grid.Row="0"
             Height="24"
-            Background="{StaticResource SqualrColorGray20}">
+            Background="{StaticResource SqualrColorFrame}">
             <shell:WrapPanel Margin="8,0,0,0" VerticalAlignment="Center">
                 <shell:TextBlock
                     Foreground="{StaticResource SqualrColorWhite}"
@@ -47,7 +47,7 @@
 
         <shell:Menu
             Grid.Row="1"
-            Background="{StaticResource SqualrColorGray20}"
+            Background="{StaticResource SqualrColorFrame}"
             BorderBrush="{StaticResource SqualrColorWhite}"
             Foreground="{StaticResource SqualrColorWhite}">
             <!--  File Header  -->
@@ -79,13 +79,13 @@
             Name="ScriptEditorTextEditor"
             Margin="8"
             shell:Grid.Row="2"
-            Background="{StaticResource SqualrColorBlack}"
+            Background="{StaticResource SqualrColorPanel}"
             Foreground="{StaticResource SqualrColorWhite}" />
 
         <shell:Grid
             Grid.Row="3"
             Margin="8"
-            Background="{StaticResource SqualrColorGray20}">
+            Background="{StaticResource SqualrColorFrame}">
             <shell:Button
                 Width="96"
                 Height="20"

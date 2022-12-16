@@ -65,13 +65,15 @@
         /// <summary>
         /// The selected scan results.
         /// </summary>
-        private IEnumerable<ScanResult> selectedScanResults;
+        private IList<ScanResult> selectedScanResults;
 
         /// <summary>
         /// Prevents a default instance of the <see cref="ScanResultsViewModel" /> class from being created.
         /// </summary>
         private ScanResultsViewModel() : base("Scan Results")
         {
+            this.ToggleSelectionActivationCommand = new RelayCommand(() => this.ToggleSelectionActivation(), () => true);
+            this.DeleteSelectionCommand = new RelayCommand(() => this.DeleteSelection(), () => true);
             this.EditValueCommand = new RelayCommand<ScanResult>((scanResult) => this.EditValue(scanResult), (scanResult) => true);
             this.ChangeTypeCommand = new RelayCommand<ScannableType>((type) => this.ChangeType(type), (type) => true);
             this.SelectScanResultsCommand = new RelayCommand<Object>((selectedItems) => this.SelectScanResults(selectedItems), (selectedItems) => true);
@@ -85,11 +87,21 @@
             this.ActiveType = ScannableType.Int32;
             this.addresses = new FullyObservableCollection<ScanResult>();
 
-            SessionManager.Session.SnapshotManager.OnSnapshotsUpdatedEvent += SnapshotManagerOnSnapshotsUpdatedEvent;
+            SessionManager.Session.SnapshotManager.OnSnapshotsUpdatedEvent += this.SnapshotManagerOnSnapshotsUpdatedEvent;
 
             DockingViewModel.GetInstance().RegisterViewModel(this);
             this.UpdateLoop();
         }
+
+        /// <summary>
+        /// Gets the command to toggle selection on the selected scan results.
+        /// </summary>
+        public ICommand ToggleSelectionActivationCommand { get; private set; }
+
+        /// <summary>
+        /// Gets the command to delete the selected scan results.
+        /// </summary>
+        public ICommand DeleteSelectionCommand { get; private set; }
 
         /// <summary>
         /// Gets the command to edit the specified address item.
@@ -139,7 +151,7 @@
         /// <summary>
         /// Gets or sets the selected scan results.
         /// </summary>
-        public IEnumerable<ScanResult> SelectedScanResults
+        public IList<ScanResult> SelectedScanResults
         {
             get
             {
@@ -361,7 +373,7 @@
                     {
                         foreach (ScanResult result in scanResults)
                         {
-                            result?.ProjectItemView?.ProjectItem.Update();
+                            result?.ProjectItemView?.ProjectItem?.Update();
                         }
                     }
 
@@ -370,9 +382,57 @@
             });
         }
 
+        /// <summary>
+        /// An event that is called when the active snapshot is updated after a scan.
+        /// </summary>
+        /// <param name="snapshotManager">The snapshot maanger.</param>
         private void SnapshotManagerOnSnapshotsUpdatedEvent(SnapshotManager snapshotManager)
         {
             this.Update(snapshotManager.GetActiveSnapshot());
+        }
+
+        /// <summary>
+        /// Toggles whether the selected scan results are active. Used to freeze memory to test it prior to adding it to the project.
+        /// </summary>
+        private void ToggleSelectionActivation()
+        {
+            if (this.SelectedScanResults != null)
+            {
+                foreach (ScanResult scanResult in this.SelectedScanResults.ToArray())
+                {
+                    if (scanResult != null)
+                    {
+                        scanResult.IsActivated = !scanResult.IsActivated;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Deletes the current selected scan results from the scan results list.
+        /// </summary>
+        private void DeleteSelection()
+        {
+            Snapshot snapshot = SessionManager.Session.SnapshotManager.GetActiveSnapshot();
+            UInt64 indexBase = this.CurrentPage * ScanResultsViewModel.PageSize;
+            List<UInt64> indiciesToDelete = new List<UInt64>();
+
+            foreach(ScanResult scanResult in this.SelectedScanResults.ToArray())
+            {
+                Int32 relativeIndex = this.Addresses?.IndexOf(scanResult) ?? -1;
+
+                if (relativeIndex >= 0 && relativeIndex < this.Addresses.Count())
+                {
+                    indiciesToDelete.Add(unchecked(indexBase + (UInt64)relativeIndex));
+                }
+            }
+
+            snapshot?.DeleteIndicies(indiciesToDelete);
+
+            this.Update(snapshot);
+            this.LoadScanResults();
+
+            // TODO: Make an effort to reactivate activated items, restore page number, etc
         }
 
         /// <summary>
@@ -411,20 +471,11 @@
                     Object currentValue = element.HasCurrentValue() ? element.LoadCurrentValue(this.ActiveType) : null;
                     Object previousValue = element.HasPreviousValue() ? element.LoadPreviousValue(this.ActiveType) : null;
                     UInt64 address = element.GetBaseAddress();
-                    String moduleName = String.Empty;
+                    String moduleName;
 
-                    switch (emulatorType)
-                    {
-                        case EmulatorType.None:
-                        default:
-                            address = MemoryQueryer.Instance.AddressToModule(SessionManager.Session.OpenedProcess, address, out moduleName);
-                            break;
-                        case EmulatorType.Dolphin:
-                            address = MemoryQueryer.Instance.RealAddressToEmulatorAddress(SessionManager.Session.OpenedProcess, address, emulatorType);
-                            break;
-                    }
+                    address = MemoryQueryer.Instance.AddressToModule(SessionManager.Session.OpenedProcess, address, out moduleName, emulatorType);
 
-                    PointerItem pointerItem = new PointerItem(SessionManager.Session, baseAddress: address, dataType: this.ActiveType, moduleName: moduleName, emulatorType: emulatorType, value: currentValue);
+                    PointerItem pointerItem = new PointerItem(SessionManager.Session, baseAddress: address, dataType: this.ActiveType, moduleName: moduleName, value: currentValue);
                     newAddresses.Add(new ScanResult(new PointerItemView(pointerItem), previousValue));
                 }
             }
@@ -478,9 +529,13 @@
             this.CurrentPage = (this.CurrentPage + 1).Clamp(0UL, this.PageCount);
         }
 
+        /// <summary>
+        /// Sets the selected scan results from the given anonymous list object.
+        /// </summary>
+        /// <param name="selectedItems">An object implementing <see cref="IList"/>.</param>
         private void SelectScanResults(Object selectedItems)
         {
-            this.SelectedScanResults = (selectedItems as IList)?.Cast<ScanResult>();
+            this.SelectedScanResults = (selectedItems as IList)?.Cast<ScanResult>()?.ToList();
         }
 
         /// <summary>

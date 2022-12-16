@@ -36,14 +36,14 @@
         public SnapshotRegion ParentRegion { get; private set; }
 
         /// <summary>
-        /// Gets the offset from the base of the snapshot region that contains this element range.
+        /// Gets or sets the offset from the base of the snapshot region that contains this element range.
         /// </summary>
-        public Int32 RegionOffset { get; private set; }
+        public Int32 RegionOffset { get; set; }
 
         /// <summary>
-        /// Gets the size of this element range in bytes. This is the number of bytes directly contained, but more bytes may be used if tracking data types larger than 1-byte.
+        /// Gets or sets the size of this element range in bytes. This is the number of bytes directly contained, but more bytes may be used if tracking data types larger than 1-byte.
         /// </summary>
-        public Int32 Range { get; private set; }
+        public Int32 Range { get; set; }
 
         /// <summary>
         /// Gets the address of the first element contained in this snapshot region.

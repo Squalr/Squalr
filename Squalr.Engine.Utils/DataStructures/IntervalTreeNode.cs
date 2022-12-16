@@ -114,7 +114,7 @@
         public TKey Min { get; private set; }
 
         /// <summary>
-        /// Gets the center key value contained in this interval tree node. Used to balance the interval tree.
+        /// Gets or sets the center key value contained in this interval tree node. Used to balance the interval tree.
         /// </summary>
         private TKey Center { get; set; }
 
@@ -145,6 +145,23 @@
         /// <returns>The first result matching the given single value query.</returns>
         public TValue QueryOne(TKey value)
         {
+            RangeValuePair<TKey, TValue> result = this.QueryOneKey(value);
+
+            if (result == null)
+            {
+                return default;
+            }
+
+            return result.Value;
+        }
+
+        /// <summary>
+        /// Performs a point query with a single value. The first match is returned.
+        /// </summary>
+        /// <param name="value">The single value for which the query is performed.</param>
+        /// <returns>The first result matching the given single value query.</returns>
+        public RangeValuePair<TKey, TValue> QueryOneKey(TKey value)
+        {
             // If the node has items, check for leaves containing the value.
             if (this.Items != null)
             {
@@ -156,7 +173,7 @@
                     }
                     else if (this.Comparer.Compare(value, item.From) >= 0 && this.Comparer.Compare(value, item.To) <= 0)
                     {
-                        return item.Value;
+                        return item;
                     }
                 }
             }
@@ -166,11 +183,11 @@
 
             if (this.LeftNode != null && centerComp < 0)
             {
-                return this.LeftNode.QueryOne(value);
+                return this.LeftNode.QueryOneKey(value);
             }
             else if (this.RightNode != null && centerComp > 0)
             {
-                return this.RightNode.QueryOne(value);
+                return this.RightNode.QueryOneKey(value);
             }
 
             return default;

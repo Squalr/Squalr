@@ -162,24 +162,6 @@
         /// <param name="identifier">The module identifier, or name.</param>
         /// <returns>The base address of the module.</returns>
         UInt64 ResolveModule(Process process, String identifier, EmulatorType emulatorType = EmulatorType.None);
-
-        /// <summary>
-        /// Dtermines the real address of an emulator address.
-        /// </summary>
-        /// <param name="process">The target process.</param>
-        /// <param name="emulatorAddress"></param>
-        /// <param name="emulatorType"></param>
-        /// <returns></returns>
-        UInt64 EmulatorAddressToRealAddress(Process process, UInt64 emulatorAddress, EmulatorType emulatorType);
-
-        /// <summary>
-        /// Dtermines the real address of an emulator address.
-        /// </summary>
-        /// <param name="process">The target process.</param>
-        /// <param name="realAddress"></param>
-        /// <param name="emulatorType"></param>
-        /// <returns></returns>
-        UInt64 RealAddressToEmulatorAddress(Process process, UInt64 realAddress, EmulatorType emulatorType);
     }
     //// End interface
 }

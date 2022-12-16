@@ -3,16 +3,13 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <SolidColorBrush x:Key="SqualrColorWhite" Color="White" />
+    <SolidColorBrush x:Key="SqualrColorOffWhite" Color="#D8D8D8" />
     <SolidColorBrush x:Key="SqualrColorBlack" Color="Black" />
     <SolidColorBrush x:Key="SqualrColorIconBlue" Color="#00A4FF" />
     <SolidColorBrush x:Key="SqualrColorGray20" Color="#333333" />
     <SolidColorBrush x:Key="SqualrColorGray24" Color="#3D3D3D" />
-    <SolidColorBrush x:Key="SqualrColorGray27" Color="#444444" />
     <SolidColorBrush x:Key="SqualrColorGray29" Color="#4A4A4A" />
-    <SolidColorBrush x:Key="SqualrColorGray35" Color="#595959" />
-    <SolidColorBrush x:Key="SqualrColorGray40" Color="#666666" />
     <SolidColorBrush x:Key="SqualrColorGray74" Color="#BDBDBD" />
-    <SolidColorBrush x:Key="SqualrColorGray85" Color="#D8D8D8" />
     <SolidColorBrush x:Key="SqualrColorBlue" Color="#007ACC" />
     <SolidColorBrush x:Key="SqualrColorRed" Color="#FFBB0000" />
     <SolidColorBrush x:Key="SqualrColorOrange" Color="#CA5100" />
@@ -24,6 +21,8 @@
 
     <SolidColorBrush x:Key="SqualrColorFrame" Color="#333333" />
     <SolidColorBrush x:Key="SqualrColorPanel" Color="#202020" />
+    <SolidColorBrush x:Key="SqualrColorInput" Color="#444444" />
+    <SolidColorBrush x:Key="SqualrColorBorder" Color="#666666" />
 
     <LinearGradientBrush x:Key="SqualrGradientBlue" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Offset="0" Color="#4D6082" />

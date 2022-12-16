@@ -11,7 +11,7 @@
     /// A project item referencing a native machine instruction in memory.
     /// </summary>
     [DataContract]
-    public class InstructionItem : AddressItem // TODO: Pointer item? Could be rare cases where an instruction is in the heap.
+    public class InstructionItem : PointerItem
     {
         /// <summary>
         /// The extension for this project item type.
@@ -77,7 +77,7 @@
         /// <param name="instruction">The disassembled instruction string.</param>
         /// <param name="instructionBytes">The bytes of this instruction.</param>
         public InstructionItem(ProcessSession processSession, UInt64 moduleOffset, String moduleName, String instruction, Byte[] instructionBytes)
-            : base(processSession, ScannableType.NullByteArray, "New Instruction")
+            : base(processSession, moduleOffset, ScannableType.NullByteArray, "New Instruction")
         {
             this.ModuleOffset = moduleOffset;
             this.ModuleName = moduleName;

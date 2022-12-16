@@ -272,6 +272,23 @@ namespace Squalr.Engine.Common
             }
         }
 
+        public Boolean IsBigEndianType()
+        {
+            switch (this)
+            {
+                case ScannableType typeBE when typeBE == ScannableType.Int16BE: return true;
+                case ScannableType typeBE when typeBE == ScannableType.Int32BE: return true;
+                case ScannableType typeBE when typeBE == ScannableType.Int64BE: return true;
+                case ScannableType typeBE when typeBE == ScannableType.UInt16BE: return true;
+                case ScannableType typeBE when typeBE == ScannableType.UInt32BE: return true;
+                case ScannableType typeBE when typeBE == ScannableType.UInt64BE: return true;
+                case ScannableType typeBE when typeBE == ScannableType.SingleBE: return true;
+                case ScannableType typeBE when typeBE == ScannableType.DoubleBE: return true;
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Implicitly converts a DataType to a Type for comparisons.
         /// </summary>

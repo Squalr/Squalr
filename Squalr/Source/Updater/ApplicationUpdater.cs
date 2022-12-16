@@ -1,6 +1,5 @@
 ﻿namespace Squalr.Source.Updater
 {
-    using CSScriptLib;
     using Squalr.Engine.Common;
     using Squalr.Engine.Common.Logging;
     using Squalr.Source.Tasks;
@@ -12,7 +11,6 @@
     using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
-    using static Squalr.Engine.Common.TrackableTask;
 
     /// <summary>
     /// Class for automatically downloading and applying application updates.

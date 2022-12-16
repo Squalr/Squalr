@@ -1,17 +1,13 @@
 ﻿<UserControl
-    xmlns:src="clr-namespace:Squalr.View;assembly=Squalr"
     x:Class="Squalr.View.ProjectExplorer"
-    xmlns:properties="clr-namespace:Squalr.View"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:behaviors="clr-namespace:Squalr.Source.Mvvm.AttachedBehaviors"
     xmlns:content="clr-namespace:Squalr.Content"
     xmlns:converters="clr-namespace:Squalr.Source.Mvvm.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:intr="http://schemas.microsoft.com/xaml/behaviors"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:proj="clr-namespace:Squalr.Source.ProjectExplorer.ProjectItems"
-    xmlns:se="clr-namespace:Squalr.Source.ProjectExplorer"
     x:Name="SqualrProjectExplorer"
     d:DesignHeight="256"
     d:DesignWidth="256"
@@ -33,32 +29,30 @@
             <converters:IsDirectoryItemConverter />
             <converters:BooleanToVisibilityConverter />
         </converters:ValueConverterGroup>
-        <converters:ValueConverterGroup x:Key="AddressItemVisibilityConverter">
-            <converters:IsAddressItemConverter />
+        <converters:ValueConverterGroup x:Key="PointerItemVisibilityConverter">
+            <converters:IsPointerItemConverter />
             <converters:BooleanToVisibilityConverter />
         </converters:ValueConverterGroup>
         <converters:ProjectItemDirectoryConverter x:Key="ProjectItemDirectoryConverter" />
         <ContextMenu
             x:Key="RightClickMenu"
-            Background="{StaticResource SqualrColorGray27}"
+            Background="{StaticResource SqualrColorInput}"
             BorderBrush="{StaticResource SqualrColorWhite}"
             Foreground="{StaticResource SqualrColorWhite}">
             <MenuItem Command="{Binding PasteSelectionCommand}" Header="Paste" />
         </ContextMenu>
         <ContextMenu
             x:Key="ProjectItemRightClickMenu"
-            Background="{StaticResource SqualrColorGray27}"
+            Background="{StaticResource SqualrColorInput}"
             BorderBrush="{StaticResource SqualrColorWhite}"
             Foreground="{StaticResource SqualrColorWhite}">
-            <MenuItem
-                Command="{Binding ProjectExplorerViewModel.AddNewScriptItemCommand, Source={StaticResource ViewModelLocator}}"
-                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource DirectoryItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
+            <MenuItem Command="{Binding ProjectExplorerViewModel.AddNewScriptItemCommand, Source={StaticResource ViewModelLocator}}" Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource DirectoryItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image
-                            Margin="0 0 4 0"
                             Width="16"
                             Height="16"
+                            Margin="0,0,4,0"
                             Source="{x:Static content:Images.Script}" />
                         <TextBlock
                             VerticalAlignment="Center"
@@ -67,15 +61,13 @@
                     </StackPanel>
                 </MenuItem.Header>
             </MenuItem>
-            <MenuItem
-                Command="{Binding ProjectExplorerViewModel.AddNewFolderItemCommand, Source={StaticResource ViewModelLocator}}"
-                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource DirectoryItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
+            <MenuItem Command="{Binding ProjectExplorerViewModel.AddNewFolderItemCommand, Source={StaticResource ViewModelLocator}}" Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource DirectoryItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image
-                            Margin="0 0 4 0"
                             Width="16"
                             Height="16"
+                            Margin="0,0,4,0"
                             Source="{x:Static content:Images.CollectValues}" />
                         <TextBlock
                             VerticalAlignment="Center"
@@ -84,15 +76,13 @@
                     </StackPanel>
                 </MenuItem.Header>
             </MenuItem>
-            <MenuItem
-                Command="{Binding ProjectExplorerViewModel.AddNewAddressItemCommand, Source={StaticResource ViewModelLocator}}"
-                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource DirectoryItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
+            <MenuItem Command="{Binding ProjectExplorerViewModel.AddNewAddressItemCommand, Source={StaticResource ViewModelLocator}}" Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource DirectoryItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image
-                            Margin="0 0 4 0"
                             Width="16"
                             Height="16"
+                            Margin="0,0,4,0"
                             Source="{x:Static content:Images.CollectValues}" />
                         <TextBlock
                             VerticalAlignment="Center"
@@ -101,15 +91,13 @@
                     </StackPanel>
                 </MenuItem.Header>
             </MenuItem>
-            <MenuItem
-                Command="{Binding ProjectExplorerViewModel.AddNewInstructionItemCommand, Source={StaticResource ViewModelLocator}}"
-                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource DirectoryItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
+            <MenuItem Command="{Binding ProjectExplorerViewModel.AddNewInstructionItemCommand, Source={StaticResource ViewModelLocator}}" Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource DirectoryItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image
-                            Margin="0 0 4 0"
                             Width="16"
                             Height="16"
+                            Margin="0,0,4,0"
                             Source="{x:Static content:Images.Cpu}" />
                         <TextBlock
                             VerticalAlignment="Center"
@@ -118,15 +106,13 @@
                     </StackPanel>
                 </MenuItem.Header>
             </MenuItem>
-            <MenuItem
-                Command="{Binding ProjectExplorerViewModel.ToggleSelectionActivationCommand, Source={StaticResource ViewModelLocator}}"
-                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource AddressItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
+            <MenuItem Command="{Binding ProjectExplorerViewModel.ToggleSelectionActivationCommand, Source={StaticResource ViewModelLocator}}" Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource PointerItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Border
-                            Margin="0 0 4 0"
                             Width="16"
-                            Height="16"/>
+                            Height="16"
+                            Margin="0,0,4,0" />
                         <TextBlock
                             VerticalAlignment="Center"
                             Foreground="{StaticResource SqualrColorWhite}"
@@ -134,34 +120,14 @@
                     </StackPanel>
                 </MenuItem.Header>
             </MenuItem>
-            <Separator />
-            <MenuItem
-                Command="{Binding ProjectExplorerViewModel.AddNewDolphinAddressItemCommand, Source={StaticResource ViewModelLocator}}"
-                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource DirectoryItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
+            <Separator Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource PointerItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}" />
+            <MenuItem Command="{Binding PointerScannerViewModel.PointerScanCommand, Source={StaticResource ViewModelLocator}}" Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource PointerItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image
-                            Margin="0 0 4 0"
                             Width="16"
                             Height="16"
-                            Source="{x:Static content:Images.DolphinEmulator}" />
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            Foreground="{StaticResource SqualrColorWhite}"
-                            Text="Add New Dolphin Emulator Address" />
-                    </StackPanel>
-                </MenuItem.Header>
-            </MenuItem>
-            <Separator Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource AddressItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}" />
-            <MenuItem
-                Command="{Binding PointerScannerViewModel.PointerScanCommand, Source={StaticResource ViewModelLocator}}"
-                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource AddressItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
-                <MenuItem.Header>
-                    <StackPanel Orientation="Horizontal">
-                        <Image
-                            Margin="0 0 4 0"
-                            Width="16"
-                            Height="16"
+                            Margin="0,0,4,0"
                             Source="{x:Static content:Images.LetterP}" />
                         <TextBlock
                             VerticalAlignment="Center"
@@ -170,17 +136,31 @@
                     </StackPanel>
                 </MenuItem.Header>
             </MenuItem>
+            <MenuItem Command="{Binding ProjectExplorerViewModel.ResolveModuleNameCommand, Source={StaticResource ViewModelLocator}}" Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource PointerItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
+                <MenuItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Image
+                            Width="16"
+                            Height="16"
+                            Margin="0,0,4,0" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource SqualrColorWhite}"
+                            Text="Resolve Module Name" />
+                    </StackPanel>
+                </MenuItem.Header>
+            </MenuItem>
             <Separator Visibility="{Binding ProjectExplorerViewModel.IsSelectionAddress, Converter={StaticResource BooleanToVisibilityConverter}, Source={StaticResource ViewModelLocator}}" />
             <MenuItem
                 Command="{Binding CodeTracerViewModel.FindWhatWritesCommand, Source={StaticResource ViewModelLocator}}"
                 CommandParameter="{Binding .}"
-                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource AddressItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
+                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource PointerItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image
-                            Margin="0 0 4 0"
                             Width="16"
                             Height="16"
+                            Margin="0,0,4,0"
                             Source="{x:Static content:Images.Cpu}" />
                         <TextBlock
                             VerticalAlignment="Center"
@@ -192,14 +172,14 @@
             <MenuItem
                 Command="{Binding CodeTracerViewModel.FindWhatReadsCommand, Source={StaticResource ViewModelLocator}}"
                 CommandParameter="{Binding .}"
-                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource AddressItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
+                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource PointerItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image
-                            Margin="0 0 4 0"
                             Width="16"
                             Height="16"
-                            Source="{x:Static content:Images.Cpu}"/>
+                            Margin="0,0,4,0"
+                            Source="{x:Static content:Images.Cpu}" />
                         <TextBlock
                             VerticalAlignment="Center"
                             Foreground="{StaticResource SqualrColorWhite}"
@@ -210,13 +190,13 @@
             <MenuItem
                 Command="{Binding CodeTracerViewModel.FindWhatAccessesCommand, Source={StaticResource ViewModelLocator}}"
                 CommandParameter="{Binding .}"
-                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource AddressItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
+                Visibility="{Binding ProjectExplorerViewModel.SelectedProjectItem, Converter={StaticResource PointerItemVisibilityConverter}, Source={StaticResource ViewModelLocator}}">
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image
-                            Margin="0 0 4 0"
                             Width="16"
                             Height="16"
+                            Margin="0,0,4,0"
                             Source="{x:Static content:Images.Cpu}" />
                         <TextBlock
                             VerticalAlignment="Center"
@@ -230,13 +210,13 @@
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Border
-                            Margin="0 0 4 0"
                             Width="16"
-                            Height="16"/>
+                            Height="16"
+                            Margin="0,0,4,0" />
                         <TextBlock
                             VerticalAlignment="Center"
                             Foreground="{StaticResource SqualrColorWhite}"
-                            Text="Delete Selection"/>
+                            Text="Delete Selection" />
                     </StackPanel>
                 </MenuItem.Header>
             </MenuItem>
@@ -245,13 +225,13 @@
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Border
-                            Margin="0 0 4 0"
                             Width="16"
-                            Height="16"/>
+                            Height="16"
+                            Margin="0,0,4,0" />
                         <TextBlock
                             VerticalAlignment="Center"
                             Foreground="{StaticResource SqualrColorWhite}"
-                            Text="Copy Selection"/>
+                            Text="Copy Selection" />
                     </StackPanel>
                 </MenuItem.Header>
             </MenuItem>
@@ -259,13 +239,13 @@
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Border
-                            Margin="0 0 4 0"
                             Width="16"
-                            Height="16"/>
+                            Height="16"
+                            Margin="0,0,4,0" />
                         <TextBlock
                             VerticalAlignment="Center"
                             Foreground="{StaticResource SqualrColorWhite}"
-                            Text="Paste Selection"/>
+                            Text="Paste Selection" />
                     </StackPanel>
                 </MenuItem.Header>
             </MenuItem>
@@ -273,31 +253,29 @@
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Border
-                            Margin="0 0 4 0"
                             Width="16"
-                            Height="16"/>
+                            Height="16"
+                            Margin="0,0,4,0" />
                         <TextBlock
                             VerticalAlignment="Center"
                             Foreground="{StaticResource SqualrColorWhite}"
-                            Text="Cut Selection"/>
+                            Text="Cut Selection" />
                     </StackPanel>
                 </MenuItem.Header>
             </MenuItem>
             <Separator />
-            <MenuItem
-                Command="{Binding ProjectExplorerViewModel.OpenFileExplorerCommand, Source={StaticResource ViewModelLocator}}"
-                CommandParameter="{Binding .}">
+            <MenuItem Command="{Binding ProjectExplorerViewModel.OpenFileExplorerCommand, Source={StaticResource ViewModelLocator}}" CommandParameter="{Binding .}">
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image
-                            Margin="0 0 4 0"
                             Width="16"
                             Height="16"
-                            Source="{x:Static content:Images.Open}"/>
+                            Margin="0,0,4,0"
+                            Source="{x:Static content:Images.Open}" />
                         <TextBlock
                             VerticalAlignment="Center"
                             Foreground="{StaticResource SqualrColorWhite}"
-                            Text="Open in File Explorer"/>
+                            Text="Open in File Explorer" />
                     </StackPanel>
                 </MenuItem.Header>
             </MenuItem>
@@ -307,7 +285,8 @@
         <Grid Visibility="{Binding Path=HasProjectRoot, Converter={StaticResource BooleanToNotHiddenConverter}}">
             <Button
                 Background="{StaticResource SqualrColorPanel}"
-                BorderThickness="1"
+                BorderBrush="White"
+                BorderThickness="1,1,1,0"
                 Command="{Binding SelectProjectCommand}">
                 <StackPanel Orientation="Horizontal">
                     <Image
@@ -324,131 +303,136 @@
                 <RowDefinition Height="*" />
                 <RowDefinition Height="32" />
             </Grid.RowDefinitions>
-                <TreeView
-                    Name="ProjectExplorerTreeView"
-                    Background="{StaticResource SqualrColorPanel}"
-                    BorderBrush="White"
-                    BorderThickness="1 1 1 0"
-                    ContextMenu="{StaticResource RightClickMenu}"
-                    ItemsSource="{Binding ProjectRoot}"
-                    Visibility="{Binding Path=HasProjectRoot, Converter={StaticResource BooleanToHiddenConverter}}"
-                    Grid.Row="0">
-                    <TreeView.Resources>
-                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{Binding Color, Source={StaticResource SqualrColorHighlight}}" />
-                        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{Binding Color, Source={StaticResource SqualrColorHighlight}}" />
-                    </TreeView.Resources>
-                <TreeView.ItemContainerStyle>
-                        <Style TargetType="{x:Type TreeViewItem}">
-                            <Style.Triggers>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="BorderBrush" Value="{StaticResource SqualrColorHighlightBorder}" />
-                                </Trigger>
-                            </Style.Triggers>
-                            <Setter Property="behaviors:MouseDoubleClickBehavior.Command" Value="{Binding ProjectExplorerViewModel.EditProjectItemCommand, Source={StaticResource ViewModelLocator}}" />
-                            <Setter Property="behaviors:MouseDoubleClickBehavior.CommandParameter" Value="{Binding ElementName=ProjectExplorerTreeView, Path=SelectedItem}" />
-                            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
-                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
-                            <Setter Property="ContextMenu" Value="{StaticResource ProjectItemRightClickMenu}" />
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                            <Style.Resources>
-                                <Style TargetType="{x:Type Border}">
-                                    <Setter Property="Grid.ColumnSpan" Value="2" />
-                                </Style>
-                            </Style.Resources>
-                        </Style>
-                    </TreeView.ItemContainerStyle>
-                    <!--  Click and Selection events  -->
-                    <intr:Interaction.Triggers>
-                        <intr:EventTrigger EventName="SelectedItemChanged">
-                            <intr:InvokeCommandAction Command="{Binding SelectProjectItemCommand}" CommandParameter="{Binding ElementName=ProjectExplorerTreeView, Path=SelectedItem}" />
-                        </intr:EventTrigger>
-                    </intr:Interaction.Triggers>
-                    <!--  Keyboard shortcuts  -->
-                    <TreeView.InputBindings>
-                        <KeyBinding
-                            Key="C"
-                            Command="{Binding CopySelectionCommand}"
-                            Modifiers="Ctrl" />
-                        <KeyBinding
-                            Key="X"
-                            Command="{Binding CutSelectionCommand}"
-                            Modifiers="Ctrl" />
-                        <KeyBinding
-                            Key="V"
-                            Command="{Binding PasteSelectionCommand}"
-                            Modifiers="Ctrl" />
-                        <KeyBinding Key="Space" Command="{Binding ToggleSelectionActivationCommand}" />
-                        <KeyBinding Key="Delete" Command="{Binding DeleteSelectionCommand}" />
-                    </TreeView.InputBindings>
-                    <TreeView.ItemTemplate>
-                        <HierarchicalDataTemplate DataType="{x:Type proj:ProjectItemView}" ItemsSource="{Binding Path=ChildItems, Converter={StaticResource ProjectItemDirectoryConverter}}">
-                            <Border
-                                Background="{Binding Background, RelativeSource={RelativeSource AncestorType=TreeViewItem}}"
-                                BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=TreeViewItem}}"
-                                BorderThickness="1">
-                                <Grid HorizontalAlignment="Stretch" Background="Transparent">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <CheckBox
-                                        Grid.Column="0"
-                                        Margin="0,0,4,0"
-                                        IsChecked="{Binding Path=IsActivated}" />
-                                    <Image
-                                        Grid.Column="1"
-                                        Width="16"
-                                        Height="16"
-                                        Source="{Binding Path=ImageSource}">
-                                        <intr:Interaction.Triggers>
-                                            <intr:EventTrigger EventName="PreviewMouseRightButtonDown">
-                                                <intr:ChangePropertyAction
-                                                    PropertyName="IsSelected"
-                                                    TargetObject="{Binding}"
-                                                    Value="true" />
-                                            </intr:EventTrigger>
-                                        </intr:Interaction.Triggers>
-                                    </Image>
-                                    <TextBlock
-                                        Grid.Column="2"
-                                        Margin="4,0,0,0"
-                                        Foreground="{StaticResource SqualrColorWhite}"
-                                        Text="{Binding Path=Name}">
-                                        <intr:Interaction.Triggers>
-                                            <intr:EventTrigger EventName="PreviewMouseRightButtonDown">
-                                                <intr:ChangePropertyAction
-                                                    PropertyName="IsSelected"
-                                                    TargetObject="{Binding}"
-                                                    Value="true" />
-                                            </intr:EventTrigger>
-                                        </intr:Interaction.Triggers>
-                                    </TextBlock>
-                                    <TextBlock
-                                        Grid.Column="3"
-                                        Margin="4,0,0,0"
-                                        Foreground="{StaticResource SqualrColorGray74}"
-                                        Text="{Binding Path=DisplayValue}">
-                                        <intr:Interaction.Triggers>
-                                            <intr:EventTrigger EventName="PreviewMouseRightButtonDown">
-                                                <intr:ChangePropertyAction
-                                                    PropertyName="IsSelected"
-                                                    TargetObject="{Binding}"
-                                                    Value="true" />
-                                            </intr:EventTrigger>
-                                        </intr:Interaction.Triggers>
-                                    </TextBlock>
-                                </Grid>
-                            </Border>
-                        </HierarchicalDataTemplate>
-                    </TreeView.ItemTemplate>
-                </TreeView>
-            <Border Background="{StaticResource SqualrColorPanel}"
+            <TreeView
+                Name="ProjectExplorerTreeView"
+                Grid.Row="0"
+                AllowDrop="True"
+                Background="{StaticResource SqualrColorPanel}"
                 BorderBrush="White"
-                BorderThickness="1 0 1 1"
-                Grid.Row="1">
-            </Border>
+                BorderThickness="1,1,1,0"
+                ContextMenu="{StaticResource RightClickMenu}"
+                Drop="ProjectExplorerTreeView_Drop"
+                ItemsSource="{Binding ProjectRoot}"
+                PreviewMouseLeftButtonDown="TemplateTreeView_PreviewMouseLeftButtonDown"
+                PreviewMouseMove="TemplateTreeView_PreviewMouseMove"
+                Visibility="{Binding Path=HasProjectRoot, Converter={StaticResource BooleanToHiddenConverter}}">
+                <TreeView.Resources>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="{Binding Color, Source={StaticResource SqualrColorHighlight}}" />
+                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="{Binding Color, Source={StaticResource SqualrColorHighlight}}" />
+                </TreeView.Resources>
+                <TreeView.ItemContainerStyle>
+                    <Style TargetType="{x:Type TreeViewItem}">
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource SqualrColorHighlightBorder}" />
+                            </Trigger>
+                        </Style.Triggers>
+                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                        <Setter Property="ContextMenu" Value="{StaticResource ProjectItemRightClickMenu}" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Style.Resources>
+                            <Style TargetType="{x:Type Border}">
+                                <Setter Property="Grid.ColumnSpan" Value="2" />
+                            </Style>
+                        </Style.Resources>
+                    </Style>
+                </TreeView.ItemContainerStyle>
+                <!--  Click and Selection events  -->
+                <intr:Interaction.Triggers>
+                    <intr:EventTrigger EventName="SelectedItemChanged">
+                        <intr:InvokeCommandAction Command="{Binding SelectProjectItemCommand}" CommandParameter="{Binding ElementName=ProjectExplorerTreeView, Path=SelectedItem}" />
+                    </intr:EventTrigger>
+                </intr:Interaction.Triggers>
+                <!--  Keyboard shortcuts  -->
+                <TreeView.InputBindings>
+                    <KeyBinding
+                        Key="C"
+                        Command="{Binding CopySelectionCommand}"
+                        Modifiers="Ctrl" />
+                    <KeyBinding
+                        Key="X"
+                        Command="{Binding CutSelectionCommand}"
+                        Modifiers="Ctrl" />
+                    <KeyBinding
+                        Key="V"
+                        Command="{Binding PasteSelectionCommand}"
+                        Modifiers="Ctrl" />
+                    <KeyBinding Key="Space" Command="{Binding ToggleSelectionActivationCommand}" />
+                    <KeyBinding Key="Delete" Command="{Binding DeleteSelectionCommand}" />
+                    <KeyBinding Key="F2" Command="{Binding RenameSelectedProjectItemsCommand}" />
+                </TreeView.InputBindings>
+                <TreeView.ItemTemplate>
+                    <HierarchicalDataTemplate DataType="{x:Type proj:ProjectItemView}" ItemsSource="{Binding Path=ChildItems, Converter={StaticResource ProjectItemDirectoryConverter}}">
+                        <Border
+                            Background="{Binding Background, RelativeSource={RelativeSource AncestorType=TreeViewItem}}"
+                            BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=TreeViewItem}}"
+                            BorderThickness="1">
+                            <Grid HorizontalAlignment="Stretch" Background="Transparent">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox
+                                    Grid.Column="0"
+                                    Margin="0,0,4,0"
+                                    IsChecked="{Binding Path=IsActivated, Mode=TwoWay}" />
+                                <Image
+                                    Grid.Column="1"
+                                    Width="16"
+                                    Height="16"
+                                    Source="{Binding Path=ImageSource}">
+                                    <intr:Interaction.Triggers>
+                                        <intr:EventTrigger EventName="PreviewMouseRightButtonDown">
+                                            <intr:ChangePropertyAction
+                                                PropertyName="IsSelected"
+                                                TargetObject="{Binding}"
+                                                Value="true" />
+                                        </intr:EventTrigger>
+                                    </intr:Interaction.Triggers>
+                                </Image>
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Margin="4,0,0,0"
+                                    Foreground="{StaticResource SqualrColorWhite}"
+                                    MouseDown="NameMouseDown"
+                                    Text="{Binding Path=Name}">
+                                    <intr:Interaction.Triggers>
+                                        <intr:EventTrigger EventName="PreviewMouseRightButtonDown">
+                                            <intr:ChangePropertyAction
+                                                PropertyName="IsSelected"
+                                                TargetObject="{Binding}"
+                                                Value="true" />
+                                        </intr:EventTrigger>
+                                    </intr:Interaction.Triggers>
+                                </TextBlock>
+                                <TextBlock
+                                    Grid.Column="3"
+                                    Margin="4,0,0,0"
+                                    Foreground="{StaticResource SqualrColorGray74}"
+                                    MouseDown="ValueMouseDown"
+                                    Text="{Binding Path=DisplayValue}">
+                                    <intr:Interaction.Triggers>
+                                        <intr:EventTrigger EventName="PreviewMouseRightButtonDown">
+                                            <intr:ChangePropertyAction
+                                                PropertyName="IsSelected"
+                                                TargetObject="{Binding}"
+                                                Value="true" />
+                                        </intr:EventTrigger>
+                                    </intr:Interaction.Triggers>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+                    </HierarchicalDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+            <Border
+                Grid.Row="1"
+                Background="{StaticResource SqualrColorPanel}"
+                BorderBrush="White"
+                BorderThickness="1,0,1,1" />
         </Grid>
     </Grid>
 </UserControl>

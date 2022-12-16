@@ -15,55 +15,57 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         /* IDebugSymbolGroup */
 
         [PreserveSig]
-        int GetNumberSymbols(
+        Int32 GetNumberSymbols(
             [Out] out UInt32 Number);
 
         [PreserveSig]
-        int AddSymbol(
-            [In, MarshalAs(UnmanagedType.LPStr)] string Name,
+        Int32 AddSymbol(
+            [In, MarshalAs(UnmanagedType.LPStr)] String Name,
             [In, Out] ref UInt32 Index);
 
         [PreserveSig]
-        int RemoveSymbolByName(
-            [In, MarshalAs(UnmanagedType.LPStr)] string Name);
+        Int32 RemoveSymbolByName(
+            [In, MarshalAs(UnmanagedType.LPStr)] String Name);
 
         [PreserveSig]
-        int RemoveSymbolsByIndex(
+        Int32 RemoveSymbolsByIndex(
             [In] UInt32 Index);
 
         [PreserveSig]
-        int GetSymbolName(
+        Int32 GetSymbolName(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 NameSize);
 
         [PreserveSig]
-        int GetSymbolParameters(
+        Int32 GetSymbolParameters(
             [In] UInt32 Start,
             [In] UInt32 Count,
             [Out, MarshalAs(UnmanagedType.LPArray)] DEBUG_SYMBOL_PARAMETERS[] Params);
 
         [PreserveSig]
-        int ExpandSymbol(
+        Int32 ExpandSymbol(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.Bool)] bool Expand);
+            [In, MarshalAs(UnmanagedType.Bool)] Boolean Expand);
 
         [PreserveSig]
-        int OutputSymbols(
+        Int32 OutputSymbols(
             [In] DEBUG_OUTCTL OutputControl,
             [In] DEBUG_OUTPUT_SYMBOLS Flags,
             [In] UInt32 Start,
             [In] UInt32 Count);
 
         [PreserveSig]
-        int WriteSymbol(
+        Int32 WriteSymbol(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Value);
+            [In, MarshalAs(UnmanagedType.LPStr)] String Value);
 
         [PreserveSig]
-        int OutputAsType(
+        Int32 OutputAsType(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Type);
+            [In, MarshalAs(UnmanagedType.LPStr)] String Type);
     }
+    //// End interface
 }
+//// End namespace

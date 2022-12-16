@@ -15,130 +15,130 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         /* IDebugSymbolGroup */
 
         [PreserveSig]
-        new int GetNumberSymbols(
+        new Int32 GetNumberSymbols(
             [Out] out UInt32 Number);
 
         [PreserveSig]
-        new int AddSymbol(
-            [In, MarshalAs(UnmanagedType.LPStr)] string Name,
+        new Int32 AddSymbol(
+            [In, MarshalAs(UnmanagedType.LPStr)] String Name,
             [In, Out] ref UInt32 Index);
 
         [PreserveSig]
-        new int RemoveSymbolByName(
-            [In, MarshalAs(UnmanagedType.LPStr)] string Name);
+        new Int32 RemoveSymbolByName(
+            [In, MarshalAs(UnmanagedType.LPStr)] String Name);
 
         [PreserveSig]
-        new int RemoveSymbolsByIndex(
+        new Int32 RemoveSymbolsByIndex(
             [In] UInt32 Index);
 
         [PreserveSig]
-        new int GetSymbolName(
+        new Int32 GetSymbolName(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 NameSize);
 
         [PreserveSig]
-        new int GetSymbolParameters(
+        new Int32 GetSymbolParameters(
             [In] UInt32 Start,
             [In] UInt32 Count,
             [Out, MarshalAs(UnmanagedType.LPArray)] DEBUG_SYMBOL_PARAMETERS[] Params);
 
         [PreserveSig]
-        new int ExpandSymbol(
+        new Int32 ExpandSymbol(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.Bool)] bool Expand);
+            [In, MarshalAs(UnmanagedType.Bool)] Boolean Expand);
 
         [PreserveSig]
-        new int OutputSymbols(
+        new Int32 OutputSymbols(
             [In] DEBUG_OUTCTL OutputControl,
             [In] DEBUG_OUTPUT_SYMBOLS Flags,
             [In] UInt32 Start,
             [In] UInt32 Count);
 
         [PreserveSig]
-        new int WriteSymbol(
+        new Int32 WriteSymbol(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Value);
+            [In, MarshalAs(UnmanagedType.LPStr)] String Value);
 
         [PreserveSig]
-        new int OutputAsType(
+        new Int32 OutputAsType(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Type);
+            [In, MarshalAs(UnmanagedType.LPStr)] String Type);
 
         /* IDebugSymbolGroup2 */
 
         [PreserveSig]
-        int AddSymbolWide(
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Name,
+        Int32 AddSymbolWide(
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Name,
             [In, Out] ref UInt32 Index);
 
         [PreserveSig]
-        int RemoveSymbolByNameWide(
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Name);
+        Int32 RemoveSymbolByNameWide(
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Name);
 
         [PreserveSig]
-        int GetSymbolNameWide(
+        Int32 GetSymbolNameWide(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 NameSize);
 
         [PreserveSig]
-        int WriteSymbolWide(
+        Int32 WriteSymbolWide(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Value);
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Value);
 
         [PreserveSig]
-        int OutputAsTypeWide(
+        Int32 OutputAsTypeWide(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Type);
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Type);
 
         [PreserveSig]
-        int GetSymbolTypeName(
+        Int32 GetSymbolTypeName(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 NameSize);
 
         [PreserveSig]
-        int GetSymbolTypeNameWide(
+        Int32 GetSymbolTypeNameWide(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 NameSize);
 
         [PreserveSig]
-        int GetSymbolSize(
+        Int32 GetSymbolSize(
             [In] UInt32 Index,
             [Out] out UInt32 Size);
 
         [PreserveSig]
-        int GetSymbolOffset(
+        Int32 GetSymbolOffset(
             [In] UInt32 Index,
             [Out] out UInt64 Offset);
 
         [PreserveSig]
-        int GetSymbolRegister(
+        Int32 GetSymbolRegister(
             [In] UInt32 Index,
             [Out] out UInt32 Register);
 
         [PreserveSig]
-        int GetSymbolValueText(
+        Int32 GetSymbolValueText(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 NameSize);
 
         [PreserveSig]
-        int GetSymbolValueTextWide(
+        Int32 GetSymbolValueTextWide(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 NameSize);
 
         [PreserveSig]
-        int GetSymbolEntryInformation(
+        Int32 GetSymbolEntryInformation(
             [In] UInt32 Index,
             [Out] out DEBUG_SYMBOL_ENTRY Info);
     }

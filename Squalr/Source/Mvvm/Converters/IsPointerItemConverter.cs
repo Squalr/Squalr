@@ -7,9 +7,9 @@
     using System.Windows.Data;
 
     /// <summary>
-    /// Determines if a project item is an AddressItem.
+    /// Determines if a project item is an PointerItem or PointerItemView.
     /// </summary>
-    public class IsAddressItemConverter : IValueConverter
+    public class IsPointerItemConverter : IValueConverter
     {
         /// <summary>
         /// Converts an Icon to a BitmapSource.

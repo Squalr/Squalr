@@ -11,6 +11,7 @@
     using Squalr.Source.Editors.DataTypeEditor;
     using Squalr.Source.Editors.HotkeyEditor;
     using Squalr.Source.Editors.OffsetEditor;
+    using Squalr.Source.Editors.RenameEditor;
     using Squalr.Source.Editors.ScriptEditor;
     using Squalr.Source.Editors.TextEditor;
     using Squalr.Source.Editors.ValueEditor;
@@ -100,6 +101,17 @@
             get
             {
                 return ChangeLogViewModel.GetInstance();
+            }
+        }
+
+        /// <summary>
+        /// Gets the Rename Project Item Dialog view model.
+        /// </summary>
+        public RenameProjectItemDialogViewModel RenameProjectItemDialogViewModel
+        {
+            get
+            {
+                return RenameProjectItemDialogViewModel.GetInstance();
             }
         }
 
@@ -331,6 +343,17 @@
             get
             {
                 return CodeTracerViewModel.GetInstance();
+            }
+        }
+
+        /// <summary>
+        /// Gets the Two Choice Dialog view model.
+        /// </summary>
+        public TwoChoiceDialogViewModel TwoChoiceDialogViewModel
+        {
+            get
+            {
+                return TwoChoiceDialogViewModel.GetInstance();
             }
         }
 

@@ -1,14 +1,16 @@
 ﻿namespace Squalr.Source.ProjectExplorer
 {
+    using CSScripting;
     using GalaSoft.MvvmLight.Command;
     using Squalr.Engine.Common;
     using Squalr.Engine.Common.DataStructures;
     using Squalr.Engine.Common.Logging;
     using Squalr.Engine.Common.OS;
+    using Squalr.Engine.Memory;
     using Squalr.Engine.Projects;
     using Squalr.Engine.Projects.Items;
-    using Squalr.Source.Controls;
     using Squalr.Source.Docking;
+    using Squalr.Source.Editors.RenameEditor;
     using Squalr.Source.Editors.ScriptEditor;
     using Squalr.Source.Editors.ValueEditor;
     using Squalr.Source.ProjectExplorer.Dialogs;
@@ -16,12 +18,12 @@
     using Squalr.Source.Settings;
     using System;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.IO;
     using System.Linq;
+    using System.Net;
     using System.Threading;
     using System.Threading.Tasks;
-    using System.Windows.Forms;
+    using System.Windows;
     using System.Windows.Input;
 
     public class ProjectExplorerViewModel : ToolViewModel
@@ -50,13 +52,15 @@
             this.SetProjectRootCommand = new RelayCommand(() => this.SetProjectRoot());
             this.SelectProjectCommand = new RelayCommand(() => this.SelectProject());
             this.SelectProjectItemCommand = new RelayCommand<Object>((selectedItem) => this.SelectedProjectItem = selectedItem as ProjectItemView, (selectedItem) => true);
-            this.EditProjectItemCommand = new RelayCommand<ProjectItemView>((projectItem) => this.EditProjectItem(projectItem), (projectItem) => true);
-            this.DeleteSelectionCommand = new RelayCommand<ProjectItemView>((projectItems) => this.DeleteSelection(true), (projectItem) => true);
+            this.ToggleSelectionActivationCommand = new RelayCommand(() => this.ToggleSelectionActivation());
+            this.EditProjectItemValueCommand = new RelayCommand<ProjectItemView>((projectItem) => this.EditProjectItemValue(projectItem), (projectItem) => true);
+            this.RenameProjectItemCommand = new RelayCommand<ProjectItemView>((projectItem) => this.RenameProjectItem(projectItem), (projectItem) => true);
+            this.RenameSelectedProjectItemsCommand = new RelayCommand(() => this.RenameSelectedProjectItems(), () => true);
             this.AddNewFolderItemCommand = new RelayCommand(() => this.AddNewProjectItem(typeof(DirectoryItem)), () => true);
             this.AddNewAddressItemCommand = new RelayCommand(() => this.AddNewProjectItem(typeof(PointerItem)), () => true);
-            this.AddNewDolphinAddressItemCommand = new RelayCommand(() => this.AddNewProjectItem(typeof(PointerItem), emulatorType: EmulatorType.Dolphin), () => true);
             this.AddNewScriptItemCommand = new RelayCommand(() => this.AddNewProjectItem(typeof(ScriptItem)), () => true);
             this.AddNewInstructionItemCommand = new RelayCommand(() => this.AddNewProjectItem(typeof(InstructionItem)), () => true);
+            this.ResolveModuleNameCommand = new RelayCommand(() => this.ResolveModuleNamesForSelectedItems(), () => true);
             this.OpenFileExplorerCommand = new RelayCommand<ProjectItemView>((projectItem) => this.OpenFileExplorer(projectItem), (projectItem) => true);
             this.CopySelectionCommand = new RelayCommand(() => this.CopySelection(), () => true);
             this.CutSelectionCommand = new RelayCommand(() => this.CutSelection(), () => true);
@@ -93,11 +97,6 @@
         public ICommand AddNewAddressItemCommand { get; private set; }
 
         /// <summary>
-        /// Gets the command to add a new Dolphin emulator address.
-        /// </summary>
-        public ICommand AddNewDolphinAddressItemCommand { get; private set; }
-
-        /// <summary>
         /// Gets the command to add a new instruction.
         /// </summary>
         public ICommand AddNewInstructionItemCommand { get; private set; }
@@ -108,9 +107,19 @@
         public ICommand AddNewScriptItemCommand { get; private set; }
 
         /// <summary>
-        /// Gets the command to edit a project item.
+        /// Gets the command to edit a project item value.
         /// </summary>
-        public ICommand EditProjectItemCommand { get; private set; }
+        public ICommand EditProjectItemValueCommand { get; private set; }
+
+        /// <summary>
+        /// Gets the command to rename a project item.
+        /// </summary>
+        public ICommand RenameProjectItemCommand { get; private set; }
+
+        /// <summary>
+        /// Gets the command to rename all selected project items.
+        /// </summary>
+        public ICommand RenameSelectedProjectItemsCommand { get; private set; }
 
         /// <summary>
         /// Gets the command to toggle the activation the selected project explorer items.
@@ -141,6 +150,11 @@
         /// Gets a command to view a file or directory in the native file explorer.
         /// </summary>
         public ICommand OpenFileExplorerCommand { get; private set; }
+
+        /// <summary>
+        /// Gets a command to resolve the module base of an address item if possible.
+        /// </summary>
+        public ICommand ResolveModuleNameCommand { get; private set; }
 
         /// <summary>
         /// Gets or sets the project root tree of the current project.
@@ -205,6 +219,14 @@
             }
         }
 
+        public Boolean IsSelectionAddress
+        {
+            get
+            {
+                return this.selectedProjectItem?.ProjectItem is AddressItem;
+            }
+        }
+
         public Boolean HasProjectRoot
         {
             get
@@ -235,7 +257,14 @@
                 {
                     ProjectItem projectRoot = this.ProjectRoot?.FirstOrDefault()?.ProjectItem;
 
-                    projectRoot?.Update();
+                    try
+                    {
+                        projectRoot?.Update();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log(LogLevel.Warn, "Error updating project", ex);
+                    }
 
                     // TODO: Probably get this from user settings and clamp it
                     Thread.Sleep(50);
@@ -267,11 +296,11 @@
         {
             try
             {
-                using (FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog())
+                using (System.Windows.Forms.FolderBrowserDialog folderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog())
                 {
                     folderBrowserDialog.SelectedPath = SettingsViewModel.GetInstance().ProjectRoot;
 
-                    if (folderBrowserDialog.ShowDialog() == DialogResult.OK && !String.IsNullOrWhiteSpace(folderBrowserDialog.SelectedPath))
+                    if (folderBrowserDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK && !String.IsNullOrWhiteSpace(folderBrowserDialog.SelectedPath))
                     {
                         if (Directory.Exists(folderBrowserDialog.SelectedPath))
                         {
@@ -299,12 +328,15 @@
         {
             try
             {
-                SelectProjectDialogViewModel.GetInstance().ShowSelectProjectDialog(System.Windows.Application.Current.MainWindow, this.DoOpenProject);
-
-                if (!Directory.Exists(this.ProjectRoot?.FirstOrDefault()?.FilePath))
+                Application.Current.Dispatcher.Invoke(new Action(() =>
                 {
-                    this.ProjectRoot = null;
-                }
+                    SelectProjectDialogViewModel.GetInstance().ShowSelectProjectDialog(Application.Current.MainWindow, this.DoOpenProject);
+
+                    if (!Directory.Exists(this.ProjectRoot?.FirstOrDefault()?.FilePath))
+                    {
+                        this.ProjectRoot = null;
+                    }
+                }));
             }
             catch (Exception ex)
             {
@@ -335,7 +367,7 @@
         /// </summary>
         /// <param name="projectItemType"></param>
         /// <param name="emulatorType"></param>
-        private void AddNewProjectItem(Type projectItemType, EmulatorType emulatorType = EmulatorType.None)
+        private void AddNewProjectItem(Type projectItemType)
         {
             this.CreateProjectIfNone();
 
@@ -348,7 +380,7 @@
                     DirectoryItem.CreateNewDirectory(directoryItemView?.ProjectItem as DirectoryItem);
                     break;
                 case Type _ when projectItemType == typeof(PointerItem):
-                    directoryItemView?.AddChild(new PointerItem(SessionManager.Session, emulatorType: emulatorType));
+                    directoryItemView?.AddChild(new PointerItem(SessionManager.Session));
                     break;
                 case Type _ when projectItemType == typeof(ScriptItem):
                     directoryItemView?.AddChild(new ScriptItem(SessionManager.Session));
@@ -363,10 +395,10 @@
         }
 
         /// <summary>
-        /// Edits a project item based on the project item type.
+        /// Edits a project item value based on the project item type.
         /// </summary>
         /// <param name="projectItemView">The project item to edit.</param>
-        private void EditProjectItem(ProjectItemView projectItemView)
+        private void EditProjectItemValue(ProjectItemView projectItemView)
         {
             ProjectItem projectItem = projectItemView?.ProjectItem;
 
@@ -386,6 +418,31 @@
                 ScriptEditorModel scriptEditor = new ScriptEditorModel();
                 ScriptItem scriptItem = projectItem as ScriptItem;
                 scriptItem.Script = scriptEditor.EditValue(null, null, scriptItem.Script) as String;
+            }
+        }
+
+        /// <summary>
+        /// Opens a dialog to rename a given project item.
+        /// </summary>
+        /// <param name="projectItemView">The project item to rename.</param>
+        private void RenameProjectItem(ProjectItemView projectItemView)
+        {
+            ProjectItem projectItem = projectItemView?.ProjectItem;
+
+            if (projectItem != null)
+            {
+                RenameProjectItemDialogViewModel.GetInstance().ShowDialog(projectItem);
+            }
+        }
+
+        /// <summary>
+        /// Opens a dialog to rename all selected project items.
+        /// </summary>
+        private void RenameSelectedProjectItems()
+        {
+            if (this.SelectedProjectItem != null)
+            {
+                RenameProjectItemDialogViewModel.GetInstance().ShowDialog(this.SelectedProjectItems?.Select(next => next?.ProjectItem)?.ToArray());
             }
         }
 
@@ -429,11 +486,31 @@
                 return;
             }
 
-            foreach (ProjectItemView projectItem in this.SelectedProjectItems)
+            foreach (ProjectItemView projectItem in this.SelectedProjectItems.ToArray())
             {
                 if (projectItem != null)
                 {
                     projectItem.IsActivated = !projectItem.IsActivated;
+                }
+            }
+        }
+
+        private void ResolveModuleNamesForSelectedItems()
+        {
+            if (this.SelectedProjectItems == null)
+            {
+                return;
+            }
+
+            foreach (PointerItem addressItem in this.SelectedProjectItems.Select(view => view.ProjectItem).Cast<PointerItem>().ToArray())
+            {
+                if (addressItem != null && (addressItem.ModuleName == null || addressItem.ModuleName == String.Empty))
+                {
+                    String moduleName;
+                    UInt64 address = MemoryQueryer.Instance.AddressToModule(SessionManager.Session.OpenedProcess, addressItem.ModuleOffset, out moduleName, SessionManager.Session.DetectedEmulator);
+
+                    addressItem.ModuleName = moduleName;
+                    addressItem.ModuleOffset = address;
                 }
             }
         }
@@ -449,19 +526,11 @@
                 return;
             }
 
-            if (promptUser)
-            {
-                System.Windows.MessageBoxResult result = CenteredDialogBox.Show(
-                    System.Windows.Application.Current.MainWindow,
-                    "Delete selected items?",
-                    "Confirm",
-                    System.Windows.MessageBoxButton.OKCancel,
-                    System.Windows.MessageBoxImage.Warning);
+            System.Windows.Window mainWindow = System.Windows.Application.Current.MainWindow;
 
-                if (result != System.Windows.MessageBoxResult.OK)
-                {
-                    return;
-                }
+            if (promptUser && !TwoChoiceDialogViewModel.GetInstance().ShowDialog(owner: mainWindow, headerText: "Confirm", bodyText: "Delete selected items?", optionOkayText: "Okay", optionCancelText: "Cancel"))
+            {
+                return;
             }
 
             foreach (ProjectItemView projectItemView in this.SelectedProjectItems.ToArray())

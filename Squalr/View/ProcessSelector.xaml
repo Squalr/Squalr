@@ -32,7 +32,7 @@
             </ListView.ItemContainerStyle>
             <ListView.ItemTemplate>
                 <DataTemplate>
-                    <Grid>
+                    <Grid Margin="8,0,0,0">
                         <Grid.InputBindings>
                             <MouseBinding
                                 Command="{Binding DataContext.SelectProcessCommand, ElementName=SqualrProcessSelector}"

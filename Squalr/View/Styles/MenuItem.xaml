@@ -81,11 +81,6 @@
                                                     Height="{Binding ActualHeight, ElementName=SubMenuBorder}"
                                                     Fill="{Binding Background, ElementName=SubMenuBorder}" />
                                             </Canvas>
-                                            <Rectangle
-                                                Width="1"
-                                                Margin="29,2,0,2"
-                                                HorizontalAlignment="Left"
-                                                Fill="#FFD7D7D7" />
                                             <ItemsPresenter
                                                 x:Name="ItemsPresenter"
                                                 VerticalAlignment="Center"

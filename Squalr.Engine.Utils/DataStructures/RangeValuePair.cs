@@ -15,7 +15,7 @@
         /// </summary>
         /// <param name="from">The lower bound of this range.</param>
         /// <param name="to">The upper bound of this range.</param>
-        /// <param name="value">The value contained by this range.param>
+        /// <param name="value">The value contained by this range.</param>
         public RangeValuePair(TKey from, TKey to, TValue value) : this()
         {
             this.From = from;
@@ -39,6 +39,28 @@
         public TValue Value { get; private set; }
 
         /// <summary>
+        /// Compares two <see cref="RangeValuePair{TKey, TValue}"/> instances. Checks equality on both range and values.
+        /// </summary>
+        /// <param name="left">The first <see cref="RangeValuePair{TKey, TValue}"/> instance.</param>
+        /// <param name="right">The second <see cref="RangeValuePair{TKey, TValue}"/> instance.</param>
+        /// <returns>A value indicating whether the two <see cref="RangeValuePair{TKey, TValue}"/> objects have the same ranges and values.</returns>
+        public static Boolean operator ==(RangeValuePair<TKey, TValue> left, RangeValuePair<TKey, TValue> right)
+        {
+            return left.Equals(right);
+        }
+
+        /// <summary>
+        /// Compares two <see cref="RangeValuePair{TKey, TValue}"/> instances. Checks inequality on both range and values.
+        /// </summary>
+        /// <param name="left">The first <see cref="RangeValuePair{TKey, TValue}"/> instance.</param>
+        /// <param name="right">The second <see cref="RangeValuePair{TKey, TValue}"/> instance.</param>
+        /// <returns>A value indicating whether the two <see cref="RangeValuePair{TKey, TValue}"/> objects have different ranges or values.</returns>
+        public static Boolean operator !=(RangeValuePair<TKey, TValue> left, RangeValuePair<TKey, TValue> right)
+        {
+            return !(left == right);
+        }
+
+        /// <summary>
         /// Returns a <see cref="String"/> that represents this instance.
         /// </summary>
         /// <returns>A <see cref="String"/> that represents this instance.</returns>
@@ -57,17 +79,17 @@
 
             if (this.From != null)
             {
-                hash = hash * 37 + From.GetHashCode();
+                hash = (hash * 37) + this.From.GetHashCode();
             }
 
             if (this.To != null)
             {
-                hash = hash * 37 + To.GetHashCode();
+                hash = (hash * 37) + this.To.GetHashCode();
             }
 
             if (this.Value != null)
             {
-                hash = hash * 37 + Value.GetHashCode();
+                hash = (hash * 37) + this.Value.GetHashCode();
             }
 
             return hash;
@@ -98,28 +120,6 @@
             }
 
             return Equals((RangeValuePair<TKey, TValue>)other);
-        }
-
-        /// <summary>
-        /// Compares two <see cref="RangeValuePair{TKey, TValue}"/> instances. Checks equality on both range and values.
-        /// </summary>
-        /// <param name="left">The first <see cref="RangeValuePair{TKey, TValue}"/> instance.</param>
-        /// <param name="right">The second <see cref="RangeValuePair{TKey, TValue}"/> instance.</param>
-        /// <returns>A value indicating whether the two <see cref="RangeValuePair{TKey, TValue}"/> objects have the same ranges and values.</returns>
-        public static Boolean operator ==(RangeValuePair<TKey, TValue> left, RangeValuePair<TKey, TValue> right)
-        {
-            return left.Equals(right);
-        }
-
-        /// <summary>
-        /// Compares two <see cref="RangeValuePair{TKey, TValue}"/> instances. Checks inequality on both range and values.
-        /// </summary>
-        /// <param name="left">The first <see cref="RangeValuePair{TKey, TValue}"/> instance.</param>
-        /// <param name="right">The second <see cref="RangeValuePair{TKey, TValue}"/> instance.</param>
-        /// <returns>A value indicating whether the two <see cref="RangeValuePair{TKey, TValue}"/> objects have different ranges or values.</returns>
-        public static Boolean operator !=(RangeValuePair<TKey, TValue> left, RangeValuePair<TKey, TValue> right)
-        {
-            return !(left == right);
         }
     }
     //// End class

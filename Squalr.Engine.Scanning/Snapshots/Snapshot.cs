@@ -82,6 +82,8 @@
         /// </summary>
         public MemoryAlignment Alignment { get; private set; }
 
+        private Int32 CachedDataTypeSize { get; set; }
+
         /// <summary>
         /// Gets or sets the snapshot regions contained by this snapshot.
         /// </summary>
@@ -143,6 +145,24 @@
             }
         }
 
+        public void DeleteIndicies(IEnumerable<UInt64> indiciesToDelete)
+        {
+            foreach (UInt64 elementIndex in indiciesToDelete)
+            {
+                SnapshotRegion region = this.SnapshotRegionIndexLookupTable.QueryOne(elementIndex);
+
+                if (region != null)
+                {
+                    // This is safe to do in a loop, since we do not rebuild the indicies until later
+                    region.DeleteIndex(elementIndex, this.Alignment);
+                }
+            }
+
+            // Rebuild the lookup table
+            this.SetAlignmentCascading(this.CachedDataTypeSize, this.Alignment);
+            this.BuildLookupTable(this.Alignment);
+        }
+
         /// <summary>
         /// Adds snapshot regions to the regions contained in this snapshot.
         /// </summary>
@@ -177,6 +197,7 @@
         /// </summary>
         public void SetAlignmentCascading(Int32 dataTypeSize, MemoryAlignment alignment)
         {
+            this.CachedDataTypeSize = dataTypeSize; ;
             this.Alignment = alignment;
             this.ByteCount = 0;
             this.ElementCount = 0;

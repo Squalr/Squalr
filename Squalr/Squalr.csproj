@@ -12,8 +12,8 @@
     <NoWarn>$(NoWarn);NU1605</NoWarn>
     <SignAssembly>false</SignAssembly>
     <ApplicationManifest>Application.manifest</ApplicationManifest>
-    <AssemblyVersion>3.0.1</AssemblyVersion>
-    <FileVersion>3.0.1</FileVersion>
+    <AssemblyVersion>3.0.2</AssemblyVersion>
+    <FileVersion>3.0.2</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -267,6 +267,9 @@
     <Compile Update="View\Controls\HexDecBox.xaml.cs">
       <DependentUpon>HexDecBox.xaml</DependentUpon>
     </Compile>
+    <Compile Update="View\Dialogs\CreateProjectDialog - Copy.xaml.cs">
+      <DependentUpon>CreateProjectDialog.xaml</DependentUpon>
+    </Compile>
     <Compile Update="View\Dialogs\CreateProjectDialog.xaml.cs">
       <DependentUpon>CreateProjectDialog.xaml</DependentUpon>
     </Compile>
@@ -293,6 +296,9 @@
     </Compile>
     <Compile Update="View\Editors\TextEditor.xaml.cs">
       <DependentUpon>TextEditor.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="View\Editors\ValueEditor - Copy.xaml.cs">
+      <DependentUpon>ValueEditor.xaml</DependentUpon>
     </Compile>
     <Compile Update="View\Editors\ValueEditor.xaml.cs">
       <DependentUpon>ValueEditor.xaml</DependentUpon>

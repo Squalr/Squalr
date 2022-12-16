@@ -12,8 +12,8 @@
     Title="Value Editor"
     Width="320"
     Height="320"
-    d:DesignWidth="320"
     d:DesignHeight="320"
+    d:DesignWidth="320"
     BorderBrush="{StaticResource SqualrColorWhite}"
     BorderThickness="2"
     DataContext="{Binding SelectProjectDialogViewModel, Source={StaticResource ViewModelLocator}}"
@@ -26,7 +26,7 @@
     <shell:Window.Resources>
         <shell:ContextMenu
             x:Key="RightClickMenu"
-            Background="{StaticResource SqualrColorGray27}"
+            Background="{StaticResource SqualrColorInput}"
             BorderBrush="{StaticResource SqualrColorWhite}"
             Foreground="{StaticResource SqualrColorWhite}">
             <shell:MenuItem Command="{Binding RenameSelectedProjectCommand}" Header="Rename Project" />
@@ -79,8 +79,8 @@
                 <shell:TextBox
                     Grid.Column="1"
                     Margin="4,0,4,0"
-                    Background="{StaticResource SqualrColorGray27}"
-                    BorderBrush="{StaticResource SqualrColorGray40}"
+                    Background="{StaticResource SqualrColorInput}"
+                    BorderBrush="{StaticResource SqualrColorBorder}"
                     Foreground="{StaticResource SqualrColorWhite}"
                     Text="{Binding ProjectSearchTerm, UpdateSourceTrigger=PropertyChanged}" />
                 <shell:Image
@@ -101,6 +101,7 @@
                 CanUserAddRows="False"
                 ColumnWidth="*"
                 ContextMenu="{StaticResource RightClickMenu}"
+                GridLinesVisibility="None"
                 HeadersVisibility="Column"
                 ItemsSource="{Binding FilteredProjects}"
                 RowHeaderWidth="0"
@@ -120,12 +121,16 @@
                         <shell:Setter Property="Background" Value="{StaticResource SqualrColorPanel}" />
                         <shell:Setter Property="Foreground" Value="{StaticResource SqualrColorWhite}" />
                         <shell:Setter Property="HorizontalAlignment" Value="Stretch" />
+                        <shell:Setter Property="Padding" Value="4 0 4 4" />
                     </shell:Style>
                 </shell:DataGrid.ColumnHeaderStyle>
                 <shell:DataGrid.Style>
                     <shell:Style TargetType="{x:Type DataGrid}">
                         <shell:Setter Property="Background" Value="{StaticResource SqualrColorPanel}" />
                         <shell:Setter Property="Foreground" Value="{StaticResource SqualrColorWhite}" />
+                        <shell:Setter Property="BorderBrush" Value="{StaticResource SqualrColorBorder}" />
+                        <shell:Setter Property="BorderThickness" Value="1" />
+                        <shell:Setter Property="Padding" Value="4" />
                     </shell:Style>
                 </shell:DataGrid.Style>
                 <shell:DataGrid.CellStyle>
@@ -137,7 +142,8 @@
                         </shell:Style.Triggers>
                         <shell:Setter Property="Background" Value="{StaticResource SqualrColorPanel}" />
                         <shell:Setter Property="Foreground" Value="{StaticResource SqualrColorWhite}" />
-                        <shell:Setter Property="BorderBrush" Value="{StaticResource SqualrColorPanel}" />
+                        <shell:Setter Property="BorderBrush" Value="{StaticResource SqualrColorBorder}" />
+                        <shell:Setter Property="BorderThickness" Value="1" />
                     </shell:Style>
                 </shell:DataGrid.CellStyle>
                 <shell:DataGrid.Columns>
@@ -145,11 +151,10 @@
                         <shell:DataGridTemplateColumn.CellTemplate>
                             <shell:DataTemplate>
                                 <shell:Grid>
-                                    <shell:TextBlock Text="{Binding Path=.}" 
-                                        Margin="4 0 0 0"/>
+                                    <shell:TextBlock Margin="4,0,0,0" Text="{Binding Path=.}" />
                                     <shell:Button
+                                        Margin="0,0,4,0"
                                         HorizontalAlignment="Right"
-                                        Margin="0 0 4 0"
                                         Background="Transparent"
                                         Command="{Binding SelectProjectDialogViewModel.RenameProjectCommand, Source={StaticResource ViewModelLocator}}"
                                         CommandParameter="{Binding Path=.}"
@@ -180,7 +185,7 @@
                 Height="24"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Bottom"
-                Background="{StaticResource SqualrColorGray27}"
+                Background="{StaticResource SqualrColorInput}"
                 Click="CancelButtonClick"
                 Foreground="{StaticResource SqualrColorWhite}"
                 IsCancel="True">
@@ -192,7 +197,7 @@
                 HorizontalAlignment="Right"
                 VerticalAlignment="Bottom"
                 shell:Grid.Column="1"
-                Background="{StaticResource SqualrColorGray27}"
+                Background="{StaticResource SqualrColorInput}"
                 Click="AcceptButtonClick"
                 Foreground="{StaticResource SqualrColorWhite}"
                 IsDefault="True">

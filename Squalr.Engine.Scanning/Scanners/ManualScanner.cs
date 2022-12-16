@@ -13,7 +13,6 @@
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using static Squalr.Engine.Common.TrackableTask;
 
     /// <summary>
     /// A memory scanning class for classic manual memory scanning techniques.

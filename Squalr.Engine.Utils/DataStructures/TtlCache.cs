@@ -212,7 +212,7 @@
             base.Add(value, timeToLive);
         }
 
-        public bool HasValue()
+        public Boolean HasValue()
         {
             return this.Contains(cachedValue);
         }

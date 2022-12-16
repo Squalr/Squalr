@@ -9,7 +9,6 @@
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
-    using static Squalr.Engine.Common.TrackableTask;
 
     /// <summary>
     /// Scans for pointers in the target process.

@@ -424,12 +424,20 @@
         /// <param name="projectItemPath">The path to the project item.</param>
         /// <param name="supressWarnings">Whether warnings should be supressed for any failed operations.</param>
         /// <returns>The deserialized project item.</returns>
-        private ProjectItem LoadProjectItem(String projectItemPath, bool supressWarnings = false)
+        private ProjectItem LoadProjectItem(String projectItemPath, Boolean supressWarnings = false)
         {
             if (Directory.Exists(projectItemPath))
             {
                 try
                 {
+                    String lastFolderName = new DirectoryInfo(projectItemPath).Name;
+
+                    // Do not load any directories prefixed with a '.', as these are often system or version control folders.
+                    if (lastFolderName.StartsWith("."))
+                    {
+                        return null;
+                    }
+
                     DirectoryItem childDirectory = DirectoryItem.FromDirectory(this.processSession, projectItemPath, this);
 
                     if (childDirectory != null)
@@ -559,7 +567,7 @@
         /// <param name="args">The filesystem change event args.</param>
         private void OnFilesOrDirectoriesChanged(Object source, FileSystemEventArgs args)
         {
-            bool isDirectory = Directory.Exists(args.FullPath);
+            Boolean isDirectory = Directory.Exists(args.FullPath);
 
             switch (args.ChangeType)
             {

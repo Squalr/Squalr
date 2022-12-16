@@ -34,7 +34,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <Grid Grid.Row="0" Background="{StaticResource SqualrColorGray27}">
+        <Grid Grid.Row="0" Background="{StaticResource SqualrColorInput}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition />
                 <ColumnDefinition Width="Auto" />

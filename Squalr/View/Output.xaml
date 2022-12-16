@@ -11,7 +11,16 @@
     d:DesignWidth="256"
     DataContext="{Binding OutputViewModel, Source={StaticResource ViewModelLocator}}"
     mc:Ignorable="d">
-    <Grid Background="{StaticResource SqualrColorPanel}">
+    <UserControl.Resources>
+        <ContextMenu
+            x:Key="RightClickMenu"
+            Background="{StaticResource SqualrColorInput}"
+            BorderBrush="{StaticResource SqualrColorWhite}"
+            Foreground="{StaticResource SqualrColorWhite}">
+            <MenuItem Command="{Binding ClearOutputCommand}" Header="Clear Output" />
+        </ContextMenu>
+    </UserControl.Resources>
+    <Grid Background="{StaticResource SqualrColorPanel}" ContextMenu="{StaticResource RightClickMenu}">
         <ScrollViewer Name="outputScrollViewer" ScrollChanged="OutputScrollViewerScrollChanged">
             <RichTextBox
                 Name="outputTextBox"

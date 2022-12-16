@@ -236,12 +236,7 @@
             // Freeze current value if this entry is activated
             if (this.IsActivated)
             {
-                Object value = this.AddressValue;
-
-                if (value != null && value.GetType() == this.DataType)
-                {
-                    this.WriteValue(value);
-                }
+                this.WriteValue(this.AddressValue);
             }
             else
             {

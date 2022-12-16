@@ -20,7 +20,7 @@
         /// <summary>
         /// Singleton instance of the <see cref="SelectProjectDialogViewModel" /> class.
         /// </summary>
-        private static Lazy<SelectProjectDialogViewModel> selectProjectDialogViewModelInstance = new Lazy<SelectProjectDialogViewModel>(
+        private static readonly Lazy<SelectProjectDialogViewModel> SelectProjectDialogViewModelInstance = new Lazy<SelectProjectDialogViewModel>(
                 () => { return new SelectProjectDialogViewModel(); },
                 LazyThreadSafetyMode.ExecutionAndPublication);
 
@@ -212,7 +212,7 @@
         /// <returns>A singleton instance of the class.</returns>
         public static SelectProjectDialogViewModel GetInstance()
         {
-            return SelectProjectDialogViewModel.selectProjectDialogViewModelInstance.Value;
+            return SelectProjectDialogViewModel.SelectProjectDialogViewModelInstance.Value;
         }
 
         public void ShowSelectProjectDialog(Window owner, Action<String> projectPathCallback)

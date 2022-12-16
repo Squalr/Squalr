@@ -13,7 +13,6 @@
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
-    using static Squalr.Engine.Common.TrackableTask;
 
     /// <summary>
     /// Validates a snapshot of pointers.

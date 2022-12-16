@@ -173,13 +173,23 @@
         }
 
         /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public ScanConstraints CreateScanConstraintsFromActiveSettings()
+        {
+            ScannableType dataType = ScanResultsViewModel.GetInstance().ActiveType;
+            ScanConstraints scanConstraints = new ScanConstraints(dataType, this.ScanConstraint?.Clone(), ScanSettings.Alignment);
+
+            return scanConstraints;
+        }
+
+        /// <summary>
         /// Starts the scan using the current constraints.
         /// </summary>
         private void StartScan()
         {
-            // Create a constraint manager that includes the current active constraint
-            ScannableType dataType = ScanResultsViewModel.GetInstance().ActiveType;
-            ScanConstraints scanConstraints = new ScanConstraints(dataType, this.ScanConstraint?.Clone(), ScanSettings.Alignment);
+            ScanConstraints scanConstraints = this.CreateScanConstraintsFromActiveSettings();
 
             if (!scanConstraints.IsValid())
             {

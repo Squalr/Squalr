@@ -2,12 +2,16 @@
 {
     using System;
     using System.Windows;
+    using System.Windows.Input;
 
     /// <summary>
     /// Interaction logic for SelectProjectDialog.xaml.
     /// </summary>
     public partial class SelectProjectDialog : Window
     {
+        /// <summary>
+        /// The selected project name.
+        /// </summary>
         private String projectName;
 
         /// <summary>
@@ -18,6 +22,9 @@
             this.InitializeComponent();
         }
 
+        /// <summary>
+        /// Gets or sets the selected project name.
+        /// </summary>
         public String ProjectName
         {
             get
@@ -31,6 +38,10 @@
             }
         }
 
+        /// <summary>
+        /// Selects the given project by name.
+        /// </summary>
+        /// <param name="projectName">The name of the project to select.</param>
         public void SelectProject(String projectName)
         {
             this.ProjectName = projectName;
@@ -60,7 +71,12 @@
             this.Close();
         }
 
-        private void ProjectsListViewMouseDoubleClick(Object sender, System.Windows.Input.MouseButtonEventArgs e)
+        /// <summary>
+        /// Invoked when the projects list view is double clicked (ie a project is selected).
+        /// </summary>
+        /// <param name="sender">Sending object.</param>
+        /// <param name="e">Event args.</param>
+        private void ProjectsListViewMouseDoubleClick(Object sender, MouseButtonEventArgs e)
         {
             this.DialogResult = true;
             this.Close();

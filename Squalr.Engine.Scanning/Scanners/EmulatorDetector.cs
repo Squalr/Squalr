@@ -6,7 +6,6 @@
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
-    using static Squalr.Engine.Common.TrackableTask;
 
     /// <summary>
     /// Detects whether the target process is an emulator.
@@ -40,7 +39,8 @@
                             EmulatorType detectedEmulator = EmulatorType.None;
 
                             // TODO: something a bit more accurate.
-                            if (process?.MainWindowTitle?.StartsWith("Dolphin") ?? false)
+                            if ((process?.MainWindowTitle?.StartsWith("Dolphin") ?? false)
+                                || (process?.ProcessName?.StartsWith("Dolphin") ?? false))
                             {
                                 detectedEmulator = EmulatorType.Dolphin;
                             }

@@ -20,21 +20,48 @@
     <UserControl.Resources>
         <ContextMenu
             x:Key="ScanResultsRightClickMenu"
-            Background="{StaticResource SqualrColorGray27}"
+            Background="{StaticResource SqualrColorInput}"
             BorderBrush="{StaticResource SqualrColorWhite}"
             Foreground="{StaticResource SqualrColorWhite}">
-            <MenuItem
-                Command="{Binding ScanResultsViewModel.AddScanResultsCommand, Source={StaticResource ViewModelLocator}}">
+            <MenuItem Command="{Binding ScanResultsViewModel.AddScanResultsCommand, Source={StaticResource ViewModelLocator}}">
                 <MenuItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Image
-                            Margin="0 0 4 0"
                             Width="16"
-                            Height="16"/>
+                            Height="16"
+                            Margin="0,0,4,0" />
                         <TextBlock
                             VerticalAlignment="Center"
                             Foreground="{StaticResource SqualrColorWhite}"
                             Text="Add Selected Items" />
+                    </StackPanel>
+                </MenuItem.Header>
+            </MenuItem>
+            <MenuItem Command="{Binding ScanResultsViewModel.ToggleSelectionActivationCommand, Source={StaticResource ViewModelLocator}}">
+                <MenuItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Image
+                            Width="16"
+                            Height="16"
+                            Margin="0,0,4,0" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource SqualrColorWhite}"
+                            Text="Toggle Selected Items" />
+                    </StackPanel>
+                </MenuItem.Header>
+            </MenuItem>
+            <MenuItem Command="{Binding ScanResultsViewModel.DeleteSelectionCommand, Source={StaticResource ViewModelLocator}}">
+                <MenuItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Image
+                            Width="16"
+                            Height="16"
+                            Margin="0,0,4,0" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource SqualrColorWhite}"
+                            Text="Delete Selected Items" />
                     </StackPanel>
                 </MenuItem.Header>
             </MenuItem>
@@ -63,9 +90,10 @@
                 Background="{StaticResource SqualrColorFrame}"
                 BorderBrush="{StaticResource SqualrColorWhite}"
                 Foreground="{StaticResource SqualrColorWhite}">
-                <MenuItem VerticalAlignment="Center"
-                          Command="{Binding AddScanResultsCommand}"
-                          ToolTip="Add Selected Items to Current Project">
+                <MenuItem
+                    VerticalAlignment="Center"
+                    Command="{Binding AddScanResultsCommand}"
+                    ToolTip="Add Selected Items to Current Project">
                     <MenuItem.Header>
                         <Image
                             Width="16"
@@ -73,7 +101,8 @@
                             Source="{x:Static content:Images.Increased}" />
                     </MenuItem.Header>
                 </MenuItem>
-                <MenuItem VerticalAlignment="Center"
+                <MenuItem
+                    VerticalAlignment="Center"
                     Command="{Binding SnapshotManagerViewModel.ClearSnapshotsCommand, Source={StaticResource ViewModelLocator}}"
                     ToolTip="New Scan">
                     <MenuItem.Header>
@@ -95,7 +124,6 @@
             CanUserResizeColumns="true"
             ColumnWidth="*"
             HeadersVisibility="Column"
-            IsReadOnly="True"
             ItemsSource="{Binding Path=Addresses}"
             RowHeaderWidth="0"
             SelectionMode="Extended"
@@ -109,6 +137,11 @@
                     <intr:InvokeCommandAction Command="{Binding AddScanResultCommand}" CommandParameter="{Binding ElementName=ScanResultsDataGrid, Path=SelectedItem}" />
                 </intr:EventTrigger>
             </intr:Interaction.Triggers>
+            <!--  Keyboard shortcuts  -->
+            <DataGrid.InputBindings>
+                <KeyBinding Key="Space" Command="{Binding ToggleSelectionActivationCommand}" />
+                <KeyBinding Key="Delete" Command="{Binding DeleteSelectionCommand}" />
+            </DataGrid.InputBindings>
             <DataGrid.ItemContainerStyle>
                 <Style TargetType="{x:Type DataGridRow}">
                     <Setter Property="ContextMenu" Value="{StaticResource ScanResultsRightClickMenu}" />
@@ -118,7 +151,7 @@
                 <Style TargetType="{x:Type DataGridColumnHeader}">
                     <Setter Property="Background" Value="{StaticResource SqualrColorPanel}" />
                     <Setter Property="Foreground" Value="{StaticResource SqualrColorWhite}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource SqualrColorWhite}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource SqualrColorBorder}" />
                     <Setter Property="BorderThickness" Value="1" />
                     <Setter Property="HorizontalAlignment" Value="Stretch" />
                     <Setter Property="Padding" Value="4,0,4,0" />
@@ -139,10 +172,17 @@
                     </Style.Triggers>
                     <Setter Property="Background" Value="{StaticResource SqualrColorPanel}" />
                     <Setter Property="Foreground" Value="{StaticResource SqualrColorWhite}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource SqualrColorGray74}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource SqualrColorBorder}" />
                 </Style>
             </DataGrid.CellStyle>
             <DataGrid.Columns>
+                <DataGridTemplateColumn MinWidth="20" MaxWidth="20">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding Path=IsActivated, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTemplateColumn
                     MinWidth="16"
                     MaxWidth="16"
@@ -183,9 +223,7 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn
-                    Header="Previous Value"
-                    IsReadOnly="True">
+                <DataGridTemplateColumn Header="Previous Value" IsReadOnly="True">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <TextBlock Margin="4,0,4,0" Text="{Binding Path=PreviousValue}" />
@@ -239,7 +277,12 @@
                 </Menu>
                 <WrapPanel Grid.Column="1" HorizontalAlignment="Center">
                     <TextBlock Foreground="{StaticResource SqualrColorWhite}" Text="Page: " />
-                    <TextBox HorizontalContentAlignment="Center" Background="{StaticResource SqualrColorPanel}" MinWidth="48" Foreground="{StaticResource SqualrColorWhite}" Text="{Binding CurrentPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox
+                        MinWidth="48"
+                        HorizontalContentAlignment="Center"
+                        Background="{StaticResource SqualrColorPanel}"
+                        Foreground="{StaticResource SqualrColorWhite}"
+                        Text="{Binding CurrentPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Foreground="{StaticResource SqualrColorWhite}" Text=" of " />
                     <TextBlock Foreground="{StaticResource SqualrColorWhite}" Text="{Binding PageCount}" />
                 </WrapPanel>

@@ -165,13 +165,91 @@
         }
 
         /// <summary>
+        /// Deletes the element at the given index. Note that this does not rebuild the snapshot regions index table, instead leaving an
+        /// empty entry where the deleted index is. This allows for efficiently deleting multiple indicies. The callers is expected to rebuild
+        /// the index table as a post step.
+        /// </summary>
+        /// <param name="elementIndex">The index of the element to delete.</param>
+        /// <param name="alignment">The snapshot alignment of the element.</param>
+        public void DeleteIndex(UInt64 elementIndex, MemoryAlignment alignment)
+        {
+            Int32 indexToDelete = (elementIndex - this.BaseElementIndex).ToInt32();
+            RangeValuePair<Int32, SnapshotElementRange> elementMapping = this.SnapshotElementRangeIndexLookupTable.QueryOneKey(indexToDelete);
+
+            if (elementMapping == null)
+            {
+                return;
+            }
+
+            SnapshotElementRange elementRange = elementMapping.Value;
+
+            if (elementRange == null)
+            {
+                return;
+            }
+
+            // Remove the existing element range from the index lookup table
+            this.SnapshotElementRangeIndexLookupTable.Remove(elementRange);
+
+            Int32 elementCount = elementRange.GetAlignedElementCount(alignment);
+
+            // Case 1: Only one existing element. Just remove it.
+            if (elementCount <= 1)
+            {
+                this.SnapshotElementRanges = this.SnapshotElementRanges.Where(snapshotElementRange => snapshotElementRange != elementRange);
+            }
+            // Case 2: There are multiple elements in the existing element range. Remove them and add new one(s)
+            else
+            {
+                Int32 elementRangeIndex = indexToDelete - elementRange.SnapshotRegionRelativeIndex;
+
+                // Case A: First element removed. Just resize the range.
+                if (elementRangeIndex == 0)
+                {
+                    elementRange.RegionOffset += unchecked((Int32)alignment);
+                    elementRange.Range -= unchecked((Int32)alignment);
+
+                    this.SnapshotElementRangeIndexLookupTable.Add(elementMapping.From + 1, elementMapping.To, elementRange);
+                }
+                // Case B: Last element removed. Just resize the range.
+                else if (elementRangeIndex == elementCount - 1)
+                {
+                    elementRange.Range -= unchecked((Int32)alignment);
+
+                    this.SnapshotElementRangeIndexLookupTable.Add(elementMapping.From, elementMapping.To - 1, elementRange);
+                }
+                // Case C: Range has been split into two.
+                else
+                {
+                    // Create the new split region
+                    Int32 splitOffset = (elementRangeIndex + 1) * unchecked((Int32)alignment);
+                    Int32 splotRegionOffset = elementRange.RegionOffset + splitOffset;
+                    Int32 splitSize = elementRange.Range - splitOffset;
+                    SnapshotElementRange splitRange = new SnapshotElementRange(elementRange.ParentRegion, splotRegionOffset, splitSize);
+
+                    // Resize the firest region
+                    elementRange.Range = elementRangeIndex * unchecked((Int32)alignment);
+
+                    splitRange.SnapshotRegionRelativeIndex = elementRange.Range / unchecked((Int32)alignment);
+
+                    this.SnapshotElementRanges = this.SnapshotElementRanges.Append(splitRange).OrderBy(x => x.RegionOffset);
+
+                    // Note that the deleted index left empty until the entire index table is rebuilt.
+                    // This is an optimization to allow deleting many indicies and rebuilding the index table only once afterwards.
+                    this.SnapshotElementRangeIndexLookupTable.Add(elementMapping.From, indexToDelete - 1, elementRange);
+                    this.SnapshotElementRangeIndexLookupTable.Add(indexToDelete + 1, elementMapping.To, splitRange);
+                }
+            }
+        }
+
+        /// <summary>
         /// Reads all memory for this memory region.
         /// </summary>
         /// <returns>The bytes read from memory.</returns>
         public unsafe Boolean ReadAllMemory(Process process)
         {
             this.SetPreviousValues(this.CurrentValues);
-            this.SetCurrentValues(MemoryReader.Instance.ReadBytes(process, this.BaseAddress, this.RegionSize, out bool readSuccess));
+            this.SetCurrentValues(MemoryReader.Instance.ReadBytes(process, this.BaseAddress, this.RegionSize, out Boolean readSuccess));
 
             if (!readSuccess)
             {
@@ -215,6 +293,11 @@
                 || (((constraints as ScanConstraint)?.IsRelativeConstraint() ?? false) && !this.HasPreviousValues))
             {
                 return false;
+            }
+
+            if (constraints is ScanConstraints)
+            {
+                return this.CanCompare((constraints as ScanConstraints)?.RootConstraint);
             }
 
             return true;

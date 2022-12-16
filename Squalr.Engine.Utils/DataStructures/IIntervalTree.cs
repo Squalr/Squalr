@@ -30,6 +30,13 @@
         TValue QueryOne(TKey value);
 
         /// <summary>
+        /// Performs a point query with a single value. The first match is returned.
+        /// </summary>
+        /// <param name="value">The single value for which the query is performed.</param>
+        /// <returns>The first result matching the given single value query.</returns>
+        RangeValuePair<TKey, TValue> QueryOneKey(TKey value);
+
+        /// <summary>
         /// Performs a point query with a single value. All items with overlapping ranges are returned.
         /// </summary>
         /// <param name="value">The single value for which the query is performed.</param>
@@ -53,10 +60,10 @@
         void Add(TKey from, TKey to, TValue value);
 
         /// <summary>
-        /// Removes the specified item from this interval tree.
+        /// Removes the specified item from this interval tree by query value.
         /// </summary>
-        /// <param name="item">The item to remove.</param>
-        void Remove(TValue item);
+        /// <param name="value">The value to remove.</param>
+        void Remove(TValue value);
 
         /// <summary>
         /// Removes the specified items from this interval tree.

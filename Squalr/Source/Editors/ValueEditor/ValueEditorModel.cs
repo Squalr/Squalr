@@ -7,7 +7,7 @@
     using System.Windows;
 
     /// <summary>
-    /// Type editor for scripts.
+    /// Editor for project item values.
     /// </summary>
     public class ValueEditorModel : UITypeEditor
     {

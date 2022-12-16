@@ -228,7 +228,7 @@
 
         [DllImport("psapi.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool QueryWorkingSetEx(IntPtr hProcess, [In, Out] MemoryWorkingSetExInformation[] pv, int cb);
+        public static extern Boolean QueryWorkingSetEx(IntPtr hProcess, [In, Out] MemoryWorkingSetExInformation[] pv, Int32 cb);
 
         /// <summary>
         /// Writes data to an area of memory in a specified process. The entire area to be written to must be accessible or the operation fails.

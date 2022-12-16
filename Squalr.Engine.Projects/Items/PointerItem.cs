@@ -40,12 +40,6 @@
         private IEnumerable<Int32> pointerOffsets;
 
         /// <summary>
-        /// The emulator type associated with this pointer item, if any.
-        /// </summary>
-        [DataMember]
-        private EmulatorType emulatorType;
-
-        /// <summary>
         /// Initializes a new instance of the <see cref="PointerItem" /> class.
         /// </summary>
         /// <param name="processSession">A process session reference for accessing the current opened process.</param>
@@ -72,7 +66,6 @@
             String description = "New Address",
             String moduleName = null,
             IEnumerable<Int32> pointerOffsets = null,
-            EmulatorType emulatorType = EmulatorType.None,
             Boolean isValueHex = false,
             Object value = null)
             : base(processSession, dataType ?? ScannableType.Int32, description, isValueHex, value)
@@ -81,7 +74,6 @@
             this.moduleOffset = baseAddress;
             this.moduleName = moduleName;
             this.pointerOffsets = pointerOffsets;
-            this.emulatorType = emulatorType;
         }
 
         /// <summary>
@@ -155,23 +147,6 @@
         }
 
         /// <summary>
-        /// Gets or sets the emulator type of this address.
-        /// </summary>
-        public virtual EmulatorType EmulatorType
-        {
-            get
-            {
-                return this.emulatorType;
-            }
-
-            set
-            {
-                this.emulatorType = value;
-                this.Save();
-            }
-        }
-
-        /// <summary>
         /// Gets the address specifier for this address. If a static address, this is 'ModuleName + offset', otherwise this is an address string.
         /// </summary>
         [Browsable(false)]
@@ -240,60 +215,8 @@
         /// <returns>The base address of this object.</returns>
         protected override UInt64 ResolveAddress()
         {
-            switch (this.emulatorType)
-            {
-                case EmulatorType.Dolphin:
-                    return ResolveDolphinEmulatorAddress();
-                case EmulatorType.None:
-                default:
-                    return this.ResolveStandardAddress();
-            }
-        }
-
-        /// <summary>
-        /// Resolves the address of an address, pointer, or managed object.
-        /// </summary>
-        /// <returns>The base address of this object.</returns>
-        protected UInt64 ResolveDolphinEmulatorAddress()
-        {
-            UInt64 pointer = MemoryQueryer.Instance.EmulatorAddressToRealAddress(processSession?.OpenedProcess, this.moduleOffset, EmulatorType.Dolphin);
-
-            if (this.PointerOffsets == null || this.PointerOffsets.Count() == 0)
-            {
-                return pointer;
-            }
-
-            foreach (Int32 offset in this.PointerOffsets)
-            {
-                bool successReading = false;
-
-                if (processSession?.OpenedProcess?.Is32Bit() ?? false)
-                {
-                    pointer = MemoryReader.Instance.Read<Int32>(processSession?.OpenedProcess, pointer, out successReading).ToUInt64();
-                }
-                else
-                {
-                    pointer = MemoryReader.Instance.Read<UInt64>(processSession?.OpenedProcess, pointer, out successReading);
-                }
-
-                if (pointer == 0 || !successReading)
-                {
-                    return 0;
-                }
-
-                pointer = pointer.Add(offset);
-            }
-
-            return pointer;
-        }
-
-        /// <summary>
-        /// Resolves the address of an address, pointer, or managed object.
-        /// </summary>
-        /// <returns>The base address of this object.</returns>
-        protected UInt64 ResolveStandardAddress()
-        {
-            UInt64 pointer = MemoryQueryer.Instance.ResolveModule(processSession?.OpenedProcess, this.ModuleName);
+            EmulatorType emulatorType = processSession?.DetectedEmulator ?? EmulatorType.None;
+            UInt64 pointer = MemoryQueryer.Instance.ResolveModule(processSession?.OpenedProcess, this.ModuleName, emulatorType);
 
             pointer = pointer.Add(this.ModuleOffset);
 
@@ -304,7 +227,7 @@
 
             foreach (Int32 offset in this.PointerOffsets)
             {
-                bool successReading = false;
+                Boolean successReading = false;
 
                 if (processSession?.OpenedProcess?.Is32Bit() ?? false)
                 {

@@ -14,7 +14,7 @@
         /// </summary>
         /// <param name="address">The address as a hex string.</param>
         /// <param name="mustBe32Bit">Whether or not the address must strictly be containable in 32 bits.</param>
-        /// <returns>A boolean indicating if the address is parseable.</returns>
+        /// <returns>A value indicating whether the address is parseable.</returns>
         public static Boolean CanParseAddress(String address, Boolean mustBe32Bit = false)
         {
             if (address == null)
@@ -49,7 +49,7 @@
         /// </summary>
         /// <param name="dataType">The type of the given value.</param>
         /// <param name="value">The value to be parsed.</param>
-        /// <returns>A boolean indicating if the value is parseable.</returns>
+        /// <returns>A value indicating whether the value is parseable.</returns>
         public static Boolean CanParseValue(ScannableType dataType, String value)
         {
             if (dataType == (ScannableType)null)
@@ -100,7 +100,7 @@
         /// <param name="dataType">The type of the given value.</param>
         /// <param name="value">The value to be parsed.</param>
         /// <param name="allowMasks">Whether hex values support masking operators (*, x, ?).</param>
-        /// <returns>A boolean indicating if the value is parseable as hex.</returns>
+        /// <returns>A value indicating whether the value is parseable as hex.</returns>
         public static Boolean CanParseHex(ScannableType dataType, String value, Boolean allowMasks = false)
         {
             if (value == null)
@@ -183,7 +183,7 @@
         /// </summary>
         /// <param name="value">The value as a string.</param>
         /// <param name="isHex">Whether or not the value is encoded in hex.</param>
-        /// <returns>A boolean indicating if the value could be parsed.</returns>
+        /// <returns>A value indicating whether the value could be parsed.</returns>
         public static Boolean IsArrayOfBytes(String value, Boolean isHex = false)
         {
             IEnumerable<String> byteStrings = Conversions.SplitByteArrayString(value, isHex);
@@ -204,7 +204,7 @@
         /// </summary>
         /// <param name="value">The value as a string.</param>
         /// <param name="isHex">Whether or not the value is encoded in hex.</param>
-        /// <returns>A boolean indicating if the value could be parsed.</returns>
+        /// <returns>A value indicating whether the value could be parsed.</returns>
         private static Boolean IsByte(String value, Boolean isHex = false)
         {
             if (isHex)
@@ -222,7 +222,7 @@
         /// </summary>
         /// <param name="value">The value as a string.</param>
         /// <param name="isHex">Whether or not the value is encoded in hex.</param>
-        /// <returns>A boolean indicating if the value could be parsed.</returns>
+        /// <returns>A value indicating whether the value could be parsed.</returns>
         private static Boolean IsSByte(String value, Boolean isHex = false)
         {
             if (isHex)
@@ -240,7 +240,7 @@
         /// </summary>
         /// <param name="value">The value as a string.</param>
         /// <param name="isHex">Whether or not the value is encoded in hex.</param>
-        /// <returns>A boolean indicating if the value could be parsed.</returns>
+        /// <returns>A value indicating whether the value could be parsed.</returns>
         private static Boolean IsInt16(String value, Boolean isHex = false)
         {
             if (isHex)
@@ -258,7 +258,7 @@
         /// </summary>
         /// <param name="value">The value as a string.</param>
         /// <param name="isHex">Whether or not the value is encoded in hex.</param>
-        /// <returns>A boolean indicating if the value could be parsed.</returns>
+        /// <returns>A value indicating whether the value could be parsed.</returns>
         private static Boolean IsUInt16(String value, Boolean isHex = false)
         {
             if (isHex)
@@ -276,7 +276,7 @@
         /// </summary>
         /// <param name="value">The value as a string.</param>
         /// <param name="isHex">Whether or not the value is encoded in hex.</param>
-        /// <returns>A boolean indicating if the value could be parsed.</returns>
+        /// <returns>A value indicating whether the value could be parsed.</returns>
         private static Boolean IsInt32(String value, Boolean isHex = false)
         {
             if (isHex)
@@ -294,7 +294,7 @@
         /// </summary>
         /// <param name="value">The value as a string.</param>
         /// <param name="isHex">Whether or not the value is encoded in hex.</param>
-        /// <returns>A boolean indicating if the value could be parsed.</returns>
+        /// <returns>A value indicating whether the value could be parsed.</returns>
         private static Boolean IsUInt32(String value, Boolean isHex = false)
         {
             if (isHex)
@@ -312,7 +312,7 @@
         /// </summary>
         /// <param name="value">The value as a string.</param>
         /// <param name="isHex">Whether or not the value is encoded in hex.</param>
-        /// <returns>A boolean indicating if the value could be parsed.</returns>
+        /// <returns>A value indicating whether the value could be parsed.</returns>
         private static Boolean IsInt64(String value, Boolean isHex = false)
         {
             if (isHex)
@@ -330,7 +330,7 @@
         /// </summary>
         /// <param name="value">The value as a string.</param>
         /// <param name="isHex">Whether or not the value is encoded in hex.</param>
-        /// <returns>A boolean indicating if the value could be parsed.</returns>
+        /// <returns>A value indicating whether the value could be parsed.</returns>
         private static Boolean IsUInt64(String value, Boolean isHex = false)
         {
             if (isHex)
@@ -348,7 +348,7 @@
         /// </summary>
         /// <param name="value">The value as a string.</param>
         /// <param name="isHex">Whether or not the value is encoded in hex.</param>
-        /// <returns>A boolean indicating if the value could be parsed.</returns>
+        /// <returns>A value indicating whether the value could be parsed.</returns>
         private static Boolean IsSingle(String value, Boolean isHex = false)
         {
             if (isHex && IsUInt32(value, isHex))
@@ -366,7 +366,7 @@
         /// </summary>
         /// <param name="value">The value as a string.</param>
         /// <param name="isHex">Whether or not the value is encoded in hex.</param>
-        /// <returns>A boolean indicating if the value could be parsed.</returns>
+        /// <returns>A value indicating whether the value could be parsed.</returns>
         private static Boolean IsDouble(String value, Boolean isHex = false)
         {
             if (isHex && IsUInt64(value, isHex))

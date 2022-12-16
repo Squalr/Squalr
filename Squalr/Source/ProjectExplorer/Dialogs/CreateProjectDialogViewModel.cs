@@ -17,7 +17,7 @@
         /// <summary>
         /// Singleton instance of the <see cref="CreateProjectDialogViewModel" /> class.
         /// </summary>
-        private static Lazy<CreateProjectDialogViewModel> createProjectDialogViewModelInstance = new Lazy<CreateProjectDialogViewModel>(
+        private static readonly Lazy<CreateProjectDialogViewModel> CreateProjectDialogViewModelInstance = new Lazy<CreateProjectDialogViewModel>(
                 () => { return new CreateProjectDialogViewModel(); },
                 LazyThreadSafetyMode.ExecutionAndPublication);
 
@@ -99,7 +99,7 @@
         /// <returns>A singleton instance of the class.</returns>
         public static CreateProjectDialogViewModel GetInstance()
         {
-            return CreateProjectDialogViewModel.createProjectDialogViewModelInstance.Value;
+            return CreateProjectDialogViewModel.CreateProjectDialogViewModelInstance.Value;
         }
 
         /// <summary>

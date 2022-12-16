@@ -17,7 +17,7 @@
         /// <summary>
         /// Singleton instance of the <see cref="DeleteProjectDialogViewModel" /> class.
         /// </summary>
-        private static Lazy<DeleteProjectDialogViewModel> deleteProjectDialogViewModelInstance = new Lazy<DeleteProjectDialogViewModel>(
+        private static readonly Lazy<DeleteProjectDialogViewModel> DeleteProjectDialogViewModelInstance = new Lazy<DeleteProjectDialogViewModel>(
                 () => { return new DeleteProjectDialogViewModel(); },
                 LazyThreadSafetyMode.ExecutionAndPublication);
 
@@ -72,7 +72,7 @@
         /// <returns>A singleton instance of the class.</returns>
         public static DeleteProjectDialogViewModel GetInstance()
         {
-            return DeleteProjectDialogViewModel.deleteProjectDialogViewModelInstance.Value;
+            return DeleteProjectDialogViewModel.DeleteProjectDialogViewModelInstance.Value;
         }
 
         /// <summary>

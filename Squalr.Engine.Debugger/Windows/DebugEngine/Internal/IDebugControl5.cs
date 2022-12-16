@@ -15,119 +15,119 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         /* IDebugControl */
 
         [PreserveSig]
-        new int GetInterrupt();
+        new Int32 GetInterrupt();
 
         [PreserveSig]
-        new int SetInterrupt(
+        new Int32 SetInterrupt(
             [In] DEBUG_INTERRUPT Flags);
 
         [PreserveSig]
-        new int GetInterruptTimeout(
+        new Int32 GetInterruptTimeout(
             [Out] out UInt32 Seconds);
 
         [PreserveSig]
-        new int SetInterruptTimeout(
+        new Int32 SetInterruptTimeout(
             [In] UInt32 Seconds);
 
         [PreserveSig]
-        new int GetLogFile(
+        new Int32 GetLogFile(
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 FileSize,
-            [Out, MarshalAs(UnmanagedType.Bool)] out bool Append);
+            [Out, MarshalAs(UnmanagedType.Bool)] out Boolean Append);
 
         [PreserveSig]
-        new int OpenLogFile(
-            [In, MarshalAs(UnmanagedType.LPStr)] string File,
-            [In, MarshalAs(UnmanagedType.Bool)] bool Append);
+        new Int32 OpenLogFile(
+            [In, MarshalAs(UnmanagedType.LPStr)] String File,
+            [In, MarshalAs(UnmanagedType.Bool)] Boolean Append);
 
         [PreserveSig]
-        new int CloseLogFile();
+        new Int32 CloseLogFile();
 
         [PreserveSig]
-        new int GetLogMask(
+        new Int32 GetLogMask(
             [Out] out DEBUG_OUTPUT Mask);
 
         [PreserveSig]
-        new int SetLogMask(
+        new Int32 SetLogMask(
             [In] DEBUG_OUTPUT Mask);
 
         [PreserveSig]
-        new int Input(
+        new Int32 Input(
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 InputSize);
 
         [PreserveSig]
-        new int ReturnInput(
-            [In, MarshalAs(UnmanagedType.LPStr)] string Buffer);
+        new Int32 ReturnInput(
+            [In, MarshalAs(UnmanagedType.LPStr)] String Buffer);
 
         [PreserveSig]
-        new int Output(
+        new Int32 Output(
             [In] DEBUG_OUTPUT Mask,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Format);
+            [In, MarshalAs(UnmanagedType.LPStr)] String Format);
 
         [PreserveSig]
-        new int OutputVaList( /* THIS SHOULD NEVER BE CALLED FROM C# */
+        new Int32 OutputVaList( /* THIS SHOULD NEVER BE CALLED FROM C# */
             [In] DEBUG_OUTPUT Mask,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Format,
+            [In, MarshalAs(UnmanagedType.LPStr)] String Format,
             [In] IntPtr va_list_Args);
 
         [PreserveSig]
-        new int ControlledOutput(
+        new Int32 ControlledOutput(
             [In] DEBUG_OUTCTL OutputControl,
             [In] DEBUG_OUTPUT Mask,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Format);
+            [In, MarshalAs(UnmanagedType.LPStr)] String Format);
 
         [PreserveSig]
-        new int ControlledOutputVaList( /* THIS SHOULD NEVER BE CALLED FROM C# */
+        new Int32 ControlledOutputVaList( /* THIS SHOULD NEVER BE CALLED FROM C# */
             [In] DEBUG_OUTCTL OutputControl,
             [In] DEBUG_OUTPUT Mask,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Format,
+            [In, MarshalAs(UnmanagedType.LPStr)] String Format,
             [In] IntPtr va_list_Args);
 
         [PreserveSig]
-        new int OutputPrompt(
+        new Int32 OutputPrompt(
             [In] DEBUG_OUTCTL OutputControl,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Format);
+            [In, MarshalAs(UnmanagedType.LPStr)] String Format);
 
         [PreserveSig]
-        new int OutputPromptVaList( /* THIS SHOULD NEVER BE CALLED FROM C# */
+        new Int32 OutputPromptVaList( /* THIS SHOULD NEVER BE CALLED FROM C# */
             [In] DEBUG_OUTCTL OutputControl,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Format,
+            [In, MarshalAs(UnmanagedType.LPStr)] String Format,
             [In] IntPtr va_list_Args);
 
         [PreserveSig]
-        new int GetPromptText(
+        new Int32 GetPromptText(
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 TextSize);
 
         [PreserveSig]
-        new int OutputCurrentState(
+        new Int32 OutputCurrentState(
             [In] DEBUG_OUTCTL OutputControl,
             [In] DEBUG_CURRENT Flags);
 
         [PreserveSig]
-        new int OutputVersionInformation(
+        new Int32 OutputVersionInformation(
             [In] DEBUG_OUTCTL OutputControl);
 
         [PreserveSig]
-        new int GetNotifyEventHandle(
+        new Int32 GetNotifyEventHandle(
             [Out] out UInt64 Handle);
 
         [PreserveSig]
-        new int SetNotifyEventHandle(
+        new Int32 SetNotifyEventHandle(
             [In] UInt64 Handle);
 
         [PreserveSig]
-        new int Assemble(
+        new Int32 Assemble(
             [In] UInt64 Offset,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Instr,
+            [In, MarshalAs(UnmanagedType.LPStr)] String Instr,
             [Out] out UInt64 EndOffset);
 
         [PreserveSig]
-        new int Disassemble(
+        new Int32 Disassemble(
             [In] UInt64 Offset,
             [In] DEBUG_DISASM Flags,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
@@ -136,18 +136,18 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt64 EndOffset);
 
         [PreserveSig]
-        new int GetDisassembleEffectiveOffset(
+        new Int32 GetDisassembleEffectiveOffset(
             [Out] out UInt64 Offset);
 
         [PreserveSig]
-        new int OutputDisassembly(
+        new Int32 OutputDisassembly(
             [In] DEBUG_OUTCTL OutputControl,
             [In] UInt64 Offset,
             [In] DEBUG_DISASM Flags,
             [Out] out UInt64 EndOffset);
 
         [PreserveSig]
-        new int OutputDisassemblyLines(
+        new Int32 OutputDisassemblyLines(
             [In] DEBUG_OUTCTL OutputControl,
             [In] UInt32 PreviousLines,
             [In] UInt32 TotalLines,
@@ -159,13 +159,13 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out, MarshalAs(UnmanagedType.LPArray)] UInt64[] LineOffsets);
 
         [PreserveSig]
-        new int GetNearInstruction(
+        new Int32 GetNearInstruction(
             [In] UInt64 Offset,
-            [In] int Delta,
+            [In] Int32 Delta,
             [Out] out UInt64 NearOffset);
 
         [PreserveSig]
-        new int GetStackTrace(
+        new Int32 GetStackTrace(
             [In] UInt64 FrameOffset,
             [In] UInt64 StackOffset,
             [In] UInt64 InstructionOffset,
@@ -174,45 +174,45 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 FramesFilled);
 
         [PreserveSig]
-        new int GetReturnOffset(
+        new Int32 GetReturnOffset(
             [Out] out UInt64 Offset);
 
         [PreserveSig]
-        new int OutputStackTrace(
+        new Int32 OutputStackTrace(
             [In] DEBUG_OUTCTL OutputControl,
             [In, MarshalAs(UnmanagedType.LPArray)] DEBUG_STACK_FRAME[] Frames,
             [In] Int32 FramesSize,
             [In] DEBUG_STACK Flags);
 
         [PreserveSig]
-        new int GetDebuggeeType(
+        new Int32 GetDebuggeeType(
             [Out] out DEBUG_CLASS Class,
             [Out] out DEBUG_CLASS_QUALIFIER Qualifier);
 
         [PreserveSig]
-        new int GetActualProcessorType(
+        new Int32 GetActualProcessorType(
             [Out] out IMAGE_FILE_MACHINE Type);
 
         [PreserveSig]
-        new int GetExecutingProcessorType(
+        new Int32 GetExecutingProcessorType(
             [Out] out IMAGE_FILE_MACHINE Type);
 
         [PreserveSig]
-        new int GetNumberPossibleExecutingProcessorTypes(
+        new Int32 GetNumberPossibleExecutingProcessorTypes(
             [Out] out UInt32 Number);
 
         [PreserveSig]
-        new int GetPossibleExecutingProcessorTypes(
+        new Int32 GetPossibleExecutingProcessorTypes(
             [In] UInt32 Start,
             [In] UInt32 Count,
             [Out, MarshalAs(UnmanagedType.LPArray)] IMAGE_FILE_MACHINE[] Types);
 
         [PreserveSig]
-        new int GetNumberProcessors(
+        new Int32 GetNumberProcessors(
             [Out] out UInt32 Number);
 
         [PreserveSig]
-        new int GetSystemVersion(
+        new Int32 GetSystemVersion(
             [Out] out UInt32 PlatformId,
             [Out] out UInt32 Major,
             [Out] out UInt32 Minor,
@@ -225,14 +225,14 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 BuildStringUsed);
 
         [PreserveSig]
-        new int GetPageSize(
+        new Int32 GetPageSize(
             [Out] out UInt32 Size);
 
         [PreserveSig]
-        new int IsPointer64Bit();
+        new Int32 IsPointer64Bit();
 
         [PreserveSig]
-        new int ReadBugCheckData(
+        new Int32 ReadBugCheckData(
             [Out] out UInt32 Code,
             [Out] out UInt64 Arg1,
             [Out] out UInt64 Arg2,
@@ -240,17 +240,17 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt64 Arg4);
 
         [PreserveSig]
-        new int GetNumberSupportedProcessorTypes(
+        new Int32 GetNumberSupportedProcessorTypes(
             [Out] out UInt32 Number);
 
         [PreserveSig]
-        new int GetSupportedProcessorTypes(
+        new Int32 GetSupportedProcessorTypes(
             [In] UInt32 Start,
             [In] UInt32 Count,
             [Out, MarshalAs(UnmanagedType.LPArray)] IMAGE_FILE_MACHINE[] Types);
 
         [PreserveSig]
-        new int GetProcessorTypeNames(
+        new Int32 GetProcessorTypeNames(
             [In] IMAGE_FILE_MACHINE Type,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder FullNameBuffer,
             [In] Int32 FullNameBufferSize,
@@ -260,257 +260,257 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 AbbrevNameSize);
 
         [PreserveSig]
-        new int GetEffectiveProcessorType(
+        new Int32 GetEffectiveProcessorType(
             [Out] out IMAGE_FILE_MACHINE Type);
 
         [PreserveSig]
-        new int SetEffectiveProcessorType(
+        new Int32 SetEffectiveProcessorType(
             [In] IMAGE_FILE_MACHINE Type);
 
         [PreserveSig]
-        new int GetExecutionStatus(
+        new Int32 GetExecutionStatus(
             [Out] out DEBUG_STATUS Status);
 
         [PreserveSig]
-        new int SetExecutionStatus(
+        new Int32 SetExecutionStatus(
             [In] DEBUG_STATUS Status);
 
         [PreserveSig]
-        new int GetCodeLevel(
+        new Int32 GetCodeLevel(
             [Out] out DEBUG_LEVEL Level);
 
         [PreserveSig]
-        new int SetCodeLevel(
+        new Int32 SetCodeLevel(
             [In] DEBUG_LEVEL Level);
 
         [PreserveSig]
-        new int GetEngineOptions(
+        new Int32 GetEngineOptions(
             [Out] out DEBUG_ENGOPT Options);
 
         [PreserveSig]
-        new int AddEngineOptions(
+        new Int32 AddEngineOptions(
             [In] DEBUG_ENGOPT Options);
 
         [PreserveSig]
-        new int RemoveEngineOptions(
+        new Int32 RemoveEngineOptions(
             [In] DEBUG_ENGOPT Options);
 
         [PreserveSig]
-        new int SetEngineOptions(
+        new Int32 SetEngineOptions(
             [In] DEBUG_ENGOPT Options);
 
         [PreserveSig]
-        new int GetSystemErrorControl(
+        new Int32 GetSystemErrorControl(
             [Out] out ERROR_LEVEL OutputLevel,
             [Out] out ERROR_LEVEL BreakLevel);
 
         [PreserveSig]
-        new int SetSystemErrorControl(
+        new Int32 SetSystemErrorControl(
             [In] ERROR_LEVEL OutputLevel,
             [In] ERROR_LEVEL BreakLevel);
 
         [PreserveSig]
-        new int GetTextMacro(
+        new Int32 GetTextMacro(
             [In] UInt32 Slot,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 MacroSize);
 
         [PreserveSig]
-        new int SetTextMacro(
+        new Int32 SetTextMacro(
             [In] UInt32 Slot,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Macro);
+            [In, MarshalAs(UnmanagedType.LPStr)] String Macro);
 
         [PreserveSig]
-        new int GetRadix(
+        new Int32 GetRadix(
             [Out] out UInt32 Radix);
 
         [PreserveSig]
-        new int SetRadix(
+        new Int32 SetRadix(
             [In] UInt32 Radix);
 
         [PreserveSig]
-        new int Evaluate(
-            [In, MarshalAs(UnmanagedType.LPStr)] string Expression,
+        new Int32 Evaluate(
+            [In, MarshalAs(UnmanagedType.LPStr)] String Expression,
             [In] DEBUG_VALUE_TYPE DesiredType,
             [Out] out DEBUG_VALUE Value,
             [Out] out UInt32 RemainderIndex);
 
         [PreserveSig]
-        new int CoerceValue(
+        new Int32 CoerceValue(
             [In] DEBUG_VALUE In,
             [In] DEBUG_VALUE_TYPE OutType,
             [Out] out DEBUG_VALUE Out);
 
         [PreserveSig]
-        new int CoerceValues(
+        new Int32 CoerceValues(
             [In] UInt32 Count,
             [In, MarshalAs(UnmanagedType.LPArray)] DEBUG_VALUE[] In,
             [In, MarshalAs(UnmanagedType.LPArray)] DEBUG_VALUE_TYPE[] OutType,
             [Out, MarshalAs(UnmanagedType.LPArray)] DEBUG_VALUE[] Out);
 
         [PreserveSig]
-        new int Execute(
+        new Int32 Execute(
             [In] DEBUG_OUTCTL OutputControl,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Command,
+            [In, MarshalAs(UnmanagedType.LPStr)] String Command,
             [In] DEBUG_EXECUTE Flags);
 
         [PreserveSig]
-        new int ExecuteCommandFile(
+        new Int32 ExecuteCommandFile(
             [In] DEBUG_OUTCTL OutputControl,
-            [In, MarshalAs(UnmanagedType.LPStr)] string CommandFile,
+            [In, MarshalAs(UnmanagedType.LPStr)] String CommandFile,
             [In] DEBUG_EXECUTE Flags);
 
         [PreserveSig]
-        new int GetNumberBreakpoints(
+        new Int32 GetNumberBreakpoints(
             [Out] out UInt32 Number);
 
         [PreserveSig]
-        new int GetBreakpointByIndex(
+        new Int32 GetBreakpointByIndex(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.Interface)] out IDebugBreakpoint bp);
 
         [PreserveSig]
-        new int GetBreakpointById(
+        new Int32 GetBreakpointById(
             [In] UInt32 Id,
             [Out, MarshalAs(UnmanagedType.Interface)] out IDebugBreakpoint bp);
 
         [PreserveSig]
-        new int GetBreakpointParameters(
+        new Int32 GetBreakpointParameters(
             [In] UInt32 Count,
             [In, MarshalAs(UnmanagedType.LPArray)] UInt32[] Ids,
             [In] UInt32 Start,
             [Out, MarshalAs(UnmanagedType.LPArray)] DEBUG_BREAKPOINT_PARAMETERS[] Params);
 
         [PreserveSig]
-        new int AddBreakpoint(
+        new Int32 AddBreakpoint(
             [In] DEBUG_BREAKPOINT_TYPE Type,
             [In] UInt32 DesiredId,
             [Out, MarshalAs(UnmanagedType.Interface)] out IDebugBreakpoint Bp);
 
         [PreserveSig]
-        new int RemoveBreakpoint(
+        new Int32 RemoveBreakpoint(
             [In, MarshalAs(UnmanagedType.Interface)] IDebugBreakpoint Bp);
 
         [PreserveSig]
-        new int AddExtension(
-            [In, MarshalAs(UnmanagedType.LPStr)] string Path,
+        new Int32 AddExtension(
+            [In, MarshalAs(UnmanagedType.LPStr)] String Path,
             [In] UInt32 Flags,
             [Out] out UInt64 Handle);
 
         [PreserveSig]
-        new int RemoveExtension(
+        new Int32 RemoveExtension(
             [In] UInt64 Handle);
 
         [PreserveSig]
-        new int GetExtensionByPath(
-            [In, MarshalAs(UnmanagedType.LPStr)] string Path,
+        new Int32 GetExtensionByPath(
+            [In, MarshalAs(UnmanagedType.LPStr)] String Path,
             [Out] out UInt64 Handle);
 
         [PreserveSig]
-        new int CallExtension(
+        new Int32 CallExtension(
             [In] UInt64 Handle,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Function,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Arguments);
+            [In, MarshalAs(UnmanagedType.LPStr)] String Function,
+            [In, MarshalAs(UnmanagedType.LPStr)] String Arguments);
 
         [PreserveSig]
-        new int GetExtensionFunction(
+        new Int32 GetExtensionFunction(
             [In] UInt64 Handle,
-            [In, MarshalAs(UnmanagedType.LPStr)] string FuncName,
+            [In, MarshalAs(UnmanagedType.LPStr)] String FuncName,
             [Out] out IntPtr Function);
 
         [PreserveSig]
-        new int GetWindbgExtensionApis32(
+        new Int32 GetWindbgExtensionApis32(
             [In, Out] ref WINDBG_EXTENSION_APIS Api);
 
         /* Must be In and Out as the nSize member has to be initialized */
 
         [PreserveSig]
-        new int GetWindbgExtensionApis64(
+        new Int32 GetWindbgExtensionApis64(
             [In, Out] ref WINDBG_EXTENSION_APIS Api);
 
         /* Must be In and Out as the nSize member has to be initialized */
 
         [PreserveSig]
-        new int GetNumberEventFilters(
+        new Int32 GetNumberEventFilters(
             [Out] out UInt32 SpecificEvents,
             [Out] out UInt32 SpecificExceptions,
             [Out] out UInt32 ArbitraryExceptions);
 
         [PreserveSig]
-        new int GetEventFilterText(
+        new Int32 GetEventFilterText(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 TextSize);
 
         [PreserveSig]
-        new int GetEventFilterCommand(
+        new Int32 GetEventFilterCommand(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 CommandSize);
 
         [PreserveSig]
-        new int SetEventFilterCommand(
+        new Int32 SetEventFilterCommand(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Command);
+            [In, MarshalAs(UnmanagedType.LPStr)] String Command);
 
         [PreserveSig]
-        new int GetSpecificFilterParameters(
+        new Int32 GetSpecificFilterParameters(
             [In] UInt32 Start,
             [In] UInt32 Count,
             [Out, MarshalAs(UnmanagedType.LPArray)] DEBUG_SPECIFIC_FILTER_PARAMETERS[] Params);
 
         [PreserveSig]
-        new int SetSpecificFilterParameters(
+        new Int32 SetSpecificFilterParameters(
             [In] UInt32 Start,
             [In] UInt32 Count,
             [In, MarshalAs(UnmanagedType.LPArray)] DEBUG_SPECIFIC_FILTER_PARAMETERS[] Params);
 
         [PreserveSig]
-        new int GetSpecificEventFilterArgument(
+        new Int32 GetSpecificEventFilterArgument(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 ArgumentSize);
 
         [PreserveSig]
-        new int SetSpecificEventFilterArgument(
+        new Int32 SetSpecificEventFilterArgument(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Argument);
+            [In, MarshalAs(UnmanagedType.LPStr)] String Argument);
 
         [PreserveSig]
-        new int GetExceptionFilterParameters(
+        new Int32 GetExceptionFilterParameters(
             [In] UInt32 Count,
             [In, MarshalAs(UnmanagedType.LPArray)] UInt32[] Codes,
             [In] UInt32 Start,
             [Out, MarshalAs(UnmanagedType.LPArray)] DEBUG_EXCEPTION_FILTER_PARAMETERS[] Params);
 
         [PreserveSig]
-        new int SetExceptionFilterParameters(
+        new Int32 SetExceptionFilterParameters(
             [In] UInt32 Count,
             [In, MarshalAs(UnmanagedType.LPArray)] DEBUG_EXCEPTION_FILTER_PARAMETERS[] Params);
 
         [PreserveSig]
-        new int GetExceptionFilterSecondCommand(
+        new Int32 GetExceptionFilterSecondCommand(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 CommandSize);
 
         [PreserveSig]
-        new int SetExceptionFilterSecondCommand(
+        new Int32 SetExceptionFilterSecondCommand(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.LPStr)] string Command);
+            [In, MarshalAs(UnmanagedType.LPStr)] String Command);
 
         [PreserveSig]
-        new int WaitForEvent(
+        new Int32 WaitForEvent(
             [In] DEBUG_WAIT Flags,
             [In] UInt32 Timeout);
 
         [PreserveSig]
-        new int GetLastEventInformation(
+        new Int32 GetLastEventInformation(
             [Out] out DEBUG_EVENT Type,
             [Out] out UInt32 ProcessId,
             [Out] out UInt32 ThreadId,
@@ -524,24 +524,24 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         /* IDebugControl2 */
 
         [PreserveSig]
-        new int GetCurrentTimeDate(
+        new Int32 GetCurrentTimeDate(
             [Out] out UInt32 TimeDate);
 
         [PreserveSig]
-        new int GetCurrentSystemUpTime(
+        new Int32 GetCurrentSystemUpTime(
             [Out] out UInt32 UpTime);
 
         [PreserveSig]
-        new int GetDumpFormatFlags(
+        new Int32 GetDumpFormatFlags(
             [Out] out DEBUG_FORMAT FormatFlags);
 
         [PreserveSig]
-        new int GetNumberTextReplacements(
+        new Int32 GetNumberTextReplacements(
             [Out] out UInt32 NumRepl);
 
         [PreserveSig]
-        new int GetTextReplacement(
-            [In, MarshalAs(UnmanagedType.LPStr)] string SrcText,
+        new Int32 GetTextReplacement(
+            [In, MarshalAs(UnmanagedType.LPStr)] String SrcText,
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder SrcBuffer,
             [In] Int32 SrcBufferSize,
@@ -551,54 +551,54 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 DstSize);
 
         [PreserveSig]
-        new int SetTextReplacement(
-            [In, MarshalAs(UnmanagedType.LPStr)] string SrcText,
-            [In, MarshalAs(UnmanagedType.LPStr)] string DstText);
+        new Int32 SetTextReplacement(
+            [In, MarshalAs(UnmanagedType.LPStr)] String SrcText,
+            [In, MarshalAs(UnmanagedType.LPStr)] String DstText);
 
         [PreserveSig]
-        new int RemoveTextReplacements();
+        new Int32 RemoveTextReplacements();
 
         [PreserveSig]
-        new int OutputTextReplacements(
+        new Int32 OutputTextReplacements(
             [In] DEBUG_OUTCTL OutputControl,
             [In] DEBUG_OUT_TEXT_REPL Flags);
 
         /* IDebugControl3 */
 
         [PreserveSig]
-        new int GetAssemblyOptions(
+        new Int32 GetAssemblyOptions(
             [Out] out DEBUG_ASMOPT Options);
 
         [PreserveSig]
-        new int AddAssemblyOptions(
+        new Int32 AddAssemblyOptions(
             [In] DEBUG_ASMOPT Options);
 
         [PreserveSig]
-        new int RemoveAssemblyOptions(
+        new Int32 RemoveAssemblyOptions(
             [In] DEBUG_ASMOPT Options);
 
         [PreserveSig]
-        new int SetAssemblyOptions(
+        new Int32 SetAssemblyOptions(
             [In] DEBUG_ASMOPT Options);
 
         [PreserveSig]
-        new int GetExpressionSyntax(
+        new Int32 GetExpressionSyntax(
             [Out] out DEBUG_EXPR Flags);
 
         [PreserveSig]
-        new int SetExpressionSyntax(
+        new Int32 SetExpressionSyntax(
             [In] DEBUG_EXPR Flags);
 
         [PreserveSig]
-        new int SetExpressionSyntaxByName(
-            [In, MarshalAs(UnmanagedType.LPStr)] string AbbrevName);
+        new Int32 SetExpressionSyntaxByName(
+            [In, MarshalAs(UnmanagedType.LPStr)] String AbbrevName);
 
         [PreserveSig]
-        new int GetNumberExpressionSyntaxes(
+        new Int32 GetNumberExpressionSyntaxes(
             [Out] out UInt32 Number);
 
         [PreserveSig]
-        new int GetExpressionSyntaxNames(
+        new Int32 GetExpressionSyntaxNames(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder FullNameBuffer,
             [In] Int32 FullNameBufferSize,
@@ -608,11 +608,11 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 AbbrevNameSize);
 
         [PreserveSig]
-        new int GetNumberEvents(
+        new Int32 GetNumberEvents(
             [Out] out UInt32 Events);
 
         [PreserveSig]
-        new int GetEventIndexDescription(
+        new Int32 GetEventIndexDescription(
             [In] UInt32 Index,
             [In] DEBUG_EINDEX Which,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
@@ -620,11 +620,11 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 DescSize);
 
         [PreserveSig]
-        new int GetCurrentEventIndex(
+        new Int32 GetCurrentEventIndex(
             [Out] out UInt32 Index);
 
         [PreserveSig]
-        new int SetNextEventIndex(
+        new Int32 SetNextEventIndex(
             [In] DEBUG_EINDEX Relation,
             [In] UInt32 Value,
             [Out] out UInt32 NextIndex);
@@ -632,76 +632,76 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         /* IDebugControl4 */
 
         [PreserveSig]
-        new int GetLogFileWide(
+        new Int32 GetLogFileWide(
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 FileSize,
-            [Out, MarshalAs(UnmanagedType.Bool)] out bool Append);
+            [Out, MarshalAs(UnmanagedType.Bool)] out Boolean Append);
 
         [PreserveSig]
-        new int OpenLogFileWide(
-            [In, MarshalAs(UnmanagedType.LPWStr)] string File,
-            [In, MarshalAs(UnmanagedType.Bool)] bool Append);
+        new Int32 OpenLogFileWide(
+            [In, MarshalAs(UnmanagedType.LPWStr)] String File,
+            [In, MarshalAs(UnmanagedType.Bool)] Boolean Append);
 
         [PreserveSig]
-        new int InputWide(
+        new Int32 InputWide(
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 InputSize);
 
         [PreserveSig]
-        new int ReturnInputWide(
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Buffer);
+        new Int32 ReturnInputWide(
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Buffer);
 
         [PreserveSig]
-        new int OutputWide(
+        new Int32 OutputWide(
             [In] DEBUG_OUTPUT Mask,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Format);
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Format);
 
         [PreserveSig]
-        new int OutputVaListWide( /* THIS SHOULD NEVER BE CALLED FROM C# */
+        new Int32 OutputVaListWide( /* THIS SHOULD NEVER BE CALLED FROM C# */
             [In] DEBUG_OUTPUT Mask,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Format,
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Format,
             [In] IntPtr va_list_Args);
 
         [PreserveSig]
-        new int ControlledOutputWide(
+        new Int32 ControlledOutputWide(
             [In] DEBUG_OUTCTL OutputControl,
             [In] DEBUG_OUTPUT Mask,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Format);
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Format);
 
         [PreserveSig]
-        new int ControlledOutputVaListWide( /* THIS SHOULD NEVER BE CALLED FROM C# */
+        new Int32 ControlledOutputVaListWide( /* THIS SHOULD NEVER BE CALLED FROM C# */
             [In] DEBUG_OUTCTL OutputControl,
             [In] DEBUG_OUTPUT Mask,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Format,
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Format,
             [In] IntPtr va_list_Args);
 
         [PreserveSig]
-        new int OutputPromptWide(
+        new Int32 OutputPromptWide(
             [In] DEBUG_OUTCTL OutputControl,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Format);
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Format);
 
         [PreserveSig]
-        new int OutputPromptVaListWide( /* THIS SHOULD NEVER BE CALLED FROM C# */
+        new Int32 OutputPromptVaListWide( /* THIS SHOULD NEVER BE CALLED FROM C# */
             [In] DEBUG_OUTCTL OutputControl,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Format,
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Format,
             [In] IntPtr va_list_Args);
 
         [PreserveSig]
-        new int GetPromptTextWide(
+        new Int32 GetPromptTextWide(
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 TextSize);
 
         [PreserveSig]
-        new int AssembleWide(
+        new Int32 AssembleWide(
             [In] UInt64 Offset,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Instr,
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Instr,
             [Out] out UInt64 EndOffset);
 
         [PreserveSig]
-        new int DisassembleWide(
+        new Int32 DisassembleWide(
             [In] UInt64 Offset,
             [In] DEBUG_DISASM Flags,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
@@ -710,7 +710,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt64 EndOffset);
 
         [PreserveSig]
-        new int GetProcessorTypeNamesWide(
+        new Int32 GetProcessorTypeNamesWide(
             [In] IMAGE_FILE_MACHINE Type,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder FullNameBuffer,
             [In] Int32 FullNameBufferSize,
@@ -720,124 +720,124 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 AbbrevNameSize);
 
         [PreserveSig]
-        new int GetTextMacroWide(
+        new Int32 GetTextMacroWide(
             [In] UInt32 Slot,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 MacroSize);
 
         [PreserveSig]
-        new int SetTextMacroWide(
+        new Int32 SetTextMacroWide(
             [In] UInt32 Slot,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Macro);
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Macro);
 
         [PreserveSig]
-        new int EvaluateWide(
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Expression,
+        new Int32 EvaluateWide(
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Expression,
             [In] DEBUG_VALUE_TYPE DesiredType,
             [Out] out DEBUG_VALUE Value,
             [Out] out UInt32 RemainderIndex);
 
         [PreserveSig]
-        new int ExecuteWide(
+        new Int32 ExecuteWide(
             [In] DEBUG_OUTCTL OutputControl,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Command,
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Command,
             [In] DEBUG_EXECUTE Flags);
 
         [PreserveSig]
-        new int ExecuteCommandFileWide(
+        new Int32 ExecuteCommandFileWide(
             [In] DEBUG_OUTCTL OutputControl,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string CommandFile,
+            [In, MarshalAs(UnmanagedType.LPWStr)] String CommandFile,
             [In] DEBUG_EXECUTE Flags);
 
         [PreserveSig]
-        new int GetBreakpointByIndex2(
+        new Int32 GetBreakpointByIndex2(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.Interface)] out IDebugBreakpoint2 bp);
 
         [PreserveSig]
-        new int GetBreakpointById2(
+        new Int32 GetBreakpointById2(
             [In] UInt32 Id,
             [Out, MarshalAs(UnmanagedType.Interface)] out IDebugBreakpoint2 bp);
 
         [PreserveSig]
-        new int AddBreakpoint2(
+        new Int32 AddBreakpoint2(
             [In] DEBUG_BREAKPOINT_TYPE Type,
             [In] UInt32 DesiredId,
             [Out, MarshalAs(UnmanagedType.Interface)] out IDebugBreakpoint2 Bp);
 
         [PreserveSig]
-        new int RemoveBreakpoint2(
+        new Int32 RemoveBreakpoint2(
             [In, MarshalAs(UnmanagedType.Interface)] IDebugBreakpoint2 Bp);
 
         [PreserveSig]
-        new int AddExtensionWide(
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Path,
+        new Int32 AddExtensionWide(
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Path,
             [In] UInt32 Flags,
             [Out] out UInt64 Handle);
 
         [PreserveSig]
-        new int GetExtensionByPathWide(
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Path,
+        new Int32 GetExtensionByPathWide(
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Path,
             [Out] out UInt64 Handle);
 
         [PreserveSig]
-        new int CallExtensionWide(
+        new Int32 CallExtensionWide(
             [In] UInt64 Handle,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Function,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Arguments);
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Function,
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Arguments);
 
         [PreserveSig]
-        new int GetExtensionFunctionWide(
+        new Int32 GetExtensionFunctionWide(
             [In] UInt64 Handle,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string FuncName,
+            [In, MarshalAs(UnmanagedType.LPWStr)] String FuncName,
             [Out] out IntPtr Function);
 
         [PreserveSig]
-        new int GetEventFilterTextWide(
+        new Int32 GetEventFilterTextWide(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 TextSize);
 
         [PreserveSig]
-        new int GetEventFilterCommandWide(
+        new Int32 GetEventFilterCommandWide(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 CommandSize);
 
         [PreserveSig]
-        new int SetEventFilterCommandWide(
+        new Int32 SetEventFilterCommandWide(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Command);
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Command);
 
         [PreserveSig]
-        new int GetSpecificEventFilterArgumentWide(
+        new Int32 GetSpecificEventFilterArgumentWide(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 ArgumentSize);
 
         [PreserveSig]
-        new int SetSpecificEventFilterArgumentWide(
+        new Int32 SetSpecificEventFilterArgumentWide(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Argument);
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Argument);
 
         [PreserveSig]
-        new int GetExceptionFilterSecondCommandWide(
+        new Int32 GetExceptionFilterSecondCommandWide(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 CommandSize);
 
         [PreserveSig]
-        new int SetExceptionFilterSecondCommandWide(
+        new Int32 SetExceptionFilterSecondCommandWide(
             [In] UInt32 Index,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string Command);
+            [In, MarshalAs(UnmanagedType.LPWStr)] String Command);
 
         [PreserveSig]
-        new int GetLastEventInformationWide(
+        new Int32 GetLastEventInformationWide(
             [Out] out DEBUG_EVENT Type,
             [Out] out UInt32 ProcessId,
             [Out] out UInt32 ThreadId,
@@ -849,8 +849,8 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 DescriptionUsed);
 
         [PreserveSig]
-        new int GetTextReplacementWide(
-            [In, MarshalAs(UnmanagedType.LPWStr)] string SrcText,
+        new Int32 GetTextReplacementWide(
+            [In, MarshalAs(UnmanagedType.LPWStr)] String SrcText,
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder SrcBuffer,
             [In] Int32 SrcBufferSize,
@@ -860,16 +860,16 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 DstSize);
 
         [PreserveSig]
-        new int SetTextReplacementWide(
-            [In, MarshalAs(UnmanagedType.LPWStr)] string SrcText,
-            [In, MarshalAs(UnmanagedType.LPWStr)] string DstText);
+        new Int32 SetTextReplacementWide(
+            [In, MarshalAs(UnmanagedType.LPWStr)] String SrcText,
+            [In, MarshalAs(UnmanagedType.LPWStr)] String DstText);
 
         [PreserveSig]
-        new int SetExpressionSyntaxByNameWide(
-            [In, MarshalAs(UnmanagedType.LPWStr)] string AbbrevName);
+        new Int32 SetExpressionSyntaxByNameWide(
+            [In, MarshalAs(UnmanagedType.LPWStr)] String AbbrevName);
 
         [PreserveSig]
-        new int GetExpressionSyntaxNamesWide(
+        new Int32 GetExpressionSyntaxNamesWide(
             [In] UInt32 Index,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder FullNameBuffer,
             [In] Int32 FullNameBufferSize,
@@ -879,7 +879,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 AbbrevNameSize);
 
         [PreserveSig]
-        new int GetEventIndexDescriptionWide(
+        new Int32 GetEventIndexDescriptionWide(
             [In] UInt32 Index,
             [In] DEBUG_EINDEX Which,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
@@ -887,31 +887,31 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 DescSize);
 
         [PreserveSig]
-        new int GetLogFile2(
+        new Int32 GetLogFile2(
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 FileSize,
             [Out] out DEBUG_LOG Flags);
 
         [PreserveSig]
-        new int OpenLogFile2(
-            [In, MarshalAs(UnmanagedType.LPStr)] string File,
+        new Int32 OpenLogFile2(
+            [In, MarshalAs(UnmanagedType.LPStr)] String File,
             [Out] out DEBUG_LOG Flags);
 
         [PreserveSig]
-        new int GetLogFile2Wide(
+        new Int32 GetLogFile2Wide(
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 FileSize,
             [Out] out DEBUG_LOG Flags);
 
         [PreserveSig]
-        new int OpenLogFile2Wide(
-            [In, MarshalAs(UnmanagedType.LPWStr)] string File,
+        new Int32 OpenLogFile2Wide(
+            [In, MarshalAs(UnmanagedType.LPWStr)] String File,
             [Out] out DEBUG_LOG Flags);
 
         [PreserveSig]
-        new int GetSystemVersionValues(
+        new Int32 GetSystemVersionValues(
             [Out] out UInt32 PlatformId,
             [Out] out UInt32 Win32Major,
             [Out] out UInt32 Win32Minor,
@@ -919,21 +919,21 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 KdMinor);
 
         [PreserveSig]
-        new int GetSystemVersionString(
+        new Int32 GetSystemVersionString(
             [In] DEBUG_SYSVERSTR Which,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 StringSize);
 
         [PreserveSig]
-        new int GetSystemVersionStringWide(
+        new Int32 GetSystemVersionStringWide(
             [In] DEBUG_SYSVERSTR Which,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder Buffer,
             [In] Int32 BufferSize,
             [Out] out UInt32 StringSize);
 
         [PreserveSig]
-        new int GetContextStackTrace(
+        new Int32 GetContextStackTrace(
             [In] IntPtr StartContext,
             [In] UInt32 StartContextSize,
             [Out, MarshalAs(UnmanagedType.LPArray)] DEBUG_STACK_FRAME[] Frames,
@@ -944,7 +944,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 FramesFilled);
 
         [PreserveSig]
-        new int OutputContextStackTrace(
+        new Int32 OutputContextStackTrace(
             [In] DEBUG_OUTCTL OutputControl,
             [In, MarshalAs(UnmanagedType.LPArray)] DEBUG_STACK_FRAME[] Frames,
             [In] Int32 FramesSize,
@@ -954,7 +954,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [In] DEBUG_STACK Flags);
 
         [PreserveSig]
-        new int GetStoredEventInformation(
+        new Int32 GetStoredEventInformation(
             [Out] out DEBUG_EVENT Type,
             [Out] out UInt32 ProcessId,
             [Out] out UInt32 ThreadId,
@@ -966,7 +966,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 ExtraInformationUsed);
 
         [PreserveSig]
-        new int GetManagedStatus(
+        new Int32 GetManagedStatus(
             [Out] out DEBUG_MANAGED Flags,
             [In] DEBUG_MANSTR WhichString,
             [Out, MarshalAs(UnmanagedType.LPStr)] StringBuilder String,
@@ -974,7 +974,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 StringNeeded);
 
         [PreserveSig]
-        new int GetManagedStatusWide(
+        new Int32 GetManagedStatusWide(
             [Out] out DEBUG_MANAGED Flags,
             [In] DEBUG_MANSTR WhichString,
             [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder String,
@@ -982,13 +982,13 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 StringNeeded);
 
         [PreserveSig]
-        new int ResetManagedStatus(
+        new Int32 ResetManagedStatus(
             [In] DEBUG_MANRESET Flags);
 
         /* IDebugControl5 */
 
         [PreserveSig]
-        int GetStackTraceEx(
+        Int32 GetStackTraceEx(
             [In] UInt64 FrameOffset,
             [In] UInt64 StackOffset,
             [In] UInt64 InstructionOffset,
@@ -997,14 +997,14 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 FramesFilled);
 
         [PreserveSig]
-        int OutputStackTraceEx(
+        Int32 OutputStackTraceEx(
             [In] UInt32 OutputControl,
             [In, MarshalAs(UnmanagedType.LPArray)] DEBUG_STACK_FRAME_EX[] Frames,
             [In] Int32 FramesSize,
             [In] DEBUG_STACK Flags);
 
         [PreserveSig]
-        int GetContextStackTraceEx(
+        Int32 GetContextStackTraceEx(
             [In] IntPtr StartContext,
             [In] UInt32 StartContextSize,
             [Out, MarshalAs(UnmanagedType.LPArray)] DEBUG_STACK_FRAME_EX[] Frames,
@@ -1015,7 +1015,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [Out] out UInt32 FramesFilled);
 
         [PreserveSig]
-        int OutputContextStackTraceEx(
+        Int32 OutputContextStackTraceEx(
             [In] UInt32 OutputControl,
             [In, MarshalAs(UnmanagedType.LPArray)] DEBUG_STACK_FRAME_EX[] Frames,
             [In] Int32 FramesSize,
@@ -1025,8 +1025,10 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             [In] DEBUG_STACK Flags);
 
         [PreserveSig]
-        int GetBreakpointByGuid(
+        Int32 GetBreakpointByGuid(
             [In, MarshalAs(UnmanagedType.LPStruct)] Guid Guid,
             [Out] out IDebugBreakpoint3 Bp);
     }
+    //// End interface
 }
+//// End namespace

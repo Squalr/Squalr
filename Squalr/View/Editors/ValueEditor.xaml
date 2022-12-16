@@ -10,8 +10,8 @@
     Title="Value Editor"
     Width="320"
     Height="96"
-    d:DesignHeight="320"
-    d:DesignWidth="128"
+    d:DesignHeight="96"
+    d:DesignWidth="320"
     BorderBrush="{StaticResource SqualrColorWhite}"
     BorderThickness="2"
     DataContext="{Binding ValueEditorViewModel, Source={StaticResource ViewModelLocator}}"
@@ -23,7 +23,7 @@
         <shell:WindowChrome CaptionHeight="{Binding ActualHeight, ElementName=titlebar}" />
     </shell:WindowChrome.WindowChrome>
 
-    <shell:Grid Background="{StaticResource SqualrColorBlack}">
+    <shell:Grid Background="{StaticResource SqualrColorPanel}">
         <shell:Grid.RowDefinitions>
             <shell:RowDefinition Height="Auto" />
             <shell:RowDefinition />
@@ -34,7 +34,7 @@
             x:Name="titlebar"
             Grid.Row="0"
             Height="24"
-            Background="{StaticResource SqualrColorGray20}">
+            Background="{StaticResource SqualrColorFrame}">
             <shell:WrapPanel Margin="8,0,0,0" VerticalAlignment="Center">
                 <shell:TextBlock
                     Foreground="{StaticResource SqualrColorWhite}"
@@ -46,8 +46,7 @@
         <Controls:HexDecBox
             x:Name="ValueHexDecBox"
             Margin="4"
-            shell:Grid.Row="1"
-            Background="{StaticResource SqualrColorGray20}" />
+            shell:Grid.Row="1" />
         <shell:Grid Grid.Row="2" Margin="8">
             <shell:Button
                 Width="96"

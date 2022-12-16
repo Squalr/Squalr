@@ -5,7 +5,6 @@
     using Squalr.Engine.Common;
     using Squalr.Engine.Scanning.Scanners;
     using Squalr.Engine.Scanning.Snapshots;
-    using Squalr.Source.ScanResults;
     using Squalr.Source.Tasks;
     using System;
     using System.Threading;
@@ -54,7 +53,8 @@
             TrackableTask<Snapshot> valueCollectTask = ValueCollector.CollectValues(
                 SessionManager.Session?.OpenedProcess,
                 SessionManager.Session.SnapshotManager.GetActiveSnapshotCreateIfNone(SessionManager.Session.OpenedProcess, SessionManager.Session.DetectedEmulator),
-                TrackableTask.UniversalIdentifier);
+                TrackableTask.UniversalIdentifier,
+                ManualScannerViewModel.GetInstance().CreateScanConstraintsFromActiveSettings());
 
             TaskTrackerViewModel.GetInstance().TrackTask(valueCollectTask);
             SessionManager.Session.SnapshotManager.SaveSnapshot(valueCollectTask.Result);

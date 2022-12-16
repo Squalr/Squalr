@@ -11,7 +11,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct IMAGEHLP_MODULE64
     {
-        private const int MAX_PATH = 260;
+        private const Int32 MAX_PATH = 260;
 
         public UInt32 SizeOfStruct;
         public UInt64 BaseOfImage;
@@ -20,12 +20,12 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         public UInt32 CheckSum;
         public UInt32 NumSyms;
         public DEBUG_SYMTYPE SymType;
-        private fixed char _ModuleName[32];
-        private fixed char _ImageName[256];
-        private fixed char _LoadedImageName[256];
-        private fixed char _LoadedPdbName[256];
+        private fixed Char _ModuleName[32];
+        private fixed Char _ImageName[256];
+        private fixed Char _LoadedImageName[256];
+        private fixed Char _LoadedPdbName[256];
         public UInt32 CVSig;
-        public fixed char CVData[MAX_PATH * 3];
+        public fixed Char CVData[MAX_PATH * 3];
         public UInt32 PdbSig;
         public Guid PdbSig70;
         public UInt32 PdbAge;
@@ -37,86 +37,86 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         private UInt32 _bSourceIndexed; /* BOOL */
         private UInt32 _bPublics; /* BOOL */
 
-        public bool PdbUnmatched
+        public Boolean PdbUnmatched
         {
             get { return _bPdbUnmatched != 0; }
             set { _bPdbUnmatched = value ? 1U : 0U; }
         }
 
-        public bool DbgUnmatched
+        public Boolean DbgUnmatched
         {
             get { return _bDbgUnmatched != 0; }
             set { _bDbgUnmatched = value ? 1U : 0U; }
         }
 
-        public bool LineNumbers
+        public Boolean LineNumbers
         {
             get { return _bLineNumbers != 0; }
             set { _bLineNumbers = value ? 1U : 0U; }
         }
 
-        public bool GlobalSymbols
+        public Boolean GlobalSymbols
         {
             get { return _bGlobalSymbols != 0; }
             set { _bGlobalSymbols = value ? 1U : 0U; }
         }
 
-        public bool TypeInfo
+        public Boolean TypeInfo
         {
             get { return _bTypeInfo != 0; }
             set { _bTypeInfo = value ? 1U : 0U; }
         }
 
-        public bool SourceIndexed
+        public Boolean SourceIndexed
         {
             get { return _bSourceIndexed != 0; }
             set { _bSourceIndexed = value ? 1U : 0U; }
         }
 
-        public bool Publics
+        public Boolean Publics
         {
             get { return _bPublics != 0; }
             set { _bPublics = value ? 1U : 0U; }
         }
 
-        public string ModuleName
+        public String ModuleName
         {
             get
             {
-                fixed (char* moduleNamePtr = _ModuleName)
+                fixed (Char* moduleNamePtr = _ModuleName)
                 {
                     return Marshal.PtrToStringUni((IntPtr)moduleNamePtr, 32);
                 }
             }
         }
 
-        public string ImageName
+        public String ImageName
         {
             get
             {
-                fixed (char* imageNamePtr = _ImageName)
+                fixed (Char* imageNamePtr = _ImageName)
                 {
                     return Marshal.PtrToStringUni((IntPtr)imageNamePtr, 256);
                 }
             }
         }
 
-        public string LoadedImageName
+        public String LoadedImageName
         {
             get
             {
-                fixed (char* loadedImageNamePtr = _LoadedImageName)
+                fixed (Char* loadedImageNamePtr = _LoadedImageName)
                 {
                     return Marshal.PtrToStringUni((IntPtr)loadedImageNamePtr, 256);
                 }
             }
         }
 
-        public string LoadedPdbName
+        public String LoadedPdbName
         {
             get
             {
-                fixed (char* loadedPdbNamePtr = _LoadedPdbName)
+                fixed (Char* loadedPdbNamePtr = _LoadedPdbName)
                 {
                     return Marshal.PtrToStringUni((IntPtr)loadedPdbNamePtr, 256);
                 }
@@ -186,8 +186,8 @@ namespace Microsoft.Diagnostics.Runtime.Interop
     {
         public DEBUG_CREATE_PROCESS CreateFlags;
         public DEBUG_ECREATE_PROCESS EngCreateFlags;
-        public uint VerifierFlags;
-        public uint Reserved;
+        public UInt32 VerifierFlags;
+        public UInt32 Reserved;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -253,43 +253,43 @@ namespace Microsoft.Diagnostics.Runtime.Interop
     public unsafe struct DEBUG_VALUE
     {
         [FieldOffset(0)]
-        public byte I8;
+        public Byte I8;
         [FieldOffset(0)]
-        public ushort I16;
+        public UInt16 I16;
         [FieldOffset(0)]
-        public uint I32;
+        public UInt32 I32;
         [FieldOffset(0)]
-        public ulong I64;
+        public UInt64 I64;
         [FieldOffset(8)]
-        public uint Nat;
+        public UInt32 Nat;
         [FieldOffset(0)]
-        public float F32;
+        public Single F32;
         [FieldOffset(0)]
-        public double F64;
+        public Double F64;
         [FieldOffset(0)]
-        public fixed byte F80Bytes[10];
+        public fixed Byte F80Bytes[10];
         [FieldOffset(0)]
-        public fixed byte F82Bytes[11];
+        public fixed Byte F82Bytes[11];
         [FieldOffset(0)]
-        public fixed byte F128Bytes[16];
+        public fixed Byte F128Bytes[16];
         [FieldOffset(0)]
-        public fixed byte VI8[16];
+        public fixed Byte VI8[16];
         [FieldOffset(0)]
-        public fixed ushort VI16[8];
+        public fixed UInt16 VI16[8];
         [FieldOffset(0)]
-        public fixed uint VI32[4];
+        public fixed UInt32 VI32[4];
         [FieldOffset(0)]
-        public fixed ulong VI64[2];
+        public fixed UInt64 VI64[2];
         [FieldOffset(0)]
-        public fixed float VF32[4];
+        public fixed Single VF32[4];
         [FieldOffset(0)]
-        public fixed double VF64[2];
+        public fixed Double VF64[2];
         [FieldOffset(0)]
         public I64PARTS32 I64Parts32;
         [FieldOffset(0)]
         public F128PARTS64 F128Parts64;
         [FieldOffset(0)]
-        public fixed byte RawBytes[24];
+        public fixed Byte RawBytes[24];
         [FieldOffset(24)]
         public UInt32 TailOfRawBytes;
         [FieldOffset(28)]
@@ -352,16 +352,23 @@ namespace Microsoft.Diagnostics.Runtime.Interop
             FrameOffset = dsf.FrameOffset;
             StackOffset = dsf.StackOffset;
             FuncTableEntry = dsf.FuncTableEntry;
+
             fixed (UInt64* pParams = Params)
             {
-                for (int i = 0; i < 4; ++i)
+                for (Int32 i = 0; i < 4; ++i)
+                {
                     pParams[i] = dsf.Params[i];
+                }
             }
+
             fixed (UInt64* pReserved = Reserved)
             {
-                for (int i = 0; i < 6; ++i)
+                for (Int32 i = 0; i < 6; ++i)
+                {
                     pReserved[i] = dsf.Reserved[i];
+                }
             }
+
             Virtual = dsf.Virtual;
             FrameNumber = dsf.FrameNumber;
             InlineFrameContext = 0xFFFFFFFF;
@@ -447,7 +454,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
     public struct IMAGE_NT_HEADERS32
     {
         [FieldOffset(0)]
-        public uint Signature;
+        public UInt32 Signature;
         [FieldOffset(4)]
         public IMAGE_FILE_HEADER FileHeader;
         [FieldOffset(24)]
@@ -458,7 +465,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
     public struct IMAGE_NT_HEADERS64
     {
         [FieldOffset(0)]
-        public uint Signature;
+        public UInt32 Signature;
         [FieldOffset(4)]
         public IMAGE_FILE_HEADER FileHeader;
         [FieldOffset(24)]
@@ -531,11 +538,11 @@ namespace Microsoft.Diagnostics.Runtime.Interop
     public struct IMAGE_OPTIONAL_HEADER32
     {
         [FieldOffset(0)]
-        public ushort Magic;
+        public UInt16 Magic;
         [FieldOffset(2)]
-        public byte MajorLinkerVersion;
+        public Byte MajorLinkerVersion;
         [FieldOffset(3)]
-        public byte MinorLinkerVersion;
+        public Byte MinorLinkerVersion;
         [FieldOffset(4)]
         public UInt32 SizeOfCode;
         [FieldOffset(8)]
@@ -555,17 +562,17 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         [FieldOffset(36)]
         public UInt32 FileAlignment;
         [FieldOffset(40)]
-        public ushort MajorOperatingSystemVersion;
+        public UInt16 MajorOperatingSystemVersion;
         [FieldOffset(42)]
-        public ushort MinorOperatingSystemVersion;
+        public UInt16 MinorOperatingSystemVersion;
         [FieldOffset(44)]
-        public ushort MajorImageVersion;
+        public UInt16 MajorImageVersion;
         [FieldOffset(46)]
-        public ushort MinorImageVersion;
+        public UInt16 MinorImageVersion;
         [FieldOffset(48)]
-        public ushort MajorSubsystemVersion;
+        public UInt16 MajorSubsystemVersion;
         [FieldOffset(50)]
-        public ushort MinorSubsystemVersion;
+        public UInt16 MinorSubsystemVersion;
         [FieldOffset(52)]
         public UInt32 Win32VersionValue;
         [FieldOffset(56)]
@@ -575,9 +582,9 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         [FieldOffset(64)]
         public UInt32 CheckSum;
         [FieldOffset(68)]
-        public ushort Subsystem;
+        public UInt16 Subsystem;
         [FieldOffset(70)]
-        public ushort DllCharacteristics;
+        public UInt16 DllCharacteristics;
         [FieldOffset(72)]
         public UInt32 SizeOfStackReserve;
         [FieldOffset(76)]
@@ -623,7 +630,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         [FieldOffset(316)]
         public IMAGE_DATA_DIRECTORY DataDirectory15;
 
-        public static unsafe IMAGE_DATA_DIRECTORY* GetDataDirectory(IMAGE_OPTIONAL_HEADER32* header, int zeroBasedIndex)
+        public static unsafe IMAGE_DATA_DIRECTORY* GetDataDirectory(IMAGE_OPTIONAL_HEADER32* header, Int32 zeroBasedIndex)
         {
             return (&header->DataDirectory0) + zeroBasedIndex;
         }
@@ -633,11 +640,11 @@ namespace Microsoft.Diagnostics.Runtime.Interop
     public struct IMAGE_OPTIONAL_HEADER64
     {
         [FieldOffset(0)]
-        public ushort Magic;
+        public UInt16 Magic;
         [FieldOffset(2)]
-        public byte MajorLinkerVersion;
+        public Byte MajorLinkerVersion;
         [FieldOffset(3)]
-        public byte MinorLinkerVersion;
+        public Byte MinorLinkerVersion;
         [FieldOffset(4)]
         public UInt32 SizeOfCode;
         [FieldOffset(8)]
@@ -655,17 +662,17 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         [FieldOffset(36)]
         public UInt32 FileAlignment;
         [FieldOffset(40)]
-        public ushort MajorOperatingSystemVersion;
+        public UInt16 MajorOperatingSystemVersion;
         [FieldOffset(42)]
-        public ushort MinorOperatingSystemVersion;
+        public UInt16 MinorOperatingSystemVersion;
         [FieldOffset(44)]
-        public ushort MajorImageVersion;
+        public UInt16 MajorImageVersion;
         [FieldOffset(46)]
-        public ushort MinorImageVersion;
+        public UInt16 MinorImageVersion;
         [FieldOffset(48)]
-        public ushort MajorSubsystemVersion;
+        public UInt16 MajorSubsystemVersion;
         [FieldOffset(50)]
-        public ushort MinorSubsystemVersion;
+        public UInt16 MinorSubsystemVersion;
         [FieldOffset(52)]
         public UInt32 Win32VersionValue;
         [FieldOffset(56)]
@@ -675,9 +682,9 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         [FieldOffset(64)]
         public UInt32 CheckSum;
         [FieldOffset(68)]
-        public ushort Subsystem;
+        public UInt16 Subsystem;
         [FieldOffset(70)]
-        public ushort DllCharacteristics;
+        public UInt16 DllCharacteristics;
         [FieldOffset(72)]
         public UInt64 SizeOfStackReserve;
         [FieldOffset(80)]
@@ -723,7 +730,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         [FieldOffset(232)]
         public IMAGE_DATA_DIRECTORY DataDirectory15;
 
-        public static unsafe IMAGE_DATA_DIRECTORY* GetDataDirectory(IMAGE_OPTIONAL_HEADER64* header, int zeroBasedIndex)
+        public static unsafe IMAGE_DATA_DIRECTORY* GetDataDirectory(IMAGE_OPTIONAL_HEADER64* header, Int32 zeroBasedIndex)
         {
             return (&header->DataDirectory0) + zeroBasedIndex;
         }
@@ -937,7 +944,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
         // May be DEBUG_ANY_ID if unknown.
         private UInt32 _startLine;
         private UInt32 _endLine;
-        // Column numbers are one-based byte indices.
+        // Column numbers are one-based Byte indices.
         // May be DEBUG_ANY_ID if unknown.
         private UInt32 _startColumn;
         private UInt32 _endColumn;
@@ -1023,7 +1030,7 @@ namespace Microsoft.Diagnostics.Runtime.Interop
     [StructLayout(LayoutKind.Sequential)]
     public struct DEBUG_LAST_EVENT_INFO_BREAKPOINT
     {
-        public uint Id;
+        public UInt32 Id;
     }
 
 
@@ -1031,39 +1038,39 @@ namespace Microsoft.Diagnostics.Runtime.Interop
     public struct DEBUG_LAST_EVENT_INFO_EXCEPTION
     {
         public EXCEPTION_RECORD64 ExceptionRecord;
-        public uint FirstChance;
+        public UInt32 FirstChance;
     }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct DEBUG_LAST_EVENT_INFO_EXIT_THREAD
     {
-        public uint ExitCode;
+        public UInt32 ExitCode;
     }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct DEBUG_LAST_EVENT_INFO_EXIT_PROCESS
     {
-        public uint ExitCode;
+        public UInt32 ExitCode;
     }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct DEBUG_LAST_EVENT_INFO_LOAD_MODULE
     {
-        public ulong Base;
+        public UInt64 Base;
     }
 
 
     [StructLayout(LayoutKind.Sequential)]
     public struct DEBUG_LAST_EVENT_INFO_UNLOAD_MODULE
     {
-        public ulong Base;
+        public UInt64 Base;
     }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct DEBUG_LAST_EVENT_INFO_SYSTEM_ERROR
     {
-        public uint Error;
-        public uint Level;
+        public UInt32 Error;
+        public UInt32 Level;
     }
 
     [StructLayout(LayoutKind.Explicit)]
@@ -1088,9 +1095,10 @@ namespace Microsoft.Diagnostics.Runtime.Interop
     [StructLayout(LayoutKind.Sequential)]
     public struct DEBUG_EVENT_CONTEXT
     {
-        public uint Size;
-        public uint ProcessEngineId;
-        public uint ThreadEngineId;
-        public uint FrameEngineId;
+        public UInt32 Size;
+        public UInt32 ProcessEngineId;
+        public UInt32 ThreadEngineId;
+        public UInt32 FrameEngineId;
     }
 }
+//// End namespace

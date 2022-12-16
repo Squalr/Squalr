@@ -82,15 +82,15 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock
                                     Grid.Column="0"
-                                    Foreground="{StaticResource SqualrColorGray40}"
+                                    Foreground="{StaticResource SqualrColorWhite}"
                                     Text="{Binding Path=SnapshotName}" />
                                 <TextBlock
                                     Grid.Column="1"
-                                    Foreground="{StaticResource SqualrColorGray40}"
+                                    Foreground="{StaticResource SqualrColorWhite}"
                                     Text="{Binding Path=MemorySize}" />
                                 <TextBlock
                                     Grid.Column="2"
-                                    Foreground="{StaticResource SqualrColorGray40}"
+                                    Foreground="{StaticResource SqualrColorWhite}"
                                     Text="{Binding Path=TimeStamp}" />
                             </Grid>
                         </DataTemplate>

@@ -115,6 +115,21 @@
         }
 
         /// <summary>
+        /// Performs a point query with a single value. The first match is returned.
+        /// </summary>
+        /// <param name="value">The single value for which the query is performed.</param>
+        /// <returns>The first result matching the given single value query.</returns>
+        public RangeValuePair<TKey, TValue> QueryOneKey(TKey value)
+        {
+            if (!this.IsInSync)
+            {
+                this.Rebuild();
+            }
+
+            return this.Root.QueryOneKey(value);
+        }
+
+        /// <summary>
         /// Performs a point query with a single value. All items with overlapping ranges are returned.
         /// </summary>
         /// <param name="value">The single value for which the query is performed.</param>
@@ -169,7 +184,11 @@
         public void Remove(TValue item)
         {
             this.IsInSync = false;
-            this.Items = this.Items.Where(item => !item.Value.Equals(item)).ToList();
+
+            this.Items.RemoveAll((RangeValuePair<TKey, TValue> next) =>
+            {
+                return next.Value.Equals(item);
+            });
         }
 
         /// <summary>

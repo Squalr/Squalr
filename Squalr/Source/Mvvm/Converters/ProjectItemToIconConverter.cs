@@ -37,6 +37,8 @@
                 case DirectoryItemView type when type is DirectoryItemView:
                     return Images.Open;
                 case PointerItemView type when type is PointerItemView:
+                    // TODO: Decorate instead of replace the existing icons
+                    /*
                     if (type.IsStatic)
                     {
                         return Images.LetterS;
@@ -44,7 +46,7 @@
                     else if ((type.PointerOffsets?.Count() ?? 0) > 0)
                     {
                         return Images.LetterP;
-                    }
+                    }*/
 
                     return DataTypeToIconConverter.Convert(type.DataType, targetType, parameter, culture);
                 case ProjectItemView type when type is ScriptItemView:

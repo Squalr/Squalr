@@ -182,26 +182,6 @@
             }
         }
 
-        /// <summary>
-        /// Gets or sets the emulator type of this address.
-        /// </summary>
-        [Browsable(true)]
-        [RefreshProperties(RefreshProperties.All)]
-        [SortedCategory(SortedCategory.CategoryType.Advanced), DisplayName("Emulator Type"), Description("The emulator context in which the address is resolved.")]
-        public EmulatorType EmulatorType
-        {
-            get
-            {
-                return this.PointerItem.EmulatorType;
-            }
-
-            set
-            {
-                this.PointerItem.EmulatorType = value;
-                this.RaisePropertyChanged(nameof(this.EmulatorType));
-            }
-        }
-
         [Browsable(false)]
         public Boolean IsStatic
         {

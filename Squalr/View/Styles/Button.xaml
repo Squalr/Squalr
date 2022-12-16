@@ -6,7 +6,7 @@
     <Style x:Key="{x:Type Button}" TargetType="{x:Type Button}">
         <Setter Property="SnapsToDevicePixels" Value="true" />
         <Setter Property="OverridesDefaultStyle" Value="true" />
-        <Setter Property="Background" Value="{StaticResource SqualrColorGray27}" />
+        <Setter Property="Background" Value="{StaticResource SqualrColorInput}" />
         <Setter Property="Foreground" Value="{StaticResource SqualrColorWhite}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Template">

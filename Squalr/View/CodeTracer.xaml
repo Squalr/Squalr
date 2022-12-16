@@ -93,9 +93,10 @@
             </DataGrid.Resources>
             <DataGrid.ColumnHeaderStyle>
                 <Style TargetType="{x:Type DataGridColumnHeader}">
-                    <Setter Property="Background" Value="{StaticResource SqualrColorPanel}" />
+                    <Setter Property="Background" Value="{StaticResource SqualrColorFrame}" />
                     <Setter Property="Foreground" Value="{StaticResource SqualrColorWhite}" />
                     <Setter Property="HorizontalAlignment" Value="Stretch" />
+                    <Setter Property="Padding" Value="4" />
                 </Style>
             </DataGrid.ColumnHeaderStyle>
             <DataGrid.Style>

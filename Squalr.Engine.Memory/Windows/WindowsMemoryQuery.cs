@@ -10,6 +10,7 @@
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Drawing;
     using System.Linq;
     using System.Runtime.InteropServices;
     using System.Text;
@@ -27,12 +28,18 @@
         public WindowsMemoryQuery()
         {
             this.ModuleCache = new TtlCache<Int32, IList<NormalizedModule>>(TimeSpan.FromSeconds(10.0));
+            this.DolphinRegionCache = new TtlCache<Int32, IEnumerable<Tuple<UInt64, Int32>>>(TimeSpan.FromSeconds(10.0));
         }
 
         /// <summary>
         /// Gets or sets the module cache of process modules.
         /// </summary>
         private TtlCache<Int32, IList<NormalizedModule>> ModuleCache { get; set; }
+
+        /// <summary>
+        /// Gets or sets the cache of dolphin memory regions.
+        /// </summary>
+        private TtlCache<Int32, IEnumerable<Tuple<UInt64, Int32>>> DolphinRegionCache { get; set; }
 
         /// <summary>
         /// Gets regions of memory allocated in the remote process based on provided parameters.
@@ -182,11 +189,12 @@
         /// <param name="process">The target process.</param>
         /// <param name="address">The address to check for writability.</param>
         /// <returns>A value indicating whether the given address is writable.</returns>
-        public bool IsAddressWritable(Process process, UInt64 address)
+        public Boolean IsAddressWritable(Process process, UInt64 address)
         {
             MemoryTypeEnum flags = MemoryTypeEnum.None | MemoryTypeEnum.Private | MemoryTypeEnum.Image | MemoryTypeEnum.Mapped;
+            IntPtr processHandle = process?.Handle ?? IntPtr.Zero;
 
-            IEnumerable<MemoryBasicInformation64> memoryInfo = WindowsMemoryQuery.VirtualPages(process == null ? IntPtr.Zero : process.Handle, address, address + 1, 0, 0, flags);
+            IEnumerable<MemoryBasicInformation64> memoryInfo = WindowsMemoryQuery.VirtualPages(processHandle, address, address + 1, 0, 0, flags, RegionBoundsHandling.Include);
 
             if (memoryInfo.Count() > 0)
             {
@@ -252,6 +260,15 @@
                 return new List<NormalizedModule>();
             }
 
+            Int32 processId = process?.Id ?? 0;
+            IntPtr processHandle = process?.Handle ?? IntPtr.Zero;
+            Boolean is32Bit = process?.Is32Bit() ?? false;
+
+            if (this.ModuleCache.Contains(processId) && this.ModuleCache.TryGetValue(processId, out IList<NormalizedModule> outMoudles))
+            {
+                return outMoudles?.SoftClone() ?? new List<NormalizedModule>();
+            }
+
             switch (emulatorType)
             {
                 case EmulatorType.AutoDetect:
@@ -264,11 +281,6 @@
                     throw new NotImplementedException("Provided emulator type not yet supported on GetModules()");
             }
 
-            if (this.ModuleCache.Contains(process.Id) && this.ModuleCache.TryGetValue(process.Id, out IList<NormalizedModule> outMoudles))
-            {
-                return outMoudles?.SoftClone() ?? new List<NormalizedModule>();
-            }
-
             IList<NormalizedModule> modules = new List<NormalizedModule>();
 
             try
@@ -278,7 +290,7 @@
                 Int32 bytesNeeded;
 
                 // Determine number of modules
-                if (!NativeMethods.EnumProcessModulesEx(process.Handle, modulePointers, 0, out bytesNeeded, (UInt32)Enumerations.ModuleFilter.ListModulesAll))
+                if (!NativeMethods.EnumProcessModulesEx(processHandle, modulePointers, 0, out bytesNeeded, (UInt32)Enumerations.ModuleFilter.ListModulesAll))
                 {
                     // Failure, return our current empty list
                     return modules;
@@ -287,18 +299,18 @@
                 Int32 totalNumberofModules = bytesNeeded / IntPtr.Size;
                 modulePointers = new IntPtr[totalNumberofModules];
 
-                if (NativeMethods.EnumProcessModulesEx(process.Handle, modulePointers, bytesNeeded, out bytesNeeded, (UInt32)Enumerations.ModuleFilter.ListModulesAll))
+                if (NativeMethods.EnumProcessModulesEx(processHandle, modulePointers, bytesNeeded, out bytesNeeded, (UInt32)Enumerations.ModuleFilter.ListModulesAll))
                 {
                     for (Int32 index = 0; index < totalNumberofModules; index++)
                     {
                         StringBuilder moduleFilePath = new StringBuilder(1024);
-                        NativeMethods.GetModuleFileNameEx(process.Handle, modulePointers[index], moduleFilePath, (UInt32)moduleFilePath.Capacity);
+                        NativeMethods.GetModuleFileNameEx(processHandle, modulePointers[index], moduleFilePath, (UInt32)moduleFilePath.Capacity);
 
                         ModuleInformation moduleInformation = new ModuleInformation();
-                        NativeMethods.GetModuleInformation(process.Handle, modulePointers[index], out moduleInformation, (UInt32)(IntPtr.Size * modulePointers.Length));
+                        NativeMethods.GetModuleInformation(processHandle, modulePointers[index], out moduleInformation, (UInt32)(IntPtr.Size * modulePointers.Length));
 
                         // Ignore modules in 64-bit address space for WoW64 processes
-                        if (process.Is32Bit() && moduleInformation.ModuleBase.ToUInt64() > Int32.MaxValue)
+                        if (is32Bit && moduleInformation.ModuleBase.ToUInt64() > Int32.MaxValue)
                         {
                             continue;
                         }
@@ -314,7 +326,7 @@
                 Logger.Log(LogLevel.Error, "Unable to fetch modules from selected process", ex);
             }
 
-            this.ModuleCache.Add(process.Id, modules);
+            this.ModuleCache.Add(processId, modules);
 
             return modules;
         }
@@ -343,7 +355,7 @@
                 case EmulatorType.AutoDetect:
                     throw new NotImplementedException("Auto detect emulator type not yet supported on GetModules()");
                 case EmulatorType.Dolphin:
-                    return this.GetDolphinHeaps(process);
+                    throw new NotImplementedException("Provided emulator type not yet supported on GetModules()");
                 case EmulatorType.None:
                     break;
                 default:
@@ -465,86 +477,6 @@
                 }
             }
             while (startAddress < endAddress && queryResult != 0 && !wrappedAround);
-        }
-
-        /// <summary>
-        /// Dtermines the real address of an emulator address.
-        /// </summary>
-        /// <param name="process"></param>
-        /// <param name="emulatorAddress"></param>
-        /// <param name="emulatorType"></param>
-        /// <returns></returns>
-        public UInt64 EmulatorAddressToRealAddress(Process process, UInt64 emulatorAddress, EmulatorType emulatorType)
-        {
-            switch (emulatorType)
-            {
-                case EmulatorType.Dolphin:
-                    const UInt64 MemoryBase = 0x80000000;
-                    const UInt64 WiiMemoryBase = 0x90000000;
-
-                    if (emulatorAddress < MemoryBase)
-                    {
-                        return 0;
-                    }
-
-                    bool isWiiExtendedMemory = emulatorAddress >= WiiMemoryBase;
-                    UInt64 baseRelativeAddress = emulatorAddress - (isWiiExtendedMemory ? WiiMemoryBase : MemoryBase);
-                    IEnumerable<NormalizedRegion> dolphinRegions = this.GetDolphinVirtualPages<NormalizedRegion>(process).OrderByDescending(region => region.BaseAddress);
-
-                    if (isWiiExtendedMemory && dolphinRegions.Count() >= 2)
-                    {
-                        return dolphinRegions.First().BaseAddress + baseRelativeAddress;
-                    }
-
-                    if (dolphinRegions.Count() >= 1)
-                    {
-                        return dolphinRegions.Last().BaseAddress + baseRelativeAddress;
-                    }
-
-                    break;
-            }
-
-            return 0;
-        }
-
-        /// <summary>
-        /// Dtermines the real address of an emulator address.
-        /// </summary>
-        /// <param name="process"></param>
-        /// <param name="realAddress"></param>
-        /// <param name="emulatorType"></param>
-        /// <returns></returns>
-        public UInt64 RealAddressToEmulatorAddress(Process process, UInt64 realAddress, EmulatorType emulatorType)
-        {
-            switch (emulatorType)
-            {
-                case EmulatorType.Dolphin:
-                    const UInt64 MemoryBase = 0x80000000;
-                    const UInt64 WiiMemoryBase = 0x90000000;
-                    IEnumerable<NormalizedRegion> dolphinRegions = this.GetDolphinVirtualPages<NormalizedRegion>(process).OrderByDescending(region => region.BaseAddress);
-
-                    if (dolphinRegions.Count() >= 2)
-                    {
-                        NormalizedRegion region = dolphinRegions.First();
-                        if (realAddress >= region.BaseAddress)
-                        {
-                            return realAddress - region.BaseAddress + WiiMemoryBase;
-                        }
-                    }
-
-                    if (dolphinRegions.Count() >= 1)
-                    {
-                        NormalizedRegion region = dolphinRegions.Last();
-                        if (realAddress >= region.BaseAddress)
-                        {
-                            return realAddress - region.BaseAddress + MemoryBase;
-                        }
-                    }
-
-                    break;
-            }
-
-            return 0;
         }
 
         /// <summary>
@@ -725,34 +657,92 @@
         /// <returns>A collection of Dolphin emulator modules in the process.</returns>
         private IEnumerable<NormalizedModule> GetDolphinModules(Process process)
         {
-            List<NormalizedModule> modules = new List<NormalizedModule>();
+            Int32 processId = process?.Id ?? 0;
+            IntPtr processHandle = process?.Handle ?? IntPtr.Zero;
 
-            // GameCube and Wii memory. See https://wiibrew.org/wiki/Memory_map
-            NormalizedModule mem1 = new NormalizedModule("mem1", this.EmulatorAddressToRealAddress(process, 0x80000000, EmulatorType.Dolphin), 0x01330000);
+            IList<NormalizedModule> modules = new List<NormalizedModule>();
+            Byte[] layoutMagicGC = { 0x5D, 0x1C, 0x9E, 0xA3 };
+            Byte[] layoutMagicWii = { 0xC2, 0x33, 0x9F, 0x3D };
+            Byte[] bootCode = { 0x0D, 0x15, 0xEA, 0x5E };
 
-            // TODO: If possible, it would be nice to figure out how to parse all .rel files (which are basically .dlls) and add them to the list of static modules.
+            IEnumerable<NormalizedRegion> mappedRegions = this.GetVirtualPages(process, 0, 0, MemoryTypeEnum.Mapped, 0, this.GetMaximumAddress(process), RegionBoundsHandling.Exclude, EmulatorType.None);
+            Boolean mem1Found = false;
+            Boolean mem2Found = false;
 
-            modules.Add(mem1);
+            foreach (NormalizedRegion region in mappedRegions)
+            {
+                // Dolphin stores main memory in a memory mapped region of this exact size.
+                if (!mem1Found && region.RegionSize == 0x2000000 && this.IsRegionBackedByPhysicalMemory(processHandle, region))
+                {
+                    // Check to see if there is a game id. This should weed out any false positives.
+                    Boolean readSuccess = false;
+                    Byte[] gameId = new WindowsMemoryReader().ReadBytes(process, region.BaseAddress, 6, out readSuccess);
+
+                    if (readSuccess)
+                    {
+                        String gameIdStr = Encoding.ASCII.GetString(gameId);
+
+                        if ((gameIdStr.StartsWith('G') || gameIdStr.StartsWith('R')) && gameIdStr.All(Char.IsLetterOrDigit))
+                        {
+                            modules.Add(new NormalizedModule("GC", region.BaseAddress, region.RegionSize));
+                            mem1Found = true;
+                        }
+                    }
+                }
+                else if (!mem2Found && region.RegionSize == 0x4000000 && this.IsRegionBackedByPhysicalMemory(processHandle, region))
+                {
+                    modules.Add(new NormalizedModule("Wii", region.BaseAddress, region.RegionSize));
+                    mem2Found = true;
+                }
+            }
+
+            IEnumerable<NormalizedRegion> imageRegions = this.GetVirtualPages(process, MemoryProtectionEnum.Write, 0, MemoryTypeEnum.Private, 0, this.GetMaximumAddress(process), RegionBoundsHandling.Exclude, EmulatorType.None);
+
+            foreach (NormalizedRegion region in imageRegions)
+            {
+                if (region.RegionSize == 0x48000 && ((region.BaseAddress & 0xFFFF) == 0) && this.IsRegionBackedByPhysicalMemory(processHandle, region))
+                {
+                    const String GbaVersionEn = "GCCEGC";
+                    const String GbaVersionJp = "GCCJGC";
+
+                    Boolean readSuccess1 = false;
+                    Boolean readSuccess2 = false;
+                    Byte[] controllerId = new WindowsMemoryReader().ReadBytes(process, region.BaseAddress + 0xC5, 1, out readSuccess1);
+                    Byte[] gbmMagic = new WindowsMemoryReader().ReadBytes(process, region.BaseAddress + 0xAC, 6, out readSuccess2);
+
+                    if (readSuccess1 && readSuccess2 && controllerId[0] >= 0 && controllerId[0] <= 3)
+                    {
+                        String gbaGcVersion = Encoding.ASCII.GetString(gbmMagic);
+
+                        if (gbaGcVersion == GbaVersionEn || gbaGcVersion == GbaVersionJp)
+                        {
+                            modules.Add(new NormalizedModule("GBA_WM_" + controllerId[0].ToString(), region.BaseAddress, 0x40000));
+                            modules.Add(new NormalizedModule("GBA_IM_" + controllerId[0].ToString(), region.BaseAddress + 0x40000, 0x8000));
+                        }
+                    }
+                }
+            }
+
+            // Try private regions if mapped didn't contain mem2
+            if (!mem2Found)
+            {
+                IEnumerable<NormalizedRegion> privateRegions = this.GetVirtualPages(process, 0, 0, MemoryTypeEnum.Private, 0, this.GetMaximumAddress(process), RegionBoundsHandling.Exclude, EmulatorType.None);
+
+                foreach (NormalizedRegion region in privateRegions)
+                {
+                    // Dolphin stores wii memory in a memory mapped region of this exact size.
+                    if (!mem2Found && region.RegionSize == 0x4000000 && this.IsRegionBackedByPhysicalMemory(processHandle, region))
+                    {
+                        modules.Add(new NormalizedModule("Wii", region.BaseAddress, region.RegionSize));
+                        mem2Found = true;
+                        break;
+                    }
+                }
+            }
+
+            this.ModuleCache.Add(processId, modules);
 
             return modules;
-        }
-
-        /// <summary>
-        /// Gets all heap memory in the opened Dolphin emulator process.
-        /// </summary>
-        /// <returns>A collection of Dolphin emulator heap memory in the process.</returns>
-        private IEnumerable<NormalizedRegion> GetDolphinHeaps(Process process)
-        {
-            List<NormalizedRegion> regions = new List<NormalizedRegion>();
-
-            // GameCube and Wii memory. See https://wiibrew.org/wiki/Memory_map
-            NormalizedRegion mem1Dynamic = new NormalizedRegion(this.EmulatorAddressToRealAddress(process, 0x81330000, EmulatorType.Dolphin), (int)(0x817FFFFF - 0x81330000));
-            NormalizedRegion mem2 = new NormalizedRegion(this.EmulatorAddressToRealAddress(process, 0x90000000, EmulatorType.Dolphin), 0x04000000);
-
-            regions.Add(mem1Dynamic);
-            regions.Add(mem2);
-
-            return regions;
         }
 
         /// <summary>
@@ -763,68 +753,16 @@
         /// <returns>A collection of regions in the process.</returns>
         private IEnumerable<T> GetDolphinVirtualPages<T>(Process process) where T : NormalizedRegion, new()
         {
-            IntPtr processHandle = process?.Handle ?? IntPtr.Zero;
-            IList<T> regions = new List<T>();
-            Byte[] layoutMagicGC = { 0x5D, 0x1C, 0x9E, 0xA3 };
-            Byte[] layoutMagicWii = { 0xC2, 0x33, 0x9F, 0x3D };
-            Byte[] bootCode = { 0x0D, 0x15, 0xEA, 0x5E };
+            IList<T> pages = new List<T>();
 
-            IEnumerable<T> mappedRegions = this.GetVirtualPages<T>(process, 0, 0, MemoryTypeEnum.Mapped, 0, this.GetMaximumAddress(process), RegionBoundsHandling.Exclude, EmulatorType.None);
-
-            foreach (T region in mappedRegions)
+            foreach (NormalizedModule module in this.GetDolphinModules(process))
             {
-                // Dolphin stores main memory in a memory mapped region of this exact size.
-                if (region.RegionSize == 0x2000000 && this.IsRegionBackedByPhysicalMemory(processHandle, region))
-                {
-                    // Check to see if there is a game id. This should weed out any false positives.
-                    bool readSuccess = false;
-                    Byte[] gameId = new WindowsMemoryReader().ReadBytes(process, region.BaseAddress, 6, out readSuccess);
-
-                    if (readSuccess)
-                    {
-                        String gameIdStr = Encoding.ASCII.GetString(gameId);
-
-                        if ((gameIdStr.StartsWith('G') || gameIdStr.StartsWith('R')) && gameIdStr.All(character => Char.IsLetterOrDigit(character)))
-                        {
-                            // Oddly Dolphin seems to map multiple main memory regions into RAM. These are identical.
-                            // Changing values in one will change the other. This means that we can just take the first one we find.
-                            regions.Add(region);
-                            break;
-                        }
-                    }
-                }
+                T region = new T();
+                region.GenericConstructor(module.BaseAddress, module.RegionSize);
+                pages.Add(region);
             }
 
-            bool mem2Found = false;
-            foreach (T region in mappedRegions)
-            {
-                // Dolphin stores wii memory in a memory mapped region of this exact size.
-                if (region.RegionSize == 0x4000000 && this.IsRegionBackedByPhysicalMemory(processHandle, region))
-                {
-                    regions.Add(region);
-                    mem2Found = true;
-                    break;
-                }
-            }
-
-            // Try private regions if mapped didn't contain mem2
-            if (!mem2Found)
-            {
-                IEnumerable<T> privateRegions = this.GetVirtualPages<T>(process, 0, 0, MemoryTypeEnum.Private, 0, this.GetMaximumAddress(process), RegionBoundsHandling.Exclude, EmulatorType.None);
-
-                foreach (T region in privateRegions)
-                {
-                    // Dolphin stores wii memory in a memory mapped region of this exact size.
-                    if (region.RegionSize == 0x4000000 && this.IsRegionBackedByPhysicalMemory(processHandle, region))
-                    {
-                        regions.Add(region);
-                        mem2Found = true;
-                        break;
-                    }
-                }
-            }
-
-            return regions;
+            return pages;
         }
 
         private Boolean IsRegionBackedByPhysicalMemory(IntPtr processHandle, NormalizedRegion region)

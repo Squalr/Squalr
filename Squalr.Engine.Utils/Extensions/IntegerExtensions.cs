@@ -388,6 +388,7 @@
         /// </summary>
         /// <param name="value">The value from which a bit is extracted.</param>
         /// <param name="bit">The bit index flags to extract.</param>
+        /// <param name="length">The number of bits to extract</param>
         /// <returns>The extracted bit values as a new integer.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Int32 GetBits(this Int32 value, Int32 bit, Int32 length)
@@ -402,6 +403,7 @@
         /// </summary>
         /// <param name="value">The value from which a bit is extracted.</param>
         /// <param name="bit">The bit index flags to extract.</param>
+        /// <param name="length">The number of bits to extract</param>
         /// <returns>The extracted bit values as a new integer.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Int64 GetBits(this Int64 value, Int32 bit, Int32 length)
@@ -416,6 +418,7 @@
         /// </summary>
         /// <param name="value">The value from which a bit is extracted.</param>
         /// <param name="bit">The bit index flags to extract.</param>
+        /// <param name="length">The number of bits to extract</param>
         /// <returns>The extracted bit values as a new integer.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Int64 GetBits(this IntPtr value, Int32 bit, Int32 length)

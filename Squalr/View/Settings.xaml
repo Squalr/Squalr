@@ -11,7 +11,7 @@
     x:ClassModifier="public"
     DataContext="{Binding SettingsViewModel, Source={StaticResource ViewModelLocator}}"
     mc:Ignorable="d">
-    <TabControl SelectedIndex="1" Background="{StaticResource SqualrColorPanel}">
+    <TabControl Background="{StaticResource SqualrColorPanel}" SelectedIndex="1">
         <TabControl.Resources>
             <Style TargetType="{x:Type TabItem}">
                 <Setter Property="BorderThickness" Value="0" />
@@ -215,37 +215,46 @@
                                 <WrapPanel Grid.Row="0" Grid.Column="0">
                                     <RadioButton IsChecked="{Binding IsAlignment1, Mode=TwoWay}" />
                                     <TextBlock
-                                    Padding="4,0,0,0"
-                                    Foreground="{StaticResource SqualrColorWhite}"
-                                    Text="1 Byte" />
+                                        Padding="4,0,0,0"
+                                        Foreground="{StaticResource SqualrColorWhite}"
+                                        Text="1 Byte" />
                                 </WrapPanel>
-                                <WrapPanel Grid.Row="0" Grid.Column="1" Margin="24 0 0 0">
+                                <WrapPanel
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Margin="24,0,0,0">
                                     <RadioButton IsChecked="{Binding IsAlignment2, Mode=TwoWay}" />
                                     <TextBlock
-                                    Padding="4,0,0,0"
-                                    Foreground="{StaticResource SqualrColorWhite}"
-                                    Text="2 Bytes" />
+                                        Padding="4,0,0,0"
+                                        Foreground="{StaticResource SqualrColorWhite}"
+                                        Text="2 Bytes" />
                                 </WrapPanel>
                                 <WrapPanel Grid.Row="1" Grid.Column="0">
                                     <RadioButton IsChecked="{Binding IsAlignment4, Mode=TwoWay}" />
                                     <TextBlock
-                                    Padding="4,0,0,0"
-                                    Foreground="{StaticResource SqualrColorWhite}"
-                                    Text="4 Bytes" />
+                                        Padding="4,0,0,0"
+                                        Foreground="{StaticResource SqualrColorWhite}"
+                                        Text="4 Bytes" />
                                 </WrapPanel>
-                                <WrapPanel Grid.Row="1" Grid.Column="1" Margin="24 0 0 0">
+                                <WrapPanel
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Margin="24,0,0,0">
                                     <RadioButton IsChecked="{Binding IsAlignment8, Mode=TwoWay}" />
                                     <TextBlock
-                                    Padding="4,0,0,0"
-                                    Foreground="{StaticResource SqualrColorWhite}"
-                                    Text="8 Bytes" />
+                                        Padding="4,0,0,0"
+                                        Foreground="{StaticResource SqualrColorWhite}"
+                                        Text="8 Bytes" />
                                 </WrapPanel>
-                                <WrapPanel Grid.Row="0" Grid.Column="2" Margin="24 0 0 0">
+                                <WrapPanel
+                                    Grid.Row="0"
+                                    Grid.Column="2"
+                                    Margin="24,0,0,0">
                                     <RadioButton IsChecked="{Binding IsAlignmentAuto, Mode=TwoWay}" />
                                     <TextBlock
-                                    Padding="4,0,0,0"
-                                    Foreground="{StaticResource SqualrColorWhite}"
-                                    Text="Auto" />
+                                        Padding="4,0,0,0"
+                                        Foreground="{StaticResource SqualrColorWhite}"
+                                        Text="Auto" />
                                 </WrapPanel>
                             </Grid>
                             <WrapPanel>
@@ -270,20 +279,20 @@
                             </WrapPanel>
                             <Controls:HexDecBox
                                 x:Name="ScanRangeStartHexDecBox"
-                                IsEnabled="{Binding SettingsViewModel.IsNotUserMode, Source={StaticResource ViewModelLocator}}"
                                 Width="196"
                                 Margin="0,4,8,0"
                                 HorizontalAlignment="Left"
                                 BorderBrush="{StaticResource SqualrColorWhite}"
-                                BorderThickness="1" />
+                                BorderThickness="1"
+                                IsEnabled="{Binding SettingsViewModel.IsNotUserMode, Source={StaticResource ViewModelLocator}}" />
                             <Controls:HexDecBox
                                 x:Name="ScanRangeEndHexDecBox"
-                                IsEnabled="{Binding SettingsViewModel.IsNotUserMode, Source={StaticResource ViewModelLocator}}"
                                 Width="196"
                                 Margin="0,4,8,0"
                                 HorizontalAlignment="Left"
                                 BorderBrush="{StaticResource SqualrColorWhite}"
-                                BorderThickness="1" />
+                                BorderThickness="1"
+                                IsEnabled="{Binding SettingsViewModel.IsNotUserMode, Source={StaticResource ViewModelLocator}}" />
                         </StackPanel>
                     </GroupBox>
                 </Grid>
@@ -388,13 +397,11 @@
                 <Grid
                     Grid.Row="1"
                     Grid.Column="0"
-                    Margin="2">
-                </Grid>
+                    Margin="2" />
                 <Grid
                     Grid.Row="1"
                     Grid.Column="1"
-                    Margin="2">
-                </Grid>
+                    Margin="2" />
             </Grid>
         </TabItem>
     </TabControl>

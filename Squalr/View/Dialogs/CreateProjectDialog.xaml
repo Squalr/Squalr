@@ -8,8 +8,8 @@
     x:Name="SqualrCreateProjectDialog"
     Width="320"
     Height="144"
-    d:DesignWidth="320"
     d:DesignHeight="144"
+    d:DesignWidth="320"
     BorderBrush="{StaticResource SqualrColorWhite}"
     BorderThickness="2"
     DataContext="{Binding CreateProjectDialogViewModel, Source={StaticResource ViewModelLocator}}"
@@ -55,17 +55,15 @@
                         Text="{Binding ProjectName}" />
                 </shell:StackPanel>
                 <shell:TextBox
-                    Background="{StaticResource SqualrColorGray27}"
-                    BorderBrush="{StaticResource SqualrColorGray40}"
+                    Background="{StaticResource SqualrColorInput}"
+                    BorderBrush="{StaticResource SqualrColorBorder}"
                     Foreground="{StaticResource SqualrColorWhite}"
                     Text="{Binding NewProjectName, UpdateSourceTrigger=PropertyChanged}" />
             </shell:StackPanel>
         </shell:Grid>
 
         <shell:Grid Margin="4" shell:Grid.Row="2">
-            <shell:TextBlock
-                Foreground="{StaticResource SqualrColorWhite}"
-                Text="{Binding StatusText, UpdateSourceTrigger=PropertyChanged}" />
+            <shell:TextBlock Foreground="{StaticResource SqualrColorWhite}" Text="{Binding StatusText, UpdateSourceTrigger=PropertyChanged}" />
         </shell:Grid>
         <shell:Grid Grid.Row="3" Margin="8">
             <shell:Button

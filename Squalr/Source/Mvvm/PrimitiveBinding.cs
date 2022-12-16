@@ -9,6 +9,9 @@
     /// <typeparam name="T">The primitive type.</typeparam>
     public class PrimitiveBinding<T> : INotifyPropertyChanged where T : struct
     {
+        /// <summary>
+        /// The primitive value.
+        /// </summary>
         private T value;
 
         /// <summary>

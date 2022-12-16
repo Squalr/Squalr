@@ -188,6 +188,9 @@
             this.IsVisible = false;
         }
 
+        /// <summary>
+        /// Starts a task that automatically refreshes the process list.
+        /// </summary>
         private void StartAutomaticProcessListRefresh()
         {
             Task.Run(async () =>

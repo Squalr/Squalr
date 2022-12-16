@@ -7,6 +7,14 @@
     using System.Threading;
     using System.Threading.Tasks;
 
+    public delegate void OnTaskCanceled(TrackableTask task);
+
+    public delegate void OnTaskCompleted(TrackableTask task);
+
+    public delegate void OnProgressUpdate(Single progress);
+
+    public delegate void UpdateProgress(Single progress);
+
     /// <summary>
     /// Represents a task on which the progress can be tracked.
     /// </summary>
@@ -40,14 +48,6 @@
             this.AccessLock = new Object();
             this.CancellationTokenSource = new CancellationTokenSource();
         }
-
-        public delegate void OnTaskCanceled(TrackableTask task);
-
-        public delegate void OnTaskCompleted(TrackableTask task);
-
-        public delegate void OnProgressUpdate(Single progress);
-
-        public delegate void UpdateProgress(Single progress);
 
         public event OnTaskCanceled OnCanceledEvent;
 

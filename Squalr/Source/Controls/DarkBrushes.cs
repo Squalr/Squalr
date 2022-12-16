@@ -13,6 +13,11 @@
         public static readonly Color SqualrColorWhite = Color.White;
 
         /// <summary>
+        /// Off-White theme color.
+        /// </summary>
+        public static readonly Color SqualrColorOffWhite = Color.FromArgb(0xD8, 0xD8, 0xD8);
+
+        /// <summary>
         /// Black theme color.
         /// </summary>
         public static readonly Color SqualrColorBlack = Color.Black;
@@ -28,34 +33,14 @@
         public static readonly Color SqualrColorGray24 = Color.FromArgb(0x3D, 0x3D, 0x3D);
 
         /// <summary>
-        /// Gray 27 theme color.
-        /// </summary>
-        public static readonly Color SqualrColorGray27 = Color.FromArgb(0x44, 0x44, 0x44);
-
-        /// <summary>
         /// Gray 29 theme color.
         /// </summary>
         public static readonly Color SqualrColorGray29 = Color.FromArgb(0x4A, 0x4A, 0x4A);
 
         /// <summary>
-        /// Gray 35 theme color.
-        /// </summary>
-        public static readonly Color SqualrColorGray35 = Color.FromArgb(0x59, 0x59, 0x59);
-
-        /// <summary>
-        /// Gray 40 theme color.
-        /// </summary>
-        public static readonly Color SqualrColorGray40 = Color.FromArgb(0x66, 0x66, 0x66);
-
-        /// <summary>
         /// Gray 74 theme color.
         /// </summary>
         public static readonly Color SqualrColorGray74 = Color.FromArgb(0xBD, 0xBD, 0xBD);
-
-        /// <summary>
-        /// Gray 85 theme color.
-        /// </summary>
-        public static readonly Color SqualrColorGray85 = Color.FromArgb(0xD8, 0xD8, 0xD8);
 
         /// <summary>
         /// Theme color for the frames.
@@ -66,6 +51,16 @@
         /// Theme color for panels.
         /// </summary>
         public static readonly Color SqualrColorPanel = Color.FromArgb(0x20, 0x20, 0x20);
+
+        /// <summary>
+        /// Theme color for input fields.
+        /// </summary>
+        public static readonly Color SqualrColorInput = Color.FromArgb(0x44, 0x44, 0x44);
+
+        /// <summary>
+        /// Theme color for input field borders.
+        /// </summary>
+        public static readonly Color SqualrColorBorder = Color.FromArgb(0x66, 0x66, 0x66);
 
         /// <summary>
         /// Blue theme color.

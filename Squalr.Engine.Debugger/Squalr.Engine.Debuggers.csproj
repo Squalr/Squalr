@@ -4,7 +4,7 @@
     <TargetFramework>netstandard2.1</TargetFramework>
     <LangVersion>latest</LangVersion>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>3.0.1</Version>
+    <Version>3.0.2</Version>
     <Description>Squalr engine component for attachable debuggers.</Description>
   </PropertyGroup>
 
@@ -19,8 +19,8 @@
   <PropertyGroup>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
-    <AssemblyVersion>3.0.1</AssemblyVersion>
-    <FileVersion>3.0.1</FileVersion>
+    <AssemblyVersion>3.0.2</AssemblyVersion>
+    <FileVersion>3.0.2</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

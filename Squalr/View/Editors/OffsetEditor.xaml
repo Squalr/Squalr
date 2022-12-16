@@ -24,7 +24,7 @@
         <shell:WindowChrome CaptionHeight="{Binding ActualHeight, ElementName=titlebar}" />
     </shell:WindowChrome.WindowChrome>
 
-    <shell:Grid Background="{StaticResource SqualrColorBlack}">
+    <shell:Grid Background="{StaticResource SqualrColorFrame}">
         <shell:Grid.RowDefinitions>
             <shell:RowDefinition Height="Auto" />
             <shell:RowDefinition Height="Auto" />
@@ -35,7 +35,7 @@
             x:Name="titlebar"
             Grid.Row="0"
             Height="24"
-            Background="{StaticResource SqualrColorGray20}">
+            Background="{StaticResource SqualrColorFrame}">
             <shell:TextBlock
                 Padding="4"
                 Foreground="{StaticResource SqualrColorWhite}"
@@ -50,7 +50,6 @@
                 x:Name="OffsetHexDecBox"
                 Grid.Column="0"
                 Margin="0,0,8,0"
-                BorderBrush="{StaticResource SqualrColorWhite}"
                 BorderThickness="1" />
             <shell:WrapPanel
                 Grid.Column="1"
@@ -77,7 +76,7 @@
             Name="offsetsDataGrid"
             Grid.Row="2"
             AutoGenerateColumns="False"
-            Background="{StaticResource SqualrColorBlack}"
+            Background="{StaticResource SqualrColorPanel}"
             ColumnWidth="*"
             EnableRowVirtualization="False"
             HeadersVisibility="Column"
@@ -90,20 +89,21 @@
             </shell:DataGrid.Resources>
             <shell:DataGrid.ColumnHeaderStyle>
                 <shell:Style TargetType="{x:Type DataGridColumnHeader}">
-                    <shell:Setter Property="Background" Value="{StaticResource SqualrColorBlack}" />
+                    <shell:Setter Property="Background" Value="{StaticResource SqualrColorFrame}" />
                     <shell:Setter Property="Foreground" Value="{StaticResource SqualrColorWhite}" />
                     <shell:Setter Property="HorizontalAlignment" Value="Stretch" />
+                    <shell:Setter Property="Padding" Value="4" />
                 </shell:Style>
             </shell:DataGrid.ColumnHeaderStyle>
             <shell:DataGrid.Style>
                 <shell:Style TargetType="{x:Type DataGrid}">
-                    <shell:Setter Property="Background" Value="{StaticResource SqualrColorBlack}" />
+                    <shell:Setter Property="Background" Value="{StaticResource SqualrColorFrame}" />
                     <shell:Setter Property="Foreground" Value="{StaticResource SqualrColorWhite}" />
                 </shell:Style>
             </shell:DataGrid.Style>
             <shell:DataGrid.CellStyle>
                 <shell:Style TargetType="{x:Type DataGridCell}">
-                    <shell:Setter Property="Background" Value="{StaticResource SqualrColorBlack}" />
+                    <shell:Setter Property="Background" Value="{StaticResource SqualrColorFrame}" />
                     <shell:Setter Property="Foreground" Value="{StaticResource SqualrColorWhite}" />
                 </shell:Style>
             </shell:DataGrid.CellStyle>

@@ -18,7 +18,7 @@
         /// <summary>
         /// Singleton instance of the <see cref="RenameProjectDialogViewModel" /> class.
         /// </summary>
-        private static Lazy<RenameProjectDialogViewModel> renameProjectDialogViewModelInstance = new Lazy<RenameProjectDialogViewModel>(
+        private static readonly Lazy<RenameProjectDialogViewModel> RenameProjectDialogViewModelInstance = new Lazy<RenameProjectDialogViewModel>(
                 () => { return new RenameProjectDialogViewModel(); },
                 LazyThreadSafetyMode.ExecutionAndPublication);
 
@@ -100,7 +100,7 @@
         /// <returns>A singleton instance of the class.</returns>
         public static RenameProjectDialogViewModel GetInstance()
         {
-            return RenameProjectDialogViewModel.renameProjectDialogViewModelInstance.Value;
+            return RenameProjectDialogViewModel.RenameProjectDialogViewModelInstance.Value;
         }
 
         /// <summary>
