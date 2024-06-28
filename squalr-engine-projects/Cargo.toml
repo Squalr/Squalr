@@ -1,0 +1,16 @@
+[package]
+name = "squalr-engine-projects"
+version = "0.1.0"
+authors = ["Zachary Canann"]
+edition = "2021"
+# build = "build.rs"
+
+[dependencies]
+squalr-engine-architecture = { path = "../squalr-engine-architecture" }
+squalr-engine-common = { path = "../squalr-engine-common" }
+squalr-engine-memory = { path = "../squalr-engine-memory" }
+squalr-engine-scanning = { path = "../squalr-engine-scanning" }
+squalr-engine-scripting = { path = "../squalr-engine-scripting" }
+
+[build-dependencies]
+

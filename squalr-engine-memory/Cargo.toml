@@ -1,0 +1,13 @@
+[package]
+name = "squalr-engine-memory"
+version = "0.1.0"
+authors = ["Zachary Canann"]
+edition = "2021"
+# build = "build.rs"
+
+[dependencies]
+squalr-engine-common = { path = "../squalr-engine-common" }
+squalr-engine-processes = { path = "../squalr-engine-processes" }
+
+[build-dependencies]
+

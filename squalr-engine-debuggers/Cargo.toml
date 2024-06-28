@@ -1,0 +1,15 @@
+[package]
+name = "squalr-engine-debuggers"
+version = "0.1.0"
+authors = ["Zachary Canann"]
+edition = "2021"
+# build = "build.rs"
+
+[dependencies]
+squalr-engine = { path = "../squalr-engine" }
+squalr-engine-architecture = { path = "../squalr-engine-architecture" }
+squalr-engine-common = { path = "../squalr-engine-common" }
+squalr-engine-memory = { path = "../squalr-engine-memory" }
+
+[build-dependencies]
+

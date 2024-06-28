@@ -1,0 +1,13 @@
+[workspace]
+members = [
+    "squalr-engine",
+    "squalr-engine-architecture",
+    "squalr-engine-common",
+    "squalr-engine-debuggers",
+    "squalr-engine-memory",
+    "squalr-engine-processes",
+    "squalr-engine-projects",
+    "squalr-engine-scanning",
+    "squalr-engine-scripting",
+    "squalr-cli",
+]
