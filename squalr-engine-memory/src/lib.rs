@@ -1,3 +1,6 @@
+pub mod normalized_flags;
+pub mod normalized_region;
+
 pub fn engine_function() -> i32 {
     42 // Replace with actual functionality
 }

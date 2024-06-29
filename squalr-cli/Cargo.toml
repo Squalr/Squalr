@@ -15,6 +15,8 @@ squalr-engine-processes = { path = "../squalr-engine-processes" }
 squalr-engine-projects = { path = "../squalr-engine-projects" }
 squalr-engine-scanning = { path = "../squalr-engine-scanning" }
 squalr-engine-scripting = { path = "../squalr-engine-scripting" }
+structopt = ">=0.3"
+shlex = ">=1.0"
 
 [build-dependencies]
 
