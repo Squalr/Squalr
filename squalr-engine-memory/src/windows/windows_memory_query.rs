@@ -4,9 +4,7 @@ use crate::normalized_module::NormalizedModule;
 use crate::memory_protection_enum::MemoryProtectionEnum;
 use crate::memory_type_enum::MemoryTypeEnum;
 use crate::region_bounds_handling::RegionBoundsHandling;
-use crate::windows::memory_basic_information_64::MemoryBasicInformation64;
 use core::mem::size_of;
-use std::collections::HashSet;
 use std::ptr::null_mut;
 use sysinfo::Pid;
 use winapi::shared::minwindef::{ DWORD, HMODULE, LPVOID };
@@ -27,16 +25,39 @@ impl WindowsMemoryQuery {
         unsafe { OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, process_id.as_u32()) }
     }
 
-    fn virtual_pages(
+    fn get_protection_flags(&self, protection: &MemoryProtectionEnum) -> DWORD {
+        let mut flags = 0;
+
+        if protection.contains(MemoryProtectionEnum::WRITE) {
+            flags |= PAGE_READWRITE | PAGE_EXECUTE_READWRITE;
+        }
+
+        if protection.contains(MemoryProtectionEnum::EXECUTE) {
+            flags |= PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+        }
+
+        if protection.contains(MemoryProtectionEnum::COPY_ON_WRITE) {
+            flags |= PAGE_WRITECOPY | PAGE_EXECUTE_WRITECOPY;
+        }
+
+        return flags;
+    }
+}
+
+impl IMemoryQueryer for WindowsMemoryQuery {
+    fn get_virtual_pages(
         &self,
-        process_handle: HANDLE,
+        process_id: &Pid,
+        required_protection: MemoryProtectionEnum,
+        excluded_protection: MemoryProtectionEnum,
+        allowed_types: MemoryTypeEnum,
         start_address: u64,
         end_address: u64,
-        required_protection: u32,
-        excluded_protection: u32,
-        allowed_types: MemoryTypeEnum,
         region_bounds_handling: RegionBoundsHandling,
-    ) -> Vec<MemoryBasicInformation64> {
+    ) -> Vec<NormalizedRegion> {
+        let process_handle = self.open_process(process_id);
+        let required_flags = self.get_protection_flags(&required_protection);
+        let excluded_flags = self.get_protection_flags(&excluded_protection);
         let mut regions = Vec::new();
         let mut address = start_address;
         let mut wrapped_around = false;
@@ -73,7 +94,7 @@ impl WindowsMemoryQuery {
                 continue;
             }
 
-            if (mbi.Protect & required_protection == 0) || (mbi.Protect & excluded_protection != 0) {
+            if (mbi.Protect as u32 & required_flags == 0) || (mbi.Protect as u32 & excluded_flags != 0) {
                 continue;
             }
 
@@ -133,67 +154,10 @@ impl WindowsMemoryQuery {
                 }
             }
 
-            regions.push(MemoryBasicInformation64 {
-                BaseAddress: mbi.BaseAddress as u64,
-                AllocationBase: mbi.AllocationBase as u64,
-                AllocationProtect: mbi.AllocationProtect,
-                RegionSize: mbi.RegionSize as u64,
-                State: mbi.State,
-                Protect: mbi.Protect,
-                Type: mbi.Type,
-            });
-        }
-
-        return regions;
-    }
-
-    fn get_protection_flags(&self, protection: &MemoryProtectionEnum) -> DWORD {
-        let mut flags = 0;
-
-        if protection.contains(MemoryProtectionEnum::WRITE) {
-            flags |= PAGE_READWRITE | PAGE_EXECUTE_READWRITE;
-        }
-
-        if protection.contains(MemoryProtectionEnum::EXECUTE) {
-            flags |= PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
-        }
-
-        if protection.contains(MemoryProtectionEnum::COPY_ON_WRITE) {
-            flags |= PAGE_WRITECOPY | PAGE_EXECUTE_WRITECOPY;
-        }
-
-        return flags;
-    }
-}
-
-impl IMemoryQueryer for WindowsMemoryQuery {
-    fn get_virtual_pages(
-        &self,
-        process_id: &Pid,
-        required_protection: MemoryProtectionEnum,
-        excluded_protection: MemoryProtectionEnum,
-        allowed_types: MemoryTypeEnum,
-        start_address: u64,
-        end_address: u64,
-        region_bounds_handling: RegionBoundsHandling,
-    ) -> HashSet<NormalizedRegion> {
-        let process_handle = self.open_process(process_id);
-        let required_flags = self.get_protection_flags(&required_protection);
-        let excluded_flags = self.get_protection_flags(&excluded_protection);
-        let mut regions = HashSet::new();
-
-        let memory_info = self.virtual_pages(
-            process_handle,
-            start_address,
-            end_address,
-            required_flags,
-            excluded_flags,
-            allowed_types,
-            region_bounds_handling,
-        );
-
-        for mbi in memory_info {
-            regions.insert(NormalizedRegion::new(mbi.BaseAddress as u64, mbi.RegionSize as u64));
+            regions.push(NormalizedRegion::new(
+                mbi.BaseAddress as u64,
+                mbi.RegionSize as u64,
+            ));
         }
 
         return regions;
@@ -202,7 +166,7 @@ impl IMemoryQueryer for WindowsMemoryQuery {
     fn get_all_virtual_pages(
         &self,
         process_id: &Pid,
-    ) -> HashSet<NormalizedRegion> {
+    ) -> Vec<NormalizedRegion> {
         let start_address = 0;
         let end_address = self.get_maximum_address(process_id);
         self.get_virtual_pages(
@@ -217,13 +181,23 @@ impl IMemoryQueryer for WindowsMemoryQuery {
     }
 
     fn is_address_writable(&self, process_id: &Pid, address: u64) -> bool {
-        return false;
+        let start_address = address;
+        let end_address = address;
+        
+        // Check for writability by searching for a page that includes the target address that is writable.
+        return self.get_virtual_pages(
+            process_id,
+            MemoryProtectionEnum::WRITE,
+            MemoryProtectionEnum::NONE,
+            MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE | MemoryTypeEnum::MAPPED,
+            start_address,
+            end_address,
+            RegionBoundsHandling::Include,
+        ).len() > 0;
     }
 
     fn get_maximum_address(&self, process_id: &Pid) -> u64 {
-        // Implement actual functionality here
-        // TODO: Determine the maximum address based on the target architecture (x86 or x64)
-        u64::MAX
+        return u64::MAX; // TODO: Determine the maximum address based on the target architecture (x86 or x64)
     }
 
     fn get_min_usermode_address(&self, process_id: &Pid) -> u64 {
@@ -232,19 +206,15 @@ impl IMemoryQueryer for WindowsMemoryQuery {
     }
 
     fn get_max_usermode_address(&self, process_id: &Pid) -> u64 {
-        // Implement actual functionality here
-        // TODO: Determine the maximum address based on the target architecture (x86 or x64)
-        0x7FFFFFFF_FFFF // Example value for 64-bit Windows
+        return 0x7FFFFFFF_FFFF; // TODO: Determine the maximum address based on the target architecture (x86 or x64)
     }
 
     fn get_modules(
         &self,
         process_id: &Pid,
-    ) -> HashSet<NormalizedModule> {
-        // Implement actual functionality here
+    ) -> Vec<NormalizedModule> {
         let process_handle = self.open_process(process_id);
-        let mut modules = HashSet::new();
-
+        let mut modules = Vec::new();
         let mut module_handles: [HMODULE; 1024] = [null_mut(); 1024];
         let mut cb_needed = 0;
 
@@ -295,7 +265,7 @@ impl IMemoryQueryer for WindowsMemoryQuery {
                 continue;
             }
             
-            modules.insert(NormalizedModule::new(
+            modules.push(NormalizedModule::new(
                 &module_name,
                 module_info.lpBaseOfDll as u64,
                 module_info.SizeOfImage as u64,
@@ -303,20 +273,6 @@ impl IMemoryQueryer for WindowsMemoryQuery {
         }
 
         return modules;
-    }
-
-    fn get_stack_addresses(
-        &self,
-        process_id: &Pid,
-    ) -> HashSet<NormalizedRegion> {
-        unimplemented!()
-    }
-
-    fn get_heap_addresses(
-        &self,
-        process_id: &Pid,
-    ) -> HashSet<NormalizedRegion> {
-        unimplemented!()
     }
 
     fn address_to_module(
@@ -327,15 +283,14 @@ impl IMemoryQueryer for WindowsMemoryQuery {
     ) -> u64 {
         let modules = self.get_modules(process_id);
         
-        /*
         for module in modules {
             if module.contains_address(address) {
-                *module_name = module.get_name();
+                *module_name = module.get_name().to_string();
                 return address - module.get_base_address();
             }
         }
 
-        *module_name = String::new(); */
+        *module_name = String::new();
         return address;
     }
 

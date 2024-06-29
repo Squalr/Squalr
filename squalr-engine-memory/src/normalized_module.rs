@@ -49,6 +49,10 @@ impl NormalizedModule {
     pub fn set_region_size(&mut self, region_size: u64) {
         self.base_region.set_region_size(region_size);
     }
+
+    pub fn contains_address(&self, address: u64) -> bool {
+        return self.base_region.contains_address(address);
+    }
 }
 
 impl PartialEq for NormalizedModule {

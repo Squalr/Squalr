@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use sysinfo::Pid;
 use crate::normalized_module::NormalizedModule;
 use crate::normalized_region::NormalizedRegion;
@@ -16,12 +15,12 @@ pub trait IMemoryQueryer {
         start_address: u64,
         end_address: u64,
         region_bounds_handling: RegionBoundsHandling,
-    ) -> HashSet<NormalizedRegion>;
+    ) -> Vec<NormalizedRegion>;
 
     fn get_all_virtual_pages(
         &self,
         process_id: &Pid,
-    ) -> HashSet<NormalizedRegion>;
+    ) -> Vec<NormalizedRegion>;
 
     fn is_address_writable(&self, process_id: &Pid, address: u64) -> bool;
 
@@ -31,11 +30,7 @@ pub trait IMemoryQueryer {
 
     fn get_max_usermode_address(&self, process_id: &Pid) -> u64;
 
-    fn get_modules(&self, process_id: &Pid) -> HashSet<NormalizedModule>;
-
-    fn get_stack_addresses(&self, process_id: &Pid) -> HashSet<NormalizedRegion>;
-
-    fn get_heap_addresses(&self, process_id: &Pid) -> HashSet<NormalizedRegion>;
+    fn get_modules(&self, process_id: &Pid) -> Vec<NormalizedModule>;
 
     fn address_to_module(&self, process_id: &Pid, address: u64, module_name: &mut String) -> u64;
 
