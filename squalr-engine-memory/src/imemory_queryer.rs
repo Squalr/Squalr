@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use sysinfo::Pid;
-use crate::emulator_type::EmulatorType;
 use crate::normalized_module::NormalizedModule;
 use crate::normalized_region::NormalizedRegion;
 use crate::memory_protection_enum::MemoryProtectionEnum;
@@ -17,13 +16,11 @@ pub trait IMemoryQueryer {
         start_address: u64,
         end_address: u64,
         region_bounds_handling: RegionBoundsHandling,
-        emulator_type: EmulatorType,
     ) -> HashSet<NormalizedRegion>;
 
     fn get_all_virtual_pages(
         &self,
         process_id: &Pid,
-        emulator_type: EmulatorType,
     ) -> HashSet<NormalizedRegion>;
 
     fn is_address_writable(&self, process_id: &Pid, address: u64) -> bool;
@@ -34,13 +31,13 @@ pub trait IMemoryQueryer {
 
     fn get_max_usermode_address(&self, process_id: &Pid) -> u64;
 
-    fn get_modules(&self, process_id: &Pid, emulator_type: EmulatorType) -> HashSet<NormalizedModule>;
+    fn get_modules(&self, process_id: &Pid) -> HashSet<NormalizedModule>;
 
-    fn get_stack_addresses(&self, process_id: &Pid, emulator_type: EmulatorType) -> HashSet<NormalizedRegion>;
+    fn get_stack_addresses(&self, process_id: &Pid) -> HashSet<NormalizedRegion>;
 
-    fn get_heap_addresses(&self, process_id: &Pid, emulator_type: EmulatorType) -> HashSet<NormalizedRegion>;
+    fn get_heap_addresses(&self, process_id: &Pid) -> HashSet<NormalizedRegion>;
 
-    fn address_to_module(&self, process_id: &Pid, address: u64, module_name: &mut String, emulator_type: EmulatorType) -> u64;
+    fn address_to_module(&self, process_id: &Pid, address: u64, module_name: &mut String) -> u64;
 
-    fn resolve_module(&self, process_id: &Pid, identifier: &str, emulator_type: EmulatorType) -> u64;
+    fn resolve_module(&self, process_id: &Pid, identifier: &str) -> u64;
 }

@@ -1,59 +1,54 @@
 use std::cmp::{Ord, Ordering};
 use std::ops::Add;
+use std::hash::{Hash, Hasher};
 use squalr_engine_common::logging::logger::LOGGER;
 use squalr_engine_common::logging::log_level::LogLevel;
 
 #[derive(Debug, Clone)]
 pub struct NormalizedRegion {
     base_address: u64,
-    region_size: i32,
+    region_size: u64,
 }
 
 impl NormalizedRegion {
-    pub fn new() -> Self {
+    pub fn new(base_address: u64, region_size: u64) -> Self {
         Self {
-            base_address: 0,
-            region_size: 0,
+            base_address: base_address,
+            region_size: region_size,
         }
     }
 
-    pub fn with_base_and_size(base_address: u64, region_size: i32) -> Self {
-        let mut region = Self::new();
-        region.generic_constructor(base_address, region_size);
-        region
-    }
-
     pub fn get_base_address(&self) -> u64 {
-        self.base_address
+        return self.base_address;
     }
 
     pub fn set_base_address(&mut self, base_address: u64) {
         self.base_address = base_address;
     }
 
-    pub fn get_region_size(&self) -> i32 {
-        self.region_size
+    pub fn get_region_size(&self) -> u64 {
+        return self.region_size;
     }
 
-    pub fn set_region_size(&mut self, region_size: i32) {
+    pub fn set_region_size(&mut self, region_size: u64) {
         self.region_size = region_size;
     }
 
     pub fn get_end_address(&self) -> u64 {
-        self.base_address.add(self.region_size as u64)
+        return self.base_address.add(self.region_size as u64);
     }
 
     pub fn set_end_address(&mut self, end_address: u64) {
-        self.region_size = (end_address - self.base_address) as i32;
+        self.region_size = (end_address - self.base_address) as u64;
     }
 
-    pub fn generic_constructor(&mut self, base_address: u64, region_size: i32) {
+    pub fn generic_constructor(&mut self, base_address: u64, region_size: u64) {
         self.base_address = base_address;
         self.region_size = region_size;
     }
 
     pub fn align(&mut self, alignment: u32) {
-        let alignment_value = alignment as i32;
+        let alignment_value = alignment as u64;
 
         if alignment_value <= 0 || self.base_address % alignment as u64 == 0 {
             return;
@@ -66,15 +61,15 @@ impl NormalizedRegion {
     }
 
     pub fn contains_address(&self, address: u64) -> bool {
-        address >= self.base_address && address <= self.get_end_address()
+        return address >= self.base_address && address <= self.get_end_address();
     }
 
-    pub fn expand(&mut self, expand_size: i32) {
+    pub fn expand(&mut self, expand_size: u64) {
         self.base_address -= expand_size as u64;
         self.region_size += expand_size * 2;
     }
 
-    pub fn chunk_normalized_region(&self, chunk_size: i32) -> Vec<NormalizedRegion> {
+    pub fn chunk_normalized_region(&self, chunk_size: u64) -> Vec<NormalizedRegion> {
         if chunk_size <= 0 {
             LOGGER.log(LogLevel::Error, "Invalid chunk size specified for region", None);
             return Vec::new();
@@ -91,19 +86,19 @@ impl NormalizedRegion {
                 size = self.region_size % chunk_size;
             }
 
-            chunks.push(NormalizedRegion::with_base_and_size(
+            chunks.push(NormalizedRegion::new(
                 self.base_address + (chunk_size as u64 * index as u64),
                 size,
             ));
         }
 
-        chunks
+        return chunks;
     }
 }
 
 impl PartialEq for NormalizedRegion {
     fn eq(&self, other: &Self) -> bool {
-        self.base_address == other.base_address
+        return self.base_address == other.base_address;
     }
 }
 
@@ -111,21 +106,19 @@ impl Eq for NormalizedRegion {}
 
 impl PartialOrd for NormalizedRegion {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+        return Some(self.cmp(other));
     }
 }
 
 impl Ord for NormalizedRegion {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.base_address.cmp(&other.base_address)
+        return self.base_address.cmp(&other.base_address);
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum MemoryAlignment {
-    Auto = 0,
-    Alignment1 = 1,
-    Alignment2 = 2,
-    Alignment4 = 4,
-    Alignment8 = 8,
+impl Hash for NormalizedRegion {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.base_address.hash(state);
+        self.region_size.hash(state);
+    }
 }

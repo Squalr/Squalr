@@ -1,7 +1,9 @@
 use std::path::Path;
 use std::ffi::OsStr;
+use std::hash::{Hash, Hasher};
 use super::normalized_region::NormalizedRegion;
 
+#[derive(Debug, Clone)]
 pub struct NormalizedModule {
     base_region: NormalizedRegion,
     name: String,
@@ -9,7 +11,7 @@ pub struct NormalizedModule {
 }
 
 impl NormalizedModule {
-    pub fn new(full_path: &str, base_address: u64, size: i32) -> Self {
+    pub fn new(full_path: &str, base_address: u64, size: u64) -> Self {
         let name = Path::new(full_path)
             .file_name()
             .unwrap_or_else(|| OsStr::new(""))
@@ -18,7 +20,7 @@ impl NormalizedModule {
             .to_string();
 
         Self {
-            base_region: NormalizedRegion::with_base_and_size(base_address, size),
+            base_region: NormalizedRegion::new(base_address, size),
             name,
             full_path: full_path.to_string(),
         }
@@ -40,12 +42,29 @@ impl NormalizedModule {
         self.base_region.set_base_address(base_address);
     }
 
-    pub fn get_region_size(&self) -> i32 {
+    pub fn get_region_size(&self) -> u64 {
         self.base_region.get_region_size()
     }
 
-    pub fn set_region_size(&mut self, region_size: i32) {
+    pub fn set_region_size(&mut self, region_size: u64) {
         self.base_region.set_region_size(region_size);
     }
 }
 
+impl PartialEq for NormalizedModule {
+    fn eq(&self, other: &Self) -> bool {
+        self.base_region == other.base_region &&
+        self.name == other.name &&
+        self.full_path == other.full_path
+    }
+}
+
+impl Eq for NormalizedModule {}
+
+impl Hash for NormalizedModule {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.base_region.hash(state);
+        self.name.hash(state);
+        self.full_path.hash(state);
+    }
+}

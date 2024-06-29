@@ -1,4 +1,3 @@
-pub mod emulator_type;
 pub mod imemory_queryer;
 pub mod memory_protection_enum;
 pub mod memory_queryer;
