@@ -2,12 +2,10 @@ use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 pub enum ProcessCommand {
-    /// Open a process
     Open {
         #[structopt(short = "o", long)]
         pid: u32,
     },
-    /// List running processes
     List {
         #[structopt(short = "w", long)]
         windowed: bool,
@@ -20,10 +18,5 @@ pub enum ProcessCommand {
         #[structopt(short = "l", long)]
         limit: Option<usize>,
     },
-    /// Close a process
-    Close {
-        #[structopt(short = "c", long)]
-        pid: u32,
-    },
-    // Add other process commands here
+    Close,
 }

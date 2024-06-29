@@ -8,15 +8,23 @@ pub trait IProcessQueryer {
     fn get_process_name(&self, pid: Pid) -> Option<String>;
 }
 
+#[cfg(any(target_os = "linux"))]
+mod linux;
+
+#[cfg(any(target_os = "macos"))]
+mod macos;
+
 #[cfg(target_os = "windows")]
 mod windows;
-#[cfg(target_os = "windows")]
-pub use self::windows::WindowsProcessQuery as ProcessQueryImpl;
 
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "unix"))]
-mod unix;
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "unix"))]
-pub use self::unix::UnixProcessQuery as ProcessQueryImpl;
+#[cfg(any(target_os = "linux"))]
+pub use self::linux::linux_process_query::LinuxProcessQuery as ProcessQueryImpl;
+
+#[cfg(any(target_os = "macos"))]
+pub use self::macos::macos_process_query::MacOsProcessQuery as ProcessQueryImpl;
+
+#[cfg(target_os = "windows")]
+pub use self::windows::windows_process_query::WindowsProcessQuery as ProcessQueryImpl;
 
 pub struct ProcessQuery;
 

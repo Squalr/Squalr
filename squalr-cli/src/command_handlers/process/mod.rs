@@ -14,7 +14,7 @@ pub fn handle_process_command(cmd: ProcessCommand) {
     let handlers: &[(ProcessCommand, ProcessCommandHandler)] = &[
         (ProcessCommand::Open { pid: 0 }, handle_process_open),
         (ProcessCommand::List { windowed: false, search_term: None, match_case: false, system_processes: false, limit: None }, handle_process_list),
-        (ProcessCommand::Close { pid: 0 }, handle_process_close),
+        (ProcessCommand::Close, handle_process_close),
     ];
 
     for (command, handler) in handlers {

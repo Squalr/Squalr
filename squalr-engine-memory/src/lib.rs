@@ -1,21 +1,18 @@
+pub mod emulator_type;
+pub mod imemory_queryer;
+pub mod memory_protection_enum;
+pub mod memory_queryer;
+pub mod memory_type_enum;
 pub mod normalized_flags;
+pub mod normalized_module;
 pub mod normalized_region;
+pub mod region_bounds_handling;
 
-pub fn engine_function() -> i32 {
-    42 // Replace with actual functionality
-}
+#[cfg(any(target_os = "linux"))]
+mod linux;
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+#[cfg(any(target_os = "macos"))]
+mod macos;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+#[cfg(target_os = "windows")]
+mod windows;

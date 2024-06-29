@@ -1,5 +1,7 @@
 use std::cmp::{Ord, Ordering};
 use std::ops::Add;
+use squalr_engine_common::logging::logger::LOGGER;
+use squalr_engine_common::logging::log_level::LogLevel;
 
 #[derive(Debug, Clone)]
 pub struct NormalizedRegion {
@@ -74,7 +76,7 @@ impl NormalizedRegion {
 
     pub fn chunk_normalized_region(&self, chunk_size: i32) -> Vec<NormalizedRegion> {
         if chunk_size <= 0 {
-            eprintln!("Invalid chunk size specified for region");
+            LOGGER.log(LogLevel::Error, "Invalid chunk size specified for region", None);
             return Vec::new();
         }
 
