@@ -2,14 +2,26 @@ mod cli;
 use cli::Cli;
 mod command;
 mod command_handlers;
+mod log_listener; // Add this line to import the LogListener
 use command_handlers::handle_commands;
 use shlex;
 use squalr_engine::engine_function;
 use squalr_engine_memory::normalized_flags::{MemoryProtectionEnum, MemoryTypeEnum};
 use std::io::{self, Write};
 use structopt::StructOpt;
+use squalr_engine_common::logging::logger::Logger;
+use log_listener::LogListener;
+use std::sync::Arc;
 
 fn main() {
+    // Initialize logger
+    let logger = Logger::new();
+    let log_listener = LogListener::new();
+    logger.subscribe(log_listener);
+
+    // Log a message to show that it works
+    logger.log(squalr_engine_common::logging::log_level::LogLevel::Info, "Logger initialized", None);
+
     // Temp
     let protection = MemoryProtectionEnum::WRITE | MemoryProtectionEnum::EXECUTE;
     let memory_type = MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE;
