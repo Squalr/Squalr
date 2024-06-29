@@ -1,3 +1,4 @@
+use lazy_static::lazy_static;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
@@ -40,4 +41,8 @@ impl Logger {
         let inner_message = exception.map(|e| e.to_string());
         self.log(log_level, message, inner_message.as_deref());
     }
+}
+
+lazy_static! {
+    pub static ref LOGGER: Logger = Logger::new();
 }

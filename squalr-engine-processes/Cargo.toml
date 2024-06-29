@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 squalr-engine-common = { path = "../squalr-engine-common" }
+sysinfo = ">=0.30"
+winapi = { version = ">=0.3", features = ["winuser", "shellapi"] }
 
 [build-dependencies]
 
