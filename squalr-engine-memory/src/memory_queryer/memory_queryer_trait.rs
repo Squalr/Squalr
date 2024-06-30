@@ -1,9 +1,9 @@
 use sysinfo::Pid;
+use crate::memory_queryer::memory_protection_enum::MemoryProtectionEnum;
+use crate::memory_queryer::memory_type_enum::MemoryTypeEnum;
+use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
 use crate::normalized_module::NormalizedModule;
 use crate::normalized_region::NormalizedRegion;
-use crate::memory_protection_enum::MemoryProtectionEnum;
-use crate::memory_type_enum::MemoryTypeEnum;
-use crate::region_bounds_handling::RegionBoundsHandling;
 
 pub trait IMemoryQueryer {
     fn get_virtual_pages(

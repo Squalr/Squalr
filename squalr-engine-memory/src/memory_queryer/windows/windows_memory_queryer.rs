@@ -1,9 +1,9 @@
-use crate::imemory_queryer::IMemoryQueryer;
+use crate::memory_queryer::memory_protection_enum::MemoryProtectionEnum;
+use crate::memory_queryer::memory_queryer_trait::IMemoryQueryer;
+use crate::memory_queryer::memory_type_enum::MemoryTypeEnum;
+use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
 use crate::normalized_region::NormalizedRegion;
 use crate::normalized_module::NormalizedModule;
-use crate::memory_protection_enum::MemoryProtectionEnum;
-use crate::memory_type_enum::MemoryTypeEnum;
-use crate::region_bounds_handling::RegionBoundsHandling;
 use core::mem::size_of;
 use std::ptr::null_mut;
 use sysinfo::Pid;
@@ -14,11 +14,11 @@ use winapi::um::memoryapi::VirtualQueryEx;
 use winapi::um::winnt::{HANDLE, PAGE_READWRITE, PAGE_EXECUTE, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE, PAGE_WRITECOPY, PAGE_EXECUTE_WRITECOPY,
     PROCESS_QUERY_INFORMATION, MEMORY_BASIC_INFORMATION, PROCESS_VM_READ};
 
-pub struct WindowsMemoryQuery;
+pub struct WindowsMemoryQueryer;
 
-impl WindowsMemoryQuery {
+impl WindowsMemoryQueryer {
     pub fn new() -> Self {
-        Self
+        WindowsMemoryQueryer
     }
 
     fn open_process(&self, process_id:  &Pid) -> HANDLE {
@@ -44,7 +44,7 @@ impl WindowsMemoryQuery {
     }
 }
 
-impl IMemoryQueryer for WindowsMemoryQuery {
+impl IMemoryQueryer for WindowsMemoryQueryer {
     fn get_virtual_pages(
         &self,
         process_id: &Pid,

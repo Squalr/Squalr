@@ -7,8 +7,6 @@ mod session_manager;
 
 use command_handlers::handle_commands;
 use shlex;
-use squalr_engine::engine_function;
-use squalr_engine_memory::normalized_flags::{MemoryProtectionEnum, MemoryTypeEnum};
 use std::io::{self, Write};
 use structopt::StructOpt;
 use squalr_engine_common::logging::logger::LOGGER;
@@ -20,15 +18,6 @@ fn main() {
     let log_listener = LogListener::new();
     LOGGER.subscribe(log_listener);
     LOGGER.log(LogLevel::Info, "Logger initialized", None);
-
-    // Temp
-    let protection = MemoryProtectionEnum::WRITE | MemoryProtectionEnum::EXECUTE;
-    let memory_type = MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE;
-    
-    println!("Memory Protection: {:?}", protection);
-    println!("Memory Type: {:?}", memory_type);
-    println!("{}", engine_function());
-    // Temp
 
     let mut stdout = io::stdout();
     let stdin = io::stdin();
