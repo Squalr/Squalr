@@ -4,6 +4,7 @@ use crate::session_manager::SESSION_MANAGER;
 use squalr_engine_common::logging::logger::LOGGER;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_memory::memory_reader::MemoryReader;
+use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 
 pub fn handle_memory_read(cmd: MemoryCommand) {
     if let MemoryCommand::Read { address, mut value } = cmd {
@@ -14,11 +15,8 @@ pub fn handle_memory_read(cmd: MemoryCommand) {
                 &format!("Reading value from address {}", address),
                 None
             );
-
-            let memory_reader = MemoryReader::instance();
-            let memory_reader = memory_reader.lock().expect("Failed to acquire memory reader lock");
-
-            match memory_reader.read(&opened_pid, address, &mut value) {
+            
+            match MemoryReader::instance().read(&opened_pid, address, &mut value) {
                 Ok(_) => {
                     LOGGER.log(
                         LogLevel::Info,

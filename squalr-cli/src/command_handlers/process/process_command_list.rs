@@ -5,7 +5,6 @@ use squalr_engine_processes::process_query::ProcessQuery;
 
 pub fn handle_process_list(cmd: ProcessCommand) {
     if let ProcessCommand::List { windowed, search_term, match_case, system_processes, limit } = cmd {
-        
         LOGGER.log(
             LogLevel::Info,
             &format!(
@@ -16,7 +15,6 @@ pub fn handle_process_list(cmd: ProcessCommand) {
         );
 
         let mut queryer = ProcessQuery::instance();
-
         let mut processes = queryer.get_processes();
 
         if let Some(limit) = limit {

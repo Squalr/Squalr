@@ -286,8 +286,10 @@ dependencies = [
 name = "squalr-engine-scanning"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "squalr-engine-architecture",
  "squalr-engine-memory",
+ "sysinfo",
 ]
 
 [[package]]

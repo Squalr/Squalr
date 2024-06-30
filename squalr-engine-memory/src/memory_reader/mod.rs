@@ -1,6 +1,7 @@
 pub mod memory_reader_trait;
-use std::sync::{Arc, Mutex};
+
 use crate::memory_reader::memory_reader_trait::IMemoryReader;
+use std::sync::Once;
 
 #[cfg(any(target_os = "linux"))]
 mod linux;
@@ -20,11 +21,20 @@ pub use crate::memory_reader::macos::macos_memory_reader::MacOsMemoryReader as M
 #[cfg(target_os = "windows")]
 pub use crate::memory_reader::windows::windows_memory_reader::WindowsMemoryReader as MemoryReaderImpl;
 
-
 pub struct MemoryReader;
 
 impl MemoryReader {
-    pub fn instance() -> Arc<Mutex<dyn IMemoryReader>> {
-        Arc::new(Mutex::new(MemoryReaderImpl::new()))
+    pub fn instance() -> &'static MemoryReaderImpl {
+        static mut SINGLETON: Option<MemoryReaderImpl> = None;
+        static INIT: Once = Once::new();
+
+        unsafe {
+            INIT.call_once(|| {
+                let instance = MemoryReaderImpl::new();
+                SINGLETON = Some(instance);
+            });
+
+            SINGLETON.as_ref().unwrap()
+        }
     }
 }

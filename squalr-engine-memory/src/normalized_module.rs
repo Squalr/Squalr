@@ -26,6 +26,25 @@ impl NormalizedModule {
         }
     }
 
+    pub fn new_from_normalized_region(normalized_region: NormalizedRegion, full_path: &str) -> Self {
+        let name = Path::new(full_path)
+            .file_name()
+            .unwrap_or_else(|| OsStr::new(""))
+            .to_str()
+            .unwrap_or("")
+            .to_string();
+
+        Self {
+            base_region: normalized_region,
+            name,
+            full_path: full_path.to_string(),
+        }
+    }
+    
+    pub fn into_base_region(self) -> NormalizedRegion {
+        self.base_region
+    }
+
     pub fn get_name(&self) -> &str {
         &self.name
     }
@@ -51,7 +70,11 @@ impl NormalizedModule {
     }
 
     pub fn contains_address(&self, address: u64) -> bool {
-        return self.base_region.contains_address(address);
+        self.base_region.contains_address(address)
+    }
+
+    pub fn get_base_region(&self) -> &NormalizedRegion {
+        return &self.base_region;
     }
 }
 

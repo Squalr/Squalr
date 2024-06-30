@@ -84,7 +84,7 @@ impl FieldValue {
             FieldValue::F32(_, _) => std::mem::size_of::<f32>(),
             FieldValue::F64(_, _) => std::mem::size_of::<f64>(),
             FieldValue::Bytes(ref bytes) => bytes.len(),
-            FieldValue::BitField { value, bits } => ((*bits + 7) / 8) as usize,
+            FieldValue::BitField { value: _, bits } => ((*bits + 7) / 8) as usize,
         }
     }
 
