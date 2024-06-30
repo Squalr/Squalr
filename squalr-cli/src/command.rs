@@ -1,17 +1,20 @@
 use structopt::StructOpt;
+use crate::command_handlers::memory::MemoryCommand;
 use crate::command_handlers::process::ProcessCommand;
-use crate::command_handlers::scan::ScanCommand;
 use crate::command_handlers::project::ProjectCommand;
+use crate::command_handlers::scan::ScanCommand;
 
 #[derive(StructOpt, Debug)]
 pub enum Command {
-    /// Process related commands
+    #[structopt(flatten)]
+    Memory(MemoryCommand),
+
     #[structopt(flatten)]
     Process(ProcessCommand),
-    /// Scan related commands
-    #[structopt(flatten)]
-    Scan(ScanCommand),
-    /// Project related commands
+
     #[structopt(flatten)]
     Project(ProjectCommand),
+
+    #[structopt(flatten)]
+    Scan(ScanCommand),
 }
