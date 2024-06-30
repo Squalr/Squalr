@@ -3,7 +3,7 @@ use crate::session_manager::SESSION_MANAGER;
 use squalr_engine_common::logging::logger::LOGGER;
 use squalr_engine_common::logging::log_level::LogLevel;
 
-pub fn handle_process_close(cmd: ProcessCommand) {
+pub fn handle_process_close(_cmd: ProcessCommand) {
     let mut session_manager = SESSION_MANAGER.lock().unwrap();
     if let Some(opened_pid) = session_manager.get_opened_process() {
         LOGGER.log(LogLevel::Info, &format!("Closing process {}", opened_pid.as_u32()), None);
