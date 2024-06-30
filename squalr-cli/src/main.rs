@@ -37,7 +37,7 @@ fn main() {
         let args = match shlex::split(input) {
             Some(args) => args,
             None => {
-                eprintln!("Error parsing input");
+                LOGGER.log(LogLevel::Error, "Error parsing input", None);
                 continue;
             }
         };
@@ -45,7 +45,7 @@ fn main() {
         let cli = match Cli::from_iter_safe(&args) {
             Ok(cli) => cli,
             Err(e) => {
-                eprintln!("{}", e);
+                LOGGER.log(LogLevel::Error, &format!("{}", e), None);
                 continue;
             }
         };

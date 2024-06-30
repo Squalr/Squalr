@@ -2,6 +2,8 @@ use crate::scan_settings::ScanSettings;
 use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 
+use squalr_engine_common::logging::logger::LOGGER;
+use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_memory::memory_queryer::memory_protection_enum::MemoryProtectionEnum;
 use squalr_engine_memory::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
@@ -12,11 +14,11 @@ use std::collections::HashSet;
 
 bitflags::bitflags! {
     pub struct SnapshotRetrievalMode: u32 {
-        const FROM_SETTINGS = 0b0001;
-        const FROM_USER_MODE_MEMORY = 0b0010;
-        const FROM_HEAPS = 0b0100;
-        const FROM_STACK = 0b1000;
-        const FROM_MODULES = 0b10000;
+        const FROM_SETTINGS         = 1 << 0;
+        const FROM_USER_MODE_MEMORY = 1 << 1;
+        const FROM_HEAPS            = 1 << 2;
+        const FROM_STACK            = 1 << 3;
+        const FROM_MODULES          = 1 << 4;
     }
 }
 
@@ -44,7 +46,7 @@ impl SnapshotQueryer {
             }
             SnapshotRetrievalMode::FROM_STACK => unimplemented!(),
             _ => {
-                eprintln!("Unknown snapshot retrieval mode");
+                LOGGER.log(LogLevel::Error, "Unknown snapshot retrieval mode", None);
                 Snapshot::new(String::from(""), vec![])
             }
         }
@@ -155,7 +157,6 @@ impl SnapshotQueryer {
     }    
 
     fn create_snapshot_from_heaps(process_id: &Pid) -> Snapshot {
-        let snapshot = SnapshotQueryer::create_snapshot_from_usermode_memory(process_id);
         let modules: HashSet<u64> = MemoryQueryer::instance()
             .get_modules(process_id)
             .into_iter()
@@ -167,7 +168,8 @@ impl SnapshotQueryer {
         let allowed_type_flags = MemoryTypeEnum::NONE | MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE;
         let start_address = 0;
         let end_address = MemoryQueryer::instance().get_max_usermode_address(process_id);
-    
+        
+        // Collect all virtual pages
         let virtual_pages = MemoryQueryer::instance().get_virtual_pages(
             process_id,
             required_page_flags,
@@ -177,7 +179,8 @@ impl SnapshotQueryer {
             end_address,
             RegionBoundsHandling::Exclude,
         );
-    
+        
+        // Exclude any virtual pages that are also modules (static)
         let memory_regions: Vec<SnapshotRegion> = virtual_pages
             .into_iter()
             .filter(|page| !modules.contains(&page.get_base_address()))
