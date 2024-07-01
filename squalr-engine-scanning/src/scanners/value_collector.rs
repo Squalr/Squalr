@@ -1,6 +1,5 @@
 use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-
 use futures::future::join_all;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -8,9 +7,8 @@ use squalr_engine_processes::process_info::ProcessInfo;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::RwLock;
 use std::time::Instant;
-
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -24,9 +22,8 @@ impl ValueCollector {
 
     pub fn collect_values(
         process_info: ProcessInfo,
-        snapshot: Box<Snapshot>,
+        snapshot: Arc<RwLock<Snapshot>>,
         task_identifier: Option<String>,
-        // optional_constraint: Option<ScanConstraints>,
         with_logging: bool,
     ) -> Arc<TrackableTask<()>> {
         let task = TrackableTask::<()>::create(
@@ -36,16 +33,15 @@ impl ValueCollector {
         );
 
         let process_info = Arc::new(process_info);
-        let snapshot = Arc::new(Mutex::new(snapshot));
 
         let task_handle: JoinHandle<()> = tokio::spawn({
             let task = task.clone();
-            
+            let process_info = process_info.clone();
+            let snapshot = snapshot.clone();
             async move {
                 let result = Self::collect_values_task(
                     process_info,
                     snapshot,
-                    // optional_constraint,
                     with_logging,
                     task.progress_callback(),
                     task.cancellation_token(),
@@ -62,19 +58,17 @@ impl ValueCollector {
 
     async fn collect_values_task(
         process_info: Arc<ProcessInfo>,
-        snapshot: Arc<Mutex<Box<Snapshot>>>,
-        // optional_constraint: Option<ScanConstraints>,
+        snapshot: Arc<RwLock<Snapshot>>,
         with_logging: bool,
         update_progress: UpdateProgress,
         cancellation_token: CancellationToken,
     ) {
-        let processed_regions = Arc::new(AtomicUsize::new(0));
         let region_count;
         let snapshot_regions;
 
         // Lock the snapshot briefly to extract the regions
         {
-            let mut snapshot = snapshot.lock().unwrap();
+            let mut snapshot = snapshot.write().unwrap();
             region_count = snapshot.snapshot_regions.len();
             snapshot_regions = std::mem::take(&mut snapshot.snapshot_regions);
         }
@@ -86,10 +80,9 @@ impl ValueCollector {
         let start_time = Instant::now();
 
         let results: Vec<JoinHandle<Option<SnapshotRegion>>> = snapshot_regions.into_iter().map(|mut region| {
-            // let optional_constraint = optional_constraint.clone();
+            let processed_regions = Arc::new(AtomicUsize::new(0));
             let update_progress = update_progress.clone();
             let cancellation_token = cancellation_token.clone();
-            let processed_regions = processed_regions.clone();
             let process_info = process_info.clone();
 
             tokio::spawn(async move {
@@ -98,10 +91,6 @@ impl ValueCollector {
                 }
 
                 region.read_all_memory(process_info.handle).unwrap();
-
-                // if let Some(constraint) = &optional_constraint {
-                //     region.set_alignment(constraint.alignment, constraint.element_size);
-                // }
 
                 let processed = processed_regions.fetch_add(1, Ordering::SeqCst);
                 if processed % 32 == 0 {
@@ -114,17 +103,12 @@ impl ValueCollector {
         }).collect();
 
         let results = join_all(results).await.into_iter().filter_map(|x| x.unwrap()).collect::<Vec<SnapshotRegion>>();
-
         let byte_count: u64 = results.iter().map(|r| r.get_region_size()).sum();
 
         // Lock the snapshot briefly to update it
         {
-            let mut snapshot = snapshot.lock().unwrap();
+            let mut snapshot = snapshot.write().unwrap();
             snapshot.set_snapshot_regions(results);
-
-            // if optional_constraint.is_some() {
-            //     snapshot.set_alignment(optional_constraint.unwrap().alignment);
-            // }
         }
 
         let duration = start_time.elapsed();
