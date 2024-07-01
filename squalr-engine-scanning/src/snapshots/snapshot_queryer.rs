@@ -9,8 +9,8 @@ use squalr_engine_memory::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_type_enum::MemoryTypeEnum;
 use squalr_engine_memory::memory_queryer::region_bounds_handling::RegionBoundsHandling;
-use sysinfo::Pid;
 use std::collections::HashSet;
+use sysinfo::Pid;
 
 bitflags::bitflags! {
     #[derive(PartialEq, Eq)]

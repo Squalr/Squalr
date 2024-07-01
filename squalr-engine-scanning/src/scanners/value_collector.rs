@@ -1,17 +1,17 @@
+use crate::snapshots::snapshot::Snapshot;
+use crate::snapshots::snapshot_region::SnapshotRegion;
+
+use futures::future::join_all;
+use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_processes::process_info::ProcessInfo;
+use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use sysinfo::Pid;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
-use futures::future::join_all;
-
-use crate::snapshots::snapshot::Snapshot;
-use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::tasks::trackable_task::TrackableTask;
 
 type UpdateProgress = Arc<dyn Fn(f32) + Send + Sync>;
 
@@ -21,7 +21,7 @@ impl ValueCollector {
     const NAME: &'static str = "Value Collector";
 
     pub fn collect_values(
-        process_id: Pid,
+        process_info: ProcessInfo,
         snapshot: Arc<Mutex<Snapshot>>,
         task_identifier: Option<String>,
         // optional_constraint: Option<ScanConstraints>,
@@ -39,7 +39,7 @@ impl ValueCollector {
             let task = task.clone();
             async move {
                 let result = Self::collect_values_task(
-                    process_id,
+                    &process_info,
                     snapshot_clone,
                     // optional_constraint,
                     with_logging,
@@ -58,7 +58,7 @@ impl ValueCollector {
     }
 
     async fn collect_values_task(
-        process_id: Pid,
+        process_info: &ProcessInfo,
         snapshot: Arc<Mutex<Snapshot>>,
         // optional_constraint: Option<ScanConstraints>,
         with_logging: bool,
@@ -78,7 +78,6 @@ impl ValueCollector {
         let regions: Vec<&SnapshotRegion> = snapshot.get_optimal_sorted_snapshot_regions().collect();
         let results: Vec<SnapshotRegion> = join_all(
             regions.into_iter().map(|region| {
-                let process_id = process_id.clone();
                 // let optional_constraint = optional_constraint.clone();
                 let update_progress = update_progress.clone();
                 let cancellation_token = cancellation_token.clone();
@@ -89,7 +88,7 @@ impl ValueCollector {
                     }
 
                     let mut region = region.clone();
-                    region.read_all_memory(&process_id).unwrap();
+                    region.read_all_memory(process_info.handle).unwrap();
 
                     // if let Some(constraint) = &optional_constraint {
                     //     region.set_alignment(constraint.alignment, constraint.element_size);

@@ -1,4 +1,5 @@
 use crate::floating_point_tolerance::FloatingPointTolerance;
+
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::sync::{Arc, RwLock};
 use std::sync::Once;

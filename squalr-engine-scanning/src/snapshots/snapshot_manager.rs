@@ -38,10 +38,7 @@ impl SnapshotManager {
         }
     }
 
-    pub fn get_active_snapshot_create_if_none(
-        &self,
-        process_id: &Pid,
-    ) -> Option<Snapshot> {
+    pub fn get_active_snapshot_create_if_none(&self, process_id: &Pid) -> Option<Snapshot> {
         let mut snapshots = self.snapshots.lock().unwrap();
 
         if snapshots.is_empty() || snapshots.front().unwrap().element_count == 0 {
@@ -123,16 +120,12 @@ impl SnapshotManager {
         }
     }
 
-    pub fn set_on_snapshots_updated<F>(&mut self, callback: F)
-    where
-        F: 'static + Fn(&SnapshotManager),
+    pub fn set_on_snapshots_updated<F>(&mut self, callback: F) where F: 'static + Fn(&SnapshotManager),
     {
         self.on_snapshots_updated = Some(Box::new(callback));
     }
 
-    pub fn set_on_new_snapshot<F>(&mut self, callback: F)
-    where
-        F: 'static + Fn(&SnapshotManager),
+    pub fn set_on_new_snapshot<F>(&mut self, callback: F) where F: 'static + Fn(&SnapshotManager),
     {
         self.on_new_snapshot = Some(Box::new(callback));
     }

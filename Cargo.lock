@@ -585,7 +585,7 @@ version = "0.1.0"
 dependencies = [
  "squalr-engine-common",
  "sysinfo",
- "winapi",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -608,6 +608,7 @@ dependencies = [
  "squalr-engine-architecture",
  "squalr-engine-common",
  "squalr-engine-memory",
+ "squalr-engine-processes",
  "sysinfo",
  "tokio",
  "tokio-util",

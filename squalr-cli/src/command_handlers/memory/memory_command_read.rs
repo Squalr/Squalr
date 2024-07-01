@@ -10,14 +10,14 @@ pub fn handle_memory_read(cmd: MemoryCommand) {
     if let MemoryCommand::Read { address, mut value } = cmd {
         let session_manager_lock = SessionManager::instance();
         let session_manager = session_manager_lock.read().unwrap();
-        if let Some(opened_pid) = session_manager.get_opened_process() {
+        if let Some(process_info) = session_manager.get_opened_process() {
             Logger::instance().log(
                 LogLevel::Info,
                 &format!("Reading value from address {}", address),
                 None
             );
             
-            match MemoryReader::instance().read(&opened_pid, address, &mut value) {
+            match MemoryReader::instance().read(process_info.handle, address, &mut value) {
                 Ok(_) => {
                     Logger::instance().log(
                         LogLevel::Info,

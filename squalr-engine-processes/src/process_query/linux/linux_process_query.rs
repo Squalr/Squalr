@@ -1,5 +1,6 @@
-use sysinfo::{Pid, System};
 use crate::process_query::IProcessQueryer;
+
+use sysinfo::{Pid, System};
 
 pub struct LinuxProcessQuery {
     system: System,
