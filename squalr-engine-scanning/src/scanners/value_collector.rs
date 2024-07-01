@@ -26,13 +26,12 @@ impl ValueCollector {
         task_identifier: Option<String>,
         with_logging: bool,
     ) -> Arc<TrackableTask<()>> {
+        
+        let process_info = Arc::new(process_info);
         let task = TrackableTask::<()>::create(
             ValueCollector::NAME.to_string(),
             Some(Uuid::new_v4()),
         );
-
-        let process_info = Arc::new(process_info);
-
         let task_handle: JoinHandle<()> = tokio::spawn({
             let task = task.clone();
             let process_info = process_info.clone();
@@ -42,8 +41,8 @@ impl ValueCollector {
                     process_info,
                     snapshot,
                     with_logging,
-                    task.progress_sender.clone(),
-                    task.cancellation_token(),
+                    task.get_progress_sender().clone(),
+                    task.get_cancellation_token(),
                 ).await;
                 
                 task.complete(());

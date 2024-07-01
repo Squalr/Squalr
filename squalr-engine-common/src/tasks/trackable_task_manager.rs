@@ -30,7 +30,7 @@ impl<T: Send + Sync + 'static> TrackableTaskManager<T> {
     }
 
     pub fn register_task(&self, task: Arc<TrackableTask<T>>) {
-        self.tasks.lock().unwrap().insert(task.task_identifier, task);
+        self.tasks.lock().unwrap().insert(task.get_task_identifier(), task);
     }
 
     pub fn remove_task(&self, task_identifier: Uuid) {

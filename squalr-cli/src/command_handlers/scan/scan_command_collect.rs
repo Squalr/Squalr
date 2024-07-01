@@ -27,7 +27,7 @@ pub async fn handle_collect_command(cmd: &mut ScanCommand) {
             );
 
             // Subscribe to progress updates
-            let mut progress_receiver = task.progress_receiver();
+            let mut progress_receiver = task.get_progress_receiver();
             spawn(async move {
                 while let Ok(progress) = progress_receiver.recv().await {
                     Logger::instance().log(LogLevel::Info, &format!("Progress: {:.2}%", progress), None);

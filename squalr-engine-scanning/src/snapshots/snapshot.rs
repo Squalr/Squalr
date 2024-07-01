@@ -4,7 +4,7 @@ use std::time::SystemTime;
 
 #[derive(Clone)]
 pub struct Snapshot {
-    snapshot_name: String,
+    name: String,
     byte_count: u64,
     element_count: u64,
     creation_time: SystemTime,
@@ -12,14 +12,18 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn new(snapshot_name: String, snapshot_regions: Vec<SnapshotRegion>) -> Self {
+    pub fn new(name: String, snapshot_regions: Vec<SnapshotRegion>) -> Self {
         Self {
-            snapshot_name,
+            name,
             byte_count: 0, // Placeholder, will be calculated
             element_count: 0, // Placeholder, will be calculated
             creation_time: SystemTime::now(),
             snapshot_regions,
         }
+    }
+
+    pub fn get_name(&self) -> String {
+        return self.name.clone();
     }
     
     pub fn set_snapshot_regions(&mut self, snapshot_regions: Vec<SnapshotRegion>) {
