@@ -34,6 +34,6 @@ impl Snapshot {
     pub fn get_optimal_sorted_snapshot_regions(&self) -> impl Iterator<Item = &SnapshotRegion> {
         let mut sorted_regions: Vec<&SnapshotRegion> = self.snapshot_regions.iter().collect();
         sorted_regions.sort_by_key(|region| -(region.get_region_size() as i64));
-        sorted_regions.into_iter()
+        return sorted_regions.into_iter();
     }
 }

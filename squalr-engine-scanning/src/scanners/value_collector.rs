@@ -34,12 +34,14 @@ impl ValueCollector {
         );
 
         let snapshot_clone = snapshot.clone();
+        let process_info = Arc::new(process_info);
 
         let task_handle: JoinHandle<()> = tokio::spawn({
             let task = task.clone();
+            let process_info = process_info.clone();
             async move {
                 let result = Self::collect_values_task(
-                    &process_info,
+                    process_info,
                     snapshot_clone,
                     // optional_constraint,
                     with_logging,
@@ -58,7 +60,7 @@ impl ValueCollector {
     }
 
     async fn collect_values_task(
-        process_info: &ProcessInfo,
+        process_info: Arc<ProcessInfo>,
         snapshot: Arc<Mutex<Snapshot>>,
         // optional_constraint: Option<ScanConstraints>,
         with_logging: bool,
@@ -75,39 +77,39 @@ impl ValueCollector {
 
         let start_time = Instant::now();
 
-        let regions: Vec<&SnapshotRegion> = snapshot.get_optimal_sorted_snapshot_regions().collect();
-        let results: Vec<SnapshotRegion> = join_all(
-            regions.into_iter().map(|region| {
-                // let optional_constraint = optional_constraint.clone();
-                let update_progress = update_progress.clone();
-                let cancellation_token = cancellation_token.clone();
-                let processed_regions = processed_regions.clone();
-                async move {
-                    if cancellation_token.is_cancelled() {
-                        return None;
-                    }
+        let regions: Vec<SnapshotRegion> = snapshot.snapshot_regions.clone(); // Clone snapshot regions to extend the lifetime
+        let region_count = regions.len();
 
-                    let mut region = region.clone();
-                    region.read_all_memory(process_info.handle).unwrap();
+        let results: Vec<JoinHandle<Option<SnapshotRegion>>> = regions.into_iter().map(|region| {
+            // let optional_constraint = optional_constraint.clone();
+            let update_progress = update_progress.clone();
+            let cancellation_token = cancellation_token.clone();
+            let processed_regions = processed_regions.clone();
+            let process_info = process_info.clone();
 
-                    // if let Some(constraint) = &optional_constraint {
-                    //     region.set_alignment(constraint.alignment, constraint.element_size);
-                    // }
-
-                    let processed = processed_regions.fetch_add(1, Ordering::SeqCst);
-                    if processed % 32 == 0 {
-                        let progress = (processed as f32 / total_regions as f32) * 100.0;
-                        update_progress(progress);
-                    }
-
-                    Some(region)
+            tokio::spawn(async move {
+                if cancellation_token.is_cancelled() {
+                    return None;
                 }
+
+                let mut region = region;
+                region.read_all_memory(process_info.handle).unwrap();
+
+                // if let Some(constraint) = &optional_constraint {
+                //     region.set_alignment(constraint.alignment, constraint.element_size);
+                // }
+
+                let processed = processed_regions.fetch_add(1, Ordering::SeqCst);
+                if processed % 32 == 0 {
+                    let progress = (processed as f32 / region_count as f32) * 100.0;
+                    update_progress(progress);
+                }
+
+                Some(region)
             })
-        )
-        .await
-        .into_iter()
-        .filter_map(|x| x)
-        .collect();
+        }).collect();
+
+        let results = join_all(results).await.into_iter().filter_map(|x| x.unwrap()).collect::<Vec<SnapshotRegion>>();
 
         let byte_count: u64 = results.iter().map(|r| r.get_region_size()).sum();
 
@@ -115,14 +117,14 @@ impl ValueCollector {
         new_snapshot.set_snapshot_regions(results);
 
         // if optional_constraint.is_some() {
-            // new_snapshot.set_alignment(optional_constraint.unwrap().alignment);
+        //     new_snapshot.set_alignment(optional_constraint.unwrap().alignment);
         // }
 
         let duration = start_time.elapsed();
 
         if with_logging {
-            Logger::instance().log(LogLevel::Info, &format!("Values collected in: {:?}" , duration), None);
-            Logger::instance().log(LogLevel::Info,  &format!("{} bytes read", byte_count), None);
+            Logger::instance().log(LogLevel::Info, &format!("Values collected in: {:?}", duration), None);
+            Logger::instance().log(LogLevel::Info, &format!("{} bytes read", byte_count), None);
         }
 
         new_snapshot
