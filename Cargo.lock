@@ -605,6 +605,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.6.0",
  "futures",
+ "rayon",
  "squalr-engine-architecture",
  "squalr-engine-common",
  "squalr-engine-memory",

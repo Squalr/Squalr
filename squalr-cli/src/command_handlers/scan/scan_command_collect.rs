@@ -4,7 +4,6 @@ use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use squalr_engine_scanning::snapshots::snapshot_manager::SnapshotManager;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
-use std::sync::{Arc, Mutex};
 
 pub fn handle_collect_command(cmd: ScanCommand) {
     let session_manager_lock = SessionManager::instance();
@@ -19,10 +18,10 @@ pub fn handle_collect_command(cmd: ScanCommand) {
     
             // Assuming we have a process ID and snapshot available
             if let Some(snapshot) = snapshot_manager.get_active_snapshot_create_if_none(&process_info.pid) {
-                let snapshot = Arc::new(Mutex::new(snapshot));
+                let snapshot = Box::new(snapshot);
 
                 let task = ValueCollector::collect_values(
-                    *process_info, // mismatched types expected `ProcessInfo`, found `&ProcessInfo`
+                    process_info.clone(),
                     snapshot,
                     None,
                     true,

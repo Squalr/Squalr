@@ -28,9 +28,9 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            result_read_interval: 1000,
-            table_read_interval: 1000,
-            freeze_interval: 1000,
+            result_read_interval: 2500,
+            table_read_interval: 2500,
+            freeze_interval: 50,
 
             memory_type_none: true,
             memory_type_private: false,

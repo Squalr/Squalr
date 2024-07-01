@@ -41,7 +41,7 @@ impl SnapshotManager {
     pub fn get_active_snapshot_create_if_none(&self, process_id: &Pid) -> Option<Snapshot> {
         let mut snapshots = self.snapshots.lock().unwrap();
 
-        if snapshots.is_empty() || snapshots.front().unwrap().element_count == 0 {
+        if snapshots.is_empty() || snapshots.front().unwrap().get_element_count() == 0 {
             let snapshot = SnapshotQueryer::get_snapshot(process_id, SnapshotRetrievalMode::FROM_SETTINGS);
             snapshots.push_front(snapshot.clone());
             return Some(snapshot);
@@ -53,7 +53,7 @@ impl SnapshotManager {
     pub fn get_active_snapshot(&self) -> Option<Snapshot> {
         let snapshots = self.snapshots.lock().unwrap();
 
-        if snapshots.is_empty() || snapshots.front().unwrap().element_count == 0 {
+        if snapshots.is_empty() || snapshots.front().unwrap().get_element_count() == 0 {
             return None;
         }
 
@@ -103,7 +103,7 @@ impl SnapshotManager {
         let mut snapshots = self.snapshots.lock().unwrap();
         let mut deleted_snapshots = self.deleted_snapshots.lock().unwrap();
 
-        if snapshots.front().map_or(false, |s| s.byte_count > SIZE_LIMIT) {
+        if snapshots.front().map_or(false, |s| s.get_byte_count() > SIZE_LIMIT) {
             snapshots.pop_front();
         }
 

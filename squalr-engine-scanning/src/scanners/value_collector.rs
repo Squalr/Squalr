@@ -7,8 +7,10 @@ use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_processes::process_info::ProcessInfo;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Instant;
+
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -22,34 +24,33 @@ impl ValueCollector {
 
     pub fn collect_values(
         process_info: ProcessInfo,
-        snapshot: Arc<Mutex<Snapshot>>,
+        snapshot: Box<Snapshot>,
         task_identifier: Option<String>,
         // optional_constraint: Option<ScanConstraints>,
         with_logging: bool,
-    ) -> Arc<TrackableTask<Snapshot>> {
-        let task = TrackableTask::<Snapshot>::create(
+    ) -> Arc<TrackableTask<()>> {
+        let task = TrackableTask::<()>::create(
             ValueCollector::NAME.to_string(),
             Some(Uuid::new_v4()),
             with_logging,
         );
 
-        let snapshot_clone = snapshot.clone();
         let process_info = Arc::new(process_info);
+        let snapshot = Arc::new(Mutex::new(snapshot));
 
         let task_handle: JoinHandle<()> = tokio::spawn({
             let task = task.clone();
-            let process_info = process_info.clone();
+            
             async move {
                 let result = Self::collect_values_task(
                     process_info,
-                    snapshot_clone,
+                    snapshot,
                     // optional_constraint,
                     with_logging,
                     task.progress_callback(),
                     task.cancellation_token(),
-                )
-                .await;
-
+                ).await;
+                
                 task.complete(result);
             }
         });
@@ -61,15 +62,22 @@ impl ValueCollector {
 
     async fn collect_values_task(
         process_info: Arc<ProcessInfo>,
-        snapshot: Arc<Mutex<Snapshot>>,
+        snapshot: Arc<Mutex<Box<Snapshot>>>,
         // optional_constraint: Option<ScanConstraints>,
         with_logging: bool,
         update_progress: UpdateProgress,
         cancellation_token: CancellationToken,
-    ) -> Snapshot {
+    ) {
         let processed_regions = Arc::new(AtomicUsize::new(0));
-        let snapshot = snapshot.lock().unwrap().clone();
-        let total_regions = snapshot.get_region_count();
+        let region_count;
+        let snapshot_regions;
+
+        // Lock the snapshot briefly to extract the regions
+        {
+            let mut snapshot = snapshot.lock().unwrap();
+            region_count = snapshot.snapshot_regions.len();
+            snapshot_regions = std::mem::take(&mut snapshot.snapshot_regions);
+        }
 
         if with_logging {
             Logger::instance().log(LogLevel::Info, "Reading values from memory...", None);
@@ -77,10 +85,7 @@ impl ValueCollector {
 
         let start_time = Instant::now();
 
-        let regions: Vec<SnapshotRegion> = snapshot.snapshot_regions.clone(); // Clone snapshot regions to extend the lifetime
-        let region_count = regions.len();
-
-        let results: Vec<JoinHandle<Option<SnapshotRegion>>> = regions.into_iter().map(|region| {
+        let results: Vec<JoinHandle<Option<SnapshotRegion>>> = snapshot_regions.into_iter().map(|mut region| {
             // let optional_constraint = optional_constraint.clone();
             let update_progress = update_progress.clone();
             let cancellation_token = cancellation_token.clone();
@@ -92,7 +97,6 @@ impl ValueCollector {
                     return None;
                 }
 
-                let mut region = region;
                 region.read_all_memory(process_info.handle).unwrap();
 
                 // if let Some(constraint) = &optional_constraint {
@@ -113,12 +117,15 @@ impl ValueCollector {
 
         let byte_count: u64 = results.iter().map(|r| r.get_region_size()).sum();
 
-        let mut new_snapshot = snapshot.clone();
-        new_snapshot.set_snapshot_regions(results);
+        // Lock the snapshot briefly to update it
+        {
+            let mut snapshot = snapshot.lock().unwrap();
+            snapshot.set_snapshot_regions(results);
 
-        // if optional_constraint.is_some() {
-        //     new_snapshot.set_alignment(optional_constraint.unwrap().alignment);
-        // }
+            // if optional_constraint.is_some() {
+            //     snapshot.set_alignment(optional_constraint.unwrap().alignment);
+            // }
+        }
 
         let duration = start_time.elapsed();
 
@@ -126,7 +133,5 @@ impl ValueCollector {
             Logger::instance().log(LogLevel::Info, &format!("Values collected in: {:?}", duration), None);
             Logger::instance().log(LogLevel::Info, &format!("{} bytes read", byte_count), None);
         }
-
-        new_snapshot
     }
 }

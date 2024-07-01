@@ -4,10 +4,10 @@ use std::time::SystemTime;
 
 #[derive(Clone)]
 pub struct Snapshot {
-    pub snapshot_name: String,
-    pub byte_count: u64,
-    pub element_count: u64,
-    pub creation_time: SystemTime,
+    snapshot_name: String,
+    byte_count: u64,
+    element_count: u64,
+    creation_time: SystemTime,
     pub snapshot_regions: Vec<SnapshotRegion>,
 }
 
@@ -35,5 +35,13 @@ impl Snapshot {
         let mut sorted_regions: Vec<&SnapshotRegion> = self.snapshot_regions.iter().collect();
         sorted_regions.sort_by_key(|region| -(region.get_region_size() as i64));
         return sorted_regions.into_iter();
+    }
+
+    pub fn get_byte_count(&self) -> u64 {
+        return self.byte_count;
+    }
+
+    pub fn get_element_count(&self) -> u64 {
+        return self.element_count;
     }
 }

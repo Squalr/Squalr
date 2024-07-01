@@ -1,7 +1,6 @@
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
-use sysinfo::Pid;
 
 #[derive(Debug, Clone)]
 pub struct SnapshotRegion {
