@@ -1,8 +1,9 @@
 use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_queryer::{SnapshotQueryer, SnapshotRetrievalMode};
-use sysinfo::Pid;
+
+use std::sync::{Arc, Mutex, RwLock, Once};
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use sysinfo::Pid;
 
 const SIZE_LIMIT: u64 = 1 << 28; // 256MB
 
@@ -14,12 +15,26 @@ pub struct SnapshotManager {
 }
 
 impl SnapshotManager {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             snapshots: Arc::new(Mutex::new(VecDeque::new())),
             deleted_snapshots: Arc::new(Mutex::new(Vec::new())),
             on_snapshots_updated: None,
             on_new_snapshot: None,
+        }
+    }
+
+    pub fn instance() -> Arc<RwLock<SnapshotManager>> {
+        static mut SINGLETON: Option<Arc<RwLock<SnapshotManager>>> = None;
+        static INIT: Once = Once::new();
+
+        unsafe {
+            INIT.call_once(|| {
+                let instance = Arc::new(RwLock::new(SnapshotManager::new()));
+                SINGLETON = Some(instance);
+            });
+
+            SINGLETON.as_ref().unwrap().clone()
         }
     }
 

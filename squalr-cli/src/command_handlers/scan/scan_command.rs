@@ -6,5 +6,6 @@ pub enum ScanCommand {
     Value {
         value: i32,
     },
-    // Add other scan commands here
+    /// Collect values for the current scan if one exist, otherwise collect for a new scan
+    Collect,
 }

@@ -1,6 +1,5 @@
 pub mod memory_reader_trait;
 
-use crate::memory_reader::memory_reader_trait::IMemoryReader;
 use std::sync::Once;
 
 #[cfg(any(target_os = "linux"))]

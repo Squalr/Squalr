@@ -4,7 +4,6 @@ use crate::snapshots::snapshot_region::SnapshotRegion;
 #[derive(Clone)]
 pub struct Snapshot {
     pub snapshot_name: String,
-    pub region_count: usize,
     pub byte_count: u64,
     pub element_count: u64,
     pub creation_time: SystemTime,
@@ -15,7 +14,6 @@ impl Snapshot {
     pub fn new(snapshot_name: String, snapshot_regions: Vec<SnapshotRegion>) -> Self {
         Self {
             snapshot_name,
-            region_count: snapshot_regions.len(),
             byte_count: 0, // Placeholder, will be calculated
             element_count: 0, // Placeholder, will be calculated
             creation_time: SystemTime::now(),
@@ -25,7 +23,16 @@ impl Snapshot {
     
     pub fn set_snapshot_regions(&mut self, snapshot_regions: Vec<SnapshotRegion>) {
         self.snapshot_regions = snapshot_regions;
-        self.region_count = self.snapshot_regions.len();
         self.creation_time = SystemTime::now();
+    }
+
+    pub fn get_region_count(&self) -> usize {
+        return self.snapshot_regions.len();
+    }
+
+    pub fn get_optimal_sorted_snapshot_regions(&self) -> impl Iterator<Item = &SnapshotRegion> {
+        let mut sorted_regions: Vec<&SnapshotRegion> = self.snapshot_regions.iter().collect();
+        sorted_regions.sort_by_key(|region| -(region.get_region_size() as i64));
+        sorted_regions.into_iter()
     }
 }

@@ -2,7 +2,7 @@ use crate::scan_settings::ScanSettings;
 use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 
-use squalr_engine_common::logging::logger::LOGGER;
+use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_memory::memory_queryer::memory_protection_enum::MemoryProtectionEnum;
 use squalr_engine_memory::memory_queryer::MemoryQueryer;
@@ -13,6 +13,7 @@ use sysinfo::Pid;
 use std::collections::HashSet;
 
 bitflags::bitflags! {
+    #[derive(PartialEq, Eq)]
     pub struct SnapshotRetrievalMode: u32 {
         const FROM_SETTINGS         = 1 << 0;
         const FROM_USER_MODE_MEMORY = 1 << 1;
@@ -46,7 +47,7 @@ impl SnapshotQueryer {
             }
             SnapshotRetrievalMode::FROM_STACK => unimplemented!(),
             _ => {
-                LOGGER.log(LogLevel::Error, "Unknown snapshot retrieval mode", None);
+                Logger::instance().log(LogLevel::Error, "Unknown snapshot retrieval mode", None);
                 Snapshot::new(String::from(""), vec![])
             }
         }

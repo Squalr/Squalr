@@ -1,4 +1,5 @@
 bitflags::bitflags! {
+    #[derive(PartialEq, Eq)]
     pub struct MemoryTypeEnum: u32 {
         const NONE = 0x1;
         const PRIVATE = 0x2;

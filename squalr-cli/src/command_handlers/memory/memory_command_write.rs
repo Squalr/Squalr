@@ -1,6 +1,6 @@
 use crate::command_handlers::memory::memory_command::MemoryCommand;
-use crate::session_manager::SESSION_MANAGER;
-use squalr_engine_common::logging::logger::LOGGER;
+use crate::session_manager::SessionManager;
+use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_memory::memory_writer::MemoryWriter;
 use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
@@ -8,10 +8,11 @@ use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 
 pub fn handle_memory_write(cmd: MemoryCommand) {
     if let MemoryCommand::Write { address, value } = cmd {
-        let session_manager = SESSION_MANAGER.lock().unwrap();
+        let session_manager_lock = SessionManager::instance();
+        let session_manager = session_manager_lock.read().unwrap();
         if let Some(opened_pid) = session_manager.get_opened_process() {
             // Log the memory write operation
-            LOGGER.log(
+            Logger::instance().log(
                 LogLevel::Info,
                 &format!(
                     "Writing value {:?} to address {}",
@@ -26,7 +27,7 @@ pub fn handle_memory_write(cmd: MemoryCommand) {
             // Perform the memory write operation
             MemoryWriter::instance().write_bytes(&opened_pid, address, &value_bytes);
         } else {
-            LOGGER.log(LogLevel::Info, "No process is opened to write to.", None);
+            Logger::instance().log(LogLevel::Info, "No process is opened to write to.", None);
         }
     }
 }

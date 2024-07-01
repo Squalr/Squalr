@@ -3,7 +3,6 @@ use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::sync::{Arc, RwLock};
 use std::sync::Once;
 
-#[derive(Default)]
 pub struct Config {
     pub result_read_interval: i32,
     pub table_read_interval: i32,
@@ -23,12 +22,30 @@ pub struct Config {
     pub start_address: u64,
     pub end_address: u64,
     pub is_usermode: bool,
-    pub use_multi_thread_scans: bool,
 }
 
-impl Config {
-    fn new() -> Self {
-        Self::default()
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            result_read_interval: 1000,
+            table_read_interval: 1000,
+            freeze_interval: 1000,
+            memory_type_none: false,
+            memory_type_private: true,
+            memory_type_image: true,
+            memory_type_mapped: false,
+            alignment: MemoryAlignment::Auto,
+            floating_point_tolerance: FloatingPointTolerance::default(),
+            required_write: false,
+            required_execute: false,
+            required_copy_on_write: false,
+            excluded_write: false,
+            excluded_execute: false,
+            excluded_copy_on_write: false,
+            start_address: 0,
+            end_address: u64::MAX,
+            is_usermode: true,
+        }
     }
 }
 
@@ -39,7 +56,7 @@ pub struct ScanSettings {
 impl ScanSettings {
     fn new() -> Self {
         Self {
-            config: Arc::new(RwLock::new(Config::new())),
+            config: Arc::new(RwLock::new(Config::default())),
         }
     }
     
@@ -199,14 +216,6 @@ impl ScanSettings {
 
     pub fn set_is_usermode(&self, value: bool) {
         self.config.write().unwrap().is_usermode = value;
-    }
-
-    pub fn get_use_multi_thread_scans(&self) -> bool {
-        return self.config.read().unwrap().use_multi_thread_scans;
-    }
-
-    pub fn set_use_multi_thread_scans(&self, value: bool) {
-        self.config.write().unwrap().use_multi_thread_scans = value;
     }
 
     pub fn get_resolve_auto_alignment(alignment: MemoryAlignment, data_type_size: i32) -> MemoryAlignment {

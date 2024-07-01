@@ -1,10 +1,9 @@
-use lazy_static::lazy_static;
-use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
-
 use crate::logging::log_level::LogLevel;
 use crate::logging::logger_observer::ILoggerObserver;
 use crate::logging::observer_handle::ObserverHandle;
+
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex, Once};
 
 pub struct Logger {
     observers: Arc<Mutex<HashSet<ObserverHandle>>>,
@@ -15,6 +14,20 @@ impl Logger {
     pub fn new() -> Self {
         Logger {
             observers: Arc::new(Mutex::new(HashSet::new())),
+        }
+    }
+    
+    pub fn instance() -> &'static Logger {
+        static mut SINGLETON: Option<Logger> = None;
+        static INIT: Once = Once::new();
+
+        unsafe {
+            INIT.call_once(|| {
+                let instance = Logger::new();
+                SINGLETON = Some(instance);
+            });
+
+            SINGLETON.as_ref().unwrap()
         }
     }
 
@@ -41,8 +54,4 @@ impl Logger {
         let inner_message = exception.map(|e| e.to_string());
         self.log(log_level, message, inner_message.as_deref());
     }
-}
-
-lazy_static! {
-    pub static ref LOGGER: Logger = Logger::new();
 }

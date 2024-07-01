@@ -1,5 +1,5 @@
 use sysinfo::{Pid, System};
-use squalr_engine_common::logging::logger::LOGGER;
+use squalr_engine_common::logging::logger::Logger;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -15,7 +15,7 @@ impl ProcessSession {
         if let Some(pid) = pid {
             let system_guard = system.lock().unwrap();
             if let Some(process) = system_guard.process(pid) {
-                LOGGER.log(
+                Logger::instance().log(
                     squalr_engine_common::logging::log_level::LogLevel::Info,
                     &format!("Attached to process: {} ({})", process.name(), process.pid().as_u32()),
                     None,

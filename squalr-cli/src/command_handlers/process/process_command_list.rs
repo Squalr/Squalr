@@ -1,11 +1,11 @@
 use crate::command_handlers::process::process_command::ProcessCommand;
-use squalr_engine_common::logging::logger::LOGGER;
+use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_processes::process_query::ProcessQuery;
 
 pub fn handle_process_list(cmd: ProcessCommand) {
     if let ProcessCommand::List { windowed, search_term, match_case, system_processes, limit } = cmd {
-        LOGGER.log(
+        Logger::instance().log(
             LogLevel::Info,
             &format!(
                 "Listing processes with options: windowed={}, search_term={:?}, match_case={}, system_processes={}, limit={:?}",
@@ -49,7 +49,7 @@ pub fn handle_process_list(cmd: ProcessCommand) {
 
         for pid in filtered_processes {
             if let Some(name) = queryer.get_process_name(pid) {
-                LOGGER.log(
+                Logger::instance().log(
                     LogLevel::Info,
                     &format!("PID: {}, Name: {}", pid, name),
                     None

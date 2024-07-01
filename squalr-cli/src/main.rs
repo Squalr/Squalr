@@ -9,15 +9,16 @@ use command_handlers::handle_commands;
 use shlex;
 use std::io::{self, Write};
 use structopt::StructOpt;
-use squalr_engine_common::logging::logger::LOGGER;
+use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use log_listener::LogListener;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     // Initialize logger
     let log_listener = LogListener::new();
-    LOGGER.subscribe(log_listener);
-    LOGGER.log(LogLevel::Info, "Logger initialized", None);
+    Logger::instance().subscribe(log_listener);
+    Logger::instance().log(LogLevel::Info, "Logger initialized", None);
 
     let mut stdout = io::stdout();
     let stdin = io::stdin();
@@ -37,7 +38,7 @@ fn main() {
         let args = match shlex::split(input) {
             Some(args) => args,
             None => {
-                LOGGER.log(LogLevel::Error, "Error parsing input", None);
+                Logger::instance().log(LogLevel::Error, "Error parsing input", None);
                 continue;
             }
         };
@@ -45,7 +46,7 @@ fn main() {
         let cli = match Cli::from_iter_safe(&args) {
             Ok(cli) => cli,
             Err(e) => {
-                LOGGER.log(LogLevel::Error, &format!("{}", e), None);
+                Logger::instance().log(LogLevel::Error, &format!("{}", e), None);
                 continue;
             }
         };

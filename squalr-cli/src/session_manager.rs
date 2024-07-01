@@ -1,19 +1,28 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock, Once};
 use sysinfo::Pid;
-use lazy_static::lazy_static;
-
-lazy_static! {
-    pub static ref SESSION_MANAGER: Arc<Mutex<SessionManager>> = Arc::new(Mutex::new(SessionManager::new()));
-}
 
 pub struct SessionManager {
     opened_process: Option<Pid>,
 }
 
 impl SessionManager {
-    pub fn new() -> Self {
+    fn new() -> Self {
         SessionManager {
             opened_process: None,
+        }
+    }
+    
+    pub fn instance() -> Arc<RwLock<SessionManager>> {
+        static mut SINGLETON: Option<Arc<RwLock<SessionManager>>> = None;
+        static INIT: Once = Once::new();
+
+        unsafe {
+            INIT.call_once(|| {
+                let instance = Arc::new(RwLock::new(SessionManager::new()));
+                SINGLETON = Some(instance);
+            });
+
+            SINGLETON.as_ref().unwrap().clone()
         }
     }
 

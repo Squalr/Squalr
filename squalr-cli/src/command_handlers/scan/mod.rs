@@ -1,12 +1,23 @@
 pub mod scan_command;
+pub mod scan_command_value;
+pub mod scan_command_collect;
+
 pub use scan_command::ScanCommand;
-use squalr_engine_common::logging::logger::LOGGER;
-use squalr_engine_common::logging::log_level::LogLevel;
+pub use scan_command_value::handle_value_command;
+pub use scan_command_collect::handle_collect_command;
+
+type ScanCommandHandler = fn(ScanCommand);
 
 pub fn handle_scan_command(cmd: ScanCommand) {
-    match cmd {
-        ScanCommand::Value { value } => {
-            LOGGER.log(LogLevel::Info, &format!("Scanning for value: {}", value), None);
+    let handlers: &[(ScanCommand, ScanCommandHandler)] = &[
+        (ScanCommand::Value { value: 0 }, handle_value_command),
+        (ScanCommand::Collect, handle_collect_command),
+    ];
+
+    for (command, handler) in handlers {
+        if std::mem::discriminant(&cmd) == std::mem::discriminant(command) {
+            handler(cmd);
+            return;
         }
     }
 }

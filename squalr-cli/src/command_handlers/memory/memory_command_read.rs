@@ -1,16 +1,17 @@
 use crate::command_handlers::memory::memory_command::MemoryCommand;
-use crate::session_manager::SESSION_MANAGER;
+use crate::session_manager::SessionManager;
 
-use squalr_engine_common::logging::logger::LOGGER;
+use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 
 pub fn handle_memory_read(cmd: MemoryCommand) {
     if let MemoryCommand::Read { address, mut value } = cmd {
-        let session_manager = SESSION_MANAGER.lock().unwrap();
+        let session_manager_lock = SessionManager::instance();
+        let session_manager = session_manager_lock.read().unwrap();
         if let Some(opened_pid) = session_manager.get_opened_process() {
-            LOGGER.log(
+            Logger::instance().log(
                 LogLevel::Info,
                 &format!("Reading value from address {}", address),
                 None
@@ -18,14 +19,14 @@ pub fn handle_memory_read(cmd: MemoryCommand) {
             
             match MemoryReader::instance().read(&opened_pid, address, &mut value) {
                 Ok(_) => {
-                    LOGGER.log(
+                    Logger::instance().log(
                         LogLevel::Info,
                         &format!("Read value {:?} from address {}", value, address),
                         None
                     );
                 }
                 Err(e) => {
-                    LOGGER.log(
+                    Logger::instance().log(
                         LogLevel::Error,
                         &format!("Failed to read memory: {}", e),
                         None
@@ -33,7 +34,7 @@ pub fn handle_memory_read(cmd: MemoryCommand) {
                 }
             }
         } else {
-            LOGGER.log(
+            Logger::instance().log(
                 LogLevel::Error,
                 "No opened process available.",
                 None
