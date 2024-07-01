@@ -1,12 +1,12 @@
-extern crate winapi;
-
-use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 use crate::memory_writer::memory_writer_trait::IMemoryWriter;
+
+use windows_sys::Win32::System::Threading::OpenProcess;
+use windows_sys::Win32::System::Diagnostics::Debug::WriteProcessMemory;
+use windows_sys::Win32::System::Threading::{PROCESS_VM_WRITE, PROCESS_VM_OPERATION};
+use windows_sys::Win32::System::Memory::{VirtualProtectEx, PAGE_READWRITE};
+use windows_sys::Win32::Foundation::CloseHandle;
+use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 use std::ptr::null_mut;
-use winapi::ctypes::c_void;
-use winapi::um::memoryapi::{WriteProcessMemory, VirtualProtectEx};
-use winapi::um::processthreadsapi::OpenProcess;
-use winapi::um::winnt::{PROCESS_VM_WRITE, PROCESS_VM_OPERATION, PAGE_READWRITE};
 use sysinfo::Pid;
 
 pub struct WindowsMemoryWriter;
@@ -21,15 +21,16 @@ impl WindowsMemoryWriter {
             OpenProcess(PROCESS_VM_WRITE | PROCESS_VM_OPERATION, 0, process_id.as_u32())
         };
         
-        if handle.is_null() {
+        if handle <= 0{
             return false;
         }
 
         let mut old_protection = 0;
         let success = unsafe {
-            VirtualProtectEx(handle, address as *mut c_void, data.len(), PAGE_READWRITE, &mut old_protection);
-            let success = WriteProcessMemory(handle, address as *mut c_void, data.as_ptr() as *const c_void, data.len(), null_mut()) != 0;
-            VirtualProtectEx(handle, address as *mut c_void, data.len(), old_protection, &mut old_protection);
+            VirtualProtectEx(handle, address as *mut _, data.len(), PAGE_READWRITE, &mut old_protection);
+            let success = WriteProcessMemory(handle, address as *mut _, data.as_ptr() as *const _, data.len(), null_mut()) != 0;
+            VirtualProtectEx(handle, address as *mut _, data.len(), old_protection, &mut old_protection);
+            CloseHandle(handle);
             success
         };
 

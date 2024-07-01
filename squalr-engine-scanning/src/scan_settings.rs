@@ -30,18 +30,23 @@ impl Default for Config {
             result_read_interval: 1000,
             table_read_interval: 1000,
             freeze_interval: 1000,
-            memory_type_none: false,
+
+            memory_type_none: true,
             memory_type_private: true,
             memory_type_image: true,
-            memory_type_mapped: false,
+            memory_type_mapped: true,
+
             alignment: MemoryAlignment::Auto,
             floating_point_tolerance: FloatingPointTolerance::default(),
+
             required_write: false,
             required_execute: false,
             required_copy_on_write: false,
+
             excluded_write: false,
             excluded_execute: false,
             excluded_copy_on_write: false,
+
             start_address: 0,
             end_address: u64::MAX,
             is_usermode: true,

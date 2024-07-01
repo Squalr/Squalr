@@ -576,7 +576,7 @@ dependencies = [
  "squalr-engine-processes",
  "sysinfo",
  "tokio-util",
- "winapi",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
