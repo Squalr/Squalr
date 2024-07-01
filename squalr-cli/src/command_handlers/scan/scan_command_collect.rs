@@ -28,7 +28,7 @@ pub fn handle_collect_command(cmd: ScanCommand) {
                 Logger::instance().log(LogLevel::Info, &format!("Progress: {:.2}%", progress), None);
             });
 
-            task.wait_for_completion();
+            let _ = task.wait_for_completion();
         } else {
             Logger::instance().log(LogLevel::Info, "No opened process", None);
         }

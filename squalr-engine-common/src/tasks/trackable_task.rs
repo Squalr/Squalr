@@ -1,7 +1,9 @@
+use crate::tasks::trackable_task_manager::TrackableTaskManager;
+
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
-use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use tokio::task::JoinHandle;
+use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use futures::future::BoxFuture;
@@ -11,7 +13,6 @@ type TaskCanceledCallback<T> = Box<dyn Fn(Arc<TrackableTask<T>>) + Send>;
 type TaskCompletedCallback<T> = Box<dyn Fn(Arc<TrackableTask<T>>) + Send>;
 type UpdateProgress = Arc<dyn Fn(f32) + Send + Sync>;
 
-#[derive(Clone)]
 pub struct TrackableTask<T: Send + Sync> {
     name: String,
     progress: Arc<Mutex<f32>>,
@@ -24,6 +25,7 @@ pub struct TrackableTask<T: Send + Sync> {
     result: Arc<Mutex<Option<T>>>,
     handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     cancellation_token: CancellationToken,
+    notify: Arc<Notify>,
 }
 
 impl<T: Send + Sync + 'static> TrackableTask<T> {
@@ -42,12 +44,13 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
             result: Arc::new(Mutex::new(None)),
             handle: Arc::new(Mutex::new(None)),
             cancellation_token: CancellationToken::new(),
+            notify: Arc::new(Notify::new()),
         };
 
         Arc::new(task)
     }
 
-    pub fn set_progress(&self, progress: f32) {
+    pub fn set_progress(self: &Arc<Self>, progress: f32) {
         let mut progress_guard = self.progress.lock().unwrap();
         *progress_guard = progress;
 
@@ -56,7 +59,7 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
         }
     }
 
-    pub fn cancel(self: Arc<Self>) {
+    pub fn cancel(self: &Arc<Self>) {
         self.is_canceled.store(true, Ordering::SeqCst);
         self.cancellation_token.cancel();
 
@@ -65,7 +68,7 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
         }
     }
 
-    pub fn complete(self: Arc<Self>, result: T) {
+    pub fn complete(self: &Arc<Self>, result: T) {
         self.is_completed.store(true, Ordering::SeqCst);
 
         {
@@ -80,7 +83,7 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
         TrackableTaskManager::<T>::instance().lock().unwrap().downcast_mut::<TrackableTaskManager<T>>().unwrap().remove_task(self.task_identifier);
     }
 
-    pub fn progress_callback(&self) -> UpdateProgress {
+    pub fn progress_callback(self: &Arc<Self>) -> UpdateProgress {
         let progress_arc = self.progress.clone();
         Arc::new(move |progress: f32| {
             let mut progress_guard = progress_arc.lock().unwrap();
@@ -92,38 +95,38 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
         self.cancellation_token.clone()
     }
 
-    pub fn add_handle(&self, handle: JoinHandle<()>) {
+    pub fn add_handle(self: &Arc<Self>, handle: JoinHandle<()>) {
         let mut handle_guard = self.handle.lock().unwrap();
         *handle_guard = Some(handle);
     }
 
-    pub fn on_canceled<F>(&self, callback: F)
-    where
-        F: Fn(Arc<TrackableTask<T>>) + Send + 'static,
+    pub fn on_canceled<F>(self: &Arc<Self>, callback: F) 
+    where F: Fn(Arc<TrackableTask<T>>) + Send + 'static,
     {
         *self.on_canceled_event.lock().unwrap() = Some(Box::new(callback));
     }
 
-    pub fn on_completed<F>(&self, callback: F)
-    where
-        F: Fn(Arc<TrackableTask<T>>) + Send + 'static,
+    pub fn on_completed<F>(self: &Arc<Self>, callback: F) 
+    where F: Fn(Arc<TrackableTask<T>>) + Send + 'static,
     {
         *self.on_completed_event.lock().unwrap() = Some(Box::new(callback));
     }
 
-    pub fn on_progress_updated<F>(&self, callback: F)
-    where
-        F: Fn(f32) + Send + Sync + 'static,
+    pub fn on_progress_updated<F>(self: &Arc<Self>, callback: F) 
+    where F: Fn(f32) + Send + Sync + 'static,
     {
         *self.on_progress_updated_event.lock().unwrap() = Some(Box::new(callback));
     }
 
     pub fn wait_for_completion(self: Arc<Self>) -> BoxFuture<'static, T> {
-        Box::pin(async move {
-            while !self.is_completed.load(Ordering::SeqCst) {
-                tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-            }
+        let notify = self.notify.clone();
+        let is_completed = self.is_completed.clone();
+        let result = self.result.clone();
 
+        Box::pin(async move {
+            notify.notified().await;
+            assert!(is_completed.load(Ordering::SeqCst));
+            
             let mut result_guard = self.result.lock().unwrap();
             result_guard.take().unwrap()
         })
