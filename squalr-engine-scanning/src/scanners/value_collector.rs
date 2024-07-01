@@ -1,5 +1,6 @@
 use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+
 use futures::future::join_all;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -12,8 +13,7 @@ use std::time::Instant;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
-
-type UpdateProgress = Arc<dyn Fn(f32) + Send + Sync>;
+use tokio::sync::broadcast;
 
 pub struct ValueCollector;
 
@@ -29,7 +29,6 @@ impl ValueCollector {
         let task = TrackableTask::<()>::create(
             ValueCollector::NAME.to_string(),
             Some(Uuid::new_v4()),
-            with_logging,
         );
 
         let process_info = Arc::new(process_info);
@@ -43,7 +42,7 @@ impl ValueCollector {
                     process_info,
                     snapshot,
                     with_logging,
-                    task.progress_callback(),
+                    task.progress_sender.clone(),
                     task.cancellation_token(),
                 ).await;
                 
@@ -60,7 +59,7 @@ impl ValueCollector {
         process_info: Arc<ProcessInfo>,
         snapshot: Arc<RwLock<Snapshot>>,
         with_logging: bool,
-        update_progress: UpdateProgress,
+        progress_sender: broadcast::Sender<f32>,
         cancellation_token: CancellationToken,
     ) {
         let region_count;
@@ -78,10 +77,11 @@ impl ValueCollector {
         }
 
         let start_time = Instant::now();
+        let processed_region_count = Arc::new(AtomicUsize::new(0));
 
         let results: Vec<JoinHandle<Option<SnapshotRegion>>> = snapshot_regions.into_iter().map(|mut region| {
-            let processed_regions = Arc::new(AtomicUsize::new(0));
-            let update_progress = update_progress.clone();
+            let processed_region_count = processed_region_count.clone();
+            let progress_sender = progress_sender.clone();
             let cancellation_token = cancellation_token.clone();
             let process_info = process_info.clone();
 
@@ -92,10 +92,10 @@ impl ValueCollector {
 
                 region.read_all_memory(process_info.handle).unwrap();
 
-                let processed = processed_regions.fetch_add(1, Ordering::SeqCst);
+                let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
                 if processed % 32 == 0 {
                     let progress = (processed as f32 / region_count as f32) * 100.0;
-                    update_progress(progress);
+                    let _ = progress_sender.send(progress);
                 }
 
                 Some(region)

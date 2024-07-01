@@ -3,15 +3,10 @@ use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::task::JoinHandle;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, broadcast, watch};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use futures::future::BoxFuture;
-
-type ProgressCallback = Box<dyn Fn(f32) + Send + Sync>;
-type TaskCanceledCallback<T> = Box<dyn Fn(Arc<TrackableTask<T>>) + Send>;
-type TaskCompletedCallback<T> = Box<dyn Fn(Arc<TrackableTask<T>>) + Send>;
-type UpdateProgress = Arc<dyn Fn(f32) + Send + Sync>;
 
 pub struct TrackableTask<T: Send + Sync> {
     name: String,
@@ -19,18 +14,24 @@ pub struct TrackableTask<T: Send + Sync> {
     pub task_identifier: Uuid,
     is_canceled: Arc<AtomicBool>,
     is_completed: Arc<AtomicBool>,
-    on_canceled_event: Arc<Mutex<Option<TaskCanceledCallback<T>>>>,
-    on_completed_event: Arc<Mutex<Option<TaskCompletedCallback<T>>>>,
-    on_progress_updated_event: Arc<Mutex<Option<ProgressCallback>>>,
     result: Arc<Mutex<Option<T>>>,
     handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     cancellation_token: CancellationToken,
     notify: Arc<Notify>,
+    pub progress_sender: broadcast::Sender<f32>,
+    progress_receiver: broadcast::Receiver<f32>,
+    completion_sender: broadcast::Sender<()>,
+    completion_receiver: broadcast::Receiver<()>,
+    cancel_sender: watch::Sender<bool>,
+    cancel_receiver: watch::Receiver<bool>,
 }
 
 impl<T: Send + Sync + 'static> TrackableTask<T> {
-    pub fn create(name: String, task_identifier: Option<Uuid>, with_logging: bool) -> Arc<Self> {
+    pub fn create(name: String, task_identifier: Option<Uuid>) -> Arc<Self> {
         let task_identifier = task_identifier.unwrap_or_else(Uuid::new_v4);
+        let (progress_sender, progress_receiver) = broadcast::channel(100);
+        let (completion_sender, completion_receiver) = broadcast::channel(1);
+        let (cancel_sender, cancel_receiver) = watch::channel(false);
 
         let task = TrackableTask {
             name,
@@ -38,13 +39,16 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
             task_identifier,
             is_canceled: Arc::new(AtomicBool::new(false)),
             is_completed: Arc::new(AtomicBool::new(false)),
-            on_canceled_event: Arc::new(Mutex::new(None)),
-            on_completed_event: Arc::new(Mutex::new(None)),
-            on_progress_updated_event: Arc::new(Mutex::new(None)),
             result: Arc::new(Mutex::new(None)),
             handle: Arc::new(Mutex::new(None)),
             cancellation_token: CancellationToken::new(),
             notify: Arc::new(Notify::new()),
+            progress_sender,
+            progress_receiver,
+            completion_sender,
+            completion_receiver,
+            cancel_sender,
+            cancel_receiver,
         };
 
         Arc::new(task)
@@ -53,19 +57,13 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
     pub fn set_progress(self: &Arc<Self>, progress: f32) {
         let mut progress_guard = self.progress.lock().unwrap();
         *progress_guard = progress;
-
-        if let Some(callback) = &*self.on_progress_updated_event.lock().unwrap() {
-            callback(progress);
-        }
+        let _ = self.progress_sender.send(progress);
     }
 
     pub fn cancel(self: &Arc<Self>) {
         self.is_canceled.store(true, Ordering::SeqCst);
         self.cancellation_token.cancel();
-
-        if let Some(callback) = &*self.on_canceled_event.lock().unwrap() {
-            callback(self.clone());
-        }
+        let _ = self.cancel_sender.send(true);
     }
 
     pub fn complete(self: &Arc<Self>, result: T) {
@@ -76,19 +74,20 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
             *result_guard = Some(result);
         }
 
-        if let Some(callback) = &*self.on_completed_event.lock().unwrap() {
-            callback(self.clone());
-        }
-
+        let _ = self.completion_sender.send(());
         TrackableTaskManager::<T>::instance().lock().unwrap().downcast_mut::<TrackableTaskManager<T>>().unwrap().remove_task(self.task_identifier);
     }
 
-    pub fn progress_callback(self: &Arc<Self>) -> UpdateProgress {
-        let progress_arc = self.progress.clone();
-        Arc::new(move |progress: f32| {
-            let mut progress_guard = progress_arc.lock().unwrap();
-            *progress_guard = progress;
-        })
+    pub fn progress_receiver(&self) -> broadcast::Receiver<f32> {
+        self.progress_sender.subscribe()
+    }
+
+    pub fn completion_receiver(&self) -> broadcast::Receiver<()> {
+        self.completion_sender.subscribe()
+    }
+
+    pub fn cancel_receiver(&self) -> watch::Receiver<bool> {
+        self.cancel_receiver.clone()
     }
 
     pub fn cancellation_token(&self) -> CancellationToken {
@@ -100,28 +99,9 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
         *handle_guard = Some(handle);
     }
 
-    pub fn on_canceled<F>(self: &Arc<Self>, callback: F) 
-    where F: Fn(Arc<TrackableTask<T>>) + Send + 'static,
-    {
-        *self.on_canceled_event.lock().unwrap() = Some(Box::new(callback));
-    }
-
-    pub fn on_completed<F>(self: &Arc<Self>, callback: F) 
-    where F: Fn(Arc<TrackableTask<T>>) + Send + 'static,
-    {
-        *self.on_completed_event.lock().unwrap() = Some(Box::new(callback));
-    }
-
-    pub fn on_progress_updated<F>(self: &Arc<Self>, callback: F) 
-    where F: Fn(f32) + Send + Sync + 'static,
-    {
-        *self.on_progress_updated_event.lock().unwrap() = Some(Box::new(callback));
-    }
-
     pub fn wait_for_completion(self: Arc<Self>) -> BoxFuture<'static, T> {
         let notify = self.notify.clone();
         let is_completed = self.is_completed.clone();
-        let result = self.result.clone();
 
         Box::pin(async move {
             notify.notified().await;
