@@ -6,7 +6,8 @@ use crate::normalized_region::NormalizedRegion;
 use crate::normalized_module::NormalizedModule;
 
 use core::mem::size_of;
-use sysinfo::Pid;
+use squalr_engine_processes::process_info::Bitness;
+use squalr_engine_processes::process_info::ProcessInfo;
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::System::ProcessStatus::{K32EnumProcessModulesEx, K32GetModuleFileNameExA, K32GetModuleInformation, MODULEINFO, LIST_MODULES_ALL};
 use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
@@ -20,8 +21,8 @@ impl WindowsMemoryQueryer {
         WindowsMemoryQueryer
     }
 
-    fn open_process(&self, process_id:  &Pid) -> HANDLE {
-        unsafe { OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, process_id.as_u32()) }
+    fn open_process(&self, process_info:  &ProcessInfo) -> HANDLE {
+        unsafe { OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, process_info.pid.as_u32()) }
     }
 
     fn get_protection_flags(&self, protection: &MemoryProtectionEnum) -> u32 {
@@ -46,7 +47,7 @@ impl WindowsMemoryQueryer {
 impl IMemoryQueryer for WindowsMemoryQueryer {
     fn get_virtual_pages(
         &self,
-        process_id: &Pid,
+        process_info: &ProcessInfo,
         required_protection: MemoryProtectionEnum,
         excluded_protection: MemoryProtectionEnum,
         allowed_types: MemoryTypeEnum,
@@ -54,7 +55,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         end_address: u64,
         region_bounds_handling: RegionBoundsHandling,
     ) -> Vec<NormalizedRegion> {
-        let process_handle = self.open_process(process_id);
+        let process_handle = self.open_process(process_info);
         let required_flags = self.get_protection_flags(&required_protection);
         let excluded_flags = self.get_protection_flags(&excluded_protection);
         let mut regions = Vec::new();
@@ -172,12 +173,12 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
     fn get_all_virtual_pages(
         &self,
-        process_id: &Pid,
+        process_info: &ProcessInfo,
     ) -> Vec<NormalizedRegion> {
         let start_address = 0;
-        let end_address = self.get_maximum_address(process_id);
+        let end_address = self.get_maximum_address(process_info);
         self.get_virtual_pages(
-            process_id,
+            process_info,
             MemoryProtectionEnum::NONE,
             MemoryProtectionEnum::NONE,
             MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE | MemoryTypeEnum::MAPPED,
@@ -187,13 +188,13 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         )
     }
 
-    fn is_address_writable(&self, process_id: &Pid, address: u64) -> bool {
+    fn is_address_writable(&self, process_info: &ProcessInfo, address: u64) -> bool {
         let start_address = address;
         let end_address = address;
         
         // Check for writability by searching for a page that includes the target address that is writable.
         return self.get_virtual_pages(
-            process_id,
+            process_info,
             MemoryProtectionEnum::WRITE,
             MemoryProtectionEnum::NONE,
             MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE | MemoryTypeEnum::MAPPED,
@@ -203,24 +204,36 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         ).len() > 0;
     }
 
-    fn get_maximum_address(&self, process_id: &Pid) -> u64 {
-        return u64::MAX; // TODO: Determine the maximum address based on the target architecture (x86 or x64)
+    fn get_maximum_address(&self, process_info: &ProcessInfo) -> u64 {
+        if process_info.bitness == Bitness::Bit32 {
+            return u32::MAX as u64;
+        }
+
+        return u64::MAX;
     }
 
-    fn get_min_usermode_address(&self, process_id: &Pid) -> u64 {
-        // In windows, anything below this is not addressable by a normal program
+    fn get_min_usermode_address(&self, _: &ProcessInfo) -> u64 {
+        // In windows, anything below this is not addressable by a normal program.
         return 0x10000;
     }
 
-    fn get_max_usermode_address(&self, process_id: &Pid) -> u64 {
-        return 0x7FFFFFFF_FFFF; // TODO: Determine the maximum address based on the target architecture (x86 or x64)
+    fn get_max_usermode_address(&self, process_info: &ProcessInfo) -> u64 {
+
+        if process_info.bitness == Bitness::Bit32 {
+            // For 32-bit applications, the usermode memory is generally the first 2GB of process RAM.
+            // TODO: Large Address Aware support? This is incredibly rare, but would be more correct to support.
+            return 0x7FFF_FFFF;
+        }
+        
+        // In windows, the max usermode address is arbitrarily set to this value for x64.
+        return 0x7FFF_FFFF_FFFF;
     }
 
     fn get_modules(
         &self,
-        process_id: &Pid,
+        process_info: &ProcessInfo,
     ) -> Vec<NormalizedModule> {
-        let process_handle = self.open_process(process_id);
+        let process_handle = self.open_process(process_info);
         let mut modules = Vec::new();
         let mut module_handles: [HMODULE; 1024] = [0 as HMODULE; 1024];
         let mut cb_needed = 0;
@@ -284,11 +297,11 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
     fn address_to_module(
         &self,
-        process_id: &Pid,
+        process_info: &ProcessInfo,
         address: u64,
         module_name: &mut String,
     ) -> u64 {
-        let modules = self.get_modules(process_id);
+        let modules = self.get_modules(process_info);
         
         for module in modules {
             if module.contains_address(address) {
@@ -303,10 +316,10 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
     fn resolve_module(
         &self,
-        process_id: &Pid,
+        process_info: &ProcessInfo,
         identifier: &str,
     ) -> u64 {
-        let modules = self.get_modules(process_id);
+        let modules = self.get_modules(process_info);
 
         for module in modules {
             if module.get_name().eq_ignore_ascii_case(identifier) {

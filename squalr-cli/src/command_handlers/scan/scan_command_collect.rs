@@ -1,5 +1,6 @@
 use crate::command_handlers::scan::ScanCommand;
 use crate::session_manager::SessionManager;
+
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use squalr_engine_scanning::snapshots::snapshot_manager::SnapshotManager;
 use squalr_engine_common::logging::logger::Logger;
@@ -17,7 +18,7 @@ pub async fn handle_collect_command(cmd: &mut ScanCommand) {
         if let Some(process_info) = session_manager.get_opened_process() {
             Logger::instance().log(LogLevel::Info, "Collecting values", None);
 
-            let snapshot = snapshot_manager.get_active_snapshot_create_if_none(&process_info.pid);
+            let snapshot = snapshot_manager.get_active_snapshot_create_if_none(&process_info);
             let task = ValueCollector::collect_values(
                 process_info.clone(),
                 snapshot,

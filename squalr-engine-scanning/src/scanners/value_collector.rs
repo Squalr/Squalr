@@ -11,9 +11,9 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Instant;
 use tokio::task::JoinHandle;
+use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
-use tokio::sync::broadcast;
 
 pub struct ValueCollector;
 

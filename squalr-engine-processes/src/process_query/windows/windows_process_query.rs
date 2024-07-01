@@ -1,12 +1,14 @@
+use crate::process_info::{Bitness, ProcessInfo};
 use crate::process_query::{IProcessQueryer, ProcessQueryOptions};
 
 use std::ffi::CString;
 use sysinfo::{Pid, System};
 use windows_sys::Win32::UI::WindowsAndMessaging::{HICON, FindWindowA, GetWindowThreadProcessId};
 use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_ALL_ACCESS};
-use windows_sys::Win32::Foundation::{HANDLE, CloseHandle};
+use windows_sys::Win32::Foundation::{HANDLE, CloseHandle, BOOL};
 use windows_sys::Win32::UI::Shell::ExtractIconA;
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
+use windows_sys::Win32::System::Threading::{IsWow64Process, IsWow64Process2};
 
 pub struct WindowsProcessQuery {
     system: System,
@@ -21,6 +23,30 @@ impl WindowsProcessQuery {
 
     fn get_process_name(&self, process_id: Pid) -> Option<String> {
         self.system.process(process_id).map(|process| process.name().to_string())
+    }
+
+    fn get_process_bitness(&self, handle: HANDLE) -> Bitness {
+        unsafe {
+            let mut is_wow64: BOOL = 0;
+            if IsWow64Process(handle, &mut is_wow64) != 0 {
+                if is_wow64 != 0 {
+                    return Bitness::Bit32;
+                } else {
+                    // Use IsWow64Process2 if available (Windows 10 and above)
+                    let mut process_machine: u16 = 0;
+                    let mut native_machine: u16 = 0;
+                    if IsWow64Process2(handle, &mut process_machine, &mut native_machine) != 0 {
+                        if process_machine == 0 {
+                            return Bitness::Bit64;
+                        } else {
+                            return Bitness::Bit32;
+                        }
+                    }
+                    return Bitness::Bit64;
+                }
+            }
+            Bitness::Bit64 // Default to 64-bit if check fails
+        }
     }
 }
 
@@ -102,13 +128,15 @@ impl IProcessQueryer for WindowsProcessQuery {
         }
     }
 
-    fn open_process(&self, process_id: &Pid) -> Result<u64, String> {
+    fn open_process(&self, process_id: &Pid) -> Result<ProcessInfo, String> {
         unsafe {
             let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_id.as_u32());
             if handle == 0 {
                 return Err("Failed to open process".to_string())
             } else {
-                return Ok(handle as u64);
+                let bitness = self.get_process_bitness(handle);
+                let process_info = ProcessInfo { pid: *process_id, handle: handle as u64, bitness };
+                return Ok(process_info);
             }
         }
     }

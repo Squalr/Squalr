@@ -17,11 +17,11 @@ pub async fn handle_process_open(cmd: &mut ProcessCommand) {
         let queryer = ProcessQuery::instance();
 
         match queryer.open_process(&pid) {
-            Ok(handle) => {
-                session_manager.set_opened_process(pid, handle);
+            Ok(process_info) => {
+                session_manager.set_opened_process(process_info);
                 Logger::instance().log(
                     LogLevel::Info,
-                    &format!("Process {} opened with handle {}", pid, handle),
+                    &format!("Process opened: {:?}", process_info),
                     None,
                 );
             },

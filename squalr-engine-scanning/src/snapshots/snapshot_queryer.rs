@@ -4,13 +4,13 @@ use crate::snapshots::snapshot_region::SnapshotRegion;
 
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_processes::process_info::ProcessInfo;
 use squalr_engine_memory::memory_queryer::memory_protection_enum::MemoryProtectionEnum;
 use squalr_engine_memory::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_type_enum::MemoryTypeEnum;
 use squalr_engine_memory::memory_queryer::region_bounds_handling::RegionBoundsHandling;
 use std::collections::HashSet;
-use sysinfo::Pid;
 
 bitflags::bitflags! {
     #[derive(PartialEq, Eq)]
@@ -29,21 +29,21 @@ impl SnapshotQueryer {
 
     // TODO: Support middle-ware for emulator types to filter down the address space
     pub fn get_snapshot(
-        process_id: &Pid,
+        process_info: &ProcessInfo,
         snapshot_creation_mode: SnapshotRetrievalMode,
     ) -> Snapshot {
         match snapshot_creation_mode {
             SnapshotRetrievalMode::FROM_SETTINGS => {
-                SnapshotQueryer::create_snapshot_from_settings(process_id)
+                SnapshotQueryer::create_snapshot_from_settings(process_info)
             }
             SnapshotRetrievalMode::FROM_USER_MODE_MEMORY => {
-                SnapshotQueryer::create_snapshot_from_usermode_memory(process_id)
+                SnapshotQueryer::create_snapshot_from_usermode_memory(process_info)
             }
             SnapshotRetrievalMode::FROM_MODULES => {
-                SnapshotQueryer::create_snapshot_from_modules(process_id)
+                SnapshotQueryer::create_snapshot_from_modules(process_info)
             }
             SnapshotRetrievalMode::FROM_HEAPS => {
-                SnapshotQueryer::create_snapshot_from_heaps(process_id)
+                SnapshotQueryer::create_snapshot_from_heaps(process_info)
             }
             SnapshotRetrievalMode::FROM_STACK => unimplemented!(),
             _ => {
@@ -54,7 +54,7 @@ impl SnapshotQueryer {
     }
 
     pub fn create_snapshot_by_address_range(
-        process_id: &Pid,
+        process_info: &ProcessInfo,
         start_address: u64,
         end_address: u64,
     ) -> Snapshot {
@@ -64,7 +64,7 @@ impl SnapshotQueryer {
         let bounds_handling = RegionBoundsHandling::Resize;
     
         let normalized_regions = MemoryQueryer::instance().get_virtual_pages(
-            process_id,
+            process_info,
             required_page_flags,
             excluded_page_flags,
             allowed_type_flags,
@@ -84,15 +84,15 @@ impl SnapshotQueryer {
     }
     
 
-    fn create_snapshot_from_usermode_memory(process_id: &Pid) -> Snapshot {
+    fn create_snapshot_from_usermode_memory(process_info: &ProcessInfo) -> Snapshot {
         let required_page_flags = MemoryProtectionEnum::empty();
         let excluded_page_flags = MemoryProtectionEnum::empty();
         let allowed_type_flags = MemoryTypeEnum::NONE | MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE;
         let start_address = 0;
-        let end_address = MemoryQueryer::instance().get_max_usermode_address(process_id);
+        let end_address = MemoryQueryer::instance().get_max_usermode_address(process_info);
     
         let normalized_regions = MemoryQueryer::instance().get_virtual_pages(
-            process_id,
+            process_info,
             required_page_flags,
             excluded_page_flags,
             allowed_type_flags,
@@ -112,13 +112,13 @@ impl SnapshotQueryer {
     }
     
 
-    fn create_snapshot_from_settings(process_id: &Pid) -> Snapshot {
+    fn create_snapshot_from_settings(process_info: &ProcessInfo) -> Snapshot {
         let required_page_flags = SnapshotQueryer::get_required_protection_settings();
         let excluded_page_flags = SnapshotQueryer::get_excluded_protection_settings();
         let allowed_type_flags = SnapshotQueryer::get_allowed_type_settings();
     
         let (start_address, end_address) = if ScanSettings::instance().is_usermode() {
-            (0, MemoryQueryer::instance().get_max_usermode_address(process_id))
+            (0, MemoryQueryer::instance().get_max_usermode_address(process_info))
         } else {
             (
                 ScanSettings::instance().get_start_address(),
@@ -127,7 +127,7 @@ impl SnapshotQueryer {
         };
     
         let normalized_regions = MemoryQueryer::instance().get_virtual_pages(
-            process_id,
+            process_info,
             required_page_flags,
             excluded_page_flags,
             allowed_type_flags,
@@ -146,10 +146,10 @@ impl SnapshotQueryer {
         Snapshot::new(String::from(""), snapshot_regions)
     }
     
-    fn create_snapshot_from_modules(process_id: &Pid) -> Snapshot {
+    fn create_snapshot_from_modules(process_info: &ProcessInfo) -> Snapshot {
         // Note that we use into_base_region to extract the base region without copying, instead taking ownership
         let module_regions: Vec<SnapshotRegion> = MemoryQueryer::instance()
-            .get_modules(process_id)
+            .get_modules(process_info)
             .into_iter()
             .map(|module| SnapshotRegion::new_from_normalized_region(module.into_base_region()))
             .collect();
@@ -157,9 +157,9 @@ impl SnapshotQueryer {
         Snapshot::new(String::from(""), module_regions)
     }    
 
-    fn create_snapshot_from_heaps(process_id: &Pid) -> Snapshot {
+    fn create_snapshot_from_heaps(process_info: &ProcessInfo) -> Snapshot {
         let modules: HashSet<u64> = MemoryQueryer::instance()
-            .get_modules(process_id)
+            .get_modules(process_info)
             .into_iter()
             .map(|module| module.get_base_address())
             .collect();
@@ -168,11 +168,11 @@ impl SnapshotQueryer {
         let excluded_page_flags = MemoryProtectionEnum::empty();
         let allowed_type_flags = MemoryTypeEnum::NONE | MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE;
         let start_address = 0;
-        let end_address = MemoryQueryer::instance().get_max_usermode_address(process_id);
+        let end_address = MemoryQueryer::instance().get_max_usermode_address(process_info);
         
         // Collect all virtual pages
         let virtual_pages = MemoryQueryer::instance().get_virtual_pages(
-            process_id,
+            process_info,
             required_page_flags,
             excluded_page_flags,
             allowed_type_flags,

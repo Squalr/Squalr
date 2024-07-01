@@ -1,6 +1,5 @@
 use std::sync::{Arc, RwLock, Once};
 use squalr_engine_processes::process_info::ProcessInfo;
-use sysinfo::Pid;
 
 pub struct SessionManager {
     opened_process: Option<ProcessInfo>,
@@ -27,8 +26,8 @@ impl SessionManager {
         }
     }
 
-    pub fn set_opened_process(&mut self, pid: Pid, handle: u64) {
-        self.opened_process = Some(ProcessInfo { pid, handle });
+    pub fn set_opened_process(&mut self, process_info: ProcessInfo) {
+        self.opened_process = Some(process_info);
     }
 
     pub fn clear_opened_process(&mut self) {

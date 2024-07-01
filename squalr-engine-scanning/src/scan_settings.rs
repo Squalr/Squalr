@@ -33,7 +33,7 @@ impl Default for Config {
             freeze_interval: 50,
 
             memory_type_none: true,
-            memory_type_private: false,
+            memory_type_private: true,
             memory_type_image: true,
             memory_type_mapped: true,
 

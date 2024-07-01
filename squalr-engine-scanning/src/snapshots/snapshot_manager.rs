@@ -1,9 +1,9 @@
 use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_queryer::{SnapshotQueryer, SnapshotRetrievalMode};
 
+use squalr_engine_processes::process_info::ProcessInfo;
 use std::sync::{Arc, RwLock, Mutex, Once};
 use std::collections::VecDeque;
-use sysinfo::Pid;
 
 const SIZE_LIMIT: u64 = 1 << 28; // 256MB
 
@@ -42,12 +42,12 @@ impl SnapshotManager {
         return self.current_snapshot.clone();
     }
 
-    pub fn get_active_snapshot_create_if_none(&mut self, process_id: &Pid) -> Arc<RwLock<Snapshot>> {
+    pub fn get_active_snapshot_create_if_none(&mut self, process_info: &ProcessInfo) -> Arc<RwLock<Snapshot>> {
         if let Some(snapshot) = &self.current_snapshot {
             return snapshot.clone();
         }
 
-        let snapshot = Arc::new(RwLock::new(SnapshotQueryer::get_snapshot(process_id, SnapshotRetrievalMode::FROM_SETTINGS)));
+        let snapshot = Arc::new(RwLock::new(SnapshotQueryer::get_snapshot(process_info, SnapshotRetrievalMode::FROM_SETTINGS)));
         self.current_snapshot = Some(snapshot.clone());
 
         if let Some(callback) = &self.on_new_snapshot {
