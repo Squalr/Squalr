@@ -13,7 +13,6 @@ use std::time::Instant;
 use tokio::task::JoinHandle;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
 
 pub struct ValueCollector;
 
@@ -30,7 +29,7 @@ impl ValueCollector {
         let process_info = Arc::new(process_info);
         let task = TrackableTask::<()>::create(
             ValueCollector::NAME.to_string(),
-            Some(Uuid::new_v4()),
+            task_identifier,
         );
         let task_handle: JoinHandle<()> = tokio::spawn({
             let task = task.clone();
@@ -67,6 +66,7 @@ impl ValueCollector {
         // Lock the snapshot briefly to extract the regions
         {
             let mut snapshot = snapshot.write().unwrap();
+            snapshot.sort_regions_for_scans();
             region_count = snapshot.snapshot_regions.len();
             snapshot_regions = std::mem::take(&mut snapshot.snapshot_regions);
         }
@@ -88,16 +88,22 @@ impl ValueCollector {
                 if cancellation_token.is_cancelled() {
                     return None;
                 }
-
-                region.read_all_memory(process_info.handle).unwrap();
-
-                let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
-                if processed % 32 == 0 {
-                    let progress = (processed as f32 / region_count as f32) * 100.0;
-                    let _ = progress_sender.send(progress);
+                
+                // Attempt to read new (or initial) memory values.
+                match region.read_all_memory(process_info.handle) {
+                    Ok(_) => {
+                        let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
+                        if processed % 32 == 0 {
+                            let progress = (processed as f32 / region_count as f32) * 100.0;
+                            let _ = progress_sender.send(progress);
+                        }
+                        return Some(region);
+                    },
+                    Err(_) => {
+                        // Memory region was probably deallocated. It happens, ignore it.
+                        return None;
+                    },
                 }
-
-                Some(region)
             })
         }).collect();
         

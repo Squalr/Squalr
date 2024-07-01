@@ -2,7 +2,6 @@ use crate::snapshots::snapshot_region::SnapshotRegion;
 
 use std::time::SystemTime;
 
-#[derive(Clone)]
 pub struct Snapshot {
     name: String,
     byte_count: u64,
@@ -26,7 +25,9 @@ impl Snapshot {
         return self.name.clone();
     }
     
-    pub fn set_snapshot_regions(&mut self, snapshot_regions: Vec<SnapshotRegion>) {
+    /// Assigns snapshot regions, sorting them by base address ascending.
+    pub fn set_snapshot_regions(&mut self, mut snapshot_regions: Vec<SnapshotRegion>) {
+        snapshot_regions.sort_by_key(|region| region.get_base_address());
         self.snapshot_regions = snapshot_regions;
         self.creation_time = SystemTime::now();
     }
@@ -35,10 +36,10 @@ impl Snapshot {
         return self.snapshot_regions.len();
     }
 
-    pub fn get_optimal_sorted_snapshot_regions(&self) -> impl Iterator<Item = &SnapshotRegion> {
-        let mut sorted_regions: Vec<&SnapshotRegion> = self.snapshot_regions.iter().collect();
-        sorted_regions.sort_by_key(|region| -(region.get_region_size() as i64));
-        return sorted_regions.into_iter();
+    /// Sorts the regions by region size descending. This significantly improves scan speeds by introducing a greedy algorithm.
+    /// Large regions require more work, so by processing them first, it is easier to distribute the remaining workload across threads.
+    pub fn sort_regions_for_scans(&mut self) {
+        self.snapshot_regions.sort_by_key(|region| -(region.get_region_size() as i64));
     }
 
     pub fn get_byte_count(&self) -> u64 {
