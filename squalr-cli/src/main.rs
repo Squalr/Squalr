@@ -43,7 +43,7 @@ async fn main() {
             }
         };
 
-        let cli = match Cli::from_iter_safe(&args) {
+        let mut cli = match Cli::from_iter_safe(&args) {
             Ok(cli) => cli,
             Err(e) => {
                 Logger::instance().log(LogLevel::Error, &format!("{}", e), None);
@@ -51,6 +51,6 @@ async fn main() {
             }
         };
 
-        handle_commands(cli.command);
+        handle_commands(&mut cli.command).await;
     }
 }

@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Endian {
     Little,
     Big,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FieldValue {
     U8(u8),
     U16(u16, Endian),

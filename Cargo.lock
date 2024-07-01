@@ -514,7 +514,7 @@ dependencies = [
 name = "squalr-cli"
 version = "0.1.0"
 dependencies = [
- "lazy_static",
+ "futures",
  "shlex",
  "squalr-engine",
  "squalr-engine-architecture",

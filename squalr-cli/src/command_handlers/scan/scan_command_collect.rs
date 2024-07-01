@@ -6,7 +6,7 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use tokio::spawn;
 
-pub fn handle_collect_command(cmd: ScanCommand) {
+pub async fn handle_collect_command(cmd: &mut ScanCommand) {
     let session_manager_lock = SessionManager::instance();
     let session_manager = session_manager_lock.read().unwrap();
 
@@ -34,10 +34,7 @@ pub fn handle_collect_command(cmd: ScanCommand) {
             });
 
             // Wait for completion
-            let completion_task = task.clone();
-            spawn(async move {
-                completion_task.wait_for_completion().await;
-            });
+            task.wait_for_completion().await;
         } else {
             Logger::instance().log(LogLevel::Info, "No opened process", None);
         }

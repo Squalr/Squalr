@@ -38,7 +38,7 @@ impl ValueCollector {
             let process_info = process_info.clone();
             let snapshot = snapshot.clone();
             async move {
-                let result = Self::collect_values_task(
+                Self::collect_values_task(
                     process_info,
                     snapshot,
                     with_logging,
@@ -46,7 +46,7 @@ impl ValueCollector {
                     task.cancellation_token(),
                 ).await;
                 
-                task.complete(result);
+                task.complete(());
             }
         });
 
@@ -101,7 +101,7 @@ impl ValueCollector {
                 Some(region)
             })
         }).collect();
-
+        
         let results = join_all(results).await.into_iter().filter_map(|x| x.unwrap()).collect::<Vec<SnapshotRegion>>();
         let byte_count: u64 = results.iter().map(|r| r.get_region_size()).sum();
 

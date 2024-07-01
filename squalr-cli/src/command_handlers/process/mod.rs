@@ -8,19 +8,10 @@ pub use process_command_list::handle_process_list;
 pub use process_command_open::handle_process_open;
 pub use process_command_close::handle_process_close;
 
-type ProcessCommandHandler = fn(ProcessCommand);
-
-pub fn handle_process_command(cmd: ProcessCommand) {
-    let handlers: &[(ProcessCommand, ProcessCommandHandler)] = &[
-        (ProcessCommand::Open { pid: 0 }, handle_process_open),
-        (ProcessCommand::List { windowed: false, search_term: None, match_case: false, system_processes: false, limit: None }, handle_process_list),
-        (ProcessCommand::Close, handle_process_close),
-    ];
-
-    for (command, handler) in handlers {
-        if std::mem::discriminant(&cmd) == std::mem::discriminant(command) {
-            handler(cmd);
-            return;
-        }
+pub async fn handle_process_command(cmd: &mut ProcessCommand) {
+    match cmd {
+        ProcessCommand::Open { .. } => { handle_process_open(cmd).await; }
+        ProcessCommand::List { .. } => { handle_process_list(cmd).await; }
+        ProcessCommand::Close => { handle_process_close(cmd).await; }
     }
 }

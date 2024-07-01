@@ -6,7 +6,7 @@ use squalr_engine_memory::memory_writer::MemoryWriter;
 use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
 use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 
-pub fn handle_memory_write(cmd: MemoryCommand) {
+pub async fn handle_memory_write(cmd: &mut MemoryCommand) {
     if let MemoryCommand::Write { address, value } = cmd {
         let session_manager_lock = SessionManager::instance();
         let session_manager = session_manager_lock.read().unwrap();
@@ -26,7 +26,7 @@ pub fn handle_memory_write(cmd: MemoryCommand) {
             let value_bytes = value.to_bytes();
             
             // Perform the memory write operation
-            MemoryWriter::instance().write_bytes(process_info.handle, address, &value_bytes);
+            MemoryWriter::instance().write_bytes(process_info.handle, *address, &value_bytes);
         } else {
             Logger::instance().log(LogLevel::Info, "No process is opened to write to.", None);
         }

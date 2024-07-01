@@ -74,7 +74,8 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
             *result_guard = Some(result);
         }
 
-        let _ = self.completion_sender.send(());
+        let _ = self.completion_sender.send(()); 
+        self.notify.notify_one();
         TrackableTaskManager::<T>::instance().lock().unwrap().downcast_mut::<TrackableTaskManager<T>>().unwrap().remove_task(self.task_identifier);
     }
 

@@ -5,7 +5,7 @@ use squalr_engine_processes::process_query::ProcessQuery;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 
-pub fn handle_process_close(_cmd: ProcessCommand) {
+pub async fn handle_process_close(_cmd: &mut ProcessCommand) {
     let session_manager_lock = SessionManager::instance();
     let mut session_manager = session_manager_lock.write().unwrap();
 

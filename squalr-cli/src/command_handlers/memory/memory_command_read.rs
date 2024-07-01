@@ -6,8 +6,8 @@ use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 
-pub fn handle_memory_read(cmd: MemoryCommand) {
-    if let MemoryCommand::Read { address, mut value } = cmd {
+pub async fn handle_memory_read(cmd: &mut MemoryCommand) {
+    if let MemoryCommand::Read { address, ref mut value } = cmd {
         let session_manager_lock = SessionManager::instance();
         let session_manager = session_manager_lock.read().unwrap();
         if let Some(process_info) = session_manager.get_opened_process() {
@@ -17,7 +17,7 @@ pub fn handle_memory_read(cmd: MemoryCommand) {
                 None
             );
             
-            match MemoryReader::instance().read(process_info.handle, address, &mut value) {
+            match MemoryReader::instance().read(process_info.handle, *address, value) {
                 Ok(_) => {
                     Logger::instance().log(
                         LogLevel::Info,
