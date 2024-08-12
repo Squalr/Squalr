@@ -1,6 +1,6 @@
 use crate::scanners::comparers::snapshot_element_range_scanner::{SnapshotElementRangeScanner, SnapshotElementRangeScannerTrait};
 use crate::scanners::comparers::snapshot_element_run_length_encoder::SnapshotElementRunLengthEncoder;
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::scanners::constraints::scan_constraint::{ConstraintType, ScanConstraint};
 use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
@@ -36,7 +36,54 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
 
     pub fn dispose(&mut self) {
         self.scanner.dispose();
-        // No explicit memory management needed in Rust for the pointers
+    }
+
+    pub fn get_run_length_encoder(&self) -> &SnapshotElementRunLengthEncoder<'a> {
+        return self.scanner.get_run_length_encoder();
+    }
+
+    pub fn set_run_length_encoder(&mut self, encoder: SnapshotElementRunLengthEncoder<'a>) {
+        self.scanner.set_run_length_encoder(encoder);
+    }
+
+    pub fn get_element_range(&self) -> Option<&'a SnapshotElementRange<'a>> {
+        return self.scanner.get_element_range();
+    }
+
+    pub fn set_element_range(&mut self, element_range: Option<&'a SnapshotElementRange<'a>>) {
+        self.scanner.set_element_range(element_range);
+    }
+
+    pub fn get_data_type_size(&self) -> usize {
+        return self.scanner.get_data_type_size();
+    }
+
+    pub fn set_data_type_size(&mut self, size: usize) {
+        self.scanner.set_data_type_size(size);
+    }
+
+    pub fn get_alignment(&self) -> MemoryAlignment {
+        return self.scanner.get_alignment();
+    }
+
+    pub fn set_alignment(&mut self, alignment: MemoryAlignment) {
+        self.scanner.set_alignment(alignment);
+    }
+
+    pub fn get_data_type(&self) -> &FieldValue {
+        return self.scanner.get_data_type();
+    }
+
+    pub fn set_data_type(&mut self, data_type: FieldValue) {
+        self.scanner.set_data_type(data_type);
+    }
+
+    pub fn get_on_dispose(&self) -> Option<&Box<dyn Fn() + 'a>> {
+        return self.scanner.get_on_dispose();
+    }
+
+    pub fn set_on_dispose(&mut self, on_dispose: Option<Box<dyn Fn() + 'a>>) {
+        self.scanner.set_on_dispose(on_dispose);
     }
 
     pub fn initialize_pointers(&mut self) {
@@ -51,24 +98,44 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         }
     }
 
-    pub fn build_compare_actions(&self, constraint: &ScanConstraints) -> Box<dyn Fn() -> bool + 'a> {
-        let root_constraint = constraint.get_root_constraint();
-        match root_constraint {
-            Some(scan_constraint) => match scan_constraint {
-                ScanConstraint::Unchanged => Box::new(move || self.get_comparison_unchanged()),
-                ScanConstraint::Changed => Box::new(move || self.get_comparison_changed()),
-                ScanConstraint::Increased => Box::new(move || self.get_comparison_increased()),
-                ScanConstraint::Decreased => Box::new(move || self.get_comparison_decreased()),
-                ScanConstraint::IncreasedByX(value) => Box::new(move || self.get_comparison_increased_by(value)),
-                ScanConstraint::DecreasedByX(value) => Box::new(move || self.get_comparison_decreased_by(value)),
-                ScanConstraint::Equal(value) => Box::new(move || self.get_comparison_equal(value)),
-                ScanConstraint::NotEqual(value) => Box::new(move || self.get_comparison_not_equal(value)),
-                ScanConstraint::GreaterThan(value) => Box::new(move || self.get_comparison_greater_than(value)),
-                ScanConstraint::GreaterThanOrEqual(value) => Box::new(move || self.get_comparison_greater_than_or_equal(value)),
-                ScanConstraint::LessThan(value) => Box::new(move || self.get_comparison_less_than(value)),
-                ScanConstraint::LessThanOrEqual(value) => Box::new(move || self.get_comparison_less_than_or_equal(value)),
-            },
-            None => Box::new(move || false), // Default to false if no constraint
+    pub fn build_compare_actions(&self, constraint: &ScanConstraint) -> Box<dyn Fn() -> bool + 'a> {
+        match constraint.constraint() {
+            ConstraintType::Unchanged => Box::new(move || self.get_comparison_unchanged()),
+            ConstraintType::Changed => Box::new(move || self.get_comparison_changed()),
+            ConstraintType::Increased => Box::new(move || self.get_comparison_increased()),
+            ConstraintType::Decreased => Box::new(move || self.get_comparison_decreased()),
+            ConstraintType::IncreasedByX => {
+                let value = constraint.constraint_value().cloned().unwrap_or_default();
+                Box::new(move || self.get_comparison_increased_by(value))
+            }
+            ConstraintType::DecreasedByX => {
+                let value = constraint.constraint_value().cloned().unwrap_or_default();
+                Box::new(move || self.get_comparison_decreased_by(value))
+            }
+            ConstraintType::Equal => {
+                let value = constraint.constraint_value().cloned().unwrap_or_default();
+                Box::new(move || self.get_comparison_equal(value))
+            }
+            ConstraintType::NotEqual => {
+                let value = constraint.constraint_value().cloned().unwrap_or_default();
+                Box::new(move || self.get_comparison_not_equal(value))
+            }
+            ConstraintType::GreaterThan => {
+                let value = constraint.constraint_value().cloned().unwrap_or_default();
+                Box::new(move || self.get_comparison_greater_than(value))
+            }
+            ConstraintType::GreaterThanOrEqual => {
+                let value = constraint.constraint_value().cloned().unwrap_or_default();
+                Box::new(move || self.get_comparison_greater_than_or_equal(value))
+            }
+            ConstraintType::LessThan => {
+                let value = constraint.constraint_value().cloned().unwrap_or_default();
+                Box::new(move || self.get_comparison_less_than(value))
+            }
+            ConstraintType::LessThanOrEqual => {
+                let value = constraint.constraint_value().cloned().unwrap_or_default();
+                Box::new(move || self.get_comparison_less_than_or_equal(value))
+            }
         }
     }
 
@@ -157,7 +224,7 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         }
     }
 
-    fn get_comparison_equal(&self, value: &FieldValue) -> bool {
+    fn get_comparison_equal(&self, value: FieldValue) -> bool {
         if let Some((current_value, _)) = self.get_current_previous_values() {
             current_value == *value
         } else {
@@ -165,7 +232,7 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         }
     }
 
-    fn get_comparison_not_equal(&self, value: &FieldValue) -> bool {
+    fn get_comparison_not_equal(&self, value: FieldValue) -> bool {
         if let Some((current_value, _)) = self.get_current_previous_values() {
             current_value != *value
         } else {
@@ -173,7 +240,7 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         }
     }
 
-    fn get_comparison_greater_than(&self, value: &FieldValue) -> bool {
+    fn get_comparison_greater_than(&self, value: FieldValue) -> bool {
         if let Some((current_value, _)) = self.get_current_previous_values() {
             current_value > *value
         } else {
@@ -181,7 +248,7 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         }
     }
 
-    fn get_comparison_greater_than_or_equal(&self, value: &FieldValue) -> bool {
+    fn get_comparison_greater_than_or_equal(&self, value: FieldValue) -> bool {
         if let Some((current_value, _)) = self.get_current_previous_values() {
             current_value >= *value
         } else {
@@ -189,7 +256,7 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         }
     }
 
-    fn get_comparison_less_than(&self, value: &FieldValue) -> bool {
+    fn get_comparison_less_than(&self, value: FieldValue) -> bool {
         if let Some((current_value, _)) = self.get_current_previous_values() {
             current_value < *value
         } else {
@@ -197,15 +264,14 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         }
     }
 
-    fn get_comparison_less_than_or_equal(&self, value: &FieldValue) -> bool {
+    fn get_comparison_less_than_or_equal(&self, value: FieldValue) -> bool {
         if let Some((current_value, _)) = self.get_current_previous_values() {
             current_value <= *value
         } else {
             false
         }
     }
-
-    fn get_comparison_increased_by(&self, value: &FieldValue) -> bool {
+    fn get_comparison_increased_by(&self, value: FieldValue) -> bool {
         if let Some((current_value, previous_value)) = self.get_current_previous_values() {
             match (current_value, previous_value) {
                 (FieldValue::U8(a), FieldValue::U8(b)) => a == b.wrapping_add(value.as_u8().unwrap()),
@@ -221,9 +287,9 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         } else {
             false
         }
-    }
+    }    
 
-    fn get_comparison_decreased_by(&self, value: &FieldValue) -> bool {
+    fn get_comparison_decreased_by(&self, value: FieldValue) -> bool {
         if let Some((current_value, previous_value)) = self.get_current_previous_values() {
             match (current_value, previous_value) {
                 (FieldValue::U8(a), FieldValue::U8(b)) => a == b.wrapping_sub(value.as_u8().unwrap()),

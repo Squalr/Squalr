@@ -1,30 +1,39 @@
 use crate::snapshots::snapshot_element_indexer::SnapshotElementIndexer;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
+use std::cell::RefCell;
 use std::iter::Iterator;
 
 #[derive(Debug, Clone)]
 pub struct SnapshotElementRange<'a> {
-    pub parent_region: &'a SnapshotRegion,
+    pub parent_region: &'a RefCell<SnapshotRegion>,
     pub region_offset: usize,
     pub range: usize,
 }
 
 impl<'a> SnapshotElementRange<'a> {
-    pub fn new(parent_region: &'a SnapshotRegion) -> Self {
-        Self::with_offset_and_range(parent_region, 0, parent_region.get_region_size() as usize)
+    pub fn new(parent_region: &'a RefCell<SnapshotRegion>) -> Self { // Adjust to accept a RefCell
+        Self::with_offset_and_range(parent_region, 0, parent_region.borrow().get_region_size() as usize)
     }
 
-    pub fn with_offset_and_range(parent_region: &'a SnapshotRegion, region_offset: usize, range: usize) -> Self {
+    pub fn with_offset_and_range(parent_region: &'a RefCell<SnapshotRegion>, region_offset: usize, range: usize) -> Self {
         Self {
             parent_region,
             region_offset,
             range,
         }
     }
+    
+    pub fn set_current_values(&mut self, values: Vec<u8>) {
+        self.parent_region.borrow_mut().set_current_values(values);
+    }
+
+    pub fn get_current_values(&self) -> Vec<u8> {
+        self.parent_region.borrow().current_values.clone()
+    }
 
     pub fn get_base_element_address(&self) -> u64 {
-        self.parent_region.get_base_address() + self.region_offset as u64
+        return self.parent_region.borrow().get_base_address() + self.region_offset as u64;
     }
 
     pub fn get_end_element_address(&self) -> u64 {
@@ -33,7 +42,7 @@ impl<'a> SnapshotElementRange<'a> {
 
     pub fn get_byte_count(&self, data_type_size: usize) -> usize {
         let desired_spill_over_bytes = if data_type_size > 1 { data_type_size - 1 } else { 0 };
-        let available_spill_over_bytes = (self.parent_region.get_base_address() + self.range as u64) - self.get_end_element_address();
+        let available_spill_over_bytes = (self.parent_region.borrow().get_base_address() + self.range as u64) - self.get_end_element_address();
         let used_spill_over_bytes = std::cmp::min(desired_spill_over_bytes, available_spill_over_bytes as usize);
 
         self.range + used_spill_over_bytes
@@ -45,7 +54,7 @@ impl<'a> SnapshotElementRange<'a> {
     }
 
     pub fn resize_for_safe_reading(&mut self, data_type_size: usize) {
-        let parent_region_size = self.parent_region.get_region_size() as usize;
+        let parent_region_size = self.parent_region.borrow().get_region_size() as usize;
         self.range = std::cmp::min(self.range, parent_region_size - self.region_offset - data_type_size);
     }
 

@@ -37,7 +37,7 @@ impl<'a> SnapshotElementRunLengthEncoder<'a> {
     pub fn finalize_current_encode_checked(&mut self, advance_byte_count: usize) {
         if self.is_encoding {
             if let Some(element_range) = self.element_range {
-                let absolute_address_start = element_range.parent_region.get_base_address() + self.run_length_encode_offset as u64;
+                let absolute_address_start = element_range.parent_region.borrow().get_base_address() + self.run_length_encode_offset as u64;
                 let absolute_address_end = absolute_address_start + self.run_length as u64;
 
                 if absolute_address_start >= element_range.get_base_element_address() && absolute_address_end <= element_range.get_end_element_address() {
@@ -70,9 +70,9 @@ impl<'a> SnapshotElementRunLengthEncoder<'a> {
             self.run_length = 0;
             self.is_encoding = false;
         }
-
+    
         self.run_length_encode_offset += advance_byte_count;
-    }
+    }    
 
     pub fn get_collected_regions(&self) -> &Vec<SnapshotElementRange<'a>> {
         &self.result_regions

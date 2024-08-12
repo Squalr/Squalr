@@ -6,6 +6,12 @@ pub enum Endian {
     Big,
 }
 
+impl Default for Endian {
+    fn default() -> Self {
+        Endian::Little
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum FieldValue {
     U8(u8),
@@ -20,6 +26,12 @@ pub enum FieldValue {
     F64(f64, Endian),
     Bytes(Vec<u8>),
     BitField { value: Vec<u8>, bits: u16 },
+}
+
+impl Default for FieldValue {
+    fn default() -> Self {
+        FieldValue::U8(0)
+    }
 }
 
 impl FieldValue {

@@ -10,20 +10,22 @@ pub struct SnapshotElementRangeScannerIterative<'a> {
 }
 
 impl<'a> SnapshotElementRangeScannerIterative<'a> {
-    pub fn new() -> Self {
-        Self {
-            base_scanner: SnapshotElementRangeScannerStandard::new(),
-            element_compare: None,
-            current_value_pointer: std::ptr::null(),
-            previous_value_pointer: std::ptr::null(),
+    fn initialize(&mut self, element_range: &'a SnapshotElementRange<'a>, constraints: &'a ScanConstraints) {
+        self.base_scanner.initialize(element_range, constraints);
+
+        if let Some(root_constraint) = constraints.get_root_constraint() {
+            let scan_constraint = root_constraint.borrow();
+            self.element_compare = Some(self.base_scanner.build_compare_actions(&scan_constraint));
         }
+
+        self.initialize_pointers(element_range);
     }
 
     pub fn scan_region(
         &mut self,
-        element_range: &SnapshotElementRange,
-        constraints: &ScanConstraints,
-    ) -> &Vec<SnapshotElementRange<'a>> {
+        element_range: &'a SnapshotElementRange<'a>,
+        constraints: &'a ScanConstraints,
+    ) -> Vec<SnapshotElementRange<'a>> {
         self.initialize(element_range, constraints);
 
         let aligned_element_count = element_range.get_aligned_element_count(constraints.get_alignment());
@@ -47,20 +49,14 @@ impl<'a> SnapshotElementRangeScannerIterative<'a> {
 
         self.base_scanner
             .get_run_length_encoder()
-            .finalize_current_encode_unchecked();
+            .finalize_current_encode_unchecked(0);
 
-        return self.base_scanner.get_run_length_encoder().get_collected_regions();
-    }
-
-    fn initialize(&mut self, element_range: &SnapshotElementRange, constraints: &ScanConstraints) {
-        self.base_scanner.initialize(&element_range.clone(), constraints);
-        self.element_compare = Some(self.base_scanner.build_compare_actions(constraints));
-        self.initialize_pointers(element_range);
+        self.base_scanner.get_run_length_encoder().get_collected_regions().clone()
     }
 
     fn initialize_pointers(&mut self, element_range: &SnapshotElementRange) {
-        let current_values = element_range.parent_region.current_values.as_ptr();
-        let previous_values = element_range.parent_region.previous_values.as_ptr();
+        let current_values = element_range.parent_region.borrow().current_values.as_ptr();
+        let previous_values = element_range.parent_region.borrow().previous_values.as_ptr();
 
         unsafe {
             self.current_value_pointer = current_values.add(element_range.region_offset);

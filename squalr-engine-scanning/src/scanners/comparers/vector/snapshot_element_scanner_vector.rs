@@ -1,10 +1,10 @@
 use crate::scanners::comparers::snapshot_element_range_scanner::SnapshotElementRangeScanner;
 use crate::scanners::constraints::operation_constraint::{OperationConstraint, OperationType};
-use crate::scanners::constraints::scan_constraint::ConstraintType;
+use crate::scanners::constraints::scan_constraint::{ScanConstraint,ConstraintType};
 use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
-use std::ops::BitAnd;
+use std::ops::{BitAnd, BitOr, BitXor};
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
 use std::simd::{u8x16, u16x8, u32x4, u64x2, i8x16, i16x8, i32x4, i64x2, f32x4, f64x2};
 
@@ -48,8 +48,8 @@ impl<'a> SnapshotElementScannerVector<'a> {
         &mut self,
         false_mask: u8x16,
         vector_increment_size: usize,
-        vector_comparer: &dyn Fn() -> u8x16,
-    ) -> Vec<SnapshotElementRange> {
+        vector_comparer: Box<dyn Fn() -> u8x16 + 'a>,
+    ) -> Vec<SnapshotElementRange<'a>> {
         // This algorithm has three stages:
         // 1) Scan the first vector of memory, which may contain elements outside of the intended range. For example, in <x, x, x, x ... y, y, y, y>,
         //      where x is data outside the element range (but within the snapshot region), and y is within the region we are scanning.
@@ -59,7 +59,7 @@ impl<'a> SnapshotElementScannerVector<'a> {
         //      This works exactly like the first scan, but reversed. ie <y, y, y, y, ... x, x, x, x>, where x values are masked to be false.
         //      Note: This mask may also be applied to the first scan, if it is also the last scan (ie only 1 scan total for this region).
         
-        let mut scan_count = (self.base_scanner.element_range.as_ref().unwrap().range / 16)
+        let mut scan_count = (self.base_scanner.get_element_range().as_ref().unwrap().range / 16)
             + if self.last_scan_vector_overread > 0 { 1 } else { 0 };
         let misalignment_mask = self.build_vector_misalignment_mask();
         let overread_mask = self.build_vector_overread_mask();
@@ -75,14 +75,14 @@ impl<'a> SnapshotElementScannerVector<'a> {
                     u8x16::splat(0xFF)
                 });
             self.base_scanner
-                .run_length_encoder
+                .get_run_length_encoder()
                 .adjust_for_misalignment(self.first_scan_vector_misalignment);
             self.encode_scan_results(run_length_encoded_scan_result);
             self.vector_read_offset += vector_increment_size;
         }
 
         // Perform middle scans
-        while self.vector_read_offset < self.base_scanner.element_range.as_ref().unwrap().range - 16 {
+        while self.vector_read_offset < self.base_scanner.get_element_range().as_ref().unwrap().range - 16 {
             run_length_encoded_scan_result = vector_comparer();
             self.encode_scan_results(run_length_encoded_scan_result);
             self.vector_read_offset += vector_increment_size;
@@ -96,8 +96,8 @@ impl<'a> SnapshotElementScannerVector<'a> {
             self.vector_read_offset += vector_increment_size;
         }
 
-        self.base_scanner.run_length_encoder.finalize_current_encode_unchecked();
-        self.base_scanner.run_length_encoder.get_collected_regions()
+        self.base_scanner.get_run_length_encoder().finalize_current_encode_unchecked();
+        self.base_scanner.get_run_length_encoder().get_collected_regions()
     }
 
     fn build_vector_misalignment_mask(&self) -> u8x16 {
@@ -132,19 +132,19 @@ impl<'a> SnapshotElementScannerVector<'a> {
         let all_eq = scan_results.simd_eq(false_mask).to_array().iter().all(|&x| x);
     
         if all_gt {
-            self.base_scanner.run_length_encoder.encode_range(16);
+            self.base_scanner.get_run_length_encoder().encode_range(16);
         } else if all_eq {
-            self.base_scanner.run_length_encoder.finalize_current_encode_unchecked(16);
+            self.base_scanner.get_run_length_encoder().finalize_current_encode_unchecked(16);
         } else {
-            for i in (0..16).step_by(self.base_scanner.alignment as usize) {
+            for i in (0..16).step_by(self.base_scanner.get_alignment() as usize) {
                 if scan_results[i as usize] != false_mask[i as usize] {
                     self.base_scanner
-                        .run_length_encoder
-                        .encode_range(self.base_scanner.alignment as usize);
+                        .get_run_length_encoder()
+                        .encode_range(self.base_scanner.get_alignment() as usize);
                 } else {
                     self.base_scanner
-                        .run_length_encoder
-                        .finalize_current_encode_unchecked(self.base_scanner.alignment as usize);
+                        .get_run_length_encoder()
+                        .finalize_current_encode_unchecked(self.base_scanner.get_alignment() as usize);
                 }
             }
         }
@@ -153,11 +153,11 @@ impl<'a> SnapshotElementScannerVector<'a> {
     
 
     fn calculate_first_scan_vector_misalignment(&self) -> usize {
-        let parent_region_size = self.base_scanner.element_range.as_ref().unwrap().parent_region.region_size;
-        let range_region_offset = self.base_scanner.element_range.as_ref().unwrap().region_offset;
+        let parent_region_size = self.base_scanner.get_element_range().as_ref().unwrap().parent_region.region_size;
+        let range_region_offset = self.base_scanner.get_element_range().as_ref().unwrap().region_offset;
         let available_byte_count = parent_region_size - range_region_offset;
         let vector_spill_over = available_byte_count % 16;
-        if vector_spill_over == 0 || range_region_offset + self.base_scanner.element_range.as_ref().unwrap().range + vector_spill_over < parent_region_size {
+        if vector_spill_over == 0 || range_region_offset + self.base_scanner.get_element_range().as_ref().unwrap().range + vector_spill_over < parent_region_size {
             0
         } else {
             16 - vector_spill_over
@@ -165,7 +165,7 @@ impl<'a> SnapshotElementScannerVector<'a> {
     }
 
     fn calculate_last_scan_vector_overread(&self) -> usize {
-        let remaining_bytes = self.base_scanner.element_range.as_ref().unwrap().range % 16;
+        let remaining_bytes = self.base_scanner.get_element_range().as_ref().unwrap().range % 16;
         if remaining_bytes == 0 {
             0
         } else {
@@ -190,9 +190,9 @@ impl<'a> SnapshotElementScannerVector<'a> {
         let right = self.build_compare_actions(&operation_constraint.right);
 
         match operation_constraint.binary_operation {
-            OperationType::AND => Box::new(move || left().bitand(right())),
-            OperationType::OR => Box::new(move || left().bitor(right())),
-            OperationType::XOR => Box::new(move || left().bitxor(right())),
+            OperationType::And => Box::new(move || left().bitand(right())),
+            OperationType::Or => Box::new(move || left().bitor(right())),
+            OperationType::Xor => Box::new(move || left().bitxor(right())),
         }
     }
 

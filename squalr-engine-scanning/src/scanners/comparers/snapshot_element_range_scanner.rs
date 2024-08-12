@@ -82,62 +82,50 @@ impl<'a> SnapshotElementRangeScanner<'a> {
         }
     }
 
-    // Getter for run_length_encoder
     pub fn get_run_length_encoder(&self) -> &SnapshotElementRunLengthEncoder<'a> {
         return &self.run_length_encoder;
     }
 
-    // Setter for run_length_encoder
     pub fn set_run_length_encoder(&mut self, encoder: SnapshotElementRunLengthEncoder<'a>) {
         self.run_length_encoder = encoder;
     }
 
-    // Getter for element_range
     pub fn get_element_range(&self) -> Option<&'a SnapshotElementRange<'a>> {
         return self.element_range;
     }
 
-    // Setter for element_range
     pub fn set_element_range(&mut self, element_range: Option<&'a SnapshotElementRange<'a>>) {
         self.element_range = element_range;
     }
 
-    // Getter for data_type_size
     pub fn get_data_type_size(&self) -> usize {
         return self.data_type_size;
     }
 
-    // Setter for data_type_size
     pub fn set_data_type_size(&mut self, size: usize) {
         self.data_type_size = size;
     }
 
-    // Getter for alignment
     pub fn get_alignment(&self) -> MemoryAlignment {
         return self.alignment;
     }
 
-    // Setter for alignment
     pub fn set_alignment(&mut self, alignment: MemoryAlignment) {
         self.alignment = alignment;
     }
 
-    // Getter for data_type
     pub fn get_data_type(&self) -> &FieldValue {
         return &self.data_type;
     }
 
-    // Setter for data_type
     pub fn set_data_type(&mut self, data_type: FieldValue) {
         self.data_type = data_type;
     }
 
-    // Getter for on_dispose
     pub fn get_on_dispose(&self) -> Option<&Box<dyn Fn() + 'a>> {
         return self.on_dispose.as_ref();
     }
 
-    // Setter for on_dispose
     pub fn set_on_dispose(&mut self, on_dispose: Option<Box<dyn Fn() + 'a>>) {
         self.on_dispose = on_dispose;
     }

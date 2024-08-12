@@ -30,6 +30,10 @@ impl SnapshotRegion {
         self.previous_values = std::mem::replace(&mut self.current_values, values);
     }
 
+    pub fn get_current_values(&self) -> &Vec<u8> {
+        return &self.current_values;
+    }
+
     pub fn read_all_memory(&mut self, process_handle: u64) -> Result<(), String> {
         let region_size = self.get_region_size();
         self.current_values.resize(region_size as usize, 0);
