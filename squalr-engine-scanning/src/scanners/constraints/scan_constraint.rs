@@ -20,7 +20,7 @@ pub enum ConstraintType {
 
 #[derive(Debug, Clone)]
 pub struct ScanConstraint {
-    constraint: ConstraintType,
+    constraint_type: ConstraintType,
     constraint_value: Option<FieldValue>,
     constraint_args: Option<FieldValue>,
 }
@@ -28,38 +28,38 @@ pub struct ScanConstraint {
 impl ScanConstraint {
     pub fn new() -> Self {
         Self {
-            constraint: ConstraintType::Changed,
+            constraint_type: ConstraintType::Changed,
             constraint_value: None,
             constraint_args: None,
         }
     }
 
     pub fn with_value(
-        constraint: ConstraintType,
+        constraint_type: ConstraintType,
         value: Option<FieldValue>,
         args: Option<FieldValue>,
     ) -> Self {
         Self {
-            constraint,
+            constraint_type,
             constraint_value: value,
             constraint_args: args,
         }
     }
 
-    pub fn constraint(&self) -> ConstraintType {
-        self.constraint.clone()
+    pub fn get_constraint_type(&self) -> ConstraintType {
+        self.constraint_type.clone()
     }
 
-    pub fn set_constraint(&mut self, constraint: ConstraintType) {
-        self.constraint = constraint;
+    pub fn set_constraint(&mut self, constraint_type: ConstraintType) {
+        self.constraint_type = constraint_type;
         self.constraint_value = self.constraint_value.clone(); // Force update of constraint value to determine if valid
     }
 
-    pub fn constraint_value(&self) -> Option<&FieldValue> {
+    pub fn get_constraint_value(&self) -> Option<&FieldValue> {
         if self.is_valued_constraint() {
-            self.constraint_value.as_ref()
+            return self.constraint_value.as_ref();
         } else {
-            None
+            return None;
         }
     }
 
@@ -67,11 +67,11 @@ impl ScanConstraint {
         self.constraint_value = value;
     }
 
-    pub fn constraint_args(&self) -> Option<&FieldValue> {
+    pub fn get_constraint_args(&self) -> Option<&FieldValue> {
         if self.is_valued_constraint() {
-            self.constraint_args.as_ref()
+            return self.constraint_args.as_ref();
         } else {
-            None
+            return None;
         }
     }
 
@@ -79,8 +79,8 @@ impl ScanConstraint {
         self.constraint_args = args;
     }
 
-    pub fn constraint_name(&self) -> &'static str {
-        match self.constraint {
+    pub fn get_constraint_name(&self) -> &'static str {
+        match self.constraint_type {
             ConstraintType::Equal => "Equal",
             ConstraintType::NotEqual => "Not Equal",
             ConstraintType::GreaterThan => "Greater Than",
@@ -105,7 +105,7 @@ impl ScanConstraint {
     }
 
     pub fn is_relative_constraint(&self) -> bool {
-        match self.constraint {
+        return match self.constraint_type {
             ConstraintType::Changed
             | ConstraintType::Unchanged
             | ConstraintType::Increased
@@ -113,11 +113,11 @@ impl ScanConstraint {
             | ConstraintType::IncreasedByX
             | ConstraintType::DecreasedByX => true,
             _ => false,
-        }
+        };
     }
 
     pub fn is_valued_constraint(&self) -> bool {
-        match self.constraint {
+        return match self.constraint_type {
             ConstraintType::Equal
             | ConstraintType::NotEqual
             | ConstraintType::GreaterThan
@@ -127,7 +127,7 @@ impl ScanConstraint {
             | ConstraintType::IncreasedByX
             | ConstraintType::DecreasedByX => true,
             _ => false,
-        }
+        };
     }
 
     pub fn set_element_type(&mut self, element_type: &FieldValue) {
@@ -156,14 +156,14 @@ impl ScanConstraint {
 
     pub fn clone(&self) -> Self {
         ScanConstraint {
-            constraint: self.constraint.clone(),
+            constraint_type: self.constraint_type.clone(),
             constraint_value: self.constraint_value.clone(),
             constraint_args: self.constraint_args.clone(),
         }
     }
 
     pub fn conflicts_with(&self, other: &ScanConstraint) -> bool {
-        if self.constraint == other.constraint {
+        if self.constraint_type == other.constraint_type {
             return true;
         }
 
@@ -173,17 +173,17 @@ impl ScanConstraint {
 
         if self.is_valued_constraint() && other.is_valued_constraint() {
             if !self.is_relative_constraint() && !other.is_relative_constraint() {
-                if (matches!(self.constraint, ConstraintType::LessThan | ConstraintType::LessThanOrEqual | ConstraintType::NotEqual)
-                    && matches!(other.constraint, ConstraintType::GreaterThan | ConstraintType::GreaterThanOrEqual | ConstraintType::NotEqual))
-                    || (matches!(self.constraint, ConstraintType::GreaterThan | ConstraintType::GreaterThanOrEqual | ConstraintType::NotEqual)
-                        && matches!(other.constraint, ConstraintType::LessThan | ConstraintType::LessThanOrEqual | ConstraintType::NotEqual))
+                if (matches!(self.constraint_type, ConstraintType::LessThan | ConstraintType::LessThanOrEqual | ConstraintType::NotEqual)
+                    && matches!(other.constraint_type, ConstraintType::GreaterThan | ConstraintType::GreaterThanOrEqual | ConstraintType::NotEqual))
+                    || (matches!(self.constraint_type, ConstraintType::GreaterThan | ConstraintType::GreaterThanOrEqual | ConstraintType::NotEqual)
+                        && matches!(other.constraint_type, ConstraintType::LessThan | ConstraintType::LessThanOrEqual | ConstraintType::NotEqual))
                 {
                     return true;
                 }
             }
         }
 
-        false
+        return false;
     }
 }
 

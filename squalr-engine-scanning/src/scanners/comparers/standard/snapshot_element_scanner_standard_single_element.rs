@@ -4,7 +4,6 @@ use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 
 pub struct SnapshotElementRangeScannerIterative<'a> {
     base_scanner: SnapshotElementRangeScannerStandard<'a>,
-    element_compare: Option<Box<dyn Fn() -> bool + 'a>>,
     current_value_pointer: *const u8,
     previous_value_pointer: *const u8,
 }
@@ -13,7 +12,6 @@ impl<'a> SnapshotElementRangeScannerIterative<'a> {
     pub fn new() -> Self {
         Self {
             base_scanner: SnapshotElementRangeScannerStandard::new(),
-            element_compare: None,
             current_value_pointer: std::ptr::null(),
             previous_value_pointer: std::ptr::null(),
         }
@@ -27,9 +25,11 @@ impl<'a> SnapshotElementRangeScannerIterative<'a> {
         self.initialize(element_range, constraints);
 
         let aligned_element_count = element_range.get_aligned_element_count(constraints.get_alignment());
+        let root_constraint = constraints.get_root_constraint().as_ref().unwrap();
+        let scan_constraint = root_constraint.borrow();
 
         for _ in 0..aligned_element_count {
-            if (self.element_compare.as_ref().unwrap())() {
+            if self.base_scanner.do_compare_action(self.current_value_pointer, self.previous_value_pointer, &scan_constraint) {
                 self.base_scanner
                     .get_run_length_encoder()
                     .encode_range(constraints.get_alignment() as usize);
@@ -54,10 +54,6 @@ impl<'a> SnapshotElementRangeScannerIterative<'a> {
 
     fn initialize(&mut self, element_range: &'a SnapshotElementRange<'a>, constraints: &'a ScanConstraints) {
         self.base_scanner.initialize(element_range, constraints);
-        if let Some(root_constraint) = constraints.get_root_constraint() {
-            let scan_constraint = root_constraint.borrow();
-            self.element_compare = Some(self.base_scanner.build_compare_actions(&scan_constraint));
-        }
         self.initialize_pointers(element_range);
     }
 

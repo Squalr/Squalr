@@ -198,19 +198,19 @@ impl<'a> SnapshotElementScannerVector<'a> {
     }
 
     fn build_value_compare_actions(&self, scan_constraint: &ScanConstraint) -> Box<dyn Fn() -> u8x16> {
-        match scan_constraint.constraint_type {
-            ConstraintType::Unchanged => self.get_comparison_unchanged(scan_constraint.constraint_args),
-            ConstraintType::Changed => self.get_comparison_changed(scan_constraint.constraint_args),
+        match scan_constraint.get_constraint_type() {
+            ConstraintType::Unchanged => self.get_comparison_unchanged(scan_constraint.get_constraint_args()),
+            ConstraintType::Changed => self.get_comparison_changed(scan_constraint.get_constraint_args()),
             ConstraintType::Increased => self.get_comparison_increased(),
             ConstraintType::Decreased => self.get_comparison_decreased(),
-            ConstraintType::IncreasedByX => self.get_comparison_increased_by(scan_constraint.constraint_value, scan_constraint.constraint_args),
-            ConstraintType::DecreasedByX => self.get_comparison_decreased_by(scan_constraint.constraint_value, scan_constraint.constraint_args),
-            ConstraintType::Equal => self.get_comparison_equal(scan_constraint.constraint_value, scan_constraint.constraint_args),
-            ConstraintType::NotEqual => self.get_comparison_not_equal(scan_constraint.constraint_value, scan_constraint.constraint_args),
-            ConstraintType::GreaterThan => self.get_comparison_greater_than(scan_constraint.constraint_value),
-            ConstraintType::GreaterThanOrEqual => self.get_comparison_greater_than_or_equal(scan_constraint.constraint_value),
-            ConstraintType::LessThan => self.get_comparison_less_than(scan_constraint.constraint_value),
-            ConstraintType::LessThanOrEqual => self.get_comparison_less_than_or_equal(scan_constraint.constraint_value),
+            ConstraintType::IncreasedByX => self.get_comparison_increased_by(scan_constraint.constraint_value, scan_constraint.get_constraint_args()),
+            ConstraintType::DecreasedByX => self.get_comparison_decreased_by(scan_constraint.constraint_value, scan_constraint.get_constraint_args()),
+            ConstraintType::Equal => self.get_comparison_equal(scan_constraint.constraint_value, scan_constraint.get_constraint_args()),
+            ConstraintType::NotEqual => self.get_comparison_not_equal(scan_constraint.constraint_value, scan_constraint.get_constraint_args()),
+            ConstraintType::GreaterThan => self.get_comparison_greater_than(scan_constraint.get_constraint_value()),
+            ConstraintType::GreaterThanOrEqual => self.get_comparison_greater_than_or_equal(scan_constraint.get_constraint_value()),
+            ConstraintType::LessThan => self.get_comparison_less_than(scan_constraint.get_constraint_value()),
+            ConstraintType::LessThanOrEqual => self.get_comparison_less_than_or_equal(scan_constraint.get_constraint_value()),
         }
     }
 

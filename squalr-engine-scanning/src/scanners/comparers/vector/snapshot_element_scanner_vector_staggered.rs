@@ -109,7 +109,7 @@ impl<'a> SnapshotRegionScannerVectorStaggered<'a> {
 
     fn staggered_vector_scan(
         staggered_masks: Vec<u8x16>,
-        comparer_result: u8x16, // Pass the precomputed result
+        comparer_result: u8x16,
         alignment: MemoryAlignment,
         data_type_size: usize,
     ) -> u8x16 {

@@ -8,36 +8,17 @@ use squalr_engine_memory::memory_alignment::MemoryAlignment;
 
 pub struct SnapshotElementRangeScannerStandard<'a> {
     scanner: SnapshotElementRangeScanner<'a>,
-    element_compare: Option<Box<dyn Fn() -> bool + 'a>>,
-    current_value_pointer: Option<*const u8>,
-    previous_value_pointer: Option<*const u8>,
 }
 
 impl<'a> SnapshotElementRangeScannerStandard<'a> {
     pub fn new() -> Self {
         return Self {
             scanner: SnapshotElementRangeScanner::new(),
-            element_compare: None,
-            current_value_pointer: None,
-            previous_value_pointer: None,
         };
     }
 
     pub fn initialize(&mut self, element_range: &'a SnapshotElementRange<'a>, constraints: &ScanConstraints) {
         self.scanner.initialize(element_range, constraints);
-        if let Some(root_constraint) = constraints.get_root_constraint() {
-            let scan_constraint = root_constraint.borrow();
-            self.element_compare = Some(self.build_compare_actions(&scan_constraint));
-        }
-        self.initialize_pointers();
-    }
-
-    pub fn initialize_no_pinning(&mut self, element_range: &'a SnapshotElementRange<'a>, constraints: &ScanConstraints) {
-        self.scanner.initialize(element_range, constraints);
-        if let Some(root_constraint) = constraints.get_root_constraint() {
-            let scan_constraint = root_constraint.borrow();
-            self.element_compare = Some(self.build_compare_actions(&scan_constraint));
-        }
     }
 
     pub fn dispose(&mut self) {
@@ -92,67 +73,39 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         self.scanner.set_on_dispose(on_dispose);
     }
 
-    pub fn initialize_pointers(&mut self) {
-        if let Some(element_range) = self.scanner.get_element_range() {
-            unsafe {
-                self.current_value_pointer = Some(element_range.get_current_values().as_ptr().offset(element_range.get_region_offset() as isize));
-            }
-
-            unsafe {
-                self.previous_value_pointer = Some(element_range.get_previous_values().as_ptr().offset(element_range.get_region_offset() as isize));
-            }
+    pub fn do_compare_action(
+        &self,
+        current_value_ptr: *const u8,
+        previous_value_ptr: *const u8,
+        constraint: &ScanConstraint,
+    ) -> bool {
+        match constraint.get_constraint_type() {
+            ConstraintType::Unchanged => self.compare_unchanged(current_value_ptr, previous_value_ptr),
+            ConstraintType::Changed => self.compare_changed(current_value_ptr, previous_value_ptr),
+            ConstraintType::Increased => self.compare_increased(current_value_ptr, previous_value_ptr),
+            ConstraintType::Decreased => self.compare_decreased(current_value_ptr, previous_value_ptr),
+            ConstraintType::IncreasedByX => self.compare_increased_by(current_value_ptr, previous_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default()),
+            ConstraintType::DecreasedByX => self.compare_decreased_by(current_value_ptr, previous_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default()),
+            ConstraintType::Equal => self.compare_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default()),
+            ConstraintType::NotEqual => self.compare_not_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default()),
+            ConstraintType::GreaterThan => self.compare_greater_than(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default()),
+            ConstraintType::GreaterThanOrEqual => self.compare_greater_than_or_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default()),
+            ConstraintType::LessThan => self.compare_less_than(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default()),
+            ConstraintType::LessThanOrEqual => self.compare_less_than_or_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default()),
         }
     }
 
-    pub fn build_compare_actions(&self, constraint: &ScanConstraint) -> Box<dyn Fn() -> bool + 'a> {
-        match constraint.constraint() {
-            ConstraintType::Unchanged => Box::new(move || self.get_comparison_unchanged()),
-            ConstraintType::Changed => Box::new(move || self.get_comparison_changed()),
-            ConstraintType::Increased => Box::new(move || self.get_comparison_increased()),
-            ConstraintType::Decreased => Box::new(move || self.get_comparison_decreased()),
-            ConstraintType::IncreasedByX => {
-                let value = constraint.constraint_value().cloned().unwrap_or_default();
-                Box::new(move || self.get_comparison_increased_by(value))
-            }
-            ConstraintType::DecreasedByX => {
-                let value = constraint.constraint_value().cloned().unwrap_or_default();
-                Box::new(move || self.get_comparison_decreased_by(value))
-            }
-            ConstraintType::Equal => {
-                let value = constraint.constraint_value().cloned().unwrap_or_default();
-                Box::new(move || self.get_comparison_equal(value))
-            }
-            ConstraintType::NotEqual => {
-                let value = constraint.constraint_value().cloned().unwrap_or_default();
-                Box::new(move || self.get_comparison_not_equal(value))
-            }
-            ConstraintType::GreaterThan => {
-                let value = constraint.constraint_value().cloned().unwrap_or_default();
-                Box::new(move || self.get_comparison_greater_than(value))
-            }
-            ConstraintType::GreaterThanOrEqual => {
-                let value = constraint.constraint_value().cloned().unwrap_or_default();
-                Box::new(move || self.get_comparison_greater_than_or_equal(value))
-            }
-            ConstraintType::LessThan => {
-                let value = constraint.constraint_value().cloned().unwrap_or_default();
-                Box::new(move || self.get_comparison_less_than(value))
-            }
-            ConstraintType::LessThanOrEqual => {
-                let value = constraint.constraint_value().cloned().unwrap_or_default();
-                Box::new(move || self.get_comparison_less_than_or_equal(value))
-            }
-        }
+    fn get_current_values(&self, current_value_ptr: *const u8) -> FieldValue {
+        let current_value = unsafe { self.read_value(current_value_ptr) };
+
+        return current_value;
     }
 
-    fn get_current_previous_values(&self) -> Option<(FieldValue, FieldValue)> {
-        if let (Some(current_ptr), Some(previous_ptr)) = (self.current_value_pointer, self.previous_value_pointer) {
-            let current_value = unsafe { self.read_value(current_ptr) };
-            let previous_value = unsafe { self.read_value(previous_ptr) };
-            Some((current_value, previous_value))
-        } else {
-            None
-        }
+    fn get_current_previous_values(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8) -> (FieldValue, FieldValue) {
+        let current_value = unsafe { self.read_value(current_value_ptr) };
+        let previous_value = unsafe { self.read_value(previous_value_ptr) };
+
+        return (current_value, previous_value);
     }
 
     unsafe fn read_value(&self, ptr: *const u8) -> FieldValue {
@@ -198,118 +151,84 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         }
     }
 
-    fn get_comparison_changed(&self) -> bool {
-        if let Some((current_value, previous_value)) = self.get_current_previous_values() {
-            current_value != previous_value
-        } else {
-            false
-        }
+    fn compare_changed(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8) -> bool {
+        let (current_value, previous_value) = self.get_current_previous_values(current_value_ptr, previous_value_ptr);
+        return current_value != previous_value;
     }
 
-    fn get_comparison_unchanged(&self) -> bool {
-        if let Some((current_value, previous_value)) = self.get_current_previous_values() {
-            current_value == previous_value
-        } else {
-            false
-        }
+    fn compare_unchanged(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8) -> bool {
+        let (current_value, previous_value) = self.get_current_previous_values(current_value_ptr, previous_value_ptr);
+        return current_value == previous_value;
     }
 
-    fn get_comparison_increased(&self) -> bool {
-        if let Some((current_value, previous_value)) = self.get_current_previous_values() {
-            current_value > previous_value
-        } else {
-            false
-        }
+    fn compare_increased(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8) -> bool {
+        let (current_value, previous_value) = self.get_current_previous_values(current_value_ptr, previous_value_ptr);
+        return current_value > previous_value;
     }
 
-    fn get_comparison_decreased(&self) -> bool {
-        if let Some((current_value, previous_value)) = self.get_current_previous_values() {
-            current_value < previous_value
-        } else {
-            false
-        }
+    fn compare_decreased(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8) -> bool {
+        let (current_value, previous_value) = self.get_current_previous_values(current_value_ptr, previous_value_ptr);
+        return current_value < previous_value;
     }
-
-    fn get_comparison_equal(&self, value: FieldValue) -> bool {
-        if let Some((current_value, _)) = self.get_current_previous_values() {
-            current_value == value
-        } else {
-            false
-        }
+    
+    fn compare_equal(&self, current_value_ptr: *const u8, value: FieldValue) -> bool {
+        let current_value = self.get_current_values(current_value_ptr);
+        return current_value == value;
     }
-
-    fn get_comparison_not_equal(&self, value: FieldValue) -> bool {
-        if let Some((current_value, _)) = self.get_current_previous_values() {
-            current_value != value
-        } else {
-            false
-        }
+    
+    fn compare_not_equal(&self, current_value_ptr: *const u8, value: FieldValue) -> bool {
+        let current_value = self.get_current_values(current_value_ptr);
+        return current_value != value;
     }
-
-    fn get_comparison_greater_than(&self, value: FieldValue) -> bool {
-        if let Some((current_value, _)) = self.get_current_previous_values() {
-            current_value > value
-        } else {
-            false
-        }
+    
+    fn compare_greater_than(&self, current_value_ptr: *const u8, value: FieldValue) -> bool {
+        let current_value = self.get_current_values(current_value_ptr);
+        return current_value > value;
     }
-
-    fn get_comparison_greater_than_or_equal(&self, value: FieldValue) -> bool {
-        if let Some((current_value, _)) = self.get_current_previous_values() {
-            current_value >= value
-        } else {
-            false
-        }
+    
+    fn compare_greater_than_or_equal(&self, current_value_ptr: *const u8, value: FieldValue) -> bool {
+        let current_value = self.get_current_values(current_value_ptr);
+        return current_value >= value;
     }
-
-    fn get_comparison_less_than(&self, value: FieldValue) -> bool {
-        if let Some((current_value, _)) = self.get_current_previous_values() {
-            current_value < value
-        } else {
-            false
-        }
+    
+    fn compare_less_than(&self, current_value_ptr: *const u8, value: FieldValue) -> bool {
+        let current_value = self.get_current_values(current_value_ptr);
+        return current_value < value;
     }
-
-    fn get_comparison_less_than_or_equal(&self, value: FieldValue) -> bool {
-        if let Some((current_value, _)) = self.get_current_previous_values() {
-            current_value <= value
-        } else {
-            false
-        }
+    
+    fn compare_less_than_or_equal(&self, current_value_ptr: *const u8, value: FieldValue) -> bool {
+        let current_value = self.get_current_values(current_value_ptr);
+        return current_value <= value;
     }
-    fn get_comparison_increased_by(&self, value: FieldValue) -> bool {
-        if let Some((current_value, previous_value)) = self.get_current_previous_values() {
-            match (current_value, previous_value) {
-                (FieldValue::U8(a), FieldValue::U8(b)) => a == b.wrapping_add(value.as_u8().unwrap()),
-                (FieldValue::I8(a), FieldValue::I8(b)) => a == b.wrapping_add(value.as_i8().unwrap()),
-                (FieldValue::U16(a, _), FieldValue::U16(b, _)) => a == b.wrapping_add(value.as_u16().unwrap()),
-                (FieldValue::I16(a, _), FieldValue::I16(b, _)) => a == b.wrapping_add(value.as_i16().unwrap()),
-                (FieldValue::U32(a, _), FieldValue::U32(b, _)) => a == b.wrapping_add(value.as_u32().unwrap()),
-                (FieldValue::I32(a, _), FieldValue::I32(b, _)) => a == b.wrapping_add(value.as_i32().unwrap()),
-                (FieldValue::U64(a, _), FieldValue::U64(b, _)) => a == b.wrapping_add(value.as_u64().unwrap()),
-                (FieldValue::I64(a, _), FieldValue::I64(b, _)) => a == b.wrapping_add(value.as_i64().unwrap()),
-                _ => false,
-            }
-        } else {
-            false
-        }
-    }    
-
-    fn get_comparison_decreased_by(&self, value: FieldValue) -> bool {
-        if let Some((current_value, previous_value)) = self.get_current_previous_values() {
-            match (current_value, previous_value) {
-                (FieldValue::U8(a), FieldValue::U8(b)) => a == b.wrapping_sub(value.as_u8().unwrap()),
-                (FieldValue::I8(a), FieldValue::I8(b)) => a == b.wrapping_sub(value.as_i8().unwrap()),
-                (FieldValue::U16(a, _), FieldValue::U16(b, _)) => a == b.wrapping_sub(value.as_u16().unwrap()),
-                (FieldValue::I16(a, _), FieldValue::I16(b, _)) => a == b.wrapping_sub(value.as_i16().unwrap()),
-                (FieldValue::U32(a, _), FieldValue::U32(b, _)) => a == b.wrapping_sub(value.as_u32().unwrap()),
-                (FieldValue::I32(a, _), FieldValue::I32(b, _)) => a == b.wrapping_sub(value.as_i32().unwrap()),
-                (FieldValue::U64(a, _), FieldValue::U64(b, _)) => a == b.wrapping_sub(value.as_u64().unwrap()),
-                (FieldValue::I64(a, _), FieldValue::I64(b, _)) => a == b.wrapping_sub(value.as_i64().unwrap()),
-                _ => false,
-            }
-        } else {
-            false
-        }
+    
+    fn compare_increased_by(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8, value: FieldValue) -> bool {
+        let (current_value, previous_value) = self.get_current_previous_values(current_value_ptr, previous_value_ptr);
+        return match (current_value, previous_value) {
+            (FieldValue::U8(a), FieldValue::U8(b)) => a == b.wrapping_add(value.as_u8().unwrap()),
+            (FieldValue::I8(a), FieldValue::I8(b)) => a == b.wrapping_add(value.as_i8().unwrap()),
+            (FieldValue::U16(a, _), FieldValue::U16(b, _)) => a == b.wrapping_add(value.as_u16().unwrap()),
+            (FieldValue::I16(a, _), FieldValue::I16(b, _)) => a == b.wrapping_add(value.as_i16().unwrap()),
+            (FieldValue::U32(a, _), FieldValue::U32(b, _)) => a == b.wrapping_add(value.as_u32().unwrap()),
+            (FieldValue::I32(a, _), FieldValue::I32(b, _)) => a == b.wrapping_add(value.as_i32().unwrap()),
+            (FieldValue::U64(a, _), FieldValue::U64(b, _)) => a == b.wrapping_add(value.as_u64().unwrap()),
+            (FieldValue::I64(a, _), FieldValue::I64(b, _)) => a == b.wrapping_add(value.as_i64().unwrap()),
+            _ => false,
+        };
     }
+    
+    fn compare_decreased_by(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8, value: FieldValue) -> bool {
+        let (current_value, previous_value) = self.get_current_previous_values(current_value_ptr, previous_value_ptr);
+        return match (current_value, previous_value) {
+            (FieldValue::U8(a), FieldValue::U8(b)) => a == b.wrapping_sub(value.as_u8().unwrap()),
+            (FieldValue::I8(a), FieldValue::I8(b)) => a == b.wrapping_sub(value.as_i8().unwrap()),
+            (FieldValue::U16(a, _), FieldValue::U16(b, _)) => a == b.wrapping_sub(value.as_u16().unwrap()),
+            (FieldValue::I16(a, _), FieldValue::I16(b, _)) => a == b.wrapping_sub(value.as_i16().unwrap()),
+            (FieldValue::U32(a, _), FieldValue::U32(b, _)) => a == b.wrapping_sub(value.as_u32().unwrap()),
+            (FieldValue::I32(a, _), FieldValue::I32(b, _)) => a == b.wrapping_sub(value.as_i32().unwrap()),
+            (FieldValue::U64(a, _), FieldValue::U64(b, _)) => a == b.wrapping_sub(value.as_u64().unwrap()),
+            (FieldValue::I64(a, _), FieldValue::I64(b, _)) => a == b.wrapping_sub(value.as_i64().unwrap()),
+            _ => false,
+        };
+    }
+    
 }
