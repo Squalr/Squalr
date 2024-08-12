@@ -96,8 +96,9 @@ impl<'a> SnapshotElementScannerVector<'a> {
             self.vector_read_offset += vector_increment_size;
         }
 
-        self.base_scanner.get_run_length_encoder().finalize_current_encode_unchecked();
-        self.base_scanner.get_run_length_encoder().get_collected_regions()
+        self.base_scanner.get_run_length_encoder().finalize_current_encode_unchecked(0);
+        
+        return self.base_scanner.get_run_length_encoder().get_collected_regions().clone();
     }
 
     fn build_vector_misalignment_mask(&self) -> u8x16 {
@@ -186,8 +187,8 @@ impl<'a> SnapshotElementScannerVector<'a> {
     }
 
     fn build_operation_compare_actions(&self, operation_constraint: &OperationConstraint) -> Box<dyn Fn() -> u8x16> {
-        let left = self.build_compare_actions(&operation_constraint.left);
-        let right = self.build_compare_actions(&operation_constraint.right);
+        let left = self.build_compare_actions(&operation_constraint.get_left());
+        let right = self.build_compare_actions(&operation_constraint.get_right());
 
         match operation_constraint.binary_operation {
             OperationType::And => Box::new(move || left().bitand(right())),

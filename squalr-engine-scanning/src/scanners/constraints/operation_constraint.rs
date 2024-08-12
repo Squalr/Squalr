@@ -28,20 +28,20 @@ impl OperationConstraint {
         }
     }
 
-    pub fn binary_operation(&self) -> &OperationType {
-        &self.binary_operation
+    pub fn get_binary_operation(&self) -> &OperationType {
+        return &self.binary_operation;
     }
 
-    pub fn left(&self) -> Option<&Box<dyn ScanConstraint>> {
-        self.left.as_ref()
-    }
-
-    pub fn right(&self) -> Option<&Box<dyn ScanConstraint>> {
-        self.right.as_ref()
+    pub fn get_left(&self) -> Option<&Box<dyn ScanConstraint>> {
+        return self.left.as_ref();
     }
 
     pub fn set_left(&mut self, left: Option<Box<dyn ScanConstraint>>) {
         self.left = left;
+    }
+
+    pub fn get_right(&self) -> Option<&Box<dyn ScanConstraint>> {
+        return self.right.as_ref();
     }
 
     pub fn set_right(&mut self, right: Option<Box<dyn ScanConstraint>>) {

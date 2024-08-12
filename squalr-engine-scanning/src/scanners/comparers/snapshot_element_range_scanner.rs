@@ -16,7 +16,7 @@ pub trait SnapshotElementRangeScannerTrait<'a> {
     fn dispose(&mut self);
 
     // Getters
-    fn get_run_length_encoder(&self) -> &SnapshotElementRunLengthEncoder<'a>;
+    fn get_run_length_encoder(&mut self) -> &SnapshotElementRunLengthEncoder<'a>;
     fn get_element_range(&self) -> Option<&'a SnapshotElementRange<'a>>;
     fn get_data_type_size(&self) -> usize;
     fn get_alignment(&self) -> MemoryAlignment;
@@ -82,9 +82,9 @@ impl<'a> SnapshotElementRangeScanner<'a> {
         }
     }
 
-    pub fn get_run_length_encoder(&self) -> &SnapshotElementRunLengthEncoder<'a> {
-        return &self.run_length_encoder;
-    }
+    pub fn get_run_length_encoder(&mut self) -> &mut SnapshotElementRunLengthEncoder<'a> {
+        &mut self.run_length_encoder
+    }    
 
     pub fn set_run_length_encoder(&mut self, encoder: SnapshotElementRunLengthEncoder<'a>) {
         self.run_length_encoder = encoder;
@@ -163,7 +163,7 @@ impl<'a> SnapshotElementRangeScannerTrait<'a> for SnapshotElementRangeScanner<'a
         self.dispose_internal();
     }
 
-    fn get_run_length_encoder(&self) -> &SnapshotElementRunLengthEncoder<'a> {
+    fn get_run_length_encoder(&mut self) -> &SnapshotElementRunLengthEncoder<'a> {
         return self.get_run_length_encoder();
     }
 

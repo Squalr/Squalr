@@ -25,20 +25,26 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
 
     pub fn initialize(&mut self, element_range: &'a SnapshotElementRange<'a>, constraints: &ScanConstraints) {
         self.scanner.initialize(element_range, constraints);
-        self.element_compare = Some(self.build_compare_actions(constraints));
+        if let Some(root_constraint) = constraints.get_root_constraint() {
+            let scan_constraint = root_constraint.borrow();
+            self.element_compare = Some(self.build_compare_actions(&scan_constraint));
+        }
         self.initialize_pointers();
     }
 
     pub fn initialize_no_pinning(&mut self, element_range: &'a SnapshotElementRange<'a>, constraints: &ScanConstraints) {
         self.scanner.initialize(element_range, constraints);
-        self.element_compare = Some(self.build_compare_actions(constraints));
+        if let Some(root_constraint) = constraints.get_root_constraint() {
+            let scan_constraint = root_constraint.borrow();
+            self.element_compare = Some(self.build_compare_actions(&scan_constraint));
+        }
     }
 
     pub fn dispose(&mut self) {
         self.scanner.dispose();
     }
 
-    pub fn get_run_length_encoder(&self) -> &SnapshotElementRunLengthEncoder<'a> {
+    pub fn get_run_length_encoder(&mut self) -> &mut SnapshotElementRunLengthEncoder<'a> {
         return self.scanner.get_run_length_encoder();
     }
 
@@ -337,7 +343,7 @@ impl<'a> SnapshotElementRangeScannerTrait<'a> for SnapshotElementRangeScannerSta
     }
 
     // Pass-through getters and setters remain unchanged...
-    fn get_run_length_encoder(&self) -> &SnapshotElementRunLengthEncoder<'a> {
+    fn get_run_length_encoder(&mut self) -> &SnapshotElementRunLengthEncoder<'a> {
         return self.scanner.get_run_length_encoder();
     }
 

@@ -3,15 +3,15 @@ use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::collections::HashMap;
-use std::simd::{u16x8, u8x16, u32x4, u64x2};
-use std::simd::num::SimdUint;
+use std::ops::{BitAnd, BitOr};
+use std::simd::{ToBytes, u8x16, u16x8, u32x4, u64x2};
 
-pub struct SnapshotRegionScannerVectorStaggered {
-    base_scanner: SnapshotElementScannerVector,
+pub struct SnapshotRegionScannerVectorStaggered<'a> {
+    base_scanner: SnapshotElementScannerVector<'a>,
     staggered_mask_map: HashMap<i32, HashMap<MemoryAlignment, Vec<u8x16>>>,
 }
 
-impl SnapshotRegionScannerVectorStaggered {
+impl<'a> SnapshotRegionScannerVectorStaggered<'a> {
     pub fn new() -> Self {
         let mut staggered_mask_map = HashMap::new();
 
@@ -19,8 +19,8 @@ impl SnapshotRegionScannerVectorStaggered {
         staggered_mask_map.insert(2, {
             let mut map = HashMap::new();
             map.insert(MemoryAlignment::Alignment1, vec![
-                u16x8::splat(0x00FF).cast(),
-                u16x8::splat(0xFF00).cast(),
+                u16x8::splat(0x00FF).to_le_bytes().into(),
+                u16x8::splat(0xFF00).to_le_bytes().into(),
             ]);
             map
         });
@@ -29,14 +29,14 @@ impl SnapshotRegionScannerVectorStaggered {
         staggered_mask_map.insert(4, {
             let mut map = HashMap::new();
             map.insert(MemoryAlignment::Alignment1, vec![
-                u32x4::splat(0x000000FF).cast(),
-                u32x4::splat(0x0000FF00).cast(),
-                u32x4::splat(0x00FF0000).cast(),
-                u32x4::splat(0xFF000000).cast(),
+                u32x4::splat(0x000000FF).to_le_bytes().into(),
+                u32x4::splat(0x0000FF00).to_le_bytes().into(),
+                u32x4::splat(0x00FF0000).to_le_bytes().into(),
+                u32x4::splat(0xFF000000).to_le_bytes().into(),
             ]);
             map.insert(MemoryAlignment::Alignment2, vec![
-                u32x4::splat(0x0000FFFF).cast(),
-                u32x4::splat(0xFFFF0000).cast(),
+                u32x4::splat(0x0000FFFF).to_le_bytes().into(),
+                u32x4::splat(0xFFFF0000).to_le_bytes().into(),
             ]);
             map
         });
@@ -45,24 +45,24 @@ impl SnapshotRegionScannerVectorStaggered {
         staggered_mask_map.insert(8, {
             let mut map = HashMap::new();
             map.insert(MemoryAlignment::Alignment1, vec![
-                u64x2::splat(0x00000000000000FF).cast(),
-                u64x2::splat(0x000000000000FF00).cast(),
-                u64x2::splat(0x0000000000FF0000).cast(),
-                u64x2::splat(0x00000000FF000000).cast(),
-                u64x2::splat(0x000000FF00000000).cast(),
-                u64x2::splat(0x0000FF0000000000).cast(),
-                u64x2::splat(0x00FF000000000000).cast(),
-                u64x2::splat(0xFF00000000000000).cast(),
+                u64x2::splat(0x00000000000000FF).to_le_bytes().into(),
+                u64x2::splat(0x000000000000FF00).to_le_bytes().into(),
+                u64x2::splat(0x0000000000FF0000).to_le_bytes().into(),
+                u64x2::splat(0x00000000FF000000).to_le_bytes().into(),
+                u64x2::splat(0x000000FF00000000).to_le_bytes().into(),
+                u64x2::splat(0x0000FF0000000000).to_le_bytes().into(),
+                u64x2::splat(0x00FF000000000000).to_le_bytes().into(),
+                u64x2::splat(0xFF00000000000000).to_le_bytes().into(),
             ]);
             map.insert(MemoryAlignment::Alignment2, vec![
-                u64x2::splat(0x000000000000FFFF).cast(),
-                u64x2::splat(0x00000000FFFF0000).cast(),
-                u64x2::splat(0x0000FFFF00000000).cast(),
-                u64x2::splat(0xFFFF000000000000).cast(),
+                u64x2::splat(0x000000000000FFFF).to_le_bytes().into(),
+                u64x2::splat(0x00000000FFFF0000).to_le_bytes().into(),
+                u64x2::splat(0x0000FFFF00000000).to_le_bytes().into(),
+                u64x2::splat(0xFFFF000000000000).to_le_bytes().into(),
             ]);
             map.insert(MemoryAlignment::Alignment4, vec![
-                u64x2::splat(0x00000000FFFFFFFF).cast(),
-                u64x2::splat(0xFFFFFFFF00000000).cast(),
+                u64x2::splat(0x00000000FFFFFFFF).to_le_bytes().into(),
+                u64x2::splat(0xFFFFFFFF00000000).to_le_bytes().into(),
             ]);
             map
         });
@@ -75,35 +75,57 @@ impl SnapshotRegionScannerVectorStaggered {
 
     pub fn scan_region(
         &mut self,
-        element_range: SnapshotElementRange,
-        constraints: &ScanConstraints,
-    ) -> Vec<SnapshotElementRange> {
-        self.base_scanner.initialize(&element_range.clone(), constraints);
-        let scan_count_per_vector = self.base_scanner.base_scanner.get_data_type_size() / self.base_scanner.base_scanner.get_alignment() as usize;
-        let offset_vector_increment_size = 16 - (self.base_scanner.base_scanner.get_alignment() as usize * scan_count_per_vector);
-        let staggered_masks = self.staggered_mask_map.get(&(self.base_scanner.base_scanner.get_data_type_size() as i32)).unwrap()
-            .get(&self.base_scanner.base_scanner.get_alignment()).unwrap();
+        element_range: &'a SnapshotElementRange<'a>,
+        constraints: &'a ScanConstraints,
+    ) -> Vec<SnapshotElementRange<'a>> {
+        self.base_scanner.initialize(element_range, constraints);
 
-        self.base_scanner.perform_vector_scan(u8x16::splat(0), offset_vector_increment_size, &move || {
-            self.staggered_vector_scan(staggered_masks)
-        })
+        let data_type_size = self.base_scanner.base_scanner.get_data_type_size();
+        let alignment = self.base_scanner.base_scanner.get_alignment();
+
+        let staggered_masks = self.staggered_mask_map
+            .get(&(data_type_size as i32))
+            .unwrap()
+            .get(&alignment)
+            .unwrap()
+            .clone();
+
+        let offset_vector_increment_size = 16 - (alignment as usize * (data_type_size / alignment as usize));
+
+        if let Some(vector_comparer) = self.base_scanner.vector_compare_func.take() {
+            let comparer_result = vector_comparer();
+            return self.base_scanner.perform_vector_scan(u8x16::splat(0), offset_vector_increment_size, Box::new(move || {
+                SnapshotRegionScannerVectorStaggered::staggered_vector_scan(
+                    staggered_masks.clone(),
+                    comparer_result,
+                    alignment,
+                    data_type_size
+                )
+            }));
+        } else {
+            return Vec::new();
+        }
     }
 
-    fn staggered_vector_scan(&self, staggered_masks: &[u8x16]) -> u8x16 {
-        let scan_count_per_vector = self.base_scanner.base_scanner.get_data_type_size() / self.base_scanner.base_scanner.get_alignment() as usize;
-        let mut run_length_encoded_scan_result = u8x16::splat(0);
+    fn staggered_vector_scan(
+        staggered_masks: Vec<u8x16>,
+        comparer_result: u8x16, // Pass the precomputed result
+        alignment: MemoryAlignment,
+        data_type_size: usize,
+    ) -> u8x16 {
+        let mut result = u8x16::splat(0);
+        let mut vector_read_offset = 0;
 
-        for alignment_offset in 0..scan_count_per_vector {
-            run_length_encoded_scan_result = run_length_encoded_scan_result.bitor(self.base_scanner.vector_compare_func.as_ref().unwrap()().bitand(staggered_masks[alignment_offset]));
+        for (i, mask) in staggered_masks.iter().enumerate() {
+            result |= comparer_result.bitand(*mask);
+            vector_read_offset += alignment as usize;
 
-            self.base_scanner.vector_read_offset += self.base_scanner.base_scanner.get_alignment() as usize;
-
-            if self.base_scanner.vector_read_offset >= self.base_scanner.base_scanner.element_range.as_ref().unwrap().range - 16 {
-                self.base_scanner.vector_read_offset += self.base_scanner.base_scanner.get_alignment() as usize * (scan_count_per_vector - alignment_offset - 1);
+            if vector_read_offset >= data_type_size - 16 {
+                vector_read_offset += alignment as usize * (staggered_masks.len() - i - 1);
                 break;
             }
         }
 
-        return run_length_encoded_scan_result;
+        return result;
     }
 }
