@@ -29,7 +29,11 @@ impl<'a> SnapshotElementRange<'a> {
     }
 
     pub fn get_current_values(&self) -> Vec<u8> {
-        self.parent_region.borrow().current_values.clone()
+        return self.parent_region.borrow().current_values.clone();
+    }
+
+    pub fn get_previous_values(&self) -> Vec<u8> {
+        return self.parent_region.borrow().previous_values.clone();
     }
 
     pub fn get_base_element_address(&self) -> u64 {
@@ -37,7 +41,11 @@ impl<'a> SnapshotElementRange<'a> {
     }
 
     pub fn get_end_element_address(&self) -> u64 {
-        self.get_base_element_address() + self.range as u64
+        return self.get_base_element_address() + self.range as u64;
+    }
+
+    pub fn get_region_offset(&self) -> usize {
+        return self.region_offset;
     }
 
     pub fn get_byte_count(&self, data_type_size: usize) -> usize {

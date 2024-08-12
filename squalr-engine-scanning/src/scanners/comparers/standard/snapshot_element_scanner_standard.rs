@@ -94,12 +94,12 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
 
     pub fn initialize_pointers(&mut self) {
         if let Some(element_range) = self.scanner.get_element_range() {
-            if let Some(current_values) = element_range.get_current_values() {
-                self.current_value_pointer = Some(current_values.as_ptr().offset(element_range.get_region_offset() as isize));
+            unsafe {
+                self.current_value_pointer = Some(element_range.get_current_values().as_ptr().offset(element_range.get_region_offset() as isize));
             }
 
-            if let Some(previous_values) = element_range.get_previous_values() {
-                self.previous_value_pointer = Some(previous_values.as_ptr().offset(element_range.get_region_offset() as isize));
+            unsafe {
+                self.previous_value_pointer = Some(element_range.get_previous_values().as_ptr().offset(element_range.get_region_offset() as isize));
             }
         }
     }
@@ -311,83 +311,5 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         } else {
             false
         }
-    }
-}
-
-impl<'a> SnapshotElementRangeScannerTrait<'a> for SnapshotElementRangeScannerStandard<'a> {
-    fn scan_element_range<'b>(
-        &mut self,
-        element_range: &'b SnapshotElementRange<'b>,
-        constraints: &'b ScanConstraints,
-    ) -> Vec<SnapshotElementRange<'b>>
-    where
-        'b: 'a,
-    {
-        self.initialize(element_range, constraints);
-
-        let mut result = Vec::new();
-
-        if let Some(compare_fn) = &self.element_compare {
-            for element in element_range.iter_elements() {
-                if compare_fn() {
-                    result.push(element.clone());
-                }
-            }
-        }
-
-        result
-    }
-
-    fn dispose(&mut self) {
-        self.scanner.dispose();
-    }
-
-    // Pass-through getters and setters remain unchanged...
-    fn get_run_length_encoder(&mut self) -> &SnapshotElementRunLengthEncoder<'a> {
-        return self.scanner.get_run_length_encoder();
-    }
-
-    fn get_element_range(&self) -> Option<&'a SnapshotElementRange<'a>> {
-        return self.scanner.get_element_range();
-    }
-
-    fn get_data_type_size(&self) -> usize {
-        return self.scanner.get_data_type_size();
-    }
-
-    fn get_alignment(&self) -> MemoryAlignment {
-        return self.scanner.get_alignment();
-    }
-
-    fn get_data_type(&self) -> &FieldValue {
-        return self.scanner.get_data_type();
-    }
-
-    fn get_on_dispose(&self) -> Option<&Box<dyn Fn() + 'a>> {
-        return self.scanner.get_on_dispose();
-    }
-
-    fn set_run_length_encoder(&mut self, encoder: SnapshotElementRunLengthEncoder<'a>) {
-        self.scanner.set_run_length_encoder(encoder);
-    }
-
-    fn set_element_range(&mut self, element_range: Option<&'a SnapshotElementRange<'a>>) {
-        self.scanner.set_element_range(element_range);
-    }
-
-    fn set_data_type_size(&mut self, size: usize) {
-        self.scanner.set_data_type_size(size);
-    }
-
-    fn set_alignment(&mut self, alignment: MemoryAlignment) {
-        self.scanner.set_alignment(alignment);
-    }
-
-    fn set_data_type(&mut self, data_type: FieldValue) {
-        self.scanner.set_data_type(data_type);
-    }
-
-    fn set_on_dispose(&mut self, on_dispose: Option<Box<dyn Fn() + 'a>>) {
-        self.scanner.set_on_dispose(on_dispose);
     }
 }
