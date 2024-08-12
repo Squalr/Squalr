@@ -161,6 +161,70 @@ impl FieldValue {
             }
         }
     }
+
+    pub fn as_u8(&self) -> Option<u8> {
+        if let FieldValue::U8(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_i8(&self) -> Option<i8> {
+        if let FieldValue::I8(v) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_u16(&self) -> Option<u16> {
+        if let FieldValue::U16(v, _) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_i16(&self) -> Option<i16> {
+        if let FieldValue::I16(v, _) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_u32(&self) -> Option<u32> {
+        if let FieldValue::U32(v, _) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_i32(&self) -> Option<i32> {
+        if let FieldValue::I32(v, _) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_u64(&self) -> Option<u64> {
+        if let FieldValue::U64(v, _) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_i64(&self) -> Option<i64> {
+        if let FieldValue::I64(v, _) = self {
+            Some(*v)
+        } else {
+            None
+        }
+    }
 }
 
 impl FromStr for FieldValue {

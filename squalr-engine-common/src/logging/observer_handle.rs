@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::hash::{Hash, Hasher};
 use crate::logging::logger_observer::ILoggerObserver;
 
-#[derive(Clone)]
 pub struct ObserverHandle(Arc<dyn ILoggerObserver + Send + Sync>);
 
 impl PartialEq for ObserverHandle {

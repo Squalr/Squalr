@@ -2,6 +2,7 @@ use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 
 use futures::future::join_all;
+use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_processes::process_info::ProcessInfo;
@@ -63,7 +64,7 @@ impl ValueCollector {
         let region_count;
         let snapshot_regions;
 
-        // Lock the snapshot briefly to extract the regions
+        // Lock the snapshot briefly to extract the regions.
         {
             let mut snapshot = snapshot.write().unwrap();
             snapshot.sort_regions_for_scans();
@@ -110,7 +111,7 @@ impl ValueCollector {
         let results = join_all(results).await.into_iter().filter_map(|x| x.unwrap()).collect::<Vec<SnapshotRegion>>();
         let byte_count: u64 = results.iter().map(|r| r.get_region_size()).sum();
 
-        // Lock the snapshot briefly to update it
+        // Lock the snapshot briefly to update it.
         {
             let mut snapshot = snapshot.write().unwrap();
             snapshot.set_snapshot_regions(results);
@@ -120,7 +121,7 @@ impl ValueCollector {
 
         if with_logging {
             Logger::instance().log(LogLevel::Info, &format!("Values collected in: {:?}", duration), None);
-            Logger::instance().log(LogLevel::Info, &format!("{} bytes read", byte_count), None);
+            Logger::instance().log(LogLevel::Info, &format!("{} bytes read ({})", byte_count, value_to_metric_size(byte_count)), None);
         }
     }
 }

@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ProcessSession {
     opened_process: Arc<Mutex<Option<Pid>>>,
     system: Arc<Mutex<System>>,

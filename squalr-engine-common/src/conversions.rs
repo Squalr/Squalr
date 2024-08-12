@@ -2,10 +2,25 @@ use std::num::ParseIntError;
 
 pub fn parse_hex_or_int(src: &str) -> Result<u64, std::num::ParseIntError> {
     if src.starts_with("0x") || src.starts_with("0X") {
-        u64::from_str_radix(&src[2..], 16)
+        return u64::from_str_radix(&src[2..], 16);
     } else {
-        src.parse::<u64>()
+        return src.parse::<u64>();
     }
+}
+
+/// Converts a given value into a metric information storage size (ie KB, MB, GB, TB, etc.)
+pub fn value_to_metric_size(value: u64) -> String {
+    let suffix = ["B", "KB", "MB", "GB", "TB", "PB", "EB"];
+
+    if value == 0 {
+        return format!("0{}", suffix[0]);
+    }
+
+    let place = (value as f64).log(1024.0).floor() as usize;
+    let number = (value as f64) / 1024f64.powi(place as i32);
+    let rounded_number = (number * 10.0).round() / 10.0;
+
+    return format!("{:.1}{}", rounded_number, suffix[place]);
 }
 
 // Converts an address string to a raw u64 value.
@@ -24,5 +39,5 @@ pub fn address_to_value(address: &str) -> Result<u64, ParseIntError> {
         return Ok(0);
     }
 
-    u64::from_str_radix(trimmed_address, 16)
+    return u64::from_str_radix(trimmed_address, 16);
 }

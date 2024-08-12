@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::hash::{Hash, Hasher};
 use super::normalized_region::NormalizedRegion;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct NormalizedModule {
     base_region: NormalizedRegion,
     name: String,

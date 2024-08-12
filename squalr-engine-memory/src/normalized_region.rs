@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct NormalizedRegion {
     base_address: u64,
     region_size: u64,

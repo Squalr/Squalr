@@ -2,7 +2,7 @@ use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SnapshotRegion {
     normalized_region: NormalizedRegion,
     pub current_values: Vec<u8>,
