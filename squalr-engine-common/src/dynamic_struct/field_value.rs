@@ -1,6 +1,7 @@
 use std::str::FromStr;
+use std::cmp::Ordering;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Endian {
     Little,
     Big,
@@ -12,7 +13,7 @@ impl Default for Endian {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum FieldValue {
     U8(u8),
     U16(u16, Endian),
@@ -26,6 +27,32 @@ pub enum FieldValue {
     F64(f64, Endian),
     Bytes(Vec<u8>),
     BitField { value: Vec<u8>, bits: u16 },
+}
+
+impl Eq for FieldValue {}
+
+impl Ord for FieldValue {
+    fn cmp(&self, other: &Self) -> Ordering {
+        use FieldValue::*;
+
+        match (self, other) {
+            (U8(a), U8(b)) => a.cmp(b),
+            (U16(a, _), U16(b, _)) => a.cmp(b),
+            (U32(a, _), U32(b, _)) => a.cmp(b),
+            (U64(a, _), U64(b, _)) => a.cmp(b),
+            (I8(a), I8(b)) => a.cmp(b),
+            (I16(a, _), I16(b, _)) => a.cmp(b),
+            (I32(a, _), I32(b, _)) => a.cmp(b),
+            (I64(a, _), I64(b, _)) => a.cmp(b),
+            (F32(a, _), F32(b, _)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
+            (F64(a, _), F64(b, _)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
+            (Bytes(a), Bytes(b)) => a.cmp(b),
+            (BitField { value: a, bits: bits_a }, BitField { value: b, bits: bits_b }) => {
+                a.cmp(b).then_with(|| bits_a.cmp(bits_b))
+            }
+            _ => Ordering::Equal, // Return Equal for different types or implement more specific logic
+        }
+    }
 }
 
 impl Default for FieldValue {

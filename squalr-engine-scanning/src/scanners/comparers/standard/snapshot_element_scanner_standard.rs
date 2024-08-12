@@ -232,7 +232,7 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
 
     fn get_comparison_equal(&self, value: FieldValue) -> bool {
         if let Some((current_value, _)) = self.get_current_previous_values() {
-            current_value == *value
+            current_value == value
         } else {
             false
         }
@@ -240,7 +240,7 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
 
     fn get_comparison_not_equal(&self, value: FieldValue) -> bool {
         if let Some((current_value, _)) = self.get_current_previous_values() {
-            current_value != *value
+            current_value != value
         } else {
             false
         }
@@ -248,7 +248,7 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
 
     fn get_comparison_greater_than(&self, value: FieldValue) -> bool {
         if let Some((current_value, _)) = self.get_current_previous_values() {
-            current_value > *value
+            current_value > value
         } else {
             false
         }
@@ -256,7 +256,7 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
 
     fn get_comparison_greater_than_or_equal(&self, value: FieldValue) -> bool {
         if let Some((current_value, _)) = self.get_current_previous_values() {
-            current_value >= *value
+            current_value >= value
         } else {
             false
         }
@@ -264,7 +264,7 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
 
     fn get_comparison_less_than(&self, value: FieldValue) -> bool {
         if let Some((current_value, _)) = self.get_current_previous_values() {
-            current_value < *value
+            current_value < value
         } else {
             false
         }
@@ -272,7 +272,7 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
 
     fn get_comparison_less_than_or_equal(&self, value: FieldValue) -> bool {
         if let Some((current_value, _)) = self.get_current_previous_values() {
-            current_value <= *value
+            current_value <= value
         } else {
             false
         }
