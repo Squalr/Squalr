@@ -1,21 +1,38 @@
 use crate::scanners::comparers::scalar::snapshot_element_scanner_scalar::SnapshotElementRangeScannerScalar;
+use crate::scanners::comparers::snapshot_element_range_scanner::SnapshotElementRangeScanner;
 use crate::scanners::comparers::snapshot_element_run_length_encoder::SnapshotElementRunLengthEncoder;
 use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 
 pub struct SnapshotElementRangeScannerScalarIterative {
     scalar_scanner: SnapshotElementRangeScannerScalar,
 }
 
 impl SnapshotElementRangeScannerScalarIterative {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             scalar_scanner: SnapshotElementRangeScannerScalar::new(),
         }
     }
+    
+    pub fn get_instance() -> Arc<SnapshotElementRangeScannerScalarIterative> {
+        static mut INSTANCE: Option<Arc<SnapshotElementRangeScannerScalarIterative>> = None;
+        static INIT: Once = Once::new();
 
-    pub fn scan_region(&mut self, element_range: Arc<SnapshotElementRange>, constraints: Arc<ScanConstraints>) -> Vec<Arc<SnapshotElementRange>> {
+        unsafe {
+            INIT.call_once(|| {
+                let instance = Arc::new(SnapshotElementRangeScannerScalarIterative::new());
+                INSTANCE = Some(instance);
+            });
+
+            return INSTANCE.as_ref().unwrap().clone();
+        }
+    }
+}
+
+impl SnapshotElementRangeScanner for SnapshotElementRangeScannerScalarIterative {
+    fn scan_region(&mut self, element_range: Arc<SnapshotElementRange>, constraints: Arc<ScanConstraints>) -> Vec<Arc<SnapshotElementRange>> {
         let current_value_pointer: *mut u8;
         let previous_value_pointer: *mut u8;
         let current_values = element_range.parent_region.write().unwrap().current_values.as_mut_ptr();
