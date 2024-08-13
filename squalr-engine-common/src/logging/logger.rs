@@ -17,17 +17,17 @@ impl Logger {
         }
     }
     
-    pub fn instance() -> &'static Logger {
-        static mut SINGLETON: Option<Logger> = None;
+    pub fn get_instance() -> &'static Logger {
+        static mut INSTANCE: Option<Logger> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
                 let instance = Logger::new();
-                SINGLETON = Some(instance);
+                INSTANCE = Some(instance);
             });
 
-            SINGLETON.as_ref().unwrap()
+            return INSTANCE.as_ref().unwrap();
         }
     }
 

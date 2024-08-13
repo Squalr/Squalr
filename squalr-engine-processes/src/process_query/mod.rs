@@ -39,7 +39,7 @@ pub use self::windows::windows_process_query::WindowsProcessQuery as ProcessQuer
 pub struct ProcessQuery;
 
 impl ProcessQuery {
-    pub fn instance() -> Box<dyn IProcessQueryer> {
-        Box::new(ProcessQueryImpl::new())
+    pub fn get_instance() -> Box<dyn IProcessQueryer> {
+        return Box::new(ProcessQueryImpl::new());
     }
 }

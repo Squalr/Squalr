@@ -22,8 +22,8 @@ impl SnapshotElementRangeScannerScalarIterative {
         let previous_values = element_range.parent_region.write().unwrap().previous_values.as_mut_ptr();
 
         unsafe {
-            current_value_pointer = current_values.add(element_range.region_offset);
-            previous_value_pointer = previous_values.add(element_range.region_offset);
+            current_value_pointer = current_values.add(element_range.get_region_offset());
+            previous_value_pointer = previous_values.add(element_range.get_region_offset());
         }
 
         let mut run_length_encoder = SnapshotElementRunLengthEncoder::new();

@@ -120,7 +120,7 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
 
         let _ = self.completion_sender.send(()); 
         self.notify.notify_one();
-        TrackableTaskManager::<T>::instance().lock().unwrap().downcast_mut::<TrackableTaskManager<T>>().unwrap().remove_task(&self.task_identifier);
+        TrackableTaskManager::<T>::get_instance().lock().unwrap().downcast_mut::<TrackableTaskManager<T>>().unwrap().remove_task(&self.task_identifier);
     }
 
     pub fn wait_for_completion(self: Arc<Self>) -> BoxFuture<'static, T> {

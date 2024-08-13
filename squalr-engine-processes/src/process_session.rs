@@ -15,7 +15,7 @@ impl ProcessSession {
         if let Some(pid) = pid {
             let system_guard = system.lock().unwrap();
             if let Some(process) = system_guard.process(pid) {
-                Logger::instance().log(
+                Logger::get_instance().log(
                     squalr_engine_common::logging::log_level::LogLevel::Info,
                     &format!("Attached to process: {} ({})", process.name(), process.pid().as_u32()),
                     None,

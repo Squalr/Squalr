@@ -25,7 +25,7 @@ impl SnapshotElementRunLengthEncoder {
     pub fn initialize(&mut self, element_range: Arc<SnapshotElementRange>) {
         self.element_range = Some(element_range.clone());
         self.parent_region_base_address = element_range.parent_region.read().unwrap().get_base_address();
-        self.run_length_encode_offset = element_range.region_offset;
+        self.run_length_encode_offset = element_range.get_region_offset();
         self.result_regions.clear();
     }
 

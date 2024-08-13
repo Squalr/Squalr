@@ -12,17 +12,17 @@ impl SessionManager {
         }
     }
     
-    pub fn instance() -> Arc<RwLock<SessionManager>> {
-        static mut SINGLETON: Option<Arc<RwLock<SessionManager>>> = None;
+    pub fn get_instance() -> Arc<RwLock<SessionManager>> {
+        static mut INSTANCE: Option<Arc<RwLock<SessionManager>>> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
                 let instance = Arc::new(RwLock::new(SessionManager::new()));
-                SINGLETON = Some(instance);
+                INSTANCE = Some(instance);
             });
 
-            SINGLETON.as_ref().unwrap().clone()
+            return INSTANCE.as_ref().unwrap().clone();
         }
     }
 

@@ -66,7 +66,7 @@ impl ScanSettings {
         }
     }
     
-    pub fn instance() -> &'static ScanSettings {
+    pub fn get_instance() -> &'static ScanSettings {
         static mut INSTANCE: Option<ScanSettings> = None;
         static ONCE: Once = Once::new();
 
@@ -76,7 +76,7 @@ impl ScanSettings {
                 INSTANCE = Some(instance);
             });
 
-            INSTANCE.as_ref().unwrap()
+            return INSTANCE.as_ref().unwrap();
         }
     }
 

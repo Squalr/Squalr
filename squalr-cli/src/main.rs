@@ -17,8 +17,8 @@ use log_listener::LogListener;
 async fn main() {
     // Initialize logger
     let log_listener = LogListener::new();
-    Logger::instance().subscribe(log_listener);
-    Logger::instance().log(LogLevel::Info, "Logger initialized", None);
+    Logger::get_instance().subscribe(log_listener);
+    Logger::get_instance().log(LogLevel::Info, "Logger initialized", None);
 
     let mut stdout = io::stdout();
     let stdin = io::stdin();
@@ -38,7 +38,7 @@ async fn main() {
         let args = match shlex::split(input) {
             Some(args) => args,
             None => {
-                Logger::instance().log(LogLevel::Error, "Error parsing input", None);
+                Logger::get_instance().log(LogLevel::Error, "Error parsing input", None);
                 continue;
             }
         };
@@ -46,7 +46,7 @@ async fn main() {
         let mut cli = match Cli::from_iter_safe(&args) {
             Ok(cli) => cli,
             Err(e) => {
-                Logger::instance().log(LogLevel::Error, &format!("{}", e), None);
+                Logger::get_instance().log(LogLevel::Error, &format!("{}", e), None);
                 continue;
             }
         };

@@ -8,12 +8,12 @@ use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 
 pub async fn handle_memory_write(cmd: &mut MemoryCommand) {
     if let MemoryCommand::Write { address, value } = cmd {
-        let session_manager_lock = SessionManager::instance();
+        let session_manager_lock = SessionManager::get_instance();
         let session_manager = session_manager_lock.read().unwrap();
 
         if let Some(process_info) = session_manager.get_opened_process() {
             // Log the memory write operation
-            Logger::instance().log(
+            Logger::get_instance().log(
                 LogLevel::Info,
                 &format!(
                     "Writing value {:?} to address {}",
@@ -26,9 +26,9 @@ pub async fn handle_memory_write(cmd: &mut MemoryCommand) {
             let value_bytes = value.to_bytes();
             
             // Perform the memory write operation
-            MemoryWriter::instance().write_bytes(process_info.handle, *address, &value_bytes);
+            MemoryWriter::get_instance().write_bytes(process_info.handle, *address, &value_bytes);
         } else {
-            Logger::instance().log(LogLevel::Info, "No process is opened to write to.", None);
+            Logger::get_instance().log(LogLevel::Info, "No process is opened to write to.", None);
         }
     }
 }

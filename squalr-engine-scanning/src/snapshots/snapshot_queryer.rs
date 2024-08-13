@@ -47,7 +47,7 @@ impl SnapshotQueryer {
             }
             SnapshotRetrievalMode::FROM_STACK => unimplemented!(),
             _ => {
-                Logger::instance().log(LogLevel::Error, "Unknown snapshot retrieval mode", None);
+                Logger::get_instance().log(LogLevel::Error, "Unknown snapshot retrieval mode", None);
                 Snapshot::new(String::from(""), vec![])
             }
         }
@@ -63,7 +63,7 @@ impl SnapshotQueryer {
         let allowed_type_flags = MemoryTypeEnum::NONE | MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE | MemoryTypeEnum::MAPPED;
         let bounds_handling = RegionBoundsHandling::Resize;
     
-        let normalized_regions = MemoryQueryer::instance().get_virtual_pages(
+        let normalized_regions = MemoryQueryer::get_instance().get_virtual_pages(
             process_info,
             required_page_flags,
             excluded_page_flags,
@@ -76,7 +76,7 @@ impl SnapshotQueryer {
         let mut snapshot_regions = Vec::new();
         for normalized_region in normalized_regions {
             let mut snapshot_region = SnapshotRegion::new_from_normalized_region(normalized_region);
-            snapshot_region.set_byte_alignment(ScanSettings::instance().get_byte_alignment());
+            snapshot_region.set_byte_alignment(ScanSettings::get_instance().get_byte_alignment());
             snapshot_regions.push(snapshot_region);
         }
     
@@ -89,9 +89,9 @@ impl SnapshotQueryer {
         let excluded_page_flags = MemoryProtectionEnum::empty();
         let allowed_type_flags = MemoryTypeEnum::NONE | MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE;
         let start_address = 0;
-        let end_address = MemoryQueryer::instance().get_max_usermode_address(process_info);
+        let end_address = MemoryQueryer::get_instance().get_max_usermode_address(process_info);
     
-        let normalized_regions = MemoryQueryer::instance().get_virtual_pages(
+        let normalized_regions = MemoryQueryer::get_instance().get_virtual_pages(
             process_info,
             required_page_flags,
             excluded_page_flags,
@@ -104,7 +104,7 @@ impl SnapshotQueryer {
         let mut snapshot_regions = Vec::new();
         for normalized_region in normalized_regions {
             let mut snapshot_region = SnapshotRegion::new_from_normalized_region(normalized_region);
-            snapshot_region.set_byte_alignment(ScanSettings::instance().get_byte_alignment());
+            snapshot_region.set_byte_alignment(ScanSettings::get_instance().get_byte_alignment());
             snapshot_regions.push(snapshot_region);
         }
     
@@ -117,16 +117,16 @@ impl SnapshotQueryer {
         let excluded_page_flags = SnapshotQueryer::get_excluded_protection_settings();
         let allowed_type_flags = SnapshotQueryer::get_allowed_type_settings();
     
-        let (start_address, end_address) = if ScanSettings::instance().is_usermode() {
-            (0, MemoryQueryer::instance().get_max_usermode_address(process_info))
+        let (start_address, end_address) = if ScanSettings::get_instance().is_usermode() {
+            (0, MemoryQueryer::get_instance().get_max_usermode_address(process_info))
         } else {
             (
-                ScanSettings::instance().get_start_address(),
-                ScanSettings::instance().get_end_address(),
+                ScanSettings::get_instance().get_start_address(),
+                ScanSettings::get_instance().get_end_address(),
             )
         };
     
-        let normalized_regions = MemoryQueryer::instance().get_virtual_pages(
+        let normalized_regions = MemoryQueryer::get_instance().get_virtual_pages(
             process_info,
             required_page_flags,
             excluded_page_flags,
@@ -139,7 +139,7 @@ impl SnapshotQueryer {
         let mut snapshot_regions = Vec::new();
         for normalized_region in normalized_regions {
             let mut snapshot_region = SnapshotRegion::new_from_normalized_region(normalized_region);
-            snapshot_region.set_byte_alignment(ScanSettings::instance().get_byte_alignment());
+            snapshot_region.set_byte_alignment(ScanSettings::get_instance().get_byte_alignment());
             snapshot_regions.push(snapshot_region);
         }
     
@@ -148,7 +148,7 @@ impl SnapshotQueryer {
     
     fn create_snapshot_from_modules(process_info: &ProcessInfo) -> Snapshot {
         // Note that we use into_base_region to extract the base region without copying, instead taking ownership
-        let module_regions: Vec<SnapshotRegion> = MemoryQueryer::instance()
+        let module_regions: Vec<SnapshotRegion> = MemoryQueryer::get_instance()
             .get_modules(process_info)
             .into_iter()
             .map(|module| SnapshotRegion::new_from_normalized_region(module.into_base_region()))
@@ -158,7 +158,7 @@ impl SnapshotQueryer {
     }    
 
     fn create_snapshot_from_heaps(process_info: &ProcessInfo) -> Snapshot {
-        let modules: HashSet<u64> = MemoryQueryer::instance()
+        let modules: HashSet<u64> = MemoryQueryer::get_instance()
             .get_modules(process_info)
             .into_iter()
             .map(|module| module.get_base_address())
@@ -168,10 +168,10 @@ impl SnapshotQueryer {
         let excluded_page_flags = MemoryProtectionEnum::empty();
         let allowed_type_flags = MemoryTypeEnum::NONE | MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE;
         let start_address = 0;
-        let end_address = MemoryQueryer::instance().get_max_usermode_address(process_info);
+        let end_address = MemoryQueryer::get_instance().get_max_usermode_address(process_info);
         
         // Collect all virtual pages
-        let virtual_pages = MemoryQueryer::instance().get_virtual_pages(
+        let virtual_pages = MemoryQueryer::get_instance().get_virtual_pages(
             process_info,
             required_page_flags,
             excluded_page_flags,
@@ -187,7 +187,7 @@ impl SnapshotQueryer {
             .filter(|page| !modules.contains(&page.get_base_address()))
             .map(|page| {
                 let mut snapshot_region = SnapshotRegion::new_from_normalized_region(page);
-                snapshot_region.set_byte_alignment(ScanSettings::instance().get_byte_alignment());
+                snapshot_region.set_byte_alignment(ScanSettings::get_instance().get_byte_alignment());
                 return snapshot_region;
             })
             .collect();
@@ -199,19 +199,19 @@ impl SnapshotQueryer {
     fn get_allowed_type_settings() -> MemoryTypeEnum {
         let mut result = MemoryTypeEnum::empty();
 
-        if ScanSettings::instance().get_memory_type_none() {
+        if ScanSettings::get_instance().get_memory_type_none() {
             result |= MemoryTypeEnum::NONE;
         }
 
-        if ScanSettings::instance().get_memory_type_private() {
+        if ScanSettings::get_instance().get_memory_type_private() {
             result |= MemoryTypeEnum::PRIVATE;
         }
 
-        if ScanSettings::instance().get_memory_type_image() {
+        if ScanSettings::get_instance().get_memory_type_image() {
             result |= MemoryTypeEnum::IMAGE;
         }
 
-        if ScanSettings::instance().get_memory_type_mapped() {
+        if ScanSettings::get_instance().get_memory_type_mapped() {
             result |= MemoryTypeEnum::MAPPED;
         }
 
@@ -221,15 +221,15 @@ impl SnapshotQueryer {
     fn get_required_protection_settings() -> MemoryProtectionEnum {
         let mut result = MemoryProtectionEnum::empty();
 
-        if ScanSettings::instance().get_required_write() {
+        if ScanSettings::get_instance().get_required_write() {
             result |= MemoryProtectionEnum::WRITE;
         }
 
-        if ScanSettings::instance().get_required_execute() {
+        if ScanSettings::get_instance().get_required_execute() {
             result |= MemoryProtectionEnum::EXECUTE;
         }
 
-        if ScanSettings::instance().get_required_copy_on_write() {
+        if ScanSettings::get_instance().get_required_copy_on_write() {
             result |= MemoryProtectionEnum::COPY_ON_WRITE;
         }
 
@@ -239,15 +239,15 @@ impl SnapshotQueryer {
     fn get_excluded_protection_settings() -> MemoryProtectionEnum {
         let mut result = MemoryProtectionEnum::empty();
 
-        if ScanSettings::instance().get_excluded_write() {
+        if ScanSettings::get_instance().get_excluded_write() {
             result |= MemoryProtectionEnum::WRITE;
         }
 
-        if ScanSettings::instance().get_excluded_execute() {
+        if ScanSettings::get_instance().get_excluded_execute() {
             result |= MemoryProtectionEnum::EXECUTE;
         }
 
-        if ScanSettings::instance().get_excluded_copy_on_write() {
+        if ScanSettings::get_instance().get_excluded_copy_on_write() {
             result |= MemoryProtectionEnum::COPY_ON_WRITE;
         }
 

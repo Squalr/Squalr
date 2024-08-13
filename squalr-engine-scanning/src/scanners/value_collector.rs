@@ -74,7 +74,7 @@ impl ValueCollector {
         }
 
         if with_logging {
-            Logger::instance().log(LogLevel::Info, "Reading values from memory...", None);
+            Logger::get_instance().log(LogLevel::Info, "Reading values from memory...", None);
         }
 
         let start_time = Instant::now();
@@ -121,8 +121,8 @@ impl ValueCollector {
         let duration = start_time.elapsed();
 
         if with_logging {
-            Logger::instance().log(LogLevel::Info, &format!("Values collected in: {:?}", duration), None);
-            Logger::instance().log(LogLevel::Info, &format!("{} bytes read ({})", byte_count, value_to_metric_size(byte_count)), None);
+            Logger::get_instance().log(LogLevel::Info, &format!("Values collected in: {:?}", duration), None);
+            Logger::get_instance().log(LogLevel::Info, &format!("{} bytes read ({})", byte_count, value_to_metric_size(byte_count)), None);
         }
     }
 }

@@ -24,17 +24,17 @@ impl SnapshotManager {
         }
     }
 
-    pub fn instance() -> Arc<RwLock<SnapshotManager>> {
-        static mut SINGLETON: Option<Arc<RwLock<SnapshotManager>>> = None;
+    pub fn get_instance() -> Arc<RwLock<SnapshotManager>> {
+        static mut INSTANCE: Option<Arc<RwLock<SnapshotManager>>> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
                 let instance = Arc::new(RwLock::new(SnapshotManager::new()));
-                SINGLETON = Some(instance);
+                INSTANCE = Some(instance);
             });
 
-            return SINGLETON.as_ref().unwrap().clone();
+            return INSTANCE.as_ref().unwrap().clone();
         }
     }
 

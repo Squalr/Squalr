@@ -20,17 +20,17 @@ pub use crate::memory_writer::windows::windows_memory_writer::WindowsMemoryWrite
 pub struct MemoryWriter;
 
 impl MemoryWriter {
-    pub fn instance() -> &'static MemoryWriterImpl {
-        static mut SINGLETON: Option<MemoryWriterImpl> = None;
+    pub fn get_instance() -> &'static MemoryWriterImpl {
+        static mut INSTANCE: Option<MemoryWriterImpl> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
                 let instance = MemoryWriterImpl::new();
-                SINGLETON = Some(instance);
+                INSTANCE = Some(instance);
             });
 
-            SINGLETON.as_ref().unwrap()
+            return INSTANCE.as_ref().unwrap();
         }
     }
 }

@@ -14,17 +14,17 @@ impl<T: Send + Sync + 'static> TrackableTaskManager<T> {
         }
     }
 
-    pub fn instance() -> &'static Mutex<Box<dyn Any + Send + Sync>> {
-        static mut SINGLETON: *const Mutex<Box<dyn Any + Send + Sync>> = 0 as *const _;
+    pub fn get_instance() -> &'static Mutex<Box<dyn Any + Send + Sync>> {
+        static mut INSTANCE: *const Mutex<Box<dyn Any + Send + Sync>> = 0 as *const _;
         static ONCE: Once = Once::new();
 
         unsafe {
             ONCE.call_once(|| {
                 let singleton = Mutex::new(Box::new(TrackableTaskManager::<T>::new()) as Box<dyn Any + Send + Sync>);
-                SINGLETON = Box::into_raw(Box::new(singleton));
+                INSTANCE = Box::into_raw(Box::new(singleton));
             });
 
-            &*SINGLETON
+            return &*INSTANCE;
         }
     }
 

@@ -23,17 +23,17 @@ pub use crate::memory_reader::windows::windows_memory_reader::WindowsMemoryReade
 pub struct MemoryReader;
 
 impl MemoryReader {
-    pub fn instance() -> &'static MemoryReaderImpl {
-        static mut SINGLETON: Option<MemoryReaderImpl> = None;
+    pub fn get_instance() -> &'static MemoryReaderImpl {
+        static mut INSTANCE: Option<MemoryReaderImpl> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
                 let instance = MemoryReaderImpl::new();
-                SINGLETON = Some(instance);
+                INSTANCE = Some(instance);
             });
 
-            SINGLETON.as_ref().unwrap()
+            return INSTANCE.as_ref().unwrap();
         }
     }
 }

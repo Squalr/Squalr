@@ -25,17 +25,17 @@ pub use crate::memory_queryer::windows::windows_memory_queryer::WindowsMemoryQue
 pub struct MemoryQueryer;
 
 impl MemoryQueryer {
-    pub fn instance() -> &'static MemoryQueryerImpl {
-        static mut SINGLETON: Option<MemoryQueryerImpl> = None;
+    pub fn get_instance() -> &'static MemoryQueryerImpl {
+        static mut INSTANCE: Option<MemoryQueryerImpl> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
                 let instance = MemoryQueryerImpl::new();
-                SINGLETON = Some(instance);
+                INSTANCE = Some(instance);
             });
 
-            SINGLETON.as_ref().unwrap()
+            return INSTANCE.as_ref().unwrap();
         }
     }
 }

@@ -79,9 +79,7 @@ impl ManualScanner {
                     return region;
                 }
                 
-                // Cloned to free the lock so that other threads can grab the constraints
-                // TODO: Sanity check that this is what happens
-                let constraints = constraints.read().unwrap().clone();
+                let constraints = constraints.read().unwrap();
 
                 if !region.can_compare_with_constraints(&constraints) {
                     return region;
@@ -119,8 +117,8 @@ impl ManualScanner {
 
         let duration = start_time.elapsed();
 
-        Logger::instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
+        Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
         let snapshot = snapshot.read().unwrap();
-        Logger::instance().log(LogLevel::Info, &format!("Results: {} ({} bytes)", snapshot.get_element_count(), value_to_metric_size(snapshot.get_byte_count())), None);
+        Logger::get_instance().log(LogLevel::Info, &format!("Results: {} ({} bytes)", snapshot.get_element_count(), value_to_metric_size(snapshot.get_byte_count())), None);
     }
 }
