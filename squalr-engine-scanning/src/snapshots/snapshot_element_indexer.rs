@@ -26,13 +26,13 @@ impl SnapshotElementIndexer {
 
     pub fn load_current_value(&self, data_type: FieldValue) -> FieldValue {
         let offset = self.element_range.region_offset + self.element_index * self.alignment as usize;
-        let pointer_base = &self.element_range.parent_region.borrow().current_values[offset..];
+        let pointer_base = &self.element_range.parent_region.read().unwrap().current_values[offset..];
         self.load_values(data_type, pointer_base)
     }
 
     pub fn load_previous_value(&self, data_type: FieldValue) -> FieldValue {
         let offset = self.element_range.region_offset + self.element_index * self.alignment as usize;
-        let pointer_base = &self.element_range.parent_region.borrow().previous_values[offset..];
+        let pointer_base = &self.element_range.parent_region.read().unwrap().previous_values[offset..];
         self.load_values(data_type, pointer_base)
     }
 
@@ -62,10 +62,10 @@ impl SnapshotElementIndexer {
     }
 
     pub fn has_current_value(&self) -> bool {
-        !self.element_range.parent_region.borrow().current_values.is_empty()
+        !self.element_range.parent_region.read().unwrap().current_values.is_empty()
     }
 
     pub fn has_previous_value(&self) -> bool {
-        !self.element_range.parent_region.borrow().previous_values.is_empty()
+        !self.element_range.parent_region.read().unwrap().previous_values.is_empty()
     }
 }

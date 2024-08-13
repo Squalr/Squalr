@@ -8,7 +8,7 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use std::time::Instant;
 use tokio::task::JoinHandle;
 use tokio::sync::broadcast;
@@ -79,23 +79,26 @@ impl ManualScanner {
                     return region;
                 }
                 
-                // TODO: Thread safe mutex access?? This would destroy all of the parallel gains we are expecting.
-                let constraints = constraints.read().unwrap();  // Lock the constraints for thread-safe access
+                // Cloned to free the lock so that other threads can grab the constraints
+                // TODO: Sanity check that this is what happens
+                let constraints = constraints.read().unwrap().clone();
 
-                if !region.can_compare(&constraints) {
+                if !region.can_compare_with_constraints(&constraints) {
                     return region;
                 }
 
                 region.set_byte_alignment(constraints.get_byte_alignment());
 
-                let scan_results: Vec<SnapshotElementRange> = region.scan_elements(&constraints).await;
+                // TODO: Port this
+                let scan_results: Vec<Arc<SnapshotElementRange>> = region.scan_elements(&constraints).await;
 
                 region.set_snapshot_element_ranges(scan_results);
                 region.set_byte_alignment(constraints.get_byte_alignment());
                 region.set_data_type_size(constraints.get_element_type().size_in_bytes());
 
                 let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
-
+                
+                // To reduce performance impact, only periodically send progress updates
                 if processed % 32 == 0 {
                     let progress = (processed as f32 / region_count as f32) * 100.0;
                     let _ = progress_sender.send(progress);

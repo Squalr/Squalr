@@ -59,8 +59,8 @@ impl SnapshotElementRangeScannerIterative {
     }
 
     fn initialize_pointers(&mut self, element_range: &Arc<SnapshotElementRange>) {
-        let current_values = element_range.parent_region.borrow().current_values.as_ptr();
-        let previous_values = element_range.parent_region.borrow().previous_values.as_ptr();
+        let current_values = element_range.parent_region.read().unwrap().current_values.as_ptr();
+        let previous_values = element_range.parent_region.read().unwrap().previous_values.as_ptr();
 
         unsafe {
             self.current_value_pointer = current_values.add(element_range.region_offset);

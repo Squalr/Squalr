@@ -18,7 +18,8 @@ impl ScanConstraints {
             root_constraint,
         };
         constraints.set_element_type(element_type);
-        constraints
+
+        return constraints;
     }
 
     pub fn get_root_constraint(&self) -> &Option<Arc<RwLock<ScanConstraint>>> {
@@ -45,6 +46,7 @@ impl ScanConstraints {
         self.element_type = element_type.clone();
         if let Some(root_constraint) = &self.root_constraint {
             let mut root_constraint = root_constraint.write().unwrap();
+
             root_constraint.set_element_type(&element_type);
         }
     }
@@ -54,14 +56,24 @@ impl ScanConstraints {
             let root_constraint = root_constraint.read().unwrap();
             return root_constraint.is_valid();
         }
-        false
+
+        return false;
+    }
+
+    pub fn is_relative_constraint(&self) -> bool {
+        if let Some(root_constraint) = &self.root_constraint {
+            let root_constraint = root_constraint.read().unwrap();
+            return root_constraint.is_relative_constraint();
+        }
+
+        return false;
     }
 
     pub fn clone(&self) -> Self {
-        ScanConstraints {
+        return ScanConstraints {
             alignment: self.alignment,
             element_type: self.element_type.clone(),
             root_constraint: self.root_constraint.clone(),
-        }
+        };
     }
 }

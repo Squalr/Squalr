@@ -1,14 +1,17 @@
+use crate::scanners::constraints::scan_constraints::ScanConstraints;
+use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct SnapshotRegion {
     normalized_region: NormalizedRegion,
     pub current_values: Vec<u8>,
     pub previous_values: Vec<u8>,
-    // snapshot_element_ranges: Vec<SnapshotElementRange>,
+    snapshot_element_ranges: Vec<Arc<SnapshotElementRange>>,
     element_count : u32,
 }
 
@@ -18,6 +21,7 @@ impl SnapshotRegion {
             normalized_region: NormalizedRegion::new(base_address, region_size),
             current_values: Vec::new(),
             previous_values: Vec::new(),
+            snapshot_element_ranges: Vec::new(),
             element_count: 0,
         }
     }
@@ -27,6 +31,7 @@ impl SnapshotRegion {
             normalized_region,
             current_values: Vec::new(),
             previous_values: Vec::new(),
+            snapshot_element_ranges: Vec::new(),
             element_count: 0,
         }
     }
@@ -53,6 +58,10 @@ impl SnapshotRegion {
         self.normalized_region.get_region_size()
     }
 
+    pub fn set_snapshot_element_ranges(&mut self, snapshot_element_ranges: Vec<Arc<SnapshotElementRange>>) {
+        self.snapshot_element_ranges = snapshot_element_ranges;
+    }
+
     pub fn set_byte_alignment(&mut self, alignment: MemoryAlignment) {
         self.normalized_region.set_byte_alignment(alignment);
     }
@@ -60,5 +69,13 @@ impl SnapshotRegion {
     pub fn set_data_type_size(&mut self, data_type_size: usize) {
         self.element_count = 0;
         panic!("todo");
+    }
+
+    pub fn can_compare_with_constraints(&self, constraints: &ScanConstraints) -> bool {
+        if !constraints.is_valid() || self.current_values.is_empty() || (constraints.is_relative_constraint() && self.previous_values.is_empty()) {
+            return false;
+        }
+
+        return true;
     }
 }
