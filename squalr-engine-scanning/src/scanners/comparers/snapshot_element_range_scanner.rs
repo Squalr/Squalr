@@ -1,22 +1,22 @@
-use std::rc::Rc;
 use crate::scanners::comparers::snapshot_element_run_length_encoder::SnapshotElementRunLengthEncoder;
 use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
+use std::sync::Arc;
 
 pub trait SnapshotElementRangeScannerTrait {
     fn scan_element_range(
         &mut self,
-        element_range: Rc<SnapshotElementRange>,
-        constraints: Rc<ScanConstraints>,
-    ) -> Vec<Rc<SnapshotElementRange>>;
+        element_range: Arc<SnapshotElementRange>,
+        constraints: Arc<ScanConstraints>,
+    ) -> Vec<Arc<SnapshotElementRange>>;
 
     fn dispose(&mut self);
 
     // Getters
     fn get_run_length_encoder(&mut self) -> &SnapshotElementRunLengthEncoder;
-    fn get_element_range(&self) -> Option<Rc<SnapshotElementRange>>;
+    fn get_element_range(&self) -> Option<Arc<SnapshotElementRange>>;
     fn get_data_type_size(&self) -> usize;
     fn get_byte_alignment(&self) -> MemoryAlignment;
     fn get_data_type(&self) -> &FieldValue;
@@ -24,7 +24,7 @@ pub trait SnapshotElementRangeScannerTrait {
 
     // Setters
     fn set_run_length_encoder(&mut self, encoder: SnapshotElementRunLengthEncoder);
-    fn set_element_range(&mut self, element_range: Option<Rc<SnapshotElementRange>>);
+    fn set_element_range(&mut self, element_range: Option<Arc<SnapshotElementRange>>);
     fn set_data_type_size(&mut self, size: usize);
     fn set_alignment(&mut self, alignment: MemoryAlignment);
     fn set_data_type(&mut self, data_type: FieldValue);
@@ -33,7 +33,7 @@ pub trait SnapshotElementRangeScannerTrait {
 
 pub struct SnapshotElementRangeScanner {
     run_length_encoder: SnapshotElementRunLengthEncoder,
-    element_range: Option<Rc<SnapshotElementRange>>,
+    element_range: Option<Arc<SnapshotElementRange>>,
     data_type_size: usize,
     alignment: MemoryAlignment,
     data_type: FieldValue,
@@ -54,8 +54,8 @@ impl SnapshotElementRangeScanner {
 
     pub fn initialize(
         &mut self,
-        element_range: Rc<SnapshotElementRange>,
-        constraints: Rc<ScanConstraints>,
+        element_range: Arc<SnapshotElementRange>,
+        constraints: Arc<ScanConstraints>,
     ) {
         self.run_length_encoder.initialize(element_range.clone());
         self.element_range = Some(element_range);
@@ -89,11 +89,11 @@ impl SnapshotElementRangeScanner {
         self.run_length_encoder = encoder;
     }
 
-    pub fn get_element_range(&self) -> Option<Rc<SnapshotElementRange>> {
+    pub fn get_element_range(&self) -> Option<Arc<SnapshotElementRange>> {
         return self.element_range.clone();
     }
 
-    pub fn set_element_range(&mut self, element_range: Option<Rc<SnapshotElementRange>>) {
+    pub fn set_element_range(&mut self, element_range: Option<Arc<SnapshotElementRange>>) {
         self.element_range = element_range;
     }
 
@@ -133,9 +133,9 @@ impl SnapshotElementRangeScanner {
 impl SnapshotElementRangeScannerTrait for SnapshotElementRangeScanner {
     fn scan_element_range(
         &mut self,
-        element_range: Rc<SnapshotElementRange>,
-        constraints: Rc<ScanConstraints>,
-    ) -> Vec<Rc<SnapshotElementRange>> {
+        element_range: Arc<SnapshotElementRange>,
+        constraints: Arc<ScanConstraints>,
+    ) -> Vec<Arc<SnapshotElementRange>> {
         self.run_length_encoder.initialize(element_range.clone());
         self.element_range = Some(element_range.clone());
         self.data_type = constraints.get_element_type().clone();
@@ -163,7 +163,7 @@ impl SnapshotElementRangeScannerTrait for SnapshotElementRangeScanner {
         &self.run_length_encoder
     }
 
-    fn get_element_range(&self) -> Option<Rc<SnapshotElementRange>> {
+    fn get_element_range(&self) -> Option<Arc<SnapshotElementRange>> {
         self.element_range.clone()
     }
 
@@ -187,7 +187,7 @@ impl SnapshotElementRangeScannerTrait for SnapshotElementRangeScanner {
         self.run_length_encoder = encoder;
     }
 
-    fn set_element_range(&mut self, element_range: Option<Rc<SnapshotElementRange>>) {
+    fn set_element_range(&mut self, element_range: Option<Arc<SnapshotElementRange>>) {
         self.element_range = element_range;
     }
 

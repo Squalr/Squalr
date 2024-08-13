@@ -2,22 +2,22 @@ use crate::snapshots::snapshot_element_indexer::SnapshotElementIndexer;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::iter::Iterator;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct SnapshotElementRange {
-    pub parent_region: Rc<RefCell<SnapshotRegion>>,
+    pub parent_region: Arc<RefCell<SnapshotRegion>>,
     pub region_offset: usize,
     pub range: usize,
 }
 
 impl SnapshotElementRange {
-    pub fn new(parent_region: Rc<RefCell<SnapshotRegion>>) -> Self {
+    pub fn new(parent_region: Arc<RefCell<SnapshotRegion>>) -> Self {
         Self::with_offset_and_range(parent_region.clone(), 0, parent_region.borrow().get_region_size() as usize)
     }
 
-    pub fn with_offset_and_range(parent_region: Rc<RefCell<SnapshotRegion>>, region_offset: usize, range: usize) -> Self {
+    pub fn with_offset_and_range(parent_region: Arc<RefCell<SnapshotRegion>>, region_offset: usize, range: usize) -> Self {
         Self {
             parent_region,
             region_offset,
@@ -77,14 +77,14 @@ impl SnapshotElementRange {
 }
 
 pub struct SnapshotElementIterator {
-    element_range: Rc<SnapshotElementRange>,
+    element_range: Arc<SnapshotElementRange>,
     alignment: MemoryAlignment,
     current_index: usize,
     total_elements: usize,
 }
 
 impl SnapshotElementIterator {
-    pub fn new(element_range: Rc<SnapshotElementRange>, alignment: MemoryAlignment) -> Self {
+    pub fn new(element_range: Arc<SnapshotElementRange>, alignment: MemoryAlignment) -> Self {
         let total_elements = element_range.get_aligned_element_count(alignment);
         Self {
             element_range,

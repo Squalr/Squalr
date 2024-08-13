@@ -2,16 +2,16 @@ use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_common::dynamic_struct::field_value::Endian;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct SnapshotElementIndexer {
-    element_range: Rc<SnapshotElementRange>,
+    element_range: Arc<SnapshotElementRange>,
     element_index: usize,
     alignment: MemoryAlignment,
 }
 
 impl SnapshotElementIndexer {
-    pub fn new(element_range: Rc<SnapshotElementRange>, alignment: MemoryAlignment, element_index: usize) -> Self {
+    pub fn new(element_range: Arc<SnapshotElementRange>, alignment: MemoryAlignment, element_index: usize) -> Self {
         Self {
             element_range,
             element_index,

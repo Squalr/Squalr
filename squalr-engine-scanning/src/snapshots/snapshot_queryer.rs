@@ -76,7 +76,7 @@ impl SnapshotQueryer {
         let mut snapshot_regions = Vec::new();
         for normalized_region in normalized_regions {
             let mut snapshot_region = SnapshotRegion::new_from_normalized_region(normalized_region);
-            snapshot_region.set_byte_alignment(ScanSettings::instance().get_byte_alignment() as u32);
+            snapshot_region.set_byte_alignment(ScanSettings::instance().get_byte_alignment());
             snapshot_regions.push(snapshot_region);
         }
     
@@ -104,7 +104,7 @@ impl SnapshotQueryer {
         let mut snapshot_regions = Vec::new();
         for normalized_region in normalized_regions {
             let mut snapshot_region = SnapshotRegion::new_from_normalized_region(normalized_region);
-            snapshot_region.set_byte_alignment(ScanSettings::instance().get_byte_alignment() as u32);
+            snapshot_region.set_byte_alignment(ScanSettings::instance().get_byte_alignment());
             snapshot_regions.push(snapshot_region);
         }
     
@@ -139,7 +139,7 @@ impl SnapshotQueryer {
         let mut snapshot_regions = Vec::new();
         for normalized_region in normalized_regions {
             let mut snapshot_region = SnapshotRegion::new_from_normalized_region(normalized_region);
-            snapshot_region.set_byte_alignment(ScanSettings::instance().get_byte_alignment() as u32);
+            snapshot_region.set_byte_alignment(ScanSettings::instance().get_byte_alignment());
             snapshot_regions.push(snapshot_region);
         }
     
@@ -187,7 +187,7 @@ impl SnapshotQueryer {
             .filter(|page| !modules.contains(&page.get_base_address()))
             .map(|page| {
                 let mut snapshot_region = SnapshotRegion::new_from_normalized_region(page);
-                snapshot_region.set_byte_alignment(ScanSettings::instance().get_byte_alignment() as u32);
+                snapshot_region.set_byte_alignment(ScanSettings::instance().get_byte_alignment());
                 return snapshot_region;
             })
             .collect();

@@ -1,4 +1,4 @@
-use crate::snapshots::snapshot_element_range::SnapshotElementRange;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
@@ -53,11 +53,11 @@ impl SnapshotRegion {
         self.normalized_region.get_region_size()
     }
 
-    pub fn set_byte_alignment(&mut self, alignment: u32) {
+    pub fn set_byte_alignment(&mut self, alignment: MemoryAlignment) {
         self.normalized_region.set_byte_alignment(alignment);
     }
 
-    pub fn set_data_type_size(&mut self, data_type_size: u32) {
+    pub fn set_data_type_size(&mut self, data_type_size: usize) {
         self.element_count = 0;
         panic!("todo");
     }

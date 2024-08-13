@@ -1,8 +1,9 @@
+use crate::memory_alignment::MemoryAlignment;
+use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_common::logging::log_level::LogLevel;
 use std::cmp::{Ord, Ordering};
 use std::ops::Add;
 use std::hash::{Hash, Hasher};
-use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_common::logging::log_level::LogLevel;
 
 #[derive(Debug)]
 pub struct NormalizedRegion {
@@ -47,7 +48,7 @@ impl NormalizedRegion {
         self.region_size = region_size;
     }
 
-    pub fn set_byte_alignment(&mut self, alignment: u32) {
+    pub fn set_byte_alignment(&mut self, alignment: MemoryAlignment) {
         let alignment_value = alignment as u64;
 
         if alignment_value <= 0 || self.base_address % alignment as u64 == 0 {

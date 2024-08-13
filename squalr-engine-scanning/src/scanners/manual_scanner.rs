@@ -21,7 +21,7 @@ impl ManualScanner {
 
     pub fn scan(
         snapshot: Arc<RwLock<Snapshot>>,
-        constraints: Arc<Mutex<ScanConstraints>>,
+        constraints: Arc<RwLock<ScanConstraints>>,
         task_identifier: Option<String>,
     ) -> Arc<TrackableTask<()>> {
         let task = TrackableTask::<()>::create(
@@ -50,7 +50,7 @@ impl ManualScanner {
 
     async fn scan_task(
         snapshot: Arc<RwLock<Snapshot>>,
-        constraints: Arc<Mutex<ScanConstraints>>,
+        constraints: Arc<RwLock<ScanConstraints>>,
         progress_sender: broadcast::Sender<f32>,
         cancellation_token: CancellationToken,
     ) {
@@ -78,14 +78,15 @@ impl ManualScanner {
                 if cancellation_token.is_cancelled() {
                     return region;
                 }
-
-                let constraints = constraints.lock().unwrap();  // Lock the constraints for thread-safe access
+                
+                // TODO: Thread safe mutex access?? This would destroy all of the parallel gains we are expecting.
+                let constraints = constraints.read().unwrap();  // Lock the constraints for thread-safe access
 
                 if !region.can_compare(&constraints) {
                     return region;
                 }
 
-                region.set_byte_alignment(constraints.get_byte_alignment() as u32);
+                region.set_byte_alignment(constraints.get_byte_alignment());
 
                 let scan_results: Vec<SnapshotElementRange> = region.scan_elements(&constraints).await;
 
@@ -94,21 +95,23 @@ impl ManualScanner {
                 region.set_data_type_size(constraints.get_element_type().size_in_bytes());
 
                 let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
+
                 if processed % 32 == 0 {
                     let progress = (processed as f32 / region_count as f32) * 100.0;
                     let _ = progress_sender.send(progress);
                 }
 
-                region
+                return region;
             })
         })).await.into_iter().filter_map(Result::ok).collect();
 
         // Lock the snapshot briefly to update it.
         {
             let mut snapshot = snapshot.write().unwrap();
-            snapshot.set_snapshot_regions(results);
-            snapshot.set_alignment(constraints.lock().unwrap().get_byte_alignment());
-            snapshot.snapshot_name = ManualScanner::NAME.to_string();
+            let constraints = constraints.read().unwrap();
+
+            snapshot.set_snapshot_regions(results, constraints.get_byte_alignment(), constraints.get_element_type().size_in_bytes());
+            snapshot.set_name(ManualScanner::NAME.to_string());
         }
 
         let duration = start_time.elapsed();

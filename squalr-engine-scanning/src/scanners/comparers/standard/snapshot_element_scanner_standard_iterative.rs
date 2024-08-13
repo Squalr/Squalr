@@ -1,7 +1,7 @@
 use crate::scanners::comparers::standard::snapshot_element_scanner_standard::SnapshotElementRangeScannerStandard;
 use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct SnapshotElementRangeScannerIterative {
     base_scanner: SnapshotElementRangeScannerStandard,
@@ -22,9 +22,9 @@ impl SnapshotElementRangeScannerIterative {
 
     pub fn scan_region(
         &mut self,
-        element_range: Rc<SnapshotElementRange>,
-        constraints: Rc<ScanConstraints>,
-    ) -> Vec<Rc<SnapshotElementRange>> {
+        element_range: Arc<SnapshotElementRange>,
+        constraints: Arc<ScanConstraints>,
+    ) -> Vec<Arc<SnapshotElementRange>> {
         self.initialize(element_range.clone(), constraints.clone());
 
         let aligned_element_count = element_range.get_aligned_element_count(constraints.get_byte_alignment());
@@ -55,12 +55,12 @@ impl SnapshotElementRangeScannerIterative {
         return self.base_scanner.get_run_length_encoder().get_collected_regions().clone();
     }
 
-    fn initialize(&mut self, element_range: Rc<SnapshotElementRange>, constraints: Rc<ScanConstraints>) {
+    fn initialize(&mut self, element_range: Arc<SnapshotElementRange>, constraints: Arc<ScanConstraints>) {
         self.base_scanner.initialize(element_range.clone(), constraints.clone());
         self.initialize_pointers(element_range);
     }
 
-    fn initialize_pointers(&mut self, element_range: Rc<SnapshotElementRange>) {
+    fn initialize_pointers(&mut self, element_range: Arc<SnapshotElementRange>) {
         let current_values = element_range.parent_region.borrow().current_values.as_ptr();
         let previous_values = element_range.parent_region.borrow().previous_values.as_ptr();
 

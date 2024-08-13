@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use crate::scanners::comparers::snapshot_element_range_scanner::{SnapshotElementRangeScanner, SnapshotElementRangeScannerTrait};
 use crate::scanners::comparers::snapshot_element_run_length_encoder::SnapshotElementRunLengthEncoder;
 use crate::scanners::constraints::scan_constraint::{ConstraintType, ScanConstraint};
@@ -6,6 +5,7 @@ use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
+use std::sync::Arc;
 
 pub struct SnapshotElementRangeScannerStandard {
     scanner: SnapshotElementRangeScanner,
@@ -18,7 +18,7 @@ impl SnapshotElementRangeScannerStandard {
         };
     }
 
-    pub fn initialize(&mut self, element_range: Rc<SnapshotElementRange>, constraints: Rc<ScanConstraints>) {
+    pub fn initialize(&mut self, element_range: Arc<SnapshotElementRange>, constraints: Arc<ScanConstraints>) {
         self.scanner.initialize(element_range, constraints);
     }
 
@@ -34,11 +34,11 @@ impl SnapshotElementRangeScannerStandard {
         self.scanner.set_run_length_encoder(encoder);
     }
 
-    pub fn get_element_range(&self) -> Option<Rc<SnapshotElementRange>> {
+    pub fn get_element_range(&self) -> Option<Arc<SnapshotElementRange>> {
         return self.scanner.get_element_range();
     }
 
-    pub fn set_element_range(&mut self, element_range: Option<Rc<SnapshotElementRange>>) {
+    pub fn set_element_range(&mut self, element_range: Option<Arc<SnapshotElementRange>>) {
         self.scanner.set_element_range(element_range);
     }
 
