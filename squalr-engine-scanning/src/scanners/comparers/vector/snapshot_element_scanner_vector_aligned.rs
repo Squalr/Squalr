@@ -3,11 +3,11 @@ use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use std::simd::u8x16;
 
-pub struct SnapshotRegionVectorScannerFast<'a> {
+pub struct SnapshotRegionVectorScannerAligned<'a> {
     base_scanner: SnapshotElementScannerVector<'a>,
 }
 
-impl<'a> SnapshotRegionVectorScannerFast<'a> {
+impl<'a> SnapshotRegionVectorScannerAligned<'a> {
     pub fn new() -> Self {
         Self {
             base_scanner: SnapshotElementScannerVector::new(),

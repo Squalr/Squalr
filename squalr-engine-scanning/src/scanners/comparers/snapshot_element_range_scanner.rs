@@ -52,11 +52,7 @@ impl SnapshotElementRangeScanner {
         };
     }
 
-    pub fn initialize(
-        &mut self,
-        element_range: Arc<SnapshotElementRange>,
-        constraints: Arc<ScanConstraints>,
-    ) {
+    pub fn initialize(&mut self, element_range: Arc<SnapshotElementRange>, constraints: Arc<ScanConstraints>) {
         self.run_length_encoder.initialize(element_range.clone());
         self.element_range = Some(element_range);
         self.data_type = constraints.get_element_type().clone();
@@ -131,11 +127,7 @@ impl SnapshotElementRangeScanner {
 }
 
 impl SnapshotElementRangeScannerTrait for SnapshotElementRangeScanner {
-    fn scan_element_range(
-        &mut self,
-        element_range: Arc<SnapshotElementRange>,
-        constraints: Arc<ScanConstraints>,
-    ) -> Vec<Arc<SnapshotElementRange>> {
+    fn scan_element_range(&mut self, element_range: Arc<SnapshotElementRange>, constraints: Arc<ScanConstraints>) -> Vec<Arc<SnapshotElementRange>> {
         self.run_length_encoder.initialize(element_range.clone());
         self.element_range = Some(element_range.clone());
         self.data_type = constraints.get_element_type().clone();
