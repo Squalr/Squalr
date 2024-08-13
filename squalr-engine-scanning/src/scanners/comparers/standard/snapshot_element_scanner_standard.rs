@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use crate::scanners::comparers::snapshot_element_range_scanner::{SnapshotElementRangeScanner, SnapshotElementRangeScannerTrait};
 use crate::scanners::comparers::snapshot_element_run_length_encoder::SnapshotElementRunLengthEncoder;
 use crate::scanners::constraints::scan_constraint::{ConstraintType, ScanConstraint};
@@ -6,18 +7,18 @@ use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 
-pub struct SnapshotElementRangeScannerStandard<'a> {
-    scanner: SnapshotElementRangeScanner<'a>,
+pub struct SnapshotElementRangeScannerStandard {
+    scanner: SnapshotElementRangeScanner,
 }
 
-impl<'a> SnapshotElementRangeScannerStandard<'a> {
+impl SnapshotElementRangeScannerStandard {
     pub fn new() -> Self {
         return Self {
             scanner: SnapshotElementRangeScanner::new(),
         };
     }
 
-    pub fn initialize(&mut self, element_range: &'a SnapshotElementRange<'a>, constraints: &ScanConstraints) {
+    pub fn initialize(&mut self, element_range: Rc<SnapshotElementRange>, constraints: Rc<ScanConstraints>) {
         self.scanner.initialize(element_range, constraints);
     }
 
@@ -25,19 +26,19 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         self.scanner.dispose();
     }
 
-    pub fn get_run_length_encoder(&mut self) -> &mut SnapshotElementRunLengthEncoder<'a> {
+    pub fn get_run_length_encoder(&mut self) -> &mut SnapshotElementRunLengthEncoder {
         return self.scanner.get_run_length_encoder();
     }
 
-    pub fn set_run_length_encoder(&mut self, encoder: SnapshotElementRunLengthEncoder<'a>) {
+    pub fn set_run_length_encoder(&mut self, encoder: SnapshotElementRunLengthEncoder) {
         self.scanner.set_run_length_encoder(encoder);
     }
 
-    pub fn get_element_range(&self) -> Option<&'a SnapshotElementRange<'a>> {
+    pub fn get_element_range(&self) -> Option<Rc<SnapshotElementRange>> {
         return self.scanner.get_element_range();
     }
 
-    pub fn set_element_range(&mut self, element_range: Option<&'a SnapshotElementRange<'a>>) {
+    pub fn set_element_range(&mut self, element_range: Option<Rc<SnapshotElementRange>>) {
         self.scanner.set_element_range(element_range);
     }
 
@@ -65,11 +66,11 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         self.scanner.set_data_type(data_type);
     }
 
-    pub fn get_on_dispose(&self) -> Option<&Box<dyn Fn() + 'a>> {
+    pub fn get_on_dispose(&self) -> Option<&Box<dyn Fn()>> {
         return self.scanner.get_on_dispose();
     }
 
-    pub fn set_on_dispose(&mut self, on_dispose: Option<Box<dyn Fn() + 'a>>) {
+    pub fn set_on_dispose(&mut self, on_dispose: Option<Box<dyn Fn()>>) {
         self.scanner.set_on_dispose(on_dispose);
     }
 
@@ -130,11 +131,29 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
                 FieldValue::I32(i32::from_ne_bytes(bytes), endian.clone())
             }
             FieldValue::U64(_, endian) => {
-                let bytes = [*ptr, *ptr.add(1), *ptr.add(2), *ptr.add(3), *ptr.add(4), *ptr.add(5), *ptr.add(6), *ptr.add(7)];
+                let bytes = [
+                    *ptr,
+                    *ptr.add(1),
+                    *ptr.add(2),
+                    *ptr.add(3),
+                    *ptr.add(4),
+                    *ptr.add(5),
+                    *ptr.add(6),
+                    *ptr.add(7),
+                ];
                 FieldValue::U64(u64::from_ne_bytes(bytes), endian.clone())
             }
             FieldValue::I64(_, endian) => {
-                let bytes = [*ptr, *ptr.add(1), *ptr.add(2), *ptr.add(3), *ptr.add(4), *ptr.add(5), *ptr.add(6), *ptr.add(7)];
+                let bytes = [
+                    *ptr,
+                    *ptr.add(1),
+                    *ptr.add(2),
+                    *ptr.add(3),
+                    *ptr.add(4),
+                    *ptr.add(5),
+                    *ptr.add(6),
+                    *ptr.add(7),
+                ];
                 FieldValue::I64(i64::from_ne_bytes(bytes), endian.clone())
             }
             FieldValue::F32(_, endian) => {
@@ -143,7 +162,16 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
                 FieldValue::F32(f32::from_bits(bits), endian.clone())
             }
             FieldValue::F64(_, endian) => {
-                let bytes = [*ptr, *ptr.add(1), *ptr.add(2), *ptr.add(3), *ptr.add(4), *ptr.add(5), *ptr.add(6), *ptr.add(7)];
+                let bytes = [
+                    *ptr,
+                    *ptr.add(1),
+                    *ptr.add(2),
+                    *ptr.add(3),
+                    *ptr.add(4),
+                    *ptr.add(5),
+                    *ptr.add(6),
+                    *ptr.add(7),
+                ];
                 let bits = u64::from_ne_bytes(bytes);
                 FieldValue::F64(f64::from_bits(bits), endian.clone())
             }
@@ -170,38 +198,43 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         let (current_value, previous_value) = self.get_current_previous_values(current_value_ptr, previous_value_ptr);
         return current_value < previous_value;
     }
-    
+
     fn compare_equal(&self, current_value_ptr: *const u8, value: FieldValue) -> bool {
         let current_value = self.get_current_values(current_value_ptr);
         return current_value == value;
     }
-    
+
     fn compare_not_equal(&self, current_value_ptr: *const u8, value: FieldValue) -> bool {
         let current_value = self.get_current_values(current_value_ptr);
         return current_value != value;
     }
-    
+
     fn compare_greater_than(&self, current_value_ptr: *const u8, value: FieldValue) -> bool {
         let current_value = self.get_current_values(current_value_ptr);
         return current_value > value;
     }
-    
+
     fn compare_greater_than_or_equal(&self, current_value_ptr: *const u8, value: FieldValue) -> bool {
         let current_value = self.get_current_values(current_value_ptr);
         return current_value >= value;
     }
-    
+
     fn compare_less_than(&self, current_value_ptr: *const u8, value: FieldValue) -> bool {
         let current_value = self.get_current_values(current_value_ptr);
         return current_value < value;
     }
-    
+
     fn compare_less_than_or_equal(&self, current_value_ptr: *const u8, value: FieldValue) -> bool {
         let current_value = self.get_current_values(current_value_ptr);
         return current_value <= value;
     }
-    
-    fn compare_increased_by(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8, value: FieldValue) -> bool {
+
+    fn compare_increased_by(
+        &self,
+        current_value_ptr: *const u8,
+        previous_value_ptr: *const u8,
+        value: FieldValue,
+    ) -> bool {
         let (current_value, previous_value) = self.get_current_previous_values(current_value_ptr, previous_value_ptr);
         return match (current_value, previous_value) {
             (FieldValue::U8(a), FieldValue::U8(b)) => a == b.wrapping_add(value.as_u8().unwrap()),
@@ -215,8 +248,13 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
             _ => false,
         };
     }
-    
-    fn compare_decreased_by(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8, value: FieldValue) -> bool {
+
+    fn compare_decreased_by(
+        &self,
+        current_value_ptr: *const u8,
+        previous_value_ptr: *const u8,
+        value: FieldValue,
+    ) -> bool {
         let (current_value, previous_value) = self.get_current_previous_values(current_value_ptr, previous_value_ptr);
         return match (current_value, previous_value) {
             (FieldValue::U8(a), FieldValue::U8(b)) => a == b.wrapping_sub(value.as_u8().unwrap()),
@@ -230,5 +268,4 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
             _ => false,
         };
     }
-    
 }

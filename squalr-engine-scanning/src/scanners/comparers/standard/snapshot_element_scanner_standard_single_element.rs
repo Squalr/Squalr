@@ -1,14 +1,15 @@
 use crate::scanners::comparers::standard::snapshot_element_scanner_standard::SnapshotElementRangeScannerStandard;
 use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
+use std::rc::Rc;
 
-pub struct SnapshotElementRangeScannerIterative<'a> {
-    base_scanner: SnapshotElementRangeScannerStandard<'a>,
+pub struct SnapshotElementRangeScannerIterative {
+    base_scanner: SnapshotElementRangeScannerStandard,
     current_value_pointer: *const u8,
     previous_value_pointer: *const u8,
 }
 
-impl<'a> SnapshotElementRangeScannerIterative<'a> {
+impl SnapshotElementRangeScannerIterative {
     pub fn new() -> Self {
         Self {
             base_scanner: SnapshotElementRangeScannerStandard::new(),
@@ -19,10 +20,10 @@ impl<'a> SnapshotElementRangeScannerIterative<'a> {
 
     pub fn scan_region(
         &mut self,
-        element_range: &'a SnapshotElementRange<'a>,
-        constraints: &'a ScanConstraints,
-    ) -> Vec<SnapshotElementRange<'a>> {
-        self.initialize(element_range, constraints);
+        element_range: Rc<SnapshotElementRange>,
+        constraints: Rc<ScanConstraints>,
+    ) -> Vec<Rc<SnapshotElementRange>> {
+        self.initialize(element_range.clone(), constraints.clone());
 
         let aligned_element_count = element_range.get_aligned_element_count(constraints.get_byte_alignment());
         let root_constraint = constraints.get_root_constraint().as_ref().unwrap();
@@ -52,12 +53,12 @@ impl<'a> SnapshotElementRangeScannerIterative<'a> {
         return self.base_scanner.get_run_length_encoder().get_collected_regions().clone();
     }
 
-    fn initialize(&mut self, element_range: &'a SnapshotElementRange<'a>, constraints: &'a ScanConstraints) {
+    fn initialize(&mut self, element_range: Rc<SnapshotElementRange>, constraints: Rc<ScanConstraints>) {
+        self.initialize_pointers(&element_range);
         self.base_scanner.initialize(element_range, constraints);
-        self.initialize_pointers(element_range);
     }
 
-    fn initialize_pointers(&mut self, element_range: &'a SnapshotElementRange<'a>) {
+    fn initialize_pointers(&mut self, element_range: &Rc<SnapshotElementRange>) {
         let current_values = element_range.parent_region.borrow().current_values.as_ptr();
         let previous_values = element_range.parent_region.borrow().previous_values.as_ptr();
 

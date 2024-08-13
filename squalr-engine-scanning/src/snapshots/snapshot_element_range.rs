@@ -2,21 +2,22 @@ use crate::snapshots::snapshot_element_indexer::SnapshotElementIndexer;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::cell::RefCell;
+use std::rc::Rc;
 use std::iter::Iterator;
 
 #[derive(Debug, Clone)]
-pub struct SnapshotElementRange<'a> {
-    pub parent_region: &'a RefCell<SnapshotRegion>,
+pub struct SnapshotElementRange {
+    pub parent_region: Rc<RefCell<SnapshotRegion>>,
     pub region_offset: usize,
     pub range: usize,
 }
 
-impl<'a> SnapshotElementRange<'a> {
-    pub fn new(parent_region: &'a RefCell<SnapshotRegion>) -> Self {
-        Self::with_offset_and_range(parent_region, 0, parent_region.borrow().get_region_size() as usize)
+impl SnapshotElementRange {
+    pub fn new(parent_region: Rc<RefCell<SnapshotRegion>>) -> Self {
+        Self::with_offset_and_range(parent_region.clone(), 0, parent_region.borrow().get_region_size() as usize)
     }
 
-    pub fn with_offset_and_range(parent_region: &'a RefCell<SnapshotRegion>, region_offset: usize, range: usize) -> Self {
+    pub fn with_offset_and_range(parent_region: Rc<RefCell<SnapshotRegion>>, region_offset: usize, range: usize) -> Self {
         Self {
             parent_region,
             region_offset,
@@ -29,23 +30,23 @@ impl<'a> SnapshotElementRange<'a> {
     }
 
     pub fn get_current_values(&self) -> Vec<u8> {
-        return self.parent_region.borrow().current_values.clone();
+        self.parent_region.borrow().current_values.clone()
     }
 
     pub fn get_previous_values(&self) -> Vec<u8> {
-        return self.parent_region.borrow().previous_values.clone();
+        self.parent_region.borrow().previous_values.clone()
     }
 
     pub fn get_base_element_address(&self) -> u64 {
-        return self.parent_region.borrow().get_base_address() + self.region_offset as u64;
+        self.parent_region.borrow().get_base_address() + self.region_offset as u64
     }
 
     pub fn get_end_element_address(&self) -> u64 {
-        return self.get_base_element_address() + self.range as u64;
+        self.get_base_element_address() + self.range as u64
     }
 
     pub fn get_region_offset(&self) -> usize {
-        return self.region_offset;
+        self.region_offset
     }
 
     pub fn get_byte_count(&self, data_type_size: usize) -> usize {
@@ -67,23 +68,23 @@ impl<'a> SnapshotElementRange<'a> {
     }
 
     pub fn get_element_indexer(&self, index: usize, alignment: MemoryAlignment) -> SnapshotElementIndexer {
-        SnapshotElementIndexer::new(self, alignment, index)
+        SnapshotElementIndexer::new(self.clone().into(), alignment, index)
     }
 
     pub fn iterate_elements(&self, alignment: MemoryAlignment) -> SnapshotElementIterator {
-        SnapshotElementIterator::new(self, alignment)
+        SnapshotElementIterator::new(self.clone().into(), alignment)
     }
 }
 
-pub struct SnapshotElementIterator<'a> {
-    element_range: &'a SnapshotElementRange<'a>,
+pub struct SnapshotElementIterator {
+    element_range: Rc<SnapshotElementRange>,
     alignment: MemoryAlignment,
     current_index: usize,
     total_elements: usize,
 }
 
-impl<'a> SnapshotElementIterator<'a> {
-    pub fn new(element_range: &'a SnapshotElementRange<'a>, alignment: MemoryAlignment) -> Self {
+impl SnapshotElementIterator {
+    pub fn new(element_range: Rc<SnapshotElementRange>, alignment: MemoryAlignment) -> Self {
         let total_elements = element_range.get_aligned_element_count(alignment);
         Self {
             element_range,
@@ -94,8 +95,8 @@ impl<'a> SnapshotElementIterator<'a> {
     }
 }
 
-impl<'a> Iterator for SnapshotElementIterator<'a> {
-    type Item = SnapshotElementIndexer<'a>;
+impl Iterator for SnapshotElementIterator {
+    type Item = SnapshotElementIndexer;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current_index < self.total_elements {
