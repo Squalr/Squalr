@@ -12,7 +12,7 @@ pub struct SnapshotElementRange<'a> {
 }
 
 impl<'a> SnapshotElementRange<'a> {
-    pub fn new(parent_region: &'a RefCell<SnapshotRegion>) -> Self { // Adjust to accept a RefCell
+    pub fn new(parent_region: &'a RefCell<SnapshotRegion>) -> Self {
         Self::with_offset_and_range(parent_region, 0, parent_region.borrow().get_region_size() as usize)
     }
 

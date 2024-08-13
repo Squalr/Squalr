@@ -136,7 +136,7 @@ impl ScanSettings {
         self.config.write().unwrap().memory_type_mapped = value;
     }
 
-    pub fn get_alignment(&self) -> MemoryAlignment {
+    pub fn get_byte_alignment(&self) -> MemoryAlignment {
         return self.config.read().unwrap().alignment;
     }
 

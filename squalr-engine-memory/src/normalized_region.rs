@@ -47,7 +47,7 @@ impl NormalizedRegion {
         self.region_size = region_size;
     }
 
-    pub fn align(&mut self, alignment: u32) {
+    pub fn set_byte_alignment(&mut self, alignment: u32) {
         let alignment_value = alignment as u64;
 
         if alignment_value <= 0 || self.base_address % alignment as u64 == 0 {

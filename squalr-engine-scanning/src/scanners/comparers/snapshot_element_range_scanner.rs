@@ -19,7 +19,7 @@ pub trait SnapshotElementRangeScannerTrait<'a> {
     fn get_run_length_encoder(&mut self) -> &SnapshotElementRunLengthEncoder<'a>;
     fn get_element_range(&self) -> Option<&'a SnapshotElementRange<'a>>;
     fn get_data_type_size(&self) -> usize;
-    fn get_alignment(&self) -> MemoryAlignment;
+    fn get_byte_alignment(&self) -> MemoryAlignment;
     fn get_data_type(&self) -> &FieldValue;
     fn get_on_dispose(&self) -> Option<&Box<dyn Fn() + 'a>>;
 
@@ -66,10 +66,10 @@ impl<'a> SnapshotElementRangeScanner<'a> {
         self.alignment = if let FieldValue::Bytes(_) = self.data_type {
             MemoryAlignment::Alignment1
         } else {
-            if constraints.get_alignment() == MemoryAlignment::Auto {
+            if constraints.get_byte_alignment() == MemoryAlignment::Auto {
                 MemoryAlignment::from(self.data_type_size as i32)
             } else {
-                constraints.get_alignment()
+                constraints.get_byte_alignment()
             }
         };
     }
@@ -106,7 +106,7 @@ impl<'a> SnapshotElementRangeScanner<'a> {
         self.data_type_size = size;
     }
 
-    pub fn get_alignment(&self) -> MemoryAlignment {
+    pub fn get_byte_alignment(&self) -> MemoryAlignment {
         return self.alignment;
     }
 
@@ -148,10 +148,10 @@ impl<'a> SnapshotElementRangeScannerTrait<'a> for SnapshotElementRangeScanner<'a
         self.alignment = if let FieldValue::Bytes(_) = self.data_type {
             MemoryAlignment::Alignment1
         } else {
-            if constraints.get_alignment() == MemoryAlignment::Auto {
+            if constraints.get_byte_alignment() == MemoryAlignment::Auto {
                 MemoryAlignment::from(self.data_type_size as i32)
             } else {
-                constraints.get_alignment()
+                constraints.get_byte_alignment()
             }
         };
 
@@ -175,8 +175,8 @@ impl<'a> SnapshotElementRangeScannerTrait<'a> for SnapshotElementRangeScanner<'a
         return self.get_data_type_size();
     }
 
-    fn get_alignment(&self) -> MemoryAlignment {
-        return self.get_alignment();
+    fn get_byte_alignment(&self) -> MemoryAlignment {
+        return self.get_byte_alignment();
     }
 
     fn get_data_type(&self) -> &FieldValue {

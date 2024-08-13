@@ -1,3 +1,4 @@
+use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
@@ -7,6 +8,8 @@ pub struct SnapshotRegion {
     normalized_region: NormalizedRegion,
     pub current_values: Vec<u8>,
     pub previous_values: Vec<u8>,
+    // snapshot_element_ranges: Vec<SnapshotElementRange>,
+    element_count : u32,
 }
 
 impl SnapshotRegion {
@@ -15,6 +18,7 @@ impl SnapshotRegion {
             normalized_region: NormalizedRegion::new(base_address, region_size),
             current_values: Vec::new(),
             previous_values: Vec::new(),
+            element_count: 0,
         }
     }
 
@@ -23,6 +27,7 @@ impl SnapshotRegion {
             normalized_region,
             current_values: Vec::new(),
             previous_values: Vec::new(),
+            element_count: 0,
         }
     }
 
@@ -48,7 +53,12 @@ impl SnapshotRegion {
         self.normalized_region.get_region_size()
     }
 
-    pub fn align(&mut self, alignment: u32) {
-        self.normalized_region.align(alignment);
+    pub fn set_byte_alignment(&mut self, alignment: u32) {
+        self.normalized_region.set_byte_alignment(alignment);
+    }
+
+    pub fn set_data_type_size(&mut self, data_type_size: u32) {
+        self.element_count = 0;
+        panic!("todo");
     }
 }

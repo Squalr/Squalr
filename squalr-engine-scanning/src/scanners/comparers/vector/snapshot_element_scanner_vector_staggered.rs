@@ -81,7 +81,7 @@ impl<'a> SnapshotRegionScannerVectorStaggered<'a> {
         self.base_scanner.initialize(element_range, constraints);
 
         let data_type_size = self.base_scanner.base_scanner.get_data_type_size();
-        let alignment = self.base_scanner.base_scanner.get_alignment();
+        let alignment = self.base_scanner.base_scanner.get_byte_alignment();
 
         let staggered_masks = self.staggered_mask_map
             .get(&(data_type_size as i32))

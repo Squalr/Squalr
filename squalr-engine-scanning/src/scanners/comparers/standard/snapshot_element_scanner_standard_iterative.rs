@@ -17,24 +17,24 @@ impl<'a> SnapshotElementRangeScannerIterative<'a> {
     ) -> Vec<SnapshotElementRange<'a>> {
         self.initialize(element_range, constraints);
 
-        let aligned_element_count = element_range.get_aligned_element_count(constraints.get_alignment());
+        let aligned_element_count = element_range.get_aligned_element_count(constraints.get_byte_alignment());
         let root_constraint = constraints.get_root_constraint().as_ref().unwrap();
-        let scan_constraint = root_constraint.borrow();
+        let scan_constraint = root_constraint.read().unwrap();
 
         for _ in 0..aligned_element_count {
             if self.base_scanner.do_compare_action(self.current_value_pointer, self.previous_value_pointer, &scan_constraint) {
                 self.base_scanner
                     .get_run_length_encoder()
-                    .encode_range(constraints.get_alignment() as usize);
+                    .encode_range(constraints.get_byte_alignment() as usize);
             } else {
                 self.base_scanner
                     .get_run_length_encoder()
-                    .finalize_current_encode_unchecked(constraints.get_alignment() as usize);
+                    .finalize_current_encode_unchecked(constraints.get_byte_alignment() as usize);
             }
 
             unsafe {
-                self.current_value_pointer = self.current_value_pointer.add(self.base_scanner.get_alignment() as usize);
-                self.previous_value_pointer = self.previous_value_pointer.add(self.base_scanner.get_alignment() as usize);
+                self.current_value_pointer = self.current_value_pointer.add(self.base_scanner.get_byte_alignment() as usize);
+                self.previous_value_pointer = self.previous_value_pointer.add(self.base_scanner.get_byte_alignment() as usize);
             }
         }
 

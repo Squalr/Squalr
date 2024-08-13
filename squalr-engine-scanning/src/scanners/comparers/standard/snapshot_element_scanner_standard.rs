@@ -49,8 +49,8 @@ impl<'a> SnapshotElementRangeScannerStandard<'a> {
         self.scanner.set_data_type_size(size);
     }
 
-    pub fn get_alignment(&self) -> MemoryAlignment {
-        return self.scanner.get_alignment();
+    pub fn get_byte_alignment(&self) -> MemoryAlignment {
+        return self.scanner.get_byte_alignment();
     }
 
     pub fn set_alignment(&mut self, alignment: MemoryAlignment) {

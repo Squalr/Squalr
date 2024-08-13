@@ -5,7 +5,7 @@ use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use std::ops::{BitAnd, BitOr, BitXor};
-use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
+use std::simd::cmp::{SimdOrd, SimdPartialEq, SimdPartialOrd};
 use std::simd::{u8x16, u16x8, u32x4, u64x2, i8x16, i16x8, i32x4, i64x2, f32x4, f64x2};
 
 pub struct SnapshotElementScannerVector<'a> {
@@ -127,34 +127,32 @@ impl<'a> SnapshotElementScannerVector<'a> {
         scan_results: u8x16,
         false_mask: u8x16,
     ) {
-        // Check if all elements in scan_results are greater than false_mask
-        let all_gt = scan_results.simd_gt(false_mask).to_array().iter().all(|&x| x);
-        // Check if all elements in scan_results are equal to false_mask
-        let all_eq = scan_results.simd_eq(false_mask).to_array().iter().all(|&x| x);
+        // Collect necessary information with immutable borrows
+        let all_true = scan_results.simd_gt(false_mask).all(); //.to_array().iter().all(|&x| x);
+        let all_false = scan_results.simd_eq(false_mask).all(); //.to_array().iter().all(|&x| x);
+        let alignment = self.base_scanner.get_byte_alignment() as usize;
     
-        if all_gt {
-            self.base_scanner.get_run_length_encoder().encode_range(16);
-        } else if all_eq {
-            self.base_scanner.get_run_length_encoder().finalize_current_encode_unchecked(16);
+        // Perform encoding with mutable borrows
+        let encoder = self.base_scanner.get_run_length_encoder();
+    
+        if all_true {
+            encoder.encode_range(16);
+        } else if all_false {
+            encoder.finalize_current_encode_unchecked(16);
         } else {
-            for i in (0..16).step_by(self.base_scanner.get_alignment() as usize) {
-                if scan_results[i as usize] != false_mask[i as usize] {
-                    self.base_scanner
-                        .get_run_length_encoder()
-                        .encode_range(self.base_scanner.get_alignment() as usize);
+            for i in (0..16).step_by(alignment) {
+                if scan_results[i] != false_mask[i] {
+                    encoder.encode_range(alignment);
                 } else {
-                    self.base_scanner
-                        .get_run_length_encoder()
-                        .finalize_current_encode_unchecked(self.base_scanner.get_alignment() as usize);
+                    encoder.finalize_current_encode_unchecked(alignment);
                 }
             }
         }
     }
     
-    
 
     fn calculate_first_scan_vector_misalignment(&self) -> usize {
-        let parent_region_size = self.base_scanner.get_element_range().as_ref().unwrap().parent_region.region_size;
+        let parent_region_size = self.base_scanner.get_element_range().as_ref().unwrap().parent_region.borrow().get_region_size();
         let range_region_offset = self.base_scanner.get_element_range().as_ref().unwrap().region_offset;
         let available_byte_count = parent_region_size - range_region_offset;
         let vector_spill_over = available_byte_count % 16;
