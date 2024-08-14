@@ -1,5 +1,6 @@
 use squalr_engine_common::dynamic_struct::field_value::Endian;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::fmt::{self, Display};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -20,6 +21,7 @@ pub enum ConstraintType {
 
 #[derive(Debug, Clone)]
 pub struct ScanConstraint {
+    alignment: MemoryAlignment,
     constraint_type: ConstraintType,
     constraint_value: Option<FieldValue>,
     constraint_args: Option<FieldValue>,
@@ -28,6 +30,7 @@ pub struct ScanConstraint {
 impl ScanConstraint {
     pub fn new() -> Self {
         Self {
+            alignment: MemoryAlignment::Auto,
             constraint_type: ConstraintType::Changed,
             constraint_value: None,
             constraint_args: None,
@@ -35,15 +38,25 @@ impl ScanConstraint {
     }
 
     pub fn new_with_value(
+        alignment: MemoryAlignment,
         constraint_type: ConstraintType,
         value: Option<FieldValue>,
         args: Option<FieldValue>,
     ) -> Self {
         Self {
+            alignment,
             constraint_type,
             constraint_value: value,
             constraint_args: args,
         }
+    }
+
+    pub fn get_byte_alignment(&self) -> MemoryAlignment {
+        return self.alignment;
+    }
+
+    pub fn set_alignment(&mut self, alignment: MemoryAlignment) {
+        self.alignment = alignment;
     }
 
     pub fn get_constraint_type(&self) -> ConstraintType {
@@ -154,8 +167,17 @@ impl ScanConstraint {
         }
     }
 
+    pub fn get_element_type(&self) -> FieldValue {
+        if let Some(constraint_value) = &self.constraint_value {
+            return constraint_value.clone();
+        } else {
+            return FieldValue::U32(0, Endian::Big);
+        }
+    }
+
     pub fn clone(&self) -> Self {
         ScanConstraint {
+            alignment: self.alignment,
             constraint_type: self.constraint_type.clone(),
             constraint_value: self.constraint_value.clone(),
             constraint_args: self.constraint_args.clone(),

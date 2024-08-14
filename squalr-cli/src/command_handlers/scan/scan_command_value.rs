@@ -3,7 +3,7 @@ use crate::session_manager::SessionManager;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
-use squalr_engine_scanning::scanners::constraints::{scan_constraint::ScanConstraint, scan_constraints::ScanConstraints};
+use squalr_engine_scanning::scanners::constraints::scan_constraint::ScanConstraint;
 use squalr_engine_scanning::scanners::constraints::scan_constraint::ConstraintType;
 use squalr_engine_scanning::scanners::manual_scanner::ManualScanner;
 use squalr_engine_scanning::snapshots::snapshot_manager::SnapshotManager;
@@ -21,13 +21,11 @@ pub async fn handle_value_command(cmd: &mut ScanCommand) {
         if let Some(process_info) = session_manager.get_opened_process() {
             Logger::get_instance().log(LogLevel::Info, "Collecting values", None);
             
-            let root_constraint = Arc::new(RwLock::new(ScanConstraint::new_with_value(ConstraintType::Equal, Some(value.clone()), None)));
-            let constraints = Arc::new(RwLock::new(ScanConstraints::new(value.clone(), Some(root_constraint), MemoryAlignment::Alignment1)));
-
+            let constraint = Arc::new(RwLock::new(ScanConstraint::new_with_value(MemoryAlignment::Alignment1, ConstraintType::Equal, Some(value.clone()), None)));
             let snapshot = snapshot_manager.get_active_snapshot_create_if_none(&process_info);
             let task = ManualScanner::scan(
                 snapshot,
-                constraints,
+                constraint,
                 None
             );
 

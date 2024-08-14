@@ -1,5 +1,5 @@
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
-use crate::scanners::constraints::scan_constraints::ScanConstraints;
+use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use crate::snapshots::snapshot_region::SnapshotRegion;
@@ -20,7 +20,7 @@ pub struct ManualScanner;
 impl ManualScanner {
     const NAME: &'static str = "Manual Scan";
 
-    pub fn scan(snapshot: Arc<RwLock<Snapshot>>, constraints: Arc<RwLock<ScanConstraints>>, task_identifier: Option<String>) -> Arc<TrackableTask<()>> {
+    pub fn scan(snapshot: Arc<RwLock<Snapshot>>, constraint: Arc<RwLock<ScanConstraint>>, task_identifier: Option<String>) -> Arc<TrackableTask<()>> {
         let task = TrackableTask::<()>::create(
             ManualScanner::NAME.to_string(),
             task_identifier,
@@ -28,11 +28,11 @@ impl ManualScanner {
         let task_handle: JoinHandle<()> = tokio::spawn({
             let task = task.clone();
             let snapshot = snapshot.clone();
-            let constraints = constraints.clone();
+            let constraint = constraint.clone();
             async move {
                 Self::scan_task(
                     snapshot,
-                    constraints,
+                    constraint,
                     task.get_progress_sender().clone(),
                     task.get_cancellation_token(),
                 ).await;
@@ -47,7 +47,7 @@ impl ManualScanner {
 
     async fn scan_task(
         snapshot: Arc<RwLock<Snapshot>>,
-        constraints: Arc<RwLock<ScanConstraints>>,
+        constraint: Arc<RwLock<ScanConstraint>>,
         progress_sender: broadcast::Sender<f32>,
         cancellation_token: CancellationToken,
     ) {
@@ -69,7 +69,7 @@ impl ManualScanner {
             let processed_region_count = processed_region_count.clone();
             let progress_sender = progress_sender.clone();
             let cancellation_token = cancellation_token.clone();
-            let constraints = constraints.clone();
+            let constraint = constraint.clone();
             let region = region.clone();
 
             tokio::spawn(async move {
@@ -77,19 +77,19 @@ impl ManualScanner {
                     return region;
                 }
                 
-                let constraints = constraints.read().unwrap();
+                let constraint = constraint.read().unwrap();
                 let mut region_mut = region.write().unwrap();
 
-                if region_mut.can_compare_with_constraints(&constraints) {
-                    region_mut.set_byte_alignment(constraints.get_byte_alignment());
+                if region_mut.can_compare_with_constraint(&constraint) {
+                    region_mut.set_byte_alignment(constraint.get_byte_alignment());
                     
                     let scan_dispatcher = ScanDispatcher::get_instance();
                     let scan_dispatcher = scan_dispatcher.read().unwrap();
-                    let scan_results: Vec<Arc<RwLock<SnapshotElementRange>>> =scan_dispatcher.dispatch_scan(region.clone(), &constraints);
+                    let scan_results: Vec<Arc<RwLock<SnapshotElementRange>>> =scan_dispatcher.dispatch_scan(region.clone(), &constraint);
                     
                     region_mut.set_snapshot_element_ranges(scan_results);
-                    region_mut.set_byte_alignment(constraints.get_byte_alignment());
-                    region_mut.set_data_type_size(constraints.get_element_type().size_in_bytes());
+                    region_mut.set_byte_alignment(constraint.get_byte_alignment());
+                    region_mut.set_data_type_size(constraint.get_element_type().size_in_bytes());
     
                     let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
                     
@@ -108,10 +108,10 @@ impl ManualScanner {
         // Lock the snapshot briefly to update it.
         {
             let mut snapshot = snapshot.write().unwrap();
-            let constraints = constraints.read().unwrap();
+            let constraint = constraint.read().unwrap();
             let collected_regions = results.into_iter().map(|r| Arc::try_unwrap(r).unwrap().into_inner().unwrap()).collect();
             
-            snapshot.set_snapshot_regions(collected_regions, constraints.get_byte_alignment(), constraints.get_element_type().size_in_bytes());
+            snapshot.set_snapshot_regions(collected_regions, constraint.get_byte_alignment(), constraint.get_element_type().size_in_bytes());
             snapshot.set_name(ManualScanner::NAME.to_string());
         }
 

@@ -1,7 +1,7 @@
 use crate::scanners::comparers::scalar::snapshot_element_scanner_scalar_iterative::SnapshotElementRangeScannerScalarIterative;
 use crate::scanners::comparers::scalar::snapshot_element_scanner_scalar_single_element::SnapshotElementRangeScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_element_range_scanner::SnapshotElementRangeScanner;
-use crate::scanners::constraints::scan_constraints::ScanConstraints;
+use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_architecture::vectors::vectors;
@@ -30,7 +30,7 @@ impl ScanDispatcher {
         }
     }
 
-    pub fn dispatch_scan(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraints: &ScanConstraints) -> Vec<Arc<RwLock<SnapshotElementRange>>> {
+    pub fn dispatch_scan(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraints: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotElementRange>>> {
         let element_ranges = snapshot_region.read().unwrap().get_snapshot_element_ranges();
         let mut results = Vec::new();
     
@@ -47,7 +47,7 @@ impl ScanDispatcher {
         return results;
     }
 
-    pub async fn dispatch_scan_parallel(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraints: &ScanConstraints) -> Vec<Arc<RwLock<SnapshotElementRange>>> {
+    pub async fn dispatch_scan_parallel(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraints: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotElementRange>>> {
         let element_ranges = snapshot_region.read().unwrap().get_snapshot_element_ranges();
         let mut handles = Vec::new();
 
@@ -75,7 +75,7 @@ impl ScanDispatcher {
         return results;
     }
 
-    fn acquire_scanner_instance(&self, element_range: &Arc<RwLock<SnapshotElementRange>>, constraints: &ScanConstraints) -> Arc<RwLock<dyn SnapshotElementRangeScanner>> {
+    fn acquire_scanner_instance(&self, element_range: &Arc<RwLock<SnapshotElementRange>>, constraints: &ScanConstraint) -> Arc<RwLock<dyn SnapshotElementRangeScanner>> {
         if element_range.read().unwrap().get_range() == constraints.get_byte_alignment() as usize {
             // Single element scanner
             return SnapshotElementRangeScannerScalarSingleElement::get_instance();

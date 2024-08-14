@@ -1,4 +1,4 @@
-use crate::scanners::constraints::scan_constraints::ScanConstraints;
+use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_reader::MemoryReader;
@@ -92,7 +92,7 @@ impl SnapshotRegion {
         return !self.previous_values.as_ref().read().unwrap().is_empty();
     }
 
-    pub fn can_compare_with_constraints(&self, constraints: &ScanConstraints) -> bool {
+    pub fn can_compare_with_constraint(&self, constraints: &ScanConstraint) -> bool {
         if !constraints.is_valid() || self.has_current_values() || (constraints.is_relative_constraint() && self.has_previous_values()) {
             return false;
         }
