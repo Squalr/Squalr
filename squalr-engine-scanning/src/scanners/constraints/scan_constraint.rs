@@ -34,7 +34,7 @@ impl ScanConstraint {
         }
     }
 
-    pub fn with_value(
+    pub fn new_with_value(
         constraint_type: ConstraintType,
         value: Option<FieldValue>,
         args: Option<FieldValue>,

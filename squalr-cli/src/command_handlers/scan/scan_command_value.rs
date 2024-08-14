@@ -1,10 +1,48 @@
 use crate::command_handlers::scan::ScanCommand;
-
+use crate::session_manager::SessionManager;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
+use squalr_engine_scanning::scanners::constraints::{scan_constraint::ScanConstraint, scan_constraints::ScanConstraints};
+use squalr_engine_scanning::scanners::constraints::scan_constraint::ConstraintType;
+use squalr_engine_scanning::scanners::manual_scanner::ManualScanner;
+use squalr_engine_scanning::snapshots::snapshot_manager::SnapshotManager;
+use std::sync::{Arc, RwLock};
+use tokio::spawn;
 
 pub async fn handle_value_command(cmd: &mut ScanCommand) {
+    let session_manager_lock = SessionManager::get_instance();
+    let session_manager = session_manager_lock.read().unwrap();
+
+    let snapshot_manager_lock = SnapshotManager::get_instance();
+    let mut snapshot_manager = snapshot_manager_lock.write().unwrap();
+
     if let ScanCommand::Value { value } = cmd {
-        Logger::get_instance().log(LogLevel::Info, &format!("Scanning for value: {}", value), None);
+        if let Some(process_info) = session_manager.get_opened_process() {
+            Logger::get_instance().log(LogLevel::Info, "Collecting values", None);
+            
+            let root_constraint = Arc::new(RwLock::new(ScanConstraint::new_with_value(ConstraintType::Equal, Some(value.clone()), None)));
+            let constraints = Arc::new(RwLock::new(ScanConstraints::new(value.clone(), Some(root_constraint), MemoryAlignment::Alignment1)));
+
+            let snapshot = snapshot_manager.get_active_snapshot_create_if_none(&process_info);
+            let task = ManualScanner::scan(
+                snapshot,
+                constraints,
+                None
+            );
+
+            // Subscribe to progress updates
+            let mut progress_receiver = task.get_progress_receiver();
+            spawn(async move {
+                while let Ok(progress) = progress_receiver.recv().await {
+                    Logger::get_instance().log(LogLevel::Info, &format!("Progress: {:.2}%", progress), None);
+                }
+            });
+
+            // Wait for completion
+            task.wait_for_completion().await;
+        } else {
+            Logger::get_instance().log(LogLevel::Info, "No opened process", None);
+        }
     }
 }

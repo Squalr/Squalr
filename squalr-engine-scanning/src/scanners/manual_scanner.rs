@@ -1,3 +1,4 @@
+use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
@@ -14,18 +15,12 @@ use tokio::task::JoinHandle;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
-use super::comparers::scan_dispatcher::{self, ScanDispatcher};
-
 pub struct ManualScanner;
 
 impl ManualScanner {
     const NAME: &'static str = "Manual Scan";
 
-    pub fn scan(
-        snapshot: Arc<RwLock<Snapshot>>,
-        constraints: Arc<RwLock<ScanConstraints>>,
-        task_identifier: Option<String>,
-    ) -> Arc<TrackableTask<()>> {
+    pub fn scan(snapshot: Arc<RwLock<Snapshot>>, constraints: Arc<RwLock<ScanConstraints>>, task_identifier: Option<String>) -> Arc<TrackableTask<()>> {
         let task = TrackableTask::<()>::create(
             ManualScanner::NAME.to_string(),
             task_identifier,
@@ -90,7 +85,7 @@ impl ManualScanner {
                     
                     let scan_dispatcher = ScanDispatcher::get_instance();
                     let scan_dispatcher = scan_dispatcher.read().unwrap();
-                    let scan_results: Vec<Arc<RwLock<SnapshotElementRange>>> = Vec::new();// scan_dispatcher.dispatch_scan(region.clone(), &constraints).await;
+                    let scan_results: Vec<Arc<RwLock<SnapshotElementRange>>> =scan_dispatcher.dispatch_scan(region.clone(), &constraints);
                     
                     region_mut.set_snapshot_element_ranges(scan_results);
                     region_mut.set_byte_alignment(constraints.get_byte_alignment());
@@ -114,8 +109,9 @@ impl ManualScanner {
         {
             let mut snapshot = snapshot.write().unwrap();
             let constraints = constraints.read().unwrap();
-
-            snapshot.set_snapshot_regions(results.into_iter().map(|r| Arc::try_unwrap(r).unwrap().into_inner().unwrap()).collect(), constraints.get_byte_alignment(), constraints.get_element_type().size_in_bytes());
+            let collected_regions = results.into_iter().map(|r| Arc::try_unwrap(r).unwrap().into_inner().unwrap()).collect();
+            
+            snapshot.set_snapshot_regions(collected_regions, constraints.get_byte_alignment(), constraints.get_element_type().size_in_bytes());
             snapshot.set_name(ManualScanner::NAME.to_string());
         }
 

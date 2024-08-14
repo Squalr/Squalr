@@ -30,9 +30,26 @@ impl ScanDispatcher {
         }
     }
 
-    pub async fn dispatch_scan(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraints: &ScanConstraints) -> Vec<Arc<RwLock<SnapshotElementRange>>> {
+    pub fn dispatch_scan(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraints: &ScanConstraints) -> Vec<Arc<RwLock<SnapshotElementRange>>> {
         let element_ranges = snapshot_region.read().unwrap().get_snapshot_element_ranges();
-        let mut handles = vec![];
+        let mut results = Vec::new();
+    
+        for element_range in element_ranges {
+            let constraints = constraints.clone();
+            let element_range = element_range.clone();
+            let scanner_instance = self.acquire_scanner_instance(&element_range, &constraints);
+    
+            let mut scanner = scanner_instance.write().unwrap();
+            scanner.scan_region(&element_range, Arc::new(constraints));
+            results.push(element_range);
+        }
+    
+        return results;
+    }
+
+    pub async fn dispatch_scan_parallel(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraints: &ScanConstraints) -> Vec<Arc<RwLock<SnapshotElementRange>>> {
+        let element_ranges = snapshot_region.read().unwrap().get_snapshot_element_ranges();
+        let mut handles = Vec::new();
 
         for element_range in element_ranges {
             let constraints = constraints.clone();
@@ -42,13 +59,13 @@ impl ScanDispatcher {
             let handle: JoinHandle<Arc<RwLock<SnapshotElementRange>>> = tokio::spawn(async move {
                 let mut scanner = scanner_instance.write().unwrap();
                 scanner.scan_region(&element_range, Arc::new(constraints));
-                element_range
+                return element_range;
             });
 
             handles.push(handle);
         }
 
-        let mut results = vec![];
+        let mut results = Vec::new();
         for handle in handles {
             if let Ok(result) = handle.await {
                 results.push(result);
