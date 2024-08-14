@@ -1,13 +1,17 @@
+use crate::scanners::comparers::scalar::snapshot_element_scanner_scalar_iterative::SnapshotElementRangeScannerScalarIterative;
 use crate::scanners::comparers::scalar::snapshot_element_scanner_scalar_single_element::SnapshotElementRangeScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_element_range_scanner::SnapshotElementRangeScanner;
 use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
+use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use std::sync::Arc;
 
-pub fn dispatch_scan(element_range: &SnapshotElementRange, constraints: &ScanConstraints) {
-    let scanner = acquire_scan_instance(element_range, constraints).as_ref();
+pub fn dispatch_scan(snapshot_region: &SnapshotRegion, constraints: &ScanConstraints) {
+
+    // snapshot_region.get
+    // let scanner = acquire_scan_instance(element_range, constraints).as_ref();
 }
 
 pub fn acquire_scan_instance(element_range: &SnapshotElementRange, constraints: &ScanConstraints) -> Arc<dyn SnapshotElementRangeScanner> {
@@ -38,8 +42,8 @@ pub fn acquire_scan_instance(element_range: &SnapshotElementRange, constraints: 
         }
     } else {
         // Iterative scanner
-        // return SnapshotElementRangeScannerScalarIterative::get_instance();
+        return SnapshotElementRangeScannerScalarIterative::get_instance();
     }
 
-    return SnapshotElementRangeScannerScalarSingleElement::get_instance();
+    return SnapshotElementRangeScannerScalarIterative::get_instance();
 }

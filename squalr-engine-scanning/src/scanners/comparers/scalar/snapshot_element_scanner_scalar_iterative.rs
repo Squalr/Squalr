@@ -33,10 +33,10 @@ impl SnapshotElementRangeScannerScalarIterative {
 
 impl SnapshotElementRangeScanner for SnapshotElementRangeScannerScalarIterative {
     fn scan_region(&mut self, element_range: Arc<SnapshotElementRange>, constraints: Arc<ScanConstraints>) -> Vec<Arc<SnapshotElementRange>> {
-        let current_value_pointer: *mut u8;
-        let previous_value_pointer: *mut u8;
-        let current_values = element_range.parent_region.write().unwrap().current_values.as_mut_ptr();
-        let previous_values = element_range.parent_region.write().unwrap().previous_values.as_mut_ptr();
+        let mut current_value_pointer: *mut u8;
+        let mut previous_value_pointer: *mut u8;
+        let current_values = element_range.parent_region.write().unwrap().get_current_values().write().unwrap().as_mut_ptr();
+        let previous_values = element_range.parent_region.write().unwrap().get_previous_values().write().unwrap().as_mut_ptr();
 
         unsafe {
             current_value_pointer = current_values.add(element_range.get_region_offset());
@@ -57,8 +57,8 @@ impl SnapshotElementRangeScanner for SnapshotElementRangeScannerScalarIterative 
             }
 
             unsafe {
-                current_value_pointer.add(constraints.get_byte_alignment() as usize);
-                previous_value_pointer.add(constraints.get_byte_alignment() as usize);
+                current_value_pointer = current_value_pointer.add(constraints.get_byte_alignment() as usize);
+                previous_value_pointer = previous_value_pointer.add(constraints.get_byte_alignment() as usize);
             }
         }
 

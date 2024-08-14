@@ -1,6 +1,4 @@
 use crate::snapshots::snapshot::Snapshot;
-use crate::snapshots::snapshot_region::SnapshotRegion;
-
 use futures::future::join_all;
 use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
@@ -65,12 +63,11 @@ impl ValueCollector {
         let region_count;
         let snapshot_regions;
 
-        // Lock the snapshot briefly to extract the regions.
         {
             let mut snapshot = snapshot.write().unwrap();
             snapshot.sort_regions_for_scans();
-            region_count = snapshot.snapshot_regions.len();
-            snapshot_regions = std::mem::take(&mut snapshot.snapshot_regions);
+            region_count = snapshot.get_region_count();
+            snapshot_regions = snapshot.get_snapshot_regions();
         }
 
         if with_logging {
@@ -80,17 +77,20 @@ impl ValueCollector {
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
 
-        let results: Vec<JoinHandle<Option<SnapshotRegion>>> = snapshot_regions.into_iter().map(|mut region| {
+        let results: Vec<JoinHandle<()>> = snapshot_regions.iter().map(|region| {
             let processed_region_count = processed_region_count.clone();
             let progress_sender = progress_sender.clone();
             let cancellation_token = cancellation_token.clone();
             let process_info = process_info.clone();
+            let region = Arc::clone(region);  // Clone the Arc to keep using it in the iteration
 
             tokio::spawn(async move {
                 if cancellation_token.is_cancelled() {
-                    return None;
+                    return;
                 }
-                
+
+                let mut region = region.write().unwrap();
+
                 // Attempt to read new (or initial) memory values.
                 match region.read_all_memory(process_info.handle) {
                     Ok(_) => {
@@ -99,26 +99,24 @@ impl ValueCollector {
                             let progress = (processed as f32 / region_count as f32) * 100.0;
                             let _ = progress_sender.send(progress);
                         }
-                        return Some(region);
                     },
                     Err(_) => {
                         // Memory region was probably deallocated. It happens, ignore it.
-                        return None;
                     },
                 }
             })
         }).collect();
-        
-        let results = join_all(results).await.into_iter().filter_map(|x| x.unwrap()).collect::<Vec<SnapshotRegion>>();
-        let byte_count: u64 = results.iter().map(|r| r.get_region_size()).sum();
 
-        // Lock the snapshot briefly to update it.
-        {
-            let mut snapshot = snapshot.write().unwrap();
-            snapshot.set_snapshot_regions(results, MemoryAlignment::Alignment1, 1);
-        }
+        join_all(results).await;
 
         let duration = start_time.elapsed();
+        let byte_count;
+
+        {
+            let mut snapshot = snapshot.write().unwrap();
+            byte_count = snapshot.get_byte_count();
+            snapshot.update_element_and_byte_counts(MemoryAlignment::Alignment1, 1);
+        }
 
         if with_logging {
             Logger::get_instance().log(LogLevel::Info, &format!("Values collected in: {:?}", duration), None);

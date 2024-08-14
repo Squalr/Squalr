@@ -24,18 +24,6 @@ impl SnapshotElementRange {
             range,
         }
     }
-    
-    pub fn set_current_values(&mut self, values: Vec<u8>) {
-        self.parent_region.write().unwrap().set_current_values(values);
-    }
-
-    pub fn get_current_values(&self) -> Vec<u8> {
-        return self.parent_region.read().unwrap().current_values.clone();
-    }
-
-    pub fn get_previous_values(&self) -> Vec<u8> {
-        return self.parent_region.read().unwrap().previous_values.clone();
-    }
 
     pub fn get_base_element_address(&self) -> u64 {
         return self.parent_region.read().unwrap().get_base_address() + self.region_offset as u64;

@@ -20,24 +20,29 @@ impl SnapshotElementIndexer {
     }
 
     pub fn get_base_address(&self) -> u64 {
-        self.element_range.get_base_element_address() 
-            + (self.element_index * self.alignment as usize) as u64
+        return self.element_range.get_base_element_address() + (self.element_index * self.alignment as usize) as u64;
     }
 
-    pub fn load_current_value(&self, data_type: FieldValue) -> FieldValue {
+    pub fn load_current_value(&self, data_type: FieldValue) -> Option<FieldValue> {
         let offset = self.element_range.get_region_offset() + self.element_index * self.alignment as usize;
-        let pointer_base = &self.element_range.parent_region.read().unwrap().current_values[offset..];
-        self.load_values(data_type, pointer_base)
+        let parent_region = self.element_range.parent_region.read().unwrap();
+        let current_values = parent_region.get_current_values();
+        let pointer_base = current_values.read().unwrap();
+
+        return Some(self.load_values(data_type, &pointer_base[offset..]));
     }
 
-    pub fn load_previous_value(&self, data_type: FieldValue) -> FieldValue {
+    pub fn load_previous_value(&self, data_type: FieldValue) -> Option<FieldValue> {
         let offset = self.element_range.get_region_offset() + self.element_index * self.alignment as usize;
-        let pointer_base = &self.element_range.parent_region.read().unwrap().previous_values[offset..];
-        self.load_values(data_type, pointer_base)
+        let parent_region = self.element_range.parent_region.read().unwrap();
+        let previous_values = parent_region.get_previous_values();
+        let pointer_base = previous_values.read().unwrap();
+
+        return Some(self.load_values(data_type, &pointer_base[offset..]));
     }
 
     fn load_values(&self, data_type: FieldValue, pointer_base: &[u8]) -> FieldValue {
-        match data_type {
+        return match data_type {
             FieldValue::U8(_) => FieldValue::U8(pointer_base[0]),
             FieldValue::I8(_) => FieldValue::I8(pointer_base[0] as i8),
             FieldValue::U16(_, Endian::Little) => FieldValue::U16(u16::from_le_bytes(pointer_base[..2].try_into().unwrap()), Endian::Little),
@@ -58,14 +63,14 @@ impl SnapshotElementIndexer {
             FieldValue::F64(_, Endian::Big) => FieldValue::F64(f64::from_be_bytes(pointer_base[..8].try_into().unwrap()), Endian::Big),
             FieldValue::Bytes(_) => FieldValue::Bytes(pointer_base.to_vec()),
             _ => panic!("Unsupported data type"),
-        }
+        };
     }
 
     pub fn has_current_value(&self) -> bool {
-        !self.element_range.parent_region.read().unwrap().current_values.is_empty()
+        return self.element_range.parent_region.read().unwrap().has_current_values();
     }
 
     pub fn has_previous_value(&self) -> bool {
-        !self.element_range.parent_region.read().unwrap().previous_values.is_empty()
+        return self.element_range.parent_region.read().unwrap().has_previous_values();
     }
 }
