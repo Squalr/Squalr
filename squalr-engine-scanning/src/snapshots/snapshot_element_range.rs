@@ -24,6 +24,18 @@ impl SnapshotElementRange {
             range,
         }
     }
+    
+    pub fn get_current_values_pointer(&self) -> *const u8 {
+        let parent_region = self.parent_region.read().unwrap();
+        let current_values = parent_region.get_current_values().read().unwrap();
+        unsafe { current_values.as_ptr().add(self.region_offset) }
+    }
+
+    pub fn get_previous_values_pointer(&self) -> *const u8 {
+        let parent_region = self.parent_region.read().unwrap();
+        let previous_values = parent_region.get_previous_values().read().unwrap();
+        unsafe { previous_values.as_ptr().add(self.region_offset) }
+    }
 
     pub fn get_base_element_address(&self) -> u64 {
         return self.parent_region.read().unwrap().get_base_address() + self.region_offset as u64;

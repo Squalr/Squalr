@@ -14,6 +14,8 @@ use tokio::task::JoinHandle;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
+use super::comparers::scan_dispatcher::{self, ScanDispatcher};
+
 pub struct ManualScanner;
 
 impl ManualScanner {
@@ -81,14 +83,15 @@ impl ManualScanner {
                 }
                 
                 let constraints = constraints.read().unwrap();
-                let mut region_mut = region.write().unwrap(); // Acquire write lock
+                let mut region_mut = region.write().unwrap();
 
                 if region_mut.can_compare_with_constraints(&constraints) {
                     region_mut.set_byte_alignment(constraints.get_byte_alignment());
-    
-                    // TODO: Port this
-                    let scan_results: Vec<Arc<RwLock<SnapshotElementRange>>> = Vec::new(); // region.scan_elements(&constraints).await;
-    
+                    
+                    let scan_dispatcher = ScanDispatcher::get_instance();
+                    let scan_dispatcher = scan_dispatcher.read().unwrap();
+                    let scan_results: Vec<Arc<RwLock<SnapshotElementRange>>> = Vec::new();// scan_dispatcher.dispatch_scan(region.clone(), &constraints).await;
+                    
                     region_mut.set_snapshot_element_ranges(scan_results);
                     region_mut.set_byte_alignment(constraints.get_byte_alignment());
                     region_mut.set_data_type_size(constraints.get_element_type().size_in_bytes());

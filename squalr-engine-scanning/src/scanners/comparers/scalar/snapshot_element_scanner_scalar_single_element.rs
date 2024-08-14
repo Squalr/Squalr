@@ -2,7 +2,7 @@ use crate::scanners::comparers::scalar::snapshot_element_scanner_scalar::Snapsho
 use crate::scanners::comparers::snapshot_element_range_scanner::SnapshotElementRangeScanner;
 use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_element_range::SnapshotElementRange;
-use std::sync::{Arc, Once};
+use std::sync::{Arc, Once, RwLock};
 
 pub struct SnapshotElementRangeScannerScalarSingleElement {
     scalar_scanner: SnapshotElementRangeScannerScalar,
@@ -15,13 +15,13 @@ impl SnapshotElementRangeScannerScalarSingleElement {
         }
     }
     
-    pub fn get_instance() -> Arc<SnapshotElementRangeScannerScalarSingleElement> {
-        static mut INSTANCE: Option<Arc<SnapshotElementRangeScannerScalarSingleElement>> = None;
+    pub fn get_instance() -> Arc<RwLock<SnapshotElementRangeScannerScalarSingleElement>> {
+        static mut INSTANCE: Option<Arc<RwLock<SnapshotElementRangeScannerScalarSingleElement>>> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
-                let instance = Arc::new(SnapshotElementRangeScannerScalarSingleElement::new());
+                let instance = Arc::new(RwLock::new(SnapshotElementRangeScannerScalarSingleElement::new()));
                 INSTANCE = Some(instance);
             });
 
@@ -31,17 +31,10 @@ impl SnapshotElementRangeScannerScalarSingleElement {
 }
 
 impl SnapshotElementRangeScanner for SnapshotElementRangeScannerScalarSingleElement {
-    fn scan_region(&mut self, element_range: Arc<SnapshotElementRange>, constraints: Arc<ScanConstraints>) -> Vec<Arc<SnapshotElementRange>> {
-        let current_value_pointer: *mut u8;
-        let previous_value_pointer: *mut u8;
-        let current_values = element_range.parent_region.write().unwrap().get_current_values().write().unwrap().as_mut_ptr();
-        let previous_values = element_range.parent_region.write().unwrap().get_previous_values().write().unwrap().as_mut_ptr();
-
-        unsafe {
-            current_value_pointer = current_values.add(element_range.get_region_offset());
-            previous_value_pointer = previous_values.add(element_range.get_region_offset());
-        }
-
+    fn scan_region(&mut self, element_range: &Arc<RwLock<SnapshotElementRange>>, constraints: Arc<ScanConstraints>) -> Vec<Arc<RwLock<SnapshotElementRange>>> {
+        let element_range_read = element_range.read().unwrap();
+        let current_value_pointer = element_range_read.get_current_values_pointer();
+        let previous_value_pointer = element_range_read.get_previous_values_pointer();
         let root_constraint = constraints.get_root_constraint().as_ref().unwrap();
         let scan_constraint = root_constraint.read().unwrap();
         let data_type = constraints.get_element_type();
