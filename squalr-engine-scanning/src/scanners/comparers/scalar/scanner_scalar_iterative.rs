@@ -33,12 +33,14 @@ impl ScannerScalarIterative {
 
 impl Scanner for ScannerScalarIterative {
     fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
+        let mut run_length_encoder = SnapshotSubRegionRunLengthEncoder::new(snapshot_sub_region.clone());
+        run_length_encoder.initialize();
+
         let snapshot_sub_region = snapshot_sub_region.read().unwrap();
         let mut current_value_pointer = snapshot_sub_region.get_current_values_pointer();
         let mut previous_value_pointer = snapshot_sub_region.get_previous_values_pointer();
-        let mut run_length_encoder = SnapshotSubRegionRunLengthEncoder::new();
         let data_type = constraint.get_element_type();
-        let aligned_element_count = snapshot_sub_region.get_element_count(data_type.size_in_bytes(), constraint.get_alignment());
+        let aligned_element_count = snapshot_sub_region.get_element_count(constraint.get_alignment(), data_type.size_in_bytes());
 
         for _ in 0..aligned_element_count {
             if self.scalar_scanner.do_compare_action(current_value_pointer, previous_value_pointer, &constraint, &data_type) {

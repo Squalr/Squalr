@@ -7,7 +7,6 @@ use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
-use std::borrow::BorrowMut;
 use std::sync::{Arc, Once, RwLock};
 use tokio::task::JoinHandle;
 
@@ -48,24 +47,13 @@ impl ScanDispatcher {
         let snapshot_region = snapshot_region.read().unwrap();
         let snapshot_sub_regions = snapshot_region.get_snapshot_sub_regions();
         let mut results = Vec::new();
-        let mut mut_constraint = constraint.clone();
-
-        if mut_constraint.get_alignment() == MemoryAlignment::Auto {
-            let settings_alignment = ScanSettings::get_instance().get_alignment();
-            if settings_alignment == MemoryAlignment::Auto {
-                mut_constraint.set_alignment(MemoryAlignment::Alignment4);
-            }
-            else {
-                mut_constraint.set_alignment(settings_alignment);
-            }
-        }
     
         for snapshot_sub_region in snapshot_sub_regions {
             let snapshot_sub_region = snapshot_sub_region.clone();
-            let scanner_instance = self.acquire_scanner_instance(&snapshot_sub_region, &mut_constraint);
+            let scanner_instance = self.acquire_scanner_instance(&snapshot_sub_region, &constraint);
     
             let scanner = scanner_instance.read().unwrap();
-            let result_sub_regions = scanner.scan_region(&snapshot_sub_region, &mut_constraint);
+            let result_sub_regions = scanner.scan_region(&snapshot_sub_region, &constraint);
             
             for result_sub_region in result_sub_regions {
                 results.push(result_sub_region);
@@ -110,7 +98,7 @@ impl ScanDispatcher {
         let alignment = constraint.get_alignment();
         let data_type_size = constraint.get_element_type().size_in_bytes();
 
-        if snapshot_sub_region.read().unwrap().get_element_count(data_type_size, alignment) == 1 {
+        if snapshot_sub_region.read().unwrap().get_element_count(alignment, data_type_size) == 1 {
             // Single element scanner
             return ScannerScalarSingleElement::get_instance();
         } else if vectors::has_vector_support() && snapshot_sub_region.read().unwrap().parent_region.read().unwrap().get_region_size() >= vectors::get_hardware_vector_size() as u64 {

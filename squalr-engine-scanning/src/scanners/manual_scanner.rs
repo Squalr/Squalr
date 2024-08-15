@@ -1,3 +1,4 @@
+use crate::scan_settings::ScanSettings;
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot::Snapshot;
@@ -8,6 +9,7 @@ use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
@@ -77,6 +79,18 @@ impl ManualScanner {
             let cancellation_token = cancellation_token.clone();
             let constraint = constraint.clone();
             let region = region.clone();
+            
+            let mut constraint = constraint.clone();
+
+            if constraint.get_alignment() == MemoryAlignment::Auto {
+                let settings_alignment = ScanSettings::get_instance().get_alignment();
+                if settings_alignment == MemoryAlignment::Auto {
+                    constraint.set_alignment(MemoryAlignment::Alignment4);
+                }
+                else {
+                    constraint.set_alignment(settings_alignment);
+                }
+            }
 
             tokio::spawn(async move {
                 if cancellation_token.is_cancelled() {
@@ -119,14 +133,14 @@ impl ManualScanner {
             let collected_regions = results;
             
             snapshot.set_snapshot_regions(collected_regions);
-            snapshot.update_element_and_byte_counts(constraint.get_alignment(), constraint.get_element_type().size_in_bytes());
             snapshot.set_name(ManualScanner::NAME.to_string());
         }
 
         let duration = start_time.elapsed();
-
+        let element_count = snapshot.read().unwrap().get_element_count(constraint.get_alignment(), constraint.get_element_type().size_in_bytes());
+        let byte_count = snapshot.read().unwrap().get_byte_count();
+        
         Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
-        let snapshot = snapshot.read().unwrap();
-        Logger::get_instance().log(LogLevel::Info, &format!("Results: {} ({} bytes)", snapshot.get_element_count(), value_to_metric_size(snapshot.get_byte_count())), None);
+        Logger::get_instance().log(LogLevel::Info, &format!("Results: {} ({} bytes)", element_count, value_to_metric_size(byte_count)), None);
     }
 }

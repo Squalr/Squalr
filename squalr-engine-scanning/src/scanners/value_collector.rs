@@ -109,13 +109,7 @@ impl ValueCollector {
         join_all(results).await;
 
         let duration = start_time.elapsed();
-        let byte_count;
-
-        {
-            let mut snapshot = snapshot.write().unwrap();
-            snapshot.update_element_and_byte_counts(MemoryAlignment::Alignment1, 1);
-            byte_count = snapshot.get_byte_count();
-        }
+        let byte_count = snapshot.read().unwrap().get_byte_count();
 
         if with_logging {
             Logger::get_instance().log(LogLevel::Info, &format!("Values collected in: {:?}", duration), None);

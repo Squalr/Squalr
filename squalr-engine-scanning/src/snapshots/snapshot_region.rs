@@ -65,7 +65,7 @@ impl SnapshotRegion {
     }
 
     pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: usize) -> u64 {
-        return self.snapshot_sub_regions.iter().map(|range| range.read().unwrap().get_element_count(data_type_size, alignment)).sum();
+        return self.snapshot_sub_regions.iter().map(|sub_region| sub_region.read().unwrap().get_element_count(alignment, data_type_size)).sum();
     }
     
     pub fn set_snapshot_sub_regions(&mut self, snapshot_sub_regions: Vec<Arc<RwLock<SnapshotSubRegion>>>) {

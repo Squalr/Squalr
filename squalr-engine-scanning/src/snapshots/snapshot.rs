@@ -5,8 +5,6 @@ use std::sync::{Arc, RwLock};
 
 pub struct Snapshot {
     name: String,
-    byte_count: u64,
-    element_count: u64,
     alignment: MemoryAlignment,
     creation_time: SystemTime,
     snapshot_regions: Vec<Arc<RwLock<SnapshotRegion>>>,
@@ -16,8 +14,6 @@ impl Snapshot {
     pub fn new(name: String, snapshot_regions: Vec<SnapshotRegion>) -> Self {
         Self {
             name,
-            byte_count: 0,
-            element_count: 0,
             alignment: MemoryAlignment::Alignment1,
             creation_time: SystemTime::now(),
             snapshot_regions: snapshot_regions.into_iter().map(|region| Arc::new(RwLock::new(region))).collect(), // Fixed
@@ -37,12 +33,6 @@ impl Snapshot {
         self.creation_time = SystemTime::now();
         self.snapshot_regions = snapshot_regions;
         self.sort_regions_by_address();
-    }
-
-    pub fn update_element_and_byte_counts(&mut self, alignment: MemoryAlignment, data_type_size: usize) {
-        self.alignment = alignment;
-        self.byte_count = self.snapshot_regions.clone().into_iter().map(|region| region.as_ref().read().unwrap().get_region_size()).sum();
-        self.element_count = self.snapshot_regions.clone().into_iter().map(|region| region.as_ref().read().unwrap().get_element_count(alignment, data_type_size)).sum();
     }
     
     pub fn get_snapshot_regions(&self) -> Vec<Arc<RwLock<SnapshotRegion>>> {
@@ -64,10 +54,10 @@ impl Snapshot {
     }
 
     pub fn get_byte_count(&self) -> u64 {
-        return self.byte_count;
+        return self.snapshot_regions.iter().map(|sub_region| sub_region.read().unwrap().get_region_size()).sum();
     }
 
-    pub fn get_element_count(&self) -> u64 {
-        return self.element_count;
+    pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: usize) -> u64 {
+        return self.snapshot_regions.iter().map(|sub_region| sub_region.read().unwrap().get_element_count(alignment, data_type_size)).sum();
     }
 }

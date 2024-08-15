@@ -64,17 +64,23 @@ impl SnapshotSubRegion {
         }
     }
 
-    pub fn get_element_count(&self, data_type_size: usize, alignment: MemoryAlignment) -> u64 {
+    pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: usize) -> u64 {
         let alignment = max(alignment as u64, 1);
         let misalignment = self.get_misalignment(alignment);
-
-        if misalignment > self.range as u64 {
+    
+        if misalignment >= self.range as u64 {
             return 0;
         }
-
+    
         let effective_range = self.range as u64 - misalignment;
-        let byte_count = effective_range.saturating_sub(data_type_size as u64);
-
+    
+        // Ensure that effective_range is at least the size of the data type
+        if effective_range < data_type_size as u64 {
+            return 0;
+        }
+    
+        let byte_count = effective_range - data_type_size as u64 + 1;
+    
         return byte_count / alignment;
     }
 

@@ -8,7 +8,6 @@ use squalr_engine_scanning::scanners::constraints::scan_constraint::ConstraintTy
 use squalr_engine_scanning::scanners::manual_scanner::ManualScanner;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use squalr_engine_scanning::snapshots::snapshot_manager::SnapshotManager;
-use std::sync::{Arc, RwLock};
 use tokio::spawn;
 
 pub async fn handle_value_command(cmd: &mut ScanCommand) {
