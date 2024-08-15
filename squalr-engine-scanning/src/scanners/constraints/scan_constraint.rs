@@ -1,3 +1,4 @@
+use crate::scan_settings::ScanSettings;
 use squalr_engine_common::dynamic_struct::field_value::Endian;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
@@ -49,6 +50,22 @@ impl ScanConstraint {
             constraint_value: value,
             constraint_args: args,
         }
+    }
+
+    pub fn clone_and_resolve_auto_alignment(&self) -> ScanConstraint {
+        let mut constraint = self.clone();
+
+        if constraint.get_alignment() == MemoryAlignment::Auto {
+            let settings_alignment = ScanSettings::get_instance().get_alignment();
+            if settings_alignment == MemoryAlignment::Auto {
+                constraint.set_alignment(MemoryAlignment::Alignment4);
+            }
+            else {
+                constraint.set_alignment(settings_alignment);
+            }
+        }
+
+        return constraint;
     }
 
     pub fn get_alignment(&self) -> MemoryAlignment {

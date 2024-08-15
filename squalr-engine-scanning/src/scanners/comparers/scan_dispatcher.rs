@@ -1,4 +1,4 @@
-use crate::{scan_settings::ScanSettings, scanners::comparers::scalar::scanner_scalar_iterative::ScannerScalarIterative};
+use crate::scanners::comparers::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
@@ -6,7 +6,6 @@ use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::sync::{Arc, Once, RwLock};
 use tokio::task::JoinHandle;
 
@@ -34,6 +33,7 @@ impl ScanDispatcher {
     pub fn dispatch_scan(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
         let has_snapshot_region = snapshot_region.read().unwrap().get_snapshot_sub_regions().is_empty();
         let has_valid_size = snapshot_region.read().unwrap().get_region_size() > 0;
+        let constraint = constraint.clone_and_resolve_auto_alignment();
 
         if has_snapshot_region && has_valid_size {
             let mut sub_regions = Vec::new();

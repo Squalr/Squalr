@@ -1,4 +1,3 @@
-use crate::scan_settings::ScanSettings;
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot::Snapshot;
@@ -9,7 +8,6 @@ use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
@@ -79,18 +77,7 @@ impl ManualScanner {
             let cancellation_token = cancellation_token.clone();
             let constraint = constraint.clone();
             let region = region.clone();
-            
-            let mut constraint = constraint.clone();
-
-            if constraint.get_alignment() == MemoryAlignment::Auto {
-                let settings_alignment = ScanSettings::get_instance().get_alignment();
-                if settings_alignment == MemoryAlignment::Auto {
-                    constraint.set_alignment(MemoryAlignment::Alignment4);
-                }
-                else {
-                    constraint.set_alignment(settings_alignment);
-                }
-            }
+            let constraint = constraint.clone_and_resolve_auto_alignment();
 
             tokio::spawn(async move {
                 if cancellation_token.is_cancelled() {
@@ -108,7 +95,7 @@ impl ManualScanner {
 
                 let scan_dispatcher = ScanDispatcher::get_instance();
                 let scan_dispatcher = scan_dispatcher.read().unwrap();
-                let scan_results: Vec<Arc<RwLock<SnapshotSubRegion>>> = scan_dispatcher.dispatch_scan(region.clone(), &constraint);
+                let scan_results = scan_dispatcher.dispatch_scan(region.clone(), &constraint);
                 
                 {
                     let mut region = region.write().unwrap();
@@ -125,7 +112,7 @@ impl ManualScanner {
 
                 return region.clone();
             })
-        })).await.into_iter().filter_map(Result::ok).collect(); // Collecting the results
+        })).await.into_iter().filter_map(Result::ok).collect();
 
         // Lock the snapshot briefly to update it.
         {

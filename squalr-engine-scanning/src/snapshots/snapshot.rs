@@ -5,7 +5,6 @@ use std::sync::{Arc, RwLock};
 
 pub struct Snapshot {
     name: String,
-    alignment: MemoryAlignment,
     creation_time: SystemTime,
     snapshot_regions: Vec<Arc<RwLock<SnapshotRegion>>>,
 }
@@ -14,7 +13,6 @@ impl Snapshot {
     pub fn new(name: String, snapshot_regions: Vec<SnapshotRegion>) -> Self {
         Self {
             name,
-            alignment: MemoryAlignment::Alignment1,
             creation_time: SystemTime::now(),
             snapshot_regions: snapshot_regions.into_iter().map(|region| Arc::new(RwLock::new(region))).collect(), // Fixed
         }
@@ -34,7 +32,7 @@ impl Snapshot {
         self.snapshot_regions = snapshot_regions;
         self.sort_regions_by_address();
     }
-    
+
     pub fn get_snapshot_regions(&self) -> Vec<Arc<RwLock<SnapshotRegion>>> {
         return self.snapshot_regions.clone(); // Fixed
     }

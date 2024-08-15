@@ -3,7 +3,6 @@ use futures::future::join_all;
 use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use squalr_engine_processes::process_info::ProcessInfo;
 use std::sync::atomic::{AtomicUsize, Ordering};
