@@ -13,7 +13,6 @@ pub struct SnapshotRegion {
     current_values: Vec<u8>,
     previous_values: Vec<u8>,
     snapshot_sub_regions: Vec<Arc<RwLock<SnapshotSubRegion>>>,
-    element_count: u32,
 }
 
 impl SnapshotRegion {
@@ -23,7 +22,6 @@ impl SnapshotRegion {
             current_values: Vec::new(),
             previous_values: Vec::new(),
             snapshot_sub_regions: Vec::new(),
-            element_count: 0,
         }
     }
 
@@ -33,7 +31,6 @@ impl SnapshotRegion {
             current_values: Vec::new(),
             previous_values: Vec::new(),
             snapshot_sub_regions: Vec::new(),
-            element_count: 0,
         }
     }
 
@@ -87,8 +84,8 @@ impl SnapshotRegion {
         return self.snapshot_sub_regions.clone();
     }
 
-    pub fn set_byte_alignment(&mut self, alignment: MemoryAlignment) {
-        self.normalized_region.set_byte_alignment(alignment);
+    pub fn set_alignment(&mut self, alignment: MemoryAlignment) {
+        self.normalized_region.set_alignment(alignment);
     }
 
     pub fn has_current_values(&self) -> bool {

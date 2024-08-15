@@ -51,7 +51,7 @@ impl ScanConstraint {
         }
     }
 
-    pub fn get_byte_alignment(&self) -> MemoryAlignment {
+    pub fn get_alignment(&self) -> MemoryAlignment {
         return self.alignment;
     }
 

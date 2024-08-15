@@ -20,7 +20,7 @@ pub struct ManualScanner;
 impl ManualScanner {
     const NAME: &'static str = "Manual Scan";
 
-    pub fn scan(snapshot: Arc<RwLock<Snapshot>>, constraint: Arc<RwLock<ScanConstraint>>, task_identifier: Option<String>, with_logging: bool) -> Arc<TrackableTask<()>> {
+    pub fn scan(snapshot: Arc<RwLock<Snapshot>>, constraint: &ScanConstraint, task_identifier: Option<String>, with_logging: bool) -> Arc<TrackableTask<()>> {
         let task = TrackableTask::<()>::create(
             ManualScanner::NAME.to_string(),
             task_identifier,
@@ -32,7 +32,7 @@ impl ManualScanner {
             async move {
                 Self::scan_task(
                     snapshot,
-                    constraint,
+                    &constraint,
                     task.get_progress_sender().clone(),
                     task.get_cancellation_token(),
                     with_logging
@@ -48,7 +48,7 @@ impl ManualScanner {
 
     async fn scan_task(
         snapshot: Arc<RwLock<Snapshot>>,
-        constraint: Arc<RwLock<ScanConstraint>>,
+        constraint: &ScanConstraint,
         progress_sender: broadcast::Sender<f32>,
         cancellation_token: CancellationToken,
         with_logging: bool,
@@ -62,6 +62,10 @@ impl ManualScanner {
             snapshot.sort_regions_for_scans();
             region_count = snapshot.get_region_count();
             snapshot_regions = snapshot.get_snapshot_regions();
+        }
+
+        if with_logging {
+            Logger::get_instance().log(LogLevel::Info, "Performing manual scan...", None);
         }
 
         let start_time = Instant::now();
@@ -78,8 +82,6 @@ impl ManualScanner {
                 if cancellation_token.is_cancelled() {
                     return region;
                 }
-                
-                let constraint = constraint.read().unwrap();
 
                 if !region.read().unwrap().can_compare_with_constraint(&constraint) {
                     return region.clone();
@@ -87,7 +89,7 @@ impl ManualScanner {
 
                 {
                     let mut region = region.write().unwrap();
-                    region.set_byte_alignment(constraint.get_byte_alignment());
+                    region.set_alignment(constraint.get_alignment());
                 }
 
                 let scan_dispatcher = ScanDispatcher::get_instance();
@@ -101,7 +103,7 @@ impl ManualScanner {
 
                 let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
                 
-                // To reduce performance impact, only periodically send progress updates
+                // To reduce performance impact, only periodically send progress updates.
                 if processed % 32 == 0 {
                     let progress = (processed as f32 / region_count as f32) * 100.0;
                     let _ = progress_sender.send(progress);
@@ -114,11 +116,10 @@ impl ManualScanner {
         // Lock the snapshot briefly to update it.
         {
             let mut snapshot = snapshot.write().unwrap();
-            let constraint = constraint.read().unwrap();
             let collected_regions = results;
             
             snapshot.set_snapshot_regions(collected_regions);
-            snapshot.update_element_and_byte_counts(constraint.get_byte_alignment(), constraint.get_element_type().size_in_bytes());
+            snapshot.update_element_and_byte_counts(constraint.get_alignment(), constraint.get_element_type().size_in_bytes());
             snapshot.set_name(ManualScanner::NAME.to_string());
         }
 

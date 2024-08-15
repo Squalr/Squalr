@@ -44,7 +44,7 @@ impl<'a> SnapshotElementScannerVectorSparse<'a> {
 
         let sparse_mask = *self
             .sparse_masks
-            .get(&self.base_scanner.base_scanner.get_byte_alignment())
+            .get(&self.base_scanner.base_scanner.get_alignment())
             .unwrap();
 
         let vector_comparer = self.base_scanner.vector_compare_func.take().unwrap();

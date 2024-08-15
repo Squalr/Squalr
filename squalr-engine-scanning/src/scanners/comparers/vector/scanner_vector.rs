@@ -130,7 +130,7 @@ impl<'a> SnapshotElementScannerVector<'a> {
         // Collect necessary information with immutable borrows
         let all_true = scan_results.simd_gt(false_mask).all(); //.to_array().iter().all(|&x| x);
         let all_false = scan_results.simd_eq(false_mask).all(); //.to_array().iter().all(|&x| x);
-        let alignment = self.base_scanner.get_byte_alignment() as usize;
+        let alignment = self.base_scanner.get_alignment() as usize;
     
         // Perform encoding with mutable borrows
         let encoder = self.base_scanner.get_run_length_encoder();

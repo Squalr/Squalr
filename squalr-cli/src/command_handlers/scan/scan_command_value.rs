@@ -30,11 +30,11 @@ pub async fn handle_value_command(cmd: &mut ScanCommand) {
             ).wait_for_completion().await;
             
             // Now set up for the memory scan
-            let constraint = Arc::new(RwLock::new(ScanConstraint::new_with_value(MemoryAlignment::Alignment1, ConstraintType::Equal, Some(value.clone()), None)));
+            let constraint = ScanConstraint::new_with_value(MemoryAlignment::Alignment1, ConstraintType::Equal, Some(value.clone()), None);
             let snapshot = snapshot_manager.get_active_snapshot_create_if_none(&process_info);
             let task = ManualScanner::scan(
                 snapshot,
-                constraint,
+                &constraint,
                 None,
                 true
             );

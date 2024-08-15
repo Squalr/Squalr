@@ -31,7 +31,7 @@ impl ScannerScalarSingleElement {
 }
 
 impl Scanner for ScannerScalarSingleElement {
-    fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: Arc<ScanConstraint>) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
+    fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
         let snapshot_sub_region_read = snapshot_sub_region.read().unwrap();
         let current_value_pointer = snapshot_sub_region_read.get_current_values_pointer();
         let previous_value_pointer = snapshot_sub_region_read.get_previous_values_pointer();
