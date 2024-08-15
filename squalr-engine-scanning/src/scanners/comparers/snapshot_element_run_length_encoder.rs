@@ -47,7 +47,7 @@ impl SnapshotElementRunLengthEncoder {
                 if absolute_address_start >= element_range.get_base_element_address()
                     && absolute_address_end <= element_range.get_end_element_address()
                 {
-                    self.result_regions.push(Arc::new(RwLock::new(SnapshotElementRange::with_offset_and_range(
+                    self.result_regions.push(Arc::new(RwLock::new(SnapshotElementRange::new_with_offset_and_range(
                         element_range.parent_region.clone(),
                         self.run_length_encode_offset,
                         self.run_length,
@@ -66,7 +66,7 @@ impl SnapshotElementRunLengthEncoder {
     pub fn finalize_current_encode_unchecked(&mut self, advance_byte_count: usize) {
         if self.is_encoding && self.run_length > 0 {
             if let Some(element_range) = &self.element_range {
-                self.result_regions.push(Arc::new(RwLock::new(SnapshotElementRange::with_offset_and_range(
+                self.result_regions.push(Arc::new(RwLock::new(SnapshotElementRange::new_with_offset_and_range(
                     element_range.parent_region.clone(),
                     self.run_length_encode_offset,
                     self.run_length,

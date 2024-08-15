@@ -53,10 +53,11 @@ impl SnapshotRegion {
         let region_size = self.get_region_size();
         let mut new_values = vec![0u8; region_size as usize];
         
-        MemoryReader::get_instance().read_bytes(process_handle, self.get_base_address(), &mut new_values)?;
+        let result = MemoryReader::get_instance().read_bytes(process_handle, self.get_base_address(), &mut new_values)?;
 
         self.set_current_values(new_values);
-        Ok(())
+
+        return Ok(result);
     }
 
     pub fn get_base_address(&self) -> u64 {
@@ -65,6 +66,10 @@ impl SnapshotRegion {
 
     pub fn get_region_size(&self) -> u64 {
         return self.normalized_region.get_region_size();
+    }
+
+    pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: usize) -> u64 {
+        return self.snapshot_element_ranges.clone().into_iter().map(|range| range.as_ref().read().unwrap().get_aligned_element_count(alignment)).sum();
     }
 
     pub fn set_snapshot_element_ranges(&mut self, snapshot_element_ranges: Vec<Arc<RwLock<SnapshotElementRange>>>) {
@@ -93,7 +98,7 @@ impl SnapshotRegion {
     }
 
     pub fn can_compare_with_constraint(&self, constraints: &ScanConstraint) -> bool {
-        if !constraints.is_valid() || self.has_current_values() || (constraints.is_relative_constraint() && self.has_previous_values()) {
+        if !constraints.is_valid() || !self.has_current_values() || (constraints.is_relative_constraint() && !self.has_previous_values()) {
             return false;
         }
 

@@ -6,12 +6,12 @@ use std::sync::Arc;
 
 pub struct SnapshotElementIndexer {
     element_range: Arc<SnapshotElementRange>,
-    element_index: usize,
+    element_index: u64,
     alignment: MemoryAlignment,
 }
 
 impl SnapshotElementIndexer {
-    pub fn new(element_range: Arc<SnapshotElementRange>, alignment: MemoryAlignment, element_index: usize) -> Self {
+    pub fn new(element_range: Arc<SnapshotElementRange>, alignment: MemoryAlignment, element_index: u64) -> Self {
         Self {
             element_range,
             element_index,
@@ -20,11 +20,11 @@ impl SnapshotElementIndexer {
     }
 
     pub fn get_base_address(&self) -> u64 {
-        return self.element_range.get_base_element_address() + (self.element_index * self.alignment as usize) as u64;
+        return self.element_range.get_base_element_address() + self.element_index * self.alignment as u64;
     }
 
     pub fn load_current_value(&self, data_type: FieldValue) -> Option<FieldValue> {
-        let offset = self.element_range.get_region_offset() + self.element_index * self.alignment as usize;
+        let offset = self.element_range.get_region_offset() + (self.element_index * self.alignment as u64) as usize;
         let parent_region = self.element_range.parent_region.read().unwrap();
         let current_values = parent_region.get_current_values();
         let pointer_base = current_values.read().unwrap();
@@ -33,7 +33,7 @@ impl SnapshotElementIndexer {
     }
 
     pub fn load_previous_value(&self, data_type: FieldValue) -> Option<FieldValue> {
-        let offset = self.element_range.get_region_offset() + self.element_index * self.alignment as usize;
+        let offset = self.element_range.get_region_offset() + (self.element_index * self.alignment as u64) as usize;
         let parent_region = self.element_range.parent_region.read().unwrap();
         let previous_values = parent_region.get_previous_values();
         let pointer_base = previous_values.read().unwrap();

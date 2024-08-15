@@ -111,9 +111,9 @@ impl ScanConstraint {
 
     pub fn is_valid(&self) -> bool {
         if !self.is_valued_constraint() {
-            true
+            return true;
         } else {
-            self.constraint_value.is_some()
+            return self.constraint_value.is_some();
         }
     }
 

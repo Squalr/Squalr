@@ -10,14 +10,11 @@ use tokio::spawn;
 pub async fn handle_collect_command(cmd: &mut ScanCommand) {
     let session_manager_lock = SessionManager::get_instance();
     let session_manager = session_manager_lock.read().unwrap();
-
     let snapshot_manager_lock = SnapshotManager::get_instance();
     let mut snapshot_manager = snapshot_manager_lock.write().unwrap();
 
     if let ScanCommand::Collect = cmd {
         if let Some(process_info) = session_manager.get_opened_process() {
-            Logger::get_instance().log(LogLevel::Info, "Collecting values", None);
-
             let snapshot = snapshot_manager.get_active_snapshot_create_if_none(&process_info);
             let task = ValueCollector::collect_values(
                 process_info.clone(),

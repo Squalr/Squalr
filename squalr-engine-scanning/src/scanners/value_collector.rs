@@ -25,7 +25,6 @@ impl ValueCollector {
         task_identifier: Option<String>,
         with_logging: bool,
     ) -> Arc<TrackableTask<()>> {
-        
         let process_info = Arc::new(process_info);
         let task = TrackableTask::<()>::create(
             ValueCollector::NAME.to_string(),
@@ -114,8 +113,8 @@ impl ValueCollector {
 
         {
             let mut snapshot = snapshot.write().unwrap();
-            byte_count = snapshot.get_byte_count();
             snapshot.update_element_and_byte_counts(MemoryAlignment::Alignment1, 1);
+            byte_count = snapshot.get_byte_count();
         }
 
         if with_logging {

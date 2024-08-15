@@ -20,7 +20,7 @@ pub struct ManualScanner;
 impl ManualScanner {
     const NAME: &'static str = "Manual Scan";
 
-    pub fn scan(snapshot: Arc<RwLock<Snapshot>>, constraint: Arc<RwLock<ScanConstraint>>, task_identifier: Option<String>) -> Arc<TrackableTask<()>> {
+    pub fn scan(snapshot: Arc<RwLock<Snapshot>>, constraint: Arc<RwLock<ScanConstraint>>, task_identifier: Option<String>, with_logging: bool) -> Arc<TrackableTask<()>> {
         let task = TrackableTask::<()>::create(
             ManualScanner::NAME.to_string(),
             task_identifier,
@@ -35,6 +35,7 @@ impl ManualScanner {
                     constraint,
                     task.get_progress_sender().clone(),
                     task.get_cancellation_token(),
+                    with_logging
                 ).await;
 
                 task.complete(());
@@ -50,6 +51,7 @@ impl ManualScanner {
         constraint: Arc<RwLock<ScanConstraint>>,
         progress_sender: broadcast::Sender<f32>,
         cancellation_token: CancellationToken,
+        with_logging: bool,
     ) {
         let region_count;
         let snapshot_regions;
@@ -85,7 +87,7 @@ impl ManualScanner {
                     
                     let scan_dispatcher = ScanDispatcher::get_instance();
                     let scan_dispatcher = scan_dispatcher.read().unwrap();
-                    let scan_results: Vec<Arc<RwLock<SnapshotElementRange>>> =scan_dispatcher.dispatch_scan(region.clone(), &constraint);
+                    let scan_results: Vec<Arc<RwLock<SnapshotElementRange>>> = scan_dispatcher.dispatch_scan(region.clone(), &constraint);
                     
                     region_mut.set_snapshot_element_ranges(scan_results);
                     region_mut.set_byte_alignment(constraint.get_byte_alignment());
@@ -109,9 +111,10 @@ impl ManualScanner {
         {
             let mut snapshot = snapshot.write().unwrap();
             let constraint = constraint.read().unwrap();
-            let collected_regions = results.into_iter().map(|r| Arc::try_unwrap(r).unwrap().into_inner().unwrap()).collect();
+            let collected_regions = results;
             
-            snapshot.set_snapshot_regions(collected_regions, constraint.get_byte_alignment(), constraint.get_element_type().size_in_bytes());
+            snapshot.set_snapshot_regions(collected_regions);
+            snapshot.update_element_and_byte_counts(constraint.get_byte_alignment(), constraint.get_element_type().size_in_bytes());
             snapshot.set_name(ManualScanner::NAME.to_string());
         }
 

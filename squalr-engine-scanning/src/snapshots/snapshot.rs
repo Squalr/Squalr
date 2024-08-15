@@ -7,6 +7,7 @@ pub struct Snapshot {
     name: String,
     byte_count: u64,
     element_count: u64,
+    alignment: MemoryAlignment,
     creation_time: SystemTime,
     snapshot_regions: Vec<Arc<RwLock<SnapshotRegion>>>,
 }
@@ -17,6 +18,7 @@ impl Snapshot {
             name,
             byte_count: 0,
             element_count: 0,
+            alignment: MemoryAlignment::Alignment1,
             creation_time: SystemTime::now(),
             snapshot_regions: snapshot_regions.into_iter().map(|region| Arc::new(RwLock::new(region))).collect(), // Fixed
         }
@@ -31,15 +33,16 @@ impl Snapshot {
     }
     
     /// Assigns snapshot regions, sorting them by base address ascending.
-    pub fn set_snapshot_regions(&mut self, snapshot_regions: Vec<SnapshotRegion>, alignment: MemoryAlignment, data_type_size: usize) {
+    pub fn set_snapshot_regions(&mut self, snapshot_regions: Vec<Arc<RwLock<SnapshotRegion>>>) {
         self.creation_time = SystemTime::now();
-        self.snapshot_regions = snapshot_regions.into_iter().map(|region| Arc::new(RwLock::new(region))).collect(); // Fixed
+        self.snapshot_regions = snapshot_regions;
         self.sort_regions_by_address();
-        self.update_element_and_byte_counts(alignment, data_type_size);
     }
 
     pub fn update_element_and_byte_counts(&mut self, alignment: MemoryAlignment, data_type_size: usize) {
-        // Calculate the number of elements / total bytes based on the alignment and data type size
+        self.alignment = alignment;
+        self.byte_count = self.snapshot_regions.clone().into_iter().map(|region| region.as_ref().read().unwrap().get_region_size()).sum();
+        self.element_count = self.snapshot_regions.clone().into_iter().map(|region| region.as_ref().read().unwrap().get_element_count(alignment, data_type_size)).sum();
     }
     
     pub fn get_snapshot_regions(&self) -> Vec<Arc<RwLock<SnapshotRegion>>> {

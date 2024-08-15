@@ -14,10 +14,10 @@ pub struct SnapshotElementRange {
 impl SnapshotElementRange {
     pub fn new(parent_region: Arc<RwLock<SnapshotRegion>>) -> Self {
         let parent_region_size = parent_region.read().unwrap().get_region_size() as usize;
-        Self::with_offset_and_range(parent_region, 0, parent_region_size)
+        Self::new_with_offset_and_range(parent_region, 0, parent_region_size)
     }
 
-    pub fn with_offset_and_range(parent_region: Arc<RwLock<SnapshotRegion>>, region_offset: usize, range: usize) -> Self {
+    pub fn new_with_offset_and_range(parent_region: Arc<RwLock<SnapshotRegion>>, region_offset: usize, range: usize) -> Self {
         Self {
             parent_region,
             region_offset,
@@ -61,10 +61,10 @@ impl SnapshotElementRange {
         return self.range + used_spill_over_bytes;
     }
 
-    pub fn get_aligned_element_count(&self, alignment: MemoryAlignment) -> usize {
+    pub fn get_aligned_element_count(&self, alignment: MemoryAlignment) -> u64 {
         let alignment_value = alignment as usize;
 
-        return self.range / if alignment_value == 0 { 1 } else { alignment_value };
+        return (self.range / if alignment_value == 0 { 1 } else { alignment_value }) as u64;
     }
 
     pub fn resize_for_safe_reading(&mut self, data_type_size: usize) {
@@ -72,7 +72,7 @@ impl SnapshotElementRange {
         self.range = std::cmp::min(self.range, parent_region_size - self.region_offset - data_type_size);
     }
 
-    pub fn get_element_indexer(&self, index: usize, alignment: MemoryAlignment) -> SnapshotElementIndexer {
+    pub fn get_element_indexer(&self, index: u64, alignment: MemoryAlignment) -> SnapshotElementIndexer {
         return SnapshotElementIndexer::new(self.clone().into(), alignment, index);
     }
 
@@ -84,8 +84,8 @@ impl SnapshotElementRange {
 pub struct SnapshotElementIterator {
     element_range: Arc<SnapshotElementRange>,
     alignment: MemoryAlignment,
-    current_index: usize,
-    total_elements: usize,
+    current_index: u64,
+    total_elements: u64,
 }
 
 impl SnapshotElementIterator {
