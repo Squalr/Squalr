@@ -30,6 +30,7 @@ impl ScannerScalarSingleElement {
     }
 }
 
+/// Implements a scalar (ie CPU bound, non-SIMD) scanner which only scans a single element of memory (ie only containing 1 data type).
 impl Scanner for ScannerScalarSingleElement {
     fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
         let snapshot_sub_region_read = snapshot_sub_region.read().unwrap();

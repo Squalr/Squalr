@@ -1,24 +1,22 @@
-use crate::scanners::comparers::vector::snapshot_element_scanner_vector::SnapshotElementScannerVector;
-use crate::scanners::constraints::scan_constraints::ScanConstraints;
+use crate::scanners::comparers::vector::scanner_vector::SnapshotElementScannerVector;
+use crate::scanners::constraints::operation_constraint::ScanConstraint;
 use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use std::simd::u8x16;
+use std::sync::Arc;
+use std::sync::RwLock;
 
-pub struct SnapshotRegionVectorScannerAligned<'a> {
-    base_scanner: SnapshotElementScannerVector<'a>,
+pub struct SnapshotRegionVectorScannerAligned {
+    base_scanner: SnapshotElementScannerVector,
 }
 
-impl<'a> SnapshotRegionVectorScannerAligned<'a> {
+impl<'a> SnapshotRegionVectorScannerAligned {
     pub fn new() -> Self {
         Self {
             base_scanner: SnapshotElementScannerVector::new(),
         }
     }
 
-    pub fn scan_region(
-        &mut self,
-        snapshot_sub_region: &'a SnapshotSubRegion<'a>,
-        constraints: &'a ScanConstraints,
-    ) -> Vec<SnapshotSubRegion<'a>> {
+    fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
         self.base_scanner.initialize(snapshot_sub_region, constraints);
         let vector_comparer = self.base_scanner.vector_compare_func.take().unwrap();
         self.base_scanner.perform_vector_scan(u8x16::splat(0), 16, vector_comparer)

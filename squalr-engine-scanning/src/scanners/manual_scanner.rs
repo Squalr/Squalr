@@ -1,7 +1,6 @@
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot::Snapshot;
-use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use futures::future::join_all;
 use squalr_engine_common::conversions::value_to_metric_size;
@@ -81,11 +80,11 @@ impl ManualScanner {
 
             tokio::spawn(async move {
                 if cancellation_token.is_cancelled() {
-                    return region;
+                    return None;
                 }
 
                 if !region.read().unwrap().can_compare_with_constraint(&constraint) {
-                    return region.clone();
+                    return None;
                 }
 
                 {
@@ -110,16 +109,18 @@ impl ManualScanner {
                     let _ = progress_sender.send(progress);
                 }
 
-                return region.clone();
+                if region.read().unwrap().get_snapshot_sub_regions().is_empty() {
+                    return None;
+                }
+
+                return Some(region.clone());
             })
-        })).await.into_iter().filter_map(Result::ok).collect();
+        })).await.into_iter().filter_map(Result::ok).filter_map(|x| x).collect();
 
         // Lock the snapshot briefly to update it.
         {
             let mut snapshot = snapshot.write().unwrap();
-            let collected_regions = results;
-            
-            snapshot.set_snapshot_regions(collected_regions);
+            snapshot.set_snapshot_regions(results);
             snapshot.set_name(ManualScanner::NAME.to_string());
         }
 

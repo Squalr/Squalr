@@ -31,6 +31,8 @@ impl ScannerScalarIterative {
     }
 }
 
+/// Implements a scalar (ie CPU bound, non-SIMD) region scanning algorithm. This simply iterates over a region of memory,
+/// comparing each element based on the provided constraints. Elements that pass the constraint are grouped in sub-regions and returned.
 impl Scanner for ScannerScalarIterative {
     fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
         let mut run_length_encoder = SnapshotSubRegionRunLengthEncoder::new(snapshot_sub_region.clone());
@@ -46,7 +48,7 @@ impl Scanner for ScannerScalarIterative {
             if self.scalar_scanner.do_compare_action(current_value_pointer, previous_value_pointer, &constraint, &data_type) {
                 run_length_encoder.encode_range(constraint.get_alignment() as usize);
             } else {
-                run_length_encoder.finalize_current_encode_unchecked(constraint.get_alignment() as usize);
+                run_length_encoder.finalize_current_encode_unchecked(constraint.get_alignment() as usize, data_type.size_in_bytes());
             }
 
             unsafe {
@@ -55,7 +57,7 @@ impl Scanner for ScannerScalarIterative {
             }
         }
 
-        run_length_encoder.finalize_current_encode_unchecked(0);
+        run_length_encoder.finalize_current_encode_unchecked(0, data_type.size_in_bytes());
 
         return run_length_encoder.get_collected_regions().clone();
     }

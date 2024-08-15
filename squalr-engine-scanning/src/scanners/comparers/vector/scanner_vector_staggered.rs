@@ -1,17 +1,18 @@
-use crate::scanners::comparers::vector::snapshot_element_scanner_vector::SnapshotElementScannerVector;
-use crate::scanners::constraints::scan_constraints::ScanConstraints;
+use crate::scanners::comparers::vector::scanner_vector::SnapshotElementScannerVector;
+use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::collections::HashMap;
-use std::ops::{BitAnd, BitOr};
+use std::ops::BitAnd;
 use std::simd::{ToBytes, u8x16, u16x8, u32x4, u64x2};
+use std::sync::{Arc, RwLock};
 
-pub struct SnapshotRegionScannerVectorStaggered<'a> {
-    base_scanner: SnapshotElementScannerVector<'a>,
+pub struct SnapshotRegionScannerVectorStaggered {
+    base_scanner: SnapshotElementScannerVector,
     staggered_mask_map: HashMap<i32, HashMap<MemoryAlignment, Vec<u8x16>>>,
 }
 
-impl<'a> SnapshotRegionScannerVectorStaggered<'a> {
+impl SnapshotRegionScannerVectorStaggered {
     pub fn new() -> Self {
         let mut staggered_mask_map = HashMap::new();
 
@@ -73,12 +74,8 @@ impl<'a> SnapshotRegionScannerVectorStaggered<'a> {
         }
     }
 
-    pub fn scan_region(
-        &mut self,
-        snapshot_sub_region: &'a SnapshotSubRegion<'a>,
-        constraints: &'a ScanConstraints,
-    ) -> Vec<SnapshotSubRegion<'a>> {
-        self.base_scanner.initialize(snapshot_sub_region, constraints);
+    fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
+        self.base_scanner.initialize(snapshot_sub_region, constraint);
 
         let data_type_size = self.base_scanner.base_scanner.get_data_type_size();
         let alignment = self.base_scanner.base_scanner.get_alignment();

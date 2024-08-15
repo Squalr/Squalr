@@ -64,6 +64,10 @@ impl SnapshotRegion {
         return self.normalized_region.get_region_size();
     }
 
+    pub fn get_byte_count(&self) -> u64 {
+        return self.snapshot_sub_regions.iter().map(|sub_region| sub_region.read().unwrap().get_byte_count()).sum();
+    }
+
     pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: usize) -> u64 {
         return self.snapshot_sub_regions.iter().map(|sub_region| sub_region.read().unwrap().get_element_count(alignment, data_type_size)).sum();
     }

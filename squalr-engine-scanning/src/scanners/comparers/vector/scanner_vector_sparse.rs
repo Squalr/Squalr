@@ -1,16 +1,16 @@
-use crate::scanners::comparers::vector::snapshot_element_scanner_vector::SnapshotElementScannerVector;
-use crate::scanners::constraints::scan_constraints::ScanConstraints;
+use crate::scanners::comparers::vector::scanner_vector::SnapshotElementScannerVector;
+use crate::scanners::constraints::operation_constraint::ScanConstraint;
 use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::collections::HashMap;
 use std::simd::{ToBytes, u8x16, u16x8, u32x4, u64x2};
 
-pub struct SnapshotElementScannerVectorSparse<'a> {
-    base_scanner: SnapshotElementScannerVector<'a>,
+pub struct SnapshotElementScannerVectorSparse {
+    base_scanner: SnapshotElementScannerVector,
     sparse_masks: HashMap<MemoryAlignment, u8x16>,
 }
 
-impl<'a> SnapshotElementScannerVectorSparse<'a> {
+impl SnapshotElementScannerVectorSparse {
     pub fn new() -> Self {
         let mut sparse_masks = HashMap::new();
 
@@ -35,11 +35,7 @@ impl<'a> SnapshotElementScannerVectorSparse<'a> {
         }
     }
 
-    pub fn scan_region(
-        &mut self,
-        snapshot_sub_region: &'a SnapshotSubRegion<'a>,
-        constraints: &'a ScanConstraints,
-    ) -> Vec<SnapshotSubRegion<'a>> {
+    fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
         self.base_scanner.initialize(snapshot_sub_region, constraints);
 
         let sparse_mask = *self

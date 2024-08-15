@@ -4,6 +4,8 @@ use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 pub struct ScannerScalar {
 }
 
+/// Implements a scalar (ie CPU bound, non-SIMD) scanner which contains all boolean comparison operations to be used by more complex scanners,
+/// in addition to handling common functionality like reading values and structures from snapshot memory given a pointer.
 impl ScannerScalar {
     pub fn new() -> Self {
         return Self { };

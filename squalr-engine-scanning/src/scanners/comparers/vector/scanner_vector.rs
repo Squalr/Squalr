@@ -1,5 +1,4 @@
 use crate::scanners::comparers::snapshot_sub_region_scanner::Scanner;
-use crate::scanners::constraints::operation_constraint::{OperationConstraint, OperationType};
 use crate::scanners::constraints::scan_constraint::{ScanConstraint,ConstraintType};
 use crate::scanners::constraints::scan_constraints::ScanConstraints;
 use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
@@ -8,17 +7,15 @@ use std::ops::{BitAnd, BitOr, BitXor};
 use std::simd::cmp::{SimdOrd, SimdPartialEq, SimdPartialOrd};
 use std::simd::{u8x16, u16x8, u32x4, u64x2, i8x16, i16x8, i32x4, i64x2, f32x4, f64x2};
 
-pub struct SnapshotElementScannerVector<'a> {
-    pub base_scanner: Scanner<'a>,
+pub struct SnapshotElementScannerVector {
+    pub base_scanner: Scanner,
     pub vector_read_offset: usize,
     pub vector_read_base: usize,
     pub first_scan_vector_misalignment: usize,
     pub last_scan_vector_overread: usize,
-    pub vector_compare_func: Option<Box<dyn Fn() -> u8x16 + 'a>>,
-    pub custom_vector_compare: Option<Box<dyn Fn() -> u8x16 + 'a>>,
 }
 
-impl<'a> SnapshotElementScannerVector<'a> {
+impl SnapshotElementScannerVector {
     pub fn new() -> Self {
         Self {
             base_scanner: Scanner::new(),
@@ -26,12 +23,10 @@ impl<'a> SnapshotElementScannerVector<'a> {
             vector_read_base: 0,
             first_scan_vector_misalignment: 0,
             last_scan_vector_overread: 0,
-            vector_compare_func: None,
-            custom_vector_compare: None,
         }
     }
 
-    pub fn initialize(&mut self, snapshot_sub_region: &'a SnapshotSubRegion, constraints: &'a ScanConstraints) {
+    pub fn initialize(&mut self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraints: &ScanConstraint) {
         self.base_scanner.initialize(snapshot_sub_region, constraints);
         self.vector_read_offset = 0;
         self.vector_compare_func = Some(self.build_compare_actions(constraints));
@@ -49,7 +44,7 @@ impl<'a> SnapshotElementScannerVector<'a> {
         false_mask: u8x16,
         vector_increment_size: usize,
         vector_comparer: Box<dyn Fn() -> u8x16 + 'a>,
-    ) -> Vec<SnapshotSubRegion<'a>> {
+    ) -> Vec<SnapshotSubRegion> {
         // This algorithm has three stages:
         // 1) Scan the first vector of memory, which may contain elements outside of the intended range. For example, in <x, x, x, x ... y, y, y, y>,
         //      where x is data outside the element range (but within the snapshot region), and y is within the region we are scanning.
@@ -169,29 +164,6 @@ impl<'a> SnapshotElementScannerVector<'a> {
             0
         } else {
             16 - remaining_bytes
-        }
-    }
-
-    fn build_compare_actions(&self, constraint: &ScanConstraints) -> Box<dyn Fn() -> u8x16> {
-        if let Some(custom_vector_compare) = &self.custom_vector_compare {
-            return custom_vector_compare.clone();
-        }
-
-        match constraint {
-            ScanConstraints::Operation(operation_constraint) => self.build_operation_compare_actions(operation_constraint),
-            ScanConstraints::Value(scan_constraint) => self.build_value_compare_actions(scan_constraint),
-            _ => panic!("Invalid constraint type"),
-        }
-    }
-
-    fn build_operation_compare_actions(&self, operation_constraint: &OperationConstraint) -> Box<dyn Fn() -> u8x16> {
-        let left = self.build_compare_actions(&operation_constraint.get_left());
-        let right = self.build_compare_actions(&operation_constraint.get_right());
-
-        match operation_constraint.binary_operation {
-            OperationType::And => Box::new(move || left().bitand(right())),
-            OperationType::Or => Box::new(move || left().bitor(right())),
-            OperationType::Xor => Box::new(move || left().bitxor(right())),
         }
     }
 
