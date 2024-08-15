@@ -1,7 +1,7 @@
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot::Snapshot;
-use crate::snapshots::snapshot_element_range::SnapshotElementRange;
+use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use futures::future::join_all;
 use squalr_engine_common::conversions::value_to_metric_size;
@@ -80,30 +80,34 @@ impl ManualScanner {
                 }
                 
                 let constraint = constraint.read().unwrap();
-                let mut region_mut = region.write().unwrap();
 
-                if region_mut.can_compare_with_constraint(&constraint) {
-                    region_mut.set_byte_alignment(constraint.get_byte_alignment());
-                    
-                    let scan_dispatcher = ScanDispatcher::get_instance();
-                    let scan_dispatcher = scan_dispatcher.read().unwrap();
-                    let scan_results: Vec<Arc<RwLock<SnapshotElementRange>>> = scan_dispatcher.dispatch_scan(region.clone(), &constraint);
-                    
-                    region_mut.set_snapshot_element_ranges(scan_results);
-                    region_mut.set_byte_alignment(constraint.get_byte_alignment());
-                    region_mut.set_data_type_size(constraint.get_element_type().size_in_bytes());
-    
-                    let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
-                    
-                    // To reduce performance impact, only periodically send progress updates
-                    if processed % 32 == 0 {
-                        let progress = (processed as f32 / region_count as f32) * 100.0;
-                        let _ = progress_sender.send(progress);
-                    }
+                if !region.read().unwrap().can_compare_with_constraint(&constraint) {
+                    return region.clone();
                 }
 
-                drop(region_mut);
-                return region;
+                {
+                    let mut region = region.write().unwrap();
+                    region.set_byte_alignment(constraint.get_byte_alignment());
+                }
+
+                let scan_dispatcher = ScanDispatcher::get_instance();
+                let scan_dispatcher = scan_dispatcher.read().unwrap();
+                let scan_results: Vec<Arc<RwLock<SnapshotSubRegion>>> = scan_dispatcher.dispatch_scan(region.clone(), &constraint);
+                
+                {
+                    let mut region = region.write().unwrap();
+                    region.set_snapshot_sub_regions(scan_results);
+                }
+
+                let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
+                
+                // To reduce performance impact, only periodically send progress updates
+                if processed % 32 == 0 {
+                    let progress = (processed as f32 / region_count as f32) * 100.0;
+                    let _ = progress_sender.send(progress);
+                }
+
+                return region.clone();
             })
         })).await.into_iter().filter_map(Result::ok).collect(); // Collecting the results
 

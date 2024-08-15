@@ -195,7 +195,6 @@ impl SnapshotQueryer {
         Snapshot::new(String::from(""), memory_regions)
     }
     
-
     fn get_allowed_type_settings() -> MemoryTypeEnum {
         let mut result = MemoryTypeEnum::empty();
 

@@ -1,10 +1,10 @@
 use crate::scanners::constraints::scan_constraint::{ConstraintType, ScanConstraint};
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 
-pub struct SnapshotElementRangeScannerScalar {
+pub struct ScannerScalar {
 }
 
-impl SnapshotElementRangeScannerScalar {
+impl ScannerScalar {
     pub fn new() -> Self {
         return Self { };
     }

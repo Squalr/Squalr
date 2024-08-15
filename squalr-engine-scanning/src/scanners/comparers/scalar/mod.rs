@@ -1,3 +1,3 @@
-pub mod snapshot_element_scanner_scalar_iterative;
-pub mod snapshot_element_scanner_scalar_single_element;
-pub mod snapshot_element_scanner_scalar;
+pub mod scanner_scalar_iterative;
+pub mod scanner_scalar_single_element;
+pub mod scanner_scalar;

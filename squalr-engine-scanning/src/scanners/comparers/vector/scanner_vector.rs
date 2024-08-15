@@ -1,15 +1,15 @@
-use crate::scanners::comparers::snapshot_element_range_scanner::SnapshotElementRangeScanner;
+use crate::scanners::comparers::snapshot_sub_region_scanner::Scanner;
 use crate::scanners::constraints::operation_constraint::{OperationConstraint, OperationType};
 use crate::scanners::constraints::scan_constraint::{ScanConstraint,ConstraintType};
 use crate::scanners::constraints::scan_constraints::ScanConstraints;
-use crate::snapshots::snapshot_element_range::SnapshotElementRange;
+use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use std::ops::{BitAnd, BitOr, BitXor};
 use std::simd::cmp::{SimdOrd, SimdPartialEq, SimdPartialOrd};
 use std::simd::{u8x16, u16x8, u32x4, u64x2, i8x16, i16x8, i32x4, i64x2, f32x4, f64x2};
 
 pub struct SnapshotElementScannerVector<'a> {
-    pub base_scanner: SnapshotElementRangeScanner<'a>,
+    pub base_scanner: Scanner<'a>,
     pub vector_read_offset: usize,
     pub vector_read_base: usize,
     pub first_scan_vector_misalignment: usize,
@@ -21,7 +21,7 @@ pub struct SnapshotElementScannerVector<'a> {
 impl<'a> SnapshotElementScannerVector<'a> {
     pub fn new() -> Self {
         Self {
-            base_scanner: SnapshotElementRangeScanner::new(),
+            base_scanner: Scanner::new(),
             vector_read_offset: 0,
             vector_read_base: 0,
             first_scan_vector_misalignment: 0,
@@ -31,12 +31,12 @@ impl<'a> SnapshotElementScannerVector<'a> {
         }
     }
 
-    pub fn initialize(&mut self, element_range: &'a SnapshotElementRange, constraints: &'a ScanConstraints) {
-        self.base_scanner.initialize(element_range, constraints);
+    pub fn initialize(&mut self, snapshot_sub_region: &'a SnapshotSubRegion, constraints: &'a ScanConstraints) {
+        self.base_scanner.initialize(snapshot_sub_region, constraints);
         self.vector_read_offset = 0;
         self.vector_compare_func = Some(self.build_compare_actions(constraints));
         self.first_scan_vector_misalignment = self.calculate_first_scan_vector_misalignment();
-        self.vector_read_base = element_range.region_offset - self.first_scan_vector_misalignment;
+        self.vector_read_base = snapshot_sub_region.region_offset - self.first_scan_vector_misalignment;
         self.last_scan_vector_overread = self.calculate_last_scan_vector_overread();
     }
 
@@ -49,7 +49,7 @@ impl<'a> SnapshotElementScannerVector<'a> {
         false_mask: u8x16,
         vector_increment_size: usize,
         vector_comparer: Box<dyn Fn() -> u8x16 + 'a>,
-    ) -> Vec<SnapshotElementRange<'a>> {
+    ) -> Vec<SnapshotSubRegion<'a>> {
         // This algorithm has three stages:
         // 1) Scan the first vector of memory, which may contain elements outside of the intended range. For example, in <x, x, x, x ... y, y, y, y>,
         //      where x is data outside the element range (but within the snapshot region), and y is within the region we are scanning.
@@ -59,7 +59,7 @@ impl<'a> SnapshotElementScannerVector<'a> {
         //      This works exactly like the first scan, but reversed. ie <y, y, y, y, ... x, x, x, x>, where x values are masked to be false.
         //      Note: This mask may also be applied to the first scan, if it is also the last scan (ie only 1 scan total for this region).
         
-        let mut scan_count = (self.base_scanner.get_element_range().as_ref().unwrap().range / 16)
+        let mut scan_count = (self.base_scanner.get_snapshot_sub_region().as_ref().unwrap().range / 16)
             + if self.last_scan_vector_overread > 0 { 1 } else { 0 };
         let misalignment_mask = self.build_vector_misalignment_mask();
         let overread_mask = self.build_vector_overread_mask();
@@ -82,7 +82,7 @@ impl<'a> SnapshotElementScannerVector<'a> {
         }
 
         // Perform middle scans
-        while self.vector_read_offset < self.base_scanner.get_element_range().as_ref().unwrap().range - 16 {
+        while self.vector_read_offset < self.base_scanner.get_snapshot_sub_region().as_ref().unwrap().range - 16 {
             run_length_encoded_scan_result = vector_comparer();
             self.encode_scan_results(run_length_encoded_scan_result);
             self.vector_read_offset += vector_increment_size;
@@ -152,11 +152,11 @@ impl<'a> SnapshotElementScannerVector<'a> {
     
 
     fn calculate_first_scan_vector_misalignment(&self) -> usize {
-        let parent_region_size = self.base_scanner.get_element_range().as_ref().unwrap().parent_region.borrow().get_region_size();
-        let range_region_offset = self.base_scanner.get_element_range().as_ref().unwrap().region_offset;
+        let parent_region_size = self.base_scanner.get_snapshot_sub_region().as_ref().unwrap().parent_region.borrow().get_region_size();
+        let range_region_offset = self.base_scanner.get_snapshot_sub_region().as_ref().unwrap().region_offset;
         let available_byte_count = parent_region_size - range_region_offset;
         let vector_spill_over = available_byte_count % 16;
-        if vector_spill_over == 0 || range_region_offset + self.base_scanner.get_element_range().as_ref().unwrap().range + vector_spill_over < parent_region_size {
+        if vector_spill_over == 0 || range_region_offset + self.base_scanner.get_snapshot_sub_region().as_ref().unwrap().range + vector_spill_over < parent_region_size {
             0
         } else {
             16 - vector_spill_over
@@ -164,7 +164,7 @@ impl<'a> SnapshotElementScannerVector<'a> {
     }
 
     fn calculate_last_scan_vector_overread(&self) -> usize {
-        let remaining_bytes = self.base_scanner.get_element_range().as_ref().unwrap().range % 16;
+        let remaining_bytes = self.base_scanner.get_snapshot_sub_region().as_ref().unwrap().range % 16;
         if remaining_bytes == 0 {
             0
         } else {
