@@ -1,6 +1,7 @@
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::{borrow::BorrowMut, time::SystemTime};
+use std::cmp::Reverse;
 
 pub struct Snapshot {
     name: String,
@@ -51,11 +52,11 @@ impl Snapshot {
     /// Sorts the regions by region size descending. This significantly improves scan speeds by introducing a greedy algorithm.
     /// Large regions require more work, so by processing them first, it is easier to distribute the remaining workload across threads.
     pub fn sort_regions_for_scans(&mut self) {
-        self.snapshot_regions.sort_by_key(|region| -(region.get_region_size() as i64)); // Fixed
+        self.snapshot_regions.sort_by_key(|region| Reverse(region.get_region_size()));
     }
 
     pub fn sort_regions_by_address(&mut self) {
-        self.snapshot_regions.sort_by_key(|region| region.get_base_address()); // Fixed
+        self.snapshot_regions.sort_by_key(|region| region.get_base_address());
     }
 
     pub fn get_byte_count(&self) -> u64 {

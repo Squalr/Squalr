@@ -1,3 +1,4 @@
+use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use crate::snapshots::snapshot::Snapshot;
 use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
@@ -12,6 +13,7 @@ use std::time::Instant;
 
 pub struct ValueCollector;
 
+/// Implementation of a task that collects new or initial values for the provided snapshot.
 impl ValueCollector {
     const NAME: &'static str = "Value Collector";
 
@@ -73,14 +75,28 @@ impl ValueCollector {
             }
 
             // Attempt to read new (or initial) memory values.
-            if region.read_all_memory(process_info.handle).is_ok() {
-                let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
-                if processed % 32 == 0 {
-                    let progress = (processed as f32 / region_count as f32) * 100.0;
-                    task.set_progress(progress); // Use set_progress to update progress
-                }
+            if !region.read_all_memory_parallel(process_info.handle).is_ok() {
+                // Memory region was probably deallocated. It happens, ignore it.
+                return;
             }
-            // Else, memory region was probably deallocated. It happens, ignore it.
+
+            let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
+            if processed % 32 == 0 {
+                let progress = (processed as f32 / region_count as f32) * 100.0;
+                task.set_progress(progress); // Use set_progress to update progress
+            }
+
+            // Create a sub-region that spans the entire region to set up for scans later
+            let has_snapshot_region = region.get_snapshot_sub_regions().is_empty();
+            let has_valid_size = region.get_region_size() > 0;
+        
+            if has_snapshot_region && has_valid_size {
+                let mut sub_regions = Vec::new();
+                let sub_region = SnapshotSubRegion::new(&region);
+                
+                sub_regions.push(sub_region);
+                region.set_snapshot_sub_regions(sub_regions);
+            }
         });
 
         let duration = start_time.elapsed();

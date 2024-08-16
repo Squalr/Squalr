@@ -1,26 +1,28 @@
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot::Snapshot;
+use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
+use squalr_engine_processes::process_info::ProcessInfo;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 use std::thread;
 
-pub struct ManualScanner;
+pub struct HybridScanner;
 
-/// Implementation of a task that performs a scan against the provided snapshot. Does not collect new values.
-/// Caller is assumed to have already done this if desired.
-impl ManualScanner {
-    const NAME: &'static str = "Manual Scan";
+/// Implementation of a task that collects values and performs a constraint scan in the same thread pool. This is fast,
+/// but this means that regions processed last will not have their values collected until potentially much later than the scan was initiated.
+impl HybridScanner {
+    const NAME: &'static str = "Hybrid Scan";
 
-    pub fn scan(snapshot: Arc<RwLock<Snapshot>>, constraint: &ScanConstraint, task_identifier: Option<String>, with_logging: bool) -> Arc<TrackableTask<()>> {
+    pub fn scan(process_info: ProcessInfo, snapshot: Arc<RwLock<Snapshot>>, constraint: &ScanConstraint, task_identifier: Option<String>, with_logging: bool) -> Arc<TrackableTask<()>> {
         let task = TrackableTask::<()>::create(
-            ManualScanner::NAME.to_string(),
+            HybridScanner::NAME.to_string(),
             task_identifier,
         );
 
@@ -29,6 +31,7 @@ impl ManualScanner {
 
         thread::spawn(move || {
             Self::scan_task(
+                process_info,
                 snapshot,
                 &constraint_clone,
                 task_clone.clone(), // Pass the cloned task to update progress
@@ -43,6 +46,7 @@ impl ManualScanner {
     }
 
     fn scan_task(
+        process_info: ProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         constraint: &ScanConstraint,
         task: Arc<TrackableTask<()>>,
@@ -58,7 +62,7 @@ impl ManualScanner {
         let snapshot_regions = snapshot.get_snapshot_regions_mut();
 
         if with_logging {
-            Logger::get_instance().log(LogLevel::Info, "Performing manual scan...", None);
+            Logger::get_instance().log(LogLevel::Info, "Performing hybrid manual scan...", None);
         }
 
         let start_time = Instant::now();
@@ -69,6 +73,23 @@ impl ManualScanner {
             .for_each(|region| {
                 if cancellation_token.load(Ordering::SeqCst) {
                     return;
+                }
+
+                // Attempt to read new (or initial) memory values.
+                if !region.read_all_memory_parallel(process_info.handle).is_ok() {
+                    // Memory region was probably deallocated. It happens, ignore it.
+                    return;
+                }
+
+                let has_snapshot_region = region.get_snapshot_sub_regions().is_empty();
+                let has_valid_size = region.get_region_size() > 0;
+            
+                if has_snapshot_region && has_valid_size {
+                    let mut sub_regions = Vec::new();
+                    let sub_region = SnapshotSubRegion::new(&region);
+                    
+                    sub_regions.push(sub_region);
+                    region.set_snapshot_sub_regions(sub_regions);
                 }
 
                 if !region.can_compare_with_constraint(constraint) {
@@ -96,7 +117,7 @@ impl ManualScanner {
         // Discard eliminated regions and restore the correct sort order
         snapshot.discard_empty_regions();
         snapshot.sort_regions_by_address();
-        snapshot.set_name(ManualScanner::NAME.to_string());
+        snapshot.set_name(HybridScanner::NAME.to_string());
 
         let duration = start_time.elapsed();
         let element_count = snapshot.get_element_count(constraint.get_alignment(), constraint.get_element_type().size_in_bytes());

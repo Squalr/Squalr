@@ -1,5 +1,6 @@
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
@@ -53,15 +54,45 @@ impl SnapshotRegion {
     
         return Ok(result);
     }
+
+    pub fn read_all_memory_parallel(&mut self, process_handle: u64) -> Result<(), String> {
+        let chunk_size = 2 << 23; // 16MB seems to be the optimal value for my CPU
+        let region_size = self.get_region_size() as usize;
+
+        if region_size <= chunk_size {
+            return self.read_all_memory(process_handle);
+        }
+
+        std::mem::swap(&mut self.current_values, &mut self.previous_values);
+    
+        if self.current_values.is_empty() && region_size > 0 {
+            self.current_values = vec![0u8; region_size];
+        }
+    
+        // Split the memory region into chunks and process them in parallel
+        let base_address = self.get_base_address();
+        let mut chunks: Vec<_> = self.current_values.chunks_mut(chunk_size).collect();
+    
+        chunks
+            .par_iter_mut()
+            .enumerate()
+            .try_for_each(|(i, chunk)| {
+                let offset = i * chunk_size;
+                MemoryReader::get_instance().read_bytes(process_handle, base_address + offset as u64, chunk)
+            })
+            .map_err(|e| e.to_string())?;
+    
+        return Ok(());
+    }
     
     pub fn get_sub_region_current_values_pointer(&self, snapshot_sub_region: &SnapshotSubRegion) -> *const u8 {
         let current_values = self.get_current_values();
-        unsafe { current_values.as_ptr().add((self.get_base_address() - snapshot_sub_region.get_base_address()) as usize) }
+        unsafe { current_values.as_ptr().add((snapshot_sub_region.get_base_address() - self.get_base_address()) as usize) }
     }
     
     pub fn get_sub_region_previous_values_pointer(&self, snapshot_sub_region: &SnapshotSubRegion) -> *const u8 {
         let current_values = self.get_current_values();
-        unsafe { current_values.as_ptr().add((self.get_base_address() - snapshot_sub_region.get_base_address()) as usize) }
+        unsafe { current_values.as_ptr().add((snapshot_sub_region.get_base_address() - self.get_base_address()) as usize) }
     }
     
     pub fn get_base_address(&self) -> u64 {

@@ -5,7 +5,15 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug)]
 pub enum ScanCommand {
     /// Scan for a specific value
-    Value {
+    Manual {
+        #[structopt(short = "v", long)]
+        value: Option<FieldValue>,
+        #[structopt(short = "c", long)]
+        constraint_type: ScanConstraintType,
+        #[structopt(short = "d", long)]
+        delta_value: Option<FieldValue>,
+    },
+    Hybrid {
         #[structopt(short = "v", long)]
         value: Option<FieldValue>,
         #[structopt(short = "c", long)]

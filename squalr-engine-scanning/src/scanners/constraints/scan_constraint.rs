@@ -64,11 +64,6 @@ impl ScanConstraint {
         self.constraint_type.clone()
     }
 
-    pub fn set_constraint(&mut self, constraint_type: ScanConstraintType) {
-        self.constraint_type = constraint_type;
-        self.constraint_value = self.constraint_value.clone(); // Force update of constraint value to determine if valid
-    }
-
     pub fn get_constraint_value(&self) -> Option<&FieldValue> {
         if self.is_valued_constraint() {
             return self.constraint_value.as_ref();

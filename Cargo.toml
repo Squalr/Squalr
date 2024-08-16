@@ -11,3 +11,7 @@ members = [
     "squalr-engine-scripting",
     "squalr-cli",
 ]
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true

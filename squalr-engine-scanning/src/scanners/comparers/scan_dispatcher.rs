@@ -31,18 +31,6 @@ impl ScanDispatcher {
     }
 
     pub fn dispatch_scan(&self, snapshot_region: &mut SnapshotRegion, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
-        let has_snapshot_region = snapshot_region.get_snapshot_sub_regions().is_empty();
-        let has_valid_size = snapshot_region.get_region_size() > 0;
-
-        if has_snapshot_region && has_valid_size {
-            let mut sub_regions = Vec::new();
-            let sub_region = SnapshotSubRegion::new(&snapshot_region);
-                
-            sub_regions.push(sub_region);
-            
-            snapshot_region.set_snapshot_sub_regions(sub_regions);
-        }
-
         let snapshot_sub_regions = snapshot_region.get_snapshot_sub_regions();
         let mut results = Vec::new();
     
@@ -61,18 +49,6 @@ impl ScanDispatcher {
     }
 
     pub fn dispatch_scan_parallel(&self, snapshot_region: &mut SnapshotRegion, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
-        let has_snapshot_region = snapshot_region.get_snapshot_sub_regions().is_empty();
-        let has_valid_size = snapshot_region.get_region_size() > 0;
-    
-        if has_snapshot_region && has_valid_size {
-            let mut sub_regions = Vec::new();
-            let sub_region = SnapshotSubRegion::new(&snapshot_region);
-            
-            sub_regions.push(sub_region);
-            
-            snapshot_region.set_snapshot_sub_regions(sub_regions);
-        }
-    
         let snapshot_sub_regions = snapshot_region.get_snapshot_sub_regions();
     
         snapshot_sub_regions
