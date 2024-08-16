@@ -59,6 +59,6 @@ impl Scanner for ScannerScalarIterative {
 
         run_length_encoder.finalize_current_encode_unchecked(0, data_type.size_in_bytes());
 
-        return run_length_encoder.get_collected_regions().clone();
+        return run_length_encoder.get_collected_regions().to_owned();
     }
 }

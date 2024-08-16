@@ -6,7 +6,7 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use sysinfo::Pid;
 
-pub async fn handle_process_open(cmd: &mut ProcessCommand) {
+pub fn handle_process_open(cmd: &mut ProcessCommand) {
     let session_manager_lock = SessionManager::get_instance();
     let mut session_manager = session_manager_lock.write().unwrap();
 

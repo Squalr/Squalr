@@ -7,9 +7,8 @@ edition = "2021"
 
 [dependencies]
 futures = ">=0.3"
-tokio = { version = ">=1.38", features = ["full"] }
-tokio-util = ">=0.7.11"
 uuid = { version = ">=1.9.1", features = ["v4"] }
+rayon = { version = ">=1.10.0" }
 
 [build-dependencies]
 

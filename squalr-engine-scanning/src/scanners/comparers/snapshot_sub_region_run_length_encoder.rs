@@ -34,6 +34,14 @@ impl SnapshotSubRegionRunLengthEncoder {
         self.run_length_encode_offset = self.snapshot_sub_region.read().unwrap().get_region_offset();
     }
 
+    pub fn get_collected_regions(&self) -> &Vec<Arc<RwLock<SnapshotSubRegion>>> {
+        return &self.result_regions;
+    }
+    
+    pub fn merge_from_other_encoder(&mut self, other: &SnapshotSubRegionRunLengthEncoder) {
+        self.result_regions.extend_from_slice(&other.result_regions);
+    }
+
     pub fn adjust_for_misalignment(&mut self, misalignment_offset: usize) {
         self.run_length_encode_offset = self.run_length_encode_offset.saturating_sub(misalignment_offset);
     }
@@ -79,9 +87,5 @@ impl SnapshotSubRegionRunLengthEncoder {
         }
 
         self.run_length_encode_offset += memory_alignment;
-    }
-
-    pub fn get_collected_regions(&self) -> &Vec<Arc<RwLock<SnapshotSubRegion>>> {
-        return &self.result_regions;
     }
 }

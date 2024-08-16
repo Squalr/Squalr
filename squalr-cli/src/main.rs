@@ -13,8 +13,7 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use log_listener::LogListener;
 
-#[tokio::main]
-async fn main() {
+fn main() {
     // Initialize logger
     let log_listener = LogListener::new();
     Logger::get_instance().subscribe(log_listener);
@@ -51,6 +50,6 @@ async fn main() {
             }
         };
 
-        handle_commands(&mut cli.command).await;
+        handle_commands(&mut cli.command);
     }
 }

@@ -40,7 +40,7 @@ impl Scanner for ScannerScalarSingleElement {
 
         if self.scalar_scanner.do_compare_action(current_value_pointer, previous_value_pointer, &constraint, &data_type) {
             let mut result = Vec::new();
-            result.push(snapshot_sub_region.clone());
+            result.push(snapshot_sub_region.to_owned());
             return result;
         } else {
             return Vec::new();

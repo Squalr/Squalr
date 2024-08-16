@@ -5,9 +5,9 @@ use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use squalr_engine_scanning::snapshots::snapshot_manager::SnapshotManager;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
-use tokio::spawn;
+use std::thread;
 
-pub async fn handle_value_collector_command(cmd: &mut ScanCommand) {
+pub fn handle_value_collector_command(cmd: &mut ScanCommand) {
     let session_manager_lock = SessionManager::get_instance();
     let session_manager = session_manager_lock.read().unwrap();
     let snapshot_manager_lock = SnapshotManager::get_instance();
@@ -23,16 +23,16 @@ pub async fn handle_value_collector_command(cmd: &mut ScanCommand) {
                 true,
             );
 
-            // Subscribe to progress updates
-            let mut progress_receiver = task.get_progress_receiver();
-            spawn(async move {
-                while let Ok(progress) = progress_receiver.recv().await {
+            // Spawn a thread to listen to progress updates
+            let progress_receiver = task.add_listener();
+            thread::spawn(move || {
+                while let Ok(progress) = progress_receiver.recv() {
                     Logger::get_instance().log(LogLevel::Info, &format!("Progress: {:.2}%", progress), None);
                 }
             });
 
-            // Wait for completion
-            task.wait_for_completion().await;
+            // Wait for completion synchronously
+            task.wait_for_completion();
         } else {
             Logger::get_instance().log(LogLevel::Info, "No opened process", None);
         }

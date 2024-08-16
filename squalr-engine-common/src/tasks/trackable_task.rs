@@ -1,12 +1,8 @@
-use crate::tasks::trackable_task_manager::TrackableTaskManager;
-
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Condvar};
 use std::sync::atomic::{AtomicBool, Ordering};
-use tokio::task::JoinHandle;
-use tokio::sync::{Notify, broadcast, watch};
-use tokio_util::sync::CancellationToken;
+use std::thread;
 use uuid::Uuid;
-use futures::future::BoxFuture;
+use std::sync::mpsc::{self, Sender, Receiver};
 
 pub struct TrackableTask<T: Send + Sync> {
     name: String,
@@ -14,21 +10,15 @@ pub struct TrackableTask<T: Send + Sync> {
     task_identifier: String,
     is_canceled: Arc<AtomicBool>,
     is_completed: Arc<AtomicBool>,
-    result: Arc<Mutex<Option<T>>>,
-    handle: Arc<Mutex<Option<JoinHandle<()>>>>,
-    cancellation_token: CancellationToken,
-    notify: Arc<Notify>,
-    progress_sender: broadcast::Sender<f32>,
-    completion_sender: broadcast::Sender<()>,
-    cancel_sender: watch::Sender<bool>,
+    result: Arc<(Mutex<Option<T>>, Condvar)>, // Use a tuple of Mutex and Condvar
+    progress_sender: Sender<f32>,
+    listener_senders: Arc<Mutex<Vec<Sender<f32>>>>, // To store multiple listener senders
 }
 
 impl<T: Send + Sync + 'static> TrackableTask<T> {
     pub fn create(name: String, task_identifier: Option<String>) -> Arc<Self> {
         let task_identifier = task_identifier.unwrap_or_else(|| Uuid::new_v4().to_string());
-        let (progress_sender, _) = broadcast::channel(100);
-        let (completion_sender, _) = broadcast::channel(1);
-        let (cancel_sender, _) = watch::channel(false);
+        let (progress_sender, progress_receiver) = mpsc::channel();
 
         let task = TrackableTask {
             name,
@@ -36,26 +26,30 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
             task_identifier,
             is_canceled: Arc::new(AtomicBool::new(false)),
             is_completed: Arc::new(AtomicBool::new(false)),
-            result: Arc::new(Mutex::new(None)),
-            handle: Arc::new(Mutex::new(None)),
-            cancellation_token: CancellationToken::new(),
-            notify: Arc::new(Notify::new()),
+            result: Arc::new((Mutex::new(None), Condvar::new())), // Initialize Condvar
             progress_sender,
-            completion_sender,
-            cancel_sender,
+            listener_senders: Arc::new(Mutex::new(vec![])), // Initialize empty Vec for listeners
         };
+
+        // Start a thread that listens to progress updates and broadcasts them to all listeners
+        let listener_senders_clone = task.listener_senders.clone();
+        thread::spawn(move || {
+            let receiver = progress_receiver;
+            while let Ok(progress) = receiver.recv() {
+                let listener_senders = listener_senders_clone.lock().unwrap();
+                for sender in listener_senders.iter() {
+                    let _ = sender.send(progress);
+                }
+            }
+        });
 
         Arc::new(task)
     }
 
-    pub fn add_handle(self: &Arc<Self>, handle: JoinHandle<()>) {
-        let mut handle_guard = self.handle.lock().unwrap();
-        *handle_guard = Some(handle);
-    }
-
     pub fn get_progress(self: &Arc<Self>) -> f32 {
         let progress_guard = self.progress.lock().unwrap();
-        *progress_guard
+        
+        return *progress_guard;
     }
 
     pub fn set_progress(self: &Arc<Self>, progress: f32) {
@@ -65,7 +59,7 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
     }
 
     pub fn get_name(&self) -> String {
-        self.name.clone()
+        return self.name.clone();
     }
 
     pub fn set_name(&mut self, name: String) {
@@ -73,66 +67,57 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
     }
 
     pub fn get_task_identifier(&self) -> String {
-        self.task_identifier.clone()
+        return self.task_identifier.clone();
     }
 
-    pub fn is_canceled(self: &Arc<Self>) -> bool {
-        self.is_canceled.load(Ordering::SeqCst)
+    pub fn get_cancellation_token(&self) -> Arc<AtomicBool> {
+        return self.is_canceled.clone();
     }
 
     pub fn set_canceled(self: &Arc<Self>, value: bool) {
         self.is_canceled.store(value, Ordering::SeqCst);
     }
 
-    pub fn get_cancellation_token(&self) -> CancellationToken {
-        self.cancellation_token.clone()
-    }
-
-    pub fn get_progress_sender(&self) -> broadcast::Sender<f32> {
-        self.progress_sender.clone()
-    }
-
-    pub fn get_progress_receiver(&self) -> broadcast::Receiver<f32> {
-        self.progress_sender.subscribe()
-    }
-
-    pub fn is_completed(self: &Arc<Self>) -> bool {
-        self.is_completed.load(Ordering::SeqCst)
+    pub fn is_completed(&self) -> bool {
+        return self.is_completed.load(Ordering::SeqCst);
     }
 
     pub fn set_completed(self: &Arc<Self>, value: bool) {
         self.is_completed.store(value, Ordering::SeqCst);
     }
-    
+
     pub fn cancel(self: &Arc<Self>) {
         self.set_canceled(true);
-        self.cancellation_token.cancel();
-        let _ = self.cancel_sender.send(true);
     }
 
     pub fn complete(self: &Arc<Self>, result: T) {
-        self.is_completed.store(true, Ordering::SeqCst);
+        self.set_completed(true);
 
         {
-            let mut result_guard = self.result.lock().unwrap();
+            let (result_lock, cvar) = &*self.result;
+            let mut result_guard = result_lock.lock().unwrap();
             *result_guard = Some(result);
-        }
 
-        let _ = self.completion_sender.send(()); 
-        self.notify.notify_one();
-        TrackableTaskManager::<T>::get_instance().lock().unwrap().downcast_mut::<TrackableTaskManager<T>>().unwrap().remove_task(&self.task_identifier);
+            cvar.notify_all(); // Notify all waiting threads that the result is available
+        }
     }
 
-    pub fn wait_for_completion(self: Arc<Self>) -> BoxFuture<'static, T> {
-        let notify = self.notify.clone();
-        let is_completed = self.is_completed.clone();
+    pub fn wait_for_completion(self: Arc<Self>) -> T {
+        let (result_lock, cvar) = &*self.result;
+        let mut result_guard = result_lock.lock().unwrap();
+        
+        // Wait until the result is available
+        while result_guard.is_none() {
+            result_guard = cvar.wait(result_guard).unwrap();
+        }
+        
+        return result_guard.take().unwrap();
+    }
 
-        Box::pin(async move {
-            notify.notified().await;
-            assert!(is_completed.load(Ordering::SeqCst));
+    pub fn add_listener(&self) -> Receiver<f32> {
+        let (sender, receiver) = mpsc::channel();
+        self.listener_senders.lock().unwrap().push(sender);
 
-            let mut result_guard = self.result.lock().unwrap();
-            result_guard.take().unwrap()
-        })
+        return receiver;
     }
 }

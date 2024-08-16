@@ -6,7 +6,7 @@ use squalr_engine_memory::memory_writer::MemoryWriter;
 use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
 use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 
-pub async fn handle_memory_write(cmd: &mut MemoryCommand) {
+pub fn handle_memory_write(cmd: &mut MemoryCommand) {
     if let MemoryCommand::Write { address, value } = cmd {
         let session_manager_lock = SessionManager::get_instance();
         let session_manager = session_manager_lock.read().unwrap();
