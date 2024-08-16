@@ -34,6 +34,10 @@ impl SnapshotSubRegionRunLengthEncoder {
     pub fn merge_from_other_encoder(&mut self, other: &SnapshotSubRegionRunLengthEncoder) {
         self.result_regions.extend_from_slice(&other.result_regions);
     }
+    
+    pub fn combine_adjacent_sub_regions(&mut self) {
+        // unimplemented!("Implement me!");
+    }
 
     pub fn adjust_for_misalignment(&mut self, misalignment_offset: u64) {
         self.run_length_encode_offset = self.run_length_encode_offset.saturating_sub(misalignment_offset);

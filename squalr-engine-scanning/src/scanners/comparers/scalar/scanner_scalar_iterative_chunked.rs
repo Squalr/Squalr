@@ -80,15 +80,17 @@ impl Scanner for ScannerScalarIterativeChunked {
                     local_encoder.finalize_current_encode_unchecked(alignment as u64, data_type.size_in_bytes());
                 }
             }
+        
+            local_encoder.finalize_current_encode_unchecked(0, data_type.size_in_bytes());
 
-            let mut global_encoder = run_length_encoder.write().unwrap();
-
-            // Manually merge results
-            global_encoder.merge_from_other_encoder(&local_encoder);
+            // Merge parallel results
+            run_length_encoder.write().unwrap().merge_from_other_encoder(&local_encoder);
         });
 
-        run_length_encoder.write().unwrap().finalize_current_encode_unchecked(0, data_type.size_in_bytes());
+        let mut run_length_encoder = run_length_encoder.write().unwrap();
 
-        return run_length_encoder.write().unwrap().get_collected_regions().to_owned();
+        run_length_encoder.combine_adjacent_sub_regions();
+
+        return run_length_encoder.get_collected_regions().to_owned();
     }
 }
