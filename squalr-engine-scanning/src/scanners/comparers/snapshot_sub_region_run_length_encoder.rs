@@ -14,6 +14,9 @@ pub struct SnapshotSubRegionRunLengthEncoder {
 /// containing the results. We then stop encoding until we reach a new scan that passes, and the cycle repeats until we are done
 /// iterating over the entire block of memory. The caller is responsible for this iteration, as it depends highly on alignment,
 /// SIMD vs scalar, etc.
+/// 
+/// The caller can get additional performance gains by dividing the work among several run length encoders, then stitching together
+/// boundary regions once the run length encoders are complete.
 impl SnapshotSubRegionRunLengthEncoder {
     pub fn new(snapshot_sub_region: &SnapshotSubRegion) -> Self {
         Self {

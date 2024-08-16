@@ -1,5 +1,4 @@
-use crate::scanners::comparers::scalar::scanner_scalar_iterative::ScannerScalarIterative;
-use crate::scanners::comparers::scalar::scanner_scalar_iterative_parallel::ScannerScalarIterativeParallel;
+use crate::scanners::comparers::scalar::scanner_scalar_iterative_chunked::ScannerScalarIterativeChunked;
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
@@ -14,7 +13,7 @@ pub struct ScanDispatcher {
 }
 
 impl ScanDispatcher {
-    // Stateless
+    // Stateless by design
     fn new() -> Self { Self { } }
     
     pub fn get_instance() -> Arc<RwLock<ScanDispatcher>> {
@@ -123,9 +122,9 @@ impl ScanDispatcher {
             }
         } else {
             // Iterative scanner
-            return ScannerScalarIterativeParallel::get_instance();
+            return ScannerScalarIterativeChunked::get_instance();
         }
 
-        return ScannerScalarIterativeParallel::get_instance();
+        return ScannerScalarIterativeChunked::get_instance();
     }
 }
