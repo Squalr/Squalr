@@ -18,18 +18,18 @@ impl ScannerScalarIterativeChunked {
             scalar_scanner: ScannerScalar::new(),
         }
     }
-
-    pub fn get_instance() -> Arc<ScannerScalarIterativeChunked> {
-        static mut INSTANCE: Option<Arc<ScannerScalarIterativeChunked>> = None;
+    
+    pub fn get_instance() -> &'static ScannerScalarIterativeChunked {
+        static mut INSTANCE: Option<ScannerScalarIterativeChunked> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
-                let instance = Arc::new(ScannerScalarIterativeChunked::new());
+                let instance = ScannerScalarIterativeChunked::new();
                 INSTANCE = Some(instance);
             });
 
-            return INSTANCE.as_ref().unwrap().clone();
+            return INSTANCE.as_ref().unwrap_unchecked();
         }
     }
 }

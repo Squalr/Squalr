@@ -5,7 +5,7 @@ use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use std::borrow::BorrowMut;
-use std::sync::{Arc, Once};
+use std::sync::Once;
 
 pub struct ScannerScalarIterative {
     scalar_scanner: ScannerScalar,
@@ -18,17 +18,17 @@ impl ScannerScalarIterative {
         }
     }
     
-    pub fn get_instance() -> Arc<ScannerScalarIterative> {
-        static mut INSTANCE: Option<Arc<ScannerScalarIterative>> = None;
+    pub fn get_instance() -> &'static ScannerScalarIterative {
+        static mut INSTANCE: Option<ScannerScalarIterative> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
-                let instance = Arc::new(ScannerScalarIterative::new());
+                let instance = ScannerScalarIterative::new();
                 INSTANCE = Some(instance);
             });
 
-            return INSTANCE.as_ref().unwrap().clone();
+            return INSTANCE.as_ref().unwrap_unchecked();
         }
     }
 }

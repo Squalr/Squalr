@@ -23,7 +23,7 @@ impl SnapshotSubRegionRunLengthEncoder {
             run_length_encode_offset: snapshot_sub_region.get_base_address(),
             is_encoding: false,
             run_length: 0,
-            result_regions: Vec::new(),
+            result_regions: vec![],
         }
     }
 

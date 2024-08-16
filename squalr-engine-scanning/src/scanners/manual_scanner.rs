@@ -51,9 +51,6 @@ impl ManualScanner {
     ) {
         let mut snapshot = snapshot.write().unwrap();
         let constraint = &constraint.clone_and_resolve_auto_alignment();
-
-        snapshot.sort_regions_for_scans();
-        
         let region_count = snapshot.get_region_count();
         let snapshot_regions = snapshot.get_snapshot_regions_mut();
 
@@ -79,7 +76,6 @@ impl ManualScanner {
                 region.set_alignment(constraint.get_alignment());
 
                 let scan_dispatcher = ScanDispatcher::get_instance();
-                let scan_dispatcher = scan_dispatcher.read().unwrap();
                 let scan_results = scan_dispatcher.dispatch_scan_parallel(region, constraint);
 
                 region.set_snapshot_sub_regions(scan_results.to_owned());
@@ -95,7 +91,6 @@ impl ManualScanner {
         
         // Discard eliminated regions and restore the correct sort order
         snapshot.discard_empty_regions();
-        snapshot.sort_regions_by_address();
         snapshot.set_name(ManualScanner::NAME.to_string());
 
         let duration = start_time.elapsed();

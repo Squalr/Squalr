@@ -35,7 +35,7 @@ impl DynamicStruct {
 
 impl ToBytes for DynamicStruct {
     fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+        let mut bytes = vec![];
         let mut bit_offset = 0;
         let current_byte = 0u8;
 

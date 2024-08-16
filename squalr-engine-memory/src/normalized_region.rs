@@ -73,7 +73,7 @@ impl NormalizedRegion {
     pub fn chunk_normalized_region(&self, chunk_size: u64) -> Vec<NormalizedRegion> {
         if chunk_size <= 0 {
             Logger::get_instance().log(LogLevel::Error, "Invalid chunk size specified for region", None);
-            return Vec::new();
+            return vec![];
         }
 
         let chunk_size = chunk_size.min(self.region_size);

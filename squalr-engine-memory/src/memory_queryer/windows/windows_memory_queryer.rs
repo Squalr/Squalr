@@ -58,7 +58,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         let process_handle = self.open_process(process_info);
         let required_flags = self.get_protection_flags(&required_protection);
         let excluded_flags = self.get_protection_flags(&excluded_protection);
-        let mut regions = Vec::new();
+        let mut regions = vec![];
         let mut address = start_address;
         let mut wrapped_around = false;
     
@@ -234,7 +234,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         process_info: &ProcessInfo,
     ) -> Vec<NormalizedModule> {
         let process_handle = self.open_process(process_info);
-        let mut modules = Vec::new();
+        let mut modules = vec![];
         let mut module_handles: [HMODULE; 1024] = [0 as HMODULE; 1024];
         let mut cb_needed = 0;
 

@@ -100,7 +100,7 @@ impl FieldValue {
             },
             FieldValue::Bytes(bytes) => bytes.clone(),
             FieldValue::BitField { value, bits } => {
-                let mut result = Vec::new();
+                let mut result = vec![];
                 let total_bytes = ((*bits + 7) / 8) as usize;
 
                 for index in 0..total_bytes {

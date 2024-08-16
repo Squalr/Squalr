@@ -56,9 +56,6 @@ impl HybridScanner {
     ) {
         let mut snapshot = snapshot.write().unwrap();
         let constraint = &constraint.clone_and_resolve_auto_alignment();
-
-        snapshot.sort_regions_for_scans();
-        
         let region_count = snapshot.get_region_count();
         let snapshot_regions = snapshot.get_snapshot_regions_mut();
 
@@ -79,11 +76,12 @@ impl HybridScanner {
                 // Attempt to read new (or initial) memory values.
                 if !region.read_all_memory_parallel(process_info.handle).is_ok() {
                     // Memory region was probably deallocated. It happens, ignore it.
+                    region.set_snapshot_sub_regions(vec![]);
                     return;
                 }
 
                 // Create the default sub-region if it does not exist yet
-                if !region.get_snapshot_sub_regions().is_empty() && region.get_region_size() > 0 {
+                if region.get_snapshot_sub_regions().is_empty() && region.get_region_size() > 0 {
                     region.set_snapshot_sub_regions(vec![SnapshotSubRegion::new(&region)]);
                 }
 
@@ -95,7 +93,6 @@ impl HybridScanner {
                 region.set_alignment(constraint.get_alignment());
 
                 let scan_dispatcher = ScanDispatcher::get_instance();
-                let scan_dispatcher = scan_dispatcher.read().unwrap();
                 let scan_results = scan_dispatcher.dispatch_scan_parallel(region, constraint);
 
                 region.set_snapshot_sub_regions(scan_results.to_owned());
@@ -111,7 +108,6 @@ impl HybridScanner {
         
         // Discard eliminated regions and restore the correct sort order
         snapshot.discard_empty_regions();
-        snapshot.sort_regions_by_address();
         snapshot.set_name(HybridScanner::NAME.to_string());
 
         let duration = start_time.elapsed();

@@ -3,7 +3,8 @@ use crate::scanners::comparers::scalar::scanner_scalar::ScannerScalar;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
-use std::{borrow::BorrowMut, sync::{Arc, Once}};
+use std::borrow::BorrowMut;
+use std::sync::Once;
 
 pub struct ScannerScalarSingleElement {
     scalar_scanner: ScannerScalar,
@@ -16,17 +17,17 @@ impl ScannerScalarSingleElement {
         }
     }
     
-    pub fn get_instance() -> Arc<ScannerScalarSingleElement> {
-        static mut INSTANCE: Option<Arc<ScannerScalarSingleElement>> = None;
+    pub fn get_instance() -> &'static ScannerScalarSingleElement {
+        static mut INSTANCE: Option<ScannerScalarSingleElement> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
-                let instance = Arc::new(ScannerScalarSingleElement::new());
+                let instance = ScannerScalarSingleElement::new();
                 INSTANCE = Some(instance);
             });
 
-            return INSTANCE.as_ref().unwrap().clone();
+            return INSTANCE.as_ref().unwrap_unchecked();
         }
     }
 }
@@ -43,11 +44,11 @@ impl Scanner for ScannerScalarSingleElement {
         let previous_value = previous_value.borrow_mut();
 
         if self.scalar_scanner.do_compare_action(current_value_pointer, previous_value_pointer, current_value, previous_value, constraint) {
-            let mut result = Vec::new();
+            let mut result = vec![];
             result.push(snapshot_sub_region.to_owned());
             return result;
         } else {
-            return Vec::new();
+            return vec![];
         }
     }
 }

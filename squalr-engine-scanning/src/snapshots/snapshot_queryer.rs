@@ -73,7 +73,7 @@ impl SnapshotQueryer {
             bounds_handling,
         );
     
-        let mut snapshot_regions = Vec::new();
+        let mut snapshot_regions = vec![];
         for normalized_region in normalized_regions {
             let mut snapshot_region = SnapshotRegion::new_from_normalized_region(normalized_region);
             snapshot_region.set_alignment(ScanSettings::get_instance().get_alignment());
@@ -101,7 +101,7 @@ impl SnapshotQueryer {
             RegionBoundsHandling::Exclude
         );
     
-        let mut snapshot_regions = Vec::new();
+        let mut snapshot_regions = vec![];
         for normalized_region in normalized_regions {
             let mut snapshot_region = SnapshotRegion::new_from_normalized_region(normalized_region);
             snapshot_region.set_alignment(ScanSettings::get_instance().get_alignment());
@@ -136,7 +136,7 @@ impl SnapshotQueryer {
             RegionBoundsHandling::Exclude,
         );
     
-        let mut snapshot_regions = Vec::new();
+        let mut snapshot_regions = vec![];
         for normalized_region in normalized_regions {
             let mut snapshot_region = SnapshotRegion::new_from_normalized_region(normalized_region);
             snapshot_region.set_alignment(ScanSettings::get_instance().get_alignment());

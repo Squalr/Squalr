@@ -56,9 +56,6 @@ impl ValueCollector {
         cancellation_token: Arc<AtomicBool>,
     ) {
         let mut snapshot = snapshot.write().unwrap();
-
-        snapshot.sort_regions_for_scans();
-
         let region_count = snapshot.get_region_count();
         let snapshot_regions = snapshot.get_snapshot_regions_mut();
 
@@ -77,6 +74,7 @@ impl ValueCollector {
             // Attempt to read new (or initial) memory values.
             if !region.read_all_memory_parallel(process_info.handle).is_ok() {
                 // Memory region was probably deallocated. It happens, ignore it.
+                region.set_snapshot_sub_regions(vec![]);
                 return;
             }
 
@@ -90,6 +88,7 @@ impl ValueCollector {
             region.set_snapshot_sub_regions(vec![SnapshotSubRegion::new(&region)]);
         });
 
+        snapshot.discard_empty_regions();
         let duration = start_time.elapsed();
         let byte_count = snapshot.get_byte_count();
 

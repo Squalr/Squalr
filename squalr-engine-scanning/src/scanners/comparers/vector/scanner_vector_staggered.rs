@@ -100,7 +100,7 @@ impl SnapshotRegionScannerVectorStaggered {
                 )
             }));
         } else {
-            return Vec::new();
+            return vec![];
         }
     }
 

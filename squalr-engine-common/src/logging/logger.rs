@@ -27,7 +27,7 @@ impl Logger {
                 INSTANCE = Some(instance);
             });
 
-            return INSTANCE.as_ref().unwrap();
+            return INSTANCE.as_ref().unwrap_unchecked();
         }
     }
 

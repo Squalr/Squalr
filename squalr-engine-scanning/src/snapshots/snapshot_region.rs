@@ -18,18 +18,18 @@ impl SnapshotRegion {
     pub fn new(base_address: u64, region_size: u64) -> Self {
         Self {
             normalized_region: NormalizedRegion::new(base_address, region_size),
-            current_values: Vec::new(),
-            previous_values: Vec::new(),
-            snapshot_sub_regions: Vec::new(),
+            current_values: vec![],
+            previous_values: vec![],
+            snapshot_sub_regions: vec![],
         }
     }
 
     pub fn new_from_normalized_region(normalized_region: NormalizedRegion) -> Self {
         Self {
             normalized_region,
-            current_values: Vec::new(),
-            previous_values: Vec::new(),
-            snapshot_sub_regions: Vec::new(),
+            current_values: vec![],
+            previous_values: vec![],
+            snapshot_sub_regions: vec![],
         }
     }
 

@@ -34,7 +34,7 @@ impl SnapshotManager {
                 INSTANCE = Some(instance);
             });
 
-            return INSTANCE.as_ref().unwrap().clone();
+            return INSTANCE.as_ref().unwrap_unchecked().clone();
         }
     }
 
