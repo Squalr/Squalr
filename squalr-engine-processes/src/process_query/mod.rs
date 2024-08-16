@@ -13,10 +13,10 @@ pub trait IProcessQueryer {
 }
 
 pub struct ProcessQueryOptions {
-    pub windowed: bool,
-    pub search_term: Option<String>,
+    pub require_windowed: bool,
+    pub search_name: Option<String>,
     pub match_case: bool,
-    pub system_processes: bool,
+    pub include_system_processes: bool,
     pub limit: Option<usize>,
 }
 

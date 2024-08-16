@@ -3,18 +3,24 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug)]
 pub enum ProcessCommand {
     Open {
-        #[structopt(short = "o", long)]
-        pid: u32,
+        #[structopt(short = "p", long)]
+        pid: Option<u32>,
+        #[structopt(short = "n", long)]
+        search_name: Option<String>,
+        #[structopt(short = "m", long)]
+        match_case: bool,
+        #[structopt(short = "s", long)]
+        include_system_processes: bool,
     },
     List {
         #[structopt(short = "w", long)]
-        windowed: bool,
-        #[structopt(short = "t", long)]
-        search_term: Option<String>,
+        require_windowed: bool,
+        #[structopt(short = "n", long)]
+        search_name: Option<String>,
         #[structopt(short = "m", long)]
         match_case: bool,
-        #[structopt(short = "x", long)]
-        system_processes: bool,
+        #[structopt(short = "s", long)]
+        include_system_processes: bool,
         #[structopt(short = "l", long)]
         limit: Option<usize>,
     },

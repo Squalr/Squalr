@@ -59,29 +59,40 @@ impl IProcessQueryer for WindowsProcessQuery {
             processes.truncate(limit);
         }
 
-        processes.into_iter().filter(|pid| {
-            let is_system = self.is_process_system_process(pid);
-            if options.system_processes || !is_system {
-                if let Some(name) = self.get_process_name(*pid) {
-                    let mut matches = true;
-                    if options.windowed {
-                        matches &= self.is_process_windowed(pid);
-                    }
-                    if let Some(ref term) = options.search_term {
-                        if options.match_case {
-                            matches &= name.contains(term);
-                        } else {
-                            matches &= name.to_lowercase().contains(&term.to_lowercase());
+        let processes: Vec<Pid> = self.system.processes()
+            .keys()
+            .cloned()
+            .filter(|pid| {
+                let is_system = self.is_process_system_process(pid);
+                if options.include_system_processes || !is_system {
+                    if let Some(name) = self.get_process_name(*pid) {
+                        let mut matches = true;
+                        if options.require_windowed {
+                            matches &= self.is_process_windowed(pid);
                         }
+                        if let Some(ref term) = options.search_name {
+                            if options.match_case {
+                                matches &= name.contains(term);
+                            } else {
+                                matches &= name.to_lowercase().contains(&term.to_lowercase());
+                            }
+                        }
+                        return matches;
+                    } else {
+                        return false;
                     }
-                    matches
                 } else {
-                    false
+                    return false;
                 }
-            } else {
-                false
-            }
-        }).collect()
+            })
+            .collect();
+
+        // Limit the result after filtering
+        if let Some(limit) = options.limit {
+            return processes.into_iter().take(limit).collect();
+        } else {
+            return processes;
+        }
     }
 
     fn is_process_system_process(&self, process_id: &Pid) -> bool {
