@@ -4,10 +4,10 @@ use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use std::sync::{Arc, Once, RwLock};
-use tokio::task::JoinHandle;
 
 pub struct ScanDispatcher {
 }
@@ -63,35 +63,34 @@ impl ScanDispatcher {
         return results;
     }
 
-    pub async fn dispatch_scan_parallel_work_in_progress(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
-        let mut snapshot_region_mut = snapshot_region.write().unwrap();
-        let snapshot_sub_regions = snapshot_region_mut.get_snapshot_sub_regions_create_if_none(snapshot_region.clone());
-        drop(snapshot_region_mut);
-
-        let mut handles = Vec::new();
-
-        for snapshot_sub_region in snapshot_sub_regions {
-            let constraint = constraint.clone();
-            let snapshot_sub_region = snapshot_sub_region.clone();
-            let scanner_instance = self.acquire_scanner_instance(&snapshot_sub_region, &constraint);
-
-            let handle: JoinHandle<Arc<RwLock<SnapshotSubRegion>>> = tokio::spawn(async move {
+    pub fn dispatch_scan_parallel(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
+        let has_snapshot_region = snapshot_region.read().unwrap().get_snapshot_sub_regions().is_empty();
+        let has_valid_size = snapshot_region.read().unwrap().get_region_size() > 0;
+        let constraint = constraint.clone_and_resolve_auto_alignment();
+    
+        if has_snapshot_region && has_valid_size {
+            let mut sub_regions = Vec::new();
+            let sub_region = Arc::new(RwLock::new(SnapshotSubRegion::new(snapshot_region.clone())));
+            
+            sub_regions.push(sub_region);
+            
+            snapshot_region.write().unwrap().set_snapshot_sub_regions(sub_regions);
+        }
+    
+        let snapshot_region = snapshot_region.read().unwrap();
+        let snapshot_sub_regions = snapshot_region.get_snapshot_sub_regions();
+    
+        snapshot_sub_regions
+            // Convert the iterator to a parallel iterator
+            .par_iter()
+            .flat_map(|snapshot_sub_region| {
+                let snapshot_sub_region = snapshot_sub_region.clone();
+                let scanner_instance = self.acquire_scanner_instance(&snapshot_sub_region, &constraint);
+    
                 let scanner = scanner_instance.read().unwrap();
-                scanner.scan_region(&snapshot_sub_region, &constraint);
-                return snapshot_sub_region;
-            });
-
-            handles.push(handle);
-        }
-
-        let mut results = Vec::new();
-        for handle in handles {
-            if let Ok(result) = handle.await {
-                results.push(result);
-            }
-        }
-
-        return results;
+                scanner.scan_region(&snapshot_sub_region, &constraint)
+            })
+            .collect()
     }
 
     fn acquire_scanner_instance(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: &ScanConstraint) -> Arc<RwLock<dyn Scanner>> {

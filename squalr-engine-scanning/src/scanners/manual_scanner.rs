@@ -84,6 +84,7 @@ impl ManualScanner {
                 }
 
                 if !region.read().unwrap().can_compare_with_constraint(&constraint) {
+                    processed_region_count.fetch_add(1, Ordering::SeqCst);
                     return None;
                 }
 
@@ -94,7 +95,7 @@ impl ManualScanner {
 
                 let scan_dispatcher = ScanDispatcher::get_instance();
                 let scan_dispatcher = scan_dispatcher.read().unwrap();
-                let scan_results = scan_dispatcher.dispatch_scan(region.clone(), &constraint);
+                let scan_results = scan_dispatcher.dispatch_scan_parallel(region.clone(), &constraint);
                 
                 {
                     let mut region = region.write().unwrap();

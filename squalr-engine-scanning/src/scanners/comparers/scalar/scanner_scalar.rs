@@ -13,19 +13,21 @@ impl ScannerScalar {
     }
 
     pub fn do_compare_action(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8, constraint: &ScanConstraint, data_type: &FieldValue) -> bool {
-        match constraint.get_constraint_type() {
-            ScanConstraintType::Unchanged => self.compare_unchanged(current_value_ptr, previous_value_ptr, data_type),
-            ScanConstraintType::Changed => self.compare_changed(current_value_ptr, previous_value_ptr, data_type),
-            ScanConstraintType::Increased => self.compare_increased(current_value_ptr, previous_value_ptr, data_type),
-            ScanConstraintType::Decreased => self.compare_decreased(current_value_ptr, previous_value_ptr, data_type),
-            ScanConstraintType::IncreasedByX => self.compare_increased_by(current_value_ptr, previous_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ScanConstraintType::DecreasedByX => self.compare_decreased_by(current_value_ptr, previous_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ScanConstraintType::Equal => self.compare_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ScanConstraintType::NotEqual => self.compare_not_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ScanConstraintType::GreaterThan => self.compare_greater_than(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ScanConstraintType::GreaterThanOrEqual => self.compare_greater_than_or_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ScanConstraintType::LessThan => self.compare_less_than(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ScanConstraintType::LessThanOrEqual => self.compare_less_than_or_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
+        unsafe {
+            return match constraint.get_constraint_type() {
+                ScanConstraintType::Unchanged => self.compare_unchanged(current_value_ptr, previous_value_ptr, data_type),
+                ScanConstraintType::Changed => self.compare_changed(current_value_ptr, previous_value_ptr, data_type),
+                ScanConstraintType::Increased => self.compare_increased(current_value_ptr, previous_value_ptr, data_type),
+                ScanConstraintType::Decreased => self.compare_decreased(current_value_ptr, previous_value_ptr, data_type),
+                ScanConstraintType::IncreasedByX => self.compare_increased_by(current_value_ptr, previous_value_ptr, constraint.get_constraint_value().unwrap_unchecked(), data_type),
+                ScanConstraintType::DecreasedByX => self.compare_decreased_by(current_value_ptr, previous_value_ptr, constraint.get_constraint_value().unwrap_unchecked(), data_type),
+                ScanConstraintType::Equal => self.compare_equal(current_value_ptr, constraint.get_constraint_value().unwrap_unchecked(), data_type),
+                ScanConstraintType::NotEqual => self.compare_not_equal(current_value_ptr, constraint.get_constraint_value().unwrap_unchecked(), data_type),
+                ScanConstraintType::GreaterThan => self.compare_greater_than(current_value_ptr, constraint.get_constraint_value().unwrap_unchecked(), data_type),
+                ScanConstraintType::GreaterThanOrEqual => self.compare_greater_than_or_equal(current_value_ptr, constraint.get_constraint_value().unwrap_unchecked(), data_type),
+                ScanConstraintType::LessThan => self.compare_less_than(current_value_ptr, constraint.get_constraint_value().unwrap_unchecked(), data_type),
+                ScanConstraintType::LessThanOrEqual => self.compare_less_than_or_equal(current_value_ptr, constraint.get_constraint_value().unwrap_unchecked(), data_type),
+            };
         }
     }
 
@@ -131,37 +133,37 @@ impl ScannerScalar {
         return current_value < previous_value;
     }
 
-    fn compare_equal(&self, current_value_ptr: *const u8, value: FieldValue, data_type: &FieldValue) -> bool {
+    fn compare_equal(&self, current_value_ptr: *const u8, value: &FieldValue, data_type: &FieldValue) -> bool {
         let current_value = self.get_current_values(current_value_ptr, data_type);
-        return current_value == value;
+        return current_value == *value;
     }
 
-    fn compare_not_equal(&self, current_value_ptr: *const u8, value: FieldValue, data_type: &FieldValue) -> bool {
+    fn compare_not_equal(&self, current_value_ptr: *const u8, value: &FieldValue, data_type: &FieldValue) -> bool {
         let current_value = self.get_current_values(current_value_ptr, data_type);
-        return current_value != value;
+        return current_value != *value;
     }
 
-    fn compare_greater_than(&self, current_value_ptr: *const u8, value: FieldValue, data_type: &FieldValue) -> bool {
+    fn compare_greater_than(&self, current_value_ptr: *const u8, value: &FieldValue, data_type: &FieldValue) -> bool {
         let current_value = self.get_current_values(current_value_ptr, data_type);
-        return current_value > value;
+        return current_value > *value;
     }
 
-    fn compare_greater_than_or_equal(&self, current_value_ptr: *const u8, value: FieldValue, data_type: &FieldValue) -> bool {
+    fn compare_greater_than_or_equal(&self, current_value_ptr: *const u8, value: &FieldValue, data_type: &FieldValue) -> bool {
         let current_value = self.get_current_values(current_value_ptr, data_type);
-        return current_value >= value;
+        return current_value >= *value;
     }
 
-    fn compare_less_than(&self, current_value_ptr: *const u8, value: FieldValue, data_type: &FieldValue) -> bool {
+    fn compare_less_than(&self, current_value_ptr: *const u8, value: &FieldValue, data_type: &FieldValue) -> bool {
         let current_value = self.get_current_values(current_value_ptr, data_type);
-        return current_value < value;
+        return current_value < *value;
     }
 
-    fn compare_less_than_or_equal(&self, current_value_ptr: *const u8, value: FieldValue, data_type: &FieldValue) -> bool {
+    fn compare_less_than_or_equal(&self, current_value_ptr: *const u8, value: &FieldValue, data_type: &FieldValue) -> bool {
         let current_value = self.get_current_values(current_value_ptr, data_type);
-        return current_value <= value;
+        return current_value <= *value;
     }
 
-    fn compare_increased_by(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8, value: FieldValue, data_type: &FieldValue) -> bool {
+    fn compare_increased_by(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8, value: &FieldValue, data_type: &FieldValue) -> bool {
         let (current_value, previous_value) = self.get_current_previous_values(current_value_ptr, previous_value_ptr, data_type);
         return match (current_value, previous_value) {
             (FieldValue::U8(a), FieldValue::U8(b)) => a == b.wrapping_add(value.as_u8().unwrap()),
@@ -176,7 +178,7 @@ impl ScannerScalar {
         };
     }
 
-    fn compare_decreased_by(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8, value: FieldValue, data_type: &FieldValue) -> bool {
+    fn compare_decreased_by(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8, value: &FieldValue, data_type: &FieldValue) -> bool {
         let (current_value, previous_value) = self.get_current_previous_values(current_value_ptr, previous_value_ptr, data_type);
         return match (current_value, previous_value) {
             (FieldValue::U8(a), FieldValue::U8(b)) => a == b.wrapping_sub(value.as_u8().unwrap()),
