@@ -1,4 +1,5 @@
-use crate::scanners::constraints::scan_constraint::{ConstraintType, ScanConstraint};
+use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::scanners::constraints::scan_constraint_type::ConstraintType;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 
 pub struct ScannerScalar {

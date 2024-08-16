@@ -1,31 +1,16 @@
 use crate::scan_settings::ScanSettings;
+use crate::scanners::constraints::scan_constraint_type::ConstraintType;
 use squalr_engine_common::dynamic_struct::field_value::Endian;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::fmt::{self, Display};
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ConstraintType {
-    Equal,
-    NotEqual,
-    Changed,
-    Unchanged,
-    Increased,
-    Decreased,
-    IncreasedByX,
-    DecreasedByX,
-    GreaterThan,
-    GreaterThanOrEqual,
-    LessThan,
-    LessThanOrEqual,
-}
 
 #[derive(Debug, Clone)]
 pub struct ScanConstraint {
     alignment: MemoryAlignment,
     constraint_type: ConstraintType,
     constraint_value: Option<FieldValue>,
-    constraint_args: Option<FieldValue>,
+    constraint_delta_value: Option<FieldValue>,
 }
 
 impl ScanConstraint {
@@ -34,7 +19,7 @@ impl ScanConstraint {
             alignment: MemoryAlignment::Auto,
             constraint_type: ConstraintType::Changed,
             constraint_value: None,
-            constraint_args: None,
+            constraint_delta_value: None,
         }
     }
 
@@ -42,13 +27,13 @@ impl ScanConstraint {
         alignment: MemoryAlignment,
         constraint_type: ConstraintType,
         value: Option<FieldValue>,
-        args: Option<FieldValue>,
+        delta_value: Option<FieldValue>,
     ) -> Self {
         Self {
             alignment,
             constraint_type,
             constraint_value: value,
-            constraint_args: args,
+            constraint_delta_value: delta_value,
         }
     }
 
@@ -97,16 +82,16 @@ impl ScanConstraint {
         self.constraint_value = value;
     }
 
-    pub fn get_constraint_args(&self) -> Option<&FieldValue> {
+    pub fn get_constraint_delta_value(&self) -> Option<&FieldValue> {
         if self.is_valued_constraint() {
-            return self.constraint_args.as_ref();
+            return self.constraint_delta_value.as_ref();
         } else {
             return None;
         }
     }
 
-    pub fn set_constraint_args(&mut self, args: Option<FieldValue>) {
-        self.constraint_args = args;
+    pub fn set_constraint_delta_value(&mut self, args: Option<FieldValue>) {
+        self.constraint_delta_value = args;
     }
 
     pub fn get_constraint_name(&self) -> &'static str {
@@ -197,7 +182,7 @@ impl ScanConstraint {
             alignment: self.alignment,
             constraint_type: self.constraint_type.clone(),
             constraint_value: self.constraint_value.clone(),
-            constraint_args: self.constraint_args.clone(),
+            constraint_delta_value: self.constraint_delta_value.clone(),
         }
     }
 
@@ -223,28 +208,5 @@ impl ScanConstraint {
         }
 
         return false;
-    }
-}
-
-impl Display for ConstraintType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                ConstraintType::Equal => "Equal",
-                ConstraintType::NotEqual => "Not Equal",
-                ConstraintType::Changed => "Changed",
-                ConstraintType::Unchanged => "Unchanged",
-                ConstraintType::Increased => "Increased",
-                ConstraintType::Decreased => "Decreased",
-                ConstraintType::IncreasedByX => "Increased By X",
-                ConstraintType::DecreasedByX => "Decreased By X",
-                ConstraintType::GreaterThan => "Greater Than",
-                ConstraintType::GreaterThanOrEqual => "Greater Than Or Equal",
-                ConstraintType::LessThan => "Less Than",
-                ConstraintType::LessThanOrEqual => "Less Than Or Equal",
-            }
-        )
     }
 }
