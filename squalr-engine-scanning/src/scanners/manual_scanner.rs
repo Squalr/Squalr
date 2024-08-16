@@ -31,7 +31,7 @@ impl ManualScanner {
             Self::scan_task(
                 snapshot,
                 &constraint_clone,
-                task_clone.clone(), // Pass the cloned task to update progress
+                task_clone.clone(),
                 task_clone.get_cancellation_token().clone(),
                 with_logging
             );

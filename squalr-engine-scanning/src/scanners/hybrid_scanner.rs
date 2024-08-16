@@ -15,8 +15,9 @@ use std::thread;
 
 pub struct HybridScanner;
 
-/// Implementation of a task that collects values and performs a constraint scan in the same thread pool. This is fast,
-/// but this means that regions processed last will not have their values collected until potentially much later than the scan was initiated.
+/// Implementation of a task that collects values and performs a constraint scan in the same thread pool. This is much faster than doing
+/// ValueCollector => ManualScanner, however this means that regions processed last will not have their values collected until potentially
+/// much later than the scan was initiated.
 impl HybridScanner {
     const NAME: &'static str = "Hybrid Scan";
 
@@ -34,7 +35,7 @@ impl HybridScanner {
                 process_info,
                 snapshot,
                 &constraint_clone,
-                task_clone.clone(), // Pass the cloned task to update progress
+                task_clone.clone(),
                 task_clone.get_cancellation_token().clone(),
                 with_logging
             );
@@ -81,15 +82,9 @@ impl HybridScanner {
                     return;
                 }
 
-                let has_snapshot_region = region.get_snapshot_sub_regions().is_empty();
-                let has_valid_size = region.get_region_size() > 0;
-            
-                if has_snapshot_region && has_valid_size {
-                    let mut sub_regions = Vec::new();
-                    let sub_region = SnapshotSubRegion::new(&region);
-                    
-                    sub_regions.push(sub_region);
-                    region.set_snapshot_sub_regions(sub_regions);
+                // Create the default sub-region if it does not exist yet
+                if !region.get_snapshot_sub_regions().is_empty() && region.get_region_size() > 0 {
+                    region.set_snapshot_sub_regions(vec![SnapshotSubRegion::new(&region)]);
                 }
 
                 if !region.can_compare_with_constraint(constraint) {

@@ -87,16 +87,7 @@ impl ValueCollector {
             }
 
             // Create a sub-region that spans the entire region to set up for scans later
-            let has_snapshot_region = region.get_snapshot_sub_regions().is_empty();
-            let has_valid_size = region.get_region_size() > 0;
-        
-            if has_snapshot_region && has_valid_size {
-                let mut sub_regions = Vec::new();
-                let sub_region = SnapshotSubRegion::new(&region);
-                
-                sub_regions.push(sub_region);
-                region.set_snapshot_sub_regions(sub_regions);
-            }
+            region.set_snapshot_sub_regions(vec![SnapshotSubRegion::new(&region)]);
         });
 
         let duration = start_time.elapsed();
