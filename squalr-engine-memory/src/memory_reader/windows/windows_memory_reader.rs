@@ -15,7 +15,7 @@ impl WindowsMemoryReader {
 impl IMemoryReader for WindowsMemoryReader {
     fn read(&self, process_handle: u64, address: u64, dynamic_struct: &mut DynamicStruct) -> Result<(), String> {
         unsafe {
-            let size = dynamic_struct.size_in_bytes();
+            let size = dynamic_struct.size_in_bytes() as usize;
             let mut buffer = vec![0u8; size];
             let mut bytes_read = 0;
 

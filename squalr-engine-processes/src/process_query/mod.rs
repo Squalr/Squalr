@@ -17,7 +17,7 @@ pub struct ProcessQueryOptions {
     pub search_name: Option<String>,
     pub match_case: bool,
     pub include_system_processes: bool,
-    pub limit: Option<usize>,
+    pub limit: Option<u64>,
 }
 
 #[cfg(any(target_os = "linux"))]

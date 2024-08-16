@@ -1,7 +1,7 @@
 use crate::scanners::comparers::snapshot_sub_region_scanner::Scanner;
 use crate::scanners::constraints::scan_constraint::{ScanConstraint,ScanConstraintType};
 use crate::scanners::constraints::scan_constraints::ScanConstraints;
-use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
+use crate::snapshots::snapshot_sub_region::NormalizedRegion;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use std::ops::{BitAnd, BitOr, BitXor};
 use std::simd::cmp::{SimdOrd, SimdPartialEq, SimdPartialOrd};
@@ -9,10 +9,10 @@ use std::simd::{u8x16, u16x8, u32x4, u64x2, i8x16, i16x8, i32x4, i64x2, f32x4, f
 
 pub struct SnapshotElementScannerVector {
     pub base_scanner: Scanner,
-    pub vector_read_offset: usize,
-    pub vector_read_base: usize,
-    pub first_scan_vector_misalignment: usize,
-    pub last_scan_vector_overread: usize,
+    pub vector_read_offset: u64,
+    pub vector_read_base: u64,
+    pub first_scan_vector_misalignment: u64,
+    pub last_scan_vector_overread: u64,
 }
 
 impl SnapshotElementScannerVector {
@@ -26,7 +26,7 @@ impl SnapshotElementScannerVector {
         }
     }
 
-    pub fn initialize(&mut self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraints: &ScanConstraint) {
+    pub fn initialize(&mut self, snapshot_sub_region: &Arc<RwLock<NormalizedRegion>>, constraints: &ScanConstraint) {
         self.base_scanner.initialize(snapshot_sub_region, constraints);
         self.vector_read_offset = 0;
         self.vector_compare_func = Some(self.build_compare_actions(constraints));
@@ -42,9 +42,9 @@ impl SnapshotElementScannerVector {
     pub fn perform_vector_scan(
         &mut self,
         false_mask: u8x16,
-        vector_increment_size: usize,
+        vector_increment_size: u64,
         vector_comparer: Box<dyn Fn() -> u8x16 + 'a>,
-    ) -> Vec<SnapshotSubRegion> {
+    ) -> Vec<NormalizedRegion> {
         // This algorithm has three stages:
         // 1) Scan the first vector of memory, which may contain elements outside of the intended range. For example, in <x, x, x, x ... y, y, y, y>,
         //      where x is data outside the element range (but within the snapshot region), and y is within the region we are scanning.
@@ -125,7 +125,7 @@ impl SnapshotElementScannerVector {
         // Collect necessary information with immutable borrows
         let all_true = scan_results.simd_gt(false_mask).all(); //.to_array().iter().all(|&x| x);
         let all_false = scan_results.simd_eq(false_mask).all(); //.to_array().iter().all(|&x| x);
-        let alignment = self.base_scanner.get_alignment() as usize;
+        let alignment = self.base_scanner.get_alignment() as u64;
     
         // Perform encoding with mutable borrows
         let encoder = self.base_scanner.get_run_length_encoder();
@@ -146,7 +146,7 @@ impl SnapshotElementScannerVector {
     }
     
 
-    fn calculate_first_scan_vector_misalignment(&self) -> usize {
+    fn calculate_first_scan_vector_misalignment(&self) -> u64 {
         let parent_region_size = self.base_scanner.get_snapshot_sub_region().as_ref().unwrap().parent_region.borrow().get_region_size();
         let range_region_offset = self.base_scanner.get_snapshot_sub_region().as_ref().unwrap().region_offset;
         let available_byte_count = parent_region_size - range_region_offset;
@@ -158,7 +158,7 @@ impl SnapshotElementScannerVector {
         }
     }
 
-    fn calculate_last_scan_vector_overread(&self) -> usize {
+    fn calculate_last_scan_vector_overread(&self) -> u64 {
         let remaining_bytes = self.base_scanner.get_snapshot_sub_region().as_ref().unwrap().range % 16;
         if remaining_bytes == 0 {
             0

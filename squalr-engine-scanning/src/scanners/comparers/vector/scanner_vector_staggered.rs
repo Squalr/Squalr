@@ -1,6 +1,6 @@
 use crate::scanners::comparers::vector::scanner_vector::SnapshotElementScannerVector;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
-use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
+use crate::snapshots::snapshot_sub_region::NormalizedRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::collections::HashMap;
 use std::ops::BitAnd;
@@ -74,7 +74,7 @@ impl SnapshotRegionScannerVectorStaggered {
         }
     }
 
-    fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
+    fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<NormalizedRegion>>, constraint: &ScanConstraint) -> Vec<NormalizedRegion> {
         self.base_scanner.initialize(snapshot_sub_region, constraint);
 
         let data_type_size = self.base_scanner.base_scanner.get_data_type_size();
@@ -87,7 +87,7 @@ impl SnapshotRegionScannerVectorStaggered {
             .unwrap()
             .clone();
 
-        let offset_vector_increment_size = 16 - (alignment as usize * (data_type_size / alignment as usize));
+        let offset_vector_increment_size = 16 - (alignment as u64 * (data_type_size / alignment as u64));
 
         if let Some(vector_comparer) = self.base_scanner.vector_compare_func.take() {
             let comparer_result = vector_comparer();
@@ -108,17 +108,17 @@ impl SnapshotRegionScannerVectorStaggered {
         staggered_masks: Vec<u8x16>,
         comparer_result: u8x16,
         alignment: MemoryAlignment,
-        data_type_size: usize,
+        data_type_size: u64,
     ) -> u8x16 {
         let mut result = u8x16::splat(0);
         let mut vector_read_offset = 0;
 
         for (i, mask) in staggered_masks.iter().enumerate() {
             result |= comparer_result.bitand(*mask);
-            vector_read_offset += alignment as usize;
+            vector_read_offset += alignment as u64;
 
             if vector_read_offset >= data_type_size - 16 {
-                vector_read_offset += alignment as usize * (staggered_masks.len() - i - 1);
+                vector_read_offset += alignment as u64 * (staggered_masks.len() - i - 1);
                 break;
             }
         }

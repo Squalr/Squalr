@@ -4,15 +4,13 @@ use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
-use std::sync::Arc;
-use std::sync::RwLock;
 
 #[derive(Debug)]
 pub struct SnapshotRegion {
     normalized_region: NormalizedRegion,
     current_values: Vec<u8>,
     previous_values: Vec<u8>,
-    snapshot_sub_regions: Vec<Arc<RwLock<SnapshotSubRegion>>>,
+    snapshot_sub_regions: Vec<SnapshotSubRegion>,
 }
 
 impl SnapshotRegion {
@@ -56,6 +54,16 @@ impl SnapshotRegion {
         return Ok(result);
     }
     
+    pub fn get_sub_region_current_values_pointer(&self, snapshot_sub_region: &SnapshotSubRegion) -> *const u8 {
+        let current_values = self.get_current_values();
+        unsafe { current_values.as_ptr().add((self.get_base_address() - snapshot_sub_region.get_base_address()) as usize) }
+    }
+    
+    pub fn get_sub_region_previous_values_pointer(&self, snapshot_sub_region: &SnapshotSubRegion) -> *const u8 {
+        let current_values = self.get_current_values();
+        unsafe { current_values.as_ptr().add((self.get_base_address() - snapshot_sub_region.get_base_address()) as usize) }
+    }
+    
     pub fn get_base_address(&self) -> u64 {
         return self.normalized_region.get_base_address();
     }
@@ -65,24 +73,24 @@ impl SnapshotRegion {
     }
 
     pub fn get_byte_count(&self) -> u64 {
-        return self.snapshot_sub_regions.iter().map(|sub_region| sub_region.read().unwrap().get_byte_count()).sum();
+        return self.snapshot_sub_regions.iter().map(|sub_region| sub_region.get_byte_count()).sum();
     }
 
-    pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: usize) -> u64 {
-        return self.snapshot_sub_regions.iter().map(|sub_region| sub_region.read().unwrap().get_element_count(alignment, data_type_size)).sum();
+    pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: u64) -> u64 {
+        return self.snapshot_sub_regions.iter().map(|sub_region| sub_region.get_element_count(alignment, data_type_size)).sum();
     }
     
-    pub fn set_snapshot_sub_regions(&mut self, snapshot_sub_regions: Vec<Arc<RwLock<SnapshotSubRegion>>>) {
+    pub fn set_snapshot_sub_regions(&mut self, snapshot_sub_regions: Vec<SnapshotSubRegion>) {
         self.snapshot_sub_regions = snapshot_sub_regions;
     }
 
-    pub fn get_snapshot_sub_regions(&self) -> &Vec<Arc<RwLock<SnapshotSubRegion>>> {
+    pub fn get_snapshot_sub_regions(&self) -> &Vec<SnapshotSubRegion> {
         return &self.snapshot_sub_regions;
     }
     
-    pub fn get_snapshot_sub_regions_create_if_none(&mut self, self_with_lock: Arc<RwLock<SnapshotRegion>>) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
+    pub fn get_snapshot_sub_regions_create_if_none(&mut self) -> Vec<SnapshotSubRegion> {
         if self.snapshot_sub_regions.is_empty() && self.get_region_size() > 0 {
-            self.snapshot_sub_regions.push(Arc::new(RwLock::new(SnapshotSubRegion::new(self_with_lock))));
+            self.snapshot_sub_regions.push(SnapshotSubRegion::new(self));
         }
 
         return self.snapshot_sub_regions.clone();

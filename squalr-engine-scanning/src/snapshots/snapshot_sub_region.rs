@@ -1,91 +1,89 @@
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::cmp::max;
-use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone)]
 pub struct SnapshotSubRegion {
-    pub parent_region: Arc<RwLock<SnapshotRegion>>,
-    region_offset: usize,
-    range: usize,
+    base_address: u64,
+    size_in_bytes: u64,
 }
 
 impl SnapshotSubRegion {
-    pub fn new(parent_region: Arc<RwLock<SnapshotRegion>>) -> Self {
-        let parent_region_size = parent_region.read().unwrap().get_region_size() as usize;
-        Self::new_with_offset_and_range(parent_region, 0, parent_region_size)
+    pub fn new(parent_region: &SnapshotRegion) -> Self {
+        Self::new_with_offset_and_size_in_bytes(parent_region.get_base_address(), parent_region.get_region_size())
     }
 
-    pub fn new_with_offset_and_range(parent_region: Arc<RwLock<SnapshotRegion>>, region_offset: usize, range: usize) -> Self {
+    pub fn new_with_offset_and_size_in_bytes(base_address: u64, size_in_bytes: u64) -> Self {
         Self {
-            parent_region,
-            region_offset,
-            range,
+            base_address,
+            size_in_bytes,
         }
     }
     
+    /*
     pub fn get_current_values_pointer(&self) -> *const u8 {
         let parent_region = self.parent_region.read().unwrap();
         let current_values = parent_region.get_current_values();
-        unsafe { current_values.as_ptr().add(self.region_offset) }
+        unsafe { current_values.as_ptr().add(self.base_address) }
     }
 
     pub fn get_previous_values_pointer(&self) -> *const u8 {
         let parent_region = self.parent_region.read().unwrap();
         let previous_values = parent_region.get_previous_values();
-        unsafe { previous_values.as_ptr().add(self.region_offset) }
+        unsafe { previous_values.as_ptr().add(self.base_address) }
+    } */
+
+    pub fn get_base_address(&self) -> u64 {
+        return self.base_address;
     }
 
-    pub fn get_base_element_address(&self) -> u64 {
-        return self.parent_region.read().unwrap().get_base_address() + self.region_offset as u64;
-    }
-
-    pub fn get_end_element_address(&self) -> u64 {
-        return self.get_base_element_address() + self.range as u64;
-    }
-
-    pub fn get_region_offset(&self) -> usize {
-        return self.region_offset;
+    pub fn get_end_address(&self) -> u64 {
+        return self.get_base_address() + self.size_in_bytes as u64;
     }
     
-    pub fn get_range(&self) -> usize {
-        return self.range;
+    pub fn get_size_in_bytes(&self) -> u64 {
+        return self.size_in_bytes;
     }
 
     pub fn get_byte_count(&self) -> u64 {
-        return self.range as u64;
+        return self.size_in_bytes as u64;
     }
 
-    pub fn get_byte_count_for_data_type_size(&self, data_type_size: usize) -> u64 {
-        if data_type_size > self.range {
+    pub fn get_byte_count_for_data_type_size(&self, data_type_size: u64) -> u64 {
+        if data_type_size > self.size_in_bytes {
             return 0;
         } else {
-            return (self.range - data_type_size) as u64;
+            return (self.size_in_bytes - data_type_size) as u64;
         }
     }
 
-    pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: usize) -> u64 {
+    pub fn is_vector_friendly_size(&self, alignment: MemoryAlignment) -> bool {
+        return self.get_byte_count() - self.get_misalignment(alignment as u64) > vectors::get_hardware_vector_size();
+    }
+
+    pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: u64) -> u64 {
         let alignment = max(alignment as u64, 1);
         let misalignment = self.get_misalignment(alignment);
     
-        if misalignment >= self.range as u64 {
+        if misalignment >= self.size_in_bytes as u64 {
             return 0;
         }
     
-        let effective_range = self.range as u64 - misalignment;
+        let effective_size_in_bytes = self.size_in_bytes as u64 - misalignment;
     
-        // Ensure that effective_range is at least the size of the data type
-        if effective_range < data_type_size as u64 {
+        // Ensure that effective_size_in_bytes is at least the size of the data type
+        if effective_size_in_bytes < data_type_size as u64 {
             return 0;
         }
     
-        let byte_count = effective_range - data_type_size as u64 + 1;
+        let byte_count = effective_size_in_bytes - data_type_size as u64 + 1;
     
         return byte_count / alignment;
     }
 
-    pub fn get_misalignment(&self, alignment: u64) -> u64 {
-        let base_address = self.get_base_element_address();
+    fn get_misalignment(&self, alignment: u64) -> u64 {
+        let base_address = self.get_base_address();
         let aligned_base = (base_address + alignment - 1) / alignment * alignment;
 
         return aligned_base - base_address;

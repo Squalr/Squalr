@@ -56,7 +56,7 @@ impl IProcessQueryer for WindowsProcessQuery {
         let mut processes: Vec<Pid> = self.system.processes().keys().cloned().collect();
 
         if let Some(limit) = options.limit {
-            processes.truncate(limit);
+            processes.truncate(limit as usize);
         }
 
         let processes: Vec<Pid> = self.system.processes()
@@ -89,7 +89,7 @@ impl IProcessQueryer for WindowsProcessQuery {
 
         // Limit the result after filtering
         if let Some(limit) = options.limit {
-            return processes.into_iter().take(limit).collect();
+            return processes.into_iter().take(limit as usize).collect();
         } else {
             return processes;
         }

@@ -22,7 +22,7 @@ pub enum ProcessCommand {
         #[structopt(short = "s", long)]
         include_system_processes: bool,
         #[structopt(short = "l", long)]
-        limit: Option<usize>,
+        limit: Option<u64>,
     },
     Close,
 }

@@ -19,14 +19,14 @@ impl DynamicStruct {
         self.fields.insert(name.to_string(), value);
     }
 
-    pub fn size_in_bytes(&self) -> usize {
+    pub fn size_in_bytes(&self) -> u64 {
         self.fields.values().map(|field| field.size_in_bytes()).sum()
     }
 
     pub fn copy_from_bytes(&mut self, bytes: &[u8]) {
         let mut offset = 0;
         for field in self.fields.values_mut() {
-            let size = field.size_in_bytes();
+            let size = field.size_in_bytes() as usize;
             field.copy_from_bytes(&bytes[offset..offset + size]);
             offset += size;
         }

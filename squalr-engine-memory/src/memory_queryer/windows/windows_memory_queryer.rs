@@ -254,12 +254,12 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
         let num_modules = cb_needed / std::mem::size_of::<HMODULE>() as u32;
 
-        for i in 0..num_modules as usize {
+        for index in 0..num_modules as usize {
             let mut module_name = vec![0u8; 1024];
             let result = unsafe {
                 K32GetModuleFileNameExA(
                     process_handle,
-                    module_handles[i],
+                    module_handles[index],
                     module_name.as_mut_ptr(),
                     module_name.len() as u32,
                 )
@@ -275,7 +275,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
             let result = unsafe {
                 K32GetModuleInformation(
                     process_handle,
-                    module_handles[i],
+                    module_handles[index],
                     &mut module_info,
                     std::mem::size_of::<MODULEINFO>() as u32,
                 )

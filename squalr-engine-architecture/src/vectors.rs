@@ -13,7 +13,7 @@ pub mod vectors {
             || is_x86_feature_detected!("sse");
     }
 
-    pub fn get_hardware_vector_size() -> usize {
+    pub fn get_hardware_vector_size() -> u64 {
         if is_x86_feature_detected!("avx512f") {
             return 64; // AVX-512 uses 512-bit (64 bytes) vectors
         } else if is_x86_feature_detected!("avx2") {

@@ -89,7 +89,7 @@ impl ManualScanner {
 
                 {
                     let mut region = region.write().unwrap();
-                    region.set_snapshot_sub_regions(scan_results);
+                    region.set_snapshot_sub_regions(scan_results.to_owned());
                 }
 
                 let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);

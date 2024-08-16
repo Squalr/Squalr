@@ -102,16 +102,18 @@ impl FieldValue {
             FieldValue::BitField { value, bits } => {
                 let mut result = Vec::new();
                 let total_bytes = ((*bits + 7) / 8) as usize;
-                for i in 0..total_bytes {
-                    result.push(value[i]);
+
+                for index in 0..total_bytes {
+                    result.push(value[index]);
                 }
+                
                 result
             }
         }
     }
 
-    pub fn size_in_bytes(&self) -> usize {
-        match self {
+    pub fn size_in_bytes(&self) -> u64 {
+        return match self {
             FieldValue::U8(_) => std::mem::size_of::<u8>(),
             FieldValue::U16(_, _) => std::mem::size_of::<u16>(),
             FieldValue::U32(_, _) => std::mem::size_of::<u32>(),
@@ -124,7 +126,7 @@ impl FieldValue {
             FieldValue::F64(_, _) => std::mem::size_of::<f64>(),
             FieldValue::Bytes(ref bytes) => bytes.len(),
             FieldValue::BitField { value: _, bits } => ((*bits + 7) / 8) as usize,
-        }
+        } as u64;
     }
 
     pub fn copy_from_bytes(&mut self, bytes: &[u8]) {

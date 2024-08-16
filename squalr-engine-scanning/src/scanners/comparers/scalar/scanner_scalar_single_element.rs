@@ -1,3 +1,4 @@
+use crate::snapshots::snapshot_region::SnapshotRegion;
 use crate::scanners::comparers::scalar::scanner_scalar::ScannerScalar;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
@@ -32,10 +33,9 @@ impl ScannerScalarSingleElement {
 
 /// Implements a scalar (ie CPU bound, non-SIMD) scanner which only scans a single element of memory (ie only containing 1 data type).
 impl Scanner for ScannerScalarSingleElement {
-    fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
-        let snapshot_sub_region_read = snapshot_sub_region.read().unwrap();
-        let current_value_pointer = snapshot_sub_region_read.get_current_values_pointer();
-        let previous_value_pointer = snapshot_sub_region_read.get_previous_values_pointer();
+    fn scan_region(&self, snapshot_region: &SnapshotRegion, snapshot_sub_region: &SnapshotSubRegion, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
+        let current_value_pointer = snapshot_region.get_sub_region_current_values_pointer(&snapshot_sub_region);
+        let previous_value_pointer = snapshot_region.get_sub_region_previous_values_pointer(&snapshot_sub_region);
         let data_type = constraint.get_element_type();
 
         if self.scalar_scanner.do_compare_action(current_value_pointer, previous_value_pointer, &constraint, &data_type) {

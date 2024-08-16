@@ -31,14 +31,14 @@ impl ScanDispatcher {
         }
     }
 
-    pub fn dispatch_scan(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
+    pub fn dispatch_scan(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
         let has_snapshot_region = snapshot_region.read().unwrap().get_snapshot_sub_regions().is_empty();
         let has_valid_size = snapshot_region.read().unwrap().get_region_size() > 0;
         let constraint = constraint.clone_and_resolve_auto_alignment();
 
         if has_snapshot_region && has_valid_size {
             let mut sub_regions = Vec::new();
-            let sub_region = Arc::new(RwLock::new(SnapshotSubRegion::new(snapshot_region.clone())));
+            let sub_region = SnapshotSubRegion::new(&snapshot_region.read().unwrap());
                 
             sub_regions.push(sub_region);
             
@@ -54,7 +54,7 @@ impl ScanDispatcher {
             let scanner_instance = self.acquire_scanner_instance(&snapshot_sub_region, &constraint);
     
             let scanner = scanner_instance.read().unwrap();
-            let result_sub_regions = scanner.scan_region(&snapshot_sub_region, &constraint);
+            let result_sub_regions = scanner.scan_region(&snapshot_region, &snapshot_sub_region, &constraint);
             
             for result_sub_region in result_sub_regions {
                 results.push(result_sub_region);
@@ -64,14 +64,14 @@ impl ScanDispatcher {
         return results;
     }
 
-    pub fn dispatch_scan_parallel(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
+    pub fn dispatch_scan_parallel(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
         let has_snapshot_region = snapshot_region.read().unwrap().get_snapshot_sub_regions().is_empty();
         let has_valid_size = snapshot_region.read().unwrap().get_region_size() > 0;
         let constraint = constraint.clone_and_resolve_auto_alignment();
     
         if has_snapshot_region && has_valid_size {
             let mut sub_regions = Vec::new();
-            let sub_region = Arc::new(RwLock::new(SnapshotSubRegion::new(snapshot_region.clone())));
+            let sub_region = SnapshotSubRegion::new(&snapshot_region.read().unwrap());
             
             sub_regions.push(sub_region);
             
@@ -89,19 +89,19 @@ impl ScanDispatcher {
                 let scanner_instance = self.acquire_scanner_instance(&snapshot_sub_region, &constraint);
     
                 let scanner = scanner_instance.read().unwrap();
-                scanner.scan_region(&snapshot_sub_region, &constraint)
+                scanner.scan_region(&snapshot_region, &snapshot_sub_region, &constraint)
             })
             .collect()
     }
 
-    fn acquire_scanner_instance(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: &ScanConstraint) -> Arc<RwLock<dyn Scanner>> {
+    fn acquire_scanner_instance(&self, snapshot_sub_region: &SnapshotSubRegion, constraint: &ScanConstraint) -> Arc<RwLock<dyn Scanner>> {
         let alignment = constraint.get_alignment();
         let data_type_size = constraint.get_element_type().size_in_bytes();
 
-        if snapshot_sub_region.read().unwrap().get_element_count(alignment, data_type_size) == 1 {
+        if snapshot_sub_region.get_element_count(alignment, data_type_size) == 1 {
             // Single element scanner
             return ScannerScalarSingleElement::get_instance();
-        } else if vectors::has_vector_support() && snapshot_sub_region.read().unwrap().parent_region.read().unwrap().get_region_size() >= vectors::get_hardware_vector_size() as u64 {
+        } else if vectors::has_vector_support() && snapshot_sub_region.is_vector_friendly_size(alignment) {
             match constraint.get_element_type() {
                 FieldValue::Bytes(_) => {
                     // Vector array of bytes scanner

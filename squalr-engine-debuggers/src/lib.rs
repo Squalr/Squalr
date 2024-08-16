@@ -2,7 +2,7 @@ pub fn engine_function() -> i32 {
     42 // Replace with actual functionality
 }
 
-pub fn add(left: usize, right: usize) -> usize {
+pub fn add(left: u64, right: u64) -> u64 {
     left + right
 }
 

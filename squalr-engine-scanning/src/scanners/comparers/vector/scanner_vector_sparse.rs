@@ -1,6 +1,6 @@
 use crate::scanners::comparers::vector::scanner_vector::SnapshotElementScannerVector;
 use crate::scanners::constraints::operation_constraint::ScanConstraint;
-use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
+use crate::snapshots::snapshot_sub_region::NormalizedRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::collections::HashMap;
 use std::simd::{ToBytes, u8x16, u16x8, u32x4, u64x2};
@@ -35,7 +35,7 @@ impl SnapshotElementScannerVectorSparse {
         }
     }
 
-    fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<SnapshotSubRegion>>, constraint: &ScanConstraint) -> Vec<Arc<RwLock<SnapshotSubRegion>>> {
+    fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<NormalizedRegion>>, constraint: &ScanConstraint) -> Vec<NormalizedRegion> {
         self.base_scanner.initialize(snapshot_sub_region, constraints);
 
         let sparse_mask = *self

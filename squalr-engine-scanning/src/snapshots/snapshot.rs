@@ -37,8 +37,8 @@ impl Snapshot {
         return self.snapshot_regions.clone(); // Fixed
     }
 
-    pub fn get_region_count(&self) -> usize {
-        return self.snapshot_regions.len();
+    pub fn get_region_count(&self) -> u64 {
+        return self.snapshot_regions.len() as u64;
     }
 
     /// Sorts the regions by region size descending. This significantly improves scan speeds by introducing a greedy algorithm.
@@ -55,7 +55,7 @@ impl Snapshot {
         return self.snapshot_regions.iter().map(|region| region.read().unwrap().get_byte_count()).sum();
     }
 
-    pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: usize) -> u64 {
+    pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: u64) -> u64 {
         return self.snapshot_regions.iter().map(|region| region.read().unwrap().get_element_count(alignment, data_type_size)).sum();
     }
 }
