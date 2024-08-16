@@ -1,8 +1,7 @@
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot::Snapshot;
-use crate::snapshots::snapshot_region::SnapshotRegion;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -48,16 +47,13 @@ impl ManualScanner {
         cancellation_token: Arc<AtomicBool>,
         with_logging: bool,
     ) {
-        let region_count;
-        let snapshot_regions;
+        let mut snapshot = snapshot.write().unwrap();
+        let constraint = &constraint.clone_and_resolve_auto_alignment();
 
-        // Lock the snapshot briefly to extract the regions.
-        {
-            let mut snapshot = snapshot.write().unwrap();
-            snapshot.sort_regions_for_scans();
-            region_count = snapshot.get_region_count();
-            snapshot_regions = snapshot.get_snapshot_regions();
-        }
+        snapshot.sort_regions_for_scans();
+        
+        let region_count = snapshot.get_region_count();
+        let snapshot_regions = snapshot.get_snapshot_regions_mut();
 
         if with_logging {
             Logger::get_instance().log(LogLevel::Info, "Performing manual scan...", None);
@@ -66,31 +62,25 @@ impl ManualScanner {
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
 
-        let results: Vec<Arc<RwLock<SnapshotRegion>>> = snapshot_regions
-            .par_iter()
-            .filter_map(|region| {
+        snapshot_regions
+            .par_iter_mut()
+            .for_each(|region| {
                 if cancellation_token.load(Ordering::SeqCst) {
-                    return None;
+                    return;
                 }
 
-                if !region.read().unwrap().can_compare_with_constraint(constraint) {
+                if !region.can_compare_with_constraint(constraint) {
                     processed_region_count.fetch_add(1, Ordering::SeqCst);
-                    return None;
+                    return;
                 }
 
-                {
-                    let mut region = region.write().unwrap();
-                    region.set_alignment(constraint.get_alignment());
-                }
+                region.set_alignment(constraint.get_alignment());
 
                 let scan_dispatcher = ScanDispatcher::get_instance();
                 let scan_dispatcher = scan_dispatcher.read().unwrap();
-                let scan_results = scan_dispatcher.dispatch_scan_parallel(region.clone(), constraint);
+                let scan_results = scan_dispatcher.dispatch_scan_parallel(region, constraint);
 
-                {
-                    let mut region = region.write().unwrap();
-                    region.set_snapshot_sub_regions(scan_results.to_owned());
-                }
+                region.set_snapshot_sub_regions(scan_results.to_owned());
 
                 let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
 
@@ -99,24 +89,16 @@ impl ManualScanner {
                     let progress = (processed as f32 / region_count as f32) * 100.0;
                     task.set_progress(progress);
                 }
-
-                if region.read().unwrap().get_snapshot_sub_regions().is_empty() {
-                    return None;
-                }
-
-                Some(region.clone())
-            }).collect();
-
-        // Lock the snapshot briefly to update it.
-        {
-            let mut snapshot = snapshot.write().unwrap();
-            snapshot.set_snapshot_regions(results);
-            snapshot.set_name(ManualScanner::NAME.to_string());
-        }
+            });
+        
+        // Discard eliminated regions and restore the correct sort order
+        snapshot.discard_empty_regions();
+        snapshot.sort_regions_by_address();
+        snapshot.set_name(ManualScanner::NAME.to_string());
 
         let duration = start_time.elapsed();
-        let element_count = snapshot.read().unwrap().get_element_count(constraint.get_alignment(), constraint.get_element_type().size_in_bytes());
-        let byte_count = snapshot.read().unwrap().get_byte_count();
+        let element_count = snapshot.get_element_count(constraint.get_alignment(), constraint.get_element_type().size_in_bytes());
+        let byte_count = snapshot.get_byte_count();
 
         Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
         Logger::get_instance().log(LogLevel::Info, &format!("Results: {} ({} bytes)", element_count, value_to_metric_size(byte_count)), None);

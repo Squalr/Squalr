@@ -4,7 +4,7 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use squalr_engine_processes::process_info::ProcessInfo;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -53,15 +53,12 @@ impl ValueCollector {
         task: Arc<TrackableTask<()>>, // Pass the task itself
         cancellation_token: Arc<AtomicBool>,
     ) {
-        let region_count;
-        let snapshot_regions;
+        let mut snapshot = snapshot.write().unwrap();
 
-        {
-            let mut snapshot = snapshot.write().unwrap();
-            snapshot.sort_regions_for_scans();
-            region_count = snapshot.get_region_count();
-            snapshot_regions = snapshot.get_snapshot_regions();
-        }
+        snapshot.sort_regions_for_scans();
+
+        let region_count = snapshot.get_region_count();
+        let snapshot_regions = snapshot.get_snapshot_regions_mut();
 
         if with_logging {
             Logger::get_instance().log(LogLevel::Info, "Reading values from memory...", None);
@@ -70,12 +67,10 @@ impl ValueCollector {
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
 
-        snapshot_regions.par_iter().for_each(|region| {
+        snapshot_regions.par_iter_mut().for_each(|region| {
             if cancellation_token.load(Ordering::SeqCst) {
                 return;
             }
-
-            let mut region = region.write().unwrap();
 
             // Attempt to read new (or initial) memory values.
             if region.read_all_memory(process_info.handle).is_ok() {
@@ -89,7 +84,7 @@ impl ValueCollector {
         });
 
         let duration = start_time.elapsed();
-        let byte_count = snapshot.read().unwrap().get_byte_count();
+        let byte_count = snapshot.get_byte_count();
 
         if with_logging {
             Logger::get_instance().log(LogLevel::Info, &format!("Values collected in: {:?}", duration), None);

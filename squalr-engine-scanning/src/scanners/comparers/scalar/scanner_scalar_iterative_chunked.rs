@@ -19,13 +19,13 @@ impl ScannerScalarIterativeChunked {
         }
     }
 
-    pub fn get_instance() -> Arc<RwLock<ScannerScalarIterativeChunked>> {
-        static mut INSTANCE: Option<Arc<RwLock<ScannerScalarIterativeChunked>>> = None;
+    pub fn get_instance() -> Arc<ScannerScalarIterativeChunked> {
+        static mut INSTANCE: Option<Arc<ScannerScalarIterativeChunked>> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
-                let instance = Arc::new(RwLock::new(ScannerScalarIterativeChunked::new()));
+                let instance = Arc::new(ScannerScalarIterativeChunked::new());
                 INSTANCE = Some(instance);
             });
 

@@ -8,9 +8,8 @@ pub struct ScannerScalar {
 /// Implements a scalar (ie CPU bound, non-SIMD) scanner which contains all boolean comparison operations to be used by more complex scanners,
 /// in addition to handling common functionality like reading values and structures from snapshot memory given a pointer.
 impl ScannerScalar {
-    pub fn new() -> Self {
-        Self {}
-    }
+    // Intentionally stateless
+    pub fn new() -> Self { Self {} }
 
     /// This is a highly optimized function that performs any given scalar comparison. The Field Values are passed by ref to minimize cloning,
     /// so the caller is expected to allocate and reuse these frequently.

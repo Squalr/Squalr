@@ -3,7 +3,7 @@ use crate::scanners::comparers::scalar::scanner_scalar::ScannerScalar;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
-use std::{borrow::BorrowMut, sync::{Arc, Once, RwLock}};
+use std::{borrow::BorrowMut, sync::{Arc, Once}};
 
 pub struct ScannerScalarSingleElement {
     scalar_scanner: ScannerScalar,
@@ -16,13 +16,13 @@ impl ScannerScalarSingleElement {
         }
     }
     
-    pub fn get_instance() -> Arc<RwLock<ScannerScalarSingleElement>> {
-        static mut INSTANCE: Option<Arc<RwLock<ScannerScalarSingleElement>>> = None;
+    pub fn get_instance() -> Arc<ScannerScalarSingleElement> {
+        static mut INSTANCE: Option<Arc<ScannerScalarSingleElement>> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
-                let instance = Arc::new(RwLock::new(ScannerScalarSingleElement::new()));
+                let instance = Arc::new(ScannerScalarSingleElement::new());
                 INSTANCE = Some(instance);
             });
 

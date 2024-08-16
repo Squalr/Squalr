@@ -30,21 +30,19 @@ impl ScanDispatcher {
         }
     }
 
-    pub fn dispatch_scan(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
-        let has_snapshot_region = snapshot_region.read().unwrap().get_snapshot_sub_regions().is_empty();
-        let has_valid_size = snapshot_region.read().unwrap().get_region_size() > 0;
-        let constraint = constraint.clone_and_resolve_auto_alignment();
+    pub fn dispatch_scan(&self, snapshot_region: &mut SnapshotRegion, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
+        let has_snapshot_region = snapshot_region.get_snapshot_sub_regions().is_empty();
+        let has_valid_size = snapshot_region.get_region_size() > 0;
 
         if has_snapshot_region && has_valid_size {
             let mut sub_regions = Vec::new();
-            let sub_region = SnapshotSubRegion::new(&snapshot_region.read().unwrap());
+            let sub_region = SnapshotSubRegion::new(&snapshot_region);
                 
             sub_regions.push(sub_region);
             
-            snapshot_region.write().unwrap().set_snapshot_sub_regions(sub_regions);
+            snapshot_region.set_snapshot_sub_regions(sub_regions);
         }
 
-        let snapshot_region = snapshot_region.read().unwrap();
         let snapshot_sub_regions = snapshot_region.get_snapshot_sub_regions();
         let mut results = Vec::new();
     
@@ -52,8 +50,7 @@ impl ScanDispatcher {
             let snapshot_sub_region = snapshot_sub_region.clone();
             let scanner_instance = self.acquire_scanner_instance(&snapshot_sub_region, &constraint);
     
-            let scanner = scanner_instance.read().unwrap();
-            let result_sub_regions = scanner.scan_region(&snapshot_region, &snapshot_sub_region, &constraint);
+            let result_sub_regions = scanner_instance.scan_region(&snapshot_region, &snapshot_sub_region, &constraint);
             
             for result_sub_region in result_sub_regions {
                 results.push(result_sub_region);
@@ -63,21 +60,19 @@ impl ScanDispatcher {
         return results;
     }
 
-    pub fn dispatch_scan_parallel(&self, snapshot_region: Arc<RwLock<SnapshotRegion>>, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
-        let has_snapshot_region = snapshot_region.read().unwrap().get_snapshot_sub_regions().is_empty();
-        let has_valid_size = snapshot_region.read().unwrap().get_region_size() > 0;
-        let constraint = constraint.clone_and_resolve_auto_alignment();
+    pub fn dispatch_scan_parallel(&self, snapshot_region: &mut SnapshotRegion, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
+        let has_snapshot_region = snapshot_region.get_snapshot_sub_regions().is_empty();
+        let has_valid_size = snapshot_region.get_region_size() > 0;
     
         if has_snapshot_region && has_valid_size {
             let mut sub_regions = Vec::new();
-            let sub_region = SnapshotSubRegion::new(&snapshot_region.read().unwrap());
+            let sub_region = SnapshotSubRegion::new(&snapshot_region);
             
             sub_regions.push(sub_region);
             
-            snapshot_region.write().unwrap().set_snapshot_sub_regions(sub_regions);
+            snapshot_region.set_snapshot_sub_regions(sub_regions);
         }
     
-        let snapshot_region = snapshot_region.read().unwrap();
         let snapshot_sub_regions = snapshot_region.get_snapshot_sub_regions();
     
         snapshot_sub_regions
@@ -87,13 +82,12 @@ impl ScanDispatcher {
                 let snapshot_sub_region = snapshot_sub_region.clone();
                 let scanner_instance = self.acquire_scanner_instance(&snapshot_sub_region, &constraint);
     
-                let scanner = scanner_instance.read().unwrap();
-                scanner.scan_region(&snapshot_region, &snapshot_sub_region, &constraint)
+                scanner_instance.scan_region(&snapshot_region, &snapshot_sub_region, &constraint)
             })
             .collect()
     }
 
-    fn acquire_scanner_instance(&self, snapshot_sub_region: &SnapshotSubRegion, constraint: &ScanConstraint) -> Arc<RwLock<dyn Scanner>> {
+    fn acquire_scanner_instance(&self, snapshot_sub_region: &SnapshotSubRegion, constraint: &ScanConstraint) -> Arc<dyn Scanner> {
         let alignment = constraint.get_alignment();
         let data_type_size = constraint.get_element_type().size_in_bytes();
 
