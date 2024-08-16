@@ -3,7 +3,6 @@ use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
 use squalr_engine_common::dynamic_struct::field_value::Endian;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
-use std::fmt::{self, Display};
 
 #[derive(Debug, Clone)]
 pub struct ScanConstraint {
@@ -93,24 +92,7 @@ impl ScanConstraint {
     pub fn set_constraint_delta_value(&mut self, args: Option<FieldValue>) {
         self.constraint_delta_value = args;
     }
-
-    pub fn get_constraint_name(&self) -> &'static str {
-        match self.constraint_type {
-            ScanConstraintType::Equal => "Equal",
-            ScanConstraintType::NotEqual => "Not Equal",
-            ScanConstraintType::GreaterThan => "Greater Than",
-            ScanConstraintType::GreaterThanOrEqual => "Greater Than Or Equal",
-            ScanConstraintType::LessThan => "Less Than",
-            ScanConstraintType::LessThanOrEqual => "Less Than Or Equal",
-            ScanConstraintType::Changed => "Changed",
-            ScanConstraintType::Unchanged => "Unchanged",
-            ScanConstraintType::Increased => "Increased",
-            ScanConstraintType::Decreased => "Decreased",
-            ScanConstraintType::IncreasedByX => "Increased By X",
-            ScanConstraintType::DecreasedByX => "Decreased By X",
-        }
-    }
-
+    
     pub fn is_valid(&self) -> bool {
         if !self.is_valued_constraint() {
             return true;

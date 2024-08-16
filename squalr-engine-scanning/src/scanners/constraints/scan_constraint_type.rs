@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use std::fmt::{self, Display};
+use std::fmt::{self};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScanConstraintType {
