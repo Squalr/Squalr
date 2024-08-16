@@ -1,5 +1,5 @@
 use crate::scan_settings::ScanSettings;
-use crate::scanners::constraints::scan_constraint_type::ConstraintType;
+use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
 use squalr_engine_common::dynamic_struct::field_value::Endian;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
@@ -8,7 +8,7 @@ use std::fmt::{self, Display};
 #[derive(Debug, Clone)]
 pub struct ScanConstraint {
     alignment: MemoryAlignment,
-    constraint_type: ConstraintType,
+    constraint_type: ScanConstraintType,
     constraint_value: Option<FieldValue>,
     constraint_delta_value: Option<FieldValue>,
 }
@@ -17,7 +17,7 @@ impl ScanConstraint {
     pub fn new() -> Self {
         Self {
             alignment: MemoryAlignment::Auto,
-            constraint_type: ConstraintType::Changed,
+            constraint_type: ScanConstraintType::Changed,
             constraint_value: None,
             constraint_delta_value: None,
         }
@@ -25,7 +25,7 @@ impl ScanConstraint {
 
     pub fn new_with_value(
         alignment: MemoryAlignment,
-        constraint_type: ConstraintType,
+        constraint_type: ScanConstraintType,
         value: Option<FieldValue>,
         delta_value: Option<FieldValue>,
     ) -> Self {
@@ -61,11 +61,11 @@ impl ScanConstraint {
         self.alignment = alignment;
     }
 
-    pub fn get_constraint_type(&self) -> ConstraintType {
+    pub fn get_constraint_type(&self) -> ScanConstraintType {
         self.constraint_type.clone()
     }
 
-    pub fn set_constraint(&mut self, constraint_type: ConstraintType) {
+    pub fn set_constraint(&mut self, constraint_type: ScanConstraintType) {
         self.constraint_type = constraint_type;
         self.constraint_value = self.constraint_value.clone(); // Force update of constraint value to determine if valid
     }
@@ -96,18 +96,18 @@ impl ScanConstraint {
 
     pub fn get_constraint_name(&self) -> &'static str {
         match self.constraint_type {
-            ConstraintType::Equal => "Equal",
-            ConstraintType::NotEqual => "Not Equal",
-            ConstraintType::GreaterThan => "Greater Than",
-            ConstraintType::GreaterThanOrEqual => "Greater Than Or Equal",
-            ConstraintType::LessThan => "Less Than",
-            ConstraintType::LessThanOrEqual => "Less Than Or Equal",
-            ConstraintType::Changed => "Changed",
-            ConstraintType::Unchanged => "Unchanged",
-            ConstraintType::Increased => "Increased",
-            ConstraintType::Decreased => "Decreased",
-            ConstraintType::IncreasedByX => "Increased By X",
-            ConstraintType::DecreasedByX => "Decreased By X",
+            ScanConstraintType::Equal => "Equal",
+            ScanConstraintType::NotEqual => "Not Equal",
+            ScanConstraintType::GreaterThan => "Greater Than",
+            ScanConstraintType::GreaterThanOrEqual => "Greater Than Or Equal",
+            ScanConstraintType::LessThan => "Less Than",
+            ScanConstraintType::LessThanOrEqual => "Less Than Or Equal",
+            ScanConstraintType::Changed => "Changed",
+            ScanConstraintType::Unchanged => "Unchanged",
+            ScanConstraintType::Increased => "Increased",
+            ScanConstraintType::Decreased => "Decreased",
+            ScanConstraintType::IncreasedByX => "Increased By X",
+            ScanConstraintType::DecreasedByX => "Decreased By X",
         }
     }
 
@@ -121,26 +121,26 @@ impl ScanConstraint {
 
     pub fn is_relative_constraint(&self) -> bool {
         return match self.constraint_type {
-            ConstraintType::Changed
-            | ConstraintType::Unchanged
-            | ConstraintType::Increased
-            | ConstraintType::Decreased
-            | ConstraintType::IncreasedByX
-            | ConstraintType::DecreasedByX => true,
+            ScanConstraintType::Changed
+            | ScanConstraintType::Unchanged
+            | ScanConstraintType::Increased
+            | ScanConstraintType::Decreased
+            | ScanConstraintType::IncreasedByX
+            | ScanConstraintType::DecreasedByX => true,
             _ => false,
         };
     }
 
     pub fn is_valued_constraint(&self) -> bool {
         return match self.constraint_type {
-            ConstraintType::Equal
-            | ConstraintType::NotEqual
-            | ConstraintType::GreaterThan
-            | ConstraintType::GreaterThanOrEqual
-            | ConstraintType::LessThan
-            | ConstraintType::LessThanOrEqual
-            | ConstraintType::IncreasedByX
-            | ConstraintType::DecreasedByX => true,
+            ScanConstraintType::Equal
+            | ScanConstraintType::NotEqual
+            | ScanConstraintType::GreaterThan
+            | ScanConstraintType::GreaterThanOrEqual
+            | ScanConstraintType::LessThan
+            | ScanConstraintType::LessThanOrEqual
+            | ScanConstraintType::IncreasedByX
+            | ScanConstraintType::DecreasedByX => true,
             _ => false,
         };
     }
@@ -197,10 +197,10 @@ impl ScanConstraint {
 
         if self.is_valued_constraint() && other.is_valued_constraint() {
             if !self.is_relative_constraint() && !other.is_relative_constraint() {
-                if (matches!(self.constraint_type, ConstraintType::LessThan | ConstraintType::LessThanOrEqual | ConstraintType::NotEqual)
-                    && matches!(other.constraint_type, ConstraintType::GreaterThan | ConstraintType::GreaterThanOrEqual | ConstraintType::NotEqual))
-                    || (matches!(self.constraint_type, ConstraintType::GreaterThan | ConstraintType::GreaterThanOrEqual | ConstraintType::NotEqual)
-                        && matches!(other.constraint_type, ConstraintType::LessThan | ConstraintType::LessThanOrEqual | ConstraintType::NotEqual))
+                if (matches!(self.constraint_type, ScanConstraintType::LessThan | ScanConstraintType::LessThanOrEqual | ScanConstraintType::NotEqual)
+                    && matches!(other.constraint_type, ScanConstraintType::GreaterThan | ScanConstraintType::GreaterThanOrEqual | ScanConstraintType::NotEqual))
+                    || (matches!(self.constraint_type, ScanConstraintType::GreaterThan | ScanConstraintType::GreaterThanOrEqual | ScanConstraintType::NotEqual)
+                        && matches!(other.constraint_type, ScanConstraintType::LessThan | ScanConstraintType::LessThanOrEqual | ScanConstraintType::NotEqual))
                 {
                     return true;
                 }

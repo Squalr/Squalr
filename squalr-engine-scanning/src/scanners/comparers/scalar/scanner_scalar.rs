@@ -1,5 +1,5 @@
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
-use crate::scanners::constraints::scan_constraint_type::ConstraintType;
+use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 
 pub struct ScannerScalar {
@@ -14,18 +14,18 @@ impl ScannerScalar {
 
     pub fn do_compare_action(&self, current_value_ptr: *const u8, previous_value_ptr: *const u8, constraint: &ScanConstraint, data_type: &FieldValue) -> bool {
         match constraint.get_constraint_type() {
-            ConstraintType::Unchanged => self.compare_unchanged(current_value_ptr, previous_value_ptr, data_type),
-            ConstraintType::Changed => self.compare_changed(current_value_ptr, previous_value_ptr, data_type),
-            ConstraintType::Increased => self.compare_increased(current_value_ptr, previous_value_ptr, data_type),
-            ConstraintType::Decreased => self.compare_decreased(current_value_ptr, previous_value_ptr, data_type),
-            ConstraintType::IncreasedByX => self.compare_increased_by(current_value_ptr, previous_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ConstraintType::DecreasedByX => self.compare_decreased_by(current_value_ptr, previous_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ConstraintType::Equal => self.compare_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ConstraintType::NotEqual => self.compare_not_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ConstraintType::GreaterThan => self.compare_greater_than(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ConstraintType::GreaterThanOrEqual => self.compare_greater_than_or_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ConstraintType::LessThan => self.compare_less_than(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
-            ConstraintType::LessThanOrEqual => self.compare_less_than_or_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
+            ScanConstraintType::Unchanged => self.compare_unchanged(current_value_ptr, previous_value_ptr, data_type),
+            ScanConstraintType::Changed => self.compare_changed(current_value_ptr, previous_value_ptr, data_type),
+            ScanConstraintType::Increased => self.compare_increased(current_value_ptr, previous_value_ptr, data_type),
+            ScanConstraintType::Decreased => self.compare_decreased(current_value_ptr, previous_value_ptr, data_type),
+            ScanConstraintType::IncreasedByX => self.compare_increased_by(current_value_ptr, previous_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
+            ScanConstraintType::DecreasedByX => self.compare_decreased_by(current_value_ptr, previous_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
+            ScanConstraintType::Equal => self.compare_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
+            ScanConstraintType::NotEqual => self.compare_not_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
+            ScanConstraintType::GreaterThan => self.compare_greater_than(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
+            ScanConstraintType::GreaterThanOrEqual => self.compare_greater_than_or_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
+            ScanConstraintType::LessThan => self.compare_less_than(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
+            ScanConstraintType::LessThanOrEqual => self.compare_less_than_or_equal(current_value_ptr, constraint.get_constraint_value().cloned().unwrap_or_default(), data_type),
         }
     }
 

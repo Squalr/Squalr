@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::fmt::{self, Display};
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ConstraintType {
+pub enum ScanConstraintType {
     Equal,
     NotEqual,
     Changed,
@@ -17,58 +17,35 @@ pub enum ConstraintType {
     LessThanOrEqual,
 }
 
-impl FromStr for ConstraintType {
-    type Err = ParseConstraintTypeError;
+impl FromStr for ScanConstraintType {
+    type Err = ParseScanConstraintTypeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "==" => Ok(ConstraintType::Equal),
-            "!=" => Ok(ConstraintType::NotEqual),
-            "c" => Ok(ConstraintType::Changed),
-            "u" => Ok(ConstraintType::Unchanged),
-            "+" => Ok(ConstraintType::Increased),
-            "-" => Ok(ConstraintType::Decreased),
-            "+x" => Ok(ConstraintType::IncreasedByX),
-            "-x" => Ok(ConstraintType::DecreasedByX),
-            ">" => Ok(ConstraintType::GreaterThan),
-            ">=" => Ok(ConstraintType::GreaterThanOrEqual),
-            "<" => Ok(ConstraintType::LessThan),
-            "<=" => Ok(ConstraintType::LessThanOrEqual),
-            _ => Err(ParseConstraintTypeError),
+            "==" => Ok(ScanConstraintType::Equal),
+            "!=" => Ok(ScanConstraintType::NotEqual),
+            "c" => Ok(ScanConstraintType::Changed),
+            "u" => Ok(ScanConstraintType::Unchanged),
+            "+" => Ok(ScanConstraintType::Increased),
+            "-" => Ok(ScanConstraintType::Decreased),
+            "+x" => Ok(ScanConstraintType::IncreasedByX),
+            "-x" => Ok(ScanConstraintType::DecreasedByX),
+            ">" => Ok(ScanConstraintType::GreaterThan),
+            ">=" => Ok(ScanConstraintType::GreaterThanOrEqual),
+            "<" => Ok(ScanConstraintType::LessThan),
+            "<=" => Ok(ScanConstraintType::LessThanOrEqual),
+            _ => Err(ParseScanConstraintTypeError),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct ParseConstraintTypeError;
+pub struct ParseScanConstraintTypeError;
 
-impl fmt::Display for ParseConstraintTypeError {
+impl fmt::Display for ParseScanConstraintTypeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Invalid constraint type")
     }
 }
 
-impl std::error::Error for ParseConstraintTypeError {}
-
-impl Display for ConstraintType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                ConstraintType::Equal => "Equal",
-                ConstraintType::NotEqual => "Not Equal",
-                ConstraintType::Changed => "Changed",
-                ConstraintType::Unchanged => "Unchanged",
-                ConstraintType::Increased => "Increased",
-                ConstraintType::Decreased => "Decreased",
-                ConstraintType::IncreasedByX => "Increased By X",
-                ConstraintType::DecreasedByX => "Decreased By X",
-                ConstraintType::GreaterThan => "Greater Than",
-                ConstraintType::GreaterThanOrEqual => "Greater Than Or Equal",
-                ConstraintType::LessThan => "Less Than",
-                ConstraintType::LessThanOrEqual => "Less Than Or Equal",
-            }
-        )
-    }
-}
+impl std::error::Error for ParseScanConstraintTypeError {}
