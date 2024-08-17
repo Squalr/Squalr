@@ -94,7 +94,7 @@ impl ManualScanner {
         snapshot.set_name(ManualScanner::NAME.to_string());
 
         let duration = start_time.elapsed();
-        let element_count = snapshot.get_element_count(constraint.get_alignment(), constraint.get_element_type().size_in_bytes());
+        let element_count = snapshot.get_element_count(constraint.get_alignment(), constraint.get_data_type().size_in_bytes());
         let byte_count = snapshot.get_byte_count();
 
         Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);

@@ -1,4 +1,3 @@
-use crate::scanners::comparers::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::comparers::scalar::scanner_scalar_iterative_chunked::ScannerScalarIterativeChunked;
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
@@ -7,7 +6,7 @@ use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_architecture::vectors::vectors;
-use squalr_engine_common::dynamic_struct::field_value::FieldValue;
+use squalr_engine_common::dynamic_struct::data_type::DataType;
 use std::sync::Once;
 
 pub struct ScanDispatcher {
@@ -67,14 +66,14 @@ impl ScanDispatcher {
 
     fn acquire_scanner_instance(&self, snapshot_sub_region: &SnapshotSubRegion, constraint: &ScanConstraint) -> &dyn Scanner {
         let alignment = constraint.get_alignment();
-        let data_type_size = constraint.get_element_type().size_in_bytes();
+        let data_type_size = constraint.get_data_type().size_in_bytes();
 
         if snapshot_sub_region.get_element_count(alignment, data_type_size) == 1 {
             // Single element scanner
             return ScannerScalarSingleElement::get_instance();
         } else if vectors::has_vector_support() && snapshot_sub_region.is_vector_friendly_size(alignment) {
-            match constraint.get_element_type() {
-                FieldValue::Bytes(_) => {
+            match constraint.get_data_type() {
+                DataType::Bytes(_) => {
                     // Vector array of bytes scanner
                     // return ScannerVectorArrayOfBytes::get_instance();
                 }
@@ -94,9 +93,9 @@ impl ScanDispatcher {
             }
         } else {
             // Iterative scanner
-            return ScannerScalarIterative::get_instance();
+            return ScannerScalarIterativeChunked::get_instance();
         }
 
-        return ScannerScalarIterative::get_instance();
+        return ScannerScalarIterativeChunked::get_instance();
     }
 }

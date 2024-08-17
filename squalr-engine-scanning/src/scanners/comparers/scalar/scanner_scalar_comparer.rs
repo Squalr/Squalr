@@ -1,57 +1,56 @@
 use core::panic;
 
 use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
-use squalr_engine_common::dynamic_struct::field_value::FieldMemoryLoadFunc;
-use squalr_engine_common::dynamic_struct::field_value::FieldValue;
+use squalr_engine_common::dynamic_struct::data_type::DataLoadFunc;
+use squalr_engine_common::dynamic_struct::data_value::DataValue;
 use std::sync::Once;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)
 type ScalarCompareFnImmediate = unsafe fn(
     // The function used to load new values from memory
-    &FieldMemoryLoadFunc,
+    &DataLoadFunc,
     // Current values pointer
     *const u8,
     // Current value struct ref
-    &mut FieldValue,
+    &mut DataValue,
     // Immediate value
-    &FieldValue,
+    &DataValue,
 ) -> bool;
 
 /// Defines a compare function that operates on current and previous values (ie changed, unchanged, increased, decreased)
 type ScalarCompareFnRelative = unsafe fn(
     // The function used to load new values from memory
-    &FieldMemoryLoadFunc,
+    &DataLoadFunc,
     // Current values pointer
     *const u8,
     // Previous values pointer
     *const u8,
     // Current value struct ref
-    &mut FieldValue,
+    &mut DataValue,
     // Previous value struct ref
-    &mut FieldValue,
+    &mut DataValue,
 ) -> bool;
 
 /// Defines a compare function that operates on current and previous values, with a delta arg (ie +x, -x)
 type ScalarCompareFnDelta = unsafe fn(
     // The function used to load new values from memory
-    &FieldMemoryLoadFunc,
+    &DataLoadFunc,
     // Current values pointer
     *const u8,
     // Previous values pointer
     *const u8,
     // Current value struct ref
-    &mut FieldValue,
+    &mut DataValue,
     // Previous value struct ref
-    &mut FieldValue,
+    &mut DataValue,
     // Delta value
-    &FieldValue,
+    &DataValue,
 ) -> bool;
 
 pub struct ScannerScalarComparer {
 }
 
-/// Implements a scalar (ie CPU bound, non-SIMD) scanner which contains all boolean comparison operations to be used by more complex scanners,
-/// in addition to handling common functionality like reading values and structures from snapshot memory given a pointer.
+/// Implements a set of scalar (ie CPU bound, non-SIMD) boolean comparison operations to be used by more complex scanners.
 impl ScannerScalarComparer {
     fn new() -> Self {
         Self { }
@@ -102,10 +101,10 @@ impl ScannerScalarComparer {
     }
 
     unsafe fn compare_equal(
-        memory_load_func: &FieldMemoryLoadFunc,
+        memory_load_func: &DataLoadFunc,
         current_value_ptr: *const u8,
-        current_value_ref: &mut FieldValue,
-        compare_value: &FieldValue
+        current_value_ref: &mut DataValue,
+        compare_value: &DataValue
     ) -> bool {
         memory_load_func(current_value_ref, current_value_ptr);
 
@@ -113,10 +112,10 @@ impl ScannerScalarComparer {
     }
 
     unsafe fn compare_not_equal(
-        memory_load_func: &FieldMemoryLoadFunc,
+        memory_load_func: &DataLoadFunc,
         current_value_ptr: *const u8,
-        current_value_ref: &mut FieldValue,
-        compare_value: &FieldValue
+        current_value_ref: &mut DataValue,
+        compare_value: &DataValue
     ) -> bool {
         memory_load_func(current_value_ref, current_value_ptr);
 
@@ -124,11 +123,11 @@ impl ScannerScalarComparer {
     }
     
     unsafe fn compare_changed(
-        memory_load_func: &FieldMemoryLoadFunc,
+        memory_load_func: &DataLoadFunc,
         current_value_ptr: *const u8,
         compare_value_ptr: *const u8,
-        current_value_ref: &mut FieldValue,
-        compare_value_ref: &mut FieldValue
+        current_value_ref: &mut DataValue,
+        compare_value_ref: &mut DataValue
     ) -> bool {
         memory_load_func(current_value_ref, current_value_ptr);
         memory_load_func(compare_value_ref, compare_value_ptr);
@@ -136,11 +135,11 @@ impl ScannerScalarComparer {
     }
 
     unsafe fn compare_unchanged(
-        memory_load_func: &FieldMemoryLoadFunc,
+        memory_load_func: &DataLoadFunc,
         current_value_ptr: *const u8,
         compare_value_ptr: *const u8,
-        current_value_ref: &mut FieldValue,
-        compare_value_ref: &mut FieldValue
+        current_value_ref: &mut DataValue,
+        compare_value_ref: &mut DataValue
     ) -> bool {
         memory_load_func(current_value_ref, current_value_ptr);
         memory_load_func(compare_value_ref, compare_value_ptr);
@@ -148,11 +147,11 @@ impl ScannerScalarComparer {
     }
 
     unsafe fn compare_increased(
-        memory_load_func: &FieldMemoryLoadFunc,
+        memory_load_func: &DataLoadFunc,
         current_value_ptr: *const u8,
         compare_value_ptr: *const u8,
-        current_value_ref: &mut FieldValue,
-        compare_value_ref: &mut FieldValue
+        current_value_ref: &mut DataValue,
+        compare_value_ref: &mut DataValue
     ) -> bool {
         memory_load_func(current_value_ref, current_value_ptr);
         memory_load_func(compare_value_ref, compare_value_ptr);
@@ -161,11 +160,11 @@ impl ScannerScalarComparer {
     }
 
     unsafe fn compare_decreased(
-        memory_load_func: &FieldMemoryLoadFunc,
+        memory_load_func: &DataLoadFunc,
         current_value_ptr: *const u8,
         compare_value_ptr: *const u8,
-        current_value_ref: &mut FieldValue,
-        compare_value_ref: &mut FieldValue
+        current_value_ref: &mut DataValue,
+        compare_value_ref: &mut DataValue
     ) -> bool {
         memory_load_func(current_value_ref, current_value_ptr);
         memory_load_func(compare_value_ref, compare_value_ptr);
@@ -174,10 +173,10 @@ impl ScannerScalarComparer {
     }
 
     unsafe fn compare_greater_than(
-        memory_load_func: &FieldMemoryLoadFunc,
+        memory_load_func: &DataLoadFunc,
         current_value_ptr: *const u8,
-        current_value_ref: &mut FieldValue,
-        compare_value: &FieldValue
+        current_value_ref: &mut DataValue,
+        compare_value: &DataValue
     ) -> bool {
         memory_load_func(current_value_ref, current_value_ptr);
 
@@ -185,10 +184,10 @@ impl ScannerScalarComparer {
     }
 
     unsafe fn compare_greater_than_or_equal(
-        memory_load_func: &FieldMemoryLoadFunc,
+        memory_load_func: &DataLoadFunc,
         current_value_ptr: *const u8,
-        current_value_ref: &mut FieldValue,
-        compare_value: &FieldValue
+        current_value_ref: &mut DataValue,
+        compare_value: &DataValue
     ) -> bool {
         memory_load_func(current_value_ref, current_value_ptr);
 
@@ -196,10 +195,10 @@ impl ScannerScalarComparer {
     }
 
     unsafe fn compare_less_than(
-        memory_load_func: &FieldMemoryLoadFunc,
+        memory_load_func: &DataLoadFunc,
         current_value_ptr: *const u8,
-        current_value_ref: &mut FieldValue,
-        compare_value: &FieldValue
+        current_value_ref: &mut DataValue,
+        compare_value: &DataValue
     ) -> bool {
         memory_load_func(current_value_ref, current_value_ptr);
 
@@ -207,10 +206,10 @@ impl ScannerScalarComparer {
     }
 
     unsafe fn compare_less_than_or_equal(
-        memory_load_func: &FieldMemoryLoadFunc,
+        memory_load_func: &DataLoadFunc,
         current_value_ptr: *const u8,
-        current_value_ref: &mut FieldValue,
-        compare_value: &FieldValue
+        current_value_ref: &mut DataValue,
+        compare_value: &DataValue
     ) -> bool {
         memory_load_func(current_value_ref, current_value_ptr);
 
@@ -218,49 +217,49 @@ impl ScannerScalarComparer {
     }
 
     unsafe fn compare_increased_by(
-        memory_load_func: &FieldMemoryLoadFunc,
+        memory_load_func: &DataLoadFunc,
         current_value_ptr: *const u8,
         compare_value_ptr: *const u8,
-        current_value_ref: &mut FieldValue,
-        compare_value_ref: &mut FieldValue,
-        compare_delta_value: &FieldValue
+        current_value_ref: &mut DataValue,
+        compare_value_ref: &mut DataValue,
+        compare_delta_value: &DataValue
     )-> bool {
         memory_load_func(current_value_ref, current_value_ptr);
         memory_load_func(compare_value_ref, compare_value_ptr);
 
         match (current_value_ref, compare_value_ref) {
-            (FieldValue::U8(a), FieldValue::U8(b)) => *a == b.wrapping_add(compare_delta_value.as_u8().unwrap()),
-            (FieldValue::I8(a), FieldValue::I8(b)) => *a == b.wrapping_add(compare_delta_value.as_i8().unwrap()),
-            (FieldValue::U16(a, _), FieldValue::U16(b, _)) => *a == b.wrapping_add(compare_delta_value.as_u16().unwrap()),
-            (FieldValue::I16(a, _), FieldValue::I16(b, _)) => *a == b.wrapping_add(compare_delta_value.as_i16().unwrap()),
-            (FieldValue::U32(a, _), FieldValue::U32(b, _)) => *a == b.wrapping_add(compare_delta_value.as_u32().unwrap()),
-            (FieldValue::I32(a, _), FieldValue::I32(b, _)) => *a == b.wrapping_add(compare_delta_value.as_i32().unwrap()),
-            (FieldValue::U64(a, _), FieldValue::U64(b, _)) => *a == b.wrapping_add(compare_delta_value.as_u64().unwrap()),
-            (FieldValue::I64(a, _), FieldValue::I64(b, _)) => *a == b.wrapping_add(compare_delta_value.as_i64().unwrap()),
+            (DataValue::U8(a), DataValue::U8(b)) => *a == b.wrapping_add(compare_delta_value.as_u8().unwrap()),
+            (DataValue::I8(a), DataValue::I8(b)) => *a == b.wrapping_add(compare_delta_value.as_i8().unwrap()),
+            (DataValue::U16(a), DataValue::U16(b)) => *a == b.wrapping_add(compare_delta_value.as_u16().unwrap()),
+            (DataValue::I16(a), DataValue::I16(b)) => *a == b.wrapping_add(compare_delta_value.as_i16().unwrap()),
+            (DataValue::U32(a), DataValue::U32(b)) => *a == b.wrapping_add(compare_delta_value.as_u32().unwrap()),
+            (DataValue::I32(a), DataValue::I32(b)) => *a == b.wrapping_add(compare_delta_value.as_i32().unwrap()),
+            (DataValue::U64(a), DataValue::U64(b)) => *a == b.wrapping_add(compare_delta_value.as_u64().unwrap()),
+            (DataValue::I64(a), DataValue::I64(b)) => *a == b.wrapping_add(compare_delta_value.as_i64().unwrap()),
             _ => false,
         }
     }
 
     unsafe fn compare_decreased_by(
-        memory_load_func: &FieldMemoryLoadFunc,
+        memory_load_func: &DataLoadFunc,
         current_value_ptr: *const u8,
         compare_value_ptr: *const u8,
-        current_value_ref: &mut FieldValue,
-        compare_value_ref: &mut FieldValue,
-        compare_delta_value: &FieldValue
+        current_value_ref: &mut DataValue,
+        compare_value_ref: &mut DataValue,
+        compare_delta_value: &DataValue
     )-> bool {
         memory_load_func(current_value_ref, current_value_ptr);
         memory_load_func(compare_value_ref, compare_value_ptr);
 
         match (current_value_ref, compare_value_ref) {
-            (FieldValue::U8(a), FieldValue::U8(b)) => *a == b.wrapping_sub(compare_delta_value.as_u8().unwrap()),
-            (FieldValue::I8(a), FieldValue::I8(b)) => *a == b.wrapping_sub(compare_delta_value.as_i8().unwrap()),
-            (FieldValue::U16(a, _), FieldValue::U16(b, _)) => *a == b.wrapping_sub(compare_delta_value.as_u16().unwrap()),
-            (FieldValue::I16(a, _), FieldValue::I16(b, _)) => *a == b.wrapping_sub(compare_delta_value.as_i16().unwrap()),
-            (FieldValue::U32(a, _), FieldValue::U32(b, _)) => *a == b.wrapping_sub(compare_delta_value.as_u32().unwrap()),
-            (FieldValue::I32(a, _), FieldValue::I32(b, _)) => *a == b.wrapping_sub(compare_delta_value.as_i32().unwrap()),
-            (FieldValue::U64(a, _), FieldValue::U64(b, _)) => *a == b.wrapping_sub(compare_delta_value.as_u64().unwrap()),
-            (FieldValue::I64(a, _), FieldValue::I64(b, _)) => *a == b.wrapping_sub(compare_delta_value.as_i64().unwrap()),
+            (DataValue::U8(a), DataValue::U8(b)) => *a == b.wrapping_sub(compare_delta_value.as_u8().unwrap()),
+            (DataValue::I8(a), DataValue::I8(b)) => *a == b.wrapping_sub(compare_delta_value.as_i8().unwrap()),
+            (DataValue::U16(a), DataValue::U16(b)) => *a == b.wrapping_sub(compare_delta_value.as_u16().unwrap()),
+            (DataValue::I16(a), DataValue::I16(b)) => *a == b.wrapping_sub(compare_delta_value.as_i16().unwrap()),
+            (DataValue::U32(a), DataValue::U32(b)) => *a == b.wrapping_sub(compare_delta_value.as_u32().unwrap()),
+            (DataValue::I32(a), DataValue::I32(b)) => *a == b.wrapping_sub(compare_delta_value.as_i32().unwrap()),
+            (DataValue::U64(a), DataValue::U64(b)) => *a == b.wrapping_sub(compare_delta_value.as_u64().unwrap()),
+            (DataValue::I64(a), DataValue::I64(b)) => *a == b.wrapping_sub(compare_delta_value.as_i64().unwrap()),
             _ => false,
         }
     }

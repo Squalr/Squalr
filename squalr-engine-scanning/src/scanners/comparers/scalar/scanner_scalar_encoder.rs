@@ -1,5 +1,3 @@
-use squalr_engine_common::dynamic_struct::field_value::FieldValue;
-
 use crate::scanners::comparers::scalar::scanner_scalar_comparer::ScannerScalarComparer;
 use crate::scanners::comparers::snapshot_sub_region_run_length_encoder::SnapshotSubRegionRunLengthEncoder;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
@@ -39,16 +37,17 @@ impl ScannerScalarEncoder {
     ) -> Vec<SnapshotSubRegion> {
         let comparer = ScannerScalarComparer::get_instance();
         let mut run_length_encoder = SnapshotSubRegionRunLengthEncoder::new(base_address);
-        let data_type_size = constraint.get_element_type().size_in_bytes();
+        let data_type = constraint.get_data_type();
+        let data_type_size = data_type.size_in_bytes();
         let alignment = constraint.get_alignment() as u64;
+        let memory_load_func = data_type.get_load_memory_function_ptr();
 
         unsafe {
             if constraint.is_immediate_constraint() {
-                let mut current_value = constraint.get_constraint_value().unwrap().clone();
+                let mut current_value = data_type.to_default_value();
                 let mut immediate_value = constraint.get_constraint_value().unwrap().clone();
                 let current_value = current_value.borrow_mut();
                 let immediate_value = immediate_value.borrow_mut();
-                let memory_load_func = current_value.get_load_memory_function_ptr();
                 let compare_func = comparer.get_immediate_compare_func(constraint.get_constraint_type());
 
                 for index in 0..element_count {
@@ -61,11 +60,10 @@ impl ScannerScalarEncoder {
                     }
                 }
             } else if constraint.is_relative_constraint() {
-                let mut current_value = constraint.get_constraint_value().unwrap().clone();
-                let mut previous_value = constraint.get_constraint_value().unwrap().clone();
+                let mut current_value = data_type.to_default_value();
+                let mut previous_value = data_type.to_default_value();
                 let current_value = current_value.borrow_mut();
                 let previous_value = previous_value.borrow_mut();
-                let memory_load_func = current_value.get_load_memory_function_ptr();
                 let compare_func = comparer.get_relative_compare_func(constraint.get_constraint_type());
 
                 for index in 0..element_count {
@@ -85,13 +83,12 @@ impl ScannerScalarEncoder {
                     }
                 }
             } else if constraint.is_immediate_constraint() {
-                let mut current_value = constraint.get_constraint_value().unwrap().clone();
-                let mut previous_value = constraint.get_constraint_value().unwrap().clone();
+                let mut current_value = data_type.to_default_value();
+                let mut previous_value = data_type.to_default_value();
                 let current_value = current_value.borrow_mut();
                 let previous_value = previous_value.borrow_mut();
-                let memory_load_func = current_value.get_load_memory_function_ptr();
                 let compare_func = comparer.get_relative_delta_compare_func(constraint.get_constraint_type());
-                let delta_arg = constraint.get_constraint_delta_value().unwrap();
+                let delta_arg = constraint.get_constraint_value().unwrap(); // TODO: Handle
 
                 for index in 0..element_count {
                     let current_value_pointer = current_value_pointer.add(index as usize * alignment as usize);

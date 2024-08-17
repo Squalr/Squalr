@@ -1,4 +1,5 @@
-use squalr_engine_common::dynamic_struct::field_value::FieldValue;
+use squalr_engine_common::dynamic_struct::data_type::DataType;
+use squalr_engine_common::dynamic_struct::data_value::DataValue;
 use squalr_engine_scanning::scanners::constraints::scan_constraint_type::ScanConstraintType;
 use structopt::StructOpt;
 
@@ -7,19 +8,19 @@ pub enum ScanCommand {
     /// Scan for a specific value
     Manual {
         #[structopt(short = "v", long)]
-        value: Option<FieldValue>,
+        value: Option<DataValue>,
+        #[structopt(short = "d", long)]
+        data_type: DataType,
         #[structopt(short = "c", long)]
         constraint_type: ScanConstraintType,
-        #[structopt(short = "d", long)]
-        delta_value: Option<FieldValue>,
     },
     Hybrid {
         #[structopt(short = "v", long)]
-        value: Option<FieldValue>,
+        value: Option<DataValue>,
+        #[structopt(short = "d", long)]
+        data_type: DataType,
         #[structopt(short = "c", long)]
         constraint_type: ScanConstraintType,
-        #[structopt(short = "d", long)]
-        delta_value: Option<FieldValue>,
     },
     /// Collect values for the current scan if one exist, otherwise collect for a new scan
     Collect,

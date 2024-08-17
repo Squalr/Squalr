@@ -39,7 +39,7 @@ impl Scanner for ScannerScalarIterative {
         snapshot_sub_region: &SnapshotSubRegion,
         constraint: &ScanConstraint
     ) -> Vec<SnapshotSubRegion> {
-        let data_type_size = constraint.get_element_type().size_in_bytes();
+        let data_type_size = constraint.get_data_type().size_in_bytes();
         let aligned_element_count = snapshot_sub_region.get_element_count(constraint.get_alignment(), data_type_size);
         let encoder = ScannerScalarEncoder::get_instance();
         let current_value_pointer = snapshot_region.get_sub_region_current_values_pointer(&snapshot_sub_region);

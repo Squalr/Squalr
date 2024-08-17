@@ -1,15 +1,15 @@
 use crate::scan_settings::ScanSettings;
 use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
-use squalr_engine_common::dynamic_struct::endian::Endian;
-use squalr_engine_common::dynamic_struct::field_value::FieldValue;
+use squalr_engine_common::dynamic_struct::data_type::DataType;
+use squalr_engine_common::dynamic_struct::data_value::DataValue;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 
 #[derive(Debug, Clone)]
 pub struct ScanConstraint {
     alignment: MemoryAlignment,
     constraint_type: ScanConstraintType,
-    constraint_value: Option<FieldValue>,
-    constraint_delta_value: Option<FieldValue>,
+    data_type: DataType,
+    constraint_value: Option<DataValue>,
 }
 
 impl ScanConstraint {
@@ -17,22 +17,22 @@ impl ScanConstraint {
         Self {
             alignment: MemoryAlignment::Auto,
             constraint_type: ScanConstraintType::Changed,
+            data_type: DataType::default(),
             constraint_value: None,
-            constraint_delta_value: None,
         }
     }
 
     pub fn new_with_value(
         alignment: MemoryAlignment,
         constraint_type: ScanConstraintType,
-        value: Option<FieldValue>,
-        delta_value: Option<FieldValue>,
+        data_type: DataType,
+        value: Option<DataValue>,
     ) -> Self {
         Self {
             alignment,
             constraint_type,
+            data_type: data_type,
             constraint_value: value,
-            constraint_delta_value: delta_value,
         }
     }
 
@@ -64,7 +64,7 @@ impl ScanConstraint {
         self.constraint_type.clone()
     }
 
-    pub fn get_constraint_value(&self) -> Option<&FieldValue> {
+    pub fn get_constraint_value(&self) -> Option<&DataValue> {
         if self.is_immediate_constraint() {
             return self.constraint_value.as_ref();
         } else {
@@ -72,20 +72,8 @@ impl ScanConstraint {
         }
     }
 
-    pub fn set_constraint_value(&mut self, value: Option<FieldValue>) {
+    pub fn set_constraint_value(&mut self, value: Option<DataValue>) {
         self.constraint_value = value;
-    }
-
-    pub fn get_constraint_delta_value(&self) -> Option<&FieldValue> {
-        if self.is_immediate_constraint() {
-            return self.constraint_delta_value.as_ref();
-        } else {
-            return None;
-        }
-    }
-
-    pub fn set_constraint_delta_value(&mut self, args: Option<FieldValue>) {
-        self.constraint_delta_value = args;
     }
     
     pub fn is_valid(&self) -> bool {
@@ -128,44 +116,16 @@ impl ScanConstraint {
         };
     }
 
-    pub fn set_element_type(&mut self, element_type: &FieldValue) {
-        if self.constraint_value.is_none() {
-            return;
-        }
-
-        let target_type = match element_type {
-            FieldValue::U16(_, Endian::Big)
-            | FieldValue::I16(_, Endian::Big)
-            | FieldValue::U32(_, Endian::Big)
-            | FieldValue::I32(_, Endian::Big)
-            | FieldValue::U64(_, Endian::Big)
-            | FieldValue::I64(_, Endian::Big)
-            | FieldValue::F32(_, Endian::Big)
-            | FieldValue::F64(_, Endian::Big) => Some(element_type),
-            _ => None,
-        };
-
-        if let Some(target) = target_type {
-            self.constraint_value = Some(target.clone());
-        } else {
-            self.constraint_value = None;
-        }
-    }
-
-    pub fn get_element_type(&self) -> FieldValue {
-        if let Some(constraint_value) = &self.constraint_value {
-            return constraint_value.clone();
-        } else {
-            return FieldValue::U32(0, Endian::Big);
-        }
+    pub fn get_data_type(&self) -> &DataType {
+        return &self.data_type;
     }
 
     pub fn clone(&self) -> Self {
         ScanConstraint {
             alignment: self.alignment,
             constraint_type: self.constraint_type.clone(),
+            data_type: self.data_type.clone(),
             constraint_value: self.constraint_value.clone(),
-            constraint_delta_value: self.constraint_delta_value.clone(),
         }
     }
 

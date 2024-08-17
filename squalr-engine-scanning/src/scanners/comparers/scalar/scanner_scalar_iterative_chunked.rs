@@ -42,7 +42,7 @@ impl Scanner for ScannerScalarIterativeChunked {
     ) -> Vec<SnapshotSubRegion> {
         let current_value_pointer = snapshot_region.get_sub_region_current_values_pointer(&snapshot_sub_region);
         let previous_value_pointer = snapshot_region.get_sub_region_previous_values_pointer(&snapshot_sub_region);
-        let data_type_size = constraint.get_element_type().size_in_bytes();
+        let data_type_size = constraint.get_data_type().size_in_bytes();
         let alignment = constraint.get_alignment();
         let element_count = snapshot_sub_region.get_element_count(alignment, data_type_size) as usize;
 

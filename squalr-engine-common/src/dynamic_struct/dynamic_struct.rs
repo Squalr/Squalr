@@ -1,7 +1,8 @@
-use std::collections::HashMap;
-use std::str::FromStr;
+use crate::dynamic_struct::data_value::DataValue;
 use crate::dynamic_struct::field_value::FieldValue;
 use crate::dynamic_struct::to_bytes::ToBytes;
+use std::collections::HashMap;
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct DynamicStruct {
@@ -41,9 +42,9 @@ impl ToBytes for DynamicStruct {
 
         for field in self.fields.values() {
             let field_bytes = field.to_bytes();
-            match field {
-                FieldValue::BitField { value: _, bits } => {
-                    for bit in 0..*bits {
+            match field.data_value {
+                DataValue::BitField { value: _, bits } => {
+                    for bit in 0..bits {
                         let byte_index = (bit_offset + bit) / 8;
                         let bit_index = (bit_offset + bit) % 8;
                         if byte_index >= bytes.len() as u16 {
@@ -52,7 +53,7 @@ impl ToBytes for DynamicStruct {
                         let mask = 1 << bit_index;
                         bytes[byte_index as usize] |= field_bytes[bit_index as usize] & mask;
                     }
-                    bit_offset += *bits;
+                    bit_offset += bits;
                 }
                 _ => {
                     if bit_offset > 0 {
