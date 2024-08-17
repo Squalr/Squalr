@@ -65,7 +65,7 @@ impl ScanConstraint {
     }
 
     pub fn get_constraint_value(&self) -> Option<&FieldValue> {
-        if self.is_valued_constraint() {
+        if self.is_immediate_constraint() {
             return self.constraint_value.as_ref();
         } else {
             return None;
@@ -77,7 +77,7 @@ impl ScanConstraint {
     }
 
     pub fn get_constraint_delta_value(&self) -> Option<&FieldValue> {
-        if self.is_valued_constraint() {
+        if self.is_immediate_constraint() {
             return self.constraint_delta_value.as_ref();
         } else {
             return None;
@@ -89,11 +89,19 @@ impl ScanConstraint {
     }
     
     pub fn is_valid(&self) -> bool {
-        if !self.is_valued_constraint() {
+        if !self.is_immediate_constraint() {
             return true;
         } else {
             return self.constraint_value.is_some();
         }
+    }
+
+    pub fn is_relative_delta_constraint(&self) -> bool {
+        return match self.constraint_type {
+            | ScanConstraintType::IncreasedByX
+            | ScanConstraintType::DecreasedByX => true,
+            _ => false,
+        };
     }
 
     pub fn is_relative_constraint(&self) -> bool {
@@ -101,14 +109,12 @@ impl ScanConstraint {
             ScanConstraintType::Changed
             | ScanConstraintType::Unchanged
             | ScanConstraintType::Increased
-            | ScanConstraintType::Decreased
-            | ScanConstraintType::IncreasedByX
-            | ScanConstraintType::DecreasedByX => true,
+            | ScanConstraintType::Decreased => true,
             _ => false,
         };
     }
 
-    pub fn is_valued_constraint(&self) -> bool {
+    pub fn is_immediate_constraint(&self) -> bool {
         return match self.constraint_type {
             ScanConstraintType::Equal
             | ScanConstraintType::NotEqual
@@ -168,19 +174,17 @@ impl ScanConstraint {
             return true;
         }
 
-        if self.is_relative_constraint() && other.is_relative_constraint() {
+        if !self.is_immediate_constraint() && !other.is_immediate_constraint() {
             return true;
         }
 
-        if self.is_valued_constraint() && other.is_valued_constraint() {
-            if !self.is_relative_constraint() && !other.is_relative_constraint() {
-                if (matches!(self.constraint_type, ScanConstraintType::LessThan | ScanConstraintType::LessThanOrEqual | ScanConstraintType::NotEqual)
-                    && matches!(other.constraint_type, ScanConstraintType::GreaterThan | ScanConstraintType::GreaterThanOrEqual | ScanConstraintType::NotEqual))
-                    || (matches!(self.constraint_type, ScanConstraintType::GreaterThan | ScanConstraintType::GreaterThanOrEqual | ScanConstraintType::NotEqual)
-                        && matches!(other.constraint_type, ScanConstraintType::LessThan | ScanConstraintType::LessThanOrEqual | ScanConstraintType::NotEqual))
-                {
-                    return true;
-                }
+        if self.is_immediate_constraint() && other.is_immediate_constraint() {
+            if (matches!(self.constraint_type, ScanConstraintType::LessThan | ScanConstraintType::LessThanOrEqual | ScanConstraintType::NotEqual)
+                && matches!(other.constraint_type, ScanConstraintType::GreaterThan | ScanConstraintType::GreaterThanOrEqual | ScanConstraintType::NotEqual))
+                || (matches!(self.constraint_type, ScanConstraintType::GreaterThan | ScanConstraintType::GreaterThanOrEqual | ScanConstraintType::NotEqual)
+                    && matches!(other.constraint_type, ScanConstraintType::LessThan | ScanConstraintType::LessThanOrEqual | ScanConstraintType::NotEqual))
+            {
+                return true;
             }
         }
 

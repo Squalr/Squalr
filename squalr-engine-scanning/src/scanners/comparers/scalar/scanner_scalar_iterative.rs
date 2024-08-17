@@ -43,28 +43,67 @@ impl Scanner for ScannerScalarIterative {
         let mut run_length_encoder = SnapshotSubRegionRunLengthEncoder::new(snapshot_sub_region);
         let mut current_value_pointer = snapshot_region.get_sub_region_current_values_pointer(&snapshot_sub_region);
         let mut previous_value_pointer = snapshot_region.get_sub_region_previous_values_pointer(&snapshot_sub_region);
-        let data_type = constraint.get_element_type();
+        
+        let data_type_size = constraint.get_element_type().size_in_bytes();
+        let alignment_increment = constraint.get_alignment() as u64;
         let constraint_value = constraint.get_constraint_value().unwrap();
         let mut current_value = constraint_value.clone();
         let mut previous_value = constraint_value.clone();
         let current_value = current_value.borrow_mut();
         let previous_value = previous_value.borrow_mut();
-        let aligned_element_count = snapshot_sub_region.get_element_count(constraint.get_alignment(), data_type.size_in_bytes());
+        let aligned_element_count = snapshot_sub_region.get_element_count(constraint.get_alignment(), data_type_size);
 
-        for _ in 0..aligned_element_count {
-            if self.scalar_scanner.do_compare_action(current_value_pointer, previous_value_pointer, current_value, previous_value, &constraint) {
-                run_length_encoder.encode_range(constraint.get_alignment() as u64);
-            } else {
-                run_length_encoder.finalize_current_encode_unchecked(constraint.get_alignment() as u64, data_type.size_in_bytes());
-            }
+        if constraint.is_immediate_constraint() {
+            let compare_func = self.scalar_scanner.get_immediate_compare_func(constraint.get_constraint_type());
 
-            unsafe {
-                current_value_pointer = current_value_pointer.add(constraint.get_alignment() as usize);
-                previous_value_pointer = previous_value_pointer.add(constraint.get_alignment() as usize);
+            for _ in 0..aligned_element_count {
+                if compare_func(current_value_pointer, current_value, previous_value) {
+                    run_length_encoder.encode_range(alignment_increment);
+                } else {
+                    run_length_encoder.finalize_current_encode_unchecked(alignment_increment, data_type_size);
+                }
+    
+                unsafe {
+                    current_value_pointer = current_value_pointer.add(alignment_increment as usize);
+                    previous_value_pointer = previous_value_pointer.add(alignment_increment as usize);
+                }
             }
+        } else if constraint.is_relative_constraint() {
+            let compare_func = self.scalar_scanner.get_relative_compare_func(constraint.get_constraint_type());
+
+            for _ in 0..aligned_element_count {
+                if compare_func(current_value_pointer, previous_value_pointer, current_value, previous_value) {
+                    run_length_encoder.encode_range(alignment_increment);
+                } else {
+                    run_length_encoder.finalize_current_encode_unchecked(alignment_increment, data_type_size);
+                }
+    
+                unsafe {
+                    current_value_pointer = current_value_pointer.add(alignment_increment as usize);
+                    previous_value_pointer = previous_value_pointer.add(alignment_increment as usize);
+                }
+            }
+        } else if constraint.is_immediate_constraint() {
+            let compare_func = self.scalar_scanner.get_relative_delta_compare_func(constraint.get_constraint_type());
+            let delta_arg = constraint.get_constraint_delta_value().unwrap(); // TODO: Handle and complain
+
+            for _ in 0..aligned_element_count {
+                if compare_func(current_value_pointer, previous_value_pointer, current_value, previous_value, delta_arg) {
+                    run_length_encoder.encode_range(alignment_increment);
+                } else {
+                    run_length_encoder.finalize_current_encode_unchecked(alignment_increment, data_type_size);
+                }
+    
+                unsafe {
+                    current_value_pointer = current_value_pointer.add(alignment_increment as usize);
+                    previous_value_pointer = previous_value_pointer.add(alignment_increment as usize);
+                }
+            }
+        } else {
+            panic!("Unrecognized constraint");
         }
-
-        run_length_encoder.finalize_current_encode_unchecked(0, data_type.size_in_bytes());
+    
+        run_length_encoder.finalize_current_encode_unchecked(0, data_type_size);
 
         return run_length_encoder.get_collected_regions().to_owned();
     }

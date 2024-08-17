@@ -34,19 +34,38 @@ impl ScannerScalarSingleElement {
 
 /// Implements a scalar (ie CPU bound, non-SIMD) scanner which only scans a single element of memory (ie only containing 1 data type).
 impl Scanner for ScannerScalarSingleElement {
-    fn scan_region(&self, snapshot_region: &SnapshotRegion, snapshot_sub_region: &SnapshotSubRegion, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
+    fn scan_region(&self,
+        snapshot_region: &SnapshotRegion,
+        snapshot_sub_region: &SnapshotSubRegion,
+        constraint: &ScanConstraint
+    ) -> Vec<SnapshotSubRegion> {
         let current_value_pointer = snapshot_region.get_sub_region_current_values_pointer(&snapshot_sub_region);
         let previous_value_pointer = snapshot_region.get_sub_region_previous_values_pointer(&snapshot_sub_region);
+
         let constraint_value = constraint.get_constraint_value().unwrap();
         let mut current_value = constraint_value.clone();
         let mut previous_value = constraint_value.clone();
-        let current_value = current_value.borrow_mut();
-        let previous_value = previous_value.borrow_mut();
+        let compare_result;
+        
+        if constraint.is_immediate_constraint() {
+            let compare_func = self.scalar_scanner.get_immediate_compare_func(constraint.get_constraint_type());
 
-        if self.scalar_scanner.do_compare_action(current_value_pointer, previous_value_pointer, current_value, previous_value, constraint) {
-            let mut result = vec![];
-            result.push(snapshot_sub_region.to_owned());
-            return result;
+            compare_result = compare_func(current_value_pointer, current_value.borrow_mut(), &previous_value);
+        } else if constraint.is_relative_constraint() {
+            let compare_func = self.scalar_scanner.get_relative_compare_func(constraint.get_constraint_type());
+
+            compare_result = compare_func(current_value_pointer, previous_value_pointer, current_value.borrow_mut(), previous_value.borrow_mut());
+        } else if constraint.is_immediate_constraint() {
+            let compare_func = self.scalar_scanner.get_relative_delta_compare_func(constraint.get_constraint_type());
+            let delta_arg = constraint.get_constraint_delta_value().unwrap(); // TODO: Handle and complain
+
+            compare_result = compare_func(current_value_pointer, previous_value_pointer, current_value.borrow_mut(), previous_value.borrow_mut(), delta_arg);
+        } else {
+            panic!("Unrecognized constraint");
+        }
+
+        if compare_result {
+            return vec![snapshot_sub_region.to_owned()];
         } else {
             return vec![];
         }

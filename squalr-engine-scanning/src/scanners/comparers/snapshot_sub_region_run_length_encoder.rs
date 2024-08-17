@@ -31,7 +31,9 @@ impl SnapshotSubRegionRunLengthEncoder {
         return &self.result_regions;
     }
     
-    pub fn merge_from_other_encoder(&mut self, other: &SnapshotSubRegionRunLengthEncoder) {
+    pub fn merge_from_other_encoder(&mut self,
+        other: &SnapshotSubRegionRunLengthEncoder
+    ) {
         self.result_regions.extend_from_slice(&other.result_regions);
     }
     
@@ -39,16 +41,23 @@ impl SnapshotSubRegionRunLengthEncoder {
         // unimplemented!("Implement me!");
     }
 
-    pub fn adjust_for_misalignment(&mut self, misalignment_offset: u64) {
+    pub fn adjust_for_misalignment(&mut self,
+        misalignment_offset: u64
+    ) {
         self.run_length_encode_offset = self.run_length_encode_offset.saturating_sub(misalignment_offset);
     }
 
-    pub fn encode_range(&mut self, memory_alignment: u64) {
+    pub fn encode_range(&mut self,
+        memory_alignment: u64
+    ) {
         self.run_length += memory_alignment;
         self.is_encoding = true;
     }
 
-    pub fn finalize_current_encode_unchecked(&mut self, memory_alignment: u64, data_type_size: u64) {
+    pub fn finalize_current_encode_unchecked(&mut self,
+        memory_alignment: u64,
+        data_type_size: u64
+    ) {
         if self.is_encoding && self.run_length > 0 {
             self.result_regions.push(SnapshotSubRegion::new_with_offset_and_size_in_bytes(
                 self.run_length_encode_offset,

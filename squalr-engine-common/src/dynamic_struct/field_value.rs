@@ -130,75 +130,129 @@ impl FieldValue {
     }
 
     pub fn copy_from_bytes(&mut self, bytes: &[u8]) {
-        match self {
-            FieldValue::U8(ref mut value) => *value = bytes[0],
-            FieldValue::U16(ref mut value, endian) => {
-                *value = match endian {
-                    Endian::Little => u16::from_le_bytes([bytes[0], bytes[1]]),
-                    Endian::Big => u16::from_be_bytes([bytes[0], bytes[1]]),
-                };
-            }
-            FieldValue::U32(ref mut value, endian) => {
-                *value = match endian {
-                    Endian::Little => u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
-                    Endian::Big => u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
-                };
-            }
-            FieldValue::U64(ref mut value, endian) => {
-                *value = match endian {
-                    Endian::Little => u64::from_le_bytes([
-                        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
-                    ]),
-                    Endian::Big => u64::from_be_bytes([
-                        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
-                    ]),
-                };
-            }
-            FieldValue::I8(ref mut value) => *value = bytes[0] as i8,
-            FieldValue::I16(ref mut value, endian) => {
-                *value = match endian {
-                    Endian::Little => i16::from_le_bytes([bytes[0], bytes[1]]),
-                    Endian::Big => i16::from_be_bytes([bytes[0], bytes[1]]),
-                };
-            }
-            FieldValue::I32(ref mut value, endian) => {
-                *value = match endian {
-                    Endian::Little => i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
-                    Endian::Big => i32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
-                };
-            }
-            FieldValue::I64(ref mut value, endian) => {
-                *value = match endian {
-                    Endian::Little => i64::from_le_bytes([
-                        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
-                    ]),
-                    Endian::Big => i64::from_be_bytes([
-                        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
-                    ]),
-                };
-            }
-            FieldValue::F32(ref mut value, endian) => {
-                let bits = match endian {
-                    Endian::Little => u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
-                    Endian::Big => u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
-                };
-                *value = f32::from_bits(bits);
-            }
-            FieldValue::F64(ref mut value, endian) => {
-                let bits = match endian {
-                    Endian::Little => u64::from_le_bytes([
-                        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
-                    ]),
-                    Endian::Big => u64::from_be_bytes([
-                        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
-                    ]),
-                };
-                *value = f64::from_bits(bits);
-            }
-            FieldValue::Bytes(ref mut value) => value.copy_from_slice(bytes),
-            FieldValue::BitField { ref mut value, bits } => {
-                let total_bytes = ((*bits + 7) / 8) as usize;
-                value[..total_bytes].copy_from_slice(&bytes[..total_bytes]);
+        // Create a pointer to the first byte of the slice
+        let value_ptr = bytes.as_ptr();
+
+        // Call load_from_memory to handle the rest
+        self.load_from_memory(value_ptr);
+    }
+
+    pub fn load_from_memory(&mut self, value_ptr: *const u8) {
+        unsafe {
+            match self {
+                FieldValue::U8(ref mut value) => *value = *value_ptr,
+                FieldValue::I8(ref mut value) => *value = *value_ptr as i8,
+                FieldValue::U16(ref mut value, endian) => {
+                    let bytes = [*value_ptr, *value_ptr.add(1)];
+                    *value = match endian {
+                        Endian::Little => u16::from_le_bytes(bytes),
+                        Endian::Big => u16::from_be_bytes(bytes),
+                    };
+                }
+                FieldValue::I16(ref mut value, endian) => {
+                    let bytes = [*value_ptr, *value_ptr.add(1)];
+                    *value = match endian {
+                        Endian::Little => i16::from_le_bytes(bytes),
+                        Endian::Big => i16::from_be_bytes(bytes),
+                    };
+                }
+                FieldValue::U32(ref mut value, endian) => {
+                    let bytes = [
+                        *value_ptr,
+                        *value_ptr.add(1),
+                        *value_ptr.add(2),
+                        *value_ptr.add(3),
+                    ];
+                    *value = match endian {
+                        Endian::Little => u32::from_le_bytes(bytes),
+                        Endian::Big => u32::from_be_bytes(bytes),
+                    };
+                }
+                FieldValue::I32(ref mut value, endian) => {
+                    let bytes = [
+                        *value_ptr,
+                        *value_ptr.add(1),
+                        *value_ptr.add(2),
+                        *value_ptr.add(3),
+                    ];
+                    *value = match endian {
+                        Endian::Little => i32::from_le_bytes(bytes),
+                        Endian::Big => i32::from_be_bytes(bytes),
+                    };
+                }
+                FieldValue::U64(ref mut value, endian) => {
+                    let bytes = [
+                        *value_ptr,
+                        *value_ptr.add(1),
+                        *value_ptr.add(2),
+                        *value_ptr.add(3),
+                        *value_ptr.add(4),
+                        *value_ptr.add(5),
+                        *value_ptr.add(6),
+                        *value_ptr.add(7),
+                    ];
+                    *value = match endian {
+                        Endian::Little => u64::from_le_bytes(bytes),
+                        Endian::Big => u64::from_be_bytes(bytes),
+                    };
+                }
+                FieldValue::I64(ref mut value, endian) => {
+                    let bytes = [
+                        *value_ptr,
+                        *value_ptr.add(1),
+                        *value_ptr.add(2),
+                        *value_ptr.add(3),
+                        *value_ptr.add(4),
+                        *value_ptr.add(5),
+                        *value_ptr.add(6),
+                        *value_ptr.add(7),
+                    ];
+                    *value = match endian {
+                        Endian::Little => i64::from_le_bytes(bytes),
+                        Endian::Big => i64::from_be_bytes(bytes),
+                    };
+                }
+                FieldValue::F32(ref mut value, endian) => {
+                    let bytes = [
+                        *value_ptr,
+                        *value_ptr.add(1),
+                        *value_ptr.add(2),
+                        *value_ptr.add(3),
+                    ];
+                    let bits = match endian {
+                        Endian::Little => u32::from_le_bytes(bytes),
+                        Endian::Big => u32::from_be_bytes(bytes),
+                    };
+                    *value = f32::from_bits(bits);
+                }
+                FieldValue::F64(ref mut value, endian) => {
+                    let bytes = [
+                        *value_ptr,
+                        *value_ptr.add(1),
+                        *value_ptr.add(2),
+                        *value_ptr.add(3),
+                        *value_ptr.add(4),
+                        *value_ptr.add(5),
+                        *value_ptr.add(6),
+                        *value_ptr.add(7),
+                    ];
+                    let bits = match endian {
+                        Endian::Little => u64::from_le_bytes(bytes),
+                        Endian::Big => u64::from_be_bytes(bytes),
+                    };
+                    *value = f64::from_bits(bits);
+                }
+                FieldValue::Bytes(ref mut value) => {
+                    let len = value.len(); // Store the length in a separate variable
+                    value.copy_from_slice(std::slice::from_raw_parts(value_ptr, len));
+                }                
+                FieldValue::BitField { ref mut value, bits } => {
+                    let total_bytes = ((*bits + 7) / 8) as usize;
+                    value[..total_bytes].copy_from_slice(std::slice::from_raw_parts(
+                        value_ptr,
+                        total_bytes,
+                    ));
+                }
             }
         }
     }

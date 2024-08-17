@@ -140,7 +140,11 @@ impl SnapshotRegion {
     }
 
     pub fn can_compare_with_constraint(&self, constraints: &ScanConstraint) -> bool {
-        if !constraints.is_valid() || !self.has_current_values() || (constraints.is_relative_constraint() && !self.has_previous_values()) {
+        if !constraints.is_valid() || !self.has_current_values() {
+            return false;
+        }
+
+        if !constraints.is_immediate_constraint() && !self.has_previous_values() {
             return false;
         }
 
