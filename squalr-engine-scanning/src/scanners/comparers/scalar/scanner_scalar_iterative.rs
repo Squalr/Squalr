@@ -52,55 +52,52 @@ impl Scanner for ScannerScalarIterative {
         let current_value = current_value.borrow_mut();
         let previous_value = previous_value.borrow_mut();
         let aligned_element_count = snapshot_sub_region.get_element_count(constraint.get_alignment(), data_type_size);
+        let memory_load_func = current_value.get_load_memory_function_ptr();
 
-        if constraint.is_immediate_constraint() {
-            let compare_func = self.scalar_scanner.get_immediate_compare_func(constraint.get_constraint_type());
-
-            for _ in 0..aligned_element_count {
-                if compare_func(current_value_pointer, current_value, previous_value) {
-                    run_length_encoder.encode_range(alignment_increment);
-                } else {
-                    run_length_encoder.finalize_current_encode_unchecked(alignment_increment, data_type_size);
-                }
+        unsafe {
+            if constraint.is_immediate_constraint() {
+                let compare_func = self.scalar_scanner.get_immediate_compare_func(constraint.get_constraint_type());
     
-                unsafe {
+                for _ in 0..aligned_element_count {
+                    if compare_func(&memory_load_func, current_value_pointer, current_value, previous_value) {
+                        run_length_encoder.encode_range(alignment_increment);
+                    } else {
+                        run_length_encoder.finalize_current_encode_unchecked(alignment_increment, data_type_size);
+                    }
+        
                     current_value_pointer = current_value_pointer.add(alignment_increment as usize);
                     previous_value_pointer = previous_value_pointer.add(alignment_increment as usize);
                 }
-            }
-        } else if constraint.is_relative_constraint() {
-            let compare_func = self.scalar_scanner.get_relative_compare_func(constraint.get_constraint_type());
-
-            for _ in 0..aligned_element_count {
-                if compare_func(current_value_pointer, previous_value_pointer, current_value, previous_value) {
-                    run_length_encoder.encode_range(alignment_increment);
-                } else {
-                    run_length_encoder.finalize_current_encode_unchecked(alignment_increment, data_type_size);
-                }
+            } else if constraint.is_relative_constraint() {
+                let compare_func = self.scalar_scanner.get_relative_compare_func(constraint.get_constraint_type());
     
-                unsafe {
+                for _ in 0..aligned_element_count {
+                    if compare_func(&memory_load_func, current_value_pointer, previous_value_pointer, current_value, previous_value) {
+                        run_length_encoder.encode_range(alignment_increment);
+                    } else {
+                        run_length_encoder.finalize_current_encode_unchecked(alignment_increment, data_type_size);
+                    }
+        
                     current_value_pointer = current_value_pointer.add(alignment_increment as usize);
                     previous_value_pointer = previous_value_pointer.add(alignment_increment as usize);
                 }
-            }
-        } else if constraint.is_immediate_constraint() {
-            let compare_func = self.scalar_scanner.get_relative_delta_compare_func(constraint.get_constraint_type());
-            let delta_arg = constraint.get_constraint_delta_value().unwrap(); // TODO: Handle and complain
-
-            for _ in 0..aligned_element_count {
-                if compare_func(current_value_pointer, previous_value_pointer, current_value, previous_value, delta_arg) {
-                    run_length_encoder.encode_range(alignment_increment);
-                } else {
-                    run_length_encoder.finalize_current_encode_unchecked(alignment_increment, data_type_size);
-                }
+            } else if constraint.is_immediate_constraint() {
+                let compare_func = self.scalar_scanner.get_relative_delta_compare_func(constraint.get_constraint_type());
+                let delta_arg = constraint.get_constraint_delta_value().unwrap(); // TODO: Handle and complain
     
-                unsafe {
+                for _ in 0..aligned_element_count {
+                    if compare_func(&memory_load_func, current_value_pointer, previous_value_pointer, current_value, previous_value, delta_arg) {
+                        run_length_encoder.encode_range(alignment_increment);
+                    } else {
+                        run_length_encoder.finalize_current_encode_unchecked(alignment_increment, data_type_size);
+                    }
+        
                     current_value_pointer = current_value_pointer.add(alignment_increment as usize);
                     previous_value_pointer = previous_value_pointer.add(alignment_increment as usize);
                 }
+            } else {
+                panic!("Unrecognized constraint");
             }
-        } else {
-            panic!("Unrecognized constraint");
         }
     
         run_length_encoder.finalize_current_encode_unchecked(0, data_type_size);

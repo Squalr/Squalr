@@ -2,6 +2,8 @@ use std::str::FromStr;
 use std::cmp::Ordering;
 use std::ptr;
 
+pub type FieldMemoryLoadFunc = unsafe fn(&mut FieldValue, *const u8);
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Endian {
     Little,
@@ -34,24 +36,22 @@ impl Eq for FieldValue {}
 
 impl Ord for FieldValue {
     fn cmp(&self, other: &Self) -> Ordering {
-        use FieldValue::*;
-
         match (self, other) {
-            (U8(a), U8(b)) => a.cmp(b),
-            (U16(a, _), U16(b, _)) => a.cmp(b),
-            (U32(a, _), U32(b, _)) => a.cmp(b),
-            (U64(a, _), U64(b, _)) => a.cmp(b),
-            (I8(a), I8(b)) => a.cmp(b),
-            (I16(a, _), I16(b, _)) => a.cmp(b),
-            (I32(a, _), I32(b, _)) => a.cmp(b),
-            (I64(a, _), I64(b, _)) => a.cmp(b),
-            (F32(a, _), F32(b, _)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
-            (F64(a, _), F64(b, _)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
-            (Bytes(a), Bytes(b)) => a.cmp(b),
-            (BitField { value: a, bits: bits_a }, BitField { value: b, bits: bits_b }) => {
+            (FieldValue::U8(a), FieldValue::U8(b)) => a.cmp(b),
+            (FieldValue::U16(a, _), FieldValue::U16(b, _)) => a.cmp(b),
+            (FieldValue::U32(a, _), FieldValue::U32(b, _)) => a.cmp(b),
+            (FieldValue::U64(a, _), FieldValue::U64(b, _)) => a.cmp(b),
+            (FieldValue::I8(a), FieldValue::I8(b)) => a.cmp(b),
+            (FieldValue::I16(a, _), FieldValue::I16(b, _)) => a.cmp(b),
+            (FieldValue::I32(a, _), FieldValue::I32(b, _)) => a.cmp(b),
+            (FieldValue::I64(a, _), FieldValue::I64(b, _)) => a.cmp(b),
+            (FieldValue::F32(a, _), FieldValue::F32(b, _)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
+            (FieldValue::F64(a, _), FieldValue::F64(b, _)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
+            (FieldValue::Bytes(a), FieldValue::Bytes(b)) => a.cmp(b),
+            (FieldValue::BitField { value: a, bits: bits_a }, FieldValue::BitField { value: b, bits: bits_b }) => {
                 a.cmp(b).then_with(|| bits_a.cmp(bits_b))
             }
-            _ => Ordering::Equal, // Return Equal for different types or implement more specific logic
+            _ => panic!("Comparing unsupported types."),
         }
     }
 }
@@ -139,141 +139,233 @@ impl FieldValue {
     }
 
     pub fn load_from_memory(&mut self, value_ptr: *const u8) {
+        let load_fn = self.get_load_memory_function_ptr();
+        
         unsafe {
-            match self {
-                FieldValue::U8(ref mut value) => *value = *value_ptr,
-                FieldValue::I8(ref mut value) => *value = *value_ptr as i8,
-                FieldValue::U16(ref mut value, endian) => {
-                    let bytes = &*(value_ptr as *const [u8; 2]);
-                    *value = match endian {
-                        Endian::Little => u16::from_le_bytes(*bytes),
-                        Endian::Big => u16::from_be_bytes(*bytes),
-                    };
-                }
-                FieldValue::I16(ref mut value, endian) => {
-                    let bytes = &*(value_ptr as *const [u8; 2]);
-                    *value = match endian {
-                        Endian::Little => i16::from_le_bytes(*bytes),
-                        Endian::Big => i16::from_be_bytes(*bytes),
-                    };
-                }
-                FieldValue::U32(ref mut value, endian) => {
-                    let bytes = &*(value_ptr as *const [u8; 4]);
-                    *value = match endian {
-                        Endian::Little => u32::from_le_bytes(*bytes),
-                        Endian::Big => u32::from_be_bytes(*bytes),
-                    };
-                }
-                FieldValue::I32(ref mut value, endian) => {
-                    let bytes = &*(value_ptr as *const [u8; 4]);
-                    *value = match endian {
-                        Endian::Little => i32::from_le_bytes(*bytes),
-                        Endian::Big => i32::from_be_bytes(*bytes),
-                    };
-                }
-                FieldValue::U64(ref mut value, endian) => {
-                    let bytes = &*(value_ptr as *const [u8; 8]);
-                    *value = match endian {
-                        Endian::Little => u64::from_le_bytes(*bytes),
-                        Endian::Big => u64::from_be_bytes(*bytes),
-                    };
-                }
-                FieldValue::I64(ref mut value, endian) => {
-                    let bytes = &*(value_ptr as *const [u8; 8]);
-                    *value = match endian {
-                        Endian::Little => i64::from_le_bytes(*bytes),
-                        Endian::Big => i64::from_be_bytes(*bytes),
-                    };
-                }
-                FieldValue::F32(ref mut value, endian) => {
-                    let bytes = &*(value_ptr as *const [u8; 4]);
-                    let bits = match endian {
-                        Endian::Little => u32::from_le_bytes(*bytes),
-                        Endian::Big => u32::from_be_bytes(*bytes),
-                    };
-                    *value = f32::from_bits(bits);
-                }
-                FieldValue::F64(ref mut value, endian) => {
-                    let bytes = &*(value_ptr as *const [u8; 8]);
-                    let bits = match endian {
-                        Endian::Little => u64::from_le_bytes(*bytes),
-                        Endian::Big => u64::from_be_bytes(*bytes),
-                    };
-                    *value = f64::from_bits(bits);
-                }
-                FieldValue::Bytes(ref mut value) => {
-                    ptr::copy_nonoverlapping(value_ptr, value.as_mut_ptr(), value.len());
-                }
-                FieldValue::BitField { ref mut value, bits } => {
-                    let total_bytes = ((*bits + 7) / 8) as usize;
-                    ptr::copy_nonoverlapping(value_ptr, value.as_mut_ptr(), total_bytes);
-                }
-            }
+            load_fn(self, value_ptr);
+        }
+    }
+    
+    pub fn get_load_memory_function_ptr(&self) -> FieldMemoryLoadFunc {
+        match self {
+            FieldValue::U8(_) => Self::load_u8,
+            FieldValue::I8(_) => Self::load_i8,
+            FieldValue::U16(_, Endian::Little) => Self::load_u16_le,
+            FieldValue::U16(_, Endian::Big) => Self::load_u16_be,
+            FieldValue::I16(_, Endian::Little) => Self::load_i16_le,
+            FieldValue::I16(_, Endian::Big) => Self::load_i16_be,
+            FieldValue::U32(_, Endian::Little) => Self::load_u32_le,
+            FieldValue::U32(_, Endian::Big) => Self::load_u32_be,
+            FieldValue::I32(_, Endian::Little) => Self::load_i32_le,
+            FieldValue::I32(_, Endian::Big) => Self::load_i32_be,
+            FieldValue::U64(_, Endian::Little) => Self::load_u64_le,
+            FieldValue::U64(_, Endian::Big) => Self::load_u64_be,
+            FieldValue::I64(_, Endian::Little) => Self::load_i64_le,
+            FieldValue::I64(_, Endian::Big) => Self::load_i64_be,
+            FieldValue::F32(_, Endian::Little) => Self::load_f32_le,
+            FieldValue::F32(_, Endian::Big) => Self::load_f32_be,
+            FieldValue::F64(_, Endian::Little) => Self::load_f64_le,
+            FieldValue::F64(_, Endian::Big) => Self::load_f64_be,
+            FieldValue::Bytes(_) => Self::load_bytes,
+            FieldValue::BitField { .. } => Self::load_bitfield,
+        }
+    }
+    
+    unsafe fn load_u8(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::U8(ref mut value) = *field {
+            *value = *value_ptr;
+        }
+    }
+    
+    unsafe fn load_i8(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::I8(ref mut value) = *field {
+            *value = *value_ptr as i8;
+        }
+    }
+    
+    unsafe fn load_u16_le(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::U16(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 2]);
+            *value = u16::from_le_bytes(*bytes);
+        }
+    }
+    
+    unsafe fn load_u16_be(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::U16(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 2]);
+            *value = u16::from_be_bytes(*bytes);
+        }
+    }
+    
+    unsafe fn load_i16_le(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::I16(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 2]);
+            *value = i16::from_le_bytes(*bytes);
+        }
+    }
+    
+    unsafe fn load_i16_be(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::I16(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 2]);
+            *value = i16::from_be_bytes(*bytes);
+        }
+    }
+
+    unsafe fn load_u32_le(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::U32(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 4]);
+            *value = u32::from_le_bytes(*bytes);
+        }
+    }
+    
+    unsafe fn load_u32_be(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::U32(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 4]);
+            *value = u32::from_be_bytes(*bytes);
+        }
+    }
+    
+    unsafe fn load_i32_le(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::I32(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 4]);
+            *value = i32::from_le_bytes(*bytes);
+        }
+    }
+    
+    unsafe fn load_i32_be(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::I32(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 4]);
+            *value = i32::from_be_bytes(*bytes);
+        }
+    }
+    
+    unsafe fn load_u64_le(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::U64(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 8]);
+            *value = u64::from_le_bytes(*bytes);
+        }
+    }
+    
+    unsafe fn load_u64_be(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::U64(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 8]);
+            *value = u64::from_be_bytes(*bytes);
+        }
+    }
+    
+    unsafe fn load_i64_le(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::I64(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 8]);
+            *value = i64::from_le_bytes(*bytes);
+        }
+    }
+    
+    unsafe fn load_i64_be(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::I64(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 8]);
+            *value = i64::from_be_bytes(*bytes);
+        }
+    }
+    
+    unsafe fn load_f32_le(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::F32(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 4]);
+            let bits = u32::from_le_bytes(*bytes);
+            *value = f32::from_bits(bits);
+        }
+    }
+    
+    unsafe fn load_f32_be(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::F32(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 4]);
+            let bits = u32::from_be_bytes(*bytes);
+            *value = f32::from_bits(bits);
+        }
+    }
+    
+    unsafe fn load_f64_le(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::F64(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 8]);
+            let bits = u64::from_le_bytes(*bytes);
+            *value = f64::from_bits(bits);
+        }
+    }
+    
+    unsafe fn load_f64_be(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::F64(ref mut value, _) = *field {
+            let bytes = &*(value_ptr as *const [u8; 8]);
+            let bits = u64::from_be_bytes(*bytes);
+            *value = f64::from_bits(bits);
+        }
+    }
+    
+    unsafe fn load_bytes(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::Bytes(ref mut value) = *field {
+            ptr::copy_nonoverlapping(value_ptr, value.as_mut_ptr(), value.len());
+        }
+    }
+    
+    unsafe fn load_bitfield(field: &mut FieldValue, value_ptr: *const u8) {
+        if let FieldValue::BitField { ref mut value, bits } = *field {
+            let total_bytes = ((bits + 7) / 8) as usize;
+            ptr::copy_nonoverlapping(value_ptr, value.as_mut_ptr(), total_bytes);
         }
     }
 
     pub fn as_u8(&self) -> Option<u8> {
-        if let FieldValue::U8(v) = self {
-            Some(*v)
-        } else {
-            None
-        }
+        return match self {
+            FieldValue::U8(v) => Some(*v),
+            _ => None,
+        };
     }
 
     pub fn as_i8(&self) -> Option<i8> {
-        if let FieldValue::I8(v) = self {
-            Some(*v)
-        } else {
-            None
-        }
+        return match self {
+            FieldValue::I8(v) => Some(*v),
+            _ => None,
+        };
     }
 
     pub fn as_u16(&self) -> Option<u16> {
-        if let FieldValue::U16(v, _) = self {
-            Some(*v)
-        } else {
-            None
-        }
+        return match self {
+            FieldValue::U16(v, _) => Some(*v),
+            _ => None,
+        };
     }
 
     pub fn as_i16(&self) -> Option<i16> {
-        if let FieldValue::I16(v, _) = self {
-            Some(*v)
-        } else {
-            None
-        }
+        return match self {
+            FieldValue::I16(v, _) => Some(*v),
+            _ => None,
+        };
     }
 
     pub fn as_u32(&self) -> Option<u32> {
-        if let FieldValue::U32(v, _) = self {
-            Some(*v)
-        } else {
-            None
-        }
+        return match self {
+            FieldValue::U32(v, _) => Some(*v),
+            _ => None,
+        };
     }
 
     pub fn as_i32(&self) -> Option<i32> {
-        if let FieldValue::I32(v, _) = self {
-            Some(*v)
-        } else {
-            None
-        }
+        return match self {
+            FieldValue::I32(v, _) => Some(*v),
+            _ => None,
+        };
     }
 
     pub fn as_u64(&self) -> Option<u64> {
-        if let FieldValue::U64(v, _) = self {
-            Some(*v)
-        } else {
-            None
-        }
+        return match self {
+            FieldValue::U64(v, _) => Some(*v),
+            _ => None,
+        };
     }
 
     pub fn as_i64(&self) -> Option<i64> {
-        if let FieldValue::I64(v, _) = self {
-            Some(*v)
-        } else {
-            None
-        }
+        return match self {
+            FieldValue::I64(v, _) => Some(*v),
+            _ => None,
+        };
     }
 }
 
@@ -286,8 +378,8 @@ impl FromStr for FieldValue {
             return Err("Invalid field type and value format".to_string());
         }
 
-        let field_type = type_and_value[0];
-        let value_str = type_and_value[1];
+        let value_str = type_and_value[0];
+        let field_type = type_and_value[1];
 
         match field_type {
             "u8" => value_str.parse::<u8>().map(FieldValue::U8).map_err(|e| e.to_string()),

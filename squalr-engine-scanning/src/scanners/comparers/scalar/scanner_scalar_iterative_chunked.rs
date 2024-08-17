@@ -74,48 +74,51 @@ impl Scanner for ScannerScalarIterativeChunked {
             let mut previous_value = constraint_value.clone();
             let current_value = current_value.borrow_mut();
             let previous_value = previous_value.borrow_mut();
+            let memory_load_func = current_value.get_load_memory_function_ptr();
 
-            if constraint.is_immediate_constraint() {
-                let compare_func = self.scalar_scanner.get_immediate_compare_func(constraint.get_constraint_type());
+            unsafe {
+                if constraint.is_immediate_constraint() {
+                    let compare_func = self.scalar_scanner.get_immediate_compare_func(constraint.get_constraint_type());
+        
+                    for index in start_index..end_index {
+                        let current_value_pointer = &current_slice[index as usize * alignment as usize];
     
-                for index in start_index..end_index {
-                    let current_value_pointer = &current_slice[index as usize * alignment as usize];
-
-                    if compare_func(current_value_pointer, current_value, previous_value) {
-                        local_encoder.encode_range(alignment as u64);
-                    } else {
-                        local_encoder.finalize_current_encode_unchecked(alignment as u64, data_type_size);
+                        if compare_func(&memory_load_func, current_value_pointer, current_value, previous_value) {
+                            local_encoder.encode_range(alignment as u64);
+                        } else {
+                            local_encoder.finalize_current_encode_unchecked(alignment as u64, data_type_size);
+                        }
                     }
-                }
-            } else if constraint.is_relative_constraint() {
-                let compare_func = self.scalar_scanner.get_relative_compare_func(constraint.get_constraint_type());
-    
-                for index in start_index..end_index {
-                    let current_value_pointer = &current_slice[index as usize * alignment as usize];
-                    let previous_value_pointer = &previous_slice[index as usize * alignment as usize];
-                    
-                    if compare_func(current_value_pointer, previous_value_pointer, current_value, previous_value) {
-                        local_encoder.encode_range(alignment as u64);
-                    } else {
-                        local_encoder.finalize_current_encode_unchecked(alignment as u64, data_type_size);
+                } else if constraint.is_relative_constraint() {
+                    let compare_func = self.scalar_scanner.get_relative_compare_func(constraint.get_constraint_type());
+        
+                    for index in start_index..end_index {
+                        let current_value_pointer = &current_slice[index as usize * alignment as usize];
+                        let previous_value_pointer = &previous_slice[index as usize * alignment as usize];
+                        
+                        if compare_func(&memory_load_func, current_value_pointer, previous_value_pointer, current_value, previous_value) {
+                            local_encoder.encode_range(alignment as u64);
+                        } else {
+                            local_encoder.finalize_current_encode_unchecked(alignment as u64, data_type_size);
+                        }
                     }
-                }
-            } else if constraint.is_immediate_constraint() {
-                let compare_func = self.scalar_scanner.get_relative_delta_compare_func(constraint.get_constraint_type());
-                let delta_arg = constraint.get_constraint_delta_value().unwrap(); // TODO: Handle and complain
-    
-                for index in start_index..end_index {
-                    let current_value_pointer = &current_slice[index as usize * alignment as usize];
-                    let previous_value_pointer = &previous_slice[index as usize * alignment as usize];
-                    
-                    if compare_func(current_value_pointer, previous_value_pointer, current_value, previous_value, delta_arg) {
-                        local_encoder.encode_range(alignment as u64);
-                    } else {
-                        local_encoder.finalize_current_encode_unchecked(alignment as u64, data_type_size);
+                } else if constraint.is_immediate_constraint() {
+                    let compare_func = self.scalar_scanner.get_relative_delta_compare_func(constraint.get_constraint_type());
+                    let delta_arg = constraint.get_constraint_delta_value().unwrap(); // TODO: Handle and complain
+        
+                    for index in start_index..end_index {
+                        let current_value_pointer = &current_slice[index as usize * alignment as usize];
+                        let previous_value_pointer = &previous_slice[index as usize * alignment as usize];
+                        
+                        if compare_func(&memory_load_func, current_value_pointer, previous_value_pointer, current_value, previous_value, delta_arg) {
+                            local_encoder.encode_range(alignment as u64);
+                        } else {
+                            local_encoder.finalize_current_encode_unchecked(alignment as u64, data_type_size);
+                        }
                     }
+                } else {
+                    panic!("Unrecognized constraint");
                 }
-            } else {
-                panic!("Unrecognized constraint");
             }
         
             local_encoder.finalize_current_encode_unchecked(0, data_type_size);
