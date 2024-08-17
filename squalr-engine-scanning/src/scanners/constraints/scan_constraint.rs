@@ -1,6 +1,6 @@
 use crate::scan_settings::ScanSettings;
 use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
-use squalr_engine_common::dynamic_struct::field_value::Endian;
+use squalr_engine_common::dynamic_struct::endian::Endian;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 

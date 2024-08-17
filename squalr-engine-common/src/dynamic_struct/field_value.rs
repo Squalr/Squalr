@@ -1,20 +1,10 @@
+use crate::dynamic_struct::data_type::DataType;
+use crate::dynamic_struct::endian::Endian;
 use std::str::FromStr;
 use std::cmp::Ordering;
 use std::ptr;
 
 pub type FieldMemoryLoadFunc = unsafe fn(&mut FieldValue, *const u8);
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Endian {
-    Little,
-    Big,
-}
-
-impl Default for Endian {
-    fn default() -> Self {
-        Endian::Little
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum FieldValue {
@@ -114,38 +104,31 @@ impl FieldValue {
     }
 
     pub fn size_in_bytes(&self) -> u64 {
-        return match self {
-            FieldValue::U8(_) => std::mem::size_of::<u8>(),
-            FieldValue::U16(_, _) => std::mem::size_of::<u16>(),
-            FieldValue::U32(_, _) => std::mem::size_of::<u32>(),
-            FieldValue::U64(_, _) => std::mem::size_of::<u64>(),
-            FieldValue::I8(_) => std::mem::size_of::<i8>(),
-            FieldValue::I16(_, _) => std::mem::size_of::<i16>(),
-            FieldValue::I32(_, _) => std::mem::size_of::<i32>(),
-            FieldValue::I64(_, _) => std::mem::size_of::<i64>(),
-            FieldValue::F32(_, _) => std::mem::size_of::<f32>(),
-            FieldValue::F64(_, _) => std::mem::size_of::<f64>(),
-            FieldValue::Bytes(ref bytes) => bytes.len(),
-            FieldValue::BitField { value: _, bits } => ((*bits + 7) / 8) as usize,
-        } as u64;
+        match self {
+            FieldValue::U8(_) => std::mem::size_of::<u8>() as u64,
+            FieldValue::U16(_, _) => std::mem::size_of::<u16>() as u64,
+            FieldValue::U32(_, _) => std::mem::size_of::<u32>() as u64,
+            FieldValue::U64(_, _) => std::mem::size_of::<u64>() as u64,
+            FieldValue::I8(_) => std::mem::size_of::<i8>() as u64,
+            FieldValue::I16(_, _) => std::mem::size_of::<i16>() as u64,
+            FieldValue::I32(_, _) => std::mem::size_of::<i32>() as u64,
+            FieldValue::I64(_, _) => std::mem::size_of::<i64>() as u64,
+            FieldValue::F32(_, _) => std::mem::size_of::<f32>() as u64,
+            FieldValue::F64(_, _) => std::mem::size_of::<f64>() as u64,
+            FieldValue::Bytes(ref bytes) => bytes.len() as u64,
+            FieldValue::BitField { bits, .. } => ((*bits + 7) / 8) as u64,
+        }
     }
 
     pub fn copy_from_bytes(&mut self, bytes: &[u8]) {
-        // Create a pointer to the first byte of the slice
         let value_ptr = bytes.as_ptr();
-
-        // Call load_from_memory to handle the rest
-        self.load_from_memory(value_ptr);
-    }
-
-    pub fn load_from_memory(&mut self, value_ptr: *const u8) {
         let load_fn = self.get_load_memory_function_ptr();
-        
+
         unsafe {
             load_fn(self, value_ptr);
         }
     }
-    
+
     pub fn get_load_memory_function_ptr(&self) -> FieldMemoryLoadFunc {
         match self {
             FieldValue::U8(_) => Self::load_u8,
@@ -170,7 +153,7 @@ impl FieldValue {
             FieldValue::BitField { .. } => Self::load_bitfield,
         }
     }
-    
+
     unsafe fn load_u8(field: &mut FieldValue, value_ptr: *const u8) {
         if let FieldValue::U8(ref mut value) = *field {
             *value = *value_ptr;
@@ -367,33 +350,82 @@ impl FieldValue {
             _ => None,
         };
     }
+
+    pub fn as_f32(&self) -> Option<f32> {
+        return match self {
+            FieldValue::F32(v, _) => Some(*v),
+            _ => None,
+        };
+    }
+
+    pub fn as_f64(&self) -> Option<f64> {
+        return match self {
+            FieldValue::F64(v, _) => Some(*v),
+            _ => None,
+        };
+    }
+
+    pub fn as_bytes(&self) -> Option<&[u8]> {
+        return match self {
+            FieldValue::Bytes(ref v) => Some(v.as_slice()),
+            _ => None,
+        };
+    }
+
+    pub fn as_bitfield(&self) -> Option<(&[u8], u16)> {
+        return match self {
+            FieldValue::BitField { ref value, bits } => Some((value.as_slice(), *bits)),
+            _ => None,
+        };
+    }
 }
 
 impl FromStr for FieldValue {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let type_and_value: Vec<&str> = s.split('=').collect();
-        if type_and_value.len() != 2 {
+        let value_and_type: Vec<&str> = s.split('=').collect();
+        let has_value = value_and_type.len() == 2;
+
+        if value_and_type.len() != 1 && value_and_type.len() != 2 {
             return Err("Invalid field type and value format".to_string());
         }
 
-        let value_str = type_and_value[0];
-        let field_type = type_and_value[1];
+        // Parse the data type using the DataType's FromStr implementation, if no value is provided, accept this and assume we want default values.
+        let data_type = if has_value {
+            DataType::from_str(value_and_type[1])?
+        } else {
+            DataType::from_str(value_and_type[0])?
+        };
 
-        match field_type {
-            "u8" => value_str.parse::<u8>().map(FieldValue::U8).map_err(|e| e.to_string()),
-            "u16" => value_str.parse::<u16>().map(|v| FieldValue::U16(v, Endian::Little)).map_err(|e| e.to_string()),
-            "u32" => value_str.parse::<u32>().map(|v| FieldValue::U32(v, Endian::Little)).map_err(|e| e.to_string()),
-            "u64" => value_str.parse::<u64>().map(|v| FieldValue::U64(v, Endian::Little)).map_err(|e| e.to_string()),
-            "i8" => value_str.parse::<i8>().map(FieldValue::I8).map_err(|e| e.to_string()),
-            "i16" => value_str.parse::<i16>().map(|v| FieldValue::I16(v, Endian::Little)).map_err(|e| e.to_string()),
-            "i32" => value_str.parse::<i32>().map(|v| FieldValue::I32(v, Endian::Little)).map_err(|e| e.to_string()),
-            "i64" => value_str.parse::<i64>().map(|v| FieldValue::I64(v, Endian::Little)).map_err(|e| e.to_string()),
-            "f32" => value_str.parse::<f32>().map(|v| FieldValue::F32(v, Endian::Little)).map_err(|e| e.to_string()),
-            "f64" => value_str.parse::<f64>().map(|v| FieldValue::F64(v, Endian::Little)).map_err(|e| e.to_string()),
-            "bytes" => Ok(FieldValue::Bytes(value_str.as_bytes().to_vec())),
-            _ => Err("Unknown field type".to_string()),
+        if !has_value {
+            return Ok(data_type.to_default_value());
         }
+
+        let value_str = value_and_type[0];
+
+        // Parse the value based on the parsed DataType
+        let field_value = match data_type {
+            DataType::U8 => value_str.parse::<u8>().map(FieldValue::U8).map_err(|e| e.to_string()),
+            DataType::U16(endian) => value_str.parse::<u16>().map(|v| FieldValue::U16(v, endian)).map_err(|e| e.to_string()),
+            DataType::U32(endian) => value_str.parse::<u32>().map(|v| FieldValue::U32(v, endian)).map_err(|e| e.to_string()),
+            DataType::U64(endian) => value_str.parse::<u64>().map(|v| FieldValue::U64(v, endian)).map_err(|e| e.to_string()),
+            DataType::I8 => value_str.parse::<i8>().map(FieldValue::I8).map_err(|e| e.to_string()),
+            DataType::I16(endian) => value_str.parse::<i16>().map(|v| FieldValue::I16(v, endian)).map_err(|e| e.to_string()),
+            DataType::I32(endian) => value_str.parse::<i32>().map(|v| FieldValue::I32(v, endian)).map_err(|e| e.to_string()),
+            DataType::I64(endian) => value_str.parse::<i64>().map(|v| FieldValue::I64(v, endian)).map_err(|e| e.to_string()),
+            DataType::F32(endian) => value_str.parse::<f32>().map(|v| FieldValue::F32(v, endian)).map_err(|e| e.to_string()),
+            DataType::F64(endian) => value_str.parse::<f64>().map(|v| FieldValue::F64(v, endian)).map_err(|e| e.to_string()),
+            DataType::Bytes => Ok(FieldValue::Bytes(value_str.as_bytes().to_vec())),
+            DataType::BitField(bits) => {
+                let bytes = hex::decode(value_str).map_err(|e| e.to_string())?;
+                if bytes.len() * 8 < bits as usize {
+                    return Err("Not enough bits in bitfield".to_string());
+                }
+                Ok(FieldValue::BitField { value: bytes, bits })
+            }
+        }?;
+
+        return Ok(field_value);
     }
 }

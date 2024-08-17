@@ -1,3 +1,4 @@
+use crate::scanners::comparers::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::comparers::scalar::scanner_scalar_iterative_chunked::ScannerScalarIterativeChunked;
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
@@ -93,9 +94,9 @@ impl ScanDispatcher {
             }
         } else {
             // Iterative scanner
-            return ScannerScalarIterativeChunked::get_instance();
+            return ScannerScalarIterative::get_instance();
         }
 
-        return ScannerScalarIterativeChunked::get_instance();
+        return ScannerScalarIterative::get_instance();
     }
 }

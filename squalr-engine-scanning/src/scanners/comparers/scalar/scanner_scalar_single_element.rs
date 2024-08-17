@@ -3,7 +3,6 @@ use crate::scanners::comparers::scalar::scanner_scalar_comparer::ScannerScalarCo
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
-use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use std::borrow::BorrowMut;
 use std::sync::Once;
 

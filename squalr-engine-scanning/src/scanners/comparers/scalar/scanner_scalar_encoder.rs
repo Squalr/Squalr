@@ -44,8 +44,8 @@ impl ScannerScalarEncoder {
 
         unsafe {
             if constraint.is_immediate_constraint() {
-                let mut current_value = FieldValue::default();
-                let mut immediate_value = constraint.get_constraint_value().unwrap();
+                let mut current_value = constraint.get_constraint_value().unwrap().clone();
+                let mut immediate_value = constraint.get_constraint_value().unwrap().clone();
                 let current_value = current_value.borrow_mut();
                 let immediate_value = immediate_value.borrow_mut();
                 let memory_load_func = current_value.get_load_memory_function_ptr();
@@ -61,8 +61,8 @@ impl ScannerScalarEncoder {
                     }
                 }
             } else if constraint.is_relative_constraint() {
-                let mut current_value = FieldValue::default();
-                let mut previous_value = FieldValue::default();
+                let mut current_value = constraint.get_constraint_value().unwrap().clone();
+                let mut previous_value = constraint.get_constraint_value().unwrap().clone();
                 let current_value = current_value.borrow_mut();
                 let previous_value = previous_value.borrow_mut();
                 let memory_load_func = current_value.get_load_memory_function_ptr();
@@ -85,8 +85,8 @@ impl ScannerScalarEncoder {
                     }
                 }
             } else if constraint.is_immediate_constraint() {
-                let mut current_value = FieldValue::default();
-                let mut previous_value = FieldValue::default();
+                let mut current_value = constraint.get_constraint_value().unwrap().clone();
+                let mut previous_value = constraint.get_constraint_value().unwrap().clone();
                 let current_value = current_value.borrow_mut();
                 let previous_value = previous_value.borrow_mut();
                 let memory_load_func = current_value.get_load_memory_function_ptr();

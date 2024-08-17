@@ -9,6 +9,7 @@ edition = "2021"
 futures = ">=0.3"
 uuid = { version = ">=1.9.1", features = ["v4"] }
 rayon = { version = ">=1.10.0" }
+hex = { version = ">=0.4.3" }
 
 [build-dependencies]
 
