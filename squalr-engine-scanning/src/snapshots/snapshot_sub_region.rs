@@ -11,28 +11,15 @@ pub struct SnapshotSubRegion {
 
 impl SnapshotSubRegion {
     pub fn new(parent_region: &SnapshotRegion) -> Self {
-        Self::new_with_offset_and_size_in_bytes(parent_region.get_base_address(), parent_region.get_region_size())
+        Self::new_with_address_and_size_in_bytes(parent_region.get_base_address(), parent_region.get_region_size())
     }
 
-    pub fn new_with_offset_and_size_in_bytes(base_address: u64, size_in_bytes: u64) -> Self {
+    pub fn new_with_address_and_size_in_bytes(base_address: u64, size_in_bytes: u64) -> Self {
         Self {
             base_address,
             size_in_bytes,
         }
     }
-    
-    /*
-    pub fn get_current_values_pointer(&self) -> *const u8 {
-        let parent_region = self.parent_region.read().unwrap();
-        let current_values = parent_region.get_current_values();
-        unsafe { current_values.as_ptr().add(self.base_address) }
-    }
-
-    pub fn get_previous_values_pointer(&self) -> *const u8 {
-        let parent_region = self.parent_region.read().unwrap();
-        let previous_values = parent_region.get_previous_values();
-        unsafe { previous_values.as_ptr().add(self.base_address) }
-    } */
 
     pub fn get_base_address(&self) -> u64 {
         return self.base_address;

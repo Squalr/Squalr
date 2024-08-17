@@ -3,6 +3,7 @@ use core::panic;
 use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
 use squalr_engine_common::dynamic_struct::field_value::FieldMemoryLoadFunc;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
+use std::sync::Once;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)
 type ScalarCompareFnImmediate = unsafe fn(
@@ -46,14 +47,29 @@ type ScalarCompareFnDelta = unsafe fn(
     &FieldValue,
 ) -> bool;
 
-pub struct ScannerScalar {
+pub struct ScannerScalarComparer {
 }
 
 /// Implements a scalar (ie CPU bound, non-SIMD) scanner which contains all boolean comparison operations to be used by more complex scanners,
 /// in addition to handling common functionality like reading values and structures from snapshot memory given a pointer.
-impl ScannerScalar {
-    // Intentionally stateless
-    pub fn new() -> Self { Self {} }
+impl ScannerScalarComparer {
+    fn new() -> Self {
+        Self { }
+    }
+    
+    pub fn get_instance() -> &'static ScannerScalarComparer {
+        static mut INSTANCE: Option<ScannerScalarComparer> = None;
+        static INIT: Once = Once::new();
+
+        unsafe {
+            INIT.call_once(|| {
+                let instance = ScannerScalarComparer::new();
+                INSTANCE = Some(instance);
+            });
+
+            return INSTANCE.as_ref().unwrap_unchecked();
+        }
+    }
 
     pub fn get_immediate_compare_func(&self, scan_constraint_type: ScanConstraintType) -> ScalarCompareFnImmediate {
         match scan_constraint_type {
