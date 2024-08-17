@@ -60,7 +60,7 @@ impl Scanner for ScannerScalarIterativeChunked {
 
         let all_subregions: Vec<SnapshotSubRegion> = (0..num_chunks)
             .into_par_iter()
-            .flat_map_iter(|chunk_index| {
+            .map(|chunk_index| {
                 let first_element_index = (chunk_index * chunk_size) as u64;
                 let last_element_index = ((chunk_index + 1) * chunk_size).min(element_count) as u64;
                 let chunk_address_offset = first_element_index * alignment as u64;
@@ -77,7 +77,12 @@ impl Scanner for ScannerScalarIterativeChunked {
                     );
                 }
             })
-            .collect();
+            .reduce_with(|mut a, b| {
+                // Merge the results of two chunks in parallel
+                a.extend(b);
+                return a;
+            })
+            .unwrap_or_else(Vec::new);
         
         // TODO: Boundary merging on adjacent regions
 

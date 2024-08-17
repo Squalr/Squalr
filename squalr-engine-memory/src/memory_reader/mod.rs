@@ -19,6 +19,7 @@ pub use crate::memory_reader::macos::macos_memory_reader::MacOsMemoryReader as M
 
 #[cfg(target_os = "windows")]
 pub use crate::memory_reader::windows::windows_memory_reader::WindowsMemoryReader as MemoryReaderImpl;
+// pub use crate::memory_reader::windows::windows_memory_reader_nt::WindowsMemoryReaderNt as MemoryReaderImpl;
 
 pub struct MemoryReader;
 

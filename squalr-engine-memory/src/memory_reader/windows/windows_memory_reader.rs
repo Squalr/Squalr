@@ -7,6 +7,7 @@ use std::os::raw::c_void;
 pub struct WindowsMemoryReader;
 
 impl WindowsMemoryReader {
+    #[allow(unused)] // Disable unused compile warning for now
     pub fn new() -> Self {
         WindowsMemoryReader
     }

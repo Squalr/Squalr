@@ -17,7 +17,7 @@ bitflags::bitflags! {
     pub struct SnapshotRetrievalMode: u32 {
         const FROM_SETTINGS         = 1 << 0;
         const FROM_USER_MODE_MEMORY = 1 << 1;
-        const FROM_HEAPS            = 1 << 2;
+        const FROM_NON_MODULES      = 1 << 2;
         const FROM_STACK            = 1 << 3;
         const FROM_MODULES          = 1 << 4;
     }
@@ -42,8 +42,8 @@ impl SnapshotQueryer {
             SnapshotRetrievalMode::FROM_MODULES => {
                 SnapshotQueryer::create_snapshot_from_modules(process_info)
             }
-            SnapshotRetrievalMode::FROM_HEAPS => {
-                SnapshotQueryer::create_snapshot_from_heaps(process_info)
+            SnapshotRetrievalMode::FROM_NON_MODULES => {
+                SnapshotQueryer::create_snapshot_from_non_modules(process_info)
             }
             SnapshotRetrievalMode::FROM_STACK => unimplemented!(),
             _ => {
@@ -157,7 +157,7 @@ impl SnapshotQueryer {
         Snapshot::new(String::from(""), module_regions)
     }    
 
-    fn create_snapshot_from_heaps(process_info: &ProcessInfo) -> Snapshot {
+    fn create_snapshot_from_non_modules(process_info: &ProcessInfo) -> Snapshot {
         let modules: HashSet<u64> = MemoryQueryer::get_instance()
             .get_modules(process_info)
             .into_iter()
