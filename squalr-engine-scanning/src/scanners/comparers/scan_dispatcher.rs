@@ -13,8 +13,9 @@ pub struct ScanDispatcher {
 }
 
 impl ScanDispatcher {
-    // Stateless by design
-    fn new() -> Self { Self { } }
+    fn new() -> Self {
+        Self { }
+    }
     
     pub fn get_instance() -> &'static ScanDispatcher {
         static mut INSTANCE: Option<ScanDispatcher> = None;

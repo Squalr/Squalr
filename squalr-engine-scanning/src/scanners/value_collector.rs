@@ -38,7 +38,7 @@ impl ValueCollector {
                 process_info_clone,
                 snapshot_clone,
                 with_logging,
-                task_clone.clone(), // Pass the cloned task to update progress
+                task_clone.clone(),
                 task_clone.get_cancellation_token(),
             );
 
@@ -52,7 +52,7 @@ impl ValueCollector {
         process_info: Arc<ProcessInfo>,
         snapshot: Arc<RwLock<Snapshot>>,
         with_logging: bool,
-        task: Arc<TrackableTask<()>>, // Pass the task itself
+        task: Arc<TrackableTask<()>>,
         cancellation_token: Arc<AtomicBool>,
     ) {
         let mut snapshot = snapshot.write().unwrap();
@@ -89,6 +89,7 @@ impl ValueCollector {
         });
 
         snapshot.discard_empty_regions();
+        
         let duration = start_time.elapsed();
         let byte_count = snapshot.get_byte_count();
 

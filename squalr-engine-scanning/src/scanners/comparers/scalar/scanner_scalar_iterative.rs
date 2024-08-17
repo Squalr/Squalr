@@ -9,7 +9,9 @@ pub struct ScannerScalarIterative {
 }
 
 impl ScannerScalarIterative {
-    fn new() -> Self { Self { } }
+    fn new() -> Self {
+        Self { }
+    }
     
     pub fn get_instance() -> &'static ScannerScalarIterative {
         static mut INSTANCE: Option<ScannerScalarIterative> = None;
@@ -32,7 +34,11 @@ impl Scanner for ScannerScalarIterative {
 
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
     /// is used to generate new sub-regions as the scan progresses.
-    fn scan_region(&self, snapshot_region: &SnapshotRegion, snapshot_sub_region: &SnapshotSubRegion, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
+    fn scan_region(&self,
+        snapshot_region: &SnapshotRegion,
+        snapshot_sub_region: &SnapshotSubRegion,
+        constraint: &ScanConstraint
+    ) -> Vec<SnapshotSubRegion> {
         let data_type_size = constraint.get_element_type().size_in_bytes();
         let aligned_element_count = snapshot_sub_region.get_element_count(constraint.get_alignment(), data_type_size);
         let encoder = ScannerScalarEncoder::get_instance();

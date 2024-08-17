@@ -11,8 +11,7 @@ pub struct ScannerScalarIterativeChunked {
 
 impl ScannerScalarIterativeChunked {
     fn new() -> Self {
-        Self {
-        }
+        Self { }
     }
     
     pub fn get_instance() -> &'static ScannerScalarIterativeChunked {
