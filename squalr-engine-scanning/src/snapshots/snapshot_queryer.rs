@@ -18,15 +18,13 @@ bitflags::bitflags! {
         const FROM_SETTINGS         = 1 << 0;
         const FROM_USER_MODE_MEMORY = 1 << 1;
         const FROM_NON_MODULES      = 1 << 2;
-        const FROM_STACK            = 1 << 3;
-        const FROM_MODULES          = 1 << 4;
+        const FROM_MODULES          = 1 << 3;
     }
 }
 
 pub struct SnapshotQueryer;
 
 impl SnapshotQueryer {
-
     // TODO: Support middle-ware for emulator types to filter down the address space
     pub fn get_snapshot(
         process_info: &ProcessInfo,
@@ -45,7 +43,6 @@ impl SnapshotQueryer {
             SnapshotRetrievalMode::FROM_NON_MODULES => {
                 SnapshotQueryer::create_snapshot_from_non_modules(process_info)
             }
-            SnapshotRetrievalMode::FROM_STACK => unimplemented!(),
             _ => {
                 Logger::get_instance().log(LogLevel::Error, "Unknown snapshot retrieval mode", None);
                 Snapshot::new(String::from(""), vec![])

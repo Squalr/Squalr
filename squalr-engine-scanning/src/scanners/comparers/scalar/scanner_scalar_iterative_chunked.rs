@@ -77,10 +77,10 @@ impl Scanner for ScannerScalarIterativeChunked {
                     );
                 }
             })
-            .reduce_with(|mut a, b| {
+            .reduce_with(|mut region_a, region_b| {
                 // Merge the results of two chunks in parallel
-                a.extend(b);
-                return a;
+                region_a.extend(region_b);
+                return region_a;
             })
             .unwrap_or_else(Vec::new);
         

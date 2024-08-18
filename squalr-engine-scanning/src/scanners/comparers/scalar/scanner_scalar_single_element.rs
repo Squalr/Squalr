@@ -47,16 +47,19 @@ impl Scanner for ScannerScalarSingleElement {
                 let mut current_value = data_type.to_default_value();
                 let immediate_value = constraint.get_constraint_value().unwrap();
                 let compare_func = scalar_comparer.get_immediate_compare_func(constraint.get_constraint_type());
-    
-                compare_result = compare_func(&memory_load_func, current_value_pointer, current_value.borrow_mut(), &immediate_value);
+
+                memory_load_func(current_value.borrow_mut(), current_value_pointer);
+                compare_result = compare_func(&current_value, &immediate_value);
             } else if constraint.is_relative_constraint() {
                 let current_value_pointer = snapshot_region.get_sub_region_current_values_pointer(&snapshot_sub_region);
                 let previous_value_pointer = snapshot_region.get_sub_region_previous_values_pointer(&snapshot_sub_region);
                 let mut current_value = data_type.to_default_value();
                 let mut previous_value = data_type.to_default_value();
                 let compare_func = scalar_comparer.get_relative_compare_func(constraint.get_constraint_type());
-    
-                compare_result = compare_func(&memory_load_func, current_value_pointer, previous_value_pointer, current_value.borrow_mut(), previous_value.borrow_mut());
+
+                memory_load_func(current_value.borrow_mut(), current_value_pointer);
+                memory_load_func(previous_value.borrow_mut(), previous_value_pointer);
+                compare_result = compare_func(&current_value, &previous_value);
             } else if constraint.is_immediate_constraint() {
                 let current_value_pointer = snapshot_region.get_sub_region_current_values_pointer(&snapshot_sub_region);
                 let previous_value_pointer = snapshot_region.get_sub_region_previous_values_pointer(&snapshot_sub_region);
@@ -65,7 +68,9 @@ impl Scanner for ScannerScalarSingleElement {
                 let compare_func = scalar_comparer.get_relative_delta_compare_func(constraint.get_constraint_type());
                 let delta_arg = constraint.get_constraint_value().unwrap(); // TODO: Handle and complain
     
-                compare_result = compare_func(&memory_load_func, current_value_pointer, previous_value_pointer, current_value.borrow_mut(), previous_value.borrow_mut(), delta_arg);
+                memory_load_func(current_value.borrow_mut(), current_value_pointer);
+                memory_load_func(previous_value.borrow_mut(), previous_value_pointer);
+                compare_result = compare_func(&current_value, &previous_value, delta_arg);
             } else {
                 panic!("Unrecognized constraint");
             }

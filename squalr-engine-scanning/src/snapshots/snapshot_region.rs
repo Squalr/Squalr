@@ -91,8 +91,8 @@ impl SnapshotRegion {
     }
     
     pub fn get_sub_region_previous_values_pointer(&self, snapshot_sub_region: &SnapshotSubRegion) -> *const u8 {
-        let current_values = self.get_current_values();
-        unsafe { current_values.as_ptr().add((snapshot_sub_region.get_base_address() - self.get_base_address()) as usize) }
+        let previous_values = self.get_previous_values();
+        unsafe { previous_values.as_ptr().add((snapshot_sub_region.get_base_address() - self.get_base_address()) as usize) }
     }
     
     pub fn get_base_address(&self) -> u64 {

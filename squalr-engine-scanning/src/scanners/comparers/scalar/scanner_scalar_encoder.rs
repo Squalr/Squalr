@@ -53,7 +53,9 @@ impl ScannerScalarEncoder {
                 for index in 0..element_count {
                     let current_value_pointer = current_value_pointer.add(index as usize * alignment as usize);
 
-                    if compare_func(&memory_load_func, current_value_pointer, current_value, immediate_value) {
+                    memory_load_func(current_value, current_value_pointer);
+
+                    if compare_func(current_value, immediate_value) {
                         run_length_encoder.encode_range(alignment);
                     } else {
                         run_length_encoder.finalize_current_encode_unchecked(alignment, data_type_size);
@@ -70,10 +72,10 @@ impl ScannerScalarEncoder {
                     let current_value_pointer = current_value_pointer.add(index as usize * alignment as usize);
                     let previous_value_pointer = previous_value_pointer.add(index as usize * alignment as usize);
 
+                    memory_load_func(current_value, current_value_pointer);
+                    memory_load_func(previous_value, previous_value_pointer);
+
                     if compare_func(
-                        &memory_load_func,
-                        current_value_pointer,
-                        previous_value_pointer,
                         current_value,
                         previous_value,
                     ) {
@@ -94,10 +96,10 @@ impl ScannerScalarEncoder {
                     let current_value_pointer = current_value_pointer.add(index as usize * alignment as usize);
                     let previous_value_pointer = previous_value_pointer.add(index as usize * alignment as usize);
 
+                    memory_load_func(current_value, current_value_pointer);
+                    memory_load_func(previous_value, previous_value_pointer);
+
                     if compare_func(
-                        &memory_load_func,
-                        current_value_pointer,
-                        previous_value_pointer,
                         current_value,
                         previous_value,
                         delta_arg,

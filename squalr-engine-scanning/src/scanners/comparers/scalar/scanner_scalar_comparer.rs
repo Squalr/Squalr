@@ -1,48 +1,29 @@
-use core::panic;
-
 use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
-use squalr_engine_common::dynamic_struct::data_type::DataLoadFunc;
 use squalr_engine_common::dynamic_struct::data_value::DataValue;
 use std::sync::Once;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)
 type ScalarCompareFnImmediate = unsafe fn(
-    // The function used to load new values from memory
-    &DataLoadFunc,
-    // Current values pointer
-    *const u8,
     // Current value struct ref
-    &mut DataValue,
+    &DataValue,
     // Immediate value
     &DataValue,
 ) -> bool;
 
 /// Defines a compare function that operates on current and previous values (ie changed, unchanged, increased, decreased)
 type ScalarCompareFnRelative = unsafe fn(
-    // The function used to load new values from memory
-    &DataLoadFunc,
-    // Current values pointer
-    *const u8,
-    // Previous values pointer
-    *const u8,
     // Current value struct ref
-    &mut DataValue,
+    &DataValue,
     // Previous value struct ref
-    &mut DataValue,
+    &DataValue,
 ) -> bool;
 
 /// Defines a compare function that operates on current and previous values, with a delta arg (ie +x, -x)
 type ScalarCompareFnDelta = unsafe fn(
-    // The function used to load new values from memory
-    &DataLoadFunc,
-    // Current values pointer
-    *const u8,
-    // Previous values pointer
-    *const u8,
     // Current value struct ref
-    &mut DataValue,
+    &DataValue,
     // Previous value struct ref
-    &mut DataValue,
+    &DataValue,
     // Delta value
     &DataValue,
 ) -> bool;
@@ -101,132 +82,80 @@ impl ScannerScalarComparer {
     }
 
     unsafe fn compare_equal(
-        memory_load_func: &DataLoadFunc,
-        current_value_ptr: *const u8,
-        current_value_ref: &mut DataValue,
+        current_value_ref: &DataValue,
         compare_value: &DataValue
     ) -> bool {
-        memory_load_func(current_value_ref, current_value_ptr);
-
         return current_value_ref == compare_value;
     }
 
     unsafe fn compare_not_equal(
-        memory_load_func: &DataLoadFunc,
-        current_value_ptr: *const u8,
-        current_value_ref: &mut DataValue,
+        current_value_ref: &DataValue,
         compare_value: &DataValue
     ) -> bool {
-        memory_load_func(current_value_ref, current_value_ptr);
-
         return current_value_ref != compare_value;
     }
     
     unsafe fn compare_changed(
-        memory_load_func: &DataLoadFunc,
-        current_value_ptr: *const u8,
-        compare_value_ptr: *const u8,
-        current_value_ref: &mut DataValue,
-        compare_value_ref: &mut DataValue
+        current_value_ref: &DataValue,
+        compare_value_ref: &DataValue
     ) -> bool {
-        memory_load_func(current_value_ref, current_value_ptr);
-        memory_load_func(compare_value_ref, compare_value_ptr);
         current_value_ref != compare_value_ref
     }
 
     unsafe fn compare_unchanged(
-        memory_load_func: &DataLoadFunc,
-        current_value_ptr: *const u8,
-        compare_value_ptr: *const u8,
-        current_value_ref: &mut DataValue,
-        compare_value_ref: &mut DataValue
+        current_value_ref: &DataValue,
+        compare_value_ref: &DataValue
     ) -> bool {
-        memory_load_func(current_value_ref, current_value_ptr);
-        memory_load_func(compare_value_ref, compare_value_ptr);
         current_value_ref == compare_value_ref
     }
 
     unsafe fn compare_increased(
-        memory_load_func: &DataLoadFunc,
-        current_value_ptr: *const u8,
-        compare_value_ptr: *const u8,
-        current_value_ref: &mut DataValue,
-        compare_value_ref: &mut DataValue
+        current_value_ref: &DataValue,
+        compare_value_ref: &DataValue
     ) -> bool {
-        memory_load_func(current_value_ref, current_value_ptr);
-        memory_load_func(compare_value_ref, compare_value_ptr);
-
         return current_value_ref > compare_value_ref;
     }
 
     unsafe fn compare_decreased(
-        memory_load_func: &DataLoadFunc,
-        current_value_ptr: *const u8,
-        compare_value_ptr: *const u8,
-        current_value_ref: &mut DataValue,
-        compare_value_ref: &mut DataValue
+        current_value_ref: &DataValue,
+        compare_value_ref: &DataValue
     ) -> bool {
-        memory_load_func(current_value_ref, current_value_ptr);
-        memory_load_func(compare_value_ref, compare_value_ptr);
-
         return current_value_ref < compare_value_ref;
     }
 
     unsafe fn compare_greater_than(
-        memory_load_func: &DataLoadFunc,
-        current_value_ptr: *const u8,
-        current_value_ref: &mut DataValue,
+        current_value_ref: &DataValue,
         compare_value: &DataValue
     ) -> bool {
-        memory_load_func(current_value_ref, current_value_ptr);
-
         return *current_value_ref > *compare_value;
     }
 
     unsafe fn compare_greater_than_or_equal(
-        memory_load_func: &DataLoadFunc,
-        current_value_ptr: *const u8,
-        current_value_ref: &mut DataValue,
+        current_value_ref: &DataValue,
         compare_value: &DataValue
     ) -> bool {
-        memory_load_func(current_value_ref, current_value_ptr);
-
         return *current_value_ref >= *compare_value;
     }
 
     unsafe fn compare_less_than(
-        memory_load_func: &DataLoadFunc,
-        current_value_ptr: *const u8,
-        current_value_ref: &mut DataValue,
+        current_value_ref: &DataValue,
         compare_value: &DataValue
     ) -> bool {
-        memory_load_func(current_value_ref, current_value_ptr);
-
         return *current_value_ref < *compare_value;
     }
 
     unsafe fn compare_less_than_or_equal(
-        memory_load_func: &DataLoadFunc,
-        current_value_ptr: *const u8,
-        current_value_ref: &mut DataValue,
+        current_value_ref: &DataValue,
         compare_value: &DataValue
     ) -> bool {
-        memory_load_func(current_value_ref, current_value_ptr);
-
         return *current_value_ref <= *compare_value;
     }
 
     unsafe fn compare_increased_by(
-        memory_load_func: &DataLoadFunc,
-        current_value_ptr: *const u8,
-        compare_value_ptr: *const u8,
-        current_value_ref: &mut DataValue,
-        compare_value_ref: &mut DataValue,
+        current_value_ref: &DataValue,
+        compare_value_ref: &DataValue,
         compare_delta_value: &DataValue
     )-> bool {
-        memory_load_func(current_value_ref, current_value_ptr);
-        memory_load_func(compare_value_ref, compare_value_ptr);
-
         match (current_value_ref, compare_value_ref) {
             (DataValue::U8(a), DataValue::U8(b)) => *a == b.wrapping_add(compare_delta_value.as_u8().unwrap()),
             (DataValue::I8(a), DataValue::I8(b)) => *a == b.wrapping_add(compare_delta_value.as_i8().unwrap()),
@@ -241,16 +170,10 @@ impl ScannerScalarComparer {
     }
 
     unsafe fn compare_decreased_by(
-        memory_load_func: &DataLoadFunc,
-        current_value_ptr: *const u8,
-        compare_value_ptr: *const u8,
-        current_value_ref: &mut DataValue,
-        compare_value_ref: &mut DataValue,
+        current_value_ref: &DataValue,
+        compare_value_ref: &DataValue,
         compare_delta_value: &DataValue
     )-> bool {
-        memory_load_func(current_value_ref, current_value_ptr);
-        memory_load_func(compare_value_ref, compare_value_ptr);
-
         match (current_value_ref, compare_value_ref) {
             (DataValue::U8(a), DataValue::U8(b)) => *a == b.wrapping_sub(compare_delta_value.as_u8().unwrap()),
             (DataValue::I8(a), DataValue::I8(b)) => *a == b.wrapping_sub(compare_delta_value.as_i8().unwrap()),
