@@ -10,11 +10,12 @@ squalr-engine-architecture = { path = "../squalr-engine-architecture" }
 squalr-engine-common = { path = "../squalr-engine-common" }
 squalr-engine-memory = { path = "../squalr-engine-memory" }
 squalr-engine-processes = { path = "../squalr-engine-processes" }
-bitflags = ">=1.3.2"
-futures = ">=0.3"
-rayon = "1.5"
-sysinfo = ">=0.30"
-uuid = { version = ">=1.9.1", features = ["v4"] }
+bitflags = ">=2.6.0"
+futures = ">=0.3.30"
+rangemap = { version = ">=1.5.1" }
+rayon = "1.10.0"
+sysinfo = ">=0.31.2"
+uuid = { version = ">=1.10.0", features = ["v4"] }
 
 [build-dependencies]
 

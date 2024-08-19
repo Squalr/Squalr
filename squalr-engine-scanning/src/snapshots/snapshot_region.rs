@@ -98,6 +98,10 @@ impl SnapshotRegion {
     pub fn get_base_address(&self) -> u64 {
         return self.normalized_region.get_base_address();
     }
+    
+    pub fn get_end_address(&self) -> u64 {
+        return self.normalized_region.get_base_address() + self.normalized_region.get_region_size();
+    }
 
     pub fn get_region_size(&self) -> u64 {
         return self.normalized_region.get_region_size();

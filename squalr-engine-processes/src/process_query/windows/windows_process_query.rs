@@ -22,7 +22,7 @@ impl WindowsProcessQuery {
     }
 
     fn get_process_name(&self, process_id: Pid) -> Option<String> {
-        self.system.process(process_id).map(|process| process.name().to_string())
+        self.system.process(process_id).map(|process| process.name().to_str().unwrap_or_default().to_string())
     }
 
     fn get_process_bitness(&self, handle: HANDLE) -> Bitness {
@@ -100,7 +100,7 @@ impl IProcessQueryer for WindowsProcessQuery {
     }
 
     fn get_process_name(&self, pid: Pid) -> Option<String> {
-        self.system.process(pid).map(|process| process.name().to_string())
+        self.system.process(pid).map(|process| process.name().to_str().unwrap_or_default().to_string())
     }
 
     fn is_process_windowed(&self, process_id: &Pid) -> bool {
