@@ -32,12 +32,13 @@ impl MemoryQueryer {
             return INSTANCE.as_ref().unwrap_unchecked();
         }
     }
+
     // TODO: Support middle-ware for emulator types to filter down the address space
-    pub fn get_snapshot(
+    pub fn get_memory_page_bounds(
         process_info: &ProcessInfo,
-        snapshot_creation_mode: PageRetrievalMode,
+        page_retrieval_mode: PageRetrievalMode,
     ) -> Vec<NormalizedRegion> {
-        match snapshot_creation_mode {
+        match page_retrieval_mode {
             PageRetrievalMode::FROM_SETTINGS => {
                 return MemoryQueryer::query_pages_from_settings(process_info);
             }

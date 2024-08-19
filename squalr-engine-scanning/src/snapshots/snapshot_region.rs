@@ -1,50 +1,32 @@
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
-use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
-use squalr_engine_memory::memory_reader::MemoryReader;
-use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
 
 #[derive(Debug)]
 pub struct SnapshotRegion {
     normalized_region: NormalizedRegion,
-    current_values: Vec<u8>,
-    previous_values: Vec<u8>,
-    snapshot_sub_regions: Vec<SnapshotSubRegion>,
+    values: Vec<u8>,
 }
 
 impl SnapshotRegion {
-    pub fn new(base_address: u64, region_size: u64) -> Self {
+    pub fn new(
+        normalized_region: NormalizedRegion,
+        values: Vec<u8>,
+    ) -> Self {
         Self {
-            normalized_region: NormalizedRegion::new(base_address, region_size),
-            current_values: vec![],
-            previous_values: vec![],
-            snapshot_sub_regions: vec![],
+            normalized_region: normalized_region,
+            values: values,
         }
     }
 
-    pub fn new_from_normalized_region(normalized_region: NormalizedRegion) -> Self {
-        Self {
-            normalized_region,
-            current_values: vec![],
-            previous_values: vec![],
-            snapshot_sub_regions: vec![],
-        }
+    pub fn get_values(&self) -> &Vec<u8> {
+        return &self.values;
     }
 
-    pub fn get_current_values(&self) -> &Vec<u8> {
-        return &self.current_values;
-    }
-
-    pub fn get_previous_values(&self) -> &Vec<u8> {
-        return &self.previous_values;
-    }
-
+    /*
     pub fn read_all_memory(&mut self, process_handle: u64) -> Result<(), String> {
         let region_size = self.get_region_size() as usize;
     
-        std::mem::swap(&mut self.current_values, &mut self.previous_values);
+        std::mem::swap(&mut self.values, &mut self.previous_values);
         
         if self.current_values.is_empty() && region_size > 0 {
             self.current_values = vec![0u8; region_size];
@@ -83,16 +65,10 @@ impl SnapshotRegion {
             .map_err(|e| e.to_string())?;
     
         return Ok(());
-    }
+    } */
     
-    pub fn get_sub_region_current_values_pointer(&self, snapshot_sub_region: &SnapshotSubRegion) -> *const u8 {
-        let current_values = self.get_current_values();
-        unsafe { current_values.as_ptr().add((snapshot_sub_region.get_base_address() - self.get_base_address()) as usize) }
-    }
-    
-    pub fn get_sub_region_previous_values_pointer(&self, snapshot_sub_region: &SnapshotSubRegion) -> *const u8 {
-        let previous_values = self.get_previous_values();
-        unsafe { previous_values.as_ptr().add((snapshot_sub_region.get_base_address() - self.get_base_address()) as usize) }
+    pub fn get_values_pointer(&self) -> *const u8 {
+        return self.get_values().as_ptr();
     }
     
     pub fn get_base_address(&self) -> u64 {
@@ -107,51 +83,11 @@ impl SnapshotRegion {
         return self.normalized_region.get_region_size();
     }
 
-    pub fn get_byte_count(&self) -> u64 {
-        return self.snapshot_sub_regions.iter().map(|sub_region| sub_region.get_byte_count()).sum();
-    }
-
-    pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: u64) -> u64 {
-        return self.snapshot_sub_regions.iter().map(|sub_region| sub_region.get_element_count(alignment, data_type_size)).sum();
-    }
-    
-    pub fn set_snapshot_sub_regions(&mut self, snapshot_sub_regions: Vec<SnapshotSubRegion>) {
-        self.snapshot_sub_regions = snapshot_sub_regions;
-    }
-
-    pub fn get_snapshot_sub_regions(&self) -> &Vec<SnapshotSubRegion> {
-        return &self.snapshot_sub_regions;
-    }
-    
-    pub fn get_snapshot_sub_regions_create_if_none(&mut self) -> Vec<SnapshotSubRegion> {
-        if self.snapshot_sub_regions.is_empty() && self.get_region_size() > 0 {
-            self.snapshot_sub_regions.push(SnapshotSubRegion::new(self));
-        }
-
-        return self.snapshot_sub_regions.clone();
-    }
-
     pub fn set_alignment(&mut self, alignment: MemoryAlignment) {
         self.normalized_region.set_alignment(alignment);
     }
 
-    pub fn has_current_values(&self) -> bool {
-        return !self.current_values.is_empty();
-    }
-
-    pub fn has_previous_values(&self) -> bool {
-        return !self.previous_values.is_empty();
-    }
-
-    pub fn can_compare_with_constraint(&self, constraints: &ScanConstraint) -> bool {
-        if !constraints.is_valid() || !self.has_current_values() {
-            return false;
-        }
-
-        if !constraints.is_immediate_constraint() && !self.has_previous_values() {
-            return false;
-        }
-
-        return true;
+    pub fn has_values(&self) -> bool {
+        return !self.values.is_empty();
     }
 }

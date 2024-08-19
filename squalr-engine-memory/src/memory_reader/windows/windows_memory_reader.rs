@@ -33,7 +33,7 @@ impl IMemoryReader for WindowsMemoryReader {
             }
 
             dynamic_struct.copy_from_bytes(&buffer);
-            Ok(())
+            return Ok(());
         }
     }
 
@@ -54,7 +54,7 @@ impl IMemoryReader for WindowsMemoryReader {
                 return Err(format!("Failed to read process memory: {}", GetLastError()));
             }
 
-            Ok(())
+            return Ok(());
         }
     }
 }

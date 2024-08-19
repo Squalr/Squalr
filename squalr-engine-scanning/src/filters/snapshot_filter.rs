@@ -1,10 +1,7 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::results::scan_result_lookup_table::ScanResultLookupTable;
 use crate::snapshots::snapshot::Snapshot;
-use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
-use squalr_engine_memory::normalized_region::NormalizedRegion;
-use std::cmp::max;
 use std::sync::{Arc, RwLock};
 
 // Work in progress to remove SnapshotSubRegion and replace it with SnapshotRegionFilter
@@ -66,4 +63,45 @@ impl SnapshotFilter {
     pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: u64) -> u64 {
         return 0;
     }
+    /*
+    
+
+    pub fn get_byte_count(&self) -> u64 {
+        return self.snapshot_sub_regions.iter().map(|sub_region| sub_region.get_byte_count()).sum();
+    }
+
+    pub fn get_element_count(&self, alignment: MemoryAlignment, data_type_size: u64) -> u64 {
+        return self.snapshot_sub_regions.iter().map(|sub_region| sub_region.get_element_count(alignment, data_type_size)).sum();
+    }
+    
+    pub fn set_snapshot_sub_regions(&mut self, snapshot_sub_regions: Vec<SnapshotSubRegion>) {
+        self.snapshot_sub_regions = snapshot_sub_regions;
+    }
+
+    pub fn get_snapshot_sub_regions(&self) -> &Vec<SnapshotSubRegion> {
+        return &self.snapshot_sub_regions;
+    }
+    
+    pub fn get_snapshot_sub_regions_create_if_none(&mut self) -> Vec<SnapshotSubRegion> {
+        if self.snapshot_sub_regions.is_empty() && self.get_region_size() > 0 {
+            self.snapshot_sub_regions.push(SnapshotSubRegion::new(self));
+        }
+
+        return self.snapshot_sub_regions.clone();
+    }
+
+    
+
+    pub fn can_compare_with_constraint(&self, constraints: &ScanConstraint) -> bool {
+        if !constraints.is_valid() || !self.has_current_values() {
+            return false;
+        }
+
+        if !constraints.is_immediate_constraint() && !self.has_previous_values() {
+            return false;
+        }
+
+        return true;
+    }
+     */
 }
