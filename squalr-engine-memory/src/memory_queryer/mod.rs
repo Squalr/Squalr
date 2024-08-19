@@ -1,8 +1,8 @@
 pub mod memory_protection_enum;
+pub mod memory_queryer;
 pub mod memory_queryer_trait;
 pub mod memory_type_enum;
 pub mod region_bounds_handling;
-use std::sync::Once;
 
 #[cfg(any(target_os = "linux"))]
 mod linux;
@@ -21,21 +21,3 @@ pub use crate::memory_queryer::macos::macos_memory_queryer::MacOsMemoryQueryer a
 
 #[cfg(target_os = "windows")]
 pub use crate::memory_queryer::windows::windows_memory_queryer::WindowsMemoryQueryer as MemoryQueryerImpl;
-
-pub struct MemoryQueryer;
-
-impl MemoryQueryer {
-    pub fn get_instance() -> &'static MemoryQueryerImpl {
-        static mut INSTANCE: Option<MemoryQueryerImpl> = None;
-        static INIT: Once = Once::new();
-
-        unsafe {
-            INIT.call_once(|| {
-                let instance = MemoryQueryerImpl::new();
-                INSTANCE = Some(instance);
-            });
-
-            return INSTANCE.as_ref().unwrap_unchecked();
-        }
-    }
-}

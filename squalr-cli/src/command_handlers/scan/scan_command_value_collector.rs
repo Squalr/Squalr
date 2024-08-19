@@ -1,8 +1,6 @@
 use crate::command_handlers::scan::ScanCommand;
-use crate::session_manager::SessionManager;
-
+use squalr_engine::session_manager::SessionManager;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
-use squalr_engine_scanning::snapshots::snapshot_manager::SnapshotManager;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use std::thread;
@@ -10,15 +8,13 @@ use std::thread;
 pub fn handle_value_collector_command(cmd: &mut ScanCommand) {
     let session_manager_lock = SessionManager::get_instance();
     let session_manager = session_manager_lock.read().unwrap();
-    let snapshot_manager_lock = SnapshotManager::get_instance();
-    let mut snapshot_manager = snapshot_manager_lock.write().unwrap();
 
     if let ScanCommand::Collect = cmd {
         if let Some(process_info) = session_manager.get_opened_process() {
-            let snapshot = snapshot_manager.get_active_snapshot_create_if_none(&process_info);
+
             let task = ValueCollector::collect_values(
                 process_info.clone(),
-                snapshot,
+                session_manager.get_scan_results(),
                 None,
                 true,
             );

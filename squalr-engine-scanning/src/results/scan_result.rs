@@ -1,6 +1,5 @@
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 
-#[derive(Debug, Clone)]
 pub struct ScanResult {
     address: u64,
     field_value: FieldValue,

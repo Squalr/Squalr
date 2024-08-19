@@ -369,6 +369,7 @@ version = "0.1.0"
 dependencies = [
  "squalr-engine-common",
  "squalr-engine-memory",
+ "squalr-engine-processes",
  "squalr-engine-scanning",
 ]
 

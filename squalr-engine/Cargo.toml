@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 squalr-engine-common = { path = "../squalr-engine-common" }
 squalr-engine-memory = { path = "../squalr-engine-memory" }
+squalr-engine-processes = { path = "../squalr-engine-processes" }
 squalr-engine-scanning = { path = "../squalr-engine-scanning" }
 
 [build-dependencies]

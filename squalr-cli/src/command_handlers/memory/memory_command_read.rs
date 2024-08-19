@@ -1,6 +1,5 @@
 use crate::command_handlers::memory::memory_command::MemoryCommand;
-use crate::session_manager::SessionManager;
-
+use squalr_engine::session_manager::SessionManager;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_memory::memory_reader::MemoryReader;

@@ -3,7 +3,6 @@ use cli::Cli;
 mod command;
 mod command_handlers;
 mod log_listener;
-mod session_manager;
 
 use command_handlers::handle_commands;
 use shlex;

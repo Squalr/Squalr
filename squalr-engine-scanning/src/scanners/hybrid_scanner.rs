@@ -106,8 +106,6 @@ impl HybridScanner {
                 }
             });
         
-        // Discard eliminated regions and restore the correct sort order
-        snapshot.discard_empty_regions();
         snapshot.set_name(HybridScanner::NAME.to_string());
 
         let duration = start_time.elapsed();

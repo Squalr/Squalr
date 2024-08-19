@@ -1,7 +1,6 @@
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
-use std::{borrow::BorrowMut, time::SystemTime};
-use std::cmp::Reverse;
+use std::time::SystemTime;
 
 pub struct Snapshot {
     name: String,
@@ -9,54 +8,38 @@ pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,
 }
 
+/// Represents a snapshot of memory in another process. By design, a snapshot is entirely immutable to avoid resource contention.
 impl Snapshot {
-    pub fn new(name: String, snapshot_regions: Vec<SnapshotRegion>) -> Self {
+    pub fn new(name: String, mut snapshot_regions: Vec<SnapshotRegion>) -> Self {
+        // Remove empty regions and sort them ascending
+        snapshot_regions.retain(|region| region.get_byte_count() > 0);
+        snapshot_regions.sort_by_key(|region| region.get_base_address());
+
         Self {
             name,
             creation_time: SystemTime::now(),
-            snapshot_regions: snapshot_regions,
+            snapshot_regions,
         }
+    }
+
+    // TODO: Breaks immutability contract but not important, still...
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
     }
 
     pub fn get_name(&self) -> String {
         return self.name.clone();
     }
-
-    pub fn set_name(&mut self, name: String) {
-        self.name = name;
-    }
-    
-    /// Assigns snapshot regions, sorting them by base address ascending.
-    pub fn set_snapshot_regions(&mut self, snapshot_regions: Vec<SnapshotRegion>) {
-        self.creation_time = SystemTime::now();
-        self.snapshot_regions = snapshot_regions;
-        self.sort_regions_by_address();
-    }
-    
-    pub fn discard_empty_regions(&mut self) {
-        self.snapshot_regions.retain(|region| !region.get_snapshot_sub_regions().is_empty());
+    pub fn get_creation_time(&self) -> &SystemTime {
+        return &self.creation_time;
     }
 
     pub fn get_snapshot_regions(&self) -> &Vec<SnapshotRegion> {
         return &self.snapshot_regions;
     }
 
-    pub fn get_snapshot_regions_mut(&mut self) -> &mut Vec<SnapshotRegion> {
-        return self.snapshot_regions.borrow_mut();
-    }
-
     pub fn get_region_count(&self) -> u64 {
         return self.snapshot_regions.len() as u64;
-    }
-
-    /// Sorts the regions by region size descending. This significantly improves scan speeds by introducing a greedy algorithm.
-    /// Large regions require more work, so by processing them first, it is easier to distribute the remaining workload across threads.
-    pub fn sort_regions_for_scans(&mut self) {
-        self.snapshot_regions.sort_by_key(|region| Reverse(region.get_region_size()));
-    }
-
-    pub fn sort_regions_by_address(&mut self) {
-        self.snapshot_regions.sort_by_key(|region| region.get_base_address());
     }
 
     pub fn get_byte_count(&self) -> u64 {
