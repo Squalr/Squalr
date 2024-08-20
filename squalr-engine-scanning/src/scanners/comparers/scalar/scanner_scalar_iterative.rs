@@ -1,8 +1,10 @@
+use squalr_engine_common::dynamic_struct::data_type::DataType;
+
+use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::scalar::scanner_scalar_encoder::ScannerScalarEncoder;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use std::sync::Once;
 
 pub struct ScannerScalarIterative {
@@ -34,22 +36,25 @@ impl Scanner for ScannerScalarIterative {
 
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
     /// is used to generate new sub-regions as the scan progresses.
-    fn scan_region(&self,
+    fn scan_region(
+        &self,
         snapshot_region: &SnapshotRegion,
-        snapshot_sub_region: &SnapshotSubRegion,
-        constraint: &ScanConstraint
-    ) -> Vec<SnapshotSubRegion> {
-        let data_type_size = constraint.get_data_type().size_in_bytes();
-        let aligned_element_count = snapshot_sub_region.get_element_count(constraint.get_alignment(), data_type_size);
+        snapshot_region_filter: &SnapshotRegionFilter,
+        constraint: &ScanConstraint,
+        data_type: &DataType,
+    ) -> Vec<SnapshotRegionFilter> {
+        let data_type_size = data_type.size_in_bytes();
+        let aligned_element_count = snapshot_region_filter.get_element_count(constraint.get_alignment(), data_type_size);
         let encoder = ScannerScalarEncoder::get_instance();
-        let current_value_pointer = snapshot_region.get_sub_region_current_values_pointer(&snapshot_sub_region);
-        let previous_value_pointer = snapshot_region.get_sub_region_previous_values_pointer(&snapshot_sub_region);
+        let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
+        let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
 
         let results = encoder.encode(
             current_value_pointer,
             previous_value_pointer,
             constraint,
-            snapshot_sub_region.get_base_address(),
+            data_type,
+            snapshot_region_filter.get_base_address(),
             aligned_element_count
         );
         

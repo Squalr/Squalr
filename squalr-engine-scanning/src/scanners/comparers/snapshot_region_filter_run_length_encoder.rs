@@ -1,10 +1,11 @@
-use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
+use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 
-pub struct SnapshotSubRegionRunLengthEncoder {
+pub struct SnapshotRegionFilterRunLengthEncoder {
+    // Public so that this can be directly taken by callers
+    pub result_regions: Vec<SnapshotRegionFilter>,
     run_length_current_address: u64,
     is_encoding: bool,
     run_length: u64,
-    result_regions: Vec<SnapshotSubRegion>,
 }
 
 /// Implements a run length encoder, which (as far as I know) is the most efficient way for memory scanners to create results.
@@ -17,18 +18,14 @@ pub struct SnapshotSubRegionRunLengthEncoder {
 /// 
 /// The caller can get additional performance gains by dividing the work among several run length encoders, then stitching together
 /// boundary regions once the run length encoders are complete.
-impl SnapshotSubRegionRunLengthEncoder {
+impl SnapshotRegionFilterRunLengthEncoder {
     pub fn new(run_length_current_address: u64) -> Self {
         Self {
+            result_regions: vec![],
             run_length_current_address: run_length_current_address,
             is_encoding: false,
             run_length: 0,
-            result_regions: vec![],
         }
-    }
-    
-    pub fn get_collected_regions(&self) -> &Vec<SnapshotSubRegion> {
-        return &self.result_regions;
     }
 
     pub fn adjust_for_misalignment(&mut self,
@@ -49,7 +46,7 @@ impl SnapshotSubRegionRunLengthEncoder {
         data_type_size: u64
     ) {
         if self.is_encoding && self.run_length > 0 {
-            self.result_regions.push(SnapshotSubRegion::new_with_address_and_size_in_bytes(
+            self.result_regions.push(SnapshotRegionFilter::new(
                 self.run_length_current_address,
                 self.run_length + (data_type_size - 1),
             ));

@@ -1,10 +1,12 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
+use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::dynamic_struct::data_type::{self, DataType};
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
+use std::borrow::BorrowMut;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -79,12 +81,18 @@ impl SnapshotRegion {
         return Ok(());
     }
     
-    pub fn get_current_values_pointer(&self) -> *const u8 {
-        return self.get_current_values().as_ptr();
+    pub fn get_current_values_pointer(&self, snapshot_region_filter: &SnapshotRegionFilter) -> *const u8 {
+        unsafe{
+            let offset = snapshot_region_filter.get_base_address() - self.get_base_address();
+            return self.get_current_values().as_ptr().add(offset as usize);
+        }
     }
     
-    pub fn get_previous_values_pointer(&self) -> *const u8 {
-        return self.get_previous_values().as_ptr();
+    pub fn get_previous_values_pointer(&self, snapshot_region_filter: &SnapshotRegionFilter) -> *const u8 {
+        unsafe{
+            let offset = snapshot_region_filter.get_base_address() - self.get_base_address();
+            return self.get_previous_values().as_ptr().add(offset as usize);
+        }
     }
     
     pub fn get_base_address(&self) -> u64 {
@@ -111,7 +119,19 @@ impl SnapshotRegion {
         return !self.previous_values.is_empty();
     }
 
-    pub fn get_or_create_filters(&mut self, data_types: &Vec<DataType>) -> &HashMap<DataType, Vec<SnapshotRegionFilter>> {
+    pub fn can_compare_with_constraint(&self, constraints: &ScanConstraint) -> bool {
+        if !constraints.is_valid() || !self.has_current_values() {
+            return false;
+        }
+
+        if !constraints.is_immediate_constraint() && !self.has_previous_values() {
+            return false;
+        }
+
+        return true;
+    }
+
+    pub fn create_filters(&mut self, data_types: &Vec<DataType>) {
         // Collect the data types that need new filters
         let new_filters: Vec<DataType> = data_types.iter()
             .filter(|data_type| !self.filters.contains_key(data_type))
@@ -128,7 +148,9 @@ impl SnapshotRegion {
                 )],
             );
         }
+    }
 
+    pub fn get_filters(&self) -> &HashMap<DataType, Vec<SnapshotRegionFilter>> {
         // Retrieve references for all specified filters
         return &self.filters;
     }

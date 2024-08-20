@@ -1,4 +1,5 @@
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
@@ -67,21 +68,8 @@ impl SnapshotRegionFilter {
         return aligned_base - base_address;
     }
 
-    /*
-    pub fn can_compare_with_constraint(&self, constraints: &ScanConstraint) -> bool {
-        if !constraints.is_valid() || !self.parent_snapshot.read().unwrap().has_current_values() {
-            return false;
-        }
-
-        if !constraints.is_immediate_constraint() && !self.has_previous_values() {
-            return false;
-        }
-
-        return true;
-    }
-
     
-
+    /*
     pub fn get_byte_count(&self) -> u64 {
         return self.snapshot_sub_regions.iter().map(|sub_region| sub_region.get_byte_count()).sum();
     }

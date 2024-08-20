@@ -22,12 +22,14 @@ pub fn handle_manual_scan_command(cmd: &mut ScanCommand) {
                 None,
                 true,
             ).wait_for_completion();
+
+            let data_types = vec![value_and_type.data_type.to_owned()];
             
             // Now set up for the memory scan
             let constraint = ScanConstraint::new_with_value(
                 MemoryAlignment::Alignment1,
                 constraint_type.to_owned(),
-                value_and_type.data_type.to_owned(),
+                data_types,
                 Some(value_and_type.data_value.to_owned()));
             
             let task = ManualScanner::scan(

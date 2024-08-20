@@ -1,3 +1,4 @@
+use crate::results::scan_results::ScanResults;
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot::Snapshot;
@@ -21,7 +22,13 @@ pub struct HybridScanner;
 impl HybridScanner {
     const NAME: &'static str = "Hybrid Scan";
 
-    pub fn scan(process_info: ProcessInfo, snapshot: Arc<RwLock<Snapshot>>, constraint: &ScanConstraint, task_identifier: Option<String>, with_logging: bool) -> Arc<TrackableTask<()>> {
+    pub fn scan(
+        process_info: ProcessInfo,
+        scan_results: Arc<RwLock<ScanResults>>,
+        constraint: &ScanConstraint,
+        task_identifier: Option<String>,
+        with_logging: bool,
+    ) -> Arc<TrackableTask<()>> {
         let task = TrackableTask::<()>::create(
             HybridScanner::NAME.to_string(),
             task_identifier,
@@ -33,7 +40,7 @@ impl HybridScanner {
         thread::spawn(move || {
             Self::scan_task(
                 process_info,
-                snapshot,
+                scan_results,
                 &constraint_clone,
                 task_clone.clone(),
                 task_clone.get_cancellation_token().clone(),
@@ -48,16 +55,17 @@ impl HybridScanner {
 
     fn scan_task(
         process_info: ProcessInfo,
-        snapshot: Arc<RwLock<Snapshot>>,
+        scan_results: Arc<RwLock<ScanResults>>,
         constraint: &ScanConstraint,
         task: Arc<TrackableTask<()>>,
         cancellation_token: Arc<AtomicBool>,
         with_logging: bool,
     ) {
+        /*
         let mut snapshot = snapshot.write().unwrap();
         let constraint = &constraint.clone_and_resolve_auto_alignment();
         let region_count = snapshot.get_region_count();
-        let snapshot_regions = snapshot.get_snapshot_regions_mut();
+        let snapshot_regions = snapshot.get_snapshot_regions_for_update();
 
         if with_logging {
             Logger::get_instance().log(LogLevel::Info, "Performing hybrid manual scan...", None);
@@ -65,7 +73,7 @@ impl HybridScanner {
 
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
-
+        
         snapshot_regions
             .par_iter_mut()
             .for_each(|region| {
@@ -93,9 +101,9 @@ impl HybridScanner {
                 region.set_alignment(constraint.get_alignment());
 
                 let scan_dispatcher = ScanDispatcher::get_instance();
-                let scan_results = scan_dispatcher.dispatch_scan_parallel(region, constraint);
+                // let scan_results = scan_dispatcher.dispatch_scan_parallel(region, constraint);
 
-                region.set_snapshot_sub_regions(scan_results.to_owned());
+                // region.set_snapshot_sub_regions(scan_results.to_owned());
 
                 let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
 
@@ -106,13 +114,14 @@ impl HybridScanner {
                 }
             });
         
-        snapshot.set_name(HybridScanner::NAME.to_string());
+        // snapshot.set_name(HybridScanner::NAME.to_string());
 
         let duration = start_time.elapsed();
-        let element_count = snapshot.get_element_count(constraint.get_alignment(), constraint.get_data_type().size_in_bytes());
+        let element_count = 420; //snapshot.get_element_count(constraint.get_alignment(), constraint.get_data_type().size_in_bytes());
         let byte_count = snapshot.get_byte_count();
 
         Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
         Logger::get_instance().log(LogLevel::Info, &format!("Results: {} ({} bytes)", element_count, value_to_metric_size(byte_count)), None);
+        */
     }
 }

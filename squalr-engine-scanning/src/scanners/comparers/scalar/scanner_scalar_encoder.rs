@@ -1,7 +1,9 @@
+use squalr_engine_common::dynamic_struct::data_type::DataType;
+
+use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::scalar::scanner_scalar_comparer::ScannerScalarComparer;
-use crate::scanners::comparers::snapshot_sub_region_run_length_encoder::SnapshotSubRegionRunLengthEncoder;
+use crate::scanners::comparers::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
-use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use std::borrow::BorrowMut;
 use std::sync::Once;
 
@@ -32,12 +34,12 @@ impl ScannerScalarEncoder {
         current_value_pointer: *const u8,
         previous_value_pointer: *const u8,
         constraint: &ScanConstraint,
+        data_type: &DataType,
         base_address: u64,
         element_count: u64,
-    ) -> Vec<SnapshotSubRegion> {
+    ) -> Vec<SnapshotRegionFilter> {
         let comparer = ScannerScalarComparer::get_instance();
-        let mut run_length_encoder = SnapshotSubRegionRunLengthEncoder::new(base_address);
-        let data_type = constraint.get_data_type();
+        let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type_size = data_type.size_in_bytes();
         let alignment = constraint.get_alignment() as u64;
         let memory_load_func = data_type.get_load_memory_function_ptr();
@@ -116,6 +118,6 @@ impl ScannerScalarEncoder {
 
         run_length_encoder.finalize_current_encode_unchecked(0, data_type_size);
         
-        return run_length_encoder.get_collected_regions().to_owned();
+        return run_length_encoder.result_regions;
     }
 }

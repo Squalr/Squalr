@@ -1,8 +1,7 @@
-use crate::scanners::comparers::scalar::scanner_scalar_iterative_chunked::ScannerScalarIterativeChunked;
+use crate::{filters::snapshot_region_filter::SnapshotRegionFilter, scanners::comparers::scalar::scanner_scalar_iterative_chunked::ScannerScalarIterativeChunked};
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
-use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_architecture::vectors::vectors;
@@ -31,15 +30,29 @@ impl ScanDispatcher {
         }
     }
 
-    pub fn dispatch_scan(&self, snapshot_region: &mut SnapshotRegion, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
-        let snapshot_sub_regions = snapshot_region.get_snapshot_sub_regions();
+    pub fn dispatch_scan(
+        &self,
+        snapshot_region: &SnapshotRegion,
+        snapshot_region_filters: &Vec<SnapshotRegionFilter>,
+        constraint: &ScanConstraint,
+        data_type: &DataType,
+    ) -> Vec<SnapshotRegionFilter> {
         let mut results = vec![];
     
-        for snapshot_sub_region in snapshot_sub_regions {
-            let snapshot_sub_region = snapshot_sub_region.clone();
-            let scanner_instance = self.acquire_scanner_instance(&snapshot_sub_region, &constraint);
+        for snapshot_region_filter in snapshot_region_filters {
+            let snapshot_region_filter = snapshot_region_filter.clone();
+            let scanner_instance = self.acquire_scanner_instance(
+                &snapshot_region_filter,
+                &constraint,
+                data_type,
+            );
     
-            let result_sub_regions = scanner_instance.scan_region(&snapshot_region, &snapshot_sub_region, &constraint);
+            let result_sub_regions = scanner_instance.scan_region(
+                &snapshot_region,
+                &snapshot_region_filter,
+                &constraint,
+                data_type,
+            );
             
             for result_sub_region in result_sub_regions {
                 results.push(result_sub_region);
@@ -49,30 +62,43 @@ impl ScanDispatcher {
         return results;
     }
 
-    pub fn dispatch_scan_parallel(&self, snapshot_region: &mut SnapshotRegion, constraint: &ScanConstraint) -> Vec<SnapshotSubRegion> {
-        let snapshot_sub_regions = snapshot_region.get_snapshot_sub_regions();
-    
-        snapshot_sub_regions
+    pub fn dispatch_scan_parallel(
+        &self,
+        snapshot_region: &SnapshotRegion,
+        snapshot_region_filters: &Vec<SnapshotRegionFilter>,
+        constraint: &ScanConstraint,
+        data_type: &DataType,
+    ) -> Vec<SnapshotRegionFilter> {
+        snapshot_region_filters
             // Convert the iterator to a parallel iterator
             .par_iter()
-            .flat_map(|snapshot_sub_region| {
-                let snapshot_sub_region = snapshot_sub_region.clone();
-                let scanner_instance = self.acquire_scanner_instance(&snapshot_sub_region, &constraint);
+            .flat_map(|snapshot_region_filter| {
+                let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, &constraint, data_type);
     
-                scanner_instance.scan_region(&snapshot_region, &snapshot_sub_region, &constraint)
+                return scanner_instance.scan_region(
+                    &snapshot_region,
+                    &snapshot_region_filter,
+                    &constraint,
+                    data_type,
+                );
             })
             .collect()
     }
 
-    fn acquire_scanner_instance(&self, snapshot_sub_region: &SnapshotSubRegion, constraint: &ScanConstraint) -> &dyn Scanner {
+    fn acquire_scanner_instance(
+        &self,
+        snapshot_region_filter: &SnapshotRegionFilter,
+        constraint: &ScanConstraint,
+        data_type: &DataType,
+    ) -> &dyn Scanner {
         let alignment = constraint.get_alignment();
-        let data_type_size = constraint.get_data_type().size_in_bytes();
+        let data_type_size = data_type.size_in_bytes();
 
-        if snapshot_sub_region.get_element_count(alignment, data_type_size) == 1 {
+        if snapshot_region_filter.get_element_count(alignment, data_type_size) == 1 {
             // Single element scanner
             return ScannerScalarSingleElement::get_instance();
-        } else if vectors::has_vector_support() && snapshot_sub_region.is_vector_friendly_size(alignment) {
-            match constraint.get_data_type() {
+        } else if vectors::has_vector_support() && snapshot_region_filter.is_vector_friendly_size(alignment) {
+            match data_type {
                 DataType::Bytes(_) => {
                     // Vector array of bytes scanner
                     // return ScannerVectorArrayOfBytes::get_instance();

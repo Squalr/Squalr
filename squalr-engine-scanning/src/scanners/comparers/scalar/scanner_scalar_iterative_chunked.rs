@@ -1,9 +1,10 @@
+use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::comparers::scalar::scanner_scalar_encoder::ScannerScalarEncoder;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use rayon::prelude::*;
+use squalr_engine_common::dynamic_struct::data_type::DataType;
 use std::sync::Once;
 
 pub struct ScannerScalarIterativeChunked {
@@ -35,16 +36,18 @@ impl Scanner for ScannerScalarIterativeChunked {
     /// is used to generate new sub-regions as the scan progresses.
     /// 
     /// This is substantially faster than the sequential version, but requires a post-step of stitching together subregions that are adjacent.
-    fn scan_region(&self,
+    fn scan_region(
+        &self,
         snapshot_region: &SnapshotRegion,
-        snapshot_sub_region: &SnapshotSubRegion,
-        constraint: &ScanConstraint
-    ) -> Vec<SnapshotSubRegion> {
-        let current_value_pointer = snapshot_region.get_sub_region_current_values_pointer(&snapshot_sub_region);
-        let previous_value_pointer = snapshot_region.get_sub_region_previous_values_pointer(&snapshot_sub_region);
-        let data_type_size = constraint.get_data_type().size_in_bytes();
+        snapshot_region_filter: &SnapshotRegionFilter,
+        constraint: &ScanConstraint,
+        data_type: &DataType,
+    ) -> Vec<SnapshotRegionFilter> {
+        let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
+        let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
+        let data_type_size = data_type.size_in_bytes();
         let alignment = constraint.get_alignment();
-        let element_count = snapshot_sub_region.get_element_count(alignment, data_type_size) as usize;
+        let element_count = snapshot_region_filter.get_element_count(alignment, data_type_size) as usize;
 
         // Convert raw pointers to slices
         let current_values_slice = unsafe {
@@ -58,20 +61,21 @@ impl Scanner for ScannerScalarIterativeChunked {
         let chunk_size = 1 << 20;
         let num_chunks = (element_count + chunk_size - 1) / chunk_size;
 
-        let all_subregions: Vec<SnapshotSubRegion> = (0..num_chunks)
+        let all_subregions: Vec<SnapshotRegionFilter> = (0..num_chunks)
             .into_par_iter()
             .map(|chunk_index| {
                 let first_element_index = (chunk_index * chunk_size) as u64;
                 let last_element_index = ((chunk_index + 1) * chunk_size).min(element_count) as u64;
                 let chunk_address_offset = first_element_index * alignment as u64;
                 let local_encoder = ScannerScalarEncoder::get_instance();
-                let base_address = snapshot_sub_region.get_base_address() + chunk_address_offset;
+                let base_address = snapshot_region_filter.get_base_address() + chunk_address_offset;
 
                 unsafe {
                     return local_encoder.encode(
                         current_values_slice.as_ptr().add(chunk_address_offset as usize),
                         previous_values_slice.as_ptr().add(chunk_address_offset as usize),
                         constraint,
+                        data_type,
                         base_address,
                         last_element_index - first_element_index,
                     );
