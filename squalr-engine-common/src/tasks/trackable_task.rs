@@ -16,7 +16,10 @@ pub struct TrackableTask<T: Send + Sync> {
 }
 
 impl<T: Send + Sync + 'static> TrackableTask<T> {
-    pub fn create(name: String, task_identifier: Option<String>) -> Arc<Self> {
+    pub fn create(
+        name: String,
+        task_identifier: Option<String>
+    ) -> Arc<Self> {
         let task_identifier = task_identifier.unwrap_or_else(|| Uuid::new_v4().to_string());
         let (progress_sender, progress_receiver) = mpsc::channel();
 
@@ -46,51 +49,77 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
         Arc::new(task)
     }
 
-    pub fn get_progress(self: &Arc<Self>) -> f32 {
+    pub fn get_progress(
+        self: &Arc<Self>
+    ) -> f32 {
         let progress_guard = self.progress.lock().unwrap();
         
         return *progress_guard;
     }
 
-    pub fn set_progress(self: &Arc<Self>, progress: f32) {
+    pub fn set_progress(
+        self: &Arc<Self>,
+        progress: f32
+    ) {
         let mut progress_guard = self.progress.lock().unwrap();
         *progress_guard = progress;
         let _ = self.progress_sender.send(progress);
     }
 
-    pub fn get_name(&self) -> String {
+    pub fn get_name(
+        &self
+    ) -> String {
         return self.name.clone();
     }
 
-    pub fn set_name(&mut self, name: String) {
+    pub fn set_name(
+        &mut self,
+        name: String
+    ) {
         self.name = name;
     }
 
-    pub fn get_task_identifier(&self) -> String {
+    pub fn get_task_identifier(
+        &self
+    ) -> String {
         return self.task_identifier.clone();
     }
 
-    pub fn get_cancellation_token(&self) -> Arc<AtomicBool> {
+    pub fn get_cancellation_token(
+        &self
+    ) -> Arc<AtomicBool> {
         return self.is_canceled.clone();
     }
 
-    pub fn set_canceled(self: &Arc<Self>, value: bool) {
+    pub fn set_canceled(
+        self: &Arc<Self>,
+        value: bool
+    ) {
         self.is_canceled.store(value, Ordering::SeqCst);
     }
 
-    pub fn is_completed(&self) -> bool {
+    pub fn is_completed(
+        &self
+    ) -> bool {
         return self.is_completed.load(Ordering::SeqCst);
     }
 
-    pub fn set_completed(self: &Arc<Self>, value: bool) {
+    pub fn set_completed(
+        self: &Arc<Self>,
+        value: bool
+    ) {
         self.is_completed.store(value, Ordering::SeqCst);
     }
 
-    pub fn cancel(self: &Arc<Self>) {
+    pub fn cancel(
+        self: &Arc<Self>
+    ) {
         self.set_canceled(true);
     }
 
-    pub fn complete(self: &Arc<Self>, result: T) {
+    pub fn complete(
+        self: &Arc<Self>, result: T
+    ) {
         self.set_completed(true);
 
         {
@@ -102,7 +131,9 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
         }
     }
 
-    pub fn wait_for_completion(self: Arc<Self>) -> T {
+    pub fn wait_for_completion(
+        self: Arc<Self>
+    ) -> T {
         let (result_lock, cvar) = &*self.result;
         let mut result_guard = result_lock.lock().unwrap();
         
@@ -114,7 +145,9 @@ impl<T: Send + Sync + 'static> TrackableTask<T> {
         return result_guard.take().unwrap();
     }
 
-    pub fn add_listener(&self) -> Receiver<f32> {
+    pub fn add_listener(
+        &self
+    ) -> Receiver<f32> {
         let (sender, receiver) = mpsc::channel();
         self.listener_senders.lock().unwrap().push(sender);
 

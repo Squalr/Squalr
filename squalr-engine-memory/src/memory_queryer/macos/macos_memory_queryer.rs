@@ -36,39 +36,70 @@ impl IMemoryQueryer for MacOsMemoryQuery {
         unimplemented!()
     }
 
-    fn is_address_writable(&self, process_id: &Pid, address: u64) -> bool {
+    fn is_address_writable(
+        &self,
+        process_id: &Pid,
+        address: u64
+    ) -> bool {
         unimplemented!()
     }
 
-    fn get_maximum_address(&self, process_id: &Pid) -> u64 {
+    fn get_maximum_address(
+        &self,
+        process_id: &Pid
+    ) -> u64 {
         unimplemented!()
     }
 
-    fn get_min_usermode_address(&self, process_id: &Pid) -> u64 {
+    fn get_min_usermode_address(
+        &self,
+        process_id: &Pid
+    ) -> u64 {
         unimplemented!()
     }
 
-    fn get_max_usermode_address(&self, process_id: &Pid) -> u64 {
+    fn get_max_usermode_address(
+        &self,
+        process_id: &Pid
+    ) -> u64 {
         unimplemented!()
     }
 
-    fn get_modules(&self, process_id: &Pid) -> HashSet<NormalizedModule> {
+    fn get_modules(
+        &self,
+        process_id: &Pid
+    ) -> HashSet<NormalizedModule> {
         unimplemented!()
     }
 
-    fn get_stack_addresses(&self, process_id: &Pid) -> HashSet<NormalizedRegion> {
+    fn get_stack_addresses(
+        &self,
+        process_id: &Pid
+    ) -> HashSet<NormalizedRegion> {
         unimplemented!()
     }
 
-    fn get_heap_addresses(&self, process_id: &Pid) -> HashSet<NormalizedRegion> {
+    fn get_heap_addresses(
+        &self,
+        process_id: &Pid
+    ) -> HashSet<NormalizedRegion> {
         unimplemented!()
     }
 
-    fn address_to_module(&self, process_id: &Pid, address: u64, module_name: &mut String) -> u64 {
+    fn address_to_module(
+        &self,
+        process_id: &Pid,
+        address: u64,
+        module_name: &mut String
+    ) -> u64 {
         unimplemented!()
     }
 
-    fn resolve_module(&self, process_id: &Pid, identifier: &str) -> u64 {
+    fn resolve_module(
+        &self,
+        process_id: &Pid,
+        identifier: &str
+    ) -> u64 {
         unimplemented!()
     }
 }

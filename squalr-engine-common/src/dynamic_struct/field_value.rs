@@ -16,13 +16,17 @@ pub struct FieldValue {
 impl Eq for FieldValue {}
 
 impl Ord for FieldValue {
-    fn cmp(&self, other: &Self) -> Ordering {
+    fn cmp(
+        &self,
+        other: &Self
+    ) -> Ordering {
         self.data_value.cmp(&other.data_value)
     }
 }
 
 impl Default for FieldValue {
-    fn default() -> Self {
+    fn default(
+    ) -> Self {
         FieldValue {
             data_type: DataType::default(),
             data_value: DataValue::default(),
@@ -31,15 +35,22 @@ impl Default for FieldValue {
 }
 
 impl FieldValue {
-    pub fn new(data_type: DataType, data_value: DataValue) -> Self {
+    pub fn new(
+        data_type: DataType,
+        data_value: DataValue
+    ) -> Self {
         FieldValue { data_type, data_value }
     }
 
-    pub fn size_in_bytes(&self) -> u64 {
+    pub fn size_in_bytes(
+        &self
+    ) -> u64 {
         self.data_value.size_in_bytes()
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(
+        &self
+    ) -> Vec<u8> {
         match (&self.data_type, &self.data_value) {
             (DataType::U8(), DataValue::U8(value)) => value.to_le_bytes().to_vec(),
             (DataType::U16(endian), DataValue::U16(value)) => match endian {
@@ -84,7 +95,10 @@ impl FieldValue {
         }
     }
 
-    pub fn copy_from_bytes(&mut self, bytes: &[u8]) {
+    pub fn copy_from_bytes(
+        &mut self,
+        bytes: &[u8]
+    ) {
         let value_ptr = bytes.as_ptr();
         let load_fn = self.data_type.get_load_memory_function_ptr();
 
@@ -97,7 +111,9 @@ impl FieldValue {
 impl FromStr for FieldValue {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(
+        s: &str
+    ) -> Result<Self, Self::Err> {
         let value_and_type: Vec<&str> = s.split('=').collect();
         let has_value = value_and_type.len() == 2;
 
@@ -131,13 +147,15 @@ impl FromStr for FieldValue {
             DataType::Bytes(_) => Ok(DataValue::Bytes(value_str.as_bytes().to_vec())),
             DataType::BitField(bits) => {
                 let bytes = hex::decode(value_str).map_err(|e| e.to_string())?;
+                
                 if bytes.len() * 8 < bits as usize {
                     return Err("Not enough bits in bitfield".to_string());
                 }
+
                 Ok(DataValue::BitField { value: bytes, bits })
             }
         }?;
 
-        Ok(FieldValue::new(data_type, value))
+        return Ok(FieldValue::new(data_type, value));
     }
 }

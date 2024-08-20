@@ -23,17 +23,42 @@ pub trait IMemoryQueryer {
         process_info: &ProcessInfo,
     ) -> Vec<NormalizedRegion>;
 
-    fn is_address_writable(&self, process_info: &ProcessInfo, address: u64) -> bool;
+    fn is_address_writable(
+        &self,
+        process_info: &ProcessInfo,
+        address: u64
+    ) -> bool;
 
-    fn get_maximum_address(&self, process_info: &ProcessInfo) -> u64;
+    fn get_maximum_address(
+        &self,
+        process_info: &ProcessInfo
+    ) -> u64;
 
-    fn get_min_usermode_address(&self, process_info: &ProcessInfo) -> u64;
+    fn get_min_usermode_address(
+        &self,
+        process_info: &ProcessInfo
+    ) -> u64;
 
-    fn get_max_usermode_address(&self, process_info: &ProcessInfo) -> u64;
+    fn get_max_usermode_address(
+        &self,
+        process_info: &ProcessInfo
+    ) -> u64;
 
-    fn get_modules(&self, process_info: &ProcessInfo) -> Vec<NormalizedModule>;
+    fn get_modules(
+        &self,
+        process_info: &ProcessInfo
+    ) -> Vec<NormalizedModule>;
 
-    fn address_to_module(&self, process_info: &ProcessInfo, address: u64, module_name: &mut String) -> u64;
+    fn address_to_module(
+        &self,
+        process_info: &ProcessInfo,
+        address: u64,
+        module_name: &mut String
+    ) -> u64;
 
-    fn resolve_module(&self, process_info: &ProcessInfo, identifier: &str) -> u64;
+    fn resolve_module(
+        &self,
+        process_info: &ProcessInfo,
+        identifier: &str
+    ) -> u64;
 }

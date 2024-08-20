@@ -7,7 +7,8 @@ pub struct MacOsProcessQuery {
 }
 
 impl MacOsProcessQuery {
-    pub fn new() -> Self {
+    pub fn new(
+    ) -> Self {
         MacOsProcessQuery {
             system: System::new_all(),
         }

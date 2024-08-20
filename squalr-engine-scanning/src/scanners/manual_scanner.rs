@@ -6,7 +6,6 @@ use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
@@ -79,8 +78,8 @@ impl ManualScanner {
                 let snapshot_region_filters = snapshot_region.get_filters();
                 
                 // Iterate over all data type filters. Generally there is only 1 data type, but this is to support multi-data type scans.
-                // Each filter is responsible for tracking which ranges of the snapshot region are kept for the scan.
-                let results: HashMap<_, _> = snapshot_region_filters
+                // Each filter is responsible for tracking which ranges of the snapshot region are in the scan results.
+                let results = snapshot_region_filters
                     .into_par_iter()
                     .filter_map(|(data_type, snapshot_region_filter)| {
                         if cancellation_token.load(Ordering::SeqCst) {

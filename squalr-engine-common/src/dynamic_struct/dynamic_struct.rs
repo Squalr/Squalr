@@ -10,21 +10,31 @@ pub struct DynamicStruct {
 }
 
 impl DynamicStruct {
-    pub fn new() -> Self {
+    pub fn new(
+    ) -> Self {
         DynamicStruct {
             fields: HashMap::new(),
         }
     }
 
-    pub fn add_field(&mut self, name: &str, value: FieldValue) {
+    pub fn add_field(
+        &mut self,
+        name: &str,
+        value: FieldValue
+    ) {
         self.fields.insert(name.to_string(), value);
     }
 
-    pub fn size_in_bytes(&self) -> u64 {
+    pub fn size_in_bytes(
+        &self
+    ) -> u64 {
         self.fields.values().map(|field| field.size_in_bytes()).sum()
     }
 
-    pub fn copy_from_bytes(&mut self, bytes: &[u8]) {
+    pub fn copy_from_bytes(
+        &mut self,
+        bytes: &[u8]
+    ) {
         let mut offset = 0;
         for field in self.fields.values_mut() {
             let size = field.size_in_bytes() as usize;
@@ -35,7 +45,9 @@ impl DynamicStruct {
 }
 
 impl ToBytes for DynamicStruct {
-    fn to_bytes(&self) -> Vec<u8> {
+    fn to_bytes(
+        &self
+    ) -> Vec<u8> {
         let mut bytes = vec![];
         let mut bit_offset = 0;
         let current_byte = 0u8;
@@ -76,7 +88,9 @@ impl ToBytes for DynamicStruct {
 impl FromStr for DynamicStruct {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(
+        s: &str
+    ) -> Result<Self, Self::Err> {
         let mut dynamic_struct = DynamicStruct::new();
         let fields: Vec<&str> = s.split(';').filter(|&f| !f.is_empty()).collect();
 

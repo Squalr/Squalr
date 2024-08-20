@@ -10,14 +10,16 @@ pub struct SessionManager {
 }
 
 impl SessionManager {
-    fn new() -> Self {
+    fn new(
+    ) -> Self {
         SessionManager {
             opened_process: None,
             snapshot: None,
         }
     }
     
-    pub fn get_instance() -> Arc<RwLock<SessionManager>> {
+    pub fn get_instance(
+    ) -> Arc<RwLock<SessionManager>> {
         static mut INSTANCE: Option<Arc<RwLock<SessionManager>>> = None;
         static INIT: Once = Once::new();
 

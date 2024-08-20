@@ -11,7 +11,11 @@ pub struct NormalizedModule {
 }
 
 impl NormalizedModule {
-    pub fn new(full_path: &str, base_address: u64, size: u64) -> Self {
+    pub fn new(
+        full_path: &str,
+        base_address: u64,
+        size: u64,
+    ) -> Self {
         let name = Path::new(full_path)
             .file_name()
             .unwrap_or_else(|| OsStr::new(""))
@@ -26,7 +30,10 @@ impl NormalizedModule {
         }
     }
 
-    pub fn new_from_normalized_region(normalized_region: NormalizedRegion, full_path: &str) -> Self {
+    pub fn new_from_normalized_region(
+        normalized_region: NormalizedRegion,
+        full_path: &str,
+    ) -> Self {
         let name = Path::new(full_path)
             .file_name()
             .unwrap_or_else(|| OsStr::new(""))
@@ -41,45 +48,69 @@ impl NormalizedModule {
         }
     }
     
-    pub fn into_base_region(self) -> NormalizedRegion {
+    pub fn into_base_region(
+        self,
+    ) -> NormalizedRegion {
         self.base_region
     }
 
-    pub fn get_name(&self) -> &str {
+    pub fn get_name(
+        &self,
+    ) -> &str {
         &self.name
     }
 
-    pub fn get_full_path(&self) -> &str {
+    pub fn get_full_path(
+        &self,
+    ) -> &str {
         &self.full_path
     }
 
-    pub fn get_base_address(&self) -> u64 {
+    pub fn get_base_address(
+        &self,
+    ) -> u64 {
         self.base_region.get_base_address()
     }
 
-    pub fn set_base_address(&mut self, base_address: u64) {
+    pub fn set_base_address(
+        &mut self,
+        base_address: u64,
+    ) {
         self.base_region.set_base_address(base_address);
     }
 
-    pub fn get_region_size(&self) -> u64 {
+    pub fn get_region_size(
+        &self,
+    ) -> u64 {
         self.base_region.get_region_size()
     }
 
-    pub fn set_region_size(&mut self, region_size: u64) {
+    pub fn set_region_size(
+        &mut self,
+        region_size: u64,
+    ) {
         self.base_region.set_region_size(region_size);
     }
 
-    pub fn contains_address(&self, address: u64) -> bool {
+    pub fn contains_address(
+        &self,
+        address: u64,
+    ) -> bool {
         self.base_region.contains_address(address)
     }
 
-    pub fn get_base_region(&self) -> &NormalizedRegion {
+    pub fn get_base_region(
+        &self,
+    ) -> &NormalizedRegion {
         return &self.base_region;
     }
 }
 
 impl PartialEq for NormalizedModule {
-    fn eq(&self, other: &Self) -> bool {
+    fn eq(
+        &self,
+        other: &Self,
+    ) -> bool {
         self.base_region == other.base_region &&
         self.name == other.name &&
         self.full_path == other.full_path
@@ -89,7 +120,10 @@ impl PartialEq for NormalizedModule {
 impl Eq for NormalizedModule {}
 
 impl Hash for NormalizedModule {
-    fn hash<H: Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(
+        &self,
+        state: &mut H,
+    ) {
         self.base_region.hash(state);
         self.name.hash(state);
         self.full_path.hash(state);

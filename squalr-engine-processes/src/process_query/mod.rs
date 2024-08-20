@@ -3,13 +3,34 @@ use crate::process_info::ProcessInfo;
 use sysinfo::Pid;
 
 pub trait IProcessQueryer {
-    fn get_processes(&mut self, options: ProcessQueryOptions) -> Vec<Pid>;
-    fn is_process_system_process(&self, pid: &Pid) -> bool;
-    fn is_process_windowed(&self, pid: &Pid) -> bool;
-    fn get_icon(&self, pid: &Pid) -> Option<Vec<u8>>;
-    fn get_process_name(&self, pid: Pid) -> Option<String>;
-    fn open_process(&self, process_id: &Pid) -> Result<ProcessInfo, String>;
-    fn close_process(&self, handle: u64) -> Result<(), String>;
+    fn get_processes(
+        &mut self,
+        options: ProcessQueryOptions,
+    ) -> Vec<Pid>;
+    fn is_process_system_process(
+        &self,
+        pid: &Pid,
+    ) -> bool;
+    fn is_process_windowed(
+        &self,
+        pid: &Pid,
+    ) -> bool;
+    fn get_icon(
+        &self,
+        pid: &Pid,
+    ) -> Option<Vec<u8>>;
+    fn get_process_name(
+        &self,
+        pid: Pid,
+    ) -> Option<String>;
+    fn open_process(
+        &self,
+        process_id: &Pid
+    ) -> Result<ProcessInfo, String>;
+    fn close_process(
+        &self,
+        handle: u64,
+    ) -> Result<(), String>;
 }
 
 pub struct ProcessQueryOptions {

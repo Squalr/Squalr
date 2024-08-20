@@ -24,7 +24,8 @@ pub use crate::memory_reader::windows::windows_memory_reader::WindowsMemoryReade
 pub struct MemoryReader;
 
 impl MemoryReader {
-    pub fn get_instance() -> &'static MemoryReaderImpl {
+    pub fn get_instance(
+    ) -> &'static MemoryReaderImpl {
         static mut INSTANCE: Option<MemoryReaderImpl> = None;
         static INIT: Once = Once::new();
 

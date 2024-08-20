@@ -8,13 +8,19 @@ pub struct WindowsMemoryReader;
 
 impl WindowsMemoryReader {
     #[allow(unused)] // Disable unused compile warning for now
-    pub fn new() -> Self {
+    pub fn new(
+    ) -> Self {
         WindowsMemoryReader
     }
 }
 
 impl IMemoryReader for WindowsMemoryReader {
-    fn read(&self, process_handle: u64, address: u64, dynamic_struct: &mut DynamicStruct) -> Result<(), String> {
+    fn read(
+        &self,
+        process_handle: u64,
+        address: u64,
+        dynamic_struct: &mut DynamicStruct
+    ) -> Result<(), String> {
         unsafe {
             let size = dynamic_struct.size_in_bytes() as usize;
             let mut buffer = vec![0u8; size];
@@ -37,7 +43,12 @@ impl IMemoryReader for WindowsMemoryReader {
         }
     }
 
-    fn read_bytes(&self, process_handle: u64, address: u64, values: &mut [u8]) -> Result<(), String> {
+    fn read_bytes(
+        &self,
+        process_handle: u64,
+        address: u64,
+        values: &mut [u8]
+    ) -> Result<(), String> {
         unsafe {
             let size = values.len();
             let mut bytes_read = 0;

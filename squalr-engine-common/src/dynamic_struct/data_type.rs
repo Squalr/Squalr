@@ -22,13 +22,16 @@ pub enum DataType {
 }
 
 impl Default for DataType {
-    fn default() -> Self {
+    fn default(
+    ) -> Self {
         DataType::U8()
     }
 }
 
 impl DataType {
-    pub fn size_in_bytes(&self) -> u64 {
+    pub fn size_in_bytes(
+        &self
+    ) -> u64 {
         match self {
             DataType::U8() => std::mem::size_of::<u8>() as u64,
             DataType::U16(_) => std::mem::size_of::<u16>() as u64,
@@ -45,7 +48,9 @@ impl DataType {
         }
     }
 
-    pub fn to_default_value(&self) -> DataValue {
+    pub fn to_default_value(
+        &self
+    ) -> DataValue {
         match self {
             DataType::U8() => DataValue::U8(0),
             DataType::U16(_) => DataValue::U16(0),
@@ -65,7 +70,9 @@ impl DataType {
         }
     }
 
-    pub fn get_load_memory_function_ptr(&self) -> DataLoadFunc {
+    pub fn get_load_memory_function_ptr(
+        &self
+    ) -> DataLoadFunc {
         match self {
             DataType::U8() => Self::load_u8,
             DataType::I8() => Self::load_i8,
@@ -90,103 +97,148 @@ impl DataType {
         }
     }
 
-    unsafe fn load_u8(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_u8(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::U8(ref mut value) = *field {
             *value = *value_ptr;
         }
     }
     
-    unsafe fn load_i8(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_i8(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::I8(ref mut value) = *field {
             *value = *value_ptr as i8;
         }
     }
     
-    unsafe fn load_u16_le(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_u16_le(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::U16(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 2]);
             *value = u16::from_le_bytes(*bytes);
         }
     }
     
-    unsafe fn load_u16_be(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_u16_be(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::U16(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 2]);
             *value = u16::from_be_bytes(*bytes);
         }
     }
     
-    unsafe fn load_i16_le(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_i16_le(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::I16(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 2]);
             *value = i16::from_le_bytes(*bytes);
         }
     }
     
-    unsafe fn load_i16_be(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_i16_be(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::I16(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 2]);
             *value = i16::from_be_bytes(*bytes);
         }
     }
 
-    unsafe fn load_u32_le(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_u32_le(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::U32(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 4]);
             *value = u32::from_le_bytes(*bytes);
         }
     }
     
-    unsafe fn load_u32_be(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_u32_be(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::U32(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 4]);
             *value = u32::from_be_bytes(*bytes);
         }
     }
     
-    unsafe fn load_i32_le(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_i32_le(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::I32(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 4]);
             *value = i32::from_le_bytes(*bytes);
         }
     }
     
-    unsafe fn load_i32_be(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_i32_be(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::I32(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 4]);
             *value = i32::from_be_bytes(*bytes);
         }
     }
     
-    unsafe fn load_u64_le(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_u64_le(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::U64(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 8]);
             *value = u64::from_le_bytes(*bytes);
         }
     }
     
-    unsafe fn load_u64_be(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_u64_be(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::U64(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 8]);
             *value = u64::from_be_bytes(*bytes);
         }
     }
     
-    unsafe fn load_i64_le(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_i64_le(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::I64(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 8]);
             *value = i64::from_le_bytes(*bytes);
         }
     }
     
-    unsafe fn load_i64_be(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_i64_be(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::I64(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 8]);
             *value = i64::from_be_bytes(*bytes);
         }
     }
     
-    unsafe fn load_f32_le(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_f32_le(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::F32(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 4]);
             let bits = u32::from_le_bytes(*bytes);
@@ -194,7 +246,10 @@ impl DataType {
         }
     }
     
-    unsafe fn load_f32_be(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_f32_be(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::F32(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 4]);
             let bits = u32::from_be_bytes(*bytes);
@@ -202,7 +257,10 @@ impl DataType {
         }
     }
     
-    unsafe fn load_f64_le(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_f64_le(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::F64(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 8]);
             let bits = u64::from_le_bytes(*bytes);
@@ -210,7 +268,10 @@ impl DataType {
         }
     }
     
-    unsafe fn load_f64_be(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_f64_be(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::F64(ref mut value) = *field {
             let bytes = &*(value_ptr as *const [u8; 8]);
             let bits = u64::from_be_bytes(*bytes);
@@ -218,13 +279,19 @@ impl DataType {
         }
     }
     
-    unsafe fn load_bytes(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_bytes(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::Bytes(ref mut value) = *field {
             ptr::copy_nonoverlapping(value_ptr, value.as_mut_ptr(), value.len());
         }
     }
     
-    unsafe fn load_bitfield(field: &mut DataValue, value_ptr: *const u8) {
+    unsafe fn load_bitfield(
+        field: &mut DataValue,
+        value_ptr: *const u8
+    ) {
         if let DataValue::BitField { ref mut value, bits } = *field {
             let total_bytes = ((bits + 7) / 8) as usize;
             ptr::copy_nonoverlapping(value_ptr, value.as_mut_ptr(), total_bytes);
@@ -235,7 +302,9 @@ impl DataType {
 impl FromStr for DataType {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(
+        s: &str
+    ) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split(':').collect();
         if parts.len() != 1 && parts.len() != 2 {
             return Err("Invalid format".to_string());

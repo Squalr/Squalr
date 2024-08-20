@@ -19,7 +19,8 @@ impl ILoggerObserver for LogListener {
 }
 
 impl LogListener {
-    pub fn new() -> Arc<Self> {
+    pub fn new(
+    ) -> Arc<Self> {
         Arc::new(Self)
     }
 }

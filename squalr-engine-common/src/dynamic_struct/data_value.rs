@@ -19,7 +19,10 @@ pub enum DataValue {
 }
 
 impl Ord for DataValue {
-    fn cmp(&self, other: &Self) -> Ordering {
+    fn cmp(
+        &self,
+        other: &Self
+    ) -> Ordering {
         match (self, other) {
             (DataValue::U8(a), DataValue::U8(b)) => a.cmp(b),
             (DataValue::U16(a), DataValue::U16(b)) => a.cmp(b),
@@ -49,7 +52,9 @@ impl Default for DataValue {
 }
 
 impl DataValue {
-    pub fn size_in_bytes(&self) -> u64 {
+    pub fn size_in_bytes(
+        &self
+    ) -> u64 {
         match self {
             DataValue::U8(_) => std::mem::size_of::<u8>() as u64,
             DataValue::U16(_) => std::mem::size_of::<u16>() as u64,
@@ -66,84 +71,108 @@ impl DataValue {
         }
     }
 
-    pub fn as_u8(&self) -> Option<u8> {
+    pub fn as_u8(
+        &self
+    ) -> Option<u8> {
         return match self {
             DataValue::U8(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_i8(&self) -> Option<i8> {
+    pub fn as_i8(
+        &self
+    ) -> Option<i8> {
         return match self {
             DataValue::I8(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_u16(&self) -> Option<u16> {
+    pub fn as_u16(
+        &self
+    ) -> Option<u16> {
         return match self {
             DataValue::U16(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_i16(&self) -> Option<i16> {
+    pub fn as_i16(
+        &self
+    ) -> Option<i16> {
         return match self {
             DataValue::I16(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_u32(&self) -> Option<u32> {
+    pub fn as_u32(
+        &self
+    ) -> Option<u32> {
         return match self {
             DataValue::U32(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_i32(&self) -> Option<i32> {
+    pub fn as_i32(
+        &self
+    ) -> Option<i32> {
         return match self {
             DataValue::I32(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_u64(&self) -> Option<u64> {
+    pub fn as_u64(
+        &self
+    ) -> Option<u64> {
         return match self {
             DataValue::U64(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_i64(&self) -> Option<i64> {
+    pub fn as_i64(
+        &self
+    ) -> Option<i64> {
         return match self {
             DataValue::I64(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_f32(&self) -> Option<f32> {
+    pub fn as_f32(
+        &self
+    ) -> Option<f32> {
         return match self {
             DataValue::F32(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_f64(&self) -> Option<f64> {
+    pub fn as_f64(
+        &self
+    ) -> Option<f64> {
         return match self {
             DataValue::F64(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_bytes(&self) -> Option<&[u8]> {
+    pub fn as_bytes(
+        &self
+    ) -> Option<&[u8]> {
         return match self {
             DataValue::Bytes(ref v) => Some(v.as_slice()),
             _ => None,
         };
     }
 
-    pub fn as_bitfield(&self) -> Option<(&[u8], u16)> {
+    pub fn as_bitfield(
+        &self
+    ) -> Option<(&[u8], u16)> {
         return match self {
             DataValue::BitField { ref value, bits } => Some((value.as_slice(), *bits)),
             _ => None,
@@ -154,7 +183,9 @@ impl DataValue {
 impl FromStr for DataValue {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(
+        s: &str
+    ) -> Result<Self, Self::Err> {
         let value_and_type: Vec<&str> = s.split('=').collect();
         let has_value = value_and_type.len() == 2;
 

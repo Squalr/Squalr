@@ -7,7 +7,8 @@ pub struct LinuxProcessQuery {
 }
 
 impl LinuxProcessQuery {
-    pub fn new() -> Self {
+    pub fn new(
+    ) -> Self {
         LinuxProcessQuery {
             system: System::new_all(),
         }

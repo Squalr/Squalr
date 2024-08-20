@@ -19,7 +19,8 @@ bitflags::bitflags! {
 pub struct MemoryQueryer;
 
 impl MemoryQueryer {
-    pub fn get_instance() -> &'static MemoryQueryerImpl {
+    pub fn get_instance(
+    ) -> &'static MemoryQueryerImpl {
         static mut INSTANCE: Option<MemoryQueryerImpl> = None;
         static INIT: Once = Once::new();
 
@@ -82,7 +83,9 @@ impl MemoryQueryer {
     }
     
 
-    fn query_pages_from_usermode_memory(process_info: &ProcessInfo) -> Vec<NormalizedRegion> {
+    fn query_pages_from_usermode_memory(
+        process_info: &ProcessInfo
+    ) -> Vec<NormalizedRegion> {
         let required_page_flags = MemoryProtectionEnum::empty();
         let excluded_page_flags = MemoryProtectionEnum::empty();
         let allowed_type_flags = MemoryTypeEnum::NONE | MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE;
@@ -103,7 +106,9 @@ impl MemoryQueryer {
     }
     
 
-    fn query_pages_from_settings(process_info: &ProcessInfo) -> Vec<NormalizedRegion> {
+    fn query_pages_from_settings(
+        process_info: &ProcessInfo
+    ) -> Vec<NormalizedRegion> {
         let required_page_flags = MemoryQueryer::get_required_protection_settings();
         let excluded_page_flags = MemoryQueryer::get_excluded_protection_settings();
         let allowed_type_flags = MemoryQueryer::get_allowed_type_settings();
@@ -130,7 +135,9 @@ impl MemoryQueryer {
         return normalized_regions;
     }
     
-    fn query_pages_from_modules(process_info: &ProcessInfo) -> Vec<NormalizedRegion> {
+    fn query_pages_from_modules(
+        process_info: &ProcessInfo
+    ) -> Vec<NormalizedRegion> {
         // Note that we use into_base_region to extract the base region without copying, instead taking ownership
         let module_regions = MemoryQueryer::get_instance()
             .get_modules(process_info)
@@ -141,7 +148,9 @@ impl MemoryQueryer {
         return module_regions;
     }    
 
-    fn query_pages_from_non_modules(process_info: &ProcessInfo) -> Vec<NormalizedRegion> {
+    fn query_pages_from_non_modules(
+        process_info: &ProcessInfo
+    ) -> Vec<NormalizedRegion> {
         let modules: HashSet<u64> = MemoryQueryer::get_instance()
             .get_modules(process_info)
             .into_iter()
@@ -174,7 +183,8 @@ impl MemoryQueryer {
         return memory_regions;
     }
     
-    fn get_allowed_type_settings() -> MemoryTypeEnum {
+    fn get_allowed_type_settings(
+    ) -> MemoryTypeEnum {
         let mut result = MemoryTypeEnum::empty();
 
         if MemorySettings::get_instance().get_memory_type_none() {
@@ -196,7 +206,8 @@ impl MemoryQueryer {
         return result;
     }
 
-    fn get_required_protection_settings() -> MemoryProtectionEnum {
+    fn get_required_protection_settings(
+    ) -> MemoryProtectionEnum {
         let mut result = MemoryProtectionEnum::empty();
 
         if MemorySettings::get_instance().get_required_write() {
@@ -214,7 +225,8 @@ impl MemoryQueryer {
         return result;
     }
 
-    fn get_excluded_protection_settings() -> MemoryProtectionEnum {
+    fn get_excluded_protection_settings(
+    ) -> MemoryProtectionEnum {
         let mut result = MemoryProtectionEnum::empty();
 
         if MemorySettings::get_instance().get_excluded_write() {
