@@ -1,7 +1,7 @@
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot::Snapshot;
-use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -59,7 +59,6 @@ impl HybridScanner {
         cancellation_token: Arc<AtomicBool>,
         with_logging: bool,
     ) {
-        /*
         let mut snapshot = snapshot.write().unwrap();
         let constraint = &constraint.clone_and_resolve_auto_alignment();
         let region_count = snapshot.get_region_count();
@@ -71,7 +70,7 @@ impl HybridScanner {
 
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
-        
+
         snapshot_regions
             .par_iter_mut()
             .for_each(|region| {
@@ -79,29 +78,34 @@ impl HybridScanner {
                     return;
                 }
 
-                // Attempt to read new (or initial) memory values.
-                if !region.read_all_memory_parallel(process_info.handle).is_ok() {
-                    // Memory region was probably deallocated. It happens, ignore it.
-                    region.set_snapshot_sub_regions(vec![]);
-                    return;
-                }
+                // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages.
+                let _ = region.read_all_memory_parallel(process_info.handle);
 
-                // Create the default sub-region if it does not exist yet
-                if region.get_snapshot_sub_regions().is_empty() && region.get_region_size() > 0 {
-                    region.set_snapshot_sub_regions(vec![SnapshotSubRegion::new(&region)]);
-                }
+                // Create filters for the constraint
+                region.create_filters_for_constraint(constraint);
+                let snapshot_region_filters = region.get_filters();
 
-                if !region.can_compare_with_constraint(constraint) {
-                    processed_region_count.fetch_add(1, Ordering::SeqCst);
-                    return;
-                }
+                // Perform scan using the ScanDispatcher
+                let results = snapshot_region_filters
+                    .into_par_iter()
+                    .filter_map(|(data_type, snapshot_region_filter)| {
+                        if cancellation_token.load(Ordering::SeqCst) {
+                            return None;
+                        }
 
-                region.set_alignment(constraint.get_alignment());
+                        let scan_dispatcher = ScanDispatcher::get_instance();
+                        let scan_results = scan_dispatcher.dispatch_scan_parallel(
+                            region,
+                            snapshot_region_filter,
+                            constraint,
+                            data_type,
+                        );
 
-                let scan_dispatcher = ScanDispatcher::get_instance();
-                // let scan_results = scan_dispatcher.dispatch_scan_parallel(region, constraint);
+                        Some((data_type.clone(), scan_results))
+                    })
+                    .collect();
 
-                // region.set_snapshot_sub_regions(scan_results.to_owned());
+                region.set_all_filters(results);
 
                 let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
 
@@ -111,15 +115,13 @@ impl HybridScanner {
                     task.set_progress(progress);
                 }
             });
-        
-        // snapshot.set_name(HybridScanner::NAME.to_string());
 
         let duration = start_time.elapsed();
-        let element_count = 420; //snapshot.get_element_count(constraint.get_alignment(), constraint.get_data_type().size_in_bytes());
         let byte_count = snapshot.get_byte_count();
 
-        Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
-        Logger::get_instance().log(LogLevel::Info, &format!("Results: {} ({} bytes)", element_count, value_to_metric_size(byte_count)), None);
-        */
+        if with_logging {
+            Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
+            Logger::get_instance().log(LogLevel::Info, &format!("{} bytes read ({})", byte_count, value_to_metric_size(byte_count)), None);
+        }
     }
 }

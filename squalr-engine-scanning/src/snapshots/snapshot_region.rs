@@ -176,19 +176,63 @@ impl SnapshotRegion {
         }
     }
 
-    pub fn set_filters_for_data_type(
-        &mut self,
-        data_type: DataType,
-        filters: Vec<SnapshotRegionFilter>,
-    ) {
-        self.filters.insert(data_type, filters);
-    }
-
     pub fn set_all_filters(
         &mut self,
         filters: HashMap<DataType, Vec<SnapshotRegionFilter>>,
     ) {
         self.filters = filters;
+    
+        if self.filters.is_empty() {
+            self.normalized_region.set_region_size(0);
+            return;
+        }
+    
+        let mut new_base_address = u64::MAX;
+        let mut new_end_address = 0u64;
+        let mut found_valid_filter = false;
+    
+        for filter_vec in self.filters.values() {
+            for filter in filter_vec {
+                let filter_base = filter.get_base_address();
+                let filter_end = filter.get_end_address();
+    
+                if filter_base < new_base_address {
+                    new_base_address = filter_base;
+                }
+                if filter_end > new_end_address {
+                    new_end_address = filter_end;
+                }
+                found_valid_filter = true;
+            }
+        }
+    
+        if !found_valid_filter {
+            self.normalized_region.set_region_size(0);
+            return;
+        }
+    
+        let original_base_address = self.get_base_address();
+        let original_end_address = self.get_end_address();
+    
+        new_base_address = new_base_address.max(original_base_address);
+        new_end_address = new_end_address.min(original_end_address);
+    
+        let new_region_size = new_end_address - new_base_address;
+        self.normalized_region.set_base_address(new_base_address);
+        self.normalized_region.set_region_size(new_region_size);
+    
+        let start_offset = (new_base_address - original_base_address) as usize;
+        let new_length = (new_end_address - new_base_address + 1) as usize;
+    
+        if !self.current_values.is_empty() {
+            self.current_values.drain(..start_offset);
+            self.current_values.truncate(new_length);
+        }
+    
+        if !self.previous_values.is_empty() {
+            self.previous_values.drain(..start_offset);
+            self.previous_values.truncate(new_length);
+        }
     }
 
     pub fn get_filters(

@@ -19,26 +19,33 @@ impl SnapshotRegionFilter {
     }
 
     pub fn get_base_address(
-        &self
+        &self,
     ) -> u64 {
         return self.filter_range.get_base_address();
     }
 
+    pub fn set_base_address(
+        &mut self,
+        base_address: u64,
+    ){
+        self.filter_range.set_base_address(base_address);
+    }
+
     pub fn get_end_address(
-        &self
+        &self,
     ) -> u64 {
         return self.filter_range.get_end_address();
     }
     
     pub fn get_region_size(
-        &self
+        &self,
     ) -> u64 {
         return self.filter_range.get_region_size();
     }
     
     pub fn get_usable_byte_count(
         &self,
-        data_type_size: u64
+        data_type_size: u64,
     ) -> u64 {
         if data_type_size > self.get_region_size() {
             return 0;
