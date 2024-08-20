@@ -23,7 +23,7 @@ impl HybridScanner {
     pub fn scan(
         process_info: ProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        constraint: &ScanConstraint,
+        scan_constrant: &ScanConstraint,
         task_identifier: Option<String>,
         with_logging: bool,
     ) -> Arc<TrackableTask<()>> {
@@ -33,13 +33,13 @@ impl HybridScanner {
         );
 
         let task_clone = task.clone();
-        let constraint_clone = constraint.clone();
+        let scan_constrant_clone = scan_constrant.clone();
 
         thread::spawn(move || {
             Self::scan_task(
                 process_info,
                 snapshot,
-                &constraint_clone,
+                &scan_constrant_clone,
                 task_clone.clone(),
                 task_clone.get_cancellation_token().clone(),
                 with_logging
@@ -54,13 +54,16 @@ impl HybridScanner {
     fn scan_task(
         process_info: ProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        constraint: &ScanConstraint,
+        scan_constrant: &ScanConstraint,
         task: Arc<TrackableTask<()>>,
         cancellation_token: Arc<AtomicBool>,
         with_logging: bool,
     ) {
         let mut snapshot = snapshot.write().unwrap();
-        let constraint = &constraint.clone_and_resolve_auto_alignment();
+
+        snapshot.initialize_for_constraint(scan_constrant);
+
+        let scan_constrant = &scan_constrant.clone();
         let region_count = snapshot.get_region_count();
         let snapshot_regions = snapshot.get_snapshot_regions_for_update();
 
@@ -82,7 +85,7 @@ impl HybridScanner {
                 let _ = region.read_all_memory_parallel(process_info.handle);
 
                 // Create filters for the constraint
-                region.create_filters_for_constraint(constraint);
+                region.create_filters_for_constraint(scan_constrant);
                 let snapshot_region_filters = region.get_filters();
 
                 // Perform scan using the ScanDispatcher
@@ -97,7 +100,7 @@ impl HybridScanner {
                         let scan_results = scan_dispatcher.dispatch_scan_parallel(
                             region,
                             snapshot_region_filter,
-                            constraint,
+                            scan_constrant,
                             data_type,
                         );
 

@@ -1,10 +1,9 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::comparers::scalar::scanner_scalar_encoder::ScannerScalarEncoder;
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::scanners::constraints::scan_constraint::{ScanConstraint, ScanFilterConstraint};
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::prelude::*;
-use squalr_engine_common::dynamic_struct::data_type::DataType;
 use std::sync::Once;
 
 pub struct ScannerScalarIterativeChunked {
@@ -42,21 +41,22 @@ impl Scanner for ScannerScalarIterativeChunked {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        constraint: &ScanConstraint,
-        data_type: &DataType,
+        scan_constraint: &ScanConstraint,
+        filter_constraint: &ScanFilterConstraint,
     ) -> Vec<SnapshotRegionFilter> {
         let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
+        let data_type = filter_constraint.get_data_type();
         let data_type_size = data_type.size_in_bytes();
-        let alignment = constraint.get_alignment();
-        let element_count = snapshot_region_filter.get_element_count(alignment, data_type_size) as usize;
+        let memory_alignment = filter_constraint.get_memory_alignment_or_default(data_type);
+        let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size) as usize;
 
         // Convert raw pointers to slices
         let current_values_slice = unsafe {
-            std::slice::from_raw_parts(current_value_pointer, element_count * alignment as usize)
+            std::slice::from_raw_parts(current_value_pointer, element_count * memory_alignment as usize)
         };
         let previous_values_slice = unsafe {
-            std::slice::from_raw_parts(previous_value_pointer, element_count * alignment as usize)
+            std::slice::from_raw_parts(previous_value_pointer, element_count * memory_alignment as usize)
         };
 
         // Experimentally 1MB seemed to be the optimal chunk size on my CPU to keep all threads busy
@@ -68,7 +68,7 @@ impl Scanner for ScannerScalarIterativeChunked {
             .map(|chunk_index| {
                 let first_element_index = (chunk_index * chunk_size) as u64;
                 let last_element_index = ((chunk_index + 1) * chunk_size).min(element_count) as u64;
-                let chunk_address_offset = first_element_index * alignment as u64;
+                let chunk_address_offset = first_element_index * memory_alignment as u64;
                 let local_encoder = ScannerScalarEncoder::get_instance();
                 let base_address = snapshot_region_filter.get_base_address() + chunk_address_offset;
 
@@ -76,8 +76,8 @@ impl Scanner for ScannerScalarIterativeChunked {
                     return local_encoder.encode(
                         current_values_slice.as_ptr().add(chunk_address_offset as usize),
                         previous_values_slice.as_ptr().add(chunk_address_offset as usize),
-                        constraint,
-                        data_type,
+                        scan_constraint,
+                        filter_constraint,
                         base_address,
                         last_element_index - first_element_index,
                     );

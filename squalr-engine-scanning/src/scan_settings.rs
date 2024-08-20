@@ -8,7 +8,7 @@ pub struct Config {
     pub result_read_interval: i32,
     pub table_read_interval: i32,
     pub freeze_interval: i32,
-    pub alignment: MemoryAlignment,
+    pub alignment: Option<MemoryAlignment>,
     pub floating_point_tolerance: FloatingPointTolerance,
 }
 
@@ -19,7 +19,7 @@ impl Default for Config {
             result_read_interval: 2500,
             table_read_interval: 2500,
             freeze_interval: 50,
-            alignment: MemoryAlignment::Auto,
+            alignment: None,
             floating_point_tolerance: FloatingPointTolerance::default(),
         }
     }
@@ -93,13 +93,13 @@ impl ScanSettings {
 
     pub fn get_alignment(
         &self
-    ) -> MemoryAlignment {
+    ) -> Option<MemoryAlignment> {
         return self.config.read().unwrap().alignment;
     }
 
     pub fn set_alignment(
         &self,
-        value: MemoryAlignment
+        value: Option<MemoryAlignment>
     ) {
         self.config.write().unwrap().alignment = value;
     }
@@ -115,16 +115,5 @@ impl ScanSettings {
         value: FloatingPointTolerance
     ) {
         self.config.write().unwrap().floating_point_tolerance = value;
-    }
-    
-    pub fn get_resolve_auto_alignment(
-        alignment: MemoryAlignment,
-        data_type_size: i32
-    ) -> MemoryAlignment {
-        if alignment == MemoryAlignment::Auto {
-            return MemoryAlignment::from(data_type_size);
-        } else {
-            return alignment;
-        }
     }
 }

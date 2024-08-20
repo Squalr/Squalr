@@ -162,6 +162,8 @@ impl SnapshotRegion {
         return true;
     }
 
+    /// Creates the initial set of filters for the given set of scan constraints.
+    /// At first, these filters are equal in size to the entire snapshot region.
     pub fn create_filters_for_constraint(
         &mut self,
         constraints: &ScanConstraint
@@ -169,13 +171,15 @@ impl SnapshotRegion {
         let base_address = self.get_base_address();
         let region_size = self.get_region_size();
     
-        for data_type in constraints.get_data_types() {
-            self.filters.entry(data_type.clone()).or_insert_with(|| {
+        for scan_filter_constraint in constraints.get_scan_filter_constraints() {
+            self.filters.entry(scan_filter_constraint.get_data_type().clone()).or_insert_with(|| {
                 vec![SnapshotRegionFilter::new(base_address, region_size)]
             });
         }
     }
 
+    /// Updates the set of filters over this snapshot region. Filters are essentially scan results for a given data type.
+    /// Additionally, we resize this region to reduce wasted memory (ie data outside the min/max filter addresses).
     pub fn set_all_filters(
         &mut self,
         filters: HashMap<DataType, Vec<SnapshotRegionFilter>>,

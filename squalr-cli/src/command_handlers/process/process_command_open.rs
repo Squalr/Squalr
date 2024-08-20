@@ -12,7 +12,7 @@ pub fn handle_process_open(
     let session_manager_lock = SessionManager::get_instance();
     let mut session_manager = session_manager_lock.write().unwrap();
 
-    if let ProcessCommand::Open {pid, search_name, match_case, include_system_processes } = cmd {
+    if let ProcessCommand::Open {pid, search_name, match_case } = cmd {
         if pid.is_none() && search_name.is_none() {
             Logger::get_instance().log(
                 LogLevel::Error,
@@ -36,7 +36,6 @@ pub fn handle_process_open(
                 require_windowed: false,
                 search_name: search_name.as_ref().cloned(),
                 match_case: *match_case,
-                include_system_processes: *include_system_processes,
                 limit: Some(1),
             };
     

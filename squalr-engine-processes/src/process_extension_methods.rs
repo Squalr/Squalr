@@ -2,10 +2,6 @@ use crate::process_query::IProcessQueryer;
 use sysinfo::Pid;
 
 pub trait ProcessExtensionMethods {
-    fn is_system_process(
-        &self,
-        query: &dyn IProcessQueryer
-    ) -> bool;
     fn has_window(
         &self,
         query: &dyn IProcessQueryer
@@ -23,13 +19,6 @@ pub trait ProcessExtensionMethods {
 }
 
 impl ProcessExtensionMethods for Pid {
-    fn is_system_process(
-        &self,
-        query: &dyn IProcessQueryer
-    ) -> bool {
-        query.is_process_system_process(self)
-    }
-
     fn has_window(
         &self,
         query: &dyn IProcessQueryer

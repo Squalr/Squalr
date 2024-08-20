@@ -1,72 +1,84 @@
-use crate::scan_settings::ScanSettings;
 use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
 use squalr_engine_common::dynamic_struct::data_type::DataType;
 use squalr_engine_common::dynamic_struct::data_value::DataValue;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 
 #[derive(Debug, Clone)]
-pub struct ScanConstraint {
-    alignment: MemoryAlignment,
-    constraint_type: ScanConstraintType,
-    data_types: Vec<DataType>,
-    constraint_value: Option<DataValue>,
+pub struct ScanFilterConstraint {
+    alignment: Option<MemoryAlignment>,
+    data_type: DataType,
 }
 
-impl ScanConstraint {
-    pub fn new() -> Self {
+impl ScanFilterConstraint {
+    pub fn new() -> Self { // TODO: remove?
         Self {
-            alignment: MemoryAlignment::Auto,
-            constraint_type: ScanConstraintType::Changed,
-            data_types: vec![],
-            constraint_value: None,
+            alignment: None,
+            data_type: DataType::default(),
         }
     }
 
     pub fn new_with_value(
-        alignment: MemoryAlignment,
-        constraint_type: ScanConstraintType,
-        data_types: Vec<DataType>,
-        value: Option<DataValue>,
+        alignment: Option<MemoryAlignment>,
+        data_type: DataType,
     ) -> Self {
         Self {
-            alignment,
+            alignment: alignment,
+            data_type: data_type,
+        }
+    }
+
+    pub fn get_memory_alignment(
+        &self
+    ) -> &Option<MemoryAlignment>{
+        return &self.alignment;
+    }
+
+    pub fn get_memory_alignment_or_default(
+        &self,
+        data_type: &DataType,
+    ) -> MemoryAlignment{
+        if let Some(alignment) = &self.alignment {
+            return alignment.to_owned();
+        }
+
+        return MemoryAlignment::from(data_type.size_in_bytes() as i32);
+    }
+
+    pub fn get_data_type(
+        &self
+    ) -> &DataType{
+        return &self.data_type;
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ScanConstraint {
+    constraint_type: ScanConstraintType,
+    constraint_value: Option<DataValue>,
+    scan_filter_constraints: Vec<ScanFilterConstraint>,
+}
+
+impl ScanConstraint {
+    pub fn new() -> Self { // TODO: remove?
+        Self {
+            constraint_type: ScanConstraintType::Changed,
+            constraint_value: None,
+            scan_filter_constraints: vec![],
+        }
+    }
+
+    pub fn new_with_value(
+        constraint_type: ScanConstraintType,
+        value: Option<DataValue>,
+        scan_filter_constraints: Vec<ScanFilterConstraint>,
+    ) -> Self {
+        Self {
             constraint_type,
-            data_types: data_types,
             constraint_value: value,
+            scan_filter_constraints: scan_filter_constraints,
         }
     }
-
-    pub fn clone_and_resolve_auto_alignment(
-        &self
-    ) -> ScanConstraint {
-        let mut constraint = self.clone();
-
-        if constraint.get_alignment() == MemoryAlignment::Auto {
-            let settings_alignment = ScanSettings::get_instance().get_alignment();
-            if settings_alignment == MemoryAlignment::Auto {
-                constraint.set_alignment(MemoryAlignment::Alignment4);
-            }
-            else {
-                constraint.set_alignment(settings_alignment);
-            }
-        }
-
-        return constraint;
-    }
-
-    pub fn get_alignment(
-        &self
-    ) -> MemoryAlignment {
-        return self.alignment;
-    }
-
-    pub fn set_alignment(
-        &mut self,
-        alignment: MemoryAlignment
-    ) {
-        self.alignment = alignment;
-    }
-
+    
     pub fn get_constraint_type(
         &self
     ) -> ScanConstraintType {
@@ -138,20 +150,19 @@ impl ScanConstraint {
         };
     }
 
-    pub fn get_data_types(
+    pub fn get_scan_filter_constraints(
         &self
-    ) -> &Vec<DataType> {
-        return &self.data_types;
+    ) -> &Vec<ScanFilterConstraint> {
+        return &self.scan_filter_constraints;
     }
 
     pub fn clone(
         &self
     ) -> Self {
         ScanConstraint {
-            alignment: self.alignment,
             constraint_type: self.constraint_type.clone(),
-            data_types: self.data_types.clone(),
             constraint_value: self.constraint_value.clone(),
+            scan_filter_constraints: self.scan_filter_constraints.clone(),
         }
     }
 

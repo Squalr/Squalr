@@ -1,7 +1,7 @@
 use crate::{filters::snapshot_region_filter::SnapshotRegionFilter, scanners::comparers::scalar::scanner_scalar_iterative_chunked::ScannerScalarIterativeChunked};
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::scanners::constraints::scan_constraint::{ScanConstraint, ScanFilterConstraint};
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_architecture::vectors::vectors;
@@ -37,22 +37,21 @@ impl ScanDispatcher {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filters: &Vec<SnapshotRegionFilter>,
         constraint: &ScanConstraint,
-        data_type: &DataType,
+        filter_constraint: &ScanFilterConstraint,
     ) -> Vec<SnapshotRegionFilter> {
         let mut results = vec![];
     
         for snapshot_region_filter in snapshot_region_filters {
             let scanner_instance = self.acquire_scanner_instance(
-                &snapshot_region_filter,
-                &constraint,
-                data_type,
+                snapshot_region_filter,
+                filter_constraint
             );
     
             let result_sub_regions = scanner_instance.scan_region(
-                &snapshot_region,
-                &snapshot_region_filter,
-                &constraint,
-                data_type,
+                snapshot_region,
+                snapshot_region_filter,
+                constraint,
+                filter_constraint,
             );
             
             for result_sub_region in result_sub_regions {
@@ -68,19 +67,22 @@ impl ScanDispatcher {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filters: &Vec<SnapshotRegionFilter>,
         constraint: &ScanConstraint,
-        data_type: &DataType,
+        filter_constraint: &ScanFilterConstraint,
     ) -> Vec<SnapshotRegionFilter> {
         snapshot_region_filters
             // Convert the iterator to a parallel iterator
             .par_iter()
             .flat_map(|snapshot_region_filter| {
-                let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, &constraint, data_type);
+                let scanner_instance = self.acquire_scanner_instance(
+                    snapshot_region_filter,
+                    filter_constraint
+                );
     
                 return scanner_instance.scan_region(
-                    &snapshot_region,
-                    &snapshot_region_filter,
-                    &constraint,
-                    data_type,
+                    snapshot_region,
+                    snapshot_region_filter,
+                    constraint,
+                    filter_constraint,
                 );
             })
             .collect()
@@ -89,16 +91,16 @@ impl ScanDispatcher {
     fn acquire_scanner_instance(
         &self,
         snapshot_region_filter: &SnapshotRegionFilter,
-        constraint: &ScanConstraint,
-        data_type: &DataType,
+        filter_constraint: &ScanFilterConstraint,
     ) -> &dyn Scanner {
-        let alignment = constraint.get_alignment();
+        let data_type = filter_constraint.get_data_type();
         let data_type_size = data_type.size_in_bytes();
+        let memory_alignment = filter_constraint.get_memory_alignment_or_default(data_type);
 
-        if snapshot_region_filter.get_element_count(alignment, data_type_size) == 1 {
+        if snapshot_region_filter.get_element_count(memory_alignment, data_type_size) == 1 {
             // Single element scanner
             return ScannerScalarSingleElement::get_instance();
-        } else if vectors::has_vector_support() && snapshot_region_filter.is_vector_friendly_size(alignment) {
+        } else if vectors::has_vector_support() && snapshot_region_filter.is_vector_friendly_size(memory_alignment) {
             match data_type {
                 DataType::Bytes(_) => {
                     // Vector array of bytes scanner

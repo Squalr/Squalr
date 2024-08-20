@@ -9,8 +9,6 @@ pub enum ProcessCommand {
         search_name: Option<String>,
         #[structopt(short = "m", long)]
         match_case: bool,
-        #[structopt(short = "s", long)]
-        include_system_processes: bool,
     },
     List {
         #[structopt(short = "w", long)]
@@ -19,8 +17,6 @@ pub enum ProcessCommand {
         search_name: Option<String>,
         #[structopt(short = "m", long)]
         match_case: bool,
-        #[structopt(short = "s", long)]
-        include_system_processes: bool,
         #[structopt(short = "l", long)]
         limit: Option<u64>,
     },

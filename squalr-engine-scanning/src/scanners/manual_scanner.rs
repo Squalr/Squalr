@@ -20,7 +20,7 @@ impl ManualScanner {
 
     pub fn scan(
         snapshot: Arc<RwLock<Snapshot>>,
-        constraint: &ScanConstraint,
+        scan_constrant: &ScanConstraint,
         task_identifier: Option<String>,
         with_logging: bool
     ) -> Arc<TrackableTask<()>> {
@@ -30,12 +30,12 @@ impl ManualScanner {
         );
 
         let task_clone = task.clone();
-        let constraint_clone = constraint.clone();
+        let scan_constrant_clone = scan_constrant.clone();
 
         thread::spawn(move || {
             Self::scan_task(
                 snapshot,
-                &constraint_clone,
+                &scan_constrant_clone,
                 task_clone.clone(),
                 task_clone.get_cancellation_token().clone(),
                 with_logging
@@ -49,7 +49,7 @@ impl ManualScanner {
 
     fn scan_task(
         snapshot: Arc<RwLock<Snapshot>>,
-        constraint: &ScanConstraint,
+        scan_constrant: &ScanConstraint,
         task: Arc<TrackableTask<()>>,
         cancellation_token: Arc<AtomicBool>,
         with_logging: bool,
@@ -59,9 +59,12 @@ impl ManualScanner {
         }
 
         let mut snapshot = snapshot.write().unwrap();
+
+        snapshot.initialize_for_constraint(scan_constrant);
+
         let region_count = snapshot.get_region_count();
         let snapshot_regions = snapshot.get_snapshot_regions_for_update();
-        let constraint = &constraint.clone_and_resolve_auto_alignment();
+        let scan_constrant = &scan_constrant.clone();
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
         
@@ -69,12 +72,12 @@ impl ManualScanner {
         snapshot_regions
             .par_iter_mut()
             .for_each(|snapshot_region| {
-                if !snapshot_region.can_compare_with_constraint(constraint) {
+                if !snapshot_region.can_compare_with_constraint(scan_constrant) {
                     processed_region_count.fetch_add(1, Ordering::SeqCst);
                     return;
                 }
 
-                snapshot_region.create_filters_for_constraint(constraint);
+                snapshot_region.create_filters_for_constraint(scan_constrant);
                 let snapshot_region_filters = snapshot_region.get_filters();
                 
                 // Iterate over all data type filters. Generally there is only 1 data type, but this is to support multi-data type scans.
@@ -90,7 +93,7 @@ impl ManualScanner {
                         let scan_results = scan_dispatcher.dispatch_scan_parallel(
                             snapshot_region,
                             snapshot_region_filter,
-                            constraint,
+                            scan_constrant,
                             data_type,
                         );
 

@@ -74,24 +74,19 @@ impl IProcessQueryer for WindowsProcessQuery {
             .keys()
             .cloned()
             .filter(|pid| {
-                let is_system = self.is_process_system_process(pid);
-                if options.include_system_processes || !is_system {
-                    if let Some(name) = self.get_process_name(*pid) {
-                        let mut matches = true;
-                        if options.require_windowed {
-                            matches &= self.is_process_windowed(pid);
-                        }
-                        if let Some(ref term) = options.search_name {
-                            if options.match_case {
-                                matches &= name.contains(term);
-                            } else {
-                                matches &= name.to_lowercase().contains(&term.to_lowercase());
-                            }
-                        }
-                        return matches;
-                    } else {
-                        return false;
+                if let Some(name) = self.get_process_name(*pid) {
+                    let mut matches = true;
+                    if options.require_windowed {
+                        matches &= self.is_process_windowed(pid);
                     }
+                    if let Some(ref term) = options.search_name {
+                        if options.match_case {
+                            matches &= name.contains(term);
+                        } else {
+                            matches &= name.to_lowercase().contains(&term.to_lowercase());
+                        }
+                    }
+                    return matches;
                 } else {
                     return false;
                 }
@@ -104,13 +99,6 @@ impl IProcessQueryer for WindowsProcessQuery {
         } else {
             return processes;
         }
-    }
-
-    fn is_process_system_process(
-        &self,
-        process_id: &Pid
-    ) -> bool {
-        return false; // process_id.as_u32() < 1000;
     }
 
     fn get_process_name(

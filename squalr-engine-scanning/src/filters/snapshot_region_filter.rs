@@ -3,6 +3,8 @@ use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
 use std::cmp::max;
 
+/// Defines a range of filtered memory within a snapshot region. These filters are created by
+/// scans to narrow down on the desired addresses.
 #[derive(Debug)]
 pub struct SnapshotRegionFilter {
     filter_range: NormalizedRegion,
@@ -43,7 +45,7 @@ impl SnapshotRegionFilter {
         return self.filter_range.get_region_size();
     }
     
-    pub fn get_usable_byte_count(
+    pub fn get_usable_byte_count( // Unused?
         &self,
         data_type_size: u64,
     ) -> u64 {

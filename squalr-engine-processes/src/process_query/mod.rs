@@ -7,10 +7,6 @@ pub trait IProcessQueryer {
         &mut self,
         options: ProcessQueryOptions,
     ) -> Vec<Pid>;
-    fn is_process_system_process(
-        &self,
-        pid: &Pid,
-    ) -> bool;
     fn is_process_windowed(
         &self,
         pid: &Pid,
@@ -37,7 +33,6 @@ pub struct ProcessQueryOptions {
     pub require_windowed: bool,
     pub search_name: Option<String>,
     pub match_case: bool,
-    pub include_system_processes: bool,
     pub limit: Option<u64>,
 }
 

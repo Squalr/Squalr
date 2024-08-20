@@ -1,6 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MemoryAlignment {
-    Auto = 0,
     Alignment1 = 1,
     Alignment2 = 2,
     Alignment4 = 4,
@@ -10,7 +9,7 @@ pub enum MemoryAlignment {
 impl Default for MemoryAlignment {
     fn default(
     ) -> Self {
-        MemoryAlignment::Auto
+        MemoryAlignment::Alignment4
     }
 }
 
@@ -23,7 +22,7 @@ impl From<i32> for MemoryAlignment {
             2 => MemoryAlignment::Alignment2,
             4 => MemoryAlignment::Alignment4,
             8 => MemoryAlignment::Alignment8,
-            _ => MemoryAlignment::Auto,
+            _ => MemoryAlignment::Alignment1,
         }
     }
 }
