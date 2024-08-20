@@ -1,12 +1,11 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
-use squalr_engine_common::dynamic_struct::data_type::{self, DataType};
+use squalr_engine_common::dynamic_struct::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
-use std::borrow::BorrowMut;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -29,15 +28,22 @@ impl SnapshotRegion {
         }
     }
 
-    pub fn get_current_values(&self) -> &Vec<u8> {
+    pub fn get_current_values(
+        &self
+    ) -> &Vec<u8> {
         return &self.current_values;
     }
 
-    pub fn get_previous_values(&self) -> &Vec<u8> {
+    pub fn get_previous_values(
+        &self
+    ) -> &Vec<u8> {
         return &self.previous_values;
     }
 
-    pub fn read_all_memory(&mut self, process_handle: u64) -> Result<(), String> {
+    pub fn read_all_memory(
+        &mut self,
+        process_handle: u64
+    ) -> Result<(), String> {
         let region_size = self.get_region_size() as usize;
     
         std::mem::swap(&mut self.current_values, &mut self.previous_values);
@@ -51,7 +57,10 @@ impl SnapshotRegion {
         return Ok(result);
     }
 
-    pub fn read_all_memory_parallel(&mut self, process_handle: u64) -> Result<(), String> {
+    pub fn read_all_memory_parallel(
+        &mut self,
+        process_handle: u64
+    ) -> Result<(), String> {
         let chunk_size = 2 << 23; // 16MB seems to be the optimal value for my CPU
         let region_size = self.get_region_size() as usize;
 
@@ -81,45 +90,67 @@ impl SnapshotRegion {
         return Ok(());
     }
     
-    pub fn get_current_values_pointer(&self, snapshot_region_filter: &SnapshotRegionFilter) -> *const u8 {
+    pub fn get_current_values_pointer(
+        &self,
+        snapshot_region_filter: &SnapshotRegionFilter
+    ) -> *const u8 {
         unsafe{
             let offset = snapshot_region_filter.get_base_address() - self.get_base_address();
             return self.get_current_values().as_ptr().add(offset as usize);
         }
     }
     
-    pub fn get_previous_values_pointer(&self, snapshot_region_filter: &SnapshotRegionFilter) -> *const u8 {
+    pub fn get_previous_values_pointer(
+        &self,
+        snapshot_region_filter: &SnapshotRegionFilter
+    ) -> *const u8 {
         unsafe{
             let offset = snapshot_region_filter.get_base_address() - self.get_base_address();
             return self.get_previous_values().as_ptr().add(offset as usize);
         }
     }
     
-    pub fn get_base_address(&self) -> u64 {
+    pub fn get_base_address(
+        &self
+    ) -> u64 {
         return self.normalized_region.get_base_address();
     }
     
-    pub fn get_end_address(&self) -> u64 {
+    pub fn get_end_address(
+        &self
+    ) -> u64 {
         return self.normalized_region.get_base_address() + self.normalized_region.get_region_size();
     }
 
-    pub fn get_region_size(&self) -> u64 {
+    pub fn get_region_size(
+        &self
+    ) -> u64 {
         return self.normalized_region.get_region_size();
     }
 
-    pub fn set_alignment(&mut self, alignment: MemoryAlignment) {
+    pub fn set_alignment(
+        &mut self,
+        alignment: MemoryAlignment
+    ) {
         self.normalized_region.set_alignment(alignment);
     }
 
-    pub fn has_current_values(&self) -> bool {
+    pub fn has_current_values(
+        &self
+    ) -> bool {
         return !self.current_values.is_empty();
     }
 
-    pub fn has_previous_values(&self) -> bool {
+    pub fn has_previous_values(
+        &self
+    ) -> bool {
         return !self.previous_values.is_empty();
     }
 
-    pub fn can_compare_with_constraint(&self, constraints: &ScanConstraint) -> bool {
+    pub fn can_compare_with_constraint(
+        &self,
+        constraints: &ScanConstraint
+    ) -> bool {
         if !constraints.is_valid() || !self.has_current_values() {
             return false;
         }
@@ -131,26 +162,23 @@ impl SnapshotRegion {
         return true;
     }
 
-    pub fn create_filters(&mut self, data_types: &Vec<DataType>) {
-        // Collect the data types that need new filters
-        let new_filters: Vec<DataType> = data_types.iter()
-            .filter(|data_type| !self.filters.contains_key(data_type))
-            .cloned()
-            .collect();
-
-        // Insert new filters outside of the iteration loop
-        for data_type in new_filters {
-            self.filters.insert(
-                data_type.clone(),
-                vec![SnapshotRegionFilter::new(
-                    self.get_base_address(),
-                    self.get_region_size(),
-                )],
-            );
+    pub fn create_filters_for_constraint(
+        &mut self,
+        constraints: &ScanConstraint
+    ) {
+        let base_address = self.get_base_address();
+        let region_size = self.get_region_size();
+    
+        for data_type in constraints.get_data_types() {
+            self.filters.entry(data_type.clone()).or_insert_with(|| {
+                vec![SnapshotRegionFilter::new(base_address, region_size)]
+            });
         }
     }
 
-    pub fn get_filters(&self) -> &HashMap<DataType, Vec<SnapshotRegionFilter>> {
+    pub fn get_filters(
+        &self
+    ) -> &HashMap<DataType, Vec<SnapshotRegionFilter>> {
         // Retrieve references for all specified filters
         return &self.filters;
     }

@@ -8,17 +8,17 @@ use squalr_engine_scanning::scanners::manual_scanner::ManualScanner;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use std::thread;
 
-pub fn handle_manual_scan_command(cmd: &mut ScanCommand) {
-    let session_manager_lock = SessionManager::get_instance();
-    let session_manager = session_manager_lock.read().unwrap();
-
+pub fn handle_manual_scan_command(
+    cmd: &mut ScanCommand,
+) {
     if let ScanCommand::Manual { value_and_type, constraint_type} = cmd {
-        if let Some(process_info) = session_manager.get_opened_process() {
+        if let Some(process_info) = SessionManager::get_instance().read().unwrap().get_opened_process() {
+            let snapshot = SessionManager::get_instance().write().unwrap().get_or_create_snapshot(process_info);
 
             // First collect values before the new scan
             ValueCollector::collect_values(
                 process_info.clone(),
-                session_manager.get_scan_results(),
+                snapshot.clone(),
                 None,
                 true,
             ).wait_for_completion();
@@ -33,7 +33,7 @@ pub fn handle_manual_scan_command(cmd: &mut ScanCommand) {
                 Some(value_and_type.data_value.to_owned()));
             
             let task = ManualScanner::scan(
-                session_manager.get_scan_results(),
+                snapshot,
                 &constraint,
                 None,
                 true

@@ -3,7 +3,9 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_processes::process_query::{ProcessQuery, ProcessQueryOptions};
 
-pub fn handle_process_list(cmd: &mut ProcessCommand) {
+pub fn handle_process_list(
+    cmd: &mut ProcessCommand,
+) {
     if let ProcessCommand::List { require_windowed, search_name, match_case, include_system_processes, limit } = cmd {
         Logger::get_instance().log(
             LogLevel::Info,

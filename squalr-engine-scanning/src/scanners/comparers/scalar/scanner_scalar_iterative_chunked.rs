@@ -11,11 +11,13 @@ pub struct ScannerScalarIterativeChunked {
 }
 
 impl ScannerScalarIterativeChunked {
-    fn new() -> Self {
+    fn new(
+    ) -> Self {
         Self { }
     }
     
-    pub fn get_instance() -> &'static ScannerScalarIterativeChunked {
+    pub fn get_instance(
+    ) -> &'static ScannerScalarIterativeChunked {
         static mut INSTANCE: Option<ScannerScalarIterativeChunked> = None;
         static INIT: Once = Once::new();
 

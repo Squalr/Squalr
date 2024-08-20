@@ -20,7 +20,9 @@ pub enum ScanConstraintType {
 impl FromStr for ScanConstraintType {
     type Err = ParseScanConstraintTypeError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(
+        s: &str
+    ) -> Result<Self, Self::Err> {
         match s {
             "==" => Ok(ScanConstraintType::Equal),
             "!=" => Ok(ScanConstraintType::NotEqual),
@@ -43,7 +45,10 @@ impl FromStr for ScanConstraintType {
 pub struct ParseScanConstraintTypeError;
 
 impl fmt::Display for ParseScanConstraintTypeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>
+    ) -> fmt::Result {
         write!(f, "Invalid constraint type")
     }
 }

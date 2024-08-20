@@ -1,8 +1,6 @@
-use crate::results::scan_results::ScanResults;
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::snapshots::snapshot::Snapshot;
-use crate::snapshots::snapshot_sub_region::SnapshotSubRegion;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
@@ -24,7 +22,7 @@ impl HybridScanner {
 
     pub fn scan(
         process_info: ProcessInfo,
-        scan_results: Arc<RwLock<ScanResults>>,
+        snapshot: Arc<RwLock<Snapshot>>,
         constraint: &ScanConstraint,
         task_identifier: Option<String>,
         with_logging: bool,
@@ -40,7 +38,7 @@ impl HybridScanner {
         thread::spawn(move || {
             Self::scan_task(
                 process_info,
-                scan_results,
+                snapshot,
                 &constraint_clone,
                 task_clone.clone(),
                 task_clone.get_cancellation_token().clone(),
@@ -55,7 +53,7 @@ impl HybridScanner {
 
     fn scan_task(
         process_info: ProcessInfo,
-        scan_results: Arc<RwLock<ScanResults>>,
+        snapshot: Arc<RwLock<Snapshot>>,
         constraint: &ScanConstraint,
         task: Arc<TrackableTask<()>>,
         cancellation_token: Arc<AtomicBool>,

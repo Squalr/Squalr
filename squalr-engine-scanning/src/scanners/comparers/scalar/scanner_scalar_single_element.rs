@@ -1,10 +1,9 @@
-use squalr_engine_common::dynamic_struct::data_type::DataType;
-
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use crate::scanners::comparers::scalar::scanner_scalar_comparer::ScannerScalarComparer;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use squalr_engine_common::dynamic_struct::data_type::DataType;
 use std::borrow::BorrowMut;
 use std::sync::Once;
 
@@ -12,11 +11,13 @@ pub struct ScannerScalarSingleElement {
 }
 
 impl ScannerScalarSingleElement {
-    fn new() -> Self {
+    fn new(
+    ) -> Self {
         Self { }
     }
     
-    pub fn get_instance() -> &'static ScannerScalarSingleElement {
+    pub fn get_instance(
+    ) -> &'static ScannerScalarSingleElement {
         static mut INSTANCE: Option<ScannerScalarSingleElement> = None;
         static INIT: Once = Once::new();
 
@@ -80,7 +81,7 @@ impl Scanner for ScannerScalarSingleElement {
         }
 
         if compare_result {
-            return vec![SnapshotRegionFilter::new(snapshot_region_filter.get_base_address(), snapshot_region_filter.get_size_in_bytes())];
+            return vec![SnapshotRegionFilter::new(snapshot_region_filter.get_base_address(), snapshot_region_filter.get_region_size())];
         } else {
             return vec![];
         }

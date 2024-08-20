@@ -13,7 +13,8 @@ pub enum FloatingPointTolerance {
 }
 
 impl Default for FloatingPointTolerance {
-    fn default() -> Self {
+    fn default(
+    ) -> Self {
         FloatingPointTolerance::Tolerance10E3
     }
 }

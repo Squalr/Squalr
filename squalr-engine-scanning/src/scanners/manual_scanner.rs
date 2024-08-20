@@ -1,7 +1,7 @@
-use crate::results::scan_results::ScanResults;
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
+use crate::snapshots::snapshot::Snapshot;
+use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -19,7 +19,7 @@ impl ManualScanner {
     const NAME: &'static str = "Manual Scan";
 
     pub fn scan(
-        scan_results: Arc<RwLock<ScanResults>>,
+        snapshot: Arc<RwLock<Snapshot>>,
         constraint: &ScanConstraint,
         task_identifier: Option<String>,
         with_logging: bool
@@ -34,7 +34,7 @@ impl ManualScanner {
 
         thread::spawn(move || {
             Self::scan_task(
-                scan_results,
+                snapshot,
                 &constraint_clone,
                 task_clone.clone(),
                 task_clone.get_cancellation_token().clone(),
@@ -48,25 +48,16 @@ impl ManualScanner {
     }
 
     fn scan_task(
-        scan_results: Arc<RwLock<ScanResults>>,
+        snapshot: Arc<RwLock<Snapshot>>,
         constraint: &ScanConstraint,
         task: Arc<TrackableTask<()>>,
         cancellation_token: Arc<AtomicBool>,
         with_logging: bool,
     ) {
-        let scan_results = scan_results.write().unwrap();
-        let snapshot = scan_results.get_snapshot();
-
-        if snapshot.is_none() {
-            Logger::get_instance().log(LogLevel::Error, "No snapshot provided, aborting manual scan.", None);
-            return;
-        }
-
         if with_logging {
             Logger::get_instance().log(LogLevel::Info, "Performing manual scan...", None);
         }
 
-        let snapshot = snapshot.unwrap();
         let mut snapshot = snapshot.write().unwrap();
         let region_count = snapshot.get_region_count();
         let snapshot_regions = snapshot.get_snapshot_regions_for_update();
@@ -83,7 +74,7 @@ impl ManualScanner {
                     return;
                 }
 
-                snapshot_region.create_filters(constraint.get_data_types());
+                snapshot_region.create_filters_for_constraint(constraint);
                 let snapshot_region_filters = snapshot_region.get_filters();
                 
                 // Iterate over all data type filters. Generally there is only 1 data type, but this is to support multi-data type scans.
@@ -94,8 +85,6 @@ impl ManualScanner {
                         if cancellation_token.load(Ordering::SeqCst) {
                             return;
                         }
-        
-                        // snapshot_region_filter.set_alignment(constraint.get_alignment());
         
                         let scan_dispatcher = ScanDispatcher::get_instance();
                         let scan_results = scan_dispatcher.dispatch_scan_parallel(

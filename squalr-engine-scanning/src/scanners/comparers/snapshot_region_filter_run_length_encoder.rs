@@ -1,3 +1,5 @@
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
+
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 
 pub struct SnapshotRegionFilterRunLengthEncoder {
@@ -19,7 +21,9 @@ pub struct SnapshotRegionFilterRunLengthEncoder {
 /// The caller can get additional performance gains by dividing the work among several run length encoders, then stitching together
 /// boundary regions once the run length encoders are complete.
 impl SnapshotRegionFilterRunLengthEncoder {
-    pub fn new(run_length_current_address: u64) -> Self {
+    pub fn new(
+        run_length_current_address: u64
+    ) -> Self {
         Self {
             result_regions: vec![],
             run_length_current_address: run_length_current_address,
@@ -28,21 +32,24 @@ impl SnapshotRegionFilterRunLengthEncoder {
         }
     }
 
-    pub fn adjust_for_misalignment(&mut self,
+    pub fn adjust_for_misalignment(
+        &mut self,
         misalignment_offset: u64
     ) {
         self.run_length_current_address = self.run_length_current_address.saturating_sub(misalignment_offset);
     }
 
-    pub fn encode_range(&mut self,
-        memory_alignment: u64
+    pub fn encode_range(
+        &mut self,
+        memory_alignment: MemoryAlignment
     ) {
-        self.run_length += memory_alignment;
+        self.run_length += memory_alignment as u64;
         self.is_encoding = true;
     }
 
-    pub fn finalize_current_encode_unchecked(&mut self,
-        memory_alignment: u64,
+    pub fn finalize_current_encode_unchecked(
+        &mut self,
+        memory_alignment: MemoryAlignment,
         data_type_size: u64
     ) {
         if self.is_encoding && self.run_length > 0 {
@@ -55,6 +62,6 @@ impl SnapshotRegionFilterRunLengthEncoder {
             self.is_encoding = false;
         }
 
-        self.run_length_current_address += memory_alignment;
+        self.run_length_current_address += memory_alignment as u64;
     }
 }

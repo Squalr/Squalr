@@ -5,16 +5,15 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use std::thread;
 
-pub fn handle_value_collector_command(cmd: &mut ScanCommand) {
-    let session_manager_lock = SessionManager::get_instance();
-    let session_manager = session_manager_lock.read().unwrap();
-
+pub fn handle_value_collector_command(
+    cmd: &mut ScanCommand,
+) {
     if let ScanCommand::Collect = cmd {
-        if let Some(process_info) = session_manager.get_opened_process() {
-
+        if let Some(process_info) = SessionManager::get_instance().read().unwrap().get_opened_process() {
+            let snapshot = SessionManager::get_instance().write().unwrap().get_or_create_snapshot(process_info);
             let task = ValueCollector::collect_values(
                 process_info.clone(),
-                session_manager.get_scan_results(),
+                snapshot,
                 None,
                 true,
             );

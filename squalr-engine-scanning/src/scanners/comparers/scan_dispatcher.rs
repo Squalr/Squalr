@@ -12,11 +12,13 @@ pub struct ScanDispatcher {
 }
 
 impl ScanDispatcher {
-    fn new() -> Self {
+    fn new(
+    ) -> Self {
         Self { }
     }
     
-    pub fn get_instance() -> &'static ScanDispatcher {
+    pub fn get_instance(
+    ) -> &'static ScanDispatcher {
         static mut INSTANCE: Option<ScanDispatcher> = None;
         static INIT: Once = Once::new();
 

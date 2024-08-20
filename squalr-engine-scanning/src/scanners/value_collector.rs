@@ -1,4 +1,4 @@
-use crate::results::scan_results::ScanResults;
+use crate::snapshots::snapshot::Snapshot;
 use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -18,7 +18,7 @@ impl ValueCollector {
 
     pub fn collect_values(
         process_info: ProcessInfo,
-        scan_results: Arc<RwLock<ScanResults>>,
+        snapshot: Arc<RwLock<Snapshot>>,
         task_identifier: Option<String>,
         with_logging: bool,
     ) -> Arc<TrackableTask<()>> {
@@ -30,12 +30,12 @@ impl ValueCollector {
 
         let task_clone = task.clone();
         let process_info_clone = process_info.clone();
-        let scan_results = scan_results.clone();
+        let snapshot = snapshot.clone();
 
         std::thread::spawn(move || {
             Self::collect_values_task(
                 process_info_clone,
-                scan_results,
+                snapshot,
                 with_logging,
                 task_clone.clone(),
                 task_clone.get_cancellation_token(),
@@ -49,7 +49,7 @@ impl ValueCollector {
 
     fn collect_values_task(
         process_info: Arc<ProcessInfo>,
-        scan_results: Arc<RwLock<ScanResults>>,
+        snapshot: Arc<RwLock<Snapshot>>,
         with_logging: bool,
         task: Arc<TrackableTask<()>>,
         cancellation_token: Arc<AtomicBool>,
@@ -58,8 +58,6 @@ impl ValueCollector {
             Logger::get_instance().log(LogLevel::Info, "Reading values from memory...", None);
         }
 
-        let mut scan_results = scan_results.write().unwrap();
-        let snapshot = scan_results.get_or_create_snapshot(Self::NAME.to_string(), &process_info);
         let mut snapshot = snapshot.write().unwrap();
         let total_region_count = snapshot.get_region_count();
 

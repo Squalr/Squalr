@@ -8,7 +8,9 @@ pub use scan_command_hybrid::handle_hybrid_scan_command;
 pub use scan_command_manual::handle_manual_scan_command;
 pub use scan_command_value_collector::handle_value_collector_command;
 
-pub fn handle_scan_command(cmd: &mut ScanCommand) {
+pub fn handle_scan_command(
+    cmd: &mut ScanCommand,
+) {
     match cmd {
         ScanCommand::Manual { .. } => handle_manual_scan_command(cmd),
         ScanCommand::Hybrid { .. } => handle_hybrid_scan_command(cmd),

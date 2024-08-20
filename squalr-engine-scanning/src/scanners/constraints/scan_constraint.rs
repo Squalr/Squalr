@@ -36,7 +36,9 @@ impl ScanConstraint {
         }
     }
 
-    pub fn clone_and_resolve_auto_alignment(&self) -> ScanConstraint {
+    pub fn clone_and_resolve_auto_alignment(
+        &self
+    ) -> ScanConstraint {
         let mut constraint = self.clone();
 
         if constraint.get_alignment() == MemoryAlignment::Auto {
@@ -52,19 +54,28 @@ impl ScanConstraint {
         return constraint;
     }
 
-    pub fn get_alignment(&self) -> MemoryAlignment {
+    pub fn get_alignment(
+        &self
+    ) -> MemoryAlignment {
         return self.alignment;
     }
 
-    pub fn set_alignment(&mut self, alignment: MemoryAlignment) {
+    pub fn set_alignment(
+        &mut self,
+        alignment: MemoryAlignment
+    ) {
         self.alignment = alignment;
     }
 
-    pub fn get_constraint_type(&self) -> ScanConstraintType {
+    pub fn get_constraint_type(
+        &self
+    ) -> ScanConstraintType {
         self.constraint_type.clone()
     }
 
-    pub fn get_constraint_value(&self) -> Option<&DataValue> {
+    pub fn get_constraint_value(
+        &self
+    ) -> Option<&DataValue> {
         if self.is_immediate_constraint() {
             return self.constraint_value.as_ref();
         } else {
@@ -72,11 +83,16 @@ impl ScanConstraint {
         }
     }
 
-    pub fn set_constraint_value(&mut self, value: Option<DataValue>) {
+    pub fn set_constraint_value(
+        &mut self,
+        value: Option<DataValue>
+    ) {
         self.constraint_value = value;
     }
     
-    pub fn is_valid(&self) -> bool {
+    pub fn is_valid(
+        &self
+    ) -> bool {
         if !self.is_immediate_constraint() {
             return true;
         } else {
@@ -84,7 +100,9 @@ impl ScanConstraint {
         }
     }
 
-    pub fn is_relative_delta_constraint(&self) -> bool {
+    pub fn is_relative_delta_constraint(
+        &self
+    ) -> bool {
         return match self.constraint_type {
             | ScanConstraintType::IncreasedByX
             | ScanConstraintType::DecreasedByX => true,
@@ -92,7 +110,9 @@ impl ScanConstraint {
         };
     }
 
-    pub fn is_relative_constraint(&self) -> bool {
+    pub fn is_relative_constraint(
+        &self
+    ) -> bool {
         return match self.constraint_type {
             ScanConstraintType::Changed
             | ScanConstraintType::Unchanged
@@ -102,7 +122,9 @@ impl ScanConstraint {
         };
     }
 
-    pub fn is_immediate_constraint(&self) -> bool {
+    pub fn is_immediate_constraint(
+        &self
+    ) -> bool {
         return match self.constraint_type {
             ScanConstraintType::Equal
             | ScanConstraintType::NotEqual
@@ -116,11 +138,15 @@ impl ScanConstraint {
         };
     }
 
-    pub fn get_data_types(&self) -> &Vec<DataType> {
+    pub fn get_data_types(
+        &self
+    ) -> &Vec<DataType> {
         return &self.data_types;
     }
 
-    pub fn clone(&self) -> Self {
+    pub fn clone(
+        &self
+    ) -> Self {
         ScanConstraint {
             alignment: self.alignment,
             constraint_type: self.constraint_type.clone(),
@@ -129,7 +155,10 @@ impl ScanConstraint {
         }
     }
 
-    pub fn conflicts_with(&self, other: &ScanConstraint) -> bool {
+    pub fn conflicts_with(
+        &self,
+        other: &ScanConstraint
+    ) -> bool {
         if self.constraint_type == other.constraint_type {
             return true;
         }

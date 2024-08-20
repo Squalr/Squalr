@@ -1,32 +1,20 @@
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use std::{borrow::BorrowMut, time::SystemTime};
 
 #[derive(Debug)]
 pub struct Snapshot {
-    name: String,
-    creation_time: SystemTime,
     snapshot_regions: Vec<SnapshotRegion>,
 }
 
 /// Represents a snapshot of memory in an external process that contains current and previous values of memory pages.
 impl Snapshot {
-    pub fn new(name: String, mut snapshot_regions: Vec<SnapshotRegion>) -> Self {
+    pub fn new(mut snapshot_regions: Vec<SnapshotRegion>) -> Self {
         // Remove empty regions and sort them ascending
         snapshot_regions.retain(|region| region.get_region_size() > 0);
         snapshot_regions.sort_by_key(|region| region.get_base_address());
 
         Self {
-            name,
-            creation_time: SystemTime::now(),
             snapshot_regions,
         }
-    }
-
-    pub fn get_name(&self) -> String {
-        return self.name.clone();
-    }
-    pub fn get_creation_time(&self) -> &SystemTime {
-        return &self.creation_time;
     }
 
     pub fn get_snapshot_regions(&self) -> &Vec<SnapshotRegion> {

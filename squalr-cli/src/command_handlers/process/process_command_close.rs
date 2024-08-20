@@ -4,33 +4,37 @@ use squalr_engine_processes::process_query::ProcessQuery;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 
-pub fn handle_process_close(_cmd: &mut ProcessCommand) {
-    let session_manager_lock = SessionManager::get_instance();
-    let mut session_manager = session_manager_lock.write().unwrap();
+pub fn handle_process_close(
+    cmd: &mut ProcessCommand,
+) {
+    if let ProcessCommand::Close { } = cmd {
+        let session_manager_lock = SessionManager::get_instance();
+        let mut session_manager = session_manager_lock.write().unwrap();
 
-    if let Some(process_info) = session_manager.get_opened_process() {
-        Logger::get_instance().log(
-            LogLevel::Info,
-            &format!("Closing process {} with handle {}", process_info.pid, process_info.handle),
-            None,
-        );
+        if let Some(process_info) = session_manager.get_opened_process() {
+            Logger::get_instance().log(
+                LogLevel::Info,
+                &format!("Closing process {} with handle {}", process_info.pid, process_info.handle),
+                None,
+            );
 
-        let queryer = ProcessQuery::get_instance();
+            let queryer = ProcessQuery::get_instance();
 
-        match queryer.close_process(process_info.handle) {
-            Ok(_) => {
-                session_manager.clear_opened_process();
-                Logger::get_instance().log(LogLevel::Info, "Process closed", None);
+            match queryer.close_process(process_info.handle) {
+                Ok(_) => {
+                    session_manager.clear_opened_process();
+                    Logger::get_instance().log(LogLevel::Info, "Process closed", None);
+                }
+                Err(e) => {
+                    Logger::get_instance().log(
+                        LogLevel::Error,
+                        &format!("Failed to close process handle {}: {}", process_info.handle, e),
+                        None,
+                    );
+                }
             }
-            Err(e) => {
-                Logger::get_instance().log(
-                    LogLevel::Error,
-                    &format!("Failed to close process handle {}: {}", process_info.handle, e),
-                    None,
-                );
-            }
+        } else {
+            Logger::get_instance().log(LogLevel::Info, "No process to close", None);
         }
-    } else {
-        Logger::get_instance().log(LogLevel::Info, "No process to close", None);
     }
 }

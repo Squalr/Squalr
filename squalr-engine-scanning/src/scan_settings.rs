@@ -13,7 +13,8 @@ pub struct Config {
 }
 
 impl Default for Config {
-    fn default() -> Self {
+    fn default(
+    ) -> Self {
         Self {
             result_read_interval: 2500,
             table_read_interval: 2500,
@@ -29,13 +30,15 @@ pub struct ScanSettings {
 }
 
 impl ScanSettings {
-    fn new() -> Self {
+    fn new(
+    ) -> Self {
         Self {
             config: Arc::new(RwLock::new(Config::default())),
         }
     }
     
-    pub fn get_instance() -> &'static ScanSettings {
+    pub fn get_instance(
+    ) -> &'static ScanSettings {
         static mut INSTANCE: Option<ScanSettings> = None;
         static ONCE: Once = Once::new();
 
@@ -49,47 +52,75 @@ impl ScanSettings {
         }
     }
 
-    pub fn get_result_read_interval(&self) -> i32 {
+    pub fn get_result_read_interval(
+        &self
+    ) -> i32 {
         return self.config.read().unwrap().result_read_interval;
     }
 
-    pub fn set_result_read_interval(&self, value: i32) {
+    pub fn set_result_read_interval(
+        &self,
+        value: i32
+    ) {
         self.config.write().unwrap().result_read_interval = value;
     }
 
-    pub fn get_table_read_interval(&self) -> i32 {
+    pub fn get_table_read_interval(
+        &self
+    ) -> i32 {
         return self.config.read().unwrap().table_read_interval;
     }
 
-    pub fn set_table_read_interval(&self, value: i32) {
+    pub fn set_table_read_interval(
+        &self,
+        value: i32
+    ) {
         self.config.write().unwrap().table_read_interval = value;
     }
 
-    pub fn get_freeze_interval(&self) -> i32 {
+    pub fn get_freeze_interval(
+        &self
+    ) -> i32 {
         return self.config.read().unwrap().freeze_interval;
     }
 
-    pub fn set_freeze_interval(&self, value: i32) {
+    pub fn set_freeze_interval(
+        &self,
+        value: i32
+    ) {
         self.config.write().unwrap().freeze_interval = value;
     }
 
-    pub fn get_alignment(&self) -> MemoryAlignment {
+    pub fn get_alignment(
+        &self
+    ) -> MemoryAlignment {
         return self.config.read().unwrap().alignment;
     }
 
-    pub fn set_alignment(&self, value: MemoryAlignment) {
+    pub fn set_alignment(
+        &self,
+        value: MemoryAlignment
+    ) {
         self.config.write().unwrap().alignment = value;
     }
 
-    pub fn get_floating_point_tolerance(&self) -> FloatingPointTolerance {
+    pub fn get_floating_point_tolerance(
+        &self
+    ) -> FloatingPointTolerance {
         return self.config.read().unwrap().floating_point_tolerance;
     }
 
-    pub fn set_floating_point_tolerance(&self, value: FloatingPointTolerance) {
+    pub fn set_floating_point_tolerance(
+        &self,
+        value: FloatingPointTolerance
+    ) {
         self.config.write().unwrap().floating_point_tolerance = value;
     }
     
-    pub fn get_resolve_auto_alignment(alignment: MemoryAlignment, data_type_size: i32) -> MemoryAlignment {
+    pub fn get_resolve_auto_alignment(
+        alignment: MemoryAlignment,
+        data_type_size: i32
+    ) -> MemoryAlignment {
         if alignment == MemoryAlignment::Auto {
             return MemoryAlignment::from(data_type_size);
         } else {

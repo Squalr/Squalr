@@ -11,11 +11,13 @@ pub struct ScannerScalarIterative {
 }
 
 impl ScannerScalarIterative {
-    fn new() -> Self {
+    fn new(
+    ) -> Self {
         Self { }
     }
     
-    pub fn get_instance() -> &'static ScannerScalarIterative {
+    pub fn get_instance(
+    ) -> &'static ScannerScalarIterative {
         static mut INSTANCE: Option<ScannerScalarIterative> = None;
         static INIT: Once = Once::new();
 
