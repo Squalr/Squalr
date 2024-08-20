@@ -12,8 +12,15 @@ pub fn handle_manual_scan_command(
     cmd: &mut ScanCommand,
 ) {
     if let ScanCommand::Manual { value_and_type, constraint_type} = cmd {
-        if let Some(process_info) = SessionManager::get_instance().read().unwrap().get_opened_process() {
-            let snapshot = SessionManager::get_instance().write().unwrap().get_or_create_snapshot(process_info);
+        let session_manager_lock = SessionManager::get_instance();
+        let process_info = {
+            let session_manager = session_manager_lock.read().unwrap();
+            session_manager.get_opened_process().cloned()
+        };
+
+        if let Some(process_info) = process_info {
+            let mut session_manager = session_manager_lock.write().unwrap();
+            let snapshot = session_manager.get_or_create_snapshot(&process_info);
 
             // First collect values before the new scan
             ValueCollector::collect_values(

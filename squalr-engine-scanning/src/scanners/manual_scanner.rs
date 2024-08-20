@@ -6,6 +6,7 @@ use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
@@ -79,13 +80,13 @@ impl ManualScanner {
                 
                 // Iterate over all data type filters. Generally there is only 1 data type, but this is to support multi-data type scans.
                 // Each filter is responsible for tracking which ranges of the snapshot region are kept for the scan.
-                snapshot_region_filters
+                let results: HashMap<_, _> = snapshot_region_filters
                     .into_par_iter()
-                    .for_each(|(data_type, snapshot_region_filter)| {
+                    .filter_map(|(data_type, snapshot_region_filter)| {
                         if cancellation_token.load(Ordering::SeqCst) {
-                            return;
+                            return None;
                         }
-        
+
                         let scan_dispatcher = ScanDispatcher::get_instance();
                         let scan_results = scan_dispatcher.dispatch_scan_parallel(
                             snapshot_region,
@@ -93,9 +94,12 @@ impl ManualScanner {
                             constraint,
                             data_type,
                         );
-        
-                        // snapshot_region_filter.set_snapshot_sub_regions(scan_results.to_owned());
-                    });
+
+                        Some((data_type.clone(), scan_results))
+                    })
+                    .collect();
+                
+                snapshot_region.set_all_filters(results);
         
                 let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
 
@@ -106,12 +110,9 @@ impl ManualScanner {
                 }
             });
 
-            // snapshot.set_name(ManualScanner::NAME.to_string());
-        
-            let element_count = 420; //snapshot.get_element_count(constraint.get_alignment(), constraint.get_data_type().size_in_bytes());
-            let byte_count = 69; // snapshot.get_byte_count();
+            let byte_count = snapshot.get_byte_count();
     
-            Logger::get_instance().log(LogLevel::Info, &format!("Results: {} ({} bytes)", element_count, value_to_metric_size(byte_count)), None);
+            Logger::get_instance().log(LogLevel::Info, &format!("Results: {} bytes", value_to_metric_size(byte_count)), None);
             let duration = start_time.elapsed();
             Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
     }

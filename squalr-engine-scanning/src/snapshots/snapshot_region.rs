@@ -176,10 +176,24 @@ impl SnapshotRegion {
         }
     }
 
+    pub fn set_filters_for_data_type(
+        &mut self,
+        data_type: DataType,
+        filters: Vec<SnapshotRegionFilter>,
+    ) {
+        self.filters.insert(data_type, filters);
+    }
+
+    pub fn set_all_filters(
+        &mut self,
+        filters: HashMap<DataType, Vec<SnapshotRegionFilter>>,
+    ) {
+        self.filters = filters;
+    }
+
     pub fn get_filters(
         &self
     ) -> &HashMap<DataType, Vec<SnapshotRegionFilter>> {
-        // Retrieve references for all specified filters
         return &self.filters;
     }
 }

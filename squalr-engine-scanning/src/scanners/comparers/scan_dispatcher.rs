@@ -42,7 +42,6 @@ impl ScanDispatcher {
         let mut results = vec![];
     
         for snapshot_region_filter in snapshot_region_filters {
-            let snapshot_region_filter = snapshot_region_filter.clone();
             let scanner_instance = self.acquire_scanner_instance(
                 &snapshot_region_filter,
                 &constraint,
