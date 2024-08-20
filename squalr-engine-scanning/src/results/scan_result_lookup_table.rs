@@ -10,6 +10,7 @@ type ScanResultIndexToSubRegionMap = RangeInclusiveMap<u64, u64>;
 // Scan result index > snapshot region
 type ScanResultIndexToRegionMap = RangeInclusiveMap<u64, (u64, ScanResultIndexToSubRegionMap)>;
 
+#[derive(Debug)]
 pub struct ScanResultLookupTable {
     page_size: u64,
     scan_result_index_map: ScanResultIndexToRegionMap,
@@ -52,6 +53,8 @@ impl ScanResultLookupTable {
         let snapshot_regions = snapshot.get_snapshot_regions();
         let mut scan_result_index: u64 = 0;
 
+        // TODO: Migrate from subregions to new filter struct
+        /*
         for (region_index, region) in snapshot_regions.iter().enumerate() {
             let mut subregion_index_map = ScanResultIndexToSubRegionMap::new();
             let sub_regions = region.get_snapshot_sub_regions();
@@ -76,6 +79,6 @@ impl ScanResultLookupTable {
                     (region_index as u64, subregion_index_map),
                 );
             }
-        }
+        } */
     }
 }

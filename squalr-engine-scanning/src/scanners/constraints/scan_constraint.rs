@@ -8,7 +8,7 @@ use squalr_engine_memory::memory_alignment::MemoryAlignment;
 pub struct ScanConstraint {
     alignment: MemoryAlignment,
     constraint_type: ScanConstraintType,
-    data_type: DataType,
+    data_types: Vec<DataType>,
     constraint_value: Option<DataValue>,
 }
 
@@ -17,7 +17,7 @@ impl ScanConstraint {
         Self {
             alignment: MemoryAlignment::Auto,
             constraint_type: ScanConstraintType::Changed,
-            data_type: DataType::default(),
+            data_types: vec![],
             constraint_value: None,
         }
     }
@@ -25,13 +25,13 @@ impl ScanConstraint {
     pub fn new_with_value(
         alignment: MemoryAlignment,
         constraint_type: ScanConstraintType,
-        data_type: DataType,
+        data_types: Vec<DataType>,
         value: Option<DataValue>,
     ) -> Self {
         Self {
             alignment,
             constraint_type,
-            data_type: data_type,
+            data_types: data_types,
             constraint_value: value,
         }
     }
@@ -116,15 +116,15 @@ impl ScanConstraint {
         };
     }
 
-    pub fn get_data_type(&self) -> &DataType {
-        return &self.data_type;
+    pub fn get_data_types(&self) -> &Vec<DataType> {
+        return &self.data_types;
     }
 
     pub fn clone(&self) -> Self {
         ScanConstraint {
             alignment: self.alignment,
             constraint_type: self.constraint_type.clone(),
-            data_type: self.data_type.clone(),
+            data_types: self.data_types.clone(),
             constraint_value: self.constraint_value.clone(),
         }
     }

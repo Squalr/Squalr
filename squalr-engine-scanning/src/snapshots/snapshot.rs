@@ -1,13 +1,14 @@
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use std::time::SystemTime;
+use std::{borrow::BorrowMut, time::SystemTime};
 
+#[derive(Debug)]
 pub struct Snapshot {
     name: String,
     creation_time: SystemTime,
     snapshot_regions: Vec<SnapshotRegion>,
 }
 
-/// Represents a snapshot of memory in another process. By design, a snapshot is entirely immutable to avoid resource contention.
+/// Represents a snapshot of memory in an external process that contains current and previous values of memory pages.
 impl Snapshot {
     pub fn new(name: String, mut snapshot_regions: Vec<SnapshotRegion>) -> Self {
         // Remove empty regions and sort them ascending
@@ -30,6 +31,10 @@ impl Snapshot {
 
     pub fn get_snapshot_regions(&self) -> &Vec<SnapshotRegion> {
         return &self.snapshot_regions;
+    }
+
+    pub fn get_snapshot_regions_for_update(&mut self) -> &mut Vec<SnapshotRegion> {
+        return &mut self.snapshot_regions;
     }
 
     pub fn get_region_count(&self) -> u64 {

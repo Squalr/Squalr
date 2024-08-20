@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 pub type DataLoadFunc = unsafe fn(&mut DataValue, *const u8);
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DataType {
     U8(),
     U16(Endian),
