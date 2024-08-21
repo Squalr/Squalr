@@ -1,4 +1,9 @@
-use crate::{results::scan_result_lookup_table::ScanResultLookupTable, scanners::constraints::scan_constraint::{ScanConstraint, ScanFilterConstraint}, snapshots::snapshot_region::SnapshotRegion};
+use std::mem::take;
+
+use crate::results::scan_result_lookup_table::ScanResultLookupTable;
+use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::scanners::constraints::scan_constraint::ScanFilterConstraint;
+use crate::snapshots::snapshot_region::SnapshotRegion;
 
 #[derive(Debug)]
 pub struct Snapshot {
@@ -33,21 +38,6 @@ impl Snapshot {
         return &mut self.snapshot_regions;
     }
 
-    pub fn initialize_for_constraint(
-        &mut self,
-        scan_constrant: &ScanConstraint,
-    ) {
-        self.scan_result_lookup_table.initialize_for_constraint(scan_constrant);
-    }
-
-    pub fn update_scan_results(
-        &mut self,
-    ) {
-        self.scan_result_lookup_table.build_scan_results(
-            &self.snapshot_regions,
-        );
-    }
-
     pub fn get_region_count(
         &self
     ) -> u64 {
@@ -58,5 +48,32 @@ impl Snapshot {
         &self
     ) -> u64 {
         return self.snapshot_regions.iter().map(|region| region.get_region_size()).sum();
+    }
+
+    pub fn initialize_for_constraint(
+        &mut self,
+        scan_constrant: &ScanConstraint,
+    ) {
+        self.scan_result_lookup_table.initialize_for_constraint(scan_constrant);
+    }
+
+    pub fn get_scan_constraint_filters(
+        &self,
+    ) -> &Vec<ScanFilterConstraint> {
+        return self.scan_result_lookup_table.get_scan_constraint_filters();
+    }
+
+    pub fn take_scan_constraint_filters(
+        &mut self,
+    ) -> Vec<ScanFilterConstraint> {
+        return take(&mut self.scan_result_lookup_table.take_scan_constraint_filters());
+    }
+
+    pub fn update_scan_results(
+        &mut self,
+    ) {
+        self.scan_result_lookup_table.build_scan_results(
+            &self.snapshot_regions,
+        );
     }
 }

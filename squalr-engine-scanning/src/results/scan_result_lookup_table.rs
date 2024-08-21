@@ -2,6 +2,7 @@ use crate::scanners::constraints::scan_constraint::{ScanConstraint, ScanFilterCo
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rangemap::RangeInclusiveMap;
 use squalr_engine_common::dynamic_struct::data_type::DataType;
+use std::mem::take;
 use std::ops::RangeInclusive;
 
 // Scan result index > snapshot filter (within a snapshot region)
@@ -49,6 +50,18 @@ impl ScanResultLookupTable {
         scan_constrant: &ScanConstraint,
     ) {
         self.scan_filter_constraints = scan_constrant.get_scan_filter_constraints().clone();
+    }
+
+    pub fn get_scan_constraint_filters(
+        &self,
+    ) -> &Vec<ScanFilterConstraint> {
+        return &self.scan_filter_constraints;
+    }
+
+    pub fn take_scan_constraint_filters(
+        &mut self,
+    ) -> Vec<ScanFilterConstraint> {
+        return take(&mut self.scan_filter_constraints);
     }
 
     pub fn build_scan_results(

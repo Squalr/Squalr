@@ -58,50 +58,70 @@ impl ManualScanner {
             Logger::get_instance().log(LogLevel::Info, "Performing manual scan...", None);
         }
 
+        let region_count =
+        {
+            let snapshot = snapshot.read().unwrap();
+            snapshot.get_region_count()
+        };
+
+        let scan_constraint_filters=
+        {
+            let mut snapshot = snapshot.write().unwrap();
+            snapshot.take_scan_constraint_filters()
+        };
+
         let mut snapshot = snapshot.write().unwrap();
 
         snapshot.initialize_for_constraint(scan_constrant);
 
-        let region_count = snapshot.get_region_count();
         let snapshot_regions = snapshot.get_snapshot_regions_for_update();
         let scan_constrant = &scan_constrant.clone();
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
-        
-        // Iterate over every snapshot region
+
+        // Iterate over every snapshot region, from which we will grab the existing snapshot filters to perform our next scan.
         snapshot_regions
             .par_iter_mut()
             .for_each(|snapshot_region| {
+                if cancellation_token.load(Ordering::SeqCst) {
+                    return;
+                }
+                
                 if !snapshot_region.can_compare_with_constraint(scan_constrant) {
                     processed_region_count.fetch_add(1, Ordering::SeqCst);
                     return;
                 }
 
                 snapshot_region.create_filters_for_constraint(scan_constrant);
-                let snapshot_region_filters = snapshot_region.get_filters();
-                
-                // Iterate over all data type filters. Generally there is only 1 data type, but this is to support multi-data type scans.
-                // Each filter is responsible for tracking which ranges of the snapshot region are in the scan results.
-                let results = snapshot_region_filters
+
+                // Iterate over each data type in the scan. Generally there is only 1, but multiple simultaneous scans are supported.
+                let new_filters = scan_constraint_filters
+                    .clone()
                     .into_par_iter()
-                    .filter_map(|(data_type, snapshot_region_filter)| {
-                        if cancellation_token.load(Ordering::SeqCst) {
+                    .filter_map(|scan_filter_constraint| {
+                        let data_type = scan_filter_constraint.get_data_type();
+                        
+                        let snapshot_region_filters_map = snapshot_region.get_filters();
+                        let snapshot_region_filters = snapshot_region_filters_map.get(data_type);
+
+                        if snapshot_region_filters.is_none() {
                             return None;
                         }
 
+                        let snapshot_region_filters = snapshot_region_filters.unwrap();
                         let scan_dispatcher = ScanDispatcher::get_instance();
                         let scan_results = scan_dispatcher.dispatch_scan_parallel(
                             snapshot_region,
-                            snapshot_region_filter,
+                            snapshot_region_filters,
                             scan_constrant,
-                            data_type,
+                            &scan_filter_constraint,
                         );
 
-                        Some((data_type.clone(), scan_results))
-                    })
-                    .collect();
+                        return Some((data_type.clone(), scan_results));
+                    }).collect();
                 
-                snapshot_region.set_all_filters(results);
+                // Update the snapshot region to contain new filtered regions (ie scan results).
+                snapshot_region.set_all_filters(new_filters);
         
                 let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
 

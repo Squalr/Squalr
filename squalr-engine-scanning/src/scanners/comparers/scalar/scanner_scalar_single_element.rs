@@ -3,7 +3,6 @@ use crate::snapshots::snapshot_region::SnapshotRegion;
 use crate::scanners::comparers::scalar::scanner_scalar_comparer::ScannerScalarComparer;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::constraints::scan_constraint::{ScanConstraint, ScanFilterConstraint};
-use squalr_engine_common::dynamic_struct::data_type::DataType;
 use std::borrow::BorrowMut;
 use std::sync::Once;
 

@@ -59,12 +59,23 @@ impl HybridScanner {
         cancellation_token: Arc<AtomicBool>,
         with_logging: bool,
     ) {
+        let region_count =
+        {
+            let snapshot = snapshot.read().unwrap();
+            snapshot.get_region_count()
+        };
+
+        let scan_constraint_filters=
+        {
+            let mut snapshot = snapshot.write().unwrap();
+            snapshot.take_scan_constraint_filters()
+        };
+
         let mut snapshot = snapshot.write().unwrap();
 
         snapshot.initialize_for_constraint(scan_constrant);
 
         let scan_constrant = &scan_constrant.clone();
-        let region_count = snapshot.get_region_count();
         let snapshot_regions = snapshot.get_snapshot_regions_for_update();
 
         if with_logging {
@@ -75,49 +86,57 @@ impl HybridScanner {
         let processed_region_count = Arc::new(AtomicUsize::new(0));
 
         snapshot_regions
-            .par_iter_mut()
-            .for_each(|region| {
-                if cancellation_token.load(Ordering::SeqCst) {
-                    return;
-                }
+        .par_iter_mut()
+        .for_each(|snapshot_region| {
+            if cancellation_token.load(Ordering::SeqCst) {
+                return;
+            }
 
-                // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages.
-                let _ = region.read_all_memory_parallel(process_info.handle);
+            // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages.
+            let _ = snapshot_region.read_all_memory_parallel(process_info.handle);
 
-                // Create filters for the constraint
-                region.create_filters_for_constraint(scan_constrant);
-                let snapshot_region_filters = region.get_filters();
+            if !snapshot_region.can_compare_with_constraint(scan_constrant) {
+                processed_region_count.fetch_add(1, Ordering::SeqCst);
+                return;
+            }
 
-                // Perform scan using the ScanDispatcher
-                let results = snapshot_region_filters
-                    .into_par_iter()
-                    .filter_map(|(data_type, snapshot_region_filter)| {
-                        if cancellation_token.load(Ordering::SeqCst) {
-                            return None;
-                        }
+            snapshot_region.create_filters_for_constraint(scan_constrant);
 
-                        let scan_dispatcher = ScanDispatcher::get_instance();
-                        let scan_results = scan_dispatcher.dispatch_scan_parallel(
-                            region,
-                            snapshot_region_filter,
-                            scan_constrant,
-                            data_type,
-                        );
+            // Iterate over each data type in the scan. Generally there is only 1, but multiple simultaneous scans are supported.
+            let new_filters = scan_constraint_filters
+                .clone()
+                .into_par_iter()
+                .filter_map(|scan_filter_constraint| {
+                    let snapshot_region_filters_map = snapshot_region.get_filters();
+                    let snapshot_region_filters = snapshot_region_filters_map.get(scan_filter_constraint.get_data_type());
 
-                        Some((data_type.clone(), scan_results))
-                    })
-                    .collect();
+                    if snapshot_region_filters.is_none() {
+                        return None;
+                    }
 
-                region.set_all_filters(results);
+                    let snapshot_region_filters = snapshot_region_filters.unwrap();
+                    let scan_dispatcher = ScanDispatcher::get_instance();
+                    let scan_results = scan_dispatcher.dispatch_scan_parallel(
+                        snapshot_region,
+                        snapshot_region_filters,
+                        scan_constrant,
+                        &scan_filter_constraint,
+                    );
 
-                let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
+                    return Some((scan_filter_constraint.get_data_type().clone(), scan_results));
+                }).collect();
 
-                // To reduce performance impact, only periodically send progress updates.
-                if processed % 32 == 0 {
-                    let progress = (processed as f32 / region_count as f32) * 100.0;
-                    task.set_progress(progress);
-                }
-            });
+            // Update the snapshot region to contain new filtered regions (ie scan results).
+            snapshot_region.set_all_filters(new_filters);
+
+            let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
+
+            // To reduce performance impact, only periodically send progress updates.
+            if processed % 32 == 0 {
+                let progress = (processed as f32 / region_count as f32) * 100.0;
+                task.set_progress(progress);
+            }
+        });
 
         let duration = start_time.elapsed();
         let byte_count = snapshot.get_byte_count();

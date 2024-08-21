@@ -1,5 +1,3 @@
-use squalr_engine_common::dynamic_struct::data_type::DataType;
-
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::scalar::scanner_scalar_encoder::ScannerScalarEncoder;
 use crate::scanners::comparers::snapshot_scanner::Scanner;

@@ -9,8 +9,15 @@ pub struct ScanFilterConstraint {
     data_type: DataType,
 }
 
+impl Default for ScanFilterConstraint {
+    fn default(
+    ) -> Self {
+        ScanFilterConstraint::new()
+    }
+}
+
 impl ScanFilterConstraint {
-    pub fn new() -> Self { // TODO: remove?
+    pub fn new() -> Self {
         Self {
             alignment: None,
             data_type: DataType::default(),
