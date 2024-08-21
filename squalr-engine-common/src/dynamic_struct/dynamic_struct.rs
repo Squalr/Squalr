@@ -1,6 +1,6 @@
-use crate::dynamic_struct::data_value::DataValue;
 use crate::dynamic_struct::field_value::FieldValue;
 use crate::dynamic_struct::to_bytes::ToBytes;
+use crate::values::data_value::DataValue;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -9,6 +9,7 @@ pub struct DynamicStruct {
     fields: HashMap<String, FieldValue>,
 }
 
+/// TODO: This belongs in projects. This does not need to be known nor exist at a common level.
 impl DynamicStruct {
     pub fn new(
     ) -> Self {

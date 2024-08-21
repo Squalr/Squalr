@@ -6,7 +6,7 @@ use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_architecture::vectors::vectors;
-use squalr_engine_common::dynamic_struct::data_type::DataType;
+use squalr_engine_common::values::data_type::DataType;
 use std::sync::Once;
 
 pub struct ScanDispatcher {

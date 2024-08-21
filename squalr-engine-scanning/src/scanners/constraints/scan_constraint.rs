@@ -1,5 +1,5 @@
 use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
-use squalr_engine_common::dynamic_struct::data_value::DataValue;
+use squalr_engine_common::values::data_value::DataValue;
 
 #[derive(Debug, Clone)]
 pub struct ScanConstraint {

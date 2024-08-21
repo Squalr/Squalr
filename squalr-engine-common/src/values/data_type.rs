@@ -1,5 +1,5 @@
-use crate::dynamic_struct::data_value::DataValue;
-use crate::dynamic_struct::endian::Endian;
+use crate::values::data_value::DataValue;
+use crate::values::endian::Endian;
 use std::ptr;
 use std::str::FromStr;
 
@@ -7,6 +7,7 @@ pub type DataLoadFunc = unsafe fn(&mut DataValue, *const u8);
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DataType {
+    Anonymous(),
     U8(),
     U16(Endian),
     U32(Endian),
@@ -33,6 +34,7 @@ impl DataType {
         &self
     ) -> u64 {
         match self {
+            DataType::Anonymous() => 0,
             DataType::U8() => std::mem::size_of::<u8>() as u64,
             DataType::U16(_) => std::mem::size_of::<u16>() as u64,
             DataType::U32(_) => std::mem::size_of::<u32>() as u64,
@@ -52,6 +54,7 @@ impl DataType {
         &self
     ) -> DataValue {
         match self {
+            DataType::Anonymous() => DataValue::Anonymous(String::new()),
             DataType::U8() => DataValue::U8(0),
             DataType::U16(_) => DataValue::U16(0),
             DataType::U32(_) => DataValue::U32(0),
@@ -74,6 +77,7 @@ impl DataType {
         &self
     ) -> DataLoadFunc {
         match self {
+            DataType::Anonymous() => panic!("Value loading directly from anonymous type is not supported."),
             DataType::U8() => Self::load_u8,
             DataType::I8() => Self::load_i8,
             DataType::U16(Endian::Little) => Self::load_u16_le,

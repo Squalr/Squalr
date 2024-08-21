@@ -1,9 +1,11 @@
-use crate::dynamic_struct::data_type::DataType;
+use crate::values::data_type::DataType;
 use std::cmp::Ordering;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum DataValue {
+    /// An anonymous data type. Used for supporting multiple data types (ie scanning many data types at once).
+    Anonymous(String),
     U8(u8),
     U16(u16),
     U32(u32),
@@ -24,6 +26,7 @@ impl Ord for DataValue {
         other: &Self
     ) -> Ordering {
         match (self, other) {
+            (DataValue::Anonymous(a), DataValue::Anonymous(b)) => a.cmp(b),
             (DataValue::U8(a), DataValue::U8(b)) => a.cmp(b),
             (DataValue::U16(a), DataValue::U16(b)) => a.cmp(b),
             (DataValue::U32(a), DataValue::U32(b)) => a.cmp(b),
@@ -56,6 +59,7 @@ impl DataValue {
         &self
     ) -> u64 {
         match self {
+            DataValue::Anonymous(_) => 0,
             DataValue::U8(_) => std::mem::size_of::<u8>() as u64,
             DataValue::U16(_) => std::mem::size_of::<u16>() as u64,
             DataValue::U32(_) => std::mem::size_of::<u32>() as u64,
@@ -206,6 +210,13 @@ impl FromStr for DataValue {
         let value_str = value_and_type[0];
 
         let value = match data_type {
+            DataType::Anonymous() => {
+                if value_str.parse::<f64>().is_ok() || value_str.parse::<u64>().is_ok() || value_str.parse::<i64>().is_ok() {
+                    Ok(DataValue::Anonymous(value_str.to_string()))
+                } else {
+                    Err("Anonymous value is not numeric".to_string())
+                }
+            },
             DataType::U8() => value_str.parse::<u8>().map(DataValue::U8).map_err(|e| e.to_string()),
             DataType::U16(_) => value_str.parse::<u16>().map(DataValue::U16).map_err(|e| e.to_string()),
             DataType::U32(_) => value_str.parse::<u32>().map(DataValue::U32).map_err(|e| e.to_string()),

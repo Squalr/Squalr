@@ -1,5 +1,5 @@
 use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
-use squalr_engine_common::dynamic_struct::data_value::DataValue;
+use squalr_engine_common::values::data_value::DataValue;
 use std::sync::Once;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)

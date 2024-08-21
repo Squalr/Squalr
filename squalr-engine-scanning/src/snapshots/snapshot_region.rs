@@ -2,11 +2,11 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
-use squalr_engine_common::dynamic_struct::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
+use squalr_engine_common::values::data_type::DataType;
 use std::collections::HashMap;
 
 #[derive(Debug)]
