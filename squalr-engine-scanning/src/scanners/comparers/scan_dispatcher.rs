@@ -1,7 +1,8 @@
 use crate::{filters::snapshot_region_filter::SnapshotRegionFilter, scanners::comparers::scalar::scanner_scalar_iterative_chunked::ScannerScalarIterativeChunked};
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
-use crate::scanners::constraints::scan_constraint::{ScanConstraint, ScanFilterConstraint};
+use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_architecture::vectors::vectors;

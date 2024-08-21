@@ -2,7 +2,7 @@ use std::mem::take;
 
 use crate::results::scan_result_lookup_table::ScanResultLookupTable;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
-use crate::scanners::constraints::scan_constraint::ScanFilterConstraint;
+use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 
 #[derive(Debug)]

@@ -1,4 +1,5 @@
-use crate::scanners::constraints::scan_constraint::{ScanConstraint, ScanFilterConstraint};
+use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rangemap::RangeInclusiveMap;
 use squalr_engine_common::dynamic_struct::data_type::DataType;

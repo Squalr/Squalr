@@ -1,7 +1,8 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::scalar::scanner_scalar_comparer::ScannerScalarComparer;
 use crate::scanners::comparers::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::scanners::constraints::scan_constraint::{ScanConstraint, ScanFilterConstraint};
+use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
 use std::borrow::BorrowMut;
 use std::sync::Once;
 
