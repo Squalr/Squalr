@@ -51,7 +51,7 @@ impl ScanFilterParameters {
             return alignment.to_owned();
         }
 
-        return MemoryAlignment::from(data_type.size_in_bytes() as i32);
+        return MemoryAlignment::Alignment4;
     }
 
     pub fn get_data_type(

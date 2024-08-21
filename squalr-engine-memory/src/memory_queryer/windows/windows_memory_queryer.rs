@@ -68,7 +68,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         }
     
         // If partial matches are supported, we need to enumerate all memory regions.
-        // A small optimization may be possible here if we start from the min(0, startAddress - max page size) instead.
+        // A small optimization may be possible here if we start from the max(0, startAddress - max page size) instead.
         if region_bounds_handling == RegionBoundsHandling::Include || region_bounds_handling == RegionBoundsHandling::Resize {
             address = 0;
         }

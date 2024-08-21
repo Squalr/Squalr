@@ -42,6 +42,7 @@ impl ScannerScalarEncoder {
         let comparer = ScannerScalarComparer::get_instance();
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_filter_parameters.get_data_type();
+        let data_type_size = data_type.size_in_bytes();
         let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default(data_type);
         let memory_load_func = data_type.get_load_memory_function_ptr();
         
@@ -61,7 +62,7 @@ impl ScannerScalarEncoder {
                     if compare_func(current_value, immediate_value) {
                         run_length_encoder.encode_range(memory_alignment);
                     } else {
-                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment);
+                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment, data_type_size);
                     }
                 }
             } else if scan_parameters.is_relative_comparison() {
@@ -84,7 +85,7 @@ impl ScannerScalarEncoder {
                     ) {
                         run_length_encoder.encode_range(memory_alignment);
                     } else {
-                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment);
+                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment, data_type_size);
                     }
                 }
             } else if scan_parameters.is_immediate_comparison() {
@@ -109,7 +110,7 @@ impl ScannerScalarEncoder {
                     ) {
                         run_length_encoder.encode_range(memory_alignment);
                     } else {
-                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment);
+                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment, data_type_size);
                     }
                 }
             } else {
@@ -117,7 +118,7 @@ impl ScannerScalarEncoder {
             }
         }
 
-        run_length_encoder.finalize_last_encode_unchecked();
+        run_length_encoder.finalize_current_encode_unchecked(memory_alignment, data_type_size);
         
         return run_length_encoder.result_regions;
     }
