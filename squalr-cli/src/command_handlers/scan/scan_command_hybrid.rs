@@ -2,7 +2,6 @@ use crate::command_handlers::scan::ScanCommand;
 use squalr_engine::session_manager::SessionManager;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_scanning::scanners::constraints::scan_constraint::ScanConstraint;
 use squalr_engine_scanning::scanners::hybrid_scanner::HybridScanner;
 use std::thread;
@@ -10,7 +9,7 @@ use std::thread;
 pub fn handle_hybrid_scan_command(
     cmd: &mut ScanCommand,
 ) {
-    if let ScanCommand::Hybrid { value_and_type, constraint_type} = cmd {
+    if let ScanCommand::Hybrid { scan_value, constraint_type} = cmd {
         let session_manager_lock = SessionManager::get_instance();
         let process_info = {
             let session_manager = session_manager_lock.read().unwrap();
@@ -20,14 +19,12 @@ pub fn handle_hybrid_scan_command(
         if let Some(process_info) = process_info {
             let session_manager = session_manager_lock.write().unwrap();
             let snapshot = session_manager.get_snapshot();
-
-            let data_types = vec![value_and_type.data_type.to_owned()];
-
             let constraint = ScanConstraint::new_with_value(
                 constraint_type.to_owned(),
-                None, // TODO
+                scan_value.to_owned(),
             );
             
+            // Perform the hybrid scan which simultaneously collects and scans memory.
             let task = HybridScanner::scan(
                 process_info.clone(),
                 snapshot,

@@ -67,7 +67,7 @@ impl ScanDispatcher {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filters: &Vec<SnapshotRegionFilter>,
-        constraint: &ScanConstraint,
+        scan_constraint: &ScanConstraint,
         filter_constraint: &ScanFilterConstraint,
     ) -> Vec<SnapshotRegionFilter> {
         snapshot_region_filters
@@ -82,7 +82,7 @@ impl ScanDispatcher {
                 return scanner_instance.scan_region(
                     snapshot_region,
                     snapshot_region_filter,
-                    constraint,
+                    scan_constraint,
                     filter_constraint,
                 );
             })

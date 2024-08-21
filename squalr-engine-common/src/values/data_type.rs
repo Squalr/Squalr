@@ -1,13 +1,12 @@
 use crate::values::data_value::DataValue;
 use crate::values::endian::Endian;
-use std::ptr;
+use std::{fmt, ptr};
 use std::str::FromStr;
 
 pub type DataLoadFunc = unsafe fn(&mut DataValue, *const u8);
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DataType {
-    Anonymous(),
     U8(),
     U16(Endian),
     U32(Endian),
@@ -34,7 +33,6 @@ impl DataType {
         &self
     ) -> u64 {
         match self {
-            DataType::Anonymous() => 0,
             DataType::U8() => std::mem::size_of::<u8>() as u64,
             DataType::U16(_) => std::mem::size_of::<u16>() as u64,
             DataType::U32(_) => std::mem::size_of::<u32>() as u64,
@@ -54,7 +52,6 @@ impl DataType {
         &self
     ) -> DataValue {
         match self {
-            DataType::Anonymous() => DataValue::Anonymous(String::new()),
             DataType::U8() => DataValue::U8(0),
             DataType::U16(_) => DataValue::U16(0),
             DataType::U32(_) => DataValue::U32(0),
@@ -77,7 +74,6 @@ impl DataType {
         &self
     ) -> DataLoadFunc {
         match self {
-            DataType::Anonymous() => panic!("Value loading directly from anonymous type is not supported."),
             DataType::U8() => Self::load_u8,
             DataType::I8() => Self::load_i8,
             DataType::U16(Endian::Little) => Self::load_u16_le,
@@ -303,6 +299,28 @@ impl DataType {
     }
 }
 
+impl fmt::Display for DataType {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match self {
+            DataType::U8() => write!(f, "u8"),
+            DataType::U16(endian) => write!(f, "u16:{}", endian),
+            DataType::U32(endian) => write!(f, "u32:{}", endian),
+            DataType::U64(endian) => write!(f, "u64:{}", endian),
+            DataType::I8() => write!(f, "i8"),
+            DataType::I16(endian) => write!(f, "i16:{}", endian),
+            DataType::I32(endian) => write!(f, "i32:{}", endian),
+            DataType::I64(endian) => write!(f, "i64:{}", endian),
+            DataType::F32(endian) => write!(f, "f32:{}", endian),
+            DataType::F64(endian) => write!(f, "f64:{}", endian),
+            DataType::Bytes(size) => write!(f, "bytes:{}", size),
+            DataType::BitField(bits) => write!(f, "bitfield{}", bits),
+        }
+    }
+}
+
 impl FromStr for DataType {
     type Err = String;
 
@@ -356,7 +374,7 @@ impl FromStr for DataType {
                             .map_err(|_| "Invalid bitfield format".to_string())?;
                         Ok(DataType::BitField(bits))
                     }
-                    _ => Err("Unknown data type".to_string()),
+                    _ => Err("Unsupported type.".to_string()),
                 }
             }
         }

@@ -135,13 +135,6 @@ impl FromStr for FieldValue {
         let value_str = value_and_type[0];
 
         let value = match data_type {
-            DataType::Anonymous() => {
-                if value_str.parse::<f64>().is_ok() || value_str.parse::<u64>().is_ok() || value_str.parse::<i64>().is_ok() {
-                    Ok(DataValue::Anonymous(value_str.to_string()))
-                } else {
-                    Err("Anonymous value is not numeric".to_string())
-                }
-            },
             DataType::U8() => value_str.parse::<u8>().map(DataValue::U8).map_err(|e| e.to_string()),
             DataType::U16(_) => value_str.parse::<u16>().map(DataValue::U16).map_err(|e| e.to_string()),
             DataType::U32(_) => value_str.parse::<u32>().map(DataValue::U32).map_err(|e| e.to_string()),

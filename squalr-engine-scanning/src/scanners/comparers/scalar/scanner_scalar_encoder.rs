@@ -45,11 +45,11 @@ impl ScannerScalarEncoder {
         let data_type_size = data_type.size_in_bytes();
         let memory_alignment = filter_constraint.get_memory_alignment_or_default(data_type);
         let memory_load_func = data_type.get_load_memory_function_ptr();
-
+        
         unsafe {
             if scan_constraint.is_immediate_constraint() {
                 let mut current_value = data_type.to_default_value();
-                let mut immediate_value = scan_constraint.get_constraint_value().unwrap().clone();
+                let mut immediate_value = scan_constraint.deanonymize_type(&data_type).unwrap(); // TODO handle and complain
                 let current_value = current_value.borrow_mut();
                 let immediate_value = immediate_value.borrow_mut();
                 let compare_func = comparer.get_immediate_compare_func(scan_constraint.get_constraint_type());
@@ -94,7 +94,7 @@ impl ScannerScalarEncoder {
                 let current_value = current_value.borrow_mut();
                 let previous_value = previous_value.borrow_mut();
                 let compare_func = comparer.get_relative_delta_compare_func(scan_constraint.get_constraint_type());
-                let delta_arg = scan_constraint.get_constraint_value().unwrap(); // TODO: Handle
+                let delta_arg = scan_constraint.deanonymize_type(&data_type).unwrap(); // TODO handle and complain
 
                 for index in 0..element_count {
                     let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
@@ -106,7 +106,7 @@ impl ScannerScalarEncoder {
                     if compare_func(
                         current_value,
                         previous_value,
-                        delta_arg,
+                        &delta_arg,
                     ) {
                         run_length_encoder.encode_range(memory_alignment);
                     } else {

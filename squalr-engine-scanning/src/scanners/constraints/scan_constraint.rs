@@ -1,14 +1,16 @@
 use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
+use squalr_engine_common::values::anonymous_value::AnonymousValue;
+use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::data_value::DataValue;
 
 #[derive(Debug, Clone)]
 pub struct ScanConstraint {
     constraint_type: ScanConstraintType,
-    constraint_value: Option<DataValue>,
+    constraint_value: Option<AnonymousValue>,
 }
 
 impl ScanConstraint {
-    pub fn new() -> Self { // TODO: remove?
+    pub fn new() -> Self {
         Self {
             constraint_type: ScanConstraintType::Changed,
             constraint_value: None,
@@ -17,7 +19,7 @@ impl ScanConstraint {
 
     pub fn new_with_value(
         constraint_type: ScanConstraintType,
-        value: Option<DataValue>,
+        value: Option<AnonymousValue>,
     ) -> Self {
         Self {
             constraint_type,
@@ -26,30 +28,37 @@ impl ScanConstraint {
     }
     
     pub fn get_constraint_type(
-        &self
+        &self,
     ) -> ScanConstraintType {
         self.constraint_type.clone()
     }
 
+    pub fn deanonymize_type(
+        &self,
+        data_type: &DataType,
+    ) -> Option<DataValue> {
+        if let Some(value) = &self.constraint_value {
+            return match value.deanonymize_type(data_type) {
+                Ok(result) => Some(result),
+                Err(_) => None,
+            };
+        }
+
+        return None;
+    }
+
     pub fn get_constraint_value(
-        &self
-    ) -> Option<&DataValue> {
+        &self,
+    ) -> Option<&AnonymousValue> {
         if self.is_immediate_constraint() {
             return self.constraint_value.as_ref();
         } else {
             return None;
         }
     }
-
-    pub fn set_constraint_value(
-        &mut self,
-        value: Option<DataValue>
-    ) {
-        self.constraint_value = value;
-    }
     
     pub fn is_valid(
-        &self
+        &self,
     ) -> bool {
         if !self.is_immediate_constraint() {
             return true;
@@ -59,7 +68,7 @@ impl ScanConstraint {
     }
 
     pub fn is_relative_delta_constraint(
-        &self
+        &self,
     ) -> bool {
         return match self.constraint_type {
             | ScanConstraintType::IncreasedByX
@@ -69,7 +78,7 @@ impl ScanConstraint {
     }
 
     pub fn is_relative_constraint(
-        &self
+        &self,
     ) -> bool {
         return match self.constraint_type {
             ScanConstraintType::Changed
@@ -81,7 +90,7 @@ impl ScanConstraint {
     }
 
     pub fn is_immediate_constraint(
-        &self
+        &self,
     ) -> bool {
         return match self.constraint_type {
             ScanConstraintType::Equal
@@ -97,7 +106,7 @@ impl ScanConstraint {
     }
 
     pub fn clone(
-        &self
+        &self,
     ) -> Self {
         ScanConstraint {
             constraint_type: self.constraint_type.clone(),

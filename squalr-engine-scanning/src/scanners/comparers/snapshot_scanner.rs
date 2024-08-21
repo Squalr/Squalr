@@ -8,7 +8,7 @@ pub trait Scanner: Send + Sync {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        constraint: &ScanConstraint,
+        scan_constraint: &ScanConstraint,
         filter_constraint: &ScanFilterConstraint,
     ) -> Vec<SnapshotRegionFilter>;
 }
