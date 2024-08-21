@@ -18,6 +18,8 @@ pub enum ScanCommand {
     New {
         #[structopt(short = "d", long, use_delimiter = true)]
         scan_filter_parameters: Vec<ScanFilterParameters>,
+        #[structopt(short = "a", long)]
+        scan_all_primitives: bool,
     },
     /// Standard scan that operates on existing collected values.
     Manual {

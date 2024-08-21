@@ -62,7 +62,7 @@ impl ScannerScalarEncoder {
                     if compare_func(current_value, immediate_value) {
                         run_length_encoder.encode_range(memory_alignment);
                     } else {
-                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment, data_type_size);
+                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment);
                     }
                 }
             } else if scan_parameters.is_relative_comparison() {
@@ -85,7 +85,7 @@ impl ScannerScalarEncoder {
                     ) {
                         run_length_encoder.encode_range(memory_alignment);
                     } else {
-                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment, data_type_size);
+                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment);
                     }
                 }
             } else if scan_parameters.is_immediate_comparison() {
@@ -110,7 +110,7 @@ impl ScannerScalarEncoder {
                     ) {
                         run_length_encoder.encode_range(memory_alignment);
                     } else {
-                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment, data_type_size);
+                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment);
                     }
                 }
             } else {

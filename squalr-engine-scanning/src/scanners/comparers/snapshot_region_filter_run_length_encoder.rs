@@ -50,12 +50,11 @@ impl SnapshotRegionFilterRunLengthEncoder {
     pub fn finalize_current_encode_unchecked(
         &mut self,
         memory_alignment: MemoryAlignment,
-        data_type_size: u64
     ) {
         if self.is_encoding && self.run_length > 0 {
             self.result_regions.push(SnapshotRegionFilter::new(
                 self.run_length_current_address,
-                self.run_length + (data_type_size - 1),
+                self.run_length,
             ));
             self.run_length_current_address += self.run_length;
             self.run_length = 0;
