@@ -1,5 +1,5 @@
 use crate::scanners::comparers::vector::scanner_vector::SnapshotElementScannerVector;
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::scanners::constraints::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_sub_region::NormalizedRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::collections::HashMap;
@@ -74,7 +74,7 @@ impl SnapshotRegionScannerVectorStaggered {
         }
     }
 
-    fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<NormalizedRegion>>, constraint: &ScanConstraint) -> Vec<NormalizedRegion> {
+    fn scan_region(&self, snapshot_sub_region: &Arc<RwLock<NormalizedRegion>>, constraint: &ScanParameters) -> Vec<NormalizedRegion> {
         self.base_scanner.initialize(snapshot_sub_region, constraint);
 
         let data_type_size = self.base_scanner.base_scanner.get_data_type_size();

@@ -58,7 +58,7 @@ impl ValueCollector {
             Logger::get_instance().log(LogLevel::Info, "Reading values from memory...", None);
         }
         
-        let scan_constraint_filters = snapshot.read().unwrap().get_scan_constraint_filters().clone();
+        let scan_parameters_filters = snapshot.read().unwrap().get_scan_parameters_filters().clone();
         let mut snapshot = snapshot.write().unwrap();
         let total_region_count = snapshot.get_region_count();
         let start_time = Instant::now();
@@ -73,7 +73,7 @@ impl ValueCollector {
 
             // Create the default scan result containers on the first scan.
             if !snapshot_region.has_current_values() {
-                snapshot_region.create_initial_scan_results(&scan_constraint_filters);
+                snapshot_region.create_initial_scan_results(&scan_parameters_filters);
             }
             
             // Attempt to read new (or initial) memory values. Ignore failures, as these are generally just deallocated pages.

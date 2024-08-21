@@ -1,4 +1,4 @@
-use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
+use crate::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::data_value::DataValue;
 use std::sync::Once;
 
@@ -51,32 +51,32 @@ impl ScannerScalarComparer {
         }
     }
 
-    pub fn get_immediate_compare_func(&self, scan_constraint_type: ScanConstraintType) -> ScalarCompareFnImmediate {
-        match scan_constraint_type {
-            ScanConstraintType::Equal => Self::compare_equal,
-            ScanConstraintType::NotEqual => Self::compare_not_equal,
-            ScanConstraintType::GreaterThan => Self::compare_greater_than,
-            ScanConstraintType::GreaterThanOrEqual => Self::compare_greater_than_or_equal,
-            ScanConstraintType::LessThan => Self::compare_less_than,
-            ScanConstraintType::LessThanOrEqual => Self::compare_less_than_or_equal,
+    pub fn get_immediate_compare_func(&self, scan_compare_type: ScanCompareType) -> ScalarCompareFnImmediate {
+        match scan_compare_type {
+            ScanCompareType::Equal => Self::compare_equal,
+            ScanCompareType::NotEqual => Self::compare_not_equal,
+            ScanCompareType::GreaterThan => Self::compare_greater_than,
+            ScanCompareType::GreaterThanOrEqual => Self::compare_greater_than_or_equal,
+            ScanCompareType::LessThan => Self::compare_less_than,
+            ScanCompareType::LessThanOrEqual => Self::compare_less_than_or_equal,
             _ => panic!("Unsupported type passed to get_immediate_compare_func"),
         }
     }
 
-    pub fn get_relative_compare_func(&self, scan_constraint_type: ScanConstraintType) -> ScalarCompareFnRelative {
-        match scan_constraint_type {
-            ScanConstraintType::Changed => Self::compare_changed,
-            ScanConstraintType::Unchanged => Self::compare_unchanged,
-            ScanConstraintType::Increased => Self::compare_increased,
-            ScanConstraintType::Decreased => Self::compare_decreased,
+    pub fn get_relative_compare_func(&self, scan_compare_type: ScanCompareType) -> ScalarCompareFnRelative {
+        match scan_compare_type {
+            ScanCompareType::Changed => Self::compare_changed,
+            ScanCompareType::Unchanged => Self::compare_unchanged,
+            ScanCompareType::Increased => Self::compare_increased,
+            ScanCompareType::Decreased => Self::compare_decreased,
             _ => panic!("Unsupported type passed to get_relative_compare_func"),
         }
     }
 
-    pub fn get_relative_delta_compare_func(&self, scan_constraint_type: ScanConstraintType) -> ScalarCompareFnDelta {
-        match scan_constraint_type {
-            ScanConstraintType::IncreasedByX => Self::compare_increased_by,
-            ScanConstraintType::DecreasedByX => Self::compare_decreased_by,
+    pub fn get_relative_delta_compare_func(&self, scan_compare_type: ScanCompareType) -> ScalarCompareFnDelta {
+        match scan_compare_type {
+            ScanCompareType::IncreasedByX => Self::compare_increased_by,
+            ScanCompareType::DecreasedByX => Self::compare_decreased_by,
             _ => panic!("Unsupported type passed to get_relative_delta_compare_func"),
         }
     }

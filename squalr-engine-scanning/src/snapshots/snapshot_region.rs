@@ -1,6 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
-use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
+use crate::scanners::parameters::scan_parameters::ScanParameters;
+use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
@@ -148,32 +148,32 @@ impl SnapshotRegion {
         return !self.previous_values.is_empty();
     }
 
-    pub fn can_compare_with_constraint(
+    pub fn can_compare_using_parameters(
         &self,
-        constraints: &ScanConstraint
+        scan_parameters: &ScanParameters
     ) -> bool {
-        if !constraints.is_valid() || !self.has_current_values() {
+        if !scan_parameters.is_valid() || !self.has_current_values() {
             return false;
         }
 
-        if !constraints.is_immediate_constraint() && !self.has_previous_values() {
+        if !scan_parameters.is_immediate_comparison() && !self.has_previous_values() {
             return false;
         }
 
         return true;
     }
 
-    /// Creates the initial set of filters for the given set of scan constraints.
+    /// Creates the initial set of filters for the given set of scan filter parameters.
     /// At first, these filters are equal in size to the entire snapshot region.
     pub fn create_initial_scan_results(
         &mut self,
-        scan_filter_constraints: &Vec<ScanFilterConstraint>
+        scan_filter_parameters: &Vec<ScanFilterParameters>
     ) {
         let base_address = self.get_base_address();
         let region_size = self.get_region_size();
     
-        for scan_filter_constraint in scan_filter_constraints {
-            self.filters.entry(scan_filter_constraint.get_data_type().clone()).or_insert_with(|| {
+        for scan_filter_parameter in scan_filter_parameters {
+            self.filters.entry(scan_filter_parameter.get_data_type().clone()).or_insert_with(|| {
                 vec![SnapshotRegionFilter::new(base_address, region_size)]
             });
         }

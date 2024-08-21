@@ -2,7 +2,7 @@ use crate::command_handlers::scan::ScanCommand;
 use squalr_engine::session_manager::SessionManager;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_scanning::scanners::constraints::scan_constraint::ScanConstraint;
+use squalr_engine_scanning::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_scanning::scanners::manual_scanner::ManualScanner;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use std::thread;
@@ -10,7 +10,7 @@ use std::thread;
 pub fn handle_manual_scan_command(
     cmd: &mut ScanCommand,
 ) {
-    if let ScanCommand::Manual { scan_value, constraint_type} = cmd {
+    if let ScanCommand::Manual { scan_value, compare_type} = cmd {
         let session_manager_lock = SessionManager::get_instance();
         let process_info = {
             let session_manager = session_manager_lock.read().unwrap();
@@ -20,8 +20,8 @@ pub fn handle_manual_scan_command(
         if let Some(process_info) = process_info {
             let session_manager = session_manager_lock.write().unwrap();
             let snapshot = session_manager.get_snapshot();
-            let constraint = ScanConstraint::new_with_value(
-                constraint_type.to_owned(),
+            let scan_parameters = ScanParameters::new_with_value(
+                compare_type.to_owned(),
                 scan_value.to_owned(),
             );
 
@@ -36,7 +36,7 @@ pub fn handle_manual_scan_command(
             // Perform the manual scan on the collected memory.
             let task = ManualScanner::scan(
                 snapshot,
-                &constraint,
+                &scan_parameters,
                 None,
                 true
             );

@@ -1,4 +1,4 @@
-use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
+use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rangemap::RangeInclusiveMap;
 use squalr_engine_common::values::data_type::DataType;
@@ -14,7 +14,7 @@ type ScanResultIndexToRegionMap = RangeInclusiveMap<u64, (u64, ScanResultIndexTo
 pub struct ScanResultLookupTable {
     page_size: u64,
     scan_result_index_map: ScanResultIndexToRegionMap,
-    scan_filter_constraints: Vec<ScanFilterConstraint>
+    scan_filter_parameters: Vec<ScanFilterParameters>
 }
 
 /// Fundamentally, we need to be able to quickly navigate to a specific page number and offset of scan results within a snapshot region.
@@ -41,27 +41,27 @@ impl ScanResultLookupTable {
         Self {
             page_size: page_size,
             scan_result_index_map: ScanResultIndexToRegionMap::new(),
-            scan_filter_constraints: vec![],
+            scan_filter_parameters: vec![],
         }
     }
 
-    pub fn set_scan_filter_constraints(
+    pub fn set_scan_filter_parameters(
         &mut self,
-        scan_filter_constraints: Vec<ScanFilterConstraint>,
+        scan_filter_parameters: Vec<ScanFilterParameters>,
     ) {
-        self.scan_filter_constraints = scan_filter_constraints;
+        self.scan_filter_parameters = scan_filter_parameters;
     }
 
-    pub fn get_scan_constraint_filters(
+    pub fn get_scan_parameters_filters(
         &self,
-    ) -> &Vec<ScanFilterConstraint> {
-        return &self.scan_filter_constraints;
+    ) -> &Vec<ScanFilterParameters> {
+        return &self.scan_filter_parameters;
     }
 
-    pub fn take_scan_constraint_filters(
+    pub fn take_scan_parameters_filters(
         &mut self,
-    ) -> Vec<ScanFilterConstraint> {
-        return take(&mut self.scan_filter_constraints);
+    ) -> Vec<ScanFilterParameters> {
+        return take(&mut self.scan_filter_parameters);
     }
 
     pub fn build_scan_results(
@@ -70,9 +70,9 @@ impl ScanResultLookupTable {
     ) {
         let mut scan_result_index: u64 = 0;
 
-        for (_, filter_constraint) in self.scan_filter_constraints.iter().enumerate() {
-            let data_type: &DataType = filter_constraint.get_data_type();
-            let memory_alignment = filter_constraint.get_memory_alignment_or_default(data_type);
+        for (_, scan_filter_parameters) in self.scan_filter_parameters.iter().enumerate() {
+            let data_type: &DataType = scan_filter_parameters.get_data_type();
+            let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default(data_type);
 
             for (region_index, region) in snapshot_regions.iter().enumerate() {
                 if !region.get_filters().contains_key(data_type) {

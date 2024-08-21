@@ -1,6 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
-use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
+use crate::scanners::parameters::scan_parameters::ScanParameters;
+use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 
 pub trait Scanner: Send + Sync {
@@ -8,7 +8,7 @@ pub trait Scanner: Send + Sync {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_constraint: &ScanConstraint,
-        filter_constraint: &ScanFilterConstraint,
+        scan_parameters: &ScanParameters,
+        scan_filter_parameters: &ScanFilterParameters,
     ) -> Vec<SnapshotRegionFilter>;
 }

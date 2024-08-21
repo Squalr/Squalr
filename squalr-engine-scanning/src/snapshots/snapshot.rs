@@ -1,5 +1,5 @@
 use crate::results::scan_result_lookup_table::ScanResultLookupTable;
-use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
+use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -32,9 +32,9 @@ impl Snapshot {
     pub fn new_scan(
         &mut self,
         process_info: &ProcessInfo,
-        scan_filter_constraints: Vec<ScanFilterConstraint>,
+        scan_filter_parameters: Vec<ScanFilterParameters>,
     ) {
-        self.scan_result_lookup_table.set_scan_filter_constraints(scan_filter_constraints);
+        self.scan_result_lookup_table.set_scan_filter_parameters(scan_filter_parameters);
         self.create_initial_snapshot_regions(process_info);
         Logger::get_instance().log(LogLevel::Info, "New scan created.", None);
     }
@@ -63,16 +63,16 @@ impl Snapshot {
         return self.snapshot_regions.iter().map(|region| region.get_region_size()).sum();
     }
 
-    pub fn get_scan_constraint_filters(
+    pub fn get_scan_parameters_filters(
         &self,
-    ) -> &Vec<ScanFilterConstraint> {
-        return self.scan_result_lookup_table.get_scan_constraint_filters();
+    ) -> &Vec<ScanFilterParameters> {
+        return self.scan_result_lookup_table.get_scan_parameters_filters();
     }
 
-    pub fn take_scan_constraint_filters(
+    pub fn take_scan_parameters_filters(
         &mut self,
-    ) -> Vec<ScanFilterConstraint> {
-        return take(&mut self.scan_result_lookup_table.take_scan_constraint_filters());
+    ) -> Vec<ScanFilterParameters> {
+        return take(&mut self.scan_result_lookup_table.take_scan_parameters_filters());
     }
 
     pub fn update_scan_results(

@@ -1,8 +1,8 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::scalar::scanner_scalar_encoder::ScannerScalarEncoder;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
-use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
+use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
+use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use std::sync::Once;
 
@@ -32,7 +32,7 @@ impl ScannerScalarIterative {
 }
 
 /// Implements a scalar (ie CPU bound, non-SIMD) region scanning algorithm. This simply iterates over a region of memory,
-/// comparing each element based on the provided constraints. Elements that pass the constraint are grouped in sub-regions and returned.
+/// comparing each element based on the provided parameters. Elements that pass the scan are grouped into filter ranges and returned.
 impl Scanner for ScannerScalarIterative {
 
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
@@ -41,12 +41,12 @@ impl Scanner for ScannerScalarIterative {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_constraint: &ScanConstraint,
-        filter_constraint: &ScanFilterConstraint,
+        scan_parameters: &ScanParameters,
+        scan_filter_parameters: &ScanFilterParameters,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_type = filter_constraint.get_data_type();
+        let data_type = scan_filter_parameters.get_data_type();
         let data_type_size = data_type.size_in_bytes();
-        let memory_alignment = filter_constraint.get_memory_alignment_or_default(data_type);
+        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default(data_type);
         let aligned_element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size);
         let encoder = ScannerScalarEncoder::get_instance();
         let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
@@ -55,8 +55,8 @@ impl Scanner for ScannerScalarIterative {
         let results = encoder.encode(
             current_value_pointer,
             previous_value_pointer,
-            scan_constraint,
-            filter_constraint,
+            scan_parameters,
+            scan_filter_parameters,
             snapshot_region_filter.get_base_address(),
             aligned_element_count
         );

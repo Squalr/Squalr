@@ -4,20 +4,22 @@ use std::fmt;
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+/// Defines a set of parameters for scan filters, which can be considered as "windows" into a snapshot that 
+/// are used to aggregate scan results for a given data type and alignment.
 #[derive(Debug, Clone)]
-pub struct ScanFilterConstraint {
+pub struct ScanFilterParameters {
     alignment: Option<MemoryAlignment>,
     data_type: DataType,
 }
 
-impl Default for ScanFilterConstraint {
+impl Default for ScanFilterParameters {
     fn default(
     ) -> Self {
-        ScanFilterConstraint::new()
+        ScanFilterParameters::new()
     }
 }
 
-impl ScanFilterConstraint {
+impl ScanFilterParameters {
     pub fn new() -> Self {
         Self {
             alignment: None,
@@ -60,35 +62,35 @@ impl ScanFilterConstraint {
 }
 
 #[derive(Debug)]
-pub enum ScanFilterConstraintParseError {
+pub enum ScanFilterParametersParseError {
     InvalidFormat,
     InvalidAlignment(ParseIntError),
     InvalidDataType,
 }
 
-impl fmt::Display for ScanFilterConstraintParseError {
+impl fmt::Display for ScanFilterParametersParseError {
     fn fmt(
         &self,
         f: &mut fmt::Formatter<'_>
     ) -> fmt::Result {
         match self {
-            ScanFilterConstraintParseError::InvalidFormat => write!(f, "Invalid format"),
-            ScanFilterConstraintParseError::InvalidAlignment(e) => write!(f, "Invalid alignment: {}", e),
-            ScanFilterConstraintParseError::InvalidDataType => write!(f, "Invalid data type"),
+            ScanFilterParametersParseError::InvalidFormat => write!(f, "Invalid format"),
+            ScanFilterParametersParseError::InvalidAlignment(e) => write!(f, "Invalid alignment: {}", e),
+            ScanFilterParametersParseError::InvalidDataType => write!(f, "Invalid data type"),
         }
     }
 }
 
-impl From<ParseIntError> for ScanFilterConstraintParseError {
+impl From<ParseIntError> for ScanFilterParametersParseError {
     fn from(
         e: ParseIntError
     ) -> Self {
-        ScanFilterConstraintParseError::InvalidAlignment(e)
+        ScanFilterParametersParseError::InvalidAlignment(e)
     }
 }
 
-impl FromStr for ScanFilterConstraint {
-    type Err = ScanFilterConstraintParseError;
+impl FromStr for ScanFilterParameters {
+    type Err = ScanFilterParametersParseError;
 
     fn from_str(
         s: &str
@@ -97,12 +99,12 @@ impl FromStr for ScanFilterConstraint {
 
         // Check if there is at least one part, and at most two
         if parts.len() < 1 || parts.len() > 2 {
-            return Err(ScanFilterConstraintParseError::InvalidFormat);
+            return Err(ScanFilterParametersParseError::InvalidFormat);
         }
 
         // Parse the data type from the first part
         let data_type = parts[0].trim().parse::<DataType>()
-            .map_err(|_| ScanFilterConstraintParseError::InvalidDataType)?;
+            .map_err(|_| ScanFilterParametersParseError::InvalidDataType)?;
 
         // Handle the optional alignment part
         let alignment = if parts.len() == 2 {
@@ -117,7 +119,7 @@ impl FromStr for ScanFilterConstraint {
             None
         };
 
-        // Create a new ScanFilterConstraint with the parsed values
-        Ok(ScanFilterConstraint::new_with_value(alignment, data_type))
+        // Create a new ScanFilterParameters with the parsed values
+        Ok(ScanFilterParameters::new_with_value(alignment, data_type))
     }
 }

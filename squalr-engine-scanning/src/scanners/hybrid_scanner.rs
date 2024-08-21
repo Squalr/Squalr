@@ -1,5 +1,5 @@
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::value_to_metric_size;
@@ -14,16 +14,16 @@ use std::thread;
 
 pub struct HybridScanner;
 
-/// Implementation of a task that collects values and performs a constraint scan in the same thread pool. This is much faster than doing
-/// ValueCollector => ManualScanner, however this means that regions processed last will not have their values collected until potentially
-/// much later than the scan was initiated.
+/// Implementation of a task that collects values and performs a scan in the same thread pool. This is much faster than doing value
+/// collection and scanning separately (as ManualScanner does), however this means that regions processed last will not have their
+/// values collected until potentially much later than the scan was initiated.
 impl HybridScanner {
     const NAME: &'static str = "Hybrid Scan";
 
     pub fn scan(
         process_info: ProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        scan_constrant: &ScanConstraint,
+        scan_parameters: &ScanParameters,
         task_identifier: Option<String>,
         with_logging: bool,
     ) -> Arc<TrackableTask<()>> {
@@ -33,13 +33,13 @@ impl HybridScanner {
         );
 
         let task_clone = task.clone();
-        let scan_constrant_clone = scan_constrant.clone();
+        let scan_parameters_clone = scan_parameters.clone();
 
         thread::spawn(move || {
             Self::scan_task(
                 process_info,
                 snapshot,
-                &scan_constrant_clone,
+                &scan_parameters_clone,
                 task_clone.clone(),
                 task_clone.get_cancellation_token().clone(),
                 with_logging
@@ -54,15 +54,15 @@ impl HybridScanner {
     fn scan_task(
         process_info: ProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        scan_constrant: &ScanConstraint,
+        scan_parameters: &ScanParameters,
         task: Arc<TrackableTask<()>>,
         cancellation_token: Arc<AtomicBool>,
         with_logging: bool,
     ) {
         let region_count = snapshot.read().unwrap().get_region_count();
-        let scan_constraint_filters = snapshot.read().unwrap().get_scan_constraint_filters().clone();
+        let scan_parameters_filters = snapshot.read().unwrap().get_scan_parameters_filters().clone();
         let mut snapshot = snapshot.write().unwrap();
-        let scan_constrant = &scan_constrant.clone();
+        let scan_parameters = &scan_parameters.clone();
         let snapshot_regions = snapshot.get_snapshot_regions_for_update();
 
         if with_logging {
@@ -82,20 +82,20 @@ impl HybridScanner {
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages.
             let _ = snapshot_region.read_all_memory_parallel(process_info.handle);
 
-            if !snapshot_region.can_compare_with_constraint(scan_constrant) {
+            if !snapshot_region.can_compare_using_parameters(scan_parameters) {
                 processed_region_count.fetch_add(1, Ordering::SeqCst);
                 return;
             }
 
-            snapshot_region.create_initial_scan_results(&scan_constraint_filters);
+            snapshot_region.create_initial_scan_results(&scan_parameters_filters);
 
             // Iterate over each data type in the scan. Generally there is only 1, but multiple simultaneous scans are supported.
-            let new_filters = scan_constraint_filters
+            let new_filters = scan_parameters_filters
                 .clone()
                 .into_par_iter()
-                .filter_map(|scan_filter_constraint| {
+                .filter_map(|scan_filter_parameter| {
                     let snapshot_region_filters_map = snapshot_region.get_filters();
-                    let snapshot_region_filters = snapshot_region_filters_map.get(scan_filter_constraint.get_data_type());
+                    let snapshot_region_filters = snapshot_region_filters_map.get(scan_filter_parameter.get_data_type());
 
                     if snapshot_region_filters.is_none() {
                         return None;
@@ -106,11 +106,11 @@ impl HybridScanner {
                     let scan_results = scan_dispatcher.dispatch_scan_parallel(
                         snapshot_region,
                         snapshot_region_filters,
-                        scan_constrant,
-                        &scan_filter_constraint,
+                        scan_parameters,
+                        &scan_filter_parameter,
                     );
 
-                    return Some((scan_filter_constraint.get_data_type().clone(), scan_results));
+                    return Some((scan_filter_parameter.get_data_type().clone(), scan_results));
                 }).collect();
 
             // Update the snapshot region to contain new filtered regions (ie scan results).

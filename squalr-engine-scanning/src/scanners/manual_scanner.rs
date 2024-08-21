@@ -1,5 +1,5 @@
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::value_to_metric_size;
@@ -20,7 +20,7 @@ impl ManualScanner {
 
     pub fn scan(
         snapshot: Arc<RwLock<Snapshot>>,
-        scan_constrant: &ScanConstraint,
+        scan_parameters: &ScanParameters,
         task_identifier: Option<String>,
         with_logging: bool
     ) -> Arc<TrackableTask<()>> {
@@ -30,12 +30,12 @@ impl ManualScanner {
         );
 
         let task_clone = task.clone();
-        let scan_constrant_clone = scan_constrant.clone();
+        let scan_parameters_clone = scan_parameters.clone();
 
         thread::spawn(move || {
             Self::scan_task(
                 snapshot,
-                &scan_constrant_clone,
+                &scan_parameters_clone,
                 task_clone.clone(),
                 task_clone.get_cancellation_token().clone(),
                 with_logging
@@ -49,7 +49,7 @@ impl ManualScanner {
 
     fn scan_task(
         snapshot: Arc<RwLock<Snapshot>>,
-        scan_constrant: &ScanConstraint,
+        scan_parameters: &ScanParameters,
         task: Arc<TrackableTask<()>>,
         cancellation_token: Arc<AtomicBool>,
         with_logging: bool,
@@ -59,10 +59,10 @@ impl ManualScanner {
         }
 
         let region_count = snapshot.read().unwrap().get_region_count();
-        let scan_constraint_filters = snapshot.read().unwrap().get_scan_constraint_filters().clone();
+        let scan_parameters_filters = snapshot.read().unwrap().get_scan_parameters_filters().clone();
         let mut snapshot = snapshot.write().unwrap();
         let snapshot_regions = snapshot.get_snapshot_regions_for_update();
-        let scan_constrant = &scan_constrant.clone();
+        let scan_parameters = &scan_parameters.clone();
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
 
@@ -74,17 +74,17 @@ impl ManualScanner {
                     return;
                 }
                 
-                if !snapshot_region.can_compare_with_constraint(scan_constrant) {
+                if !snapshot_region.can_compare_using_parameters(scan_parameters) {
                     processed_region_count.fetch_add(1, Ordering::SeqCst);
                     return;
                 }
 
                 // Iterate over each data type in the scan. Generally there is only 1, but multiple simultaneous scans are supported.
-                let new_filters = scan_constraint_filters
+                let new_filters = scan_parameters_filters
                     .clone()
                     .into_par_iter()
-                    .filter_map(|scan_filter_constraint| {
-                        let data_type = scan_filter_constraint.get_data_type();
+                    .filter_map(|scan_filter_parameter| {
+                        let data_type = scan_filter_parameter.get_data_type();
                         
                         let snapshot_region_filters_map = snapshot_region.get_filters();
                         let snapshot_region_filters = snapshot_region_filters_map.get(data_type);
@@ -98,8 +98,8 @@ impl ManualScanner {
                         let scan_results = scan_dispatcher.dispatch_scan_parallel(
                             snapshot_region,
                             snapshot_region_filters,
-                            scan_constrant,
-                            &scan_filter_constraint,
+                            scan_parameters,
+                            &scan_filter_parameter,
                         );
 
                         return Some((data_type.clone(), scan_results));

@@ -1,8 +1,8 @@
 use crate::{filters::snapshot_region_filter::SnapshotRegionFilter, scanners::comparers::scalar::scanner_scalar_iterative_chunked::ScannerScalarIterativeChunked};
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
-use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
+use crate::scanners::parameters::scan_parameters::ScanParameters;
+use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_architecture::vectors::vectors;
@@ -37,22 +37,22 @@ impl ScanDispatcher {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filters: &Vec<SnapshotRegionFilter>,
-        constraint: &ScanConstraint,
-        filter_constraint: &ScanFilterConstraint,
+        scan_parameters: &ScanParameters,
+        scan_filter_parameters: &ScanFilterParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let mut results = vec![];
     
         for snapshot_region_filter in snapshot_region_filters {
             let scanner_instance = self.acquire_scanner_instance(
                 snapshot_region_filter,
-                filter_constraint
+                scan_filter_parameters
             );
     
             let result_sub_regions = scanner_instance.scan_region(
                 snapshot_region,
                 snapshot_region_filter,
-                constraint,
-                filter_constraint,
+                scan_parameters,
+                scan_filter_parameters,
             );
             
             for result_sub_region in result_sub_regions {
@@ -67,8 +67,8 @@ impl ScanDispatcher {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filters: &Vec<SnapshotRegionFilter>,
-        scan_constraint: &ScanConstraint,
-        filter_constraint: &ScanFilterConstraint,
+        scan_parameters: &ScanParameters,
+        scan_filter_parameters: &ScanFilterParameters,
     ) -> Vec<SnapshotRegionFilter> {
         snapshot_region_filters
             // Convert the iterator to a parallel iterator
@@ -76,14 +76,14 @@ impl ScanDispatcher {
             .flat_map(|snapshot_region_filter| {
                 let scanner_instance = self.acquire_scanner_instance(
                     snapshot_region_filter,
-                    filter_constraint
+                    scan_filter_parameters
                 );
     
                 return scanner_instance.scan_region(
                     snapshot_region,
                     snapshot_region_filter,
-                    scan_constraint,
-                    filter_constraint,
+                    scan_parameters,
+                    scan_filter_parameters,
                 );
             })
             .collect()
@@ -92,11 +92,11 @@ impl ScanDispatcher {
     fn acquire_scanner_instance(
         &self,
         snapshot_region_filter: &SnapshotRegionFilter,
-        filter_constraint: &ScanFilterConstraint,
+        scan_filter_parameters: &ScanFilterParameters,
     ) -> &dyn Scanner {
-        let data_type = filter_constraint.get_data_type();
+        let data_type = scan_filter_parameters.get_data_type();
         let data_type_size = data_type.size_in_bytes();
-        let memory_alignment = filter_constraint.get_memory_alignment_or_default(data_type);
+        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default(data_type);
 
         if snapshot_region_filter.get_element_count(memory_alignment, data_type_size) == 1 {
             // Single element scanner

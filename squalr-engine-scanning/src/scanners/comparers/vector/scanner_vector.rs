@@ -1,6 +1,6 @@
 use crate::scanners::comparers::snapshot_sub_region_scanner::Scanner;
-use crate::scanners::constraints::scan_constraint::{ScanConstraint,ScanConstraintType};
-use crate::scanners::constraints::scan_constraints::ScanConstraints;
+use crate::scanners::constraints::scan_parameters::{ScanParameters,ScanCompareType};
+use crate::scanners::constraints::scan_parameterss::ScanParameterss;
 use crate::snapshots::snapshot_sub_region::NormalizedRegion;
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
 use std::ops::{BitAnd, BitOr, BitXor};
@@ -26,7 +26,7 @@ impl SnapshotElementScannerVector {
         }
     }
 
-    pub fn initialize(&mut self, snapshot_sub_region: &Arc<RwLock<NormalizedRegion>>, constraints: &ScanConstraint) {
+    pub fn initialize(&mut self, snapshot_sub_region: &Arc<RwLock<NormalizedRegion>>, constraints: &ScanParameters) {
         self.base_scanner.initialize(snapshot_sub_region, constraints);
         self.vector_read_offset = 0;
         self.vector_compare_func = Some(self.build_compare_actions(constraints));
@@ -167,20 +167,20 @@ impl SnapshotElementScannerVector {
         }
     }
 
-    fn build_value_compare_actions(&self, scan_constraint: &ScanConstraint) -> Box<dyn Fn() -> u8x16> {
-        match scan_constraint.get_constraint_type() {
-            ScanConstraintType::Unchanged => self.get_comparison_unchanged(scan_constraint.get_constraint_args()),
-            ScanConstraintType::Changed => self.get_comparison_changed(scan_constraint.get_constraint_args()),
-            ScanConstraintType::Increased => self.get_comparison_increased(),
-            ScanConstraintType::Decreased => self.get_comparison_decreased(),
-            ScanConstraintType::IncreasedByX => self.get_comparison_increased_by(scan_constraint.constraint_value, scan_constraint.get_constraint_args()),
-            ScanConstraintType::DecreasedByX => self.get_comparison_decreased_by(scan_constraint.constraint_value, scan_constraint.get_constraint_args()),
-            ScanConstraintType::Equal => self.get_comparison_equal(scan_constraint.constraint_value, scan_constraint.get_constraint_args()),
-            ScanConstraintType::NotEqual => self.get_comparison_not_equal(scan_constraint.constraint_value, scan_constraint.get_constraint_args()),
-            ScanConstraintType::GreaterThan => self.get_comparison_greater_than(scan_constraint.get_constraint_value()),
-            ScanConstraintType::GreaterThanOrEqual => self.get_comparison_greater_than_or_equal(scan_constraint.get_constraint_value()),
-            ScanConstraintType::LessThan => self.get_comparison_less_than(scan_constraint.get_constraint_value()),
-            ScanConstraintType::LessThanOrEqual => self.get_comparison_less_than_or_equal(scan_constraint.get_constraint_value()),
+    fn build_value_compare_actions(&self, scan_parameters: &ScanParameters) -> Box<dyn Fn() -> u8x16> {
+        match scan_parameters.get_compare_type() {
+            ScanCompareType::Unchanged => self.get_comparison_unchanged(scan_parameters.get_constraint_args()),
+            ScanCompareType::Changed => self.get_comparison_changed(scan_parameters.get_constraint_args()),
+            ScanCompareType::Increased => self.get_comparison_increased(),
+            ScanCompareType::Decreased => self.get_comparison_decreased(),
+            ScanCompareType::IncreasedByX => self.get_comparison_increased_by(scan_parameters.compare_immediate, scan_parameters.get_constraint_args()),
+            ScanCompareType::DecreasedByX => self.get_comparison_decreased_by(scan_parameters.compare_immediate, scan_parameters.get_constraint_args()),
+            ScanCompareType::Equal => self.get_comparison_equal(scan_parameters.compare_immediate, scan_parameters.get_constraint_args()),
+            ScanCompareType::NotEqual => self.get_comparison_not_equal(scan_parameters.compare_immediate, scan_parameters.get_constraint_args()),
+            ScanCompareType::GreaterThan => self.get_comparison_greater_than(scan_parameters.get_compare_immediate()),
+            ScanCompareType::GreaterThanOrEqual => self.get_comparison_greater_than_or_equal(scan_parameters.get_compare_immediate()),
+            ScanCompareType::LessThan => self.get_comparison_less_than(scan_parameters.get_compare_immediate()),
+            ScanCompareType::LessThanOrEqual => self.get_comparison_less_than_or_equal(scan_parameters.get_compare_immediate()),
         }
     }
 
