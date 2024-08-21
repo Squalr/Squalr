@@ -42,7 +42,6 @@ impl ScannerScalarEncoder {
         let comparer = ScannerScalarComparer::get_instance();
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_filter_parameters.get_data_type();
-        let data_type_size = data_type.size_in_bytes();
         let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default(data_type);
         let memory_load_func = data_type.get_load_memory_function_ptr();
         

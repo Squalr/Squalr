@@ -93,9 +93,39 @@ impl Snapshot {
         &mut self,
         process_info: &ProcessInfo,
     ) {
+        // Query all memory pages for the process from the OS
         let memory_pages = MemoryQueryer::get_memory_page_bounds(process_info, PageRetrievalMode::FROM_SETTINGS);
-        let snapshot_regions = memory_pages.into_iter().map(|region| SnapshotRegion::new(region)).collect();
+        
+        if memory_pages.is_empty() {
+            self.snapshot_regions.clear();
+            return;
+        }
+    
+        // Attempt to merge any adjacent regions, tracking the page boundaries at which the merge took place.
+        // This is done since we want to track these such that the SnapshotRegions can avoid reading process memory across
+        // page boundaries, as this can be problematic (ie if one of the pages deallocates later, we want to be able to recover).
+        let mut merged_snapshot_regions = Vec::new();
+        let mut iter = memory_pages.into_iter();
+        let mut current_region = iter.next().unwrap();
+        let mut page_boundaries = Vec::new();
 
-        self.snapshot_regions = snapshot_regions;
+        loop {
+            let Some(region) = iter.next() else { 
+                break; 
+            };
+            
+            if current_region.get_end_address() == region.get_base_address() {
+                current_region.set_end_address(region.get_end_address());
+                page_boundaries.push(region.get_base_address());
+            } else {
+                merged_snapshot_regions.push(SnapshotRegion::new(current_region, std::mem::take(&mut page_boundaries)));
+                current_region = region;
+            }
+        }
+
+        // Push the last region
+        merged_snapshot_regions.push(SnapshotRegion::new(current_region, page_boundaries));
+    
+        self.snapshot_regions = merged_snapshot_regions;
     }
 }
