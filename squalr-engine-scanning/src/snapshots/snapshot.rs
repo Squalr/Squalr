@@ -1,9 +1,12 @@
-use std::mem::take;
-
 use crate::results::scan_result_lookup_table::ScanResultLookupTable;
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
+use squalr_engine_memory::memory_queryer::memory_queryer::PageRetrievalMode;
+use squalr_engine_processes::process_info::ProcessInfo;
+use std::mem::take;
 
 #[derive(Debug)]
 pub struct Snapshot {
@@ -24,6 +27,16 @@ impl Snapshot {
             snapshot_regions,
             scan_result_lookup_table: ScanResultLookupTable::new(256),
         }
+    }
+
+    pub fn new_scan(
+        &mut self,
+        process_info: &ProcessInfo,
+        scan_filter_constraints: Vec<ScanFilterConstraint>,
+    ) {
+        self.scan_result_lookup_table.set_scan_filter_constraints(scan_filter_constraints);
+        self.create_initial_snapshot_regions(process_info);
+        Logger::get_instance().log(LogLevel::Info, "New scan created.", None);
     }
 
     pub fn get_snapshot_regions(
@@ -50,13 +63,6 @@ impl Snapshot {
         return self.snapshot_regions.iter().map(|region| region.get_region_size()).sum();
     }
 
-    pub fn initialize_for_constraint(
-        &mut self,
-        scan_constrant: &ScanConstraint,
-    ) {
-        self.scan_result_lookup_table.initialize_for_constraint(scan_constrant);
-    }
-
     pub fn get_scan_constraint_filters(
         &self,
     ) -> &Vec<ScanFilterConstraint> {
@@ -75,5 +81,15 @@ impl Snapshot {
         self.scan_result_lookup_table.build_scan_results(
             &self.snapshot_regions,
         );
+    }
+
+    pub fn create_initial_snapshot_regions(
+        &mut self,
+        process_info: &ProcessInfo,
+    ) {
+        let memory_pages = MemoryQueryer::get_memory_page_bounds(process_info, PageRetrievalMode::FROM_SETTINGS);
+        let snapshot_regions = memory_pages.into_iter().map(|region| SnapshotRegion::new(region)).collect();
+
+        self.snapshot_regions = snapshot_regions;
     }
 }

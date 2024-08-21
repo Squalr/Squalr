@@ -1,5 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::constraints::scan_constraint::ScanConstraint;
+use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::dynamic_struct::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
@@ -164,14 +165,14 @@ impl SnapshotRegion {
 
     /// Creates the initial set of filters for the given set of scan constraints.
     /// At first, these filters are equal in size to the entire snapshot region.
-    pub fn create_filters_for_constraint(
+    pub fn create_initial_scan_results(
         &mut self,
-        constraints: &ScanConstraint
+        scan_filter_constraints: &Vec<ScanFilterConstraint>
     ) {
         let base_address = self.get_base_address();
         let region_size = self.get_region_size();
     
-        for scan_filter_constraint in constraints.get_scan_filter_constraints() {
+        for scan_filter_constraint in scan_filter_constraints {
             self.filters.entry(scan_filter_constraint.get_data_type().clone()).or_insert_with(|| {
                 vec![SnapshotRegionFilter::new(base_address, region_size)]
             });

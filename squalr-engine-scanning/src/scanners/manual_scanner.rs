@@ -58,22 +58,9 @@ impl ManualScanner {
             Logger::get_instance().log(LogLevel::Info, "Performing manual scan...", None);
         }
 
-        let region_count =
-        {
-            let snapshot = snapshot.read().unwrap();
-            snapshot.get_region_count()
-        };
-
-        let scan_constraint_filters=
-        {
-            let mut snapshot = snapshot.write().unwrap();
-            snapshot.take_scan_constraint_filters()
-        };
-
+        let region_count = snapshot.read().unwrap().get_region_count();
+        let scan_constraint_filters = snapshot.read().unwrap().get_scan_constraint_filters().clone();
         let mut snapshot = snapshot.write().unwrap();
-
-        snapshot.initialize_for_constraint(scan_constrant);
-
         let snapshot_regions = snapshot.get_snapshot_regions_for_update();
         let scan_constrant = &scan_constrant.clone();
         let start_time = Instant::now();
@@ -91,8 +78,6 @@ impl ManualScanner {
                     processed_region_count.fetch_add(1, Ordering::SeqCst);
                     return;
                 }
-
-                snapshot_region.create_filters_for_constraint(scan_constrant);
 
                 // Iterate over each data type in the scan. Generally there is only 1, but multiple simultaneous scans are supported.
                 let new_filters = scan_constraint_filters
@@ -133,9 +118,11 @@ impl ManualScanner {
             });
 
             let byte_count = snapshot.get_byte_count();
-    
-            Logger::get_instance().log(LogLevel::Info, &format!("Results: {} bytes", value_to_metric_size(byte_count)), None);
             let duration = start_time.elapsed();
-            Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
+    
+            if with_logging {
+                Logger::get_instance().log(LogLevel::Info, &format!("Results: {} bytes", value_to_metric_size(byte_count)), None);
+                Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
+            }
     }
 }

@@ -1,12 +1,10 @@
 use std::sync::{Arc, RwLock, Once};
 use squalr_engine_processes::process_info::ProcessInfo;
-use squalr_engine_scanning::snapshots::{snapshot::Snapshot, snapshot_region::SnapshotRegion};
-use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
-use squalr_engine_memory::memory_queryer::memory_queryer::PageRetrievalMode;
+use squalr_engine_scanning::snapshots::snapshot::Snapshot;
 
 pub struct SessionManager {
     opened_process: Option<ProcessInfo>,
-    snapshot: Option<Arc<RwLock<Snapshot>>>,
+    snapshot: Arc<RwLock<Snapshot>>,
 }
 
 impl SessionManager {
@@ -14,7 +12,7 @@ impl SessionManager {
     ) -> Self {
         SessionManager {
             opened_process: None,
-            snapshot: None,
+            snapshot: Arc::new(RwLock::new(Snapshot::new(vec![]))),
         }
     }
     
@@ -52,27 +50,9 @@ impl SessionManager {
         self.opened_process.as_ref()
     }
 
-    pub fn get_or_create_snapshot(
-        &mut self,
-        process_info: &ProcessInfo
+    pub fn get_snapshot(
+        &self,
     ) -> Arc<RwLock<Snapshot>> {
-        if let Some(snapshot) = &self.snapshot {
-            return snapshot.clone();
-        }
-
-        let snapshot = Arc::new(RwLock::new(Snapshot::new(self.get_memory_pages_for_scan(process_info))));
-        self.snapshot = Some(snapshot.clone());
-
-        return snapshot;
-    }
-
-    pub fn get_memory_pages_for_scan(
-        &mut self,
-        process_info: &ProcessInfo
-    ) -> Vec<SnapshotRegion> {
-        let memory_pages = MemoryQueryer::get_memory_page_bounds(process_info, PageRetrievalMode::FROM_SETTINGS);
-        let snapshot_regions = memory_pages.into_iter().map(|region| SnapshotRegion::new(region)).collect();
-
-        return snapshot_regions;
+        return self.snapshot.clone();
     }
 }

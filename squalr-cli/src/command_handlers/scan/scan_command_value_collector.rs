@@ -16,8 +16,8 @@ pub fn handle_value_collector_command(
         };
 
         if let Some(process_info) = process_info {
-            let mut session_manager = session_manager_lock.write().unwrap();
-            let snapshot = session_manager.get_or_create_snapshot(&process_info);
+            let session_manager = session_manager_lock.write().unwrap();
+            let snapshot = session_manager.get_snapshot();
             let task = ValueCollector::collect_values(
                 process_info.clone(),
                 snapshot,

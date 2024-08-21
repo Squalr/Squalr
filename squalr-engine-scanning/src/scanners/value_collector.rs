@@ -57,10 +57,10 @@ impl ValueCollector {
         if with_logging {
             Logger::get_instance().log(LogLevel::Info, "Reading values from memory...", None);
         }
-
+        
+        let scan_constraint_filters = snapshot.read().unwrap().get_scan_constraint_filters().clone();
         let mut snapshot = snapshot.write().unwrap();
         let total_region_count = snapshot.get_region_count();
-
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
 
@@ -69,6 +69,11 @@ impl ValueCollector {
         .for_each(|snapshot_region| {
             if cancellation_token.load(Ordering::SeqCst) {
                 return;
+            }
+
+            // Create the default scan result containers on the first scan.
+            if !snapshot_region.has_current_values() {
+                snapshot_region.create_initial_scan_results(&scan_constraint_filters);
             }
             
             // Attempt to read new (or initial) memory values. Ignore failures, as these are generally just deallocated pages.

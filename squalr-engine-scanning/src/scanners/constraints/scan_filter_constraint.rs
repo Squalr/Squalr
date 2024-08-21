@@ -1,3 +1,5 @@
+use std::{fmt, num::ParseIntError, str::FromStr};
+
 use squalr_engine_common::dynamic_struct::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 
@@ -53,5 +55,68 @@ impl ScanFilterConstraint {
         &self
     ) -> &DataType{
         return &self.data_type;
+    }
+}
+
+#[derive(Debug)]
+pub enum ScanFilterConstraintParseError {
+    InvalidFormat,
+    InvalidAlignment(ParseIntError),
+    InvalidDataType,
+}
+
+impl fmt::Display for ScanFilterConstraintParseError {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>
+    ) -> fmt::Result {
+        match self {
+            ScanFilterConstraintParseError::InvalidFormat => write!(f, "Invalid format"),
+            ScanFilterConstraintParseError::InvalidAlignment(e) => write!(f, "Invalid alignment: {}", e),
+            ScanFilterConstraintParseError::InvalidDataType => write!(f, "Invalid data type"),
+        }
+    }
+}
+
+impl From<ParseIntError> for ScanFilterConstraintParseError {
+    fn from(
+        e: ParseIntError
+    ) -> Self {
+        ScanFilterConstraintParseError::InvalidAlignment(e)
+    }
+}
+
+impl FromStr for ScanFilterConstraint {
+    type Err = ScanFilterConstraintParseError;
+
+    fn from_str(
+        s: &str
+    ) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split('=').collect();
+
+        // Check if there is at least one part, and at most two
+        if parts.len() < 1 || parts.len() > 2 {
+            return Err(ScanFilterConstraintParseError::InvalidFormat);
+        }
+
+        // Parse the data type from the first part
+        let data_type = parts[0].trim().parse::<DataType>()
+            .map_err(|_| ScanFilterConstraintParseError::InvalidDataType)?;
+
+        // Handle the optional alignment part
+        let alignment = if parts.len() == 2 {
+            match parts[1].trim() {
+                "" => None,  // No alignment provided
+                alignment_str => {
+                    let alignment_value: i32 = alignment_str.parse()?;
+                    Some(MemoryAlignment::from(alignment_value))
+                }
+            }
+        } else {
+            None
+        };
+
+        // Create a new ScanFilterConstraint with the parsed values
+        Ok(ScanFilterConstraint::new_with_value(alignment, data_type))
     }
 }

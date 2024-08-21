@@ -1,4 +1,3 @@
-use crate::scanners::constraints::scan_constraint::ScanConstraint;
 use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rangemap::RangeInclusiveMap;
@@ -46,11 +45,11 @@ impl ScanResultLookupTable {
         }
     }
 
-    pub fn initialize_for_constraint(
+    pub fn set_scan_filter_constraints(
         &mut self,
-        scan_constrant: &ScanConstraint,
+        scan_filter_constraints: Vec<ScanFilterConstraint>,
     ) {
-        self.scan_filter_constraints = scan_constrant.get_scan_filter_constraints().clone();
+        self.scan_filter_constraints = scan_filter_constraints;
     }
 
     pub fn get_scan_constraint_filters(

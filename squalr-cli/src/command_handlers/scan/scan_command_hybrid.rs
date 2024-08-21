@@ -18,16 +18,15 @@ pub fn handle_hybrid_scan_command(
         };
 
         if let Some(process_info) = process_info {
-            let mut session_manager = session_manager_lock.write().unwrap();
-            let snapshot = session_manager.get_or_create_snapshot(&process_info);
+            let session_manager = session_manager_lock.write().unwrap();
+            let snapshot = session_manager.get_snapshot();
 
             let data_types = vec![value_and_type.data_type.to_owned()];
 
             let constraint = ScanConstraint::new_with_value(
-                MemoryAlignment::Alignment1,
                 constraint_type.to_owned(),
-                data_types,
-                Some(value_and_type.data_value.to_owned()));
+                None, // TODO
+            );
             
             let task = HybridScanner::scan(
                 process_info.clone(),

@@ -1,12 +1,10 @@
 use crate::scanners::constraints::scan_constraint_type::ScanConstraintType;
-use crate::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
 use squalr_engine_common::dynamic_struct::data_value::DataValue;
 
 #[derive(Debug, Clone)]
 pub struct ScanConstraint {
     constraint_type: ScanConstraintType,
     constraint_value: Option<DataValue>,
-    scan_filter_constraints: Vec<ScanFilterConstraint>,
 }
 
 impl ScanConstraint {
@@ -14,19 +12,16 @@ impl ScanConstraint {
         Self {
             constraint_type: ScanConstraintType::Changed,
             constraint_value: None,
-            scan_filter_constraints: vec![],
         }
     }
 
     pub fn new_with_value(
         constraint_type: ScanConstraintType,
         value: Option<DataValue>,
-        scan_filter_constraints: Vec<ScanFilterConstraint>,
     ) -> Self {
         Self {
             constraint_type,
             constraint_value: value,
-            scan_filter_constraints: scan_filter_constraints,
         }
     }
     
@@ -101,19 +96,12 @@ impl ScanConstraint {
         };
     }
 
-    pub fn get_scan_filter_constraints(
-        &self
-    ) -> &Vec<ScanFilterConstraint> {
-        return &self.scan_filter_constraints;
-    }
-
     pub fn clone(
         &self
     ) -> Self {
         ScanConstraint {
             constraint_type: self.constraint_type.clone(),
             constraint_value: self.constraint_value.clone(),
-            scan_filter_constraints: self.scan_filter_constraints.clone(),
         }
     }
 

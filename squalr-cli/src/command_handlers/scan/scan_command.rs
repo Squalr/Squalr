@@ -1,5 +1,6 @@
 use squalr_engine_common::dynamic_struct::field_value::FieldValue;
-use squalr_engine_scanning::scanners::constraints::{scan_constraint::ScanFilterConstraint, scan_constraint_type::ScanConstraintType};
+use squalr_engine_scanning::scanners::constraints::scan_constraint_type::ScanConstraintType;
+use squalr_engine_scanning::scanners::constraints::scan_filter_constraint::ScanFilterConstraint;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -15,7 +16,7 @@ pub enum ScanCommand {
     },
     /// Starts a new scan with the provided data types / alignments
     New {
-        #[structopt(short = "d", long)]
+        #[structopt(short = "d", long, use_delimiter = true)]
         filter_constraints: Vec<ScanFilterConstraint>,
     },
     /// Standard scan that operates on existing collected values.
