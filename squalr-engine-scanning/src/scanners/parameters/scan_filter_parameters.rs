@@ -45,13 +45,13 @@ impl ScanFilterParameters {
 
     pub fn get_memory_alignment_or_default(
         &self,
-        data_type: &DataType,
     ) -> MemoryAlignment{
         if let Some(alignment) = &self.alignment {
             return alignment.to_owned();
         }
 
-        return MemoryAlignment::Alignment4;
+        // Squalr is fast, so we can just default to an alignment of 1 to prevent missing anything important.
+        return MemoryAlignment::Alignment1;
     }
 
     pub fn get_data_type(

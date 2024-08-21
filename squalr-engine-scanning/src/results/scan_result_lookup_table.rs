@@ -72,7 +72,7 @@ impl ScanResultLookupTable {
 
         for (_, scan_filter_parameters) in self.scan_filter_parameters.iter().enumerate() {
             let data_type: &DataType = scan_filter_parameters.get_data_type();
-            let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default(data_type);
+            let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
 
             for (region_index, region) in snapshot_regions.iter().enumerate() {
                 if !region.get_filters().contains_key(data_type) {

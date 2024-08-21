@@ -97,7 +97,7 @@ impl ScanDispatcher {
     ) -> &dyn Scanner {
         let data_type = scan_filter_parameters.get_data_type();
         let data_type_size = data_type.size_in_bytes();
-        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default(data_type);
+        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
 
         if snapshot_region_filter.get_element_count(memory_alignment, data_type_size) == 1 {
             // Single element scanner
