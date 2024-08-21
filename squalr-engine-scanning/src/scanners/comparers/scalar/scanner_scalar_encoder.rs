@@ -118,7 +118,7 @@ impl ScannerScalarEncoder {
             }
         }
 
-        run_length_encoder.finalize_current_encode_unchecked(memory_alignment, data_type_size);
+        run_length_encoder.finalize_last_encode_unchecked();
         
         return run_length_encoder.result_regions;
     }

@@ -50,6 +50,12 @@ impl Snapshot {
     ) -> &mut Vec<SnapshotRegion> {
         return &mut self.snapshot_regions;
     }
+    
+    pub fn discard_empty_regions(
+        &mut self
+    ) {
+        self.snapshot_regions.retain(|region| region.get_region_size() > 0);
+    }
 
     pub fn get_region_count(
         &self

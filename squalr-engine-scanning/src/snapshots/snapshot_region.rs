@@ -150,7 +150,7 @@ impl SnapshotRegion {
 
     pub fn can_compare_using_parameters(
         &self,
-        scan_parameters: &ScanParameters
+        scan_parameters: &ScanParameters,
     ) -> bool {
         if !scan_parameters.is_valid() || !self.has_current_values() {
             return false;
@@ -167,7 +167,7 @@ impl SnapshotRegion {
     /// At first, these filters are equal in size to the entire snapshot region.
     pub fn create_initial_scan_results(
         &mut self,
-        scan_filter_parameters: &Vec<ScanFilterParameters>
+        scan_filter_parameters: &Vec<ScanFilterParameters>,
     ) {
         let base_address = self.get_base_address();
         let region_size = self.get_region_size();

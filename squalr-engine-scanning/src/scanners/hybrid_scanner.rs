@@ -125,6 +125,8 @@ impl HybridScanner {
             }
         });
 
+        snapshot.discard_empty_regions();
+
         let duration = start_time.elapsed();
         let byte_count = snapshot.get_byte_count();
 

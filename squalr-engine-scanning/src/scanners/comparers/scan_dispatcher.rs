@@ -1,4 +1,5 @@
-use crate::{filters::snapshot_region_filter::SnapshotRegionFilter, scanners::comparers::scalar::scanner_scalar_iterative_chunked::ScannerScalarIterativeChunked};
+use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
+use crate::scanners::comparers::scalar::scanner_scalar_iterative_chunked::ScannerScalarIterativeChunked;
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::parameters::scan_parameters::ScanParameters;

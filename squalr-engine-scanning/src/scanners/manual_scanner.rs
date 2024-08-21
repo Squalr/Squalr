@@ -116,6 +116,8 @@ impl ManualScanner {
                     task.set_progress(progress);
                 }
             });
+            
+            snapshot.discard_empty_regions();
 
             let byte_count = snapshot.get_byte_count();
             let duration = start_time.elapsed();

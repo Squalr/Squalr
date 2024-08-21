@@ -82,7 +82,7 @@ impl SnapshotRegionFilter {
             return 0;
         }
     
-        let byte_count = effective_size_in_bytes - data_type_size as u64 + 1;
+        let byte_count = effective_size_in_bytes;
     
         return byte_count / alignment;
     }
