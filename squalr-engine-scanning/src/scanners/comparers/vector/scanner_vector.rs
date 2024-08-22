@@ -91,7 +91,7 @@ impl SnapshotElementScannerVector {
             self.vector_read_offset += vector_increment_size;
         }
 
-        self.base_scanner.get_run_length_encoder().finalize_current_encode_unchecked(0);
+        self.base_scanner.get_run_length_encoder().finalize_current_encode(0);
         
         return self.base_scanner.get_run_length_encoder().get_collected_regions().clone();
     }
@@ -133,13 +133,13 @@ impl SnapshotElementScannerVector {
         if all_true {
             encoder.encode_range(16);
         } else if all_false {
-            encoder.finalize_current_encode_unchecked(16);
+            encoder.finalize_current_encode(16);
         } else {
             for i in (0..16).step_by(alignment) {
                 if scan_results[i] != false_mask[i] {
                     encoder.encode_range(alignment);
                 } else {
-                    encoder.finalize_current_encode_unchecked(alignment);
+                    encoder.finalize_current_encode(alignment);
                 }
             }
         }

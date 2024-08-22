@@ -55,7 +55,7 @@ impl ScannerScalarEncoder {
                     if compare_func(current_value_pointer, immediate_value_ptr) {
                         run_length_encoder.encode_range(memory_alignment);
                     } else {
-                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment, data_type_size);
+                        run_length_encoder.finalize_current_encode(memory_alignment, data_type_size);
                     }
                 }
             } else if scan_parameters.is_relative_comparison() {
@@ -68,7 +68,7 @@ impl ScannerScalarEncoder {
                     if compare_func(current_value_pointer, previous_value_pointer) {
                         run_length_encoder.encode_range(memory_alignment);
                     } else {
-                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment, data_type_size);
+                        run_length_encoder.finalize_current_encode(memory_alignment, data_type_size);
                     }
                 }
             } else if scan_parameters.is_immediate_comparison() {
@@ -82,7 +82,7 @@ impl ScannerScalarEncoder {
                     if compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr) {
                         run_length_encoder.encode_range(memory_alignment);
                     } else {
-                        run_length_encoder.finalize_current_encode_unchecked(memory_alignment, data_type_size);
+                        run_length_encoder.finalize_current_encode(memory_alignment, data_type_size);
                     }
                 }
             } else {
@@ -90,7 +90,7 @@ impl ScannerScalarEncoder {
             }
         }
 
-        run_length_encoder.finalize_current_encode_unchecked(memory_alignment, data_type_size);
+        run_length_encoder.finalize_current_encode(memory_alignment, data_type_size);
         
         return run_length_encoder.result_regions;
     }

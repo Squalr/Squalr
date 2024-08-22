@@ -260,6 +260,6 @@ impl FromStr for DataValue {
             }
         }?;
 
-        Ok(value)
+        return Ok(value);
     }
 }

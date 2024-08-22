@@ -2,6 +2,7 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::scalar::scanner_scalar_iterative_chunked::ScannerScalarIterativeChunked;
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
+use crate::scanners::comparers::vector::scanner_vector_aligned::ScannerVectorAligned;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
@@ -98,8 +99,9 @@ impl ScanDispatcher {
         let data_type = scan_filter_parameters.get_data_type();
         let data_type_size = data_type.size_in_bytes();
         let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
+        let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size);
 
-        if snapshot_region_filter.get_element_count(memory_alignment, data_type_size) == 1 {
+        if element_count == 1 {
             // Single element scanner
             return ScannerScalarSingleElement::get_instance();
         } else if vectors::has_vector_support() && snapshot_region_filter.is_vector_friendly_size(memory_alignment) {
@@ -109,6 +111,9 @@ impl ScanDispatcher {
                     // return ScannerVectorArrayOfBytes::get_instance();
                 }
                 _ => {
+                    if snapshot_region_filter.get_base_address() % 128 == 0 && element_count % 16 == 0 {
+                        return ScannerVectorAligned::get_instance();
+                    }
                     /*
                     if alignment_size == element_size as i32 {
                         // Fast vector scanner

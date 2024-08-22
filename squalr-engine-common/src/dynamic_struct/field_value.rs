@@ -1,7 +1,6 @@
 use crate::values::data_type::DataType;
 use crate::values::data_value::DataValue;
 use crate::values::endian::Endian;
-use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 use std::str::FromStr;
 
@@ -100,12 +99,74 @@ impl FieldValue {
         &mut self,
         bytes: &[u8]
     ) {
-        let value_ptr = bytes.as_ptr();
-        let load_fn = self.data_type.get_load_memory_function_ptr();
-
-        unsafe {
-            load_fn(self.data_value.borrow_mut(), value_ptr);
-        }
+        self.data_value = match self.data_type {
+            DataType::U8() => DataValue::U8(bytes[0]),
+            DataType::U16(ref endian) => {
+                let value = match endian {
+                    Endian::Little => u16::from_le_bytes(bytes[0..2].try_into().unwrap()),
+                    Endian::Big => u16::from_be_bytes(bytes[0..2].try_into().unwrap()),
+                };
+                DataValue::U16(value)
+            }
+            DataType::U32(ref endian) => {
+                let value = match endian {
+                    Endian::Little => u32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+                    Endian::Big => u32::from_be_bytes(bytes[0..4].try_into().unwrap()),
+                };
+                DataValue::U32(value)
+            }
+            DataType::U64(ref endian) => {
+                let value = match endian {
+                    Endian::Little => u64::from_le_bytes(bytes[0..8].try_into().unwrap()),
+                    Endian::Big => u64::from_be_bytes(bytes[0..8].try_into().unwrap()),
+                };
+                DataValue::U64(value)
+            }
+            DataType::I8() => DataValue::I8(bytes[0] as i8),
+            DataType::I16(ref endian) => {
+                let value = match endian {
+                    Endian::Little => i16::from_le_bytes(bytes[0..2].try_into().unwrap()),
+                    Endian::Big => i16::from_be_bytes(bytes[0..2].try_into().unwrap()),
+                };
+                DataValue::I16(value)
+            }
+            DataType::I32(ref endian) => {
+                let value = match endian {
+                    Endian::Little => i32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+                    Endian::Big => i32::from_be_bytes(bytes[0..4].try_into().unwrap()),
+                };
+                DataValue::I32(value)
+            }
+            DataType::I64(ref endian) => {
+                let value = match endian {
+                    Endian::Little => i64::from_le_bytes(bytes[0..8].try_into().unwrap()),
+                    Endian::Big => i64::from_be_bytes(bytes[0..8].try_into().unwrap()),
+                };
+                DataValue::I64(value)
+            }
+            DataType::F32(ref endian) => {
+                let value = match endian {
+                    Endian::Little => f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+                    Endian::Big => f32::from_be_bytes(bytes[0..4].try_into().unwrap()),
+                };
+                DataValue::F32(value)
+            }
+            DataType::F64(ref endian) => {
+                let value = match endian {
+                    Endian::Little => f64::from_le_bytes(bytes[0..8].try_into().unwrap()),
+                    Endian::Big => f64::from_be_bytes(bytes[0..8].try_into().unwrap()),
+                };
+                DataValue::F64(value)
+            }
+            DataType::Bytes(_) => DataValue::Bytes(bytes.to_vec()),
+            DataType::BitField(bits) => {
+                let total_bytes = ((bits + 7) / 8) as usize;
+                DataValue::BitField {
+                    value: bytes[..total_bytes].to_vec(),
+                    bits,
+                }
+            }
+        };
     }
 }
 
