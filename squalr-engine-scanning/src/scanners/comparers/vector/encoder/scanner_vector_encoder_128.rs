@@ -1,6 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::scanners::comparers::vector::scanner_vector_comparer_128::ScannerVectorComparer;
+use crate::scanners::comparers::vector::encoder::scanner_vector_comparer_128::ScannerVectorComparer;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use std::borrow::BorrowMut;

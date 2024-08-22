@@ -1,5 +1,5 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::comparers::scalar::scanner_scalar_encoder::ScannerScalarEncoder;
+use crate::scanners::comparers::scalar::encoder::scanner_scalar_encoder::ScannerScalarEncoder;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;

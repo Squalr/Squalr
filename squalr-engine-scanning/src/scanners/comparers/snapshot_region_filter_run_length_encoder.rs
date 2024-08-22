@@ -57,7 +57,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
         // The size of the data type being encoded. This allows us to properly adjust the size of the final run length encoding.
         data_type_size: u64
     ) {
-        if self.is_encoding && self.run_length > 0 {
+        if self.is_encoding {
             self.result_regions.push(SnapshotRegionFilter::new(
                 self.run_length_current_address,
                 self.run_length + (data_type_size - byte_advance_count),
