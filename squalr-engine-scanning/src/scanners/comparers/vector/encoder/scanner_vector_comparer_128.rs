@@ -194,66 +194,6 @@ impl ScannerVectorComparer {
                 }
             
                 u8x16::from(result_array) */
-                /*
-                let immediate = unsafe { _mm_set1_epi32(*(immediate_ptr as *const i32)) };
-                let mut result_array = [0u8; 16];
-
-                // 128 bit vectors can hold 16 bytes, or 4 integers each.
-                // Thus each _mm_loadu_si128 is 16 byte aligned
-                // This means _mm_loadu_si128 should be called 32 times in total (32 calls * 4 integers = 128 integers, totaling 512 bytes)
-                // The result of the comparisons should be packed into a u8x16 bit mask (128 bits total, for each comparison)
-            
-                unsafe {
-                    for i in 0..16 {
-                        // Load 8 consecutive integers (32 bytes) per iteration
-                        let values_0 = _mm_loadu_si128(current_values_ptr.add(i * 32) as *const __m128i);
-                        let values_1 = _mm_loadu_si128(current_values_ptr.add(i * 32 + 16) as *const __m128i);
-                        
-                        // Compare the loaded values against the immediate value
-                        let cmp_result_0 = _mm_cmpeq_epi32(values_0, immediate);
-                        let cmp_result_1 = _mm_cmpeq_epi32(values_1, immediate);
-                        
-                        // Extract the comparison result into a bitmask
-                        let bitmask_0 = _mm_movemask_ps(_mm_castsi128_ps(cmp_result_0)) as u8;
-                        let bitmask_1 = _mm_movemask_ps(_mm_castsi128_ps(cmp_result_1)) as u8;
-                        // let bitmask_0 = _mm_movemask_epi8(_mm_packs_epi16(cmp_result_0, cmp_result_0)) as u8;
-                        // let bitmask_1 = _mm_movemask_epi8(_mm_packs_epi16(cmp_result_1, cmp_result_1)) as u8;
-                        
-                        // Combine the bitmasks into a single byte for this iteration
-                        result_array[i] = (bitmask_0 << 4) | bitmask_1;
-                    }
-                }
-                
-                // Return the result packed into a u8x16
-                u8x16::from(result_array) */
-
-                /*
-                let immediate = unsafe { _mm_set1_epi32(*(immediate_ptr as *const i32)) };
-                let mut result_array = [0u8; 16];
-                
-                unsafe {
-                    // We need to pack 16 bytes with 8 comparisons each, meaning 128 comparisons in total.
-                    for packed_byte_index in 0..16 {
-                        // Load the next 4 integers (16 bytes) into an __m128i register for the lower 4 bits
-                        let values1 = _mm_loadu_si128(current_values_ptr.add(32 * packed_byte_index) as *const __m128i);
-                        // Compare the values with the immediate value
-                        let cmp1 = _mm_cmpeq_epi32(values1, immediate);
-                        // Extract the comparison results into a bitmask for the lower 4 bits
-                        let mask1 = _mm_movemask_ps(_mm_castsi128_ps(cmp1)) as u8;
-                        
-                        // Load the next 4 integers (16 bytes) into an __m128i register for the upper 4 bits
-                        let values2 = _mm_loadu_si128(current_values_ptr.add(32 * packed_byte_index + 16) as *const __m128i);
-                        // Compare the values with the immediate value
-                        let cmp2 = _mm_cmpeq_epi32(values2, immediate);
-                        // Extract the comparison results into a bitmask for the upper 4 bits
-                        let mask2 = _mm_movemask_ps(_mm_castsi128_ps(cmp2)) as u8;
-                        
-                        // Combine the two 4-bit masks into one byte
-                        result_array[packed_byte_index] = mask1 | (mask2 << 4);
-                    }
-                }
-                
-                u8x16::from_array(result_array) */
             },
             DataType::I32(_) => |current_values_ptr, immediate_ptr| {
                 let immediate = unsafe { i32x4::splat(*(immediate_ptr as *const i32)) };

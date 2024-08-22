@@ -45,18 +45,23 @@ impl ScannerScalarEncoder {
         let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default() as u64;
         
         unsafe {
+            let mut encode_results = |compare_result : bool| {
+                if compare_result {
+                    run_length_encoder.encode_range(memory_alignment);
+                } else {
+                    run_length_encoder.finalize_current_encode(memory_alignment, data_type_size);
+                }
+            };
+
             if scan_parameters.is_immediate_comparison() {
                 let immediate_value_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
                 let compare_func = comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), &data_type);
 
                 for index in 0..element_count {
                     let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
+                    let result = compare_func(current_value_pointer, immediate_value_ptr);
 
-                    if compare_func(current_value_pointer, immediate_value_ptr) {
-                        run_length_encoder.encode_range(memory_alignment);
-                    } else {
-                        run_length_encoder.finalize_current_encode(memory_alignment, data_type_size);
-                    }
+                    encode_results(result);
                 }
             } else if scan_parameters.is_relative_comparison() {
                 let compare_func = comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type);
@@ -64,12 +69,9 @@ impl ScannerScalarEncoder {
                 for index in 0..element_count {
                     let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
                     let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment as usize);
-
-                    if compare_func(current_value_pointer, previous_value_pointer) {
-                        run_length_encoder.encode_range(memory_alignment);
-                    } else {
-                        run_length_encoder.finalize_current_encode(memory_alignment, data_type_size);
-                    }
+                    let result = compare_func(current_value_pointer, previous_value_pointer);
+                    
+                    encode_results(result);
                 }
             } else if scan_parameters.is_immediate_comparison() {
                 let compare_func = comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type);
@@ -78,12 +80,9 @@ impl ScannerScalarEncoder {
                 for index in 0..element_count {
                     let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
                     let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment as usize);
+                    let result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);
 
-                    if compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr) {
-                        run_length_encoder.encode_range(memory_alignment);
-                    } else {
-                        run_length_encoder.finalize_current_encode(memory_alignment, data_type_size);
-                    }
+                    encode_results(result);
                 }
             } else {
                 panic!("Unrecognized comparison");
