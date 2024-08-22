@@ -1,7 +1,9 @@
 use squalr_engine_common::values::data_type::DataType;
 
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
-use std::{simd::{cmp::SimdPartialEq, f32x4, i16x8, i32x4, i64x2, i8x16, mask8x16, u16x8, u32x4, u32x8, u64x2, u8x16, Mask, Simd}, sync::Once};
+use std::{arch::x86_64::{__m128i, _mm_castsi128_ps, _mm_cmpeq_epi32, _mm_loadu_si128, _mm_loadu_si32, _mm_movemask_ps, _mm_or_si128, _mm_packs_epi16, _mm_packs_epi32, _mm_set1_epi32, _mm_set1_epi8, _mm_slli_epi32, _mm_storeu_si128}, simd::{cmp::SimdPartialEq, f32x4, i16x8, i32x4, i64x2, i8x16, mask8x16, u16x8, u32x16, u32x4, u32x8, u64x2, u8x16, Mask, Simd}, sync::Once};
+use std::arch::x86_64::_mm_movemask_epi8;
+use std::arch::x86_64::_mm_setzero_si128;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)
 type VectorCompareFnImmediate = unsafe fn(
@@ -9,7 +11,7 @@ type VectorCompareFnImmediate = unsafe fn(
     current_v1lue_pointer: *const u8,
     // Immediate v1lue
     immediate_v1lue_pointer: *const u8,
-) -> mask8x16;
+) -> u8x16;
 
 /// Defines a compare function that operates on current and previous values (ie changed, unchanged, increased, decreased)
 type VectorCompareFnRelativ3 = unsafe fn(
@@ -17,7 +19,7 @@ type VectorCompareFnRelativ3 = unsafe fn(
     current_v1lue_pointer: *const u8,
     // Previous v1lue buffer
     previous_v1lue_pointer: *const u8,
-) -> mask8x16;
+) -> u8x16;
 
 /// Defines a compare function that operates on current and previous values, with a delta arg (ie +x, -x)
 type VectorCompareFnDelta = unsafe fn(
@@ -27,7 +29,7 @@ type VectorCompareFnDelta = unsafe fn(
     previous_v1lue_pointer: *const u8,
     // Delta v1lue buffer
     delta_v1lue_pointer: *const u8,
-) -> mask8x16;
+) -> u8x16;
 
 pub struct ScannerVectorComparer {
 }
@@ -99,12 +101,14 @@ impl ScannerVectorComparer {
             DataType::U8() => |current_values_ptr, immediate_ptr: *const u8| {
                 let immediate = unsafe { u8x16::splat(*immediate_ptr) };
                 let v1 = unsafe { u8x16::from_slice(std::slice::from_raw_parts(current_values_ptr, 16)) };
-                v1.simd_eq(immediate)
+                // v1.simd_eq(immediate)
+                panic!("stupid");
             },
             DataType::I8() => |current_values_ptr: *const u8, immediate_ptr| {
                 let immediate = unsafe { i8x16::splat(*(immediate_ptr as *const i8)) };
                 let v1 = unsafe { i8x16::from_slice(std::slice::from_raw_parts(current_values_ptr as *const i8, 16)) };
-                v1.simd_eq(immediate).cast()
+                // v1.simd_eq(immediate).cast()
+                panic!("stupid");
             },
             DataType::U16(_) => |current_values_ptr, immediate_ptr| {
                 let immediate = unsafe { u16x8::splat(*(immediate_ptr as *const u16)) };
@@ -117,7 +121,7 @@ impl ScannerVectorComparer {
                 combined_array[..8].copy_from_slice(&v1_res.to_array());
                 combined_array[8..].copy_from_slice(&v2_res.to_array());
 
-                Mask::from_array(combined_array)
+                panic!("stupid");
             },
             DataType::I16(_) => |current_values_ptr, immediate_ptr| {
                 let immediate = unsafe { i16x8::splat(*(immediate_ptr as *const i16)) };
@@ -130,26 +134,126 @@ impl ScannerVectorComparer {
                 combined_array[..8].copy_from_slice(&v1_res.to_array());
                 combined_array[8..].copy_from_slice(&v2_res.to_array());
 
-                Mask::from_array(combined_array)
+                // Mask::from_array(combined_array)
+                panic!("stupid");
             },
             DataType::U32(_) => |current_values_ptr, immediate_ptr| {
-                let immediate = unsafe { u32x4::splat(*(immediate_ptr as *const u32)) };
-                let v1 = unsafe { u32x4::from_slice(std::slice::from_raw_parts(current_values_ptr as *const u32, 4)) };
-                let v2 = unsafe { u32x4::from_slice(std::slice::from_raw_parts((current_values_ptr.add(16)) as *const u32, 4)) };
-                let v3 = unsafe { u32x4::from_slice(std::slice::from_raw_parts((current_values_ptr.add(32)) as *const u32, 4)) };
-                let v4 = unsafe { u32x4::from_slice(std::slice::from_raw_parts((current_values_ptr.add(48)) as *const u32, 4)) };
-                let v1_res = v1.simd_eq(immediate).cast::<i8>();
-                let v2_res = v2.simd_eq(immediate).cast::<i8>();
-                let v3_res = v3.simd_eq(immediate).cast::<i8>();
-                let v4_res = v4.simd_eq(immediate).cast::<i8>();
+                unsafe {
+                    // Load the immediate value and broadcast it to all lanes of a 128-bit register
+                    let immediate = *(immediate_ptr as *const u32);
+                    let immediate_simd = _mm_set1_epi32(immediate as i32);
+            
+                    // Initialize a zeroed result array of 128 bits (16 bytes)
+                    let mut result_array = [0u8; 16];
 
-                let mut combined_array = [false; 16];
-                combined_array[..4].copy_from_slice(&v1_res.to_array());
-                combined_array[4..8].copy_from_slice(&v2_res.to_array());
-                combined_array[8..12].copy_from_slice(&v3_res.to_array());
-                combined_array[12..].copy_from_slice(&v4_res.to_array());
+                    // Iterate over chunks of 16 bytes (4 u32 values)
+                    for i in 0..32 {
+                        // Load 16 bytes (4 u32 values) from current_values_ptr into an __m128i register
+                        let values_simd = _mm_loadu_si128(current_values_ptr.add(i * 16) as *const __m128i);
 
-                Mask::from_array(combined_array)
+                        // Compare the 4 u32 values with the immediate value in parallel
+                        let cmp_mask = _mm_cmpeq_epi32(values_simd, immediate_simd);
+
+                        // Convert the comparison result to a bitmask
+                        let bitmask = _mm_movemask_ps(_mm_castsi128_ps(cmp_mask));
+
+                        // Set the corresponding bits in the result array based on the bitmask
+                        for j in 0..4 {
+                            if (bitmask & (1 << j)) != 0 {
+                                let bit_index = i * 4 + j;
+                                let byte = bit_index / 8;
+                                let bit = bit_index % 8;
+                                result_array[byte] |= 1 << bit;
+                            }
+                        }
+                    }
+
+                    // Return the final result as a __m128i (u8x16)
+                    u8x16::from(result_array)
+                }
+                /*
+                let immediate = unsafe { *(immediate_ptr as *const u32) };
+                let immediate_simd = u32x4::splat(immediate);
+                let mut result_array = [0u8; 16];
+                
+                unsafe {
+                let immediate = unsafe { *(immediate_ptr as *const u32) };
+                let mut result_array = [0u8; 16];
+            
+                unsafe {
+                    // Iterate through all u32 values (128 integers)
+                    for i in 0..128 {
+                        let value = *(current_values_ptr.add(i * 4) as *const u32);
+            
+                        if value == immediate {
+                            let byte = i / 8;  // Determine which byte to update
+                            let bit = i % 8;   // Determine which bit in that byte
+                            result_array[byte] |= 1 << bit;  // Set the appropriate bit
+                        }
+                    }
+                }
+            
+                u8x16::from(result_array) */
+                /*
+                let immediate = unsafe { _mm_set1_epi32(*(immediate_ptr as *const i32)) };
+                let mut result_array = [0u8; 16];
+
+                // 128 bit vectors can hold 16 bytes, or 4 integers each.
+                // Thus each _mm_loadu_si128 is 16 byte aligned
+                // This means _mm_loadu_si128 should be called 32 times in total (32 calls * 4 integers = 128 integers, totaling 512 bytes)
+                // The result of the comparisons should be packed into a u8x16 bit mask (128 bits total, for each comparison)
+            
+                unsafe {
+                    for i in 0..16 {
+                        // Load 8 consecutive integers (32 bytes) per iteration
+                        let values_0 = _mm_loadu_si128(current_values_ptr.add(i * 32) as *const __m128i);
+                        let values_1 = _mm_loadu_si128(current_values_ptr.add(i * 32 + 16) as *const __m128i);
+                        
+                        // Compare the loaded values against the immediate value
+                        let cmp_result_0 = _mm_cmpeq_epi32(values_0, immediate);
+                        let cmp_result_1 = _mm_cmpeq_epi32(values_1, immediate);
+                        
+                        // Extract the comparison result into a bitmask
+                        let bitmask_0 = _mm_movemask_ps(_mm_castsi128_ps(cmp_result_0)) as u8;
+                        let bitmask_1 = _mm_movemask_ps(_mm_castsi128_ps(cmp_result_1)) as u8;
+                        // let bitmask_0 = _mm_movemask_epi8(_mm_packs_epi16(cmp_result_0, cmp_result_0)) as u8;
+                        // let bitmask_1 = _mm_movemask_epi8(_mm_packs_epi16(cmp_result_1, cmp_result_1)) as u8;
+                        
+                        // Combine the bitmasks into a single byte for this iteration
+                        result_array[i] = (bitmask_0 << 4) | bitmask_1;
+                    }
+                }
+                
+                // Return the result packed into a u8x16
+                u8x16::from(result_array) */
+
+                /*
+                let immediate = unsafe { _mm_set1_epi32(*(immediate_ptr as *const i32)) };
+                let mut result_array = [0u8; 16];
+                
+                unsafe {
+                    // We need to pack 16 bytes with 8 comparisons each, meaning 128 comparisons in total.
+                    for packed_byte_index in 0..16 {
+                        // Load the next 4 integers (16 bytes) into an __m128i register for the lower 4 bits
+                        let values1 = _mm_loadu_si128(current_values_ptr.add(32 * packed_byte_index) as *const __m128i);
+                        // Compare the values with the immediate value
+                        let cmp1 = _mm_cmpeq_epi32(values1, immediate);
+                        // Extract the comparison results into a bitmask for the lower 4 bits
+                        let mask1 = _mm_movemask_ps(_mm_castsi128_ps(cmp1)) as u8;
+                        
+                        // Load the next 4 integers (16 bytes) into an __m128i register for the upper 4 bits
+                        let values2 = _mm_loadu_si128(current_values_ptr.add(32 * packed_byte_index + 16) as *const __m128i);
+                        // Compare the values with the immediate value
+                        let cmp2 = _mm_cmpeq_epi32(values2, immediate);
+                        // Extract the comparison results into a bitmask for the upper 4 bits
+                        let mask2 = _mm_movemask_ps(_mm_castsi128_ps(cmp2)) as u8;
+                        
+                        // Combine the two 4-bit masks into one byte
+                        result_array[packed_byte_index] = mask1 | (mask2 << 4);
+                    }
+                }
+                
+                u8x16::from_array(result_array) */
             },
             DataType::I32(_) => |current_values_ptr, immediate_ptr| {
                 let immediate = unsafe { i32x4::splat(*(immediate_ptr as *const i32)) };
@@ -168,7 +272,8 @@ impl ScannerVectorComparer {
                 combined_array[8..12].copy_from_slice(&v3_res.to_array());
                 combined_array[12..].copy_from_slice(&v4_res.to_array());
     
-                Mask::from_array(combined_array)
+                // Mask::from_array(combined_array)
+                panic!("stupid");
             },
             DataType::U64(_) => |current_values_ptr, immediate_ptr| {
                 let immediate = unsafe { u64x2::splat(*(immediate_ptr as *const u64)) };
@@ -200,7 +305,8 @@ impl ScannerVectorComparer {
                 combined_array[12..14].copy_from_slice(&v7_res.to_array());
                 combined_array[14..16].copy_from_slice(&v8_res.to_array());
             
-                Mask::from_array(combined_array)
+                // Mask::from_array(combined_array)
+                panic!("stupid");
             },
             DataType::I64(_) => |current_values_ptr, immediate_ptr| {
                 let immediate = unsafe { i64x2::splat(*(immediate_ptr as *const i64)) };
@@ -232,7 +338,8 @@ impl ScannerVectorComparer {
                 combined_array[12..14].copy_from_slice(&v7_res.to_array());
                 combined_array[14..16].copy_from_slice(&v8_res.to_array());
             
-                Mask::from_array(combined_array)
+                // Mask::from_array(combined_array)
+                panic!("stupid");
             },
             DataType::F32(endian) => {
                 panic!("unsupported data type")

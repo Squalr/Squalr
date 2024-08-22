@@ -111,7 +111,7 @@ impl ScanDispatcher {
                     // return ScannerVectorArrayOfBytes::get_instance();
                 }
                 _ => {
-                    if snapshot_region_filter.get_base_address() % 128 == 0 && element_count % 16 == 0 {
+                    if element_count % 128 == 0 {
                         return ScannerVectorAligned::get_instance();
                     }
                     /*
