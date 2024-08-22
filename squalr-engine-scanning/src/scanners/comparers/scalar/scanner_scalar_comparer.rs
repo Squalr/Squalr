@@ -51,7 +51,10 @@ impl ScannerScalarComparer {
         }
     }
 
-    pub fn get_immediate_compare_func(&self, scan_compare_type: ScanCompareType) -> ScalarCompareFnImmediate {
+    pub fn get_immediate_compare_func(
+        &self,
+        scan_compare_type: ScanCompareType
+    ) -> ScalarCompareFnImmediate {
         match scan_compare_type {
             ScanCompareType::Equal => Self::compare_equal,
             ScanCompareType::NotEqual => Self::compare_not_equal,
@@ -63,7 +66,10 @@ impl ScannerScalarComparer {
         }
     }
 
-    pub fn get_relative_compare_func(&self, scan_compare_type: ScanCompareType) -> ScalarCompareFnRelative {
+    pub fn get_relative_compare_func(
+        &self,
+        scan_compare_type: ScanCompareType
+    ) -> ScalarCompareFnRelative {
         match scan_compare_type {
             ScanCompareType::Changed => Self::compare_changed,
             ScanCompareType::Unchanged => Self::compare_unchanged,
@@ -73,7 +79,10 @@ impl ScannerScalarComparer {
         }
     }
 
-    pub fn get_relative_delta_compare_func(&self, scan_compare_type: ScanCompareType) -> ScalarCompareFnDelta {
+    pub fn get_relative_delta_compare_func(
+        &self,
+        scan_compare_type: ScanCompareType
+    ) -> ScalarCompareFnDelta {
         match scan_compare_type {
             ScanCompareType::IncreasedByX => Self::compare_increased_by,
             ScanCompareType::DecreasedByX => Self::compare_decreased_by,
@@ -155,7 +164,7 @@ impl ScannerScalarComparer {
         current_value_ref: &DataValue,
         compare_value_ref: &DataValue,
         compare_delta_value: &DataValue
-    )-> bool {
+    ) -> bool {
         match (current_value_ref, compare_value_ref) {
             (DataValue::U8(a), DataValue::U8(b)) => *a == b.wrapping_add(compare_delta_value.as_u8().unwrap()),
             (DataValue::I8(a), DataValue::I8(b)) => *a == b.wrapping_add(compare_delta_value.as_i8().unwrap()),
@@ -173,7 +182,7 @@ impl ScannerScalarComparer {
         current_value_ref: &DataValue,
         compare_value_ref: &DataValue,
         compare_delta_value: &DataValue
-    )-> bool {
+    ) -> bool {
         match (current_value_ref, compare_value_ref) {
             (DataValue::U8(a), DataValue::U8(b)) => *a == b.wrapping_sub(compare_delta_value.as_u8().unwrap()),
             (DataValue::I8(a), DataValue::I8(b)) => *a == b.wrapping_sub(compare_delta_value.as_i8().unwrap()),

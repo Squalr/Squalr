@@ -60,8 +60,6 @@ impl Scanner for ScannerScalarIterative {
             snapshot_region_filter.get_base_address(),
             aligned_element_count
         );
-        
-        // TODO: Boundary merging on adjacent regions
 
         return results;
     }

@@ -1,9 +1,12 @@
 use crate::values::data_value::DataValue;
 use crate::values::endian::Endian;
+use std::hint::unreachable_unchecked;
+use std::simd::u8x16;
 use std::{fmt, ptr};
 use std::str::FromStr;
 
-pub type DataLoadFunc = unsafe fn(&mut DataValue, *const u8);
+pub type ScalarLoadFunc = unsafe fn(&mut DataValue, *const u8);
+pub type Vector128LoadFunc = unsafe fn(&DataValue) -> u8x16;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DataType {
@@ -72,7 +75,7 @@ impl DataType {
 
     pub fn get_load_memory_function_ptr(
         &self
-    ) -> DataLoadFunc {
+    ) -> ScalarLoadFunc {
         match self {
             DataType::U8() => Self::load_u8,
             DataType::I8() => Self::load_i8,
@@ -295,6 +298,112 @@ impl DataType {
         if let DataValue::BitField { ref mut value, bits } = *field {
             let total_bytes = ((bits + 7) / 8) as usize;
             ptr::copy_nonoverlapping(value_ptr, value.as_mut_ptr(), total_bytes);
+        }
+    }
+
+    pub fn get_load_memory_function_ptr_u8x16(&self) -> Vector128LoadFunc {
+        match self {
+            DataType::U8() => Self::load_u8x16_from_u8,
+            DataType::I8() => Self::load_u8x16_from_i8,
+            DataType::U16(_) => Self::load_u8x16_from_u16,
+            DataType::I16(_) => Self::load_u8x16_from_i16,
+            DataType::U32(_) => Self::load_u8x16_from_u32,
+            DataType::I32(_) => Self::load_u8x16_from_i32,
+            DataType::U64(_) => Self::load_u8x16_from_u64,
+            DataType::I64(_) => Self::load_u8x16_from_i64,
+            _ => panic!("Unsupported type for u8x16 load"),
+        }
+    }
+
+    unsafe fn load_u8x16_from_u8(value: &DataValue) -> u8x16 {
+        match value {
+            DataValue::U8(v) => u8x16::splat(*v),
+            _ => unreachable_unchecked(),
+        }
+    }
+
+    unsafe fn load_u8x16_from_i8(value: &DataValue) -> u8x16 {
+        match value {
+            DataValue::I8(v) => u8x16::splat(*v as u8),
+            _ => unreachable_unchecked(),
+        }
+    }
+
+    unsafe fn load_u8x16_from_u16(value: &DataValue) -> u8x16 {
+        match value {
+            DataValue::U16(v) => {
+                let bytes = v.to_le_bytes();
+                u8x16::from_array([
+                    bytes[0], bytes[1], bytes[0], bytes[1], bytes[0], bytes[1], bytes[0], bytes[1],
+                    bytes[0], bytes[1], bytes[0], bytes[1], bytes[0], bytes[1], bytes[0], bytes[1],
+                ])
+            }
+            _ => unreachable_unchecked(),
+        }
+    }
+
+    unsafe fn load_u8x16_from_i16(value: &DataValue) -> u8x16 {
+        match value {
+            DataValue::I16(v) => {
+                let bytes = v.to_le_bytes();
+                u8x16::from_array([
+                    bytes[0], bytes[1], bytes[0], bytes[1], bytes[0], bytes[1], bytes[0], bytes[1],
+                    bytes[0], bytes[1], bytes[0], bytes[1], bytes[0], bytes[1], bytes[0], bytes[1],
+                ])
+            }
+            _ => unreachable_unchecked(),
+        }
+    }
+
+    unsafe fn load_u8x16_from_u32(value: &DataValue) -> u8x16 {
+        match value {
+            DataValue::U32(v) => {
+                let bytes = v.to_le_bytes();
+                u8x16::from_array([
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[0], bytes[1], bytes[2], bytes[3],
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[0], bytes[1], bytes[2], bytes[3],
+                ])
+            }
+            _ => unreachable_unchecked(),
+        }
+    }
+
+    unsafe fn load_u8x16_from_i32(value: &DataValue) -> u8x16 {
+        match value {
+            DataValue::I32(v) => {
+                let bytes = v.to_le_bytes();
+                u8x16::from_array([
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[0], bytes[1], bytes[2], bytes[3],
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[0], bytes[1], bytes[2], bytes[3],
+                ])
+            }
+            _ => unreachable_unchecked(),
+        }
+    }
+
+    unsafe fn load_u8x16_from_u64(value: &DataValue) -> u8x16 {
+        match value {
+            DataValue::U64(v) => {
+                let bytes = v.to_le_bytes();
+                u8x16::from_array([
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                ])
+            }
+            _ => unreachable_unchecked(),
+        }
+    }
+
+    unsafe fn load_u8x16_from_i64(value: &DataValue) -> u8x16 {
+        match value {
+            DataValue::I64(v) => {
+                let bytes = v.to_le_bytes();
+                u8x16::from_array([
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                    bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                ])
+            }
+            _ => unreachable_unchecked(),
         }
     }
 }

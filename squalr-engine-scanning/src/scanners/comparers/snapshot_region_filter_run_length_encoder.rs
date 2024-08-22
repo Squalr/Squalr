@@ -1,5 +1,3 @@
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
-
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 
 pub struct SnapshotRegionFilterRunLengthEncoder {
@@ -39,29 +37,36 @@ impl SnapshotRegionFilterRunLengthEncoder {
         self.run_length_current_address = self.run_length_current_address.saturating_sub(misalignment_offset);
     }
 
+    /// Encodes the next N bytes as true (ie passing the scan).
     pub fn encode_range(
         &mut self,
-        memory_alignment: MemoryAlignment
+        // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
+        // For scalar scans, this is generally the size of the hardware vector.
+        byte_advance_count: u64
     ) {
-        self.run_length += memory_alignment as u64;
+        self.run_length += byte_advance_count;
         self.is_encoding = true;
     }
 
+    /// Completes the current run length encoding, creating a region filter from the result.
     pub fn finalize_current_encode_unchecked(
         &mut self,
-        memory_alignment: MemoryAlignment,
+        // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
+        // For scalar scans, this is generally the size of the hardware vector.
+        byte_advance_count: u64,
+        // The size of the data type being encoded. This allows us to properly adjust the size of the final run length encoding.
         data_type_size: u64
     ) {
         if self.is_encoding && self.run_length > 0 {
             self.result_regions.push(SnapshotRegionFilter::new(
                 self.run_length_current_address,
-                self.run_length + (data_type_size - memory_alignment as u64),
+                self.run_length + (data_type_size - byte_advance_count),
             ));
             self.run_length_current_address += self.run_length;
             self.run_length = 0;
             self.is_encoding = false;
         }
 
-        self.run_length_current_address += memory_alignment as u64;
+        self.run_length_current_address += byte_advance_count;
     }
 }

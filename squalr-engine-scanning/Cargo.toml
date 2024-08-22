@@ -11,6 +11,7 @@ squalr-engine-common = { path = "../squalr-engine-common" }
 squalr-engine-memory = { path = "../squalr-engine-memory" }
 squalr-engine-processes = { path = "../squalr-engine-processes" }
 bitflags = ">=2.6.0"
+bytemuck = ">=1.17.0"
 futures = ">=0.3.30"
 rangemap = { version = ">=1.5.1" }
 rayon = "1.10.0"
