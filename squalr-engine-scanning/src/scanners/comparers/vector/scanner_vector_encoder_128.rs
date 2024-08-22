@@ -6,6 +6,33 @@ use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use std::borrow::BorrowMut;
 use std::sync::Once;
 
+/*
+Brain dump.
+
+It looks like we have a LOT more options than C# as far as SIMD implementation, although as caveat is that we (as far as I can tell) will not be able
+to easily genericize all SIMD vector legnths.
+
+However, When we perform a scan, we can extract the packed byte results.
+
+This means if scanning for a double with 16 byte vector sizes, we could collapse this vector to 2 bytes containing the result.
+
+This means we are free to, instead of scanning two doubles, scan 16 doubles (ie elements == the full vector size)
+
+We then scan all 16 in an unrolled loop, pack the results together, and ship them back to the encoder as 16 bools.
+
+Although, if I were a madman, I could potentially figure out how to pack 128 scan results into a single vector via bit masking.
+
+Of course this would hit some bad perf issues on scan misses, buuuut considering 70-80% of process memory is all 0s, and this is the bottleneck
+
+Having 128-512 simultaneous encodes in a single scan loop would be fucking insane.
+
+C# never had this flexibility, so I never considered it.
+
+Maybe, just maybe, upon failures we can do per-byte processing that passes the byte to a jump table of 256 entries that do encodes 8 at a time.
+This might be stupid and I could be an idiot, just thinking out loud.
+
+*/
+
 pub struct ScannerVectorEncoder {
 }
 
@@ -48,7 +75,7 @@ impl ScannerVectorEncoder {
         
         unsafe {
             if scan_parameters.is_immediate_comparison() {
-                let mut immediate_value = scan_parameters.deanonymize_type(&data_type).unwrap(); // TODO handle and complain
+                let mut immediate_value = scan_parameters.deanonymize_type(&data_type);
                 let immediate_value = memory_load_func(immediate_value.borrow_mut());
                 let compare_func = comparer.get_immediate_compare_func(scan_parameters.get_compare_type());
 
@@ -94,7 +121,7 @@ impl ScannerVectorEncoder {
                 }
             } else if scan_parameters.is_immediate_comparison() {
                 let compare_func = comparer.get_immediate_compare_func(scan_parameters.get_compare_type());
-                let delta_arg = memory_load_func(&scan_parameters.deanonymize_type(&data_type).unwrap()); // TODO handle and complain
+                let delta_arg = memory_load_func(&scan_parameters.deanonymize_type(&data_type));
 
                 for index in 0..element_count {
                     let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);

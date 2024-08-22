@@ -1,7 +1,9 @@
+use squalr_engine_common::values::data_type::DataType;
+
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
 use std::sync::Once;
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
-use std::simd::u8x16;
+use std::simd::{i16x8, i32x4, i8x16, mask16x8, u16x8, u32x4, u8x16};
 use std::simd::mask8x16;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)
@@ -99,7 +101,24 @@ impl ScannerVectorComparer {
         }
     }
 
-    
+    // Doesn't really work that well since for larger types we would need to somehow cast out the bytes to a larger type idk
+    // Maybe if we start packing results into a u8x16 then it doesn't matter
+    // Need to think on this more.
+    unsafe fn get_compare_equal(
+        data_type: DataType,
+    ) -> VectorCompareFnImmediate {
+        match data_type {
+            DataType::U8() => {
+                unsafe fn compare(current_value_pointer: *const u8, compare_value_ref: u8x16) -> mask8x16 {
+                    let current = ScannerVectorComparer::load_u8x16_from_raw_ptr(current_value_pointer);
+                    return current.simd_eq(compare_value_ref);
+                }
+                compare
+            },
+            _ => panic!("Unsupported type"),
+        }
+    }
+
     unsafe fn compare_equal(
         current_value_pointer: *const u8,
         compare_value_ref: u8x16

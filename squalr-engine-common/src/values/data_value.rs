@@ -178,6 +178,40 @@ impl DataValue {
             _ => None,
         };
     }
+
+    pub fn as_ptr(&self) -> *const u8 {
+        match self {
+            DataValue::U8(v) => v as *const u8,
+            DataValue::U16(v) => v as *const u16 as *const u8,
+            DataValue::U32(v) => v as *const u32 as *const u8,
+            DataValue::U64(v) => v as *const u64 as *const u8,
+            DataValue::I8(v) => v as *const i8 as *const u8,
+            DataValue::I16(v) => v as *const i16 as *const u8,
+            DataValue::I32(v) => v as *const i32 as *const u8,
+            DataValue::I64(v) => v as *const i64 as *const u8,
+            DataValue::F32(v) => v as *const f32 as *const u8,
+            DataValue::F64(v) => v as *const f64 as *const u8,
+            DataValue::Bytes(v) => v.as_ptr(),
+            DataValue::BitField { value, .. } => value.as_ptr(),
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            DataValue::U8(v) => v.to_le_bytes().to_vec(),
+            DataValue::U16(v) => v.to_le_bytes().to_vec(),
+            DataValue::U32(v) => v.to_le_bytes().to_vec(),
+            DataValue::U64(v) => v.to_le_bytes().to_vec(),
+            DataValue::I8(v) => v.to_le_bytes().to_vec(),
+            DataValue::I16(v) => v.to_le_bytes().to_vec(),
+            DataValue::I32(v) => v.to_le_bytes().to_vec(),
+            DataValue::I64(v) => v.to_le_bytes().to_vec(),
+            DataValue::F32(v) => v.to_le_bytes().to_vec(),
+            DataValue::F64(v) => v.to_le_bytes().to_vec(),
+            DataValue::Bytes(v) => v.clone(),
+            DataValue::BitField { value, .. } => value.clone(),
+        }
+    }
 }
 
 impl FromStr for DataValue {

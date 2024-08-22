@@ -36,15 +36,11 @@ impl ScanParameters {
     pub fn deanonymize_type(
         &self,
         data_type: &DataType,
-    ) -> Option<DataValue> {
-        if let Some(value) = &self.compare_immediate {
-            return match value.deanonymize_type(data_type) {
-                Ok(result) => Some(result),
-                Err(_) => None,
-            };
-        }
-
-        return None;
+    ) -> DataValue {
+        return self.compare_immediate
+            .as_ref()
+            .and_then(|value| value.deanonymize_type(data_type).ok())
+            .unwrap_or_else(|| panic!("Invalid type"));
     }
 
     pub fn get_compare_immediate(
