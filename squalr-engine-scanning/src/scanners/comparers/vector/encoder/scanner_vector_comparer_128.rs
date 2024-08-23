@@ -1,11 +1,9 @@
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::data_type::DataType;
-use std::arch::x86_64::{
-    _mm_castsi128_pd, _mm_castsi128_ps, _mm_cmpeq_epi16, _mm_cmpeq_epi32, _mm_cmpeq_epi64, _mm_cmpeq_epi8, _mm_cvtsi32_si128, _mm_loadu_si128, _mm_movemask_epi8, _mm_movemask_pd, _mm_movemask_ps, _mm_set1_epi16, _mm_set1_epi32, _mm_set1_epi64x, _mm_set1_epi8
-};
-use std::arch::x86_64::__m128i;
-use std::convert::identity;
-use std::simd::u8x16;
+use seq_macro::seq;
+use std::ops::BitAnd;
+use std::simd::cmp::SimdPartialEq;
+use std::simd::{i16x8, i32x4, i64x2, i8x16, u16x8, u32x4, u64x2, u8x16, Mask};
 use std::sync::Once;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)
@@ -100,169 +98,51 @@ impl ScannerVectorComparer {
     }
 
     fn get_compare_equal(&self, data_type: &DataType) -> VectorCompareFnImmediate {
-        macro_rules! unroll_blocks_generic {(
-            $num_blocks:expr,
-            $simd_type:ty,
-            $load_intrinsic:ident,
-            $cmp_intrinsic:ident,
-            $movemask_intrinsic:ident,
-            $cast_intrinsic:ident,
-            $immediate:expr,
-            $current_values_ptr:expr,
-            $element_size:expr
-            ) => {{
-                let immediate = $immediate;
-                let mut bitmask_accum = 0i32;
-        
-                for i in 0..$num_blocks {
-                    let values = $load_intrinsic($current_values_ptr.add(i * 16) as *const $simd_type);
-                    let cmp_mask = $cmp_intrinsic(values, immediate);
-                    let bitmask = $movemask_intrinsic($cast_intrinsic(cmp_mask)) as i32;
-                    let shift = ($element_size * i) & 31;
-                    bitmask_accum |= bitmask << shift;
-                }
-        
-                bitmask_accum
-            }};
-        }
-        
         match data_type {
             DataType::U8() => |current_values_ptr, immediate_ptr: *const u8| {
-                unsafe {
-                    let immediate = _mm_set1_epi8(*immediate_ptr as i8);
-                    let bitmask_accum = unroll_blocks_generic!(
-                        8,
-                        __m128i,
-                        _mm_loadu_si128,
-                        _mm_cmpeq_epi8,
-                        _mm_movemask_epi8,
-                        identity, // No cast needed
-                        immediate,
-                        current_values_ptr,
-                        16
-                    );
-                    return _mm_cvtsi32_si128(bitmask_accum).into();
-                }
+                panic!("not implemented");
             },
             DataType::I8() => |current_values_ptr: *const u8, immediate_ptr| {
-                unsafe {
-                    let immediate = _mm_set1_epi16(*(immediate_ptr as *const u16) as i16);
-                    let bitmask_accum = unroll_blocks_generic!(
-                        16,
-                        __m128i,
-                        _mm_loadu_si128,
-                        _mm_cmpeq_epi16,
-                        _mm_movemask_epi8,
-                        identity, // No cast needed
-                        immediate,
-                        current_values_ptr,
-                        8
-                    );
-                    return _mm_cvtsi32_si128(bitmask_accum).into();
-                }
+                panic!("not implemented");
             },
             DataType::U16(_) => |current_values_ptr, immediate_ptr| {
-                unsafe {
-                    let immediate = _mm_set1_epi16(*(immediate_ptr as *const u16) as i16);
-                    let bitmask_accum = unroll_blocks_generic!(
-                        16,
-                        __m128i,
-                        _mm_loadu_si128,
-                        _mm_cmpeq_epi16,
-                        _mm_movemask_epi8,
-                        identity, // No cast needed
-                        immediate,
-                        current_values_ptr,
-                        8
-                    );
-                    return _mm_cvtsi32_si128(bitmask_accum).into();
-                }
+                panic!("not implemented");
             },
             DataType::I16(_) => |current_values_ptr, immediate_ptr| {
-                unsafe {
-                    let immediate = _mm_set1_epi16(*(immediate_ptr as *const i16));
-                    let bitmask_accum = unroll_blocks_generic!(
-                        16,
-                        __m128i,
-                        _mm_loadu_si128,
-                        _mm_cmpeq_epi16,
-                        _mm_movemask_epi8,
-                        identity, // No cast needed
-                        immediate,
-                        current_values_ptr,
-                        8
-                    );
-                    return _mm_cvtsi32_si128(bitmask_accum).into();
-                }
+                panic!("not implemented");
             },
             DataType::U32(_) => |current_values_ptr, immediate_ptr| {
                 unsafe {
-                    let immediate = _mm_set1_epi32(*(immediate_ptr as *const u32) as i32);
-                    let bitmask_accum = unroll_blocks_generic!(
-                        32,
-                        __m128i,
-                        _mm_loadu_si128,
-                        _mm_cmpeq_epi32,
-                        _mm_movemask_ps,
-                        _mm_castsi128_ps,
-                        immediate,
-                        current_values_ptr,
-                        4
-                    );
+                    let immediate_value = u32x4::splat(*(immediate_ptr as *const u32));
+                    
+                    let current_values_0 = u32x4::from_array(*(current_values_ptr.add(0 * 16) as *const [u32; 128 / 32]));
+                    let current_values_1 = u32x4::from_array(*(current_values_ptr.add(1 * 16) as *const [u32; 128 / 32]));
+                    let current_values_2 = u32x4::from_array(*(current_values_ptr.add(2 * 16) as *const [u32; 128 / 32]));
+                    let current_values_3 = u32x4::from_array(*(current_values_ptr.add(3 * 16) as *const [u32; 128 / 32]));
 
-                    return u8x16::from(_mm_cvtsi32_si128(bitmask_accum));
+                    let results_0 = current_values_0.simd_eq(immediate_value).to_array();
+                    let results_1 = current_values_1.simd_eq(immediate_value).to_array();
+                    let results_2 = current_values_2.simd_eq(immediate_value).to_array();
+                    let results_3 = current_values_3.simd_eq(immediate_value).to_array();
+
+                    let mut packed = [0u8; 16];
+                                        
+                    packed[0..4].copy_from_slice(&results_0.map(|b| b as u8));
+                    packed[4..8].copy_from_slice(&results_1.map(|b| b as u8));
+                    packed[8..12].copy_from_slice(&results_2.map(|b| b as u8));
+                    packed[12..16].copy_from_slice(&results_3.map(|b| b as u8));
+
+                    return u8x16::from_array(packed);
                 }
             },
             DataType::I32(_) => |current_values_ptr, immediate_ptr| {
-                unsafe {
-                    let immediate = _mm_set1_epi32(*(immediate_ptr as *const i32));
-                    let bitmask_accum = unroll_blocks_generic!(
-                        32,
-                        __m128i,
-                        _mm_loadu_si128,
-                        _mm_cmpeq_epi32,
-                        _mm_movemask_ps,
-                        _mm_castsi128_ps,
-                        immediate,
-                        current_values_ptr,
-                        4
-                    );
-                    return _mm_cvtsi32_si128(bitmask_accum).into();
-                }
+                panic!("not implemented");
             },
             DataType::U64(_) => |current_values_ptr, immediate_ptr| {
-                unsafe {
-                    let immediate = _mm_set1_epi64x(*(immediate_ptr as *const u64) as i64);
-                    let bitmask_accum = unroll_blocks_generic!(
-                        64,
-                        __m128i,
-                        _mm_loadu_si128,
-                        _mm_cmpeq_epi64,
-                        _mm_movemask_pd,
-                        _mm_castsi128_pd,
-                        immediate,
-                        current_values_ptr,
-                        2
-                    );
-                    return _mm_cvtsi32_si128(bitmask_accum).into();
-                }
+                panic!("not implemented");
             },
             DataType::I64(_) => |current_values_ptr, immediate_ptr| {
-                unsafe {
-                    let immediate = _mm_set1_epi64x(*(immediate_ptr as *const i64));
-                    let bitmask_accum = unroll_blocks_generic!(
-                        64,
-                        __m128i,
-                        _mm_loadu_si128,
-                        _mm_cmpeq_epi64,
-                        _mm_movemask_pd,
-                        _mm_castsi128_pd,
-                        immediate,
-                        current_values_ptr,
-                        2
-                    );
-                    return _mm_cvtsi32_si128(bitmask_accum).into();
-                }
+                panic!("not implemented");
             },
             DataType::F32(endian) => {
                 panic!("not implemented");

@@ -111,7 +111,7 @@ impl ScanDispatcher {
                     // return ScannerVectorArrayOfBytes::get_instance();
                 }
                 _ => {
-                    if element_count % 128 == 0 {
+                    if element_count % 16 == 0 {
                         return ScannerVectorAligned::get_instance();
                     }
                     /*
