@@ -1,7 +1,7 @@
 use squalr_engine_common::values::data_type::DataType;
 
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
-use std::{arch::x86_64::{__m128i, _mm_castsi128_ps, _mm_cmpeq_epi32, _mm_loadu_si128, _mm_loadu_si32, _mm_movemask_ps, _mm_or_si128, _mm_packs_epi16, _mm_packs_epi32, _mm_set1_epi32, _mm_set1_epi8, _mm_slli_epi32, _mm_storeu_si128}, simd::{cmp::SimdPartialEq, f32x4, i16x8, i32x4, i64x2, i8x16, mask8x16, u16x8, u32x16, u32x4, u32x8, u64x2, u8x16, Mask, Simd}, sync::Once};
+use std::{arch::x86_64::{__m128i, _mm_castsi128_ps, _mm_cmpeq_epi32, _mm_cvtsi32_si128, _mm_loadu_si128, _mm_loadu_si32, _mm_movemask_ps, _mm_or_si128, _mm_packs_epi16, _mm_packs_epi32, _mm_set1_epi32, _mm_set1_epi8, _mm_slli_epi32, _mm_storeu_si128}, simd::{cmp::SimdPartialEq, f32x4, i16x8, i32x4, i64x2, i8x16, mask8x16, u16x8, u32x16, u32x4, u32x8, u64x2, u8x16, Mask, Simd}, sync::Once};
 use std::arch::x86_64::_mm_movemask_epi8;
 use std::arch::x86_64::_mm_setzero_si128;
 
@@ -139,37 +139,41 @@ impl ScannerVectorComparer {
             },
             DataType::U32(_) => |current_values_ptr, immediate_ptr| {
                 unsafe {
-                    // Load the immediate value and broadcast it to all lanes of a 128-bit register
+                    // Load the immediate value and broadcast it to all lanes of a 128-bit register.
                     let immediate = *(immediate_ptr as *const u32);
                     let immediate_simd = _mm_set1_epi32(immediate as i32);
-            
-                    // Initialize a zeroed result array of 128 bits (16 bytes)
-                    let mut result_array = [0u8; 16];
 
-                    // Iterate over chunks of 16 bytes (4 u32 values)
-                    for i in 0..32 {
-                        // Load 16 bytes (4 u32 values) from current_values_ptr into an __m128i register
-                        let values_simd = _mm_loadu_si128(current_values_ptr.add(i * 16) as *const __m128i);
-
-                        // Compare the 4 u32 values with the immediate value in parallel
-                        let cmp_mask = _mm_cmpeq_epi32(values_simd, immediate_simd);
-
-                        // Convert the comparison result to a bitmask
-                        let bitmask = _mm_movemask_ps(_mm_castsi128_ps(cmp_mask));
-
-                        // Set the corresponding bits in the result array based on the bitmask
-                        for j in 0..4 {
-                            if (bitmask & (1 << j)) != 0 {
-                                let bit_index = i * 4 + j;
-                                let byte = bit_index / 8;
-                                let bit = bit_index % 8;
-                                result_array[byte] |= 1 << bit;
+                    // A macro to perform loop unrolling for SIMD vector packing operations.
+                    macro_rules! unroll_blocks {
+                        ($num_blocks:expr) => {
+                            {
+                                let mut bitmask_accum = 0i32;
+                                
+                                // This for loop will be unrolled by the macro into a long sequence of linear instructions.
+                                for i in 0..$num_blocks {
+                                    // Load 4 integers into a single SIMD register (4 bytes each * 4 integers = 16 bytes = 128 bits).
+                                    let values = _mm_loadu_si128(current_values_ptr.add(i * 16) as *const __m128i);
+                                    // Simultaneously compare all 4 integers to the immediate value provided.
+                                    let cmp_mask = _mm_cmpeq_epi32(values, immediate_simd);
+                                    // Extract the results of the comparison into a bitmask.
+                                    let bitmask = _mm_movemask_ps(_mm_castsi128_ps(cmp_mask)) as i32;
+                                    
+                                    bitmask_accum |= bitmask << ((i * 4) & 31);
+                                }
+                    
+                                bitmask_accum
                             }
-                        }
+                        };
                     }
-
-                    // Return the final result as a __m128i (u8x16)
-                    u8x16::from(result_array)
+                    
+                    // Perform the scan and pack all 128 comparisons into a single bitmask.
+                    let bitmask_accum = unroll_blocks!(32);
+                
+                    // Convert the accumulated bitmask to a __m128i result.
+                    let result_simd = _mm_cvtsi32_si128(bitmask_accum);
+                
+                    // Return the final result as a u8x16.
+                    u8x16::from(result_simd)
                 }
                 /*
                 let immediate = unsafe { *(immediate_ptr as *const u32) };

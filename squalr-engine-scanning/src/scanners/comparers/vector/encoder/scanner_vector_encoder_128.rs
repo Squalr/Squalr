@@ -30,23 +30,6 @@ impl ScannerVectorEncoder {
         }
     }
 
-    fn debug_results(v: u8x16) -> [[bool; 8]; 16] {
-        // Convert u8x16 to a regular array of 16 bytes
-        let bytes: [u8; 16] = v.to_array();
-    
-        // Initialize the result as a 2D array of booleans
-        let mut result = [[false; 8]; 16];
-
-        // Fill the result array with boolean values
-        for (i, &byte) in bytes.iter().enumerate() {
-            for j in 0..8 {
-                result[i][j] = (byte & (1 << j)) != 0;
-            }
-        }
-    
-        result
-    }
-
     fn unpack_vec(input: u8x16) -> [u8x16; 8] {
         let mut result = [u8x16::splat(0); 8];
 
@@ -103,6 +86,8 @@ impl ScannerVectorEncoder {
                         else {
                             // Otherwise, it's still a mix, and now we need to manually check each byte.
                             for byte_index in 0..16 {
+                                // Remap the index to the packing order of the hardware vector.
+                                let byte_index = (byte_index % 8) * 2 + (byte_index / 8);
                                 if unpacked_vector[byte_index] == 0xFF {
                                     run_length_encoder.encode_range(data_type_size);
                                 } else {
@@ -121,8 +106,6 @@ impl ScannerVectorEncoder {
                 for index in 0..iterations {
                     let current_value_pointer = current_value_pointer.add(index as usize * 128 * data_type_size as usize);
                     let compare_result = compare_func(current_value_pointer, immediate_value);
-
-                    // let dbg = Self::debug_results(compare_result);
 
                     encode_results(compare_result);
                 }
