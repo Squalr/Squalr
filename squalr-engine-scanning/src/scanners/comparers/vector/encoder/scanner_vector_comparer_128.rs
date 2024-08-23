@@ -1,9 +1,12 @@
-use squalr_engine_common::values::data_type::DataType;
-
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
-use std::{arch::x86_64::{__m128i, _mm_castsi128_ps, _mm_cmpeq_epi32, _mm_cvtsi32_si128, _mm_loadu_si128, _mm_loadu_si32, _mm_movemask_ps, _mm_or_si128, _mm_packs_epi16, _mm_packs_epi32, _mm_set1_epi32, _mm_set1_epi8, _mm_slli_epi32, _mm_storeu_si128}, simd::{cmp::SimdPartialEq, f32x4, i16x8, i32x4, i64x2, i8x16, mask8x16, u16x8, u32x16, u32x4, u32x8, u64x2, u8x16, Mask, Simd}, sync::Once};
-use std::arch::x86_64::_mm_movemask_epi8;
-use std::arch::x86_64::_mm_setzero_si128;
+use squalr_engine_common::values::data_type::DataType;
+use std::arch::x86_64::{
+    _mm_castsi128_pd, _mm_castsi128_ps, _mm_cmpeq_epi16, _mm_cmpeq_epi32, _mm_cmpeq_epi64, _mm_cmpeq_epi8, _mm_cvtsi32_si128, _mm_loadu_si128, _mm_movemask_epi8, _mm_movemask_pd, _mm_movemask_ps, _mm_set1_epi16, _mm_set1_epi32, _mm_set1_epi64x, _mm_set1_epi8
+};
+use std::arch::x86_64::__m128i;
+use std::convert::identity;
+use std::simd::u8x16;
+use std::sync::Once;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)
 type VectorCompareFnImmediate = unsafe fn(
@@ -97,199 +100,175 @@ impl ScannerVectorComparer {
     }
 
     fn get_compare_equal(&self, data_type: &DataType) -> VectorCompareFnImmediate {
+        macro_rules! unroll_blocks_generic {(
+            $num_blocks:expr,
+            $simd_type:ty,
+            $load_intrinsic:ident,
+            $cmp_intrinsic:ident,
+            $movemask_intrinsic:ident,
+            $cast_intrinsic:ident,
+            $immediate:expr,
+            $current_values_ptr:expr,
+            $element_size:expr
+            ) => {{
+                let immediate = $immediate;
+                let mut bitmask_accum = 0i32;
+        
+                for i in 0..$num_blocks {
+                    let values = $load_intrinsic($current_values_ptr.add(i * 16) as *const $simd_type);
+                    let cmp_mask = $cmp_intrinsic(values, immediate);
+                    let bitmask = $movemask_intrinsic($cast_intrinsic(cmp_mask)) as i32;
+                    let shift = ($element_size * i) & 31;
+                    bitmask_accum |= bitmask << shift;
+                }
+        
+                bitmask_accum
+            }};
+        }
+        
         match data_type {
             DataType::U8() => |current_values_ptr, immediate_ptr: *const u8| {
-                let immediate = unsafe { u8x16::splat(*immediate_ptr) };
-                let v1 = unsafe { u8x16::from_slice(std::slice::from_raw_parts(current_values_ptr, 16)) };
-                // v1.simd_eq(immediate)
-                panic!("stupid");
+                unsafe {
+                    let immediate = _mm_set1_epi8(*immediate_ptr as i8);
+                    let bitmask_accum = unroll_blocks_generic!(
+                        8,
+                        __m128i,
+                        _mm_loadu_si128,
+                        _mm_cmpeq_epi8,
+                        _mm_movemask_epi8,
+                        identity, // No cast needed
+                        immediate,
+                        current_values_ptr,
+                        16
+                    );
+                    return _mm_cvtsi32_si128(bitmask_accum).into();
+                }
             },
             DataType::I8() => |current_values_ptr: *const u8, immediate_ptr| {
-                let immediate = unsafe { i8x16::splat(*(immediate_ptr as *const i8)) };
-                let v1 = unsafe { i8x16::from_slice(std::slice::from_raw_parts(current_values_ptr as *const i8, 16)) };
-                // v1.simd_eq(immediate).cast()
-                panic!("stupid");
+                unsafe {
+                    let immediate = _mm_set1_epi16(*(immediate_ptr as *const u16) as i16);
+                    let bitmask_accum = unroll_blocks_generic!(
+                        16,
+                        __m128i,
+                        _mm_loadu_si128,
+                        _mm_cmpeq_epi16,
+                        _mm_movemask_epi8,
+                        identity, // No cast needed
+                        immediate,
+                        current_values_ptr,
+                        8
+                    );
+                    return _mm_cvtsi32_si128(bitmask_accum).into();
+                }
             },
             DataType::U16(_) => |current_values_ptr, immediate_ptr| {
-                let immediate = unsafe { u16x8::splat(*(immediate_ptr as *const u16)) };
-                let v1 = unsafe { u16x8::from_slice(std::slice::from_raw_parts(current_values_ptr as *const u16, 8)) };
-                let v2 = unsafe { u16x8::from_slice(std::slice::from_raw_parts((current_values_ptr.add(16)) as *const u16, 8)) };
-                let v1_res = v1.simd_eq(immediate).cast::<i8>();
-                let v2_res = v2.simd_eq(immediate).cast::<i8>();
-
-                let mut combined_array = [false; 16];
-                combined_array[..8].copy_from_slice(&v1_res.to_array());
-                combined_array[8..].copy_from_slice(&v2_res.to_array());
-
-                panic!("stupid");
+                unsafe {
+                    let immediate = _mm_set1_epi16(*(immediate_ptr as *const u16) as i16);
+                    let bitmask_accum = unroll_blocks_generic!(
+                        16,
+                        __m128i,
+                        _mm_loadu_si128,
+                        _mm_cmpeq_epi16,
+                        _mm_movemask_epi8,
+                        identity, // No cast needed
+                        immediate,
+                        current_values_ptr,
+                        8
+                    );
+                    return _mm_cvtsi32_si128(bitmask_accum).into();
+                }
             },
             DataType::I16(_) => |current_values_ptr, immediate_ptr| {
-                let immediate = unsafe { i16x8::splat(*(immediate_ptr as *const i16)) };
-                let v1 = unsafe { i16x8::from_slice(std::slice::from_raw_parts(current_values_ptr as *const i16, 8)) };
-                let v2 = unsafe { i16x8::from_slice(std::slice::from_raw_parts((current_values_ptr.add(16)) as *const i16, 8)) };
-                let v1_res = v1.simd_eq(immediate).cast::<i8>();
-                let v2_res = v2.simd_eq(immediate).cast::<i8>();
-
-                let mut combined_array = [false; 16];
-                combined_array[..8].copy_from_slice(&v1_res.to_array());
-                combined_array[8..].copy_from_slice(&v2_res.to_array());
-
-                // Mask::from_array(combined_array)
-                panic!("stupid");
+                unsafe {
+                    let immediate = _mm_set1_epi16(*(immediate_ptr as *const i16));
+                    let bitmask_accum = unroll_blocks_generic!(
+                        16,
+                        __m128i,
+                        _mm_loadu_si128,
+                        _mm_cmpeq_epi16,
+                        _mm_movemask_epi8,
+                        identity, // No cast needed
+                        immediate,
+                        current_values_ptr,
+                        8
+                    );
+                    return _mm_cvtsi32_si128(bitmask_accum).into();
+                }
             },
             DataType::U32(_) => |current_values_ptr, immediate_ptr| {
                 unsafe {
-                    // Load the immediate value and broadcast it to all lanes of a 128-bit register.
-                    let immediate = *(immediate_ptr as *const u32);
-                    let immediate_simd = _mm_set1_epi32(immediate as i32);
+                    let immediate = _mm_set1_epi32(*(immediate_ptr as *const u32) as i32);
+                    let bitmask_accum = unroll_blocks_generic!(
+                        32,
+                        __m128i,
+                        _mm_loadu_si128,
+                        _mm_cmpeq_epi32,
+                        _mm_movemask_ps,
+                        _mm_castsi128_ps,
+                        immediate,
+                        current_values_ptr,
+                        4
+                    );
 
-                    // A macro to perform loop unrolling for SIMD vector packing operations.
-                    macro_rules! unroll_blocks {
-                        ($num_blocks:expr) => {
-                            {
-                                let mut bitmask_accum = 0i32;
-                                
-                                // This for loop will be unrolled by the macro into a long sequence of linear instructions.
-                                for i in 0..$num_blocks {
-                                    // Load 4 integers into a single SIMD register (4 bytes each * 4 integers = 16 bytes = 128 bits).
-                                    let values = _mm_loadu_si128(current_values_ptr.add(i * 16) as *const __m128i);
-                                    // Simultaneously compare all 4 integers to the immediate value provided.
-                                    let cmp_mask = _mm_cmpeq_epi32(values, immediate_simd);
-                                    // Extract the results of the comparison into a bitmask.
-                                    let bitmask = _mm_movemask_ps(_mm_castsi128_ps(cmp_mask)) as i32;
-                                    
-                                    bitmask_accum |= bitmask << ((i * 4) & 31);
-                                }
-                    
-                                bitmask_accum
-                            }
-                        };
-                    }
-                    
-                    // Perform the scan and pack all 128 comparisons into a single bitmask.
-                    let bitmask_accum = unroll_blocks!(32);
-                
-                    // Convert the accumulated bitmask to a __m128i result.
-                    let result_simd = _mm_cvtsi32_si128(bitmask_accum);
-                
-                    // Return the final result as a u8x16.
-                    u8x16::from(result_simd)
+                    return u8x16::from(_mm_cvtsi32_si128(bitmask_accum));
                 }
-                /*
-                let immediate = unsafe { *(immediate_ptr as *const u32) };
-                let immediate_simd = u32x4::splat(immediate);
-                let mut result_array = [0u8; 16];
-                
-                unsafe {
-                let immediate = unsafe { *(immediate_ptr as *const u32) };
-                let mut result_array = [0u8; 16];
-            
-                unsafe {
-                    // Iterate through all u32 values (128 integers)
-                    for i in 0..128 {
-                        let value = *(current_values_ptr.add(i * 4) as *const u32);
-            
-                        if value == immediate {
-                            let byte = i / 8;  // Determine which byte to update
-                            let bit = i % 8;   // Determine which bit in that byte
-                            result_array[byte] |= 1 << bit;  // Set the appropriate bit
-                        }
-                    }
-                }
-            
-                u8x16::from(result_array) */
             },
             DataType::I32(_) => |current_values_ptr, immediate_ptr| {
-                let immediate = unsafe { i32x4::splat(*(immediate_ptr as *const i32)) };
-                let v1 = unsafe { i32x4::from_slice(std::slice::from_raw_parts(current_values_ptr as *const i32, 4)) };
-                let v2 = unsafe { i32x4::from_slice(std::slice::from_raw_parts((current_values_ptr.add(16)) as *const i32, 4)) };
-                let v3 = unsafe { i32x4::from_slice(std::slice::from_raw_parts((current_values_ptr.add(32)) as *const i32, 4)) };
-                let v4 = unsafe { i32x4::from_slice(std::slice::from_raw_parts((current_values_ptr.add(48)) as *const i32, 4)) };
-                let v1_res = v1.simd_eq(immediate).cast::<i8>();
-                let v2_res = v2.simd_eq(immediate).cast::<i8>();
-                let v3_res = v3.simd_eq(immediate).cast::<i8>();
-                let v4_res = v4.simd_eq(immediate).cast::<i8>();
-    
-                let mut combined_array = [false; 16];
-                combined_array[..4].copy_from_slice(&v1_res.to_array());
-                combined_array[4..8].copy_from_slice(&v2_res.to_array());
-                combined_array[8..12].copy_from_slice(&v3_res.to_array());
-                combined_array[12..].copy_from_slice(&v4_res.to_array());
-    
-                // Mask::from_array(combined_array)
-                panic!("stupid");
+                unsafe {
+                    let immediate = _mm_set1_epi32(*(immediate_ptr as *const i32));
+                    let bitmask_accum = unroll_blocks_generic!(
+                        32,
+                        __m128i,
+                        _mm_loadu_si128,
+                        _mm_cmpeq_epi32,
+                        _mm_movemask_ps,
+                        _mm_castsi128_ps,
+                        immediate,
+                        current_values_ptr,
+                        4
+                    );
+                    return _mm_cvtsi32_si128(bitmask_accum).into();
+                }
             },
             DataType::U64(_) => |current_values_ptr, immediate_ptr| {
-                let immediate = unsafe { u64x2::splat(*(immediate_ptr as *const u64)) };
-                let v1 = unsafe { u64x2::from_slice(std::slice::from_raw_parts(current_values_ptr as *const u64, 2)) };
-                let v2 = unsafe { u64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(16)) as *const u64, 2)) };
-                let v3 = unsafe { u64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(32)) as *const u64, 2)) };
-                let v4 = unsafe { u64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(48)) as *const u64, 2)) };
-                let v5 = unsafe { u64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(64)) as *const u64, 2)) };
-                let v6 = unsafe { u64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(80)) as *const u64, 2)) };
-                let v7 = unsafe { u64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(96)) as *const u64, 2)) };
-                let v8 = unsafe { u64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(112)) as *const u64, 2)) };
-            
-                let v1_res = v1.simd_eq(immediate).cast::<i8>();
-                let v2_res = v2.simd_eq(immediate).cast::<i8>();
-                let v3_res = v3.simd_eq(immediate).cast::<i8>();
-                let v4_res = v4.simd_eq(immediate).cast::<i8>();
-                let v5_res = v5.simd_eq(immediate).cast::<i8>();
-                let v6_res = v6.simd_eq(immediate).cast::<i8>();
-                let v7_res = v7.simd_eq(immediate).cast::<i8>();
-                let v8_res = v8.simd_eq(immediate).cast::<i8>();
-            
-                let mut combined_array = [false; 16];
-                combined_array[..2].copy_from_slice(&v1_res.to_array());
-                combined_array[2..4].copy_from_slice(&v2_res.to_array());
-                combined_array[4..6].copy_from_slice(&v3_res.to_array());
-                combined_array[6..8].copy_from_slice(&v4_res.to_array());
-                combined_array[8..10].copy_from_slice(&v5_res.to_array());
-                combined_array[10..12].copy_from_slice(&v6_res.to_array());
-                combined_array[12..14].copy_from_slice(&v7_res.to_array());
-                combined_array[14..16].copy_from_slice(&v8_res.to_array());
-            
-                // Mask::from_array(combined_array)
-                panic!("stupid");
+                unsafe {
+                    let immediate = _mm_set1_epi64x(*(immediate_ptr as *const u64) as i64);
+                    let bitmask_accum = unroll_blocks_generic!(
+                        64,
+                        __m128i,
+                        _mm_loadu_si128,
+                        _mm_cmpeq_epi64,
+                        _mm_movemask_pd,
+                        _mm_castsi128_pd,
+                        immediate,
+                        current_values_ptr,
+                        2
+                    );
+                    return _mm_cvtsi32_si128(bitmask_accum).into();
+                }
             },
             DataType::I64(_) => |current_values_ptr, immediate_ptr| {
-                let immediate = unsafe { i64x2::splat(*(immediate_ptr as *const i64)) };
-                let v1 = unsafe { i64x2::from_slice(std::slice::from_raw_parts(current_values_ptr as *const i64, 2)) };
-                let v2 = unsafe { i64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(16)) as *const i64, 2)) };
-                let v3 = unsafe { i64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(32)) as *const i64, 2)) };
-                let v4 = unsafe { i64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(48)) as *const i64, 2)) };
-                let v5 = unsafe { i64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(64)) as *const i64, 2)) };
-                let v6 = unsafe { i64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(80)) as *const i64, 2)) };
-                let v7 = unsafe { i64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(96)) as *const i64, 2)) };
-                let v8 = unsafe { i64x2::from_slice(std::slice::from_raw_parts((current_values_ptr.add(112)) as *const i64, 2)) };
-
-                let v1_res = v1.simd_eq(immediate).cast::<i8>();
-                let v2_res = v2.simd_eq(immediate).cast::<i8>();
-                let v3_res = v3.simd_eq(immediate).cast::<i8>();
-                let v4_res = v4.simd_eq(immediate).cast::<i8>();
-                let v5_res = v5.simd_eq(immediate).cast::<i8>();
-                let v6_res = v6.simd_eq(immediate).cast::<i8>();
-                let v7_res = v7.simd_eq(immediate).cast::<i8>();
-                let v8_res = v8.simd_eq(immediate).cast::<i8>();
-            
-                let mut combined_array = [false; 16];
-                combined_array[..2].copy_from_slice(&v1_res.to_array());
-                combined_array[2..4].copy_from_slice(&v2_res.to_array());
-                combined_array[4..6].copy_from_slice(&v3_res.to_array());
-                combined_array[6..8].copy_from_slice(&v4_res.to_array());
-                combined_array[8..10].copy_from_slice(&v5_res.to_array());
-                combined_array[10..12].copy_from_slice(&v6_res.to_array());
-                combined_array[12..14].copy_from_slice(&v7_res.to_array());
-                combined_array[14..16].copy_from_slice(&v8_res.to_array());
-            
-                // Mask::from_array(combined_array)
-                panic!("stupid");
+                unsafe {
+                    let immediate = _mm_set1_epi64x(*(immediate_ptr as *const i64));
+                    let bitmask_accum = unroll_blocks_generic!(
+                        64,
+                        __m128i,
+                        _mm_loadu_si128,
+                        _mm_cmpeq_epi64,
+                        _mm_movemask_pd,
+                        _mm_castsi128_pd,
+                        immediate,
+                        current_values_ptr,
+                        2
+                    );
+                    return _mm_cvtsi32_si128(bitmask_accum).into();
+                }
             },
             DataType::F32(endian) => {
-                panic!("unsupported data type")
+                panic!("not implemented");
             }
             DataType::F64(endian) => {
-                panic!("unsupported data type")
+                panic!("not implemented");
             }
             _ => panic!("unsupported data type"),
         }
