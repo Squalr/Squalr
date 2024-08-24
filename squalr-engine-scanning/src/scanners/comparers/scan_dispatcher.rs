@@ -114,15 +114,15 @@ impl ScanDispatcher {
                         // We actually don't really care whether the processor supports AVX-512, AVX2, etc, Rust is smart enough to abstract this.
                         // It is actually more performant to greedily try to use AVX-512 even if its not available, because Rust generates
                         // Essentially unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
-                        if element_count % 64 == 0 {
+                        if element_count >= 64 {
                             // return ScannerVectorAlignedChunked::<512>::get_instance();
                             return ScannerVectorAligned::<512>::get_instance();
                         }
-                        else if element_count % 32 == 0 {
+                        else if element_count >= 32 {
                             // return ScannerVectorAlignedChunked::<256>::get_instance();
                             return ScannerVectorAligned::<256>::get_instance();
                         }
-                        else if element_count % 16 == 0 {
+                        else if element_count >= 16 {
                             // return ScannerVectorAlignedChunked::<128>::get_instance();
                             return ScannerVectorAligned::<128>::get_instance();
                         }
