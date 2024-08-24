@@ -1,5 +1,5 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::comparers::scalar::scanner_scalar_iterative_chunked::ScannerScalarIterativeChunked;
+use crate::scanners::comparers::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::comparers::vector::scanner_vector_aligned::ScannerVectorAligned;
@@ -7,7 +7,6 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::values::data_type::DataType;
 use std::sync::Once;
 
@@ -116,12 +115,15 @@ impl ScanDispatcher {
                         // It is actually more performant to greedily try to use AVX-512 even if its not available, because Rust generates
                         // Essentially unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
                         if element_count % 64 == 0 {
+                            // return ScannerVectorAlignedChunked::<512>::get_instance();
                             return ScannerVectorAligned::<512>::get_instance();
                         }
                         else if element_count % 32 == 0 {
+                            // return ScannerVectorAlignedChunked::<256>::get_instance();
                             return ScannerVectorAligned::<256>::get_instance();
                         }
                         else if element_count % 16 == 0 {
+                            // return ScannerVectorAlignedChunked::<128>::get_instance();
                             return ScannerVectorAligned::<128>::get_instance();
                         }
                     } else if memory_alignment as u64 > data_type_size {
@@ -136,6 +138,7 @@ impl ScanDispatcher {
         }
 
         // Default to scalar iterative
-        return ScannerScalarIterativeChunked::get_instance();
+        // return ScannerScalarIterativeChunked::get_instance();
+        return ScannerScalarIterative::get_instance();
     }
 }

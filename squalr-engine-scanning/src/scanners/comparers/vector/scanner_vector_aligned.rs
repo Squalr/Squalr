@@ -68,7 +68,7 @@ macro_rules! impl_scanner_for_vector_aligned {
                     aligned_element_count
                 );
 
-                results
+                return results;
             }
         }
     };

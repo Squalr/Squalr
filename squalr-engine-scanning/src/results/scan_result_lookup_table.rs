@@ -6,9 +6,9 @@ use std::mem::take;
 use std::ops::RangeInclusive;
 
 // Scan result index > snapshot filter (within a snapshot region)
-type ScanResultIndexToSubRegionMap = RangeInclusiveMap<u64, u64>;
+type ScanResultIndexToFilterMap = RangeInclusiveMap<u64, u64>;
 // Scan result index > snapshot region
-type ScanResultIndexToRegionMap = RangeInclusiveMap<u64, (u64, ScanResultIndexToSubRegionMap)>;
+type ScanResultIndexToRegionMap = RangeInclusiveMap<u64, (u64, ScanResultIndexToFilterMap)>;
 
 #[derive(Debug)]
 pub struct ScanResultLookupTable {
@@ -16,6 +16,9 @@ pub struct ScanResultLookupTable {
     scan_result_index_map: ScanResultIndexToRegionMap,
     scan_filter_parameters: Vec<ScanFilterParameters>
 }
+
+// TODO: We should be offloading <some> of the work to the scanners by building up the internal snapshot region <-> filter maps while we still
+// Have all of those threads at our disposal. Plus, this should allow us to at least somewhat interlace scan results? If we even want that.
 
 /// Fundamentally, we need to be able to quickly navigate to a specific page number and offset of scan results within a snapshot region.
 /// We need to avoid 'seeking' implementations that require repeatedly iterating over the entire scan, and for this we need to use interval trees.
@@ -79,7 +82,7 @@ impl ScanResultLookupTable {
                     continue;
                 }
 
-                let mut filter_index_map = ScanResultIndexToSubRegionMap::new();
+                let mut filter_index_map = ScanResultIndexToFilterMap::new();
                 let filter_regions = region.get_filters().get(data_type).unwrap();
                 let region_start_index = scan_result_index;
     
