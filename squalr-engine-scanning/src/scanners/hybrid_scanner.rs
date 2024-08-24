@@ -80,7 +80,7 @@ impl HybridScanner {
             }
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages.
-            let _ = snapshot_region.read_all_memory_parallel(process_info.handle);
+            let _ = snapshot_region.read_all_memory(process_info.handle);
 
             if !snapshot_region.can_compare_using_parameters(scan_parameters) {
                 processed_region_count.fetch_add(1, Ordering::SeqCst);

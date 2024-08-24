@@ -77,7 +77,7 @@ impl ValueCollector {
             }
             
             // Attempt to read new (or initial) memory values. Ignore failures, as these are generally just deallocated pages.
-            let _ = snapshot_region.read_all_memory_parallel(process_info.handle);
+            let _ = snapshot_region.read_all_memory(process_info.handle);
     
             // Report progress periodically (not every time for performance)
             let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);

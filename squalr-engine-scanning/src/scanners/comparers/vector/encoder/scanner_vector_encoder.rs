@@ -193,7 +193,7 @@ macro_rules! impl_scanner_vector_encoder {
     };
 }
 
-// Implement for different vector sizes and types
+// Create implementations for various SIMD hardware vector sizes.
 impl_scanner_vector_encoder!(128, u8x16, 16);
 impl_scanner_vector_encoder!(256, u8x32, 32);
 impl_scanner_vector_encoder!(512, u8x64, 64);

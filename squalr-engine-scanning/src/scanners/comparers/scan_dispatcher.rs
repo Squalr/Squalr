@@ -102,6 +102,7 @@ impl ScanDispatcher {
         let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
         let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size);
         let memory_alignment = memory_alignment as u64;
+        let bytes_to_scan = element_count * data_type_size;
 
         if element_count == 1 {
             // Single element scanner
@@ -116,29 +117,29 @@ impl ScanDispatcher {
                     // We actually don't really care whether the processor supports AVX-512, AVX2, etc, Rust is smart enough to abstract this.
                     // It is actually more performant to greedily try to use AVX-512 even if its not available, because Rust generates
                     // Essentially unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
-                    if element_count >= 64 {
+                    if bytes_to_scan >= 64 {
                         if memory_alignment == data_type_size {
                             return ScannerVectorAligned::<512>::get_instance();
                         } else if memory_alignment > data_type_size {
-                            return ScannerVectorSparse::<512>::get_instance();
+                            // return ScannerVectorSparse::<512>::get_instance();
                         } else {
                             // return ScannerVectorStaggered::<512>::get_instance();
                         }
                     }
-                    else if element_count >= 32 {
+                    else if bytes_to_scan >= 32 {
                         if memory_alignment == data_type_size {
                             return ScannerVectorAligned::<256>::get_instance();
                         } else if memory_alignment > data_type_size {
-                            return ScannerVectorSparse::<256>::get_instance();
+                            // return ScannerVectorSparse::<256>::get_instance();
                         } else {
                             // return ScannerVectorStaggered::<256>::get_instance();
                         }
                     }
-                    else if element_count >= 16 {
+                    else if bytes_to_scan >= 16 {
                         if memory_alignment == data_type_size {
                             return ScannerVectorAligned::<128>::get_instance();
                         } else if memory_alignment > data_type_size {
-                            return ScannerVectorSparse::<128>::get_instance();
+                            // return ScannerVectorSparse::<128>::get_instance();
                         } else {
                             // return ScannerVectorStaggered::<128>::get_instance();
                         }

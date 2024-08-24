@@ -271,7 +271,7 @@ impl SnapshotRegion {
         self.normalized_region.set_region_size(new_region_size);
     
         let start_offset = (new_base_address - original_base_address) as usize;
-        let new_length = (new_end_address - new_base_address + 1) as usize;
+        let new_length = (new_end_address - new_base_address) as usize;
     
         if !self.current_values.is_empty() {
             self.current_values.drain(..start_offset);

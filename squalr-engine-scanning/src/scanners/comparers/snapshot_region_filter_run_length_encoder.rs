@@ -16,8 +16,8 @@ pub struct SnapshotRegionFilterRunLengthEncoder {
 /// iterating over the entire block of memory. The caller is responsible for this iteration, as it depends highly on alignment,
 /// SIMD vs scalar, etc.
 /// 
-/// The caller can get additional performance gains by dividing the work among several run length encoders, then stitching together
-/// boundary regions once the run length encoders are complete.
+/// This can be parallelized by the caller by simply creating N run length encoders over a snapshot region filter that has been divided into N chunks.
+/// This requires a post-step of map-reducing the gathered regions and stitching together boundary regions once the run length encoders are complete.
 impl SnapshotRegionFilterRunLengthEncoder {
     pub fn new(
         run_length_current_address: u64
