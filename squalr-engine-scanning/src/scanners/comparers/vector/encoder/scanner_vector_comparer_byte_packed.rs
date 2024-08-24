@@ -1,3 +1,4 @@
+/*
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::data_type::DataType;
 use std::simd::cmp::SimdPartialEq;
@@ -227,3 +228,4 @@ impl<const BIT_WIDTH: usize> ScannerVectorComparerBytePacked<BIT_WIDTH> {
         panic!("get_compare_decreased_by not implemented")
     }   
 }
+*/

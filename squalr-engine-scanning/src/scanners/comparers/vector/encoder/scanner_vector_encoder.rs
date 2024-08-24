@@ -43,18 +43,18 @@ macro_rules! impl_scanner_vector_encoder {
                 let data_type = scan_filter_parameters.get_data_type();
                 let data_type_size = data_type.size_in_bytes();
                 let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default() as u64;
-                let iterations = element_count / data_type_size;
+                let iterations = element_count / ($vector_byte_size / data_type_size);
                 let true_mask = <$simd_type>::splat(0xFF);
                 let false_mask = <$simd_type>::splat(0);
 
                 unsafe {
                     let mut encode_results = |compare_result: Simd<u8, $vector_byte_size>| {
                         if compare_result.eq(&true_mask) {
-                            run_length_encoder.encode_range(($vector_bit_size / $vector_byte_size) as u64);
+                            run_length_encoder.encode_range(($vector_byte_size) as u64);
                         } else if compare_result.eq(&false_mask) {
-                            run_length_encoder.finalize_current_encode_unsized(($vector_bit_size / $vector_byte_size) as u64);
+                            run_length_encoder.finalize_current_encode_unsized(($vector_byte_size) as u64);
                         } else {
-                            for byte_index in (0..($vector_bit_size / $vector_byte_size)).step_by(data_type_size as usize) {
+                            for byte_index in (0..$vector_byte_size).step_by(data_type_size as usize) {
                                 if compare_result[byte_index] != 0 {
                                     run_length_encoder.encode_range(data_type_size);
                                 } else {

@@ -1,3 +1,4 @@
+/*
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::data_type::DataType;
 use seq_macro::seq;
@@ -456,3 +457,4 @@ impl ScannerVectorComparerBitPacked {
         panic!("get_compare_decreased_by not implemented")
     }   
 }
+*/
