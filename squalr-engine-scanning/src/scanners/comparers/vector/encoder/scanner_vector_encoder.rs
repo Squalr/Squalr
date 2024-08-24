@@ -50,76 +50,90 @@ macro_rules! impl_scanner_vector_encoder {
                 let false_mask = <$simd_type>::splat(0);
 
                 unsafe {
-                    let mut encode_results = |compare_result: Simd<u8, $vector_byte_size>, bytes_to_process: usize| {
-                        if compare_result.eq(&true_mask) {
-                            run_length_encoder.encode_range(bytes_to_process as u64);
-                        } else if compare_result.eq(&false_mask) {
-                            run_length_encoder.finalize_current_encode_unsized(bytes_to_process as u64);
-                        } else {
-                            for byte_index in (0..bytes_to_process).step_by(data_type_size as usize) {
-                                if compare_result[byte_index] != 0 {
-                                    run_length_encoder.encode_range(data_type_size);
-                                } else {
-                                    run_length_encoder.finalize_current_encode_unsized(data_type_size);
-                                }
-                            }
-                        }
-                    };
-
                     if scan_parameters.is_immediate_comparison() {
                         let immediate_value = scan_parameters.deanonymize_type(&data_type).as_ptr();
                         let compare_func = comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), data_type);
 
+                        // Compare as many full vectors as we can
                         for index in 0..iterations {
                             let current_value_pointer = current_value_pointer.add(index as usize * $vector_byte_size);
                             let compare_result = compare_func(current_value_pointer, immediate_value);
 
-                            encode_results(compare_result, $vector_byte_size);
+                            self.encode_results(&
+                                compare_result,
+                                &mut run_length_encoder,
+                                data_type_size, true_mask,
+                                false_mask
+                            );
                         }
 
-                        // Handle remainder
+                        // Handle remainder elements
                         if remainder_elements > 0 {
-                            let current_value_pointer = current_value_pointer.add(iterations as usize * $vector_byte_size);
+                            let current_value_pointer = current_value_pointer.add((iterations as usize * $vector_byte_size) - $vector_byte_size);
                             let compare_result = compare_func(current_value_pointer, immediate_value);
 
-                            encode_results(compare_result, remainder_elements as usize * data_type_size as usize);
+                            self.encode_remainder_results(
+                                &compare_result,
+                                &mut run_length_encoder,
+                                data_type_size,
+                                remainder_elements,
+                            );
                         }
+
                     } else if scan_parameters.is_relative_comparison() {
                         let compare_func = comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type);
 
+                        // Compare as many full vectors as we can
                         for index in 0..iterations {
                             let current_value_pointer = current_value_pointer.add(index as usize * $vector_byte_size);
                             let previous_value_pointer = previous_value_pointer.add(index as usize * $vector_byte_size);
                             let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                            encode_results(compare_result, $vector_byte_size);
+                            self.encode_results(&compare_result, &mut run_length_encoder, data_type_size, true_mask, false_mask);
                         }
 
-                        // Handle remainder
+                        // Handle remainder elements
                         if remainder_elements > 0 {
-                            let current_value_pointer = current_value_pointer.add(iterations as usize * $vector_byte_size);
-                            let previous_value_pointer = previous_value_pointer.add(iterations as usize * $vector_byte_size);
+                            let current_value_pointer = current_value_pointer.add((iterations as usize * $vector_byte_size) - $vector_byte_size);
+                            let previous_value_pointer = previous_value_pointer.add((iterations as usize * $vector_byte_size) - $vector_byte_size);
                             let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                            encode_results(compare_result, remainder_elements as usize * data_type_size as usize);
+                            self.encode_remainder_results(
+                                &compare_result,
+                                &mut run_length_encoder,
+                                data_type_size,
+                                remainder_elements,
+                            );
                         }
                     } else if scan_parameters.is_relative_delta_comparison() {
                         let compare_func = comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), data_type);
                         let delta_arg = scan_parameters.deanonymize_type(&data_type).as_ptr();
 
+                        // Compare as many full vectors as we can
                         for index in 0..iterations {
-                            let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize * $vector_byte_size * data_type_size as usize);
+                            let current_value_pointer = current_value_pointer.add(index as usize * $vector_byte_size);
                             let compare_result = compare_func(current_value_pointer, delta_arg);
 
-                            encode_results(compare_result, $vector_byte_size);
+                            self.encode_results(
+                                &compare_result,
+                                &mut run_length_encoder,
+                                data_type_size,
+                                true_mask,
+                                false_mask
+                            );
                         }
 
-                        // Handle remainder
+                        // Handle remainder elements
                         if remainder_elements > 0 {
-                            let current_value_pointer = current_value_pointer.add(iterations as usize * memory_alignment as usize * $vector_byte_size * data_type_size as usize);
+                            let current_value_pointer = current_value_pointer.add((iterations as usize * $vector_byte_size) - $vector_byte_size);
                             let compare_result = compare_func(current_value_pointer, delta_arg);
 
-                            encode_results(compare_result, remainder_elements as usize * data_type_size as usize);
+                            self.encode_remainder_results(
+                                &compare_result,
+                                &mut run_length_encoder,
+                                data_type_size,
+                                remainder_elements,
+                            );
                         }
                     } else {
                         panic!("Unrecognized comparison");
@@ -129,6 +143,52 @@ macro_rules! impl_scanner_vector_encoder {
                 run_length_encoder.finalize_current_encode_unsized(0);
 
                 return run_length_encoder.result_regions;
+            }
+
+            #[inline(always)]
+            fn encode_results(
+                &self,
+                compare_result: &Simd<u8, $vector_byte_size>,
+                run_length_encoder: &mut SnapshotRegionFilterRunLengthEncoder,
+                data_type_size: u64,
+                true_mask: $simd_type,
+                false_mask: $simd_type,
+            ) {
+                // Optimization: Check if all scan results are true. This helps substantially when scanning for common values like 0.
+                if compare_result.eq(&true_mask) {
+                    run_length_encoder.encode_range(($vector_byte_size) as u64);
+                // Optimization: Check if all scan results are false. This is also a very common result, and speeds up scans.
+                } else if compare_result.eq(&false_mask) {
+                    run_length_encoder.finalize_current_encode_unsized(($vector_byte_size) as u64);
+                // Otherwise, there is a mix of true/false results that need to be processed manually.
+                } else {
+                    for byte_index in (0..$vector_byte_size).step_by(data_type_size as usize) {
+                        if compare_result[byte_index] != 0 {
+                            run_length_encoder.encode_range(data_type_size);
+                        } else {
+                            run_length_encoder.finalize_current_encode_unsized(data_type_size);
+                        }
+                    }
+                }
+            }
+
+            #[inline(always)]
+            fn encode_remainder_results(
+                &self,
+                compare_result: &Simd<u8, $vector_byte_size>,
+                run_length_encoder: &mut SnapshotRegionFilterRunLengthEncoder,
+                data_type_size: u64,
+                remainder_elements: u64,
+            ) {
+                let start_byte_index = ($vector_byte_size - remainder_elements as usize * data_type_size as usize) as usize;
+
+                for byte_index in (start_byte_index..$vector_byte_size).step_by(data_type_size as usize) {
+                    if compare_result[byte_index] != 0 {
+                        run_length_encoder.encode_range(data_type_size);
+                    } else {
+                        run_length_encoder.finalize_current_encode_unsized(data_type_size);
+                    }
+                }
             }
         }
     };
