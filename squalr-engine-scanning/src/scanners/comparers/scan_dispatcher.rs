@@ -104,40 +104,38 @@ impl ScanDispatcher {
         if element_count == 1 {
             // Single element scanner
             return ScannerScalarSingleElement::get_instance();
-        } else if vectors::has_vector_support() && snapshot_region_filter.is_vector_friendly_size(memory_alignment) {
+        } else {
             match data_type {
                 DataType::Bytes(_) => {
                     // Vector array of bytes scanner
                     // return ScannerVectorArrayOfBytes::get_instance();
                 }
                 _ => {
-                    if snapshot_region_filter.get_base_address() % 64 == 0 && element_count % 64 == 0 {
-                        return ScannerVectorAligned::<512>::get_instance();
-                    }
-                    else if snapshot_region_filter.get_base_address() % 32 == 0 && element_count % 32 == 0 {
-                        return ScannerVectorAligned::<256>::get_instance();
-                    }
-                    else if snapshot_region_filter.get_base_address() % 16 == 0 && element_count % 16 == 0 {
-                        return ScannerVectorAligned::<128>::get_instance();
-                    }
-                    /*
-                    if alignment_size == element_size as i32 {
-                        // Fast vector scanner
-                        // return ScannerVectorFast::get_instance();
-                    } else if alignment_size > element_size as i32 {
+                    if memory_alignment as u64 == data_type_size {
+                        // We actually don't really care whether the processor supports AVX-512, AVX2, etc, Rust is smart enough to abstract this.
+                        // It is actually more performant to greedily try to use AVX-512 even if its not available, because Rust generates
+                        // Essentially unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
+                        if element_count % 64 == 0 {
+                            return ScannerVectorAligned::<512>::get_instance();
+                        }
+                        else if element_count % 32 == 0 {
+                            return ScannerVectorAligned::<256>::get_instance();
+                        }
+                        else if element_count % 16 == 0 {
+                            return ScannerVectorAligned::<128>::get_instance();
+                        }
+                    } else if memory_alignment as u64 > data_type_size {
                         // Sparse vector scanner
                         // return ScannerVectorSparse::get_instance();
                     } else {
                         // Staggered vector scanner
                         // return ScannerVectorStaggered::get_instance();
-                    } */
+                    }
                 }
             }
-        } else {
-            // Iterative scanner
-            return ScannerScalarIterativeChunked::get_instance();
         }
 
+        // Default to scalar iterative
         return ScannerScalarIterativeChunked::get_instance();
     }
 }

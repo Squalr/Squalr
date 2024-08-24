@@ -58,7 +58,7 @@ impl SnapshotRegion {
 
         if self.page_boundaries.is_empty() {
             // If this snapshot is part of a standalone memory page, just read the regions as normal.
-            MemoryReader::get_instance().read_bytes(process_handle, self.get_base_address(), &mut self.current_values)?;
+            MemoryReader::get_instance().read_bytes(process_handle, self.get_base_address(), &mut self.current_values);
         } else {
             // Otherwise, this snapshot is a merging of two or more OS regions, and special care is taken to separate the read calls.
             // This prevents any issues where 1 page deallocates.
@@ -72,7 +72,7 @@ impl SnapshotRegion {
                 let read_size = (next_boundary_address - boundary_address) as usize;
                 let offset = (boundary_address - self.get_base_address()) as usize;
                 let current_values_slice = &mut self.current_values[offset..offset + read_size];
-                MemoryReader::get_instance().read_bytes(process_handle, boundary_address, current_values_slice)?;
+                MemoryReader::get_instance().read_bytes(process_handle, boundary_address, current_values_slice);
             }
         }
 
@@ -101,10 +101,10 @@ impl SnapshotRegion {
             let mut chunks: Vec<_> = self.current_values.chunks_mut(chunk_size).collect();
             let base_address = self.normalized_region.get_base_address();
             
-            chunks.par_iter_mut().enumerate().try_for_each(|(index, chunk)| {
+            chunks.par_iter_mut().enumerate().for_each(|(index, chunk)| {
                 let offset = index * chunk_size;
-                MemoryReader::get_instance().read_bytes(process_handle, base_address + offset as u64, chunk)
-            }).map_err(|e| e.to_string())?;
+                MemoryReader::get_instance().read_bytes(process_handle, base_address + offset as u64, chunk);
+            });
         } else {
             for (boundary_index, &boundary_address) in self.page_boundaries.iter().enumerate() {
                 let next_boundary_address = if boundary_index + 1 < self.page_boundaries.len() {
@@ -118,16 +118,16 @@ impl SnapshotRegion {
                 let current_values_slice = &mut self.current_values[offset..offset + read_size];
 
                 if read_size <= chunk_size {
-                    MemoryReader::get_instance().read_bytes(process_handle, boundary_address, current_values_slice)?;
+                    MemoryReader::get_instance().read_bytes(process_handle, boundary_address, current_values_slice);
                 } else {
                     // Parallel processing if the chunk size exceeds the defined optimal chunk size
                     let mut chunks: Vec<_> = current_values_slice.chunks_mut(chunk_size).collect();
                     let base_address = boundary_address;
                     
-                    chunks.par_iter_mut().enumerate().try_for_each(|(index, chunk)| {
+                    chunks.par_iter_mut().enumerate().for_each(|(index, chunk)| {
                         let offset = index * chunk_size;
-                        MemoryReader::get_instance().read_bytes(process_handle, base_address + offset as u64, chunk)
-                    }).map_err(|e| e.to_string())?;
+                        MemoryReader::get_instance().read_bytes(process_handle, base_address + offset as u64, chunk);
+                    });
                 }
             }
         }

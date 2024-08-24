@@ -19,17 +19,17 @@ pub fn handle_memory_read(
             );
             
             match MemoryReader::get_instance().read(process_info.handle, *address, value) {
-                Ok(_) => {
+                true => {
                     Logger::get_instance().log(
                         LogLevel::Info,
                         &format!("Read value {:?} from address {}", value, address),
                         None
                     );
                 }
-                Err(e) => {
+                false => {
                     Logger::get_instance().log(
                         LogLevel::Error,
-                        &format!("Failed to read memory: {}", e),
+                        &format!("Failed to read memory"),
                         None
                     );
                 }

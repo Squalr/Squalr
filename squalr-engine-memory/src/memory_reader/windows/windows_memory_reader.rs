@@ -20,7 +20,7 @@ impl IMemoryReader for WindowsMemoryReader {
         process_handle: u64,
         address: u64,
         dynamic_struct: &mut DynamicStruct
-    ) -> Result<(), String> {
+    ) -> bool {
         unsafe {
             let size = dynamic_struct.size_in_bytes() as usize;
             let mut buffer = vec![0u8; size];
@@ -34,12 +34,9 @@ impl IMemoryReader for WindowsMemoryReader {
                 &mut bytes_read,
             );
 
-            if result == 0 {
-                return Err(format!("Failed to read process memory: {}", GetLastError()));
-            }
-
             dynamic_struct.copy_from_bytes(&buffer);
-            return Ok(());
+
+            return result != 0;
         }
     }
 
@@ -48,7 +45,7 @@ impl IMemoryReader for WindowsMemoryReader {
         process_handle: u64,
         address: u64,
         values: &mut [u8]
-    ) -> Result<(), String> {
+    ) -> bool {
         unsafe {
             let size = values.len();
             let mut bytes_read = 0;
@@ -61,11 +58,7 @@ impl IMemoryReader for WindowsMemoryReader {
                 &mut bytes_read,
             );
 
-            if result == 0 {
-                return Err(format!("Failed to read process memory: {}", GetLastError()));
-            }
-
-            return Ok(());
+            return result != 0;
         }
     }
 }

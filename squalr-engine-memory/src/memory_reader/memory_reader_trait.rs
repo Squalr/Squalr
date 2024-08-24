@@ -6,11 +6,11 @@ pub trait IMemoryReader {
         process_handle: u64,
         address: u64,
         dynamic_struct: &mut DynamicStruct
-    ) -> Result<(), String>;
+    ) -> bool;
     fn read_bytes(
         &self,
         process_handle: u64,
         address: u64,
         values: &mut [u8]
-    ) -> Result<(), String>;
+    ) -> bool;
 }
