@@ -3,6 +3,8 @@ use crate::scanners::comparers::scalar::scanner_scalar_iterative::ScannerScalarI
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::comparers::vector::scanner_vector_aligned::ScannerVectorAligned;
+use crate::scanners::comparers::vector::scanner_vector_sparse::ScannerVectorSparse;
+use crate::scanners::comparers::vector::scanner_vector_staggered::ScannerVectorStaggered;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
@@ -99,6 +101,7 @@ impl ScanDispatcher {
         let data_type_size = data_type.size_in_bytes();
         let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
         let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size);
+        let memory_alignment = memory_alignment as u64;
 
         if element_count == 1 {
             // Single element scanner
@@ -110,35 +113,41 @@ impl ScanDispatcher {
                     // return ScannerVectorArrayOfBytes::get_instance();
                 }
                 _ => {
-                    if memory_alignment as u64 == data_type_size {
-                        // We actually don't really care whether the processor supports AVX-512, AVX2, etc, Rust is smart enough to abstract this.
-                        // It is actually more performant to greedily try to use AVX-512 even if its not available, because Rust generates
-                        // Essentially unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
-                        if element_count >= 64 {
-                            // return ScannerVectorAlignedChunked::<512>::get_instance();
+                    // We actually don't really care whether the processor supports AVX-512, AVX2, etc, Rust is smart enough to abstract this.
+                    // It is actually more performant to greedily try to use AVX-512 even if its not available, because Rust generates
+                    // Essentially unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
+                    if element_count >= 64 {
+                        if memory_alignment == data_type_size {
                             return ScannerVectorAligned::<512>::get_instance();
+                        } else if memory_alignment > data_type_size {
+                            return ScannerVectorSparse::<512>::get_instance();
+                        } else {
+                            // return ScannerVectorStaggered::<512>::get_instance();
                         }
-                        else if element_count >= 32 {
-                            // return ScannerVectorAlignedChunked::<256>::get_instance();
+                    }
+                    else if element_count >= 32 {
+                        if memory_alignment == data_type_size {
                             return ScannerVectorAligned::<256>::get_instance();
+                        } else if memory_alignment > data_type_size {
+                            return ScannerVectorSparse::<256>::get_instance();
+                        } else {
+                            // return ScannerVectorStaggered::<256>::get_instance();
                         }
-                        else if element_count >= 16 {
-                            // return ScannerVectorAlignedChunked::<128>::get_instance();
+                    }
+                    else if element_count >= 16 {
+                        if memory_alignment == data_type_size {
                             return ScannerVectorAligned::<128>::get_instance();
+                        } else if memory_alignment > data_type_size {
+                            return ScannerVectorSparse::<128>::get_instance();
+                        } else {
+                            // return ScannerVectorStaggered::<128>::get_instance();
                         }
-                    } else if memory_alignment as u64 > data_type_size {
-                        // Sparse vector scanner
-                        // return ScannerVectorSparse::get_instance();
-                    } else {
-                        // Staggered vector scanner
-                        // return ScannerVectorStaggered::get_instance();
                     }
                 }
             }
         }
 
         // Default to scalar iterative
-        // return ScannerScalarIterativeChunked::get_instance();
         return ScannerScalarIterative::get_instance();
     }
 }

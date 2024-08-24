@@ -37,16 +37,15 @@ macro_rules! impl_scanner_vector_encoder {
                 scan_filter_parameters: &ScanFilterParameters,
                 base_address: u64,
                 element_count: u64,
+                true_mask: $simd_type,
             ) -> Vec<SnapshotRegionFilter> {
                 let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
                 let comparer = ScannerVectorComparer::<$vector_bit_size>::get_instance();
                 let data_type = scan_filter_parameters.get_data_type();
                 let data_type_size = data_type.size_in_bytes();
-                let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default() as u64;
                 let comparisons_per_vector = ($vector_byte_size / data_type_size);
                 let iterations = element_count / comparisons_per_vector;
                 let remainder_elements = element_count % comparisons_per_vector;
-                let true_mask = <$simd_type>::splat(0xFF);
                 let false_mask = <$simd_type>::splat(0);
 
                 unsafe {

@@ -5,6 +5,7 @@ use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::prelude::*;
+use std::simd::{u8x16, u8x32, u8x64};
 use std::sync::Once;
 
 pub struct ScannerVectorAlignedChunked<const VECTOR_SIZE_BITS: usize>;
@@ -40,7 +41,7 @@ impl<const VECTOR_SIZE_BITS: usize> ScannerVectorAlignedChunked<VECTOR_SIZE_BITS
 }
 
 macro_rules! impl_scanner_for_vector_aligned_chunked {
-    ($bit_width:expr) => {
+    ($bit_width:expr, $simd_type:ty) => {
         impl Scanner for ScannerVectorAlignedChunked<$bit_width> {
             fn scan_region(
                 &self,
@@ -75,6 +76,7 @@ macro_rules! impl_scanner_for_vector_aligned_chunked {
                         let chunk_address_offset = first_element_index * memory_alignment as u64;
                         let local_encoder = ScannerVectorEncoder::<$bit_width>::get_instance();
                         let base_address = snapshot_region_filter.get_base_address() + chunk_address_offset;
+                        let true_mask = <$simd_type>::splat(0xFF);
 
                         unsafe {
                             local_encoder.encode(
@@ -84,6 +86,7 @@ macro_rules! impl_scanner_for_vector_aligned_chunked {
                                 scan_filter_parameters,
                                 base_address,
                                 last_element_index - first_element_index,
+                                true_mask,
                             )
                         }
                     })
@@ -118,6 +121,6 @@ macro_rules! impl_scanner_for_vector_aligned_chunked {
     };
 }
 
-impl_scanner_for_vector_aligned_chunked!(128);
-impl_scanner_for_vector_aligned_chunked!(256);
-impl_scanner_for_vector_aligned_chunked!(512);
+impl_scanner_for_vector_aligned_chunked!(128, u8x16);
+impl_scanner_for_vector_aligned_chunked!(256, u8x32);
+impl_scanner_for_vector_aligned_chunked!(512, u8x64);
