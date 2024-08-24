@@ -64,7 +64,7 @@ impl Scanner for ScannerScalarIterativeChunked {
         let chunk_size = 1 << 20;
         let num_chunks = (element_count + chunk_size - 1) / chunk_size;
 
-        let all_subregions: Vec<SnapshotRegionFilter> = (0..num_chunks)
+        let mut new_snapshot_region_filters: Vec<SnapshotRegionFilter> = (0..num_chunks)
             .into_par_iter()
             .map(|chunk_index| {
                 let first_element_index = (chunk_index * chunk_size) as u64;
@@ -84,15 +84,34 @@ impl Scanner for ScannerScalarIterativeChunked {
                     );
                 }
             })
-            .reduce_with(|mut region_a, region_b| {
-                // Merge the results of two chunks in parallel
-                region_a.extend(region_b);
-                return region_a;
+            // Build the final vector of all filters in parallel.
+            .reduce_with(|mut collection_a, collection_b| {
+                collection_a.extend(collection_b);
+                return collection_a;
             })
             .unwrap_or_else(Vec::new);
         
-        // TODO: Boundary merging on adjacent regions
+        // Merge adjacent regions directly within the new_snapshot_region_filters vector to avoid unecessary reallocations.
+        if !new_snapshot_region_filters.is_empty() {
+            // Ensure that filters are sorted by base address ascending.
+            new_snapshot_region_filters.sort_by(|a, b| a.get_base_address().cmp(&b.get_base_address()));
 
-        return all_subregions;
+            let mut filter_index = 0;
+            while filter_index < new_snapshot_region_filters.len() - 1 {
+                let (left, right) = new_snapshot_region_filters.split_at_mut(filter_index + 1);
+                let current_region = &mut left[filter_index];
+                let next_region = &right[0];
+
+                if current_region.get_end_address() == next_region.get_base_address() {
+                    current_region.set_end_address(next_region.get_end_address());
+                    // Remove the next region as it has been merged.
+                    new_snapshot_region_filters.remove(filter_index + 1);
+                } else {
+                    filter_index += 1;
+                }
+            }
+        }
+
+        return new_snapshot_region_filters;
     }
 }
