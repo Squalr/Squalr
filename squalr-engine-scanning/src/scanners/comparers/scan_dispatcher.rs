@@ -111,8 +111,14 @@ impl ScanDispatcher {
                     // return ScannerVectorArrayOfBytes::get_instance();
                 }
                 _ => {
-                    if element_count % 16 == 0 {
-                        return ScannerVectorAligned::get_instance();
+                    /*if snapshot_region_filter.get_base_address() % 64 == 0 && element_count % 64 == 0 {
+                        return ScannerVectorAligned::<512>::get_instance();
+                    }
+                    else if snapshot_region_filter.get_base_address() % 32 == 0 && element_count % 32 == 0 {
+                        return ScannerVectorAligned::<256>::get_instance();
+                    }
+                    else*/ if snapshot_region_filter.get_base_address() % 16 == 0 && element_count % 16 == 0 {
+                        return ScannerVectorAligned::<128>::get_instance();
                     }
                     /*
                     if alignment_size == element_size as i32 {
