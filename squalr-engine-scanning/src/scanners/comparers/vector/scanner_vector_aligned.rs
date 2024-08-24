@@ -5,7 +5,7 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use std::sync::Once;
 
-use super::encoder::scanner_vector_encoder_128::ScannerVectorEncoder;
+use super::encoder::scanner_vector_encoder::ScannerVectorEncoder;
 
 pub struct ScannerVectorAligned {
 }

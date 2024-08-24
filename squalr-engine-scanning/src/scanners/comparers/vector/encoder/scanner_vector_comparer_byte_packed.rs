@@ -1,10 +1,28 @@
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::data_type::DataType;
-use seq_macro::seq;
-use std::ops::BitAnd;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{i16x8, i32x4, i64x2, i8x16, u16x8, u32x4, u64x2, u8x16, Mask};
 use std::sync::Once;
+
+macro_rules! impl_scanner_vector_comparer {
+    ($bit_width:expr) => {
+        impl ScannerVectorComparerBytePacked<$bit_width> {
+            pub fn get_instance() -> &'static ScannerVectorComparerBytePacked<$bit_width> {
+                static mut INSTANCE: Option<ScannerVectorComparerBytePacked<$bit_width>> = None;
+                static INIT: std::sync::Once = std::sync::Once::new();
+
+                unsafe {
+                    INIT.call_once(|| {
+                        let instance = ScannerVectorComparerBytePacked::<$bit_width>::new();
+                        INSTANCE = Some(instance);
+                    });
+
+                    INSTANCE.as_ref().unwrap_unchecked()
+                }
+            }
+        }
+    };
+}
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)
 type VectorCompareFnImmediate = unsafe fn(
@@ -15,7 +33,7 @@ type VectorCompareFnImmediate = unsafe fn(
 ) -> u8x16;
 
 /// Defines a compare function that operates on current and previous values (ie changed, unchanged, increased, decreased)
-type VectorCompareFnRelativ3 = unsafe fn(
+type VectorCompareFnRelative = unsafe fn(
     // Current v1lue buffer
     current_v1lue_pointer: *const u8,
     // Previous v1lue buffer
@@ -32,27 +50,16 @@ type VectorCompareFnDelta = unsafe fn(
     delta_v1lue_pointer: *const u8,
 ) -> u8x16;
 
-pub struct ScannerVectorComparer {
-}
+pub struct ScannerVectorComparerBytePacked<const BIT_WIDTH: usize>;
+
+impl_scanner_vector_comparer!(128);
+impl_scanner_vector_comparer!(256);
+impl_scanner_vector_comparer!(512);
 
 /// Implements a set of scalar (ie CPU bound, non-SIMD) boolean comparison operations to be used by more complex scanners.
-impl ScannerVectorComparer {
+impl<const BIT_WIDTH: usize> ScannerVectorComparerBytePacked<BIT_WIDTH> {
     fn new() -> Self {
         Self { }
-    }
-    
-    pub fn get_instance() -> &'static ScannerVectorComparer {
-        static mut INSTANCE: Option<ScannerVectorComparer> = None;
-        static INIT: Once = Once::new();
-
-        unsafe {
-            INIT.call_once(|| {
-                let instance = ScannerVectorComparer::new();
-                INSTANCE = Some(instance);
-            });
-
-            return INSTANCE.as_ref().unwrap_unchecked();
-        }
     }
     
     pub fn get_immediate_compare_func(
@@ -75,7 +82,7 @@ impl ScannerVectorComparer {
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> VectorCompareFnRelativ3 {
+    ) -> VectorCompareFnRelative {
         match scan_compare_type {
             ScanCompareType::Changed => self.get_compare_changed(data_type),
             ScanCompareType::Unchanged => self.get_compare_unchanged(data_type),
@@ -98,6 +105,28 @@ impl ScannerVectorComparer {
     }
 
     fn get_compare_equal(&self, data_type: &DataType) -> VectorCompareFnImmediate {
+        
+        macro_rules! simd_compare {
+            ($data_type:ty, $data_size:expr, $simd_type:ident, $simd_load_fn:ident, $simd_op:ident, $current_values_ptr:ident, $immediate_ptr:ident, $packing:ident) => {{
+                unsafe {
+                    let immediate_value = $simd_type::splat(*($immediate_ptr as *const $data_type));
+
+                    let mut bitmasks = [0u8; $data_size];
+
+                    seq!(N in 0..$data_size {
+                        let current_values = $simd_type::$simd_load_fn(*($current_values_ptr.add(N * 16) as *const [$data_type; BIT_WIDTH / $data_size]));
+                        let result~N = current_values.$simd_op(immediate_value);
+                        bitmasks[N] = result~N.to_bitmask() as u8;
+                    });
+
+                    let mut packed = [0u8; 16];
+
+                    $packing!(bitmasks, packed);
+
+                    u8x16::from_array(packed)
+                }
+            }};
+        }
         match data_type {
             DataType::U8() => |current_values_ptr, immediate_ptr: *const u8| {
                 panic!("not implemented");
@@ -174,19 +203,19 @@ impl ScannerVectorComparer {
         panic!("get_compare_less_than_or_equal not implemented")
     }
 
-    fn get_compare_changed(&self, _data_type: &DataType) -> VectorCompareFnRelativ3 {
+    fn get_compare_changed(&self, _data_type: &DataType) -> VectorCompareFnRelative {
         panic!("get_compare_changed not implemented")
     }
 
-    fn get_compare_unchanged(&self, _data_type: &DataType) -> VectorCompareFnRelativ3 {
+    fn get_compare_unchanged(&self, _data_type: &DataType) -> VectorCompareFnRelative {
         panic!("get_compare_unchanged not implemented")
     }
 
-    fn get_compare_increased(&self, _data_type: &DataType) -> VectorCompareFnRelativ3 {
+    fn get_compare_increased(&self, _data_type: &DataType) -> VectorCompareFnRelative {
         panic!("get_compare_increased not implemented")
     }
 
-    fn get_compare_decreased(&self, _data_type: &DataType) -> VectorCompareFnRelativ3 {
+    fn get_compare_decreased(&self, _data_type: &DataType) -> VectorCompareFnRelative {
         panic!("get_compare_decreased not implemented")
     }
 

@@ -450,6 +450,7 @@ dependencies = [
  "bitflags 2.6.0",
  "bytemuck",
  "futures",
+ "lazy_static",
  "rangemap",
  "rayon",
  "seq-macro",

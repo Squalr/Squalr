@@ -73,7 +73,7 @@ impl ScannerScalarEncoder {
                     
                     encode_results(result);
                 }
-            } else if scan_parameters.is_immediate_comparison() {
+            } else if scan_parameters.is_relative_delta_comparison() {
                 let compare_func = comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type);
                 let delta_arg_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
 

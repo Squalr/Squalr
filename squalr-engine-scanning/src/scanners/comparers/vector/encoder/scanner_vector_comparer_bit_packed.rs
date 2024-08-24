@@ -15,7 +15,7 @@ type VectorCompareFnImmediate = unsafe fn(
 ) -> u8x16;
 
 /// Defines a compare function that operates on current and previous values (ie changed, unchanged, increased, decreased)
-type VectorCompareFnRelativ3 = unsafe fn(
+type VectorCompareFnRelative = unsafe fn(
     // Current v1lue buffer
     current_v1lue_pointer: *const u8,
     // Previous v1lue buffer
@@ -100,22 +100,50 @@ macro_rules! simd_compare {
     }};
 }
 
-pub struct ScannerVectorComparer {
+macro_rules! unroll_blocks_generic {(
+    $num_blocks:expr,
+    $simd_type:ty,
+    $load_intrinsic:ident,
+    $cmp_intrinsic:ident,
+    $movemask_intrinsic:ident,
+    $cast_intrinsic:ident,
+    $immediate:expr,
+    $current_values_ptr:expr,
+    $element_size:expr
+    ) => {{
+        unsafe {
+            let immediate = $immediate;
+            let mut bitmask_accum = 0i32;
+
+            seq!(N in 0..$num_blocks {
+                let values_~N = $load_intrinsic($current_values_ptr.add(N * 16) as *const $simd_type);
+                let cmp_mask_~N = $cmp_intrinsic(values_~N, immediate);
+                let bitmask_~N = $movemask_intrinsic($cast_intrinsic(cmp_mask_~N)) as i32;
+                let shift_~N = ($element_size * N) & 31;
+                bitmask_accum |= bitmask_~N << shift_~N;
+            })
+
+            u8x16::from(_mm_cvtsi32_si128(bitmask_accum))
+        }
+    }};
+}
+
+pub struct ScannerVectorComparerBitPacked {
 }
 
 /// Implements a set of scalar (ie CPU bound, non-SIMD) boolean comparison operations to be used by more complex scanners.
-impl ScannerVectorComparer {
+impl ScannerVectorComparerBitPacked {
     fn new() -> Self {
         Self { }
     }
     
-    pub fn get_instance() -> &'static ScannerVectorComparer {
-        static mut INSTANCE: Option<ScannerVectorComparer> = None;
+    pub fn get_instance() -> &'static ScannerVectorComparerBitPacked {
+        static mut INSTANCE: Option<ScannerVectorComparerBitPacked> = None;
         static INIT: Once = Once::new();
 
         unsafe {
             INIT.call_once(|| {
-                let instance = ScannerVectorComparer::new();
+                let instance = ScannerVectorComparerBitPacked::new();
                 INSTANCE = Some(instance);
             });
 
@@ -143,7 +171,7 @@ impl ScannerVectorComparer {
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> VectorCompareFnRelativ3 {
+    ) -> VectorCompareFnRelative {
         match scan_compare_type {
             ScanCompareType::Changed => self.get_compare_changed(data_type),
             ScanCompareType::Unchanged => self.get_compare_unchanged(data_type),
@@ -404,19 +432,19 @@ impl ScannerVectorComparer {
         panic!("get_compare_less_than_or_equal not implemented")
     }
 
-    fn get_compare_changed(&self, _data_type: &DataType) -> VectorCompareFnRelativ3 {
+    fn get_compare_changed(&self, _data_type: &DataType) -> VectorCompareFnRelative {
         panic!("get_compare_changed not implemented")
     }
 
-    fn get_compare_unchanged(&self, _data_type: &DataType) -> VectorCompareFnRelativ3 {
+    fn get_compare_unchanged(&self, _data_type: &DataType) -> VectorCompareFnRelative {
         panic!("get_compare_unchanged not implemented")
     }
 
-    fn get_compare_increased(&self, _data_type: &DataType) -> VectorCompareFnRelativ3 {
+    fn get_compare_increased(&self, _data_type: &DataType) -> VectorCompareFnRelative {
         panic!("get_compare_increased not implemented")
     }
 
-    fn get_compare_decreased(&self, _data_type: &DataType) -> VectorCompareFnRelativ3 {
+    fn get_compare_decreased(&self, _data_type: &DataType) -> VectorCompareFnRelative {
         panic!("get_compare_decreased not implemented")
     }
 

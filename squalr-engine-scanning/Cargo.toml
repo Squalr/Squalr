@@ -13,6 +13,7 @@ squalr-engine-processes = { path = "../squalr-engine-processes" }
 bitflags = ">=2.6.0"
 bytemuck = ">=1.17.0"
 futures = ">=0.3.30"
+lazy_static = ">=1.5.0"
 rangemap = { version = ">=1.5.1" }
 rayon = "1.10.0"
 seq-macro = ">=0.3.5"

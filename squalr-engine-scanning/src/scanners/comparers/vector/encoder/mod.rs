@@ -1,5 +1,7 @@
-pub mod scanner_vector_comparer_128;
-pub mod scanner_vector_encoder_128;
+pub mod scanner_vector_comparer;
+pub mod scanner_vector_comparer_bit_packed;
+pub mod scanner_vector_comparer_byte_packed;
+pub mod scanner_vector_encoder;
 
 /*
 pub mod scanner_vector;
