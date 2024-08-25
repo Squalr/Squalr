@@ -10,15 +10,34 @@ use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_common::values::data_type::DataType;
-use std::sync::Once;
+use std::{simd::{u8x16, u8x32, u8x64}, sync::Once};
 
 pub struct ScanDispatcher {
+    scanner_aligned_64: ScannerVectorAligned::<u8x64, 64>,
+    scanner_aligned_32: ScannerVectorAligned::<u8x32, 32>,
+    scanner_aligned_16: ScannerVectorAligned::<u8x16, 16>,
+    scanner_sparse_64: ScannerVectorSparse::<u8x64, 64>,
+    scanner_sparse_32: ScannerVectorSparse::<u8x32, 32>,
+    scanner_sparse_16: ScannerVectorSparse::<u8x16, 16>,
+    scanner_staggered_64: ScannerVectorStaggered::<u8x64, 64>,
+    scanner_staggered_32: ScannerVectorStaggered::<u8x32, 32>,
+    scanner_staggered_16: ScannerVectorStaggered::<u8x16, 16>,
 }
 
 impl ScanDispatcher {
     fn new(
     ) -> Self {
-        Self { }
+        Self {
+            scanner_aligned_64: ScannerVectorAligned::<u8x64, 64>::new(),
+            scanner_aligned_32: ScannerVectorAligned::<u8x32, 32>::new(),
+            scanner_aligned_16: ScannerVectorAligned::<u8x16, 16>::new(),
+            scanner_sparse_64: ScannerVectorSparse::<u8x64, 64>::new(),
+            scanner_sparse_32: ScannerVectorSparse::<u8x32, 32>::new(),
+            scanner_sparse_16: ScannerVectorSparse::<u8x16, 16>::new(),
+            scanner_staggered_64: ScannerVectorStaggered::<u8x64, 64>::new(),
+            scanner_staggered_32: ScannerVectorStaggered::<u8x32, 32>::new(),
+            scanner_staggered_16: ScannerVectorStaggered::<u8x16, 16>::new(),
+        }
     }
     
     pub fn get_instance(
@@ -119,29 +138,29 @@ impl ScanDispatcher {
                     // essentially unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
                     if bytes_to_scan >= 64 {
                         if memory_alignment == data_type_size {
-                            return ScannerVectorAligned::<512>::get_instance();
+                            return &self.scanner_aligned_64;
                         } else if memory_alignment > data_type_size {
-                            return ScannerVectorSparse::<512>::get_instance();
+                            return &self.scanner_sparse_64;
                         } else {
-                            // return ScannerVectorStaggered::<512>::get_instance();
+                            return &self.scanner_staggered_64;
                         }
                     }
                     else if bytes_to_scan >= 32 {
                         if memory_alignment == data_type_size {
-                            return ScannerVectorAligned::<256>::get_instance();
+                            return &self.scanner_aligned_32;
                         } else if memory_alignment > data_type_size {
-                            return ScannerVectorSparse::<256>::get_instance();
+                            return &self.scanner_sparse_32;
                         } else {
-                            // return ScannerVectorStaggered::<256>::get_instance();
+                            return &self.scanner_staggered_32;
                         }
                     }
                     else if bytes_to_scan >= 16 {
                         if memory_alignment == data_type_size {
-                            return ScannerVectorAligned::<128>::get_instance();
+                            return &self.scanner_aligned_16;
                         } else if memory_alignment > data_type_size {
-                            return ScannerVectorSparse::<128>::get_instance();
+                            return &self.scanner_sparse_16;
                         } else {
-                            // return ScannerVectorStaggered::<128>::get_instance();
+                            return &self.scanner_staggered_16;
                         }
                     }
                 }
