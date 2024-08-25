@@ -1,4 +1,4 @@
-use std::simd::{Simd, SimdElement, LaneCount, SupportedLaneCount};
+use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
 
 pub trait SimdType: SimdElement {
     type SimdVector<const N: usize>: Copy
@@ -10,49 +10,6 @@ pub trait SimdType: SimdElement {
         LaneCount<N>: SupportedLaneCount;
 }
 
-impl<T> SimdType for Simd<T, 64>
-where
-    T: SimdElement,
-{
-    type SimdVector<const N: usize> = Simd<T, N>;
-
-    fn splat<const N: usize>(value: T) -> Self::SimdVector<N>
-    where
-        LaneCount<N>: SupportedLaneCount,
-    {
-        Simd::splat(value)
-    }
-}
-
-impl<T> SimdType for Simd<T, 32>
-where
-    T: SimdElement,
-{
-    type SimdVector<const N: usize> = Simd<T, N>;
-
-    fn splat<const N: usize>(value: T) -> Self::SimdVector<N>
-    where
-        LaneCount<N>: SupportedLaneCount,
-    {
-        Simd::splat(value)
-    }
-}
-
-impl<T> SimdType for Simd<T, 16>
-where
-    T: SimdElement,
-{
-    type SimdVector<const N: usize> = Simd<T, N>;
-
-    fn splat<const N: usize>(value: T) -> Self::SimdVector<N>
-    where
-        LaneCount<N>: SupportedLaneCount,
-    {
-        Simd::splat(value)
-    }
-}
-
-/*
 impl SimdType for u8 {
     type SimdVector<const N: usize> = Simd<u8, N>
     where
@@ -182,4 +139,3 @@ impl SimdType for f64 {
         Simd::splat(value)
     }
 }
- */

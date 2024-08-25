@@ -10,33 +10,33 @@ use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_common::values::data_type::DataType;
-use std::{simd::{u8x16, u8x32, u8x64}, sync::Once};
+use std::sync::Once;
 
 pub struct ScanDispatcher {
-    scanner_aligned_64: ScannerVectorAligned::<u8x64, 64>,
-    scanner_aligned_32: ScannerVectorAligned::<u8x32, 32>,
-    scanner_aligned_16: ScannerVectorAligned::<u8x16, 16>,
-    scanner_sparse_64: ScannerVectorSparse::<u8x64, 64>,
-    scanner_sparse_32: ScannerVectorSparse::<u8x32, 32>,
-    scanner_sparse_16: ScannerVectorSparse::<u8x16, 16>,
-    scanner_staggered_64: ScannerVectorStaggered::<u8x64, 64>,
-    scanner_staggered_32: ScannerVectorStaggered::<u8x32, 32>,
-    scanner_staggered_16: ScannerVectorStaggered::<u8x16, 16>,
+    scanner_aligned_64: ScannerVectorAligned<u8, 64>,
+    scanner_aligned_32: ScannerVectorAligned<u8, 32>,
+    scanner_aligned_16: ScannerVectorAligned<u8, 16>,
+    scanner_sparse_64: ScannerVectorSparse<u8, 64>,
+    scanner_sparse_32: ScannerVectorSparse<u8, 32>,
+    scanner_sparse_16: ScannerVectorSparse<u8, 16>,
+    scanner_staggered_64: ScannerVectorStaggered<u8, 64>,
+    scanner_staggered_32: ScannerVectorStaggered<u8, 32>,
+    scanner_staggered_16: ScannerVectorStaggered<u8, 16>,
 }
 
 impl ScanDispatcher {
     fn new(
     ) -> Self {
         Self {
-            scanner_aligned_64: ScannerVectorAligned::<u8x64, 64>::new(),
-            scanner_aligned_32: ScannerVectorAligned::<u8x32, 32>::new(),
-            scanner_aligned_16: ScannerVectorAligned::<u8x16, 16>::new(),
-            scanner_sparse_64: ScannerVectorSparse::<u8x64, 64>::new(),
-            scanner_sparse_32: ScannerVectorSparse::<u8x32, 32>::new(),
-            scanner_sparse_16: ScannerVectorSparse::<u8x16, 16>::new(),
-            scanner_staggered_64: ScannerVectorStaggered::<u8x64, 64>::new(),
-            scanner_staggered_32: ScannerVectorStaggered::<u8x32, 32>::new(),
-            scanner_staggered_16: ScannerVectorStaggered::<u8x16, 16>::new(),
+            scanner_aligned_64: ScannerVectorAligned::<u8, 64>::new(),
+            scanner_aligned_32: ScannerVectorAligned::<u8, 32>::new(),
+            scanner_aligned_16: ScannerVectorAligned::<u8, 16>::new(),
+            scanner_sparse_64: ScannerVectorSparse::<u8, 64>::new(),
+            scanner_sparse_32: ScannerVectorSparse::<u8, 32>::new(),
+            scanner_sparse_16: ScannerVectorSparse::<u8, 16>::new(),
+            scanner_staggered_64: ScannerVectorStaggered::<u8, 64>::new(),
+            scanner_staggered_32: ScannerVectorStaggered::<u8, 32>::new(),
+            scanner_staggered_16: ScannerVectorStaggered::<u8, 16>::new(),
         }
     }
     

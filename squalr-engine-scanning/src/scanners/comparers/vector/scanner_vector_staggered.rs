@@ -28,7 +28,7 @@ where
         }
     }
     
-    /// Generates staggered masks based on the data type size and memory alignment.
+    /// Generates staggered masks for unaligned scans (alignment < data_type_size) based on the data type size and memory alignment.
     fn get_staggered_mask(data_type_size: u64, memory_alignment: MemoryAlignment) -> Vec<Simd<u8, N>> {
         match (data_type_size, memory_alignment) {
             // Data type size 2
