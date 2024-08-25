@@ -42,10 +42,10 @@ impl FieldValue {
         FieldValue { data_type, data_value }
     }
 
-    pub fn size_in_bytes(
+    pub fn get_size_in_bytes(
         &self
     ) -> u64 {
-        self.data_value.size_in_bytes()
+        self.data_value.get_size_in_bytes()
     }
 
     pub fn to_bytes(

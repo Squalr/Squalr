@@ -41,15 +41,17 @@ impl ScannerScalarEncoder {
         let comparer = ScannerScalarComparer::get_instance();
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_filter_parameters.get_data_type();
-        let data_type_size = data_type.size_in_bytes();
+        let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default() as u64;
+        let data_type_size_padding = data_type_size.saturating_sub(memory_alignment);
         
         unsafe {
+            // Run length encoding for the scan results
             let mut encode_results = |compare_result : bool| {
                 if compare_result {
                     run_length_encoder.encode_range(memory_alignment);
                 } else {
-                    run_length_encoder.finalize_current_encode(memory_alignment, data_type_size);
+                    run_length_encoder.finalize_current_encode_padded(memory_alignment, data_type_size_padding);
                 }
             };
 
@@ -89,7 +91,7 @@ impl ScannerScalarEncoder {
             }
         }
 
-        run_length_encoder.finalize_current_encode(memory_alignment, data_type_size);
+        run_length_encoder.finalize_current_encode_padded(memory_alignment, data_type_size_padding);
         
         return run_length_encoder.result_regions;
     }

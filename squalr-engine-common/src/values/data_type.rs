@@ -27,7 +27,7 @@ impl Default for DataType {
 }
 
 impl DataType {
-    pub fn size_in_bytes(
+    pub fn get_size_in_bytes(
         &self
     ) -> u64 {
         match self {

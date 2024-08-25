@@ -1,4 +1,3 @@
-use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
 use std::cmp::max;
@@ -13,13 +12,13 @@ pub struct SnapshotRegionFilter {
 impl SnapshotRegionFilter {
     pub fn new(
         base_address: u64,
-        size_in_bytes: u64
+        get_size_in_bytes: u64
     ) -> Self {
         Self {
-            filter_range: NormalizedRegion::new(base_address, size_in_bytes),
+            filter_range: NormalizedRegion::new(base_address, get_size_in_bytes),
         }
     }
-
+    
     pub fn get_base_address(
         &self,
     ) -> u64 {
@@ -52,44 +51,33 @@ impl SnapshotRegionFilter {
         return self.filter_range.get_region_size();
     }
 
-    pub fn is_vector_friendly_size(
-        &self,
-        alignment: MemoryAlignment
-    ) -> bool {
-        return self.get_region_size() - self.get_misalignment(alignment as u64) > vectors::get_hardware_vector_size();
-    }
-
     pub fn get_element_count(
         &self,
         alignment: MemoryAlignment,
         data_type_size: u64
     ) -> u64 {
-        let alignment = max(alignment as u64, 1);
-        let misalignment = self.get_misalignment(alignment);
-    
-        if misalignment >= self.get_region_size() as u64 {
-            return 0;
-        }
-    
-        let effective_size_in_bytes = self.get_region_size() as u64 - misalignment;
-    
-        // Ensure that effective_size_in_bytes is at least the size of the data type
-        if effective_size_in_bytes < data_type_size as u64 {
-            return 0;
-        }
-    
-        let byte_count = effective_size_in_bytes;
-    
-        return byte_count / alignment;
+        
+        let get_size_in_bytes = self.get_region_size();
+        let misalignment = self.get_misaligned_starting_byte_count(alignment);
+        let alignment: u64 = max(alignment as u64, 1);
+        
+        // If a filter is misaligned or an invalid size, something has gone horribly wrong and we want to debug it.
+        debug_assert!(alignment > 0);
+        debug_assert!(misalignment == 0);
+        debug_assert!(get_size_in_bytes >= data_type_size);
+
+        return get_size_in_bytes / alignment;
     }
 
-    fn get_misalignment(
+    fn get_misaligned_starting_byte_count(
         &self,
-        alignment: u64
+        alignment: MemoryAlignment
     ) -> u64 {
+        let alignment = max(alignment as u64, 1);
         let base_address = self.get_base_address();
-        let aligned_base = (base_address + alignment - 1) / alignment * alignment;
+        let misalignment = base_address % alignment;
 
-        return aligned_base - base_address;
+        // Additional modulo to handle the case where misalignment is 0.
+        return (alignment - misalignment) % alignment
     }
 }

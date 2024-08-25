@@ -42,7 +42,7 @@ macro_rules! impl_scanner_vector_encoder {
                 let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
                 let comparer = ScannerVectorComparer::<$vector_bit_size>::get_instance();
                 let data_type = scan_filter_parameters.get_data_type();
-                let data_type_size = data_type.size_in_bytes();
+                let data_type_size = data_type.get_size_in_bytes();
                 let comparisons_per_vector = ($vector_byte_size / data_type_size);
                 let iterations = element_count / comparisons_per_vector;
                 let remainder_elements = element_count % comparisons_per_vector;
@@ -61,7 +61,8 @@ macro_rules! impl_scanner_vector_encoder {
                             self.encode_results(&
                                 compare_result,
                                 &mut run_length_encoder,
-                                data_type_size, true_mask,
+                                data_type_size,
+                                true_mask,
                                 false_mask
                             );
                         }
@@ -88,7 +89,13 @@ macro_rules! impl_scanner_vector_encoder {
                             let previous_value_pointer = previous_value_pointer.add(index as usize * $vector_byte_size);
                             let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                            self.encode_results(&compare_result, &mut run_length_encoder, data_type_size, true_mask, false_mask);
+                            self.encode_results(&
+                                compare_result,
+                                &mut run_length_encoder,
+                                data_type_size,
+                                true_mask,
+                                false_mask
+                            );
                         }
 
                         // Handle remainder elements
@@ -139,7 +146,7 @@ macro_rules! impl_scanner_vector_encoder {
                     }
                 }
 
-                run_length_encoder.finalize_current_encode_unsized(0);
+                run_length_encoder.finalize_current_encode(0);
 
                 return run_length_encoder.result_regions;
             }
@@ -158,14 +165,14 @@ macro_rules! impl_scanner_vector_encoder {
                     run_length_encoder.encode_range(($vector_byte_size) as u64);
                 // Optimization: Check if all scan results are false. This is also a very common result, and speeds up scans.
                 } else if compare_result.eq(&false_mask) {
-                    run_length_encoder.finalize_current_encode_unsized(($vector_byte_size) as u64);
+                    run_length_encoder.finalize_current_encode(($vector_byte_size) as u64);
                 // Otherwise, there is a mix of true/false results that need to be processed manually.
                 } else {
                     for byte_index in (0..$vector_byte_size).step_by(data_type_size as usize) {
                         if compare_result[byte_index] != 0 {
                             run_length_encoder.encode_range(data_type_size);
                         } else {
-                            run_length_encoder.finalize_current_encode_unsized(data_type_size);
+                            run_length_encoder.finalize_current_encode(data_type_size);
                         }
                     }
                 }
@@ -185,7 +192,7 @@ macro_rules! impl_scanner_vector_encoder {
                     if compare_result[byte_index] != 0 {
                         run_length_encoder.encode_range(data_type_size);
                     } else {
-                        run_length_encoder.finalize_current_encode_unsized(data_type_size);
+                        run_length_encoder.finalize_current_encode(data_type_size);
                     }
                 }
             }

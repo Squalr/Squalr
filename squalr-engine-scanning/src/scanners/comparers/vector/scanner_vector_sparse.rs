@@ -32,6 +32,10 @@ macro_rules! impl_scanner_vector_sparse {
                 Self {}
             }
 
+            // This mask automatically captures all in-between elements. For example, scanning for Byte 0 with an alignment of 2-bytes
+            // against <0, 24, 0, 43> would all return true, due to this mask of <0, 255, 0, 255>. Scan results will automatically skip
+            // over the unwanted elements based on alignment. In fact, we do NOT want to break this into two separate snapshot regions,
+            // since this would be incredibly inefficient. So in this example, we would return a single snapshot region of size 4, and the scan results would iterate by 2.
             fn get_sparse_mask(memory_alignment: MemoryAlignment) -> $simd_type {
                 match memory_alignment {
                     // This will produce a byte pattern of <0xFF, 0xFF...>.
@@ -64,7 +68,6 @@ macro_rules! impl_scanner_vector_sparse {
                     }
                 }
             }
-            
         }
     };
 }
@@ -80,27 +83,18 @@ macro_rules! impl_scanner_for_vector_sparse {
                 scan_filter_parameters: &ScanFilterParameters,
             ) -> Vec<SnapshotRegionFilter> {
                 let data_type = scan_filter_parameters.get_data_type();
-                let data_type_size = data_type.size_in_bytes();
+                let data_type_size = data_type.get_size_in_bytes();
                 let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
-                let sparse_element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size);
                 let encoder = ScannerVectorEncoder::<$bit_width>::get_instance();
-                let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
-                let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
-
-                // This mask automatically captures all in-between elements. For example, scanning for Byte 0 with an alignment of 2-bytes
-                // against <0, 24, 0, 43> would all return true, due to this mask of <0, 255, 0, 255>. Scan results will automatically skip
-                // over the unwanted elements based on alignment. In fact, we do NOT want to break this into two separate snapshot regions,
-                // since this would be incredibly inefficient. So in this example, we would return a single snapshot region of size 4, and the scan results would iterate by 2.
-                let sparse_mask = Self::get_sparse_mask(memory_alignment);
 
                 let results = encoder.encode(
-                    current_value_pointer,
-                    previous_value_pointer,
+                    snapshot_region.get_current_values_pointer(&snapshot_region_filter),
+                    snapshot_region.get_previous_values_pointer(&snapshot_region_filter),
                     scan_parameters,
                     scan_filter_parameters,
                     snapshot_region_filter.get_base_address(),
-                    sparse_element_count,
-                    sparse_mask,
+                    snapshot_region_filter.get_element_count(memory_alignment, data_type_size),
+                    Self::get_sparse_mask(memory_alignment),
                 );
 
                 return results;

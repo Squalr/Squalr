@@ -48,7 +48,7 @@ impl Scanner for ScannerScalarIterativeChunked {
         let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
         let data_type = scan_filter_parameters.get_data_type();
-        let data_type_size = data_type.size_in_bytes();
+        let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
         let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size) as usize;
 

@@ -48,7 +48,7 @@ impl IMemoryReader for WindowsMemoryReaderNt {
         dynamic_struct: &mut DynamicStruct
     ) -> bool {
         unsafe {
-            let size = dynamic_struct.size_in_bytes() as usize;
+            let size = dynamic_struct.get_size_in_bytes() as usize;
             let mut buffer = vec![0u8; size];
             let mut bytes_read = 0;
 

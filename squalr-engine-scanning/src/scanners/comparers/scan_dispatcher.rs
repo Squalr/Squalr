@@ -98,7 +98,7 @@ impl ScanDispatcher {
         scan_filter_parameters: &ScanFilterParameters,
     ) -> &dyn Scanner {
         let data_type = scan_filter_parameters.get_data_type();
-        let data_type_size = data_type.size_in_bytes();
+        let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
         let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size);
         let memory_alignment = memory_alignment as u64;
@@ -115,13 +115,13 @@ impl ScanDispatcher {
                 }
                 _ => {
                     // We actually don't really care whether the processor supports AVX-512, AVX2, etc, Rust is smart enough to abstract this.
-                    // It is actually more performant to greedily try to use AVX-512 even if its not available, because Rust generates
-                    // Essentially unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
+                    // It is actually more performant to greedily try to use AVX-512 even if its not available, because Rust falls back to
+                    // essentially unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
                     if bytes_to_scan >= 64 {
                         if memory_alignment == data_type_size {
                             return ScannerVectorAligned::<512>::get_instance();
                         } else if memory_alignment > data_type_size {
-                            // return ScannerVectorSparse::<512>::get_instance();
+                            return ScannerVectorSparse::<512>::get_instance();
                         } else {
                             // return ScannerVectorStaggered::<512>::get_instance();
                         }
@@ -130,7 +130,7 @@ impl ScanDispatcher {
                         if memory_alignment == data_type_size {
                             return ScannerVectorAligned::<256>::get_instance();
                         } else if memory_alignment > data_type_size {
-                            // return ScannerVectorSparse::<256>::get_instance();
+                            return ScannerVectorSparse::<256>::get_instance();
                         } else {
                             // return ScannerVectorStaggered::<256>::get_instance();
                         }
@@ -139,7 +139,7 @@ impl ScanDispatcher {
                         if memory_alignment == data_type_size {
                             return ScannerVectorAligned::<128>::get_instance();
                         } else if memory_alignment > data_type_size {
-                            // return ScannerVectorSparse::<128>::get_instance();
+                            return ScannerVectorSparse::<128>::get_instance();
                         } else {
                             // return ScannerVectorStaggered::<128>::get_instance();
                         }

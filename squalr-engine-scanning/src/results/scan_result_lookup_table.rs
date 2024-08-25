@@ -87,7 +87,7 @@ impl ScanResultLookupTable {
                 let region_start_index = scan_result_index;
     
                 for (filter_region_index, filter_region) in filter_regions.iter().enumerate() {
-                    let element_count = filter_region.get_element_count(memory_alignment, data_type.size_in_bytes());
+                    let element_count = filter_region.get_element_count(memory_alignment, data_type.get_size_in_bytes());
     
                     // Map the range of scan result indices to the filter index
                     let filter_range = RangeInclusive::new(scan_result_index, scan_result_index + element_count - 1);
