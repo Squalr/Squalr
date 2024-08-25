@@ -1,6 +1,7 @@
 
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
+use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::ScannerVectorComparer;
 use crate::scanners::comparers::vector::encoder::scanner_vector_encoder::ScannerVectorEncoder;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
@@ -12,15 +13,15 @@ use std::simd::{u8x16, u8x32, u8x64};
 pub struct ScannerVectorSparse<const VECTOR_SIZE_BITS: usize>;
 
 macro_rules! impl_scanner_vector_sparse {
-    ($bit_width:expr, $simd_type:ty, $vector_size_bytes:expr) => {
-        impl ScannerVectorSparse<$bit_width> {
-            pub fn get_instance() -> &'static ScannerVectorSparse<$bit_width> {
-                static mut INSTANCE: Option<ScannerVectorSparse<$bit_width>> = None;
+    ($vector_bit_size:expr, $simd_type:ty, $vector_size_bytes:expr) => {
+        impl ScannerVectorSparse<$vector_bit_size> {
+            pub fn get_instance() -> &'static ScannerVectorSparse<$vector_bit_size> {
+                static mut INSTANCE: Option<ScannerVectorSparse<$vector_bit_size>> = None;
                 static INIT: Once = Once::new();
 
                 unsafe {
                     INIT.call_once(|| {
-                        let instance = ScannerVectorSparse::<$bit_width>::new();
+                        let instance = ScannerVectorSparse::<$vector_bit_size>::new();
                         INSTANCE = Some(instance);
                     });
 
@@ -45,24 +46,24 @@ macro_rules! impl_scanner_vector_sparse {
                     // This will produce a byte pattern of <0x00, 0xFF...>.
                     MemoryAlignment::Alignment2 => {
                         let mut mask = [0u8; $vector_size_bytes];
-                        for i in (1..$vector_size_bytes).step_by(2) {
-                            mask[i] = 0xFF;
+                        for index in (1..$vector_size_bytes).step_by(2) {
+                            mask[index] = 0xFF;
                         }
                         <$simd_type>::from_array(mask)
                     }
                     // This will produce a byte pattern of <0x00, 0x00, 0x00, 0xFF...>.
                     MemoryAlignment::Alignment4 => {
                         let mut mask = [0u8; $vector_size_bytes];
-                        for i in (3..$vector_size_bytes).step_by(4) {
-                            mask[i] = 0xFF;
+                        for index in (3..$vector_size_bytes).step_by(4) {
+                            mask[index] = 0xFF;
                         }
                         <$simd_type>::from_array(mask)
                     }
                     // This will produce a byte pattern of <0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF...>.
                     MemoryAlignment::Alignment8 => {
                         let mut mask = [0u8; $vector_size_bytes];
-                        for i in (7..$vector_size_bytes).step_by(8) {
-                            mask[i] = 0xFF;
+                        for index in (7..$vector_size_bytes).step_by(8) {
+                            mask[index] = 0xFF;
                         }
                         <$simd_type>::from_array(mask)
                     }
@@ -73,8 +74,8 @@ macro_rules! impl_scanner_vector_sparse {
 }
 
 macro_rules! impl_scanner_for_vector_sparse {
-    ($bit_width:expr, $simd_type:ty) => {
-        impl Scanner for ScannerVectorSparse<$bit_width> {
+    ($vector_bit_size:expr, $simd_type:ty) => {
+        impl Scanner for ScannerVectorSparse<$vector_bit_size> {
             fn scan_region(
                 &self,
                 snapshot_region: &SnapshotRegion,
@@ -85,7 +86,7 @@ macro_rules! impl_scanner_for_vector_sparse {
                 let data_type = scan_filter_parameters.get_data_type();
                 let data_type_size = data_type.get_size_in_bytes();
                 let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
-                let encoder = ScannerVectorEncoder::<$bit_width>::get_instance();
+                let encoder = ScannerVectorEncoder::<$vector_bit_size>::get_instance();
 
                 let results = encoder.encode(
                     snapshot_region.get_current_values_pointer(&snapshot_region_filter),
@@ -94,6 +95,7 @@ macro_rules! impl_scanner_for_vector_sparse {
                     scan_filter_parameters,
                     snapshot_region_filter.get_base_address(),
                     snapshot_region_filter.get_element_count(memory_alignment, data_type_size),
+                    &ScannerVectorComparer::<$vector_bit_size>::get_instance(),
                     Self::get_sparse_mask(memory_alignment),
                 );
 

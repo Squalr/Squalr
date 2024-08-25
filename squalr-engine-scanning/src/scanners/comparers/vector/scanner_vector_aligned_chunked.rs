@@ -1,5 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
+use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::ScannerVectorComparer;
 use crate::scanners::comparers::vector::encoder::scanner_vector_encoder::ScannerVectorEncoder;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
@@ -11,15 +12,15 @@ use std::sync::Once;
 pub struct ScannerVectorAlignedChunked<const VECTOR_SIZE_BITS: usize>;
 
 macro_rules! impl_scanner_vector_aligned_chunked {
-    ($bit_width:expr) => {
-        impl ScannerVectorAlignedChunked<$bit_width> {
-            pub fn get_instance() -> &'static ScannerVectorAlignedChunked<$bit_width> {
-                static mut INSTANCE: Option<ScannerVectorAlignedChunked<$bit_width>> = None;
+    ($vector_bit_size:expr) => {
+        impl ScannerVectorAlignedChunked<$vector_bit_size> {
+            pub fn get_instance() -> &'static ScannerVectorAlignedChunked<$vector_bit_size> {
+                static mut INSTANCE: Option<ScannerVectorAlignedChunked<$vector_bit_size>> = None;
                 static INIT: Once = Once::new();
 
                 unsafe {
                     INIT.call_once(|| {
-                        let instance = ScannerVectorAlignedChunked::<$bit_width>::new();
+                        let instance = ScannerVectorAlignedChunked::<$vector_bit_size>::new();
                         INSTANCE = Some(instance);
                     });
 
@@ -41,8 +42,8 @@ impl<const VECTOR_SIZE_BITS: usize> ScannerVectorAlignedChunked<VECTOR_SIZE_BITS
 }
 
 macro_rules! impl_scanner_for_vector_aligned_chunked {
-    ($bit_width:expr, $simd_type:ty) => {
-        impl Scanner for ScannerVectorAlignedChunked<$bit_width> {
+    ($vector_bit_size:expr, $simd_type:ty) => {
+        impl Scanner for ScannerVectorAlignedChunked<$vector_bit_size> {
             fn scan_region(
                 &self,
                 snapshot_region: &SnapshotRegion,
@@ -56,6 +57,7 @@ macro_rules! impl_scanner_for_vector_aligned_chunked {
                 let data_type_size = data_type.get_size_in_bytes();
                 let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
                 let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size) as usize;
+                let vector_comparer = ScannerVectorComparer::<$vector_bit_size>::get_instance();
 
                 let current_values_slice = unsafe {
                     std::slice::from_raw_parts(current_value_pointer, element_count * memory_alignment as usize)
@@ -74,7 +76,7 @@ macro_rules! impl_scanner_for_vector_aligned_chunked {
                         let first_element_index = (chunk_index * chunk_size) as u64;
                         let last_element_index = ((chunk_index + 1) * chunk_size).min(element_count) as u64;
                         let chunk_address_offset = first_element_index * memory_alignment as u64;
-                        let local_encoder = ScannerVectorEncoder::<$bit_width>::get_instance();
+                        let local_encoder = ScannerVectorEncoder::<$vector_bit_size>::get_instance();
                         let base_address = snapshot_region_filter.get_base_address() + chunk_address_offset;
                         let true_mask = <$simd_type>::splat(0xFF);
 
@@ -86,6 +88,7 @@ macro_rules! impl_scanner_for_vector_aligned_chunked {
                                 scan_filter_parameters,
                                 base_address,
                                 last_element_index - first_element_index,
+                                vector_comparer,
                                 true_mask,
                             )
                         }

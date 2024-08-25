@@ -37,10 +37,10 @@ macro_rules! impl_scanner_vector_encoder {
                 scan_filter_parameters: &ScanFilterParameters,
                 base_address: u64,
                 element_count: u64,
+                vector_comparer: &ScannerVectorComparer::<$vector_bit_size>,
                 true_mask: $simd_type,
             ) -> Vec<SnapshotRegionFilter> {
                 let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-                let comparer = ScannerVectorComparer::<$vector_bit_size>::get_instance();
                 let data_type = scan_filter_parameters.get_data_type();
                 let data_type_size = data_type.get_size_in_bytes();
                 let comparisons_per_vector = ($vector_byte_size / data_type_size);
@@ -51,7 +51,7 @@ macro_rules! impl_scanner_vector_encoder {
                 unsafe {
                     if scan_parameters.is_immediate_comparison() {
                         let immediate_value = scan_parameters.deanonymize_type(&data_type).as_ptr();
-                        let compare_func = comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), data_type);
+                        let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), data_type);
 
                         // Compare as many full vectors as we can
                         for index in 0..iterations {
@@ -81,7 +81,7 @@ macro_rules! impl_scanner_vector_encoder {
                         }
 
                     } else if scan_parameters.is_relative_comparison() {
-                        let compare_func = comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type);
+                        let compare_func = vector_comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type);
 
                         // Compare as many full vectors as we can
                         for index in 0..iterations {
@@ -112,7 +112,7 @@ macro_rules! impl_scanner_vector_encoder {
                             );
                         }
                     } else if scan_parameters.is_relative_delta_comparison() {
-                        let compare_func = comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), data_type);
+                        let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), data_type);
                         let delta_arg = scan_parameters.deanonymize_type(&data_type).as_ptr();
 
                         // Compare as many full vectors as we can

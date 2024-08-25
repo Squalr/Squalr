@@ -1,5 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
+use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::ScannerVectorComparer;
 use crate::scanners::comparers::vector::encoder::scanner_vector_encoder::ScannerVectorEncoder;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
@@ -10,15 +11,15 @@ use std::sync::Once;
 pub struct ScannerVectorAligned<const VECTOR_SIZE_BITS: usize>;
 
 macro_rules! impl_scanner_vector_aligned {
-    ($bit_width:expr) => {
-        impl ScannerVectorAligned<$bit_width> {
-            pub fn get_instance() -> &'static ScannerVectorAligned<$bit_width> {
-                static mut INSTANCE: Option<ScannerVectorAligned<$bit_width>> = None;
+    ($vector_bit_size:expr) => {
+        impl ScannerVectorAligned<$vector_bit_size> {
+            pub fn get_instance() -> &'static ScannerVectorAligned<$vector_bit_size> {
+                static mut INSTANCE: Option<ScannerVectorAligned<$vector_bit_size>> = None;
                 static INIT: Once = Once::new();
 
                 unsafe {
                     INIT.call_once(|| {
-                        let instance = ScannerVectorAligned::<$bit_width>::new();
+                        let instance = ScannerVectorAligned::<$vector_bit_size>::new();
                         INSTANCE = Some(instance);
                     });
 
@@ -37,8 +38,8 @@ impl<const VECTOR_SIZE_BITS: usize> ScannerVectorAligned<VECTOR_SIZE_BITS> {
 }
 
 macro_rules! impl_scanner_for_vector_aligned {
-    ($bit_width:expr, $simd_type:ty) => {
-        impl Scanner for ScannerVectorAligned<$bit_width> {
+    ($vector_bit_size:expr, $simd_type:ty) => {
+        impl Scanner for ScannerVectorAligned<$vector_bit_size> {
             /// Performs a sequential iteration over a region of memory, performing the scan comparison.
             /// A run-length encoding algorithm is used to generate new sub-regions as the scan progresses.
             fn scan_region(
@@ -51,7 +52,8 @@ macro_rules! impl_scanner_for_vector_aligned {
                 let data_type = scan_filter_parameters.get_data_type();
                 let data_type_size = data_type.get_size_in_bytes();
                 let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
-                let encoder = ScannerVectorEncoder::<$bit_width>::get_instance();
+                let encoder = ScannerVectorEncoder::<$vector_bit_size>::get_instance();
+                let vector_comparer = ScannerVectorComparer::<$vector_bit_size>::get_instance();
                 let simd_all_true_mask = <$simd_type>::splat(0xFF);
 
                 let results = encoder.encode(
@@ -61,6 +63,7 @@ macro_rules! impl_scanner_for_vector_aligned {
                     scan_filter_parameters,
                     snapshot_region_filter.get_base_address(),
                     snapshot_region_filter.get_element_count(memory_alignment, data_type_size),
+                    vector_comparer,
                     simd_all_true_mask,
                 );
 
