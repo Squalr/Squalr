@@ -93,6 +93,57 @@ where
         }
     }
 
+    fn check_endian(&self, endian: &Endian) -> bool {
+        cfg!(target_endian = "little") == (*endian == Endian::Little)
+    }
+    
+    fn get_compare_equal_func(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+        match data_type {
+            DataType::U8() => Self::compare_equal::<u8, N>,
+            DataType::I8() => Self::compare_equal::<i8, N>,
+            DataType::U16(_) => Self::compare_equal::<u16, {N / 2}>,
+            DataType::I16(_) => Self::compare_equal::<i16, {N / 2}>,
+            DataType::U32(_) => Self::compare_equal::<u32, {N / 4}>,
+            DataType::I32(_) => Self::compare_equal::<i32, {N / 4}>,
+            DataType::U64(_) => Self::compare_equal::<u64, {N / 8}>,
+            DataType::I64(_) => Self::compare_equal::<i64, {N / 8}>,
+            // TODO: Support floating point tolerance
+            DataType::F32(_) => Self::compare_equal::<f32, {N / 8}>,
+            DataType::F64(_) => Self::compare_equal::<f64, {N / 8}>,
+            _ => panic!("Unsupported data type"),
+        }
+    }
+
+    
+    #[inline(always)]
+    unsafe fn unsafe_transmute<M, const M_LANES: usize>(value: &<Simd<M, M_LANES> as SimdPartialEq>::Mask) -> Simd<u8, N>
+    where
+        M: SimdElement + PartialEq,
+        LaneCount<M_LANES>: SupportedLaneCount,
+        Simd<M, M_LANES>: SimdPartialEq,
+    {
+        // These are guaranteed to be the same size, but std::mem::transmute is not passing Rust's compile checks
+        // Perhaps Rust is not smart enough to realize that the resulting sizes are the exact same.
+        return *(&*value as *const _ as *const Simd<u8, N>);
+    }
+
+    fn compare_equal<M, const M_LANES: usize>(
+        current_values_ptr: *const u8,
+        immediate_ptr: *const u8,
+    ) -> Simd<u8, N>
+    where
+        M: SimdElement + PartialEq,
+        LaneCount<M_LANES>: SupportedLaneCount,
+        Simd<M, M_LANES>: SimdPartialEq,
+    {
+        unsafe {
+            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            let compare_result = current_values.simd_eq(immediate_value);
+            return Self::unsafe_transmute::<M, M_LANES>(&compare_result);
+        }
+    }
+
     fn relative_simd_compare(
         current_values_ptr: *const u8,
         previous_values_ptr: *const u8,
@@ -121,44 +172,5 @@ where
         let delta_value = unsafe { Simd::<T, N>::splat(*(delta_ptr as *const T)) };
 
         simd_fn(current_values, simd_op(previous_values, delta_value))
-    }
-
-    fn check_endian(&self, endian: &Endian) -> bool {
-        cfg!(target_endian = "little") == (*endian == Endian::Little)
-    }
-    
-    pub fn get_compare_equal_func(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
-        match data_type {
-            DataType::U8() => Self::compare_equal::<u8, N>,
-            DataType::I8() => Self::compare_equal::<i8, N>,
-            DataType::U16(_) => Self::compare_equal::<u16, {N / 2}>,
-            DataType::I16(_) => Self::compare_equal::<i16, {N / 2}>,
-            DataType::U32(_) => Self::compare_equal::<u32, {N / 4}>,
-            DataType::I32(_) => Self::compare_equal::<i32, {N / 4}>,
-            DataType::U64(_) => Self::compare_equal::<u64, {N / 8}>,
-            DataType::I64(_) => Self::compare_equal::<i64, {N / 8}>,
-            _ => panic!("Unsupported data type"),
-        }
-    }
-
-    fn compare_equal<M, const M_LANES: usize>(
-        current_values_ptr: *const u8,
-        immediate_ptr: *const u8,
-    ) -> Simd<u8, N>
-    where
-        M: SimdElement + PartialEq,
-        LaneCount<M_LANES>: SupportedLaneCount,
-        Simd<M, M_LANES>: SimdPartialEq,
-    {
-        unsafe {
-            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
-            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
-            let compare_result = current_values.simd_eq(immediate_value);
-            
-            // These are guaranteed to be the same size, but std::mem::transmute is not passing Rust's compile checks
-            // Perhaps Rust is not smart enough to realize that the resulting sizes are the exact same.
-            let result_ptr = &compare_result as *const _ as *const Simd<u8, N>;
-            *result_ptr
-        }
     }
 }
