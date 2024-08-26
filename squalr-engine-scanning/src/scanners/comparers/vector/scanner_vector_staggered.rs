@@ -7,6 +7,7 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
+use std::simd::prelude::SimdPartialEq;
 use std::marker::PhantomData;
 
 use super::types::simd_type::SimdType;
@@ -14,6 +15,10 @@ use super::types::simd_type::SimdType;
 pub struct ScannerVectorStaggered<T: SimdType + Send + Sync, const N: usize>
 where
     LaneCount<N>: SupportedLaneCount,
+    LaneCount<{ N / 2 }>: SupportedLaneCount,
+    LaneCount<{ N / 4 }>: SupportedLaneCount,
+    LaneCount<{ N / 8 }>: SupportedLaneCount,
+    Simd<T, N>: SimdPartialEq,
 {
     _marker: PhantomData<T>,
 }
@@ -21,6 +26,10 @@ where
 impl<T: SimdType + Send + Sync, const N: usize> ScannerVectorStaggered<T, N>
 where
     LaneCount<N>: SupportedLaneCount,
+    LaneCount<{ N / 2 }>: SupportedLaneCount,
+    LaneCount<{ N / 4 }>: SupportedLaneCount,
+    LaneCount<{ N / 8 }>: SupportedLaneCount,
+    Simd<T, N>: SimdPartialEq,
 {
     pub fn new() -> Self {
         Self {
@@ -223,9 +232,13 @@ where
 /// with a value of 0 with an alignment of 2-bytes against <0, 0, 0, 0, 55, 0, 0, 0, 0, 0> would need to return <255, 0, 0, 0, 255, 255, ..>.
 /// This is accomplished by performing a full vector scan, then masking it against the appropriate stagger mask to extract the relevant scan
 /// results for that iteration. These sub-scans are OR'd together to get a run-length encoded vector of all scan matches.
-impl<T: SimdType + Send + Sync, const N: usize> Scanner for ScannerVectorStaggered<T, N>
+impl<T: SimdType + Send + Sync + PartialEq, const N: usize> Scanner for ScannerVectorStaggered<T, N>
 where
     LaneCount<N>: SupportedLaneCount,
+    LaneCount<{ N / 2 }>: SupportedLaneCount,
+    LaneCount<{ N / 4 }>: SupportedLaneCount,
+    LaneCount<{ N / 8 }>: SupportedLaneCount,
+    Simd<T, N>: SimdPartialEq,
 {
     fn scan_region(
         &self,

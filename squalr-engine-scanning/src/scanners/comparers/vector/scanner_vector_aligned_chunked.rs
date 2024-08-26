@@ -9,11 +9,16 @@ use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
+use std::simd::prelude::SimdPartialEq;
 use std::marker::PhantomData;
 
 pub struct ScannerVectorAlignedChunked<T: SimdType + Send + Sync, const N: usize>
 where
     LaneCount<N>: SupportedLaneCount,
+    LaneCount<{ N / 2 }>: SupportedLaneCount,
+    LaneCount<{ N / 4 }>: SupportedLaneCount,
+    LaneCount<{ N / 8 }>: SupportedLaneCount,
+    Simd<T, N>: SimdPartialEq,
 {
     _marker: PhantomData<T>,
 }
@@ -21,6 +26,10 @@ where
 impl<T: SimdType + Send + Sync, const N: usize> ScannerVectorAlignedChunked<T, N>
 where
     LaneCount<N>: SupportedLaneCount,
+    LaneCount<{ N / 2 }>: SupportedLaneCount,
+    LaneCount<{ N / 4 }>: SupportedLaneCount,
+    LaneCount<{ N / 8 }>: SupportedLaneCount,
+    Simd<T, N>: SimdPartialEq,
 {
     pub fn new() -> Self {
         Self {
@@ -29,9 +38,13 @@ where
     }
 }
 
-impl<T: SimdType + Send + Sync, const N: usize> Scanner for ScannerVectorAlignedChunked<T, N>
+impl<T: SimdType + Send + Sync + PartialEq, const N: usize> Scanner for ScannerVectorAlignedChunked<T, N>
 where
     LaneCount<N>: SupportedLaneCount,
+    LaneCount<{ N / 2 }>: SupportedLaneCount,
+    LaneCount<{ N / 4 }>: SupportedLaneCount,
+    LaneCount<{ N / 8 }>: SupportedLaneCount,
+    Simd<T, N>: SimdPartialEq,
 {
     fn scan_region(
         &self,

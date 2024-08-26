@@ -1,24 +1,30 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::ScannerVectorComparer;
+use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::{CompareFunc, ScannerVectorComparer};
 use crate::scanners::comparers::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use std::marker::PhantomData;
 use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
+use std::simd::prelude::SimdPartialEq;
 
 pub struct ScannerVectorEncoder<T, const N: usize>
 where
-    T: SimdElement + SimdType,
+    T: SimdElement + SimdType + PartialEq,
     LaneCount<N>: SupportedLaneCount,
+    Simd<T, N>: SimdPartialEq,
 {
     _marker: PhantomData<T>,
 }
 
 impl<T, const N: usize> ScannerVectorEncoder<T, N>
 where
-    T: SimdElement + SimdType,
+    T: SimdElement + SimdType + PartialEq,
     LaneCount<N>: SupportedLaneCount,
+    LaneCount<{ N / 2 }>: SupportedLaneCount,
+    LaneCount<{ N / 4 }>: SupportedLaneCount,
+    LaneCount<{ N / 8 }>: SupportedLaneCount,
+    Simd<T, N>: SimdPartialEq,
 {
     pub fn new() -> Self {
         Self {
@@ -48,7 +54,10 @@ where
         unsafe {
             if scan_parameters.is_immediate_comparison() {
                 let immediate_value = scan_parameters.deanonymize_type(&data_type).as_ptr();
-                let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), data_type);
+                let compare_func = match vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), data_type) {
+                    CompareFunc::Immediate(func) => func,
+                    _ => panic!("Unexpected CompareFunc variant"),
+                };
 
                 // Compare as many full vectors as we can
                 for index in 0..iterations {
@@ -78,7 +87,10 @@ where
                 }
 
             } else if scan_parameters.is_relative_comparison() {
-                let compare_func = vector_comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type);
+                let compare_func = match vector_comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type) {
+                    CompareFunc::Relative(func) => func,
+                    _ => panic!("Unexpected CompareFunc variant"),
+                };
 
                 // Compare as many full vectors as we can
                 for index in 0..iterations {
@@ -109,7 +121,10 @@ where
                     );
                 }
             } else if scan_parameters.is_relative_delta_comparison() {
-                let compare_func = vector_comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type);
+                let compare_func = match vector_comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type) {
+                    CompareFunc::RelativeDelta(func) => func,
+                    _ => panic!("Unexpected CompareFunc variant"),
+                };
                 let delta_arg = scan_parameters.deanonymize_type(&data_type).as_ptr();
 
                 // Compare as many full vectors as we can

@@ -1,20 +1,34 @@
 use crate::scanners::comparers::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_common::values::endian::Endian;
 use std::marker::PhantomData;
+use std::mem::transmute;
+use std::ops::{Add, Sub};
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
-use std::simd::{LaneCount, Mask, Simd, SimdElement, SupportedLaneCount};
+use std::simd::num::{SimdInt, SimdUint};
+use std::simd::{LaneCount, Mask, MaskElement, Simd, SimdElement, SupportedLaneCount};
 
-pub struct ScannerVectorComparer<T: SimdElement + SimdType, const N: usize>
+pub struct ScannerVectorComparer<T: SimdElement + SimdType + PartialEq, const N: usize>
 where
+    T: SimdElement + SimdType + PartialEq,
     LaneCount<N>: SupportedLaneCount,
+    LaneCount<{ N / 2 }>: SupportedLaneCount,
+    LaneCount<{ N / 4 }>: SupportedLaneCount,
+    LaneCount<{ N / 8 }>: SupportedLaneCount,
+    Simd<T, N>: SimdPartialEq,
 {
     _marker: std::marker::PhantomData<T>,
 }
 
-enum CompareFunc<T, const N: usize>
+pub enum CompareFunc<T, const N: usize>
 where
+    T: SimdElement + SimdType + PartialEq,
     LaneCount<N>: SupportedLaneCount,
+    LaneCount<{ N / 2 }>: SupportedLaneCount,
+    LaneCount<{ N / 4 }>: SupportedLaneCount,
+    LaneCount<{ N / 8 }>: SupportedLaneCount,
+    Simd<T, N>: SimdPartialEq,
 {
     Immediate(fn(*const u8, *const u8) -> Simd<u8, N>),
     Relative(fn(*const u8, *const u8) -> Simd<u8, N>),
@@ -24,8 +38,12 @@ where
 
 impl<T: SimdElement + SimdType, const N: usize> ScannerVectorComparer<T, N>
 where
+    T: SimdElement + SimdType + PartialEq,
     LaneCount<N>: SupportedLaneCount,
-    Simd<T, N>: SimdPartialEq<Mask = Mask<i8, N>> + SimdPartialOrd<Mask = Mask<i8, N>>, 
+    LaneCount<{ N / 2 }>: SupportedLaneCount,
+    LaneCount<{ N / 4 }>: SupportedLaneCount,
+    LaneCount<{ N / 8 }>: SupportedLaneCount,
+    Simd<T, N>: SimdPartialEq,
 {
     pub fn new() -> Self {
         Self {
@@ -39,12 +57,12 @@ where
         data_type: &DataType,
     ) -> CompareFunc<T, N> {
         match scan_compare_type {
-            ScanCompareType::Equal => CompareFunc::Immediate(Self::compare_equal),
-            ScanCompareType::NotEqual => CompareFunc::Immediate(Self::compare_not_equal),
-            ScanCompareType::GreaterThan => CompareFunc::Immediate(Self::compare_greater_than),
-            ScanCompareType::GreaterThanOrEqual => CompareFunc::Immediate(Self::compare_greater_than_or_equal),
-            ScanCompareType::LessThan => CompareFunc::Immediate(Self::compare_less_than),
-            ScanCompareType::LessThanOrEqual => CompareFunc::Immediate(Self::compare_less_than_or_equal),
+            ScanCompareType::Equal => CompareFunc::Immediate(Self::get_compare_equal_func(data_type)),
+            // ScanCompareType::NotEqual => CompareFunc::Immediate(Self::compare_not_equal(data_type)),
+            // ScanCompareType::GreaterThan => CompareFunc::Immediate(Self::compare_greater_than(data_type)),
+            // ScanCompareType::GreaterThanOrEqual => CompareFunc::Immediate(Self::compare_greater_than_or_equal(data_type)),
+            // ScanCompareType::LessThan => CompareFunc::Immediate(Self::compare_less_than(data_type)),
+            // ScanCompareType::LessThanOrEqual => CompareFunc::Immediate(Self::compare_less_than_or_equal(data_type)),
             _ => panic!("Unsupported type passed to get_immediate_compare_func"),
         }
     }
@@ -55,10 +73,10 @@ where
         data_type: &DataType,
     ) -> CompareFunc<T, N> {
         match scan_compare_type {
-            ScanCompareType::Changed => CompareFunc::Relative(Self::get_compare_changed),
-            ScanCompareType::Unchanged => CompareFunc::Relative(Self::get_compare_unchanged),
-            ScanCompareType::Increased => CompareFunc::Relative(Self::get_compare_increased),
-            ScanCompareType::Decreased => CompareFunc::Relative(Self::get_compare_decreased),
+            // ScanCompareType::Changed => CompareFunc::Relative(Self::get_compare_changed(data_type)),
+            // ScanCompareType::Unchanged => CompareFunc::Relative(Self::get_compare_unchanged(data_type)),
+            // ScanCompareType::Increased => CompareFunc::Relative(Self::get_compare_increased(data_type)),
+            // ScanCompareType::Decreased => CompareFunc::Relative(Self::get_compare_decreased(data_type)),
             _ => panic!("Unsupported type passed to get_relative_compare_func"),
         }
     }
@@ -69,20 +87,10 @@ where
         data_type: &DataType,
     ) -> CompareFunc<T, N> {
         match scan_compare_type {
-            ScanCompareType::IncreasedByX => CompareFunc::RelativeDelta(Self::get_compare_increased_by),
-            ScanCompareType::DecreasedByX => CompareFunc::RelativeDelta(Self::get_compare_decreased_by),
+            // ScanCompareType::IncreasedByX => CompareFunc::RelativeDelta(Self::get_compare_increased_by(data_type)),
+            // ScanCompareType::DecreasedByX => CompareFunc::RelativeDelta(Self::get_compare_decreased_by(data_type)),
             _ => panic!("Unsupported type passed to get_relative_delta_compare_func"),
         }
-    }
-
-    fn immediate_simd_compare(
-        current_values_ptr: *const u8,
-        immediate_ptr: *const u8,
-        simd_fn: fn(Simd<T, N>, Simd<T, N>) -> Simd<u8, N>,
-    ) -> Simd<u8, N> {
-        let immediate_value = unsafe { Simd::<T, N>::splat(*(immediate_ptr as *const T)) };
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        simd_fn(current_values, immediate_value)
     }
 
     fn relative_simd_compare(
@@ -111,124 +119,46 @@ where
         let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
         let previous_values = unsafe { Simd::<T, N>::from_array(*(previous_values_ptr as *const [T; N])) };
         let delta_value = unsafe { Simd::<T, N>::splat(*(delta_ptr as *const T)) };
+
         simd_fn(current_values, simd_op(previous_values, delta_value))
     }
 
-    fn mask_to_u8(mask: Mask<i8, N>) -> Simd<u8, N> {
-        mask.select(Simd::splat(255), Simd::splat(0))
+    fn check_endian(&self, endian: &Endian) -> bool {
+        cfg!(target_endian = "little") == (*endian == Endian::Little)
+    }
+    
+    pub fn get_compare_equal_func(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+        match data_type {
+            DataType::U8() => Self::compare_equal::<u8, N>,
+            DataType::I8() => Self::compare_equal::<i8, N>,
+            DataType::U16(_) => Self::compare_equal::<u16, {N / 2}>,
+            DataType::I16(_) => Self::compare_equal::<i16, {N / 2}>,
+            DataType::U32(_) => Self::compare_equal::<u32, {N / 4}>,
+            DataType::I32(_) => Self::compare_equal::<i32, {N / 4}>,
+            DataType::U64(_) => Self::compare_equal::<u64, {N / 8}>,
+            DataType::I64(_) => Self::compare_equal::<i64, {N / 8}>,
+            _ => panic!("Unsupported data type"),
+        }
     }
 
-    fn compare_equal(
+    fn compare_equal<M, const M_LANES: usize>(
         current_values_ptr: *const u8,
-        immediate_ptr: *const u8
-    ) -> Simd<u8, N> {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let immediate_value = unsafe { Simd::<T, N>::splat(*(immediate_ptr as *const T)) };
-        Self::mask_to_u8(current_values.simd_eq(immediate_value))
-    }
-
-    fn compare_not_equal(
-        current_values_ptr: *const u8,
-        immediate_ptr: *const u8
-    ) -> Simd<u8, N> {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let immediate_value = unsafe { Simd::<T, N>::splat(*(immediate_ptr as *const T)) };
-        Self::mask_to_u8(current_values.simd_ne(immediate_value))
-    }
-
-    fn compare_greater_than(
-        current_values_ptr: *const u8,
-        immediate_ptr: *const u8
-    ) -> Simd<u8, N> {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let immediate_value = unsafe { Simd::<T, N>::splat(*(immediate_ptr as *const T)) };
-        Self::mask_to_u8(current_values.simd_gt(immediate_value))
-    }
-
-    fn compare_greater_than_or_equal(
-        current_values_ptr: *const u8,
-        immediate_ptr: *const u8
-    ) -> Simd<u8, N> {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let immediate_value = unsafe { Simd::<T, N>::splat(*(immediate_ptr as *const T)) };
-        Self::mask_to_u8(current_values.simd_ge(immediate_value))
-    }
-
-    fn compare_less_than(
-        current_values_ptr: *const u8,
-        immediate_ptr: *const u8
-    ) -> Simd<u8, N> {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let immediate_value = unsafe { Simd::<T, N>::splat(*(immediate_ptr as *const T)) };
-        Self::mask_to_u8(current_values.simd_lt(immediate_value))
-    }
-
-    fn compare_less_than_or_equal(
-        current_values_ptr: *const u8,
-        immediate_ptr: *const u8
-    ) -> Simd<u8, N> {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let immediate_value = unsafe { Simd::<T, N>::splat(*(immediate_ptr as *const T)) };
-        Self::mask_to_u8(current_values.simd_le(immediate_value))
-    }
-
-    fn get_compare_changed(
-        current_values_ptr: *const u8,
-        previous_values_ptr: *const u8
-    ) -> Simd<u8, N> {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let previous_values = unsafe { Simd::<T, N>::from_array(*(previous_values_ptr as *const [T; N])) };
-        Self::mask_to_u8(current_values.simd_ne(previous_values))
-    }
-
-    fn get_compare_unchanged(
-        current_values_ptr: *const u8,
-        previous_values_ptr: *const u8
-    ) -> Simd<u8, N> {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let previous_values = unsafe { Simd::<T, N>::from_array(*(previous_values_ptr as *const [T; N])) };
-        Self::mask_to_u8(current_values.simd_eq(previous_values))
-    }
-
-    fn get_compare_increased(
-        current_values_ptr: *const u8,
-        previous_values_ptr: *const u8
-    ) -> Simd<u8, N> {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let previous_values = unsafe { Simd::<T, N>::from_array(*(previous_values_ptr as *const [T; N])) };
-        Self::mask_to_u8(current_values.simd_gt(previous_values))
-    }
-
-    fn get_compare_decreased(
-        current_values_ptr: *const u8,
-        previous_values_ptr: *const u8
-    ) -> Simd<u8, N> {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let previous_values = unsafe { Simd::<T, N>::from_array(*(previous_values_ptr as *const [T; N])) };
-        Self::mask_to_u8(current_values.simd_lt(previous_values))
-    }
-
-    fn get_compare_increased_by(
-        current_values_ptr: *const u8,
-        previous_values_ptr: *const u8,
-        delta_ptr: *const u8,
-    ) -> Simd<u8, N> {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let previous_values = unsafe { Simd::<T, N>::from_array(*(previous_values_ptr as *const [T; N])) };
-        let delta_value = unsafe { Simd::<T, N>::splat(*(delta_ptr as *const T)) };
-        let expected_values = previous_values + delta_value;
-        Self::mask_to_u8(current_values.simd_eq(expected_values))
-    }
-
-    fn get_compare_decreased_by(
-        current_values_ptr: *const u8,
-        previous_values_ptr: *const u8,
-        delta_ptr: *const u8,
-    ) -> Simd<u8, N> {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let previous_values = unsafe { Simd::<T, N>::from_array(*(previous_values_ptr as *const [T; N])) };
-        let delta_value = unsafe { Simd::<T, N>::splat(*(delta_ptr as *const T)) };
-        let expected_values = previous_values - delta_value;
-        Self::mask_to_u8(current_values.simd_eq(expected_values))
+        immediate_ptr: *const u8,
+    ) -> Simd<u8, N>
+    where
+        M: SimdElement + PartialEq,
+        LaneCount<M_LANES>: SupportedLaneCount,
+        Simd<M, M_LANES>: SimdPartialEq,
+    {
+        unsafe {
+            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            let compare_result = current_values.simd_eq(immediate_value);
+            
+            // These are guaranteed to be the same size, but std::mem::transmute is not passing Rust's compile checks
+            // Perhaps Rust is not smart enough to realize that the resulting sizes are the exact same.
+            let result_ptr = &compare_result as *const _ as *const Simd<u8, N>;
+            *result_ptr
+        }
     }
 }
