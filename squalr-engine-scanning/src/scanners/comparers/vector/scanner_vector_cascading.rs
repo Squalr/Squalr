@@ -1,7 +1,8 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
-use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::ScannerVectorComparer;
+use crate::scanners::comparers::vector::encoder::scanner_vector_comparer_cascading::ScannerVectorComparerCascading;
 use crate::scanners::comparers::vector::encoder::scanner_vector_encoder::ScannerVectorEncoder;
+use crate::scanners::comparers::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
@@ -9,8 +10,6 @@ use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::marker::PhantomData;
 use std::simd::prelude::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
-
-use super::types::simd_type::SimdType;
 
 pub struct ScannerVectorCascading<T: SimdType + Send + Sync, const N: usize>
 where
@@ -261,7 +260,7 @@ where
         let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
         let encoder = ScannerVectorEncoder::<T, N>::new();
-        let vector_comparer = ScannerVectorComparer::<T, N>::new();
+        let vector_comparer = ScannerVectorComparerCascading::<T, N>::new(memory_alignment);
 
         let cascading_masks = Self::get_cascading_mask(data_type_size, memory_alignment);
         let mut results = Vec::new();

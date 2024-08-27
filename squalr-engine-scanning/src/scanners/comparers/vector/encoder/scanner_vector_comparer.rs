@@ -18,19 +18,19 @@ where
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> fn(*const u8, *const u8) -> Simd<u8, N>;
+    ) -> impl Fn(*const u8, *const u8) -> Simd<u8, N>;
 
     fn get_relative_compare_func(
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> fn(*const u8, *const u8) -> Simd<u8, N>;
+    ) -> impl Fn(*const u8, *const u8) -> Simd<u8, N>;
 
     fn get_relative_delta_compare_func(
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> fn(*const u8, *const u8, *const u8) -> Simd<u8, N>;
+    ) -> impl Fn(*const u8, *const u8, *const u8) -> Simd<u8, N>;
 }
 
 pub struct ScannerVectorComparer<T: SimdElement + SimdType + PartialEq, const N: usize>
@@ -58,7 +58,7 @@ where
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+    ) -> impl Fn(*const u8, *const u8) -> Simd<u8, N> {
         self.get_immediate_compare_func(scan_compare_type, data_type)
     }
 
@@ -66,7 +66,7 @@ where
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+    ) -> impl Fn(*const u8, *const u8) -> Simd<u8, N> {
         self.get_relative_compare_func(scan_compare_type, data_type)
     }
 
@@ -74,7 +74,7 @@ where
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> fn(*const u8, *const u8, *const u8) -> Simd<u8, N> {
+    ) -> impl Fn(*const u8, *const u8, *const u8) -> Simd<u8, N> {
         self.get_relative_delta_compare_func(scan_compare_type, data_type)
     }
 }
@@ -97,7 +97,7 @@ where
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+    ) -> impl Fn(*const u8, *const u8) -> Simd<u8, N> {
         match scan_compare_type {
             ScanCompareType::Equal => Self::get_compare_equal_func(data_type),
             ScanCompareType::NotEqual => Self::get_compare_not_equal_func(data_type),
@@ -113,7 +113,7 @@ where
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+    ) -> impl Fn(*const u8, *const u8) -> Simd<u8, N> {
         match scan_compare_type {
             ScanCompareType::Changed => Self::get_compare_changed(data_type),
             ScanCompareType::Unchanged => Self::get_compare_unchanged(data_type),
@@ -127,7 +127,7 @@ where
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> fn(*const u8, *const u8, *const u8) -> Simd<u8, N> {
+    ) -> impl Fn(*const u8, *const u8, *const u8) -> Simd<u8, N> {
         match scan_compare_type {
             ScanCompareType::IncreasedByX => Self::get_compare_increased_by(data_type),
             ScanCompareType::DecreasedByX => Self::get_compare_decreased_by(data_type),
