@@ -1,5 +1,3 @@
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
-
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::ScannerVectorComparer;
@@ -8,13 +6,10 @@ use crate::scanners::comparers::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::marker::PhantomData;
 use std::simd::prelude::SimdPartialEq;
-use std::simd::{
-    LaneCount,
-    Simd,
-    SupportedLaneCount,
-};
+use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorSparse<T: SimdType + Send + Sync, const N: usize>
 where

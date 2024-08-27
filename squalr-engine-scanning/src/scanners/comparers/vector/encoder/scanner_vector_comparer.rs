@@ -4,26 +4,10 @@ use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::endian::Endian;
 use std::marker::PhantomData;
 use std::mem::transmute;
-use std::ops::{
-    Add,
-    Sub,
-};
-use std::simd::cmp::{
-    SimdPartialEq,
-    SimdPartialOrd,
-};
-use std::simd::num::{
-    SimdInt,
-    SimdUint,
-};
-use std::simd::{
-    LaneCount,
-    Mask,
-    MaskElement,
-    Simd,
-    SimdElement,
-    SupportedLaneCount,
-};
+use std::ops::{Add, Sub};
+use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
+use std::simd::num::{SimdInt, SimdUint};
+use std::simd::{LaneCount, Mask, MaskElement, Simd, SimdElement, SupportedLaneCount};
 
 pub struct ScannerVectorComparer<T: SimdElement + SimdType + PartialEq, const N: usize>
 where

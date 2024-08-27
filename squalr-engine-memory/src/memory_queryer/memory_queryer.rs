@@ -1,24 +1,12 @@
+use crate::memory_queryer::memory_protection_enum::MemoryProtectionEnum;
+use crate::memory_queryer::memory_type_enum::MemoryTypeEnum;
+use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
+use crate::memory_queryer::MemoryQueryerImpl;
 use crate::normalized_region::NormalizedRegion;
-use crate::{
-    memory_queryer::memory_queryer_trait::IMemoryQueryer,
-    memory_settings::MemorySettings,
-};
-use squalr_engine_common::logging::{
-    log_level::LogLevel,
-    logger::Logger,
-};
+use crate::{memory_queryer::memory_queryer_trait::IMemoryQueryer, memory_settings::MemorySettings};
+use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::process_info::ProcessInfo;
-use std::{
-    collections::HashSet,
-    sync::Once,
-};
-
-use super::{
-    memory_protection_enum::MemoryProtectionEnum,
-    memory_type_enum::MemoryTypeEnum,
-    region_bounds_handling::RegionBoundsHandling,
-    MemoryQueryerImpl,
-};
+use std::{collections::HashSet, sync::Once};
 
 bitflags::bitflags! {
     #[derive(PartialEq, Eq)]

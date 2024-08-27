@@ -1,8 +1,5 @@
 use crate::logging::logger_observer::ILoggerObserver;
-use std::hash::{
-    Hash,
-    Hasher,
-};
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 pub struct ObserverHandle(Arc<dyn ILoggerObserver + Send + Sync>);

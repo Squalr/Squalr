@@ -1,9 +1,6 @@
 use super::normalized_region::NormalizedRegion;
 use std::ffi::OsStr;
-use std::hash::{
-    Hash,
-    Hasher,
-};
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 #[derive(Debug)]

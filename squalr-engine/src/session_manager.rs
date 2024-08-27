@@ -1,10 +1,6 @@
 use squalr_engine_processes::process_info::ProcessInfo;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
-use std::sync::{
-    Arc,
-    Once,
-    RwLock,
-};
+use std::sync::{Arc, Once, RwLock};
 
 pub struct SessionManager {
     opened_process: Option<ProcessInfo>,

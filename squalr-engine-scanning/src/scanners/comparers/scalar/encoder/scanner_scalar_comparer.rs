@@ -1,8 +1,5 @@
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
-use squalr_engine_common::values::{
-    data_type::DataType,
-    endian::Endian,
-};
+use squalr_engine_common::values::{data_type::DataType, endian::Endian};
 use std::sync::Once;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)

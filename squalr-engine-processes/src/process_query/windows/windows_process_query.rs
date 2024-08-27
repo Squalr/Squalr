@@ -1,39 +1,13 @@
-use crate::process_info::{
-    Bitness,
-    ProcessInfo,
-};
-use crate::process_query::{
-    IProcessQueryer,
-    ProcessQueryOptions,
-};
+use crate::process_info::{Bitness, ProcessInfo};
+use crate::process_query::{IProcessQueryer, ProcessQueryOptions};
 use std::ffi::CString;
-use sysinfo::{
-    Pid,
-    System,
-};
-use windows_sys::Win32::Foundation::{
-    CloseHandle,
-    BOOL,
-    HANDLE,
-};
-use windows_sys::Win32::System::Threading::{
-    IsWow64Process,
-    IsWow64Process2,
-};
-use windows_sys::Win32::System::Threading::{
-    OpenProcess,
-    PROCESS_ALL_ACCESS,
-};
+use sysinfo::{Pid, System};
+use windows_sys::Win32::Foundation::{CloseHandle, BOOL, HANDLE};
+use windows_sys::Win32::System::Threading::{IsWow64Process, IsWow64Process2};
+use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_ALL_ACCESS};
 use windows_sys::Win32::UI::Shell::ExtractIconA;
-use windows_sys::Win32::UI::WindowsAndMessaging::{
-    FindWindowA,
-    GetWindowThreadProcessId,
-    HICON,
-};
-use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetIconInfo,
-    ICONINFO,
-};
+use windows_sys::Win32::UI::WindowsAndMessaging::{FindWindowA, GetWindowThreadProcessId, HICON};
+use windows_sys::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
 
 pub struct WindowsProcessQuery {
     system: System,

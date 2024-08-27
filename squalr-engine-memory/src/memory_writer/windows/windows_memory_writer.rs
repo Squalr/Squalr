@@ -2,10 +2,7 @@ use crate::memory_writer::memory_writer_trait::IMemoryWriter;
 use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 use std::ptr::null_mut;
 use windows_sys::Win32::System::Diagnostics::Debug::WriteProcessMemory;
-use windows_sys::Win32::System::Memory::{
-    VirtualProtectEx,
-    PAGE_READWRITE,
-};
+use windows_sys::Win32::System::Memory::{VirtualProtectEx, PAGE_READWRITE};
 
 pub struct WindowsMemoryWriter;
 

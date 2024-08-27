@@ -1,9 +1,4 @@
-use std::simd::{
-    LaneCount,
-    Simd,
-    SimdElement,
-    SupportedLaneCount,
-};
+use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
 
 pub trait SimdType: SimdElement {
     type SimdVector<const N: usize>: Copy

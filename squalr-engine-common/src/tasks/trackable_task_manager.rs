@@ -1,11 +1,7 @@
 use crate::tasks::trackable_task::TrackableTask;
 use std::any::Any;
 use std::collections::HashMap;
-use std::sync::{
-    Arc,
-    Mutex,
-    Once,
-};
+use std::sync::{Arc, Mutex, Once};
 
 pub struct TrackableTaskManager<T: Send + Sync> {
     tasks: Arc<Mutex<HashMap<String, Arc<TrackableTask<T>>>>>,

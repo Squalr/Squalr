@@ -8,11 +8,7 @@ use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::marker::PhantomData;
 use std::simd::prelude::SimdPartialEq;
-use std::simd::{
-    LaneCount,
-    Simd,
-    SupportedLaneCount,
-};
+use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 use super::types::simd_type::SimdType;
 

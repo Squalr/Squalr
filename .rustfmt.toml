@@ -1,5 +1,4 @@
 indent_style = "Block"
-imports_layout = "Vertical"
 fn_args_layout = "Vertical"
 fn_params_layout = "Vertical"
 array_width = 64

@@ -1,20 +1,12 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::{
-    CompareFunc,
-    ScannerVectorComparer,
-};
+use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::{CompareFunc, ScannerVectorComparer};
 use crate::scanners::comparers::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use std::marker::PhantomData;
 use std::simd::prelude::SimdPartialEq;
-use std::simd::{
-    LaneCount,
-    Simd,
-    SimdElement,
-    SupportedLaneCount,
-};
+use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
 
 pub struct ScannerVectorEncoder<T, const N: usize>
 where

@@ -1,8 +1,5 @@
 use std::sync::Once;
-use std::sync::{
-    Arc,
-    RwLock,
-};
+use std::sync::{Arc, RwLock};
 
 pub struct Config {
     pub memory_type_none: bool,

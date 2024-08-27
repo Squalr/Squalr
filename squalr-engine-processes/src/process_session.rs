@@ -1,14 +1,8 @@
 use squalr_engine_common::logging::logger::Logger;
-use std::sync::{
-    Arc,
-    Mutex,
-};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use sysinfo::{
-    Pid,
-    System,
-};
+use sysinfo::{Pid, System};
 
 #[derive(Debug)]
 pub struct ProcessSession {

@@ -1,5 +1,4 @@
 use crate::process_info::ProcessInfo;
-
 use sysinfo::Pid;
 
 pub trait IProcessQueryer {
@@ -21,7 +20,7 @@ pub trait IProcessQueryer {
     ) -> Option<String>;
     fn open_process(
         &self,
-        process_id: &Pid
+        process_id: &Pid,
     ) -> Result<ProcessInfo, String>;
     fn close_process(
         &self,

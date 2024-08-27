@@ -1,17 +1,6 @@
-use std::sync::atomic::{
-    AtomicBool,
-    Ordering,
-};
-use std::sync::mpsc::{
-    self,
-    Receiver,
-    Sender,
-};
-use std::sync::{
-    Arc,
-    Condvar,
-    Mutex,
-};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use uuid::Uuid;
 

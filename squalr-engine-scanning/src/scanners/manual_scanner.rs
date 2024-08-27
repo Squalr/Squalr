@@ -1,24 +1,13 @@
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot::Snapshot;
-use rayon::iter::{
-    IntoParallelIterator,
-    IntoParallelRefMutIterator,
-    ParallelIterator,
-};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
-use std::sync::atomic::{
-    AtomicBool,
-    AtomicUsize,
-    Ordering,
-};
-use std::sync::{
-    Arc,
-    RwLock,
-};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Instant;
 

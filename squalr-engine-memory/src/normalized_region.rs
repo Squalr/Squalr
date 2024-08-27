@@ -1,12 +1,6 @@
 use crate::memory_alignment::MemoryAlignment;
-use std::cmp::{
-    Ord,
-    Ordering,
-};
-use std::hash::{
-    Hash,
-    Hasher,
-};
+use std::cmp::{Ord, Ordering};
+use std::hash::{Hash, Hasher};
 use std::ops::Add;
 
 /// Defines a generic range of addresses, with no extra information.

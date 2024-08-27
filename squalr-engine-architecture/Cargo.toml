@@ -9,4 +9,3 @@ edition = "2021"
 squalr-engine-common = { path = "../squalr-engine-common" }
 
 [build-dependencies]
-

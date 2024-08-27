@@ -11,27 +11,10 @@ use squalr_engine_processes::process_info::ProcessInfo;
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Foundation::HMODULE;
 use windows_sys::Win32::System::Memory::{
-    VirtualQueryEx,
-    MEMORY_BASIC_INFORMATION64,
-    PAGE_EXECUTE,
-    PAGE_EXECUTE_READ,
-    PAGE_EXECUTE_READWRITE,
-    PAGE_EXECUTE_WRITECOPY,
-    PAGE_READWRITE,
-    PAGE_WRITECOPY,
+    VirtualQueryEx, MEMORY_BASIC_INFORMATION64, PAGE_EXECUTE, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE, PAGE_EXECUTE_WRITECOPY, PAGE_READWRITE, PAGE_WRITECOPY,
 };
-use windows_sys::Win32::System::ProcessStatus::{
-    K32EnumProcessModulesEx,
-    K32GetModuleFileNameExA,
-    K32GetModuleInformation,
-    LIST_MODULES_ALL,
-    MODULEINFO,
-};
-use windows_sys::Win32::System::Threading::{
-    OpenProcess,
-    PROCESS_QUERY_INFORMATION,
-    PROCESS_VM_READ,
-};
+use windows_sys::Win32::System::ProcessStatus::{K32EnumProcessModulesEx, K32GetModuleFileNameExA, K32GetModuleInformation, LIST_MODULES_ALL, MODULEINFO};
+use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
 
 pub struct WindowsMemoryQueryer;
 

@@ -1,13 +1,8 @@
 use crate::logging::log_level::LogLevel;
 use crate::logging::logger_observer::ILoggerObserver;
 use crate::logging::observer_handle::ObserverHandle;
-
 use std::collections::HashSet;
-use std::sync::{
-    Arc,
-    Mutex,
-    Once,
-};
+use std::sync::{Arc, Mutex, Once};
 
 pub struct Logger {
     observers: Arc<Mutex<HashSet<ObserverHandle>>>,

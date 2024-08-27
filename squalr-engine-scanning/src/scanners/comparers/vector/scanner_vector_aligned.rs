@@ -8,11 +8,7 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use std::marker::PhantomData;
 use std::simd::cmp::SimdPartialEq;
-use std::simd::{
-    LaneCount,
-    Simd,
-    SupportedLaneCount,
-};
+use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorAligned<T: SimdType + Send + Sync, const N: usize>
 where

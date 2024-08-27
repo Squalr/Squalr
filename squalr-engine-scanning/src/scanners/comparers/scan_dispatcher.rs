@@ -8,10 +8,7 @@ use crate::scanners::comparers::vector::scanner_vector_staggered::ScannerVectorS
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use rayon::iter::{
-    IntoParallelRefIterator,
-    ParallelIterator,
-};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_common::values::data_type::DataType;
 use std::sync::Once;
 

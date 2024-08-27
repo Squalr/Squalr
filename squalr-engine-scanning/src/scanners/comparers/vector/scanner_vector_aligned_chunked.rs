@@ -1,8 +1,3 @@
-use rayon::iter::{
-    IntoParallelIterator,
-    ParallelIterator,
-};
-
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::ScannerVectorComparer;
@@ -11,13 +6,10 @@ use crate::scanners::comparers::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::marker::PhantomData;
 use std::simd::prelude::SimdPartialEq;
-use std::simd::{
-    LaneCount,
-    Simd,
-    SupportedLaneCount,
-};
+use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorAlignedChunked<T: SimdType + Send + Sync, const N: usize>
 where
