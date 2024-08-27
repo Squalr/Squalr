@@ -1,21 +1,18 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::scalar::encoder::scanner_scalar_comparer::ScannerScalarComparer;
 use crate::scanners::comparers::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
+use crate::scanners::parameters::scan_parameters::ScanParameters;
 use std::sync::Once;
 
-pub struct ScannerScalarEncoder {
-}
+pub struct ScannerScalarEncoder {}
 
 impl ScannerScalarEncoder {
-    fn new(
-    ) -> Self {
-        Self { }
+    fn new() -> Self {
+        Self {}
     }
-    
-    pub fn get_instance(
-    ) -> &'static ScannerScalarEncoder {
+
+    pub fn get_instance() -> &'static ScannerScalarEncoder {
         static mut INSTANCE: Option<ScannerScalarEncoder> = None;
         static INIT: Once = Once::new();
 
@@ -44,10 +41,10 @@ impl ScannerScalarEncoder {
         let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default() as u64;
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment);
-        
+
         unsafe {
             // Run length encoding for the scan results
-            let mut encode_results = |compare_result : bool| {
+            let mut encode_results = |compare_result: bool| {
                 if compare_result {
                     run_length_encoder.encode_range(memory_alignment);
                 } else {
@@ -72,7 +69,7 @@ impl ScannerScalarEncoder {
                     let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
                     let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment as usize);
                     let result = compare_func(current_value_pointer, previous_value_pointer);
-                    
+
                     encode_results(result);
                 }
             } else if scan_parameters.is_relative_delta_comparison() {
@@ -92,7 +89,7 @@ impl ScannerScalarEncoder {
         }
 
         run_length_encoder.finalize_current_encode_padded(memory_alignment, data_type_size_padding);
-        
+
         return run_length_encoder.result_regions;
     }
 }

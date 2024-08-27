@@ -1,19 +1,26 @@
 use crate::command_handlers::process::process_command::ProcessCommand;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_processes::process_query::{ProcessQuery, ProcessQueryOptions};
+use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_processes::process_query::{
+    ProcessQuery,
+    ProcessQueryOptions,
+};
 
-pub fn handle_process_list(
-    cmd: &mut ProcessCommand,
-) {
-    if let ProcessCommand::List { require_windowed, search_name, match_case, limit } = cmd {
+pub fn handle_process_list(cmd: &mut ProcessCommand) {
+    if let ProcessCommand::List {
+        require_windowed,
+        search_name,
+        match_case,
+        limit,
+    } = cmd
+    {
         Logger::get_instance().log(
             LogLevel::Info,
             &format!(
                 "Listing processes with options: require_windowed={}, search_name={:?}, match_case={}, limit={:?}",
                 require_windowed, search_name, match_case, limit
             ),
-            None
+            None,
         );
 
         let mut queryer = ProcessQuery::get_instance();
@@ -28,11 +35,7 @@ pub fn handle_process_list(
 
         for pid in processes {
             if let Some(name) = queryer.get_process_name(pid) {
-                Logger::get_instance().log(
-                    LogLevel::Info,
-                    &format!("PID: {}, Name: {}", pid, name),
-                    None
-                );
+                Logger::get_instance().log(LogLevel::Info, &format!("PID: {}, Name: {}", pid, name), None);
             }
         }
     }

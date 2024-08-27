@@ -1,24 +1,18 @@
 use crate::command_handlers::process::process_command::ProcessCommand;
 use squalr_engine::session_manager::SessionManager;
+use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_query::ProcessQuery;
 use squalr_engine_processes::process_query::ProcessQueryOptions;
-use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_common::logging::log_level::LogLevel;
 use sysinfo::Pid;
 
-pub fn handle_process_open(
-    cmd: &mut ProcessCommand,
-) {
+pub fn handle_process_open(cmd: &mut ProcessCommand) {
     let session_manager_lock = SessionManager::get_instance();
     let mut session_manager = session_manager_lock.write().unwrap();
 
-    if let ProcessCommand::Open {pid, search_name, match_case } = cmd {
+    if let ProcessCommand::Open { pid, search_name, match_case } = cmd {
         if pid.is_none() && search_name.is_none() {
-            Logger::get_instance().log(
-                LogLevel::Error,
-                "Error: Neither PID nor search name provided. Cannot open process.",
-                None,
-            );
+            Logger::get_instance().log(LogLevel::Error, "Error: Neither PID nor search name provided. Cannot open process.", None);
             return;
         }
 
@@ -38,7 +32,7 @@ pub fn handle_process_open(
                 match_case: *match_case,
                 limit: Some(1),
             };
-    
+
             let processes = queryer.get_processes(options);
 
             if let Some(found_pid) = processes.first() {
@@ -51,19 +45,11 @@ pub fn handle_process_open(
         match queryer.open_process(&pid) {
             Ok(process_info) => {
                 session_manager.set_opened_process(process_info);
-                Logger::get_instance().log(
-                    LogLevel::Info,
-                    &format!("Process opened: {:?}", process_info),
-                    None,
-                );
-            },
+                Logger::get_instance().log(LogLevel::Info, &format!("Process opened: {:?}", process_info), None);
+            }
             Err(e) => {
-                Logger::get_instance().log(
-                    LogLevel::Error,
-                    &format!("Failed to open process {}: {}", pid, e),
-                    None,
-                );
-            },
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", pid, e), None);
+            }
         }
     }
 }

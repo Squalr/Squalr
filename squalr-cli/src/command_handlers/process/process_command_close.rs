@@ -1,13 +1,11 @@
 use crate::command_handlers::process::process_command::ProcessCommand;
 use squalr_engine::session_manager::SessionManager;
-use squalr_engine_processes::process_query::ProcessQuery;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_processes::process_query::ProcessQuery;
 
-pub fn handle_process_close(
-    cmd: &mut ProcessCommand,
-) {
-    if let ProcessCommand::Close { } = cmd {
+pub fn handle_process_close(cmd: &mut ProcessCommand) {
+    if let ProcessCommand::Close {} = cmd {
         let session_manager_lock = SessionManager::get_instance();
         let mut session_manager = session_manager_lock.write().unwrap();
 
@@ -26,11 +24,7 @@ pub fn handle_process_close(
                     Logger::get_instance().log(LogLevel::Info, "Process closed", None);
                 }
                 Err(e) => {
-                    Logger::get_instance().log(
-                        LogLevel::Error,
-                        &format!("Failed to close process handle {}: {}", process_info.handle, e),
-                        None,
-                    );
+                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to close process handle {}: {}", process_info.handle, e), None);
                 }
             }
         } else {

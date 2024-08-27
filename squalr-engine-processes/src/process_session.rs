@@ -1,8 +1,14 @@
-use sysinfo::{Pid, System};
 use squalr_engine_common::logging::logger::Logger;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 use std::thread;
 use std::time::Duration;
+use sysinfo::{
+    Pid,
+    System,
+};
 
 #[derive(Debug)]
 pub struct ProcessSession {
@@ -13,7 +19,7 @@ pub struct ProcessSession {
 impl ProcessSession {
     pub fn new(
         pid: Option<Pid>,
-        system: Arc<Mutex<System>>
+        system: Arc<Mutex<System>>,
     ) -> Self {
         if let Some(pid) = pid {
             let system_guard = system.lock().unwrap();
@@ -35,23 +41,19 @@ impl ProcessSession {
         session
     }
 
-    pub fn get_opened_process(
-        &self
-    ) -> Option<Pid> {
+    pub fn get_opened_process(&self) -> Option<Pid> {
         *self.opened_process.lock().unwrap()
     }
 
     pub fn set_opened_process(
         &self,
-        process_id: Option<Pid>
+        process_id: Option<Pid>,
     ) {
         let mut opened_process = self.opened_process.lock().unwrap();
         *opened_process = process_id;
     }
 
-    fn listen_for_process_death(
-        &self
-    ) {
+    fn listen_for_process_death(&self) {
         let opened_process = self.opened_process.clone();
         let system = self.system.clone();
         thread::spawn(move || loop {

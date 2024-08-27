@@ -1,6 +1,5 @@
-
-use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
 use squalr_engine_common::conversions::parse_hex_or_int;
+use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]

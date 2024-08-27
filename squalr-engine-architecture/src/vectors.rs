@@ -1,5 +1,5 @@
-use std::sync::OnceLock;
 use std::arch::is_x86_feature_detected;
+use std::sync::OnceLock;
 
 pub mod vectors {
     use super::*;

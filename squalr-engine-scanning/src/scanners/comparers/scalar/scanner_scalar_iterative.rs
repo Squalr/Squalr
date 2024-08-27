@@ -6,17 +6,14 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use std::sync::Once;
 
-pub struct ScannerScalarIterative {
-}
+pub struct ScannerScalarIterative {}
 
 impl ScannerScalarIterative {
-    fn new(
-    ) -> Self {
-        Self { }
+    fn new() -> Self {
+        Self {}
     }
-    
-    pub fn get_instance(
-    ) -> &'static ScannerScalarIterative {
+
+    pub fn get_instance() -> &'static ScannerScalarIterative {
         static mut INSTANCE: Option<ScannerScalarIterative> = None;
         static INIT: Once = Once::new();
 
@@ -34,7 +31,6 @@ impl ScannerScalarIterative {
 /// Implements a scalar (ie CPU bound, non-SIMD) region scanning algorithm. This simply iterates over a region of memory,
 /// comparing each element based on the provided parameters. Elements that pass the scan are grouped into filter ranges and returned.
 impl Scanner for ScannerScalarIterative {
-
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
     /// is used to generate new sub-regions as the scan progresses.
     fn scan_region(

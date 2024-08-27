@@ -1,14 +1,13 @@
 use crate::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
-use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 use std::os::raw::c_void;
+use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 
 pub struct WindowsMemoryReader;
 
 impl WindowsMemoryReader {
     #[allow(unused)] // Disable unused compile warning for now
-    pub fn new(
-    ) -> Self {
+    pub fn new() -> Self {
         WindowsMemoryReader
     }
 }
@@ -18,7 +17,7 @@ impl IMemoryReader for WindowsMemoryReader {
         &self,
         process_handle: u64,
         address: u64,
-        dynamic_struct: &mut DynamicStruct
+        dynamic_struct: &mut DynamicStruct,
     ) -> bool {
         unsafe {
             let size = dynamic_struct.get_size_in_bytes() as usize;
@@ -43,7 +42,7 @@ impl IMemoryReader for WindowsMemoryReader {
         &self,
         process_handle: u64,
         address: u64,
-        values: &mut [u8]
+        values: &mut [u8],
     ) -> bool {
         unsafe {
             let size = values.len();

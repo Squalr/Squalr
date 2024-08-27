@@ -7,16 +7,13 @@ pub enum MemoryAlignment {
 }
 
 impl Default for MemoryAlignment {
-    fn default(
-    ) -> Self {
+    fn default() -> Self {
         MemoryAlignment::Alignment4
     }
 }
 
 impl From<i32> for MemoryAlignment {
-    fn from(
-        size: i32
-    ) -> Self {
+    fn from(size: i32) -> Self {
         match size {
             1 => MemoryAlignment::Alignment1,
             2 => MemoryAlignment::Alignment2,

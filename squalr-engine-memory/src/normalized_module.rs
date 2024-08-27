@@ -1,7 +1,10 @@
-use std::path::Path;
-use std::ffi::OsStr;
-use std::hash::{Hash, Hasher};
 use super::normalized_region::NormalizedRegion;
+use std::ffi::OsStr;
+use std::hash::{
+    Hash,
+    Hasher,
+};
+use std::path::Path;
 
 #[derive(Debug)]
 pub struct NormalizedModule {
@@ -47,28 +50,20 @@ impl NormalizedModule {
             full_path: full_path.to_string(),
         }
     }
-    
-    pub fn into_base_region(
-        self,
-    ) -> NormalizedRegion {
+
+    pub fn into_base_region(self) -> NormalizedRegion {
         self.base_region
     }
 
-    pub fn get_name(
-        &self,
-    ) -> &str {
+    pub fn get_name(&self) -> &str {
         &self.name
     }
 
-    pub fn get_full_path(
-        &self,
-    ) -> &str {
+    pub fn get_full_path(&self) -> &str {
         &self.full_path
     }
 
-    pub fn get_base_address(
-        &self,
-    ) -> u64 {
+    pub fn get_base_address(&self) -> u64 {
         self.base_region.get_base_address()
     }
 
@@ -79,9 +74,7 @@ impl NormalizedModule {
         self.base_region.set_base_address(base_address);
     }
 
-    pub fn get_region_size(
-        &self,
-    ) -> u64 {
+    pub fn get_region_size(&self) -> u64 {
         self.base_region.get_region_size()
     }
 
@@ -99,9 +92,7 @@ impl NormalizedModule {
         self.base_region.contains_address(address)
     }
 
-    pub fn get_base_region(
-        &self,
-    ) -> &NormalizedRegion {
+    pub fn get_base_region(&self) -> &NormalizedRegion {
         return &self.base_region;
     }
 }
@@ -111,9 +102,7 @@ impl PartialEq for NormalizedModule {
         &self,
         other: &Self,
     ) -> bool {
-        self.base_region == other.base_region &&
-        self.name == other.name &&
-        self.full_path == other.full_path
+        self.base_region == other.base_region && self.name == other.name && self.full_path == other.full_path
     }
 }
 

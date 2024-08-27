@@ -8,9 +8,13 @@ use crate::scanners::comparers::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use std::simd::{LaneCount, Simd, SupportedLaneCount};
-use std::simd::prelude::SimdPartialEq;
 use std::marker::PhantomData;
+use std::simd::prelude::SimdPartialEq;
+use std::simd::{
+    LaneCount,
+    Simd,
+    SupportedLaneCount,
+};
 
 pub struct ScannerVectorSparse<T: SimdType + Send + Sync, const N: usize>
 where
@@ -32,9 +36,7 @@ where
     Simd<T, N>: SimdPartialEq,
 {
     pub fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
+        Self { _marker: PhantomData }
     }
 
     // This mask automatically captures all in-between elements. For example, scanning for Byte 0 with an alignment of 2-bytes
@@ -44,9 +46,7 @@ where
     fn get_sparse_mask(memory_alignment: MemoryAlignment) -> Simd<u8, N> {
         match memory_alignment {
             // This will produce a byte pattern of <0xFF, 0xFF...>.
-            MemoryAlignment::Alignment1 => {
-                Simd::<u8, N>::splat(0xFF)
-            }
+            MemoryAlignment::Alignment1 => Simd::<u8, N>::splat(0xFF),
             // This will produce a byte pattern of <0x00, 0xFF...>.
             MemoryAlignment::Alignment2 => {
                 let mut mask = [0u8; N];
@@ -74,7 +74,6 @@ where
         }
     }
 }
-
 
 impl<T: SimdType + Send + Sync + PartialEq, const N: usize> Scanner for ScannerVectorSparse<T, N>
 where

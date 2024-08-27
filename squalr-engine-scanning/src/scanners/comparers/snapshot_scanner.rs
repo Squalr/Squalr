@@ -1,6 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
+use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 
 pub trait Scanner: Send + Sync {

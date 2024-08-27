@@ -7,17 +7,14 @@ use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::prelude::*;
 use std::sync::Once;
 
-pub struct ScannerScalarIterativeChunked {
-}
+pub struct ScannerScalarIterativeChunked {}
 
 impl ScannerScalarIterativeChunked {
-    fn new(
-    ) -> Self {
-        Self { }
+    fn new() -> Self {
+        Self {}
     }
-    
-    pub fn get_instance(
-    ) -> &'static ScannerScalarIterativeChunked {
+
+    pub fn get_instance() -> &'static ScannerScalarIterativeChunked {
         static mut INSTANCE: Option<ScannerScalarIterativeChunked> = None;
         static INIT: Once = Once::new();
 
@@ -33,10 +30,9 @@ impl ScannerScalarIterativeChunked {
 }
 
 impl Scanner for ScannerScalarIterativeChunked {
-
     /// Performs a parallel iteration over a region of memory, performing the scan comparison. A parallelized run-length encoding algorithm
     /// is used to generate new sub-regions as the scan progresses.
-    /// 
+    ///
     /// This is substantially faster than the sequential version, but requires a post-step of stitching together subregions that are adjacent.
     fn scan_region(
         &self,
@@ -53,12 +49,8 @@ impl Scanner for ScannerScalarIterativeChunked {
         let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size) as usize;
 
         // Convert raw pointers to slices
-        let current_values_slice = unsafe {
-            std::slice::from_raw_parts(current_value_pointer, element_count * memory_alignment as usize)
-        };
-        let previous_values_slice = unsafe {
-            std::slice::from_raw_parts(previous_value_pointer, element_count * memory_alignment as usize)
-        };
+        let current_values_slice = unsafe { std::slice::from_raw_parts(current_value_pointer, element_count * memory_alignment as usize) };
+        let previous_values_slice = unsafe { std::slice::from_raw_parts(previous_value_pointer, element_count * memory_alignment as usize) };
 
         // Experimentally 1MB seemed to be the optimal chunk size on my CPU to keep all threads busy
         let chunk_size = 1 << 20;
@@ -76,7 +68,9 @@ impl Scanner for ScannerScalarIterativeChunked {
                 unsafe {
                     return local_encoder.encode(
                         current_values_slice.as_ptr().add(chunk_address_offset as usize),
-                        previous_values_slice.as_ptr().add(chunk_address_offset as usize),
+                        previous_values_slice
+                            .as_ptr()
+                            .add(chunk_address_offset as usize),
                         scan_parameters,
                         scan_filter_parameters,
                         base_address,
@@ -90,7 +84,7 @@ impl Scanner for ScannerScalarIterativeChunked {
                 return collection_a;
             })
             .unwrap_or_else(Vec::new);
-        
+
         // Merge adjacent regions directly within the new_snapshot_region_filters vector to avoid unecessary reallocations.
         if !new_snapshot_region_filters.is_empty() {
             // Ensure that filters are sorted by base address ascending.

@@ -1,22 +1,19 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::snapshots::snapshot_region::SnapshotRegion;
 use crate::scanners::comparers::scalar::encoder::scanner_scalar_comparer::ScannerScalarComparer;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
-use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
+use crate::scanners::parameters::scan_parameters::ScanParameters;
+use crate::snapshots::snapshot_region::SnapshotRegion;
 use std::sync::Once;
 
-pub struct ScannerScalarSingleElement {
-}
+pub struct ScannerScalarSingleElement {}
 
 impl ScannerScalarSingleElement {
-    fn new(
-    ) -> Self {
-        Self { }
+    fn new() -> Self {
+        Self {}
     }
-    
-    pub fn get_instance(
-    ) -> &'static ScannerScalarSingleElement {
+
+    pub fn get_instance() -> &'static ScannerScalarSingleElement {
         static mut INSTANCE: Option<ScannerScalarSingleElement> = None;
         static INIT: Once = Once::new();
 
@@ -62,7 +59,7 @@ impl Scanner for ScannerScalarSingleElement {
                 let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
                 let compare_func = scalar_comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type);
                 let delta_arg_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
-    
+
                 compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);
             } else {
                 panic!("Unrecognized comparison");
@@ -70,7 +67,10 @@ impl Scanner for ScannerScalarSingleElement {
         }
 
         if compare_result {
-            return vec![SnapshotRegionFilter::new(snapshot_region_filter.get_base_address(), snapshot_region_filter.get_region_size())];
+            return vec![SnapshotRegionFilter::new(
+                snapshot_region_filter.get_base_address(),
+                snapshot_region_filter.get_region_size(),
+            )];
         } else {
             return vec![];
         }

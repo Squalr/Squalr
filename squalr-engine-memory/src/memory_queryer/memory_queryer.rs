@@ -1,10 +1,24 @@
-use crate::{memory_queryer::memory_queryer_trait::IMemoryQueryer, memory_settings::MemorySettings};
 use crate::normalized_region::NormalizedRegion;
-use std::{collections::HashSet, sync::Once};
-use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
+use crate::{
+    memory_queryer::memory_queryer_trait::IMemoryQueryer,
+    memory_settings::MemorySettings,
+};
+use squalr_engine_common::logging::{
+    log_level::LogLevel,
+    logger::Logger,
+};
 use squalr_engine_processes::process_info::ProcessInfo;
+use std::{
+    collections::HashSet,
+    sync::Once,
+};
 
-use super::{memory_protection_enum::MemoryProtectionEnum, memory_type_enum::MemoryTypeEnum, region_bounds_handling::RegionBoundsHandling, MemoryQueryerImpl};
+use super::{
+    memory_protection_enum::MemoryProtectionEnum,
+    memory_type_enum::MemoryTypeEnum,
+    region_bounds_handling::RegionBoundsHandling,
+    MemoryQueryerImpl,
+};
 
 bitflags::bitflags! {
     #[derive(PartialEq, Eq)]
@@ -19,8 +33,7 @@ bitflags::bitflags! {
 pub struct MemoryQueryer;
 
 impl MemoryQueryer {
-    pub fn get_instance(
-    ) -> &'static MemoryQueryerImpl {
+    pub fn get_instance() -> &'static MemoryQueryerImpl {
         static mut INSTANCE: Option<MemoryQueryerImpl> = None;
         static INIT: Once = Once::new();
 
@@ -68,7 +81,7 @@ impl MemoryQueryer {
         let excluded_page_flags = MemoryProtectionEnum::empty();
         let allowed_type_flags = MemoryTypeEnum::NONE | MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE | MemoryTypeEnum::MAPPED;
         let bounds_handling = RegionBoundsHandling::Resize;
-    
+
         let normalized_regions = MemoryQueryer::get_instance().get_virtual_pages(
             process_info,
             required_page_flags,
@@ -78,50 +91,17 @@ impl MemoryQueryer {
             end_address,
             bounds_handling,
         );
-    
+
         return normalized_regions;
     }
-    
 
-    fn query_pages_from_usermode_memory(
-        process_info: &ProcessInfo
-    ) -> Vec<NormalizedRegion> {
+    fn query_pages_from_usermode_memory(process_info: &ProcessInfo) -> Vec<NormalizedRegion> {
         let required_page_flags = MemoryProtectionEnum::empty();
         let excluded_page_flags = MemoryProtectionEnum::empty();
         let allowed_type_flags = MemoryTypeEnum::NONE | MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE;
         let start_address = 0;
         let end_address = MemoryQueryer::get_instance().get_max_usermode_address(process_info);
-    
-        let normalized_regions = MemoryQueryer::get_instance().get_virtual_pages(
-            process_info,
-            required_page_flags,
-            excluded_page_flags,
-            allowed_type_flags,
-            start_address,
-            end_address,
-            RegionBoundsHandling::Exclude
-        );
-    
-        return normalized_regions;
-    }
-    
 
-    fn query_pages_from_settings(
-        process_info: &ProcessInfo
-    ) -> Vec<NormalizedRegion> {
-        let required_page_flags = MemoryQueryer::get_required_protection_settings();
-        let excluded_page_flags = MemoryQueryer::get_excluded_protection_settings();
-        let allowed_type_flags = MemoryQueryer::get_allowed_type_settings();
-    
-        let (start_address, end_address) = if MemorySettings::get_instance().is_usermode() {
-            (0, MemoryQueryer::get_instance().get_max_usermode_address(process_info))
-        } else {
-            (
-                MemorySettings::get_instance().get_start_address(),
-                MemorySettings::get_instance().get_end_address(),
-            )
-        };
-    
         let normalized_regions = MemoryQueryer::get_instance().get_virtual_pages(
             process_info,
             required_page_flags,
@@ -131,38 +111,61 @@ impl MemoryQueryer {
             end_address,
             RegionBoundsHandling::Exclude,
         );
-    
+
         return normalized_regions;
     }
-    
-    fn query_pages_from_modules(
-        process_info: &ProcessInfo
-    ) -> Vec<NormalizedRegion> {
+
+    fn query_pages_from_settings(process_info: &ProcessInfo) -> Vec<NormalizedRegion> {
+        let required_page_flags = MemoryQueryer::get_required_protection_settings();
+        let excluded_page_flags = MemoryQueryer::get_excluded_protection_settings();
+        let allowed_type_flags = MemoryQueryer::get_allowed_type_settings();
+
+        let (start_address, end_address) = if MemorySettings::get_instance().is_usermode() {
+            (0, MemoryQueryer::get_instance().get_max_usermode_address(process_info))
+        } else {
+            (
+                MemorySettings::get_instance().get_start_address(),
+                MemorySettings::get_instance().get_end_address(),
+            )
+        };
+
+        let normalized_regions = MemoryQueryer::get_instance().get_virtual_pages(
+            process_info,
+            required_page_flags,
+            excluded_page_flags,
+            allowed_type_flags,
+            start_address,
+            end_address,
+            RegionBoundsHandling::Exclude,
+        );
+
+        return normalized_regions;
+    }
+
+    fn query_pages_from_modules(process_info: &ProcessInfo) -> Vec<NormalizedRegion> {
         // Note that we use into_base_region to extract the base region without copying, instead taking ownership
         let module_regions = MemoryQueryer::get_instance()
             .get_modules(process_info)
             .into_iter()
             .map(|module| module.into_base_region())
             .collect();
-    
-        return module_regions;
-    }    
 
-    fn query_pages_from_non_modules(
-        process_info: &ProcessInfo
-    ) -> Vec<NormalizedRegion> {
+        return module_regions;
+    }
+
+    fn query_pages_from_non_modules(process_info: &ProcessInfo) -> Vec<NormalizedRegion> {
         let modules: HashSet<u64> = MemoryQueryer::get_instance()
             .get_modules(process_info)
             .into_iter()
             .map(|module| module.get_base_address())
             .collect();
-    
+
         let required_page_flags = MemoryProtectionEnum::empty();
         let excluded_page_flags = MemoryProtectionEnum::empty();
         let allowed_type_flags = MemoryTypeEnum::NONE | MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE;
         let start_address = 0;
         let end_address = MemoryQueryer::get_instance().get_max_usermode_address(process_info);
-        
+
         // Collect all virtual pages
         let virtual_pages = MemoryQueryer::get_instance().get_virtual_pages(
             process_info,
@@ -173,18 +176,17 @@ impl MemoryQueryer {
             end_address,
             RegionBoundsHandling::Exclude,
         );
-        
+
         // Exclude any virtual pages that are also modules (static)
         let memory_regions = virtual_pages
             .into_iter()
             .filter(|page| !modules.contains(&page.get_base_address()))
             .collect();
-    
+
         return memory_regions;
     }
-    
-    fn get_allowed_type_settings(
-    ) -> MemoryTypeEnum {
+
+    fn get_allowed_type_settings() -> MemoryTypeEnum {
         let mut result = MemoryTypeEnum::empty();
 
         if MemorySettings::get_instance().get_memory_type_none() {
@@ -206,8 +208,7 @@ impl MemoryQueryer {
         return result;
     }
 
-    fn get_required_protection_settings(
-    ) -> MemoryProtectionEnum {
+    fn get_required_protection_settings() -> MemoryProtectionEnum {
         let mut result = MemoryProtectionEnum::empty();
 
         if MemorySettings::get_instance().get_required_write() {
@@ -225,8 +226,7 @@ impl MemoryQueryer {
         return result;
     }
 
-    fn get_excluded_protection_settings(
-    ) -> MemoryProtectionEnum {
+    fn get_excluded_protection_settings() -> MemoryProtectionEnum {
         let mut result = MemoryProtectionEnum::empty();
 
         if MemorySettings::get_instance().get_excluded_write() {

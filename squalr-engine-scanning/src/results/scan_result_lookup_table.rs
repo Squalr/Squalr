@@ -14,7 +14,7 @@ type ScanResultIndexToRegionMap = RangeInclusiveMap<u64, (u64, ScanResultIndexTo
 pub struct ScanResultLookupTable {
     page_size: u64,
     scan_result_index_map: ScanResultIndexToRegionMap,
-    scan_filter_parameters: Vec<ScanFilterParameters>
+    scan_filter_parameters: Vec<ScanFilterParameters>,
 }
 
 // TODO: We should be offloading <some> of the work to the scanners by building up the internal snapshot region <-> filter maps while we still
@@ -22,25 +22,22 @@ pub struct ScanResultLookupTable {
 
 /// Fundamentally, we need to be able to quickly navigate to a specific page number and offset of scan results within a snapshot region.
 /// We need to avoid 'seeking' implementations that require repeatedly iterating over the entire scan, and for this we need to use interval trees.
-/// 
+///
 /// The first interval tree maps a range of scan result indexes to a snapshot region index. As a simplified example, we could have:
 ///     - pages 0-2 => snapshot region index 0
 ///     - pages 3-8 => snapshot region index 1
 ///     - pages 9-9 => snapshot region index 2
 /// (Simplified for clarity, we would actually be operating on result indexes, not pages)
-/// 
+///
 /// However, a snapshot region has many filters, so a second interval tree would be needed to index into the correct filter.
 ///     - pages 0 => filter index 0
 ///     - pages 1-2 => filter index 1
 ///     - pages 3-5 => filter index 0
 /// (Note that the filter is in the context of the parent snapshot region)
-/// 
+///
 /// Finally, we can finally offset into this filter to get the discovered address.
 impl ScanResultLookupTable {
-    pub fn new(
-        page_size: u64,
-    ) ->
-    Self {
+    pub fn new(page_size: u64) -> Self {
         Self {
             page_size: page_size,
             scan_result_index_map: ScanResultIndexToRegionMap::new(),
@@ -55,15 +52,11 @@ impl ScanResultLookupTable {
         self.scan_filter_parameters = scan_filter_parameters;
     }
 
-    pub fn get_scan_parameters_filters(
-        &self,
-    ) -> &Vec<ScanFilterParameters> {
+    pub fn get_scan_parameters_filters(&self) -> &Vec<ScanFilterParameters> {
         return &self.scan_filter_parameters;
     }
 
-    pub fn take_scan_parameters_filters(
-        &mut self,
-    ) -> Vec<ScanFilterParameters> {
+    pub fn take_scan_parameters_filters(&mut self) -> Vec<ScanFilterParameters> {
         return take(&mut self.scan_filter_parameters);
     }
 
@@ -85,18 +78,18 @@ impl ScanResultLookupTable {
                 let mut filter_index_map = ScanResultIndexToFilterMap::new();
                 let filter_regions = region.get_filters().get(data_type).unwrap();
                 let region_start_index = scan_result_index;
-    
+
                 for (filter_region_index, filter_region) in filter_regions.iter().enumerate() {
                     let element_count = filter_region.get_element_count(memory_alignment, data_type.get_size_in_bytes());
-    
+
                     // Map the range of scan result indices to the filter index
                     let filter_range = RangeInclusive::new(scan_result_index, scan_result_index + element_count - 1);
                     filter_index_map.insert(filter_range, filter_region_index as u64);
-    
+
                     // Update the scan result index for the next filter
                     scan_result_index += element_count;
                 }
-    
+
                 // Now map the overall range of scan result indices for this region to the filter map
                 {
                     let region_end_index = scan_result_index - 1;

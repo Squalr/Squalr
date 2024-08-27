@@ -1,13 +1,16 @@
-use std::sync::Arc;
-use std::hash::{Hash, Hasher};
 use crate::logging::logger_observer::ILoggerObserver;
+use std::hash::{
+    Hash,
+    Hasher,
+};
+use std::sync::Arc;
 
 pub struct ObserverHandle(Arc<dyn ILoggerObserver + Send + Sync>);
 
 impl PartialEq for ObserverHandle {
     fn eq(
         &self,
-        other: &Self
+        other: &Self,
     ) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
@@ -18,7 +21,7 @@ impl Eq for ObserverHandle {}
 impl Hash for ObserverHandle {
     fn hash<H: Hasher>(
         &self,
-        state: &mut H
+        state: &mut H,
     ) {
         let ptr: *const dyn ILoggerObserver = &*self.0;
         let thin_ptr: *const () = ptr as *const ();
@@ -27,15 +30,11 @@ impl Hash for ObserverHandle {
 }
 
 impl ObserverHandle {
-    pub fn new(
-        observer: Arc<dyn ILoggerObserver + Send + Sync>
-    ) -> Self {
+    pub fn new(observer: Arc<dyn ILoggerObserver + Send + Sync>) -> Self {
         ObserverHandle(observer)
     }
 
-    pub fn get(
-        &self
-    ) -> &Arc<dyn ILoggerObserver + Send + Sync> {
+    pub fn get(&self) -> &Arc<dyn ILoggerObserver + Send + Sync> {
         &self.0
     }
 }

@@ -8,12 +8,8 @@ pub struct AnonymousValue {
 }
 
 impl AnonymousValue {
-    pub fn new(
-        value: &str
-    ) -> Self {
-        AnonymousValue {
-            value_str: value.to_string(),
-        }
+    pub fn new(value: &str) -> Self {
+        AnonymousValue { value_str: value.to_string() }
     }
 
     pub fn deanonymize_type(
@@ -29,9 +25,7 @@ impl AnonymousValue {
 impl FromStr for AnonymousValue {
     type Err = String;
 
-    fn from_str(
-        s: &str
-    ) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         return Ok(AnonymousValue::new(s));
     }
 }

@@ -9,7 +9,7 @@ impl ILoggerObserver for LogListener {
         &self,
         log_level: LogLevel,
         message: &str,
-        inner_message: Option<&str>
+        inner_message: Option<&str>,
     ) {
         match inner_message {
             Some(inner) => println!("[{:?}] {} - {}", log_level, message, inner),
@@ -19,8 +19,7 @@ impl ILoggerObserver for LogListener {
 }
 
 impl LogListener {
-    pub fn new(
-    ) -> Arc<Self> {
+    pub fn new() -> Arc<Self> {
         Arc::new(Self)
     }
 }

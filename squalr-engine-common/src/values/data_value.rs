@@ -21,7 +21,7 @@ pub enum DataValue {
 impl Ord for DataValue {
     fn cmp(
         &self,
-        other: &Self
+        other: &Self,
     ) -> Ordering {
         match (self, other) {
             (DataValue::U8(a), DataValue::U8(b)) => a.cmp(b),
@@ -35,9 +35,7 @@ impl Ord for DataValue {
             (DataValue::F32(a), DataValue::F32(b)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
             (DataValue::F64(a), DataValue::F64(b)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
             (DataValue::Bytes(a), DataValue::Bytes(b)) => a.cmp(b),
-            (DataValue::BitField { value: a, bits: bits_a }, DataValue::BitField { value: b, bits: bits_b }) => {
-                a.cmp(b).then_with(|| bits_a.cmp(bits_b))
-            }
+            (DataValue::BitField { value: a, bits: bits_a }, DataValue::BitField { value: b, bits: bits_b }) => a.cmp(b).then_with(|| bits_a.cmp(bits_b)),
             _ => panic!("Comparing unsupported types."),
         }
     }
@@ -52,9 +50,7 @@ impl Default for DataValue {
 }
 
 impl DataValue {
-    pub fn get_size_in_bytes(
-        &self
-    ) -> u64 {
+    pub fn get_size_in_bytes(&self) -> u64 {
         match self {
             DataValue::U8(_) => std::mem::size_of::<u8>() as u64,
             DataValue::U16(_) => std::mem::size_of::<u16>() as u64,
@@ -71,108 +67,84 @@ impl DataValue {
         }
     }
 
-    pub fn as_u8(
-        &self
-    ) -> Option<u8> {
+    pub fn as_u8(&self) -> Option<u8> {
         return match self {
             DataValue::U8(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_i8(
-        &self
-    ) -> Option<i8> {
+    pub fn as_i8(&self) -> Option<i8> {
         return match self {
             DataValue::I8(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_u16(
-        &self
-    ) -> Option<u16> {
+    pub fn as_u16(&self) -> Option<u16> {
         return match self {
             DataValue::U16(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_i16(
-        &self
-    ) -> Option<i16> {
+    pub fn as_i16(&self) -> Option<i16> {
         return match self {
             DataValue::I16(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_u32(
-        &self
-    ) -> Option<u32> {
+    pub fn as_u32(&self) -> Option<u32> {
         return match self {
             DataValue::U32(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_i32(
-        &self
-    ) -> Option<i32> {
+    pub fn as_i32(&self) -> Option<i32> {
         return match self {
             DataValue::I32(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_u64(
-        &self
-    ) -> Option<u64> {
+    pub fn as_u64(&self) -> Option<u64> {
         return match self {
             DataValue::U64(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_i64(
-        &self
-    ) -> Option<i64> {
+    pub fn as_i64(&self) -> Option<i64> {
         return match self {
             DataValue::I64(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_f32(
-        &self
-    ) -> Option<f32> {
+    pub fn as_f32(&self) -> Option<f32> {
         return match self {
             DataValue::F32(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_f64(
-        &self
-    ) -> Option<f64> {
+    pub fn as_f64(&self) -> Option<f64> {
         return match self {
             DataValue::F64(v) => Some(*v),
             _ => None,
         };
     }
 
-    pub fn as_bytes(
-        &self
-    ) -> Option<&[u8]> {
+    pub fn as_bytes(&self) -> Option<&[u8]> {
         return match self {
             DataValue::Bytes(ref v) => Some(v.as_slice()),
             _ => None,
         };
     }
 
-    pub fn as_bitfield(
-        &self
-    ) -> Option<(&[u8], u16)> {
+    pub fn as_bitfield(&self) -> Option<(&[u8], u16)> {
         return match self {
             DataValue::BitField { ref value, bits } => Some((value.as_slice(), *bits)),
             _ => None,
@@ -217,9 +189,7 @@ impl DataValue {
 impl FromStr for DataValue {
     type Err = String;
 
-    fn from_str(
-        s: &str
-    ) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let value_and_type: Vec<&str> = s.split('=').collect();
         let has_value = value_and_type.len() == 2;
 
@@ -240,16 +210,46 @@ impl FromStr for DataValue {
         let value_str = value_and_type[0];
 
         let value = match data_type {
-            DataType::U8() => value_str.parse::<u8>().map(DataValue::U8).map_err(|e| e.to_string()),
-            DataType::U16(_) => value_str.parse::<u16>().map(DataValue::U16).map_err(|e| e.to_string()),
-            DataType::U32(_) => value_str.parse::<u32>().map(DataValue::U32).map_err(|e| e.to_string()),
-            DataType::U64(_) => value_str.parse::<u64>().map(DataValue::U64).map_err(|e| e.to_string()),
-            DataType::I8() => value_str.parse::<i8>().map(DataValue::I8).map_err(|e| e.to_string()),
-            DataType::I16(_) => value_str.parse::<i16>().map(DataValue::I16).map_err(|e| e.to_string()),
-            DataType::I32(_) => value_str.parse::<i32>().map(DataValue::I32).map_err(|e| e.to_string()),
-            DataType::I64(_) => value_str.parse::<i64>().map(DataValue::I64).map_err(|e| e.to_string()),
-            DataType::F32(_) => value_str.parse::<f32>().map(DataValue::F32).map_err(|e| e.to_string()),
-            DataType::F64(_) => value_str.parse::<f64>().map(DataValue::F64).map_err(|e| e.to_string()),
+            DataType::U8() => value_str
+                .parse::<u8>()
+                .map(DataValue::U8)
+                .map_err(|e| e.to_string()),
+            DataType::U16(_) => value_str
+                .parse::<u16>()
+                .map(DataValue::U16)
+                .map_err(|e| e.to_string()),
+            DataType::U32(_) => value_str
+                .parse::<u32>()
+                .map(DataValue::U32)
+                .map_err(|e| e.to_string()),
+            DataType::U64(_) => value_str
+                .parse::<u64>()
+                .map(DataValue::U64)
+                .map_err(|e| e.to_string()),
+            DataType::I8() => value_str
+                .parse::<i8>()
+                .map(DataValue::I8)
+                .map_err(|e| e.to_string()),
+            DataType::I16(_) => value_str
+                .parse::<i16>()
+                .map(DataValue::I16)
+                .map_err(|e| e.to_string()),
+            DataType::I32(_) => value_str
+                .parse::<i32>()
+                .map(DataValue::I32)
+                .map_err(|e| e.to_string()),
+            DataType::I64(_) => value_str
+                .parse::<i64>()
+                .map(DataValue::I64)
+                .map_err(|e| e.to_string()),
+            DataType::F32(_) => value_str
+                .parse::<f32>()
+                .map(DataValue::F32)
+                .map_err(|e| e.to_string()),
+            DataType::F64(_) => value_str
+                .parse::<f64>()
+                .map(DataValue::F64)
+                .map_err(|e| e.to_string()),
             DataType::Bytes(_) => Ok(DataValue::Bytes(value_str.as_bytes().to_vec())),
             DataType::BitField(bits) => {
                 let bytes = hex::decode(value_str).map_err(|e| e.to_string())?;

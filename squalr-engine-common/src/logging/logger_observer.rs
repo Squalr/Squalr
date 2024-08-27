@@ -5,7 +5,7 @@ pub trait ILoggerObserver {
         &self,
         log_level: LogLevel,
         message: &str,
-        inner_message: Option<&str>
+        inner_message: Option<&str>,
     );
 }
 
@@ -16,7 +16,7 @@ impl ILoggerObserver for ConsoleLogger {
         &self,
         log_level: LogLevel,
         message: &str,
-        inner_message: Option<&str>
+        inner_message: Option<&str>,
     ) {
         println!("{:?}: {} {:?}", log_level, message, inner_message);
     }

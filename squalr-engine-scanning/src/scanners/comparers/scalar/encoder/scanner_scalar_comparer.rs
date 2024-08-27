@@ -1,5 +1,8 @@
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
-use squalr_engine_common::values::{data_type::DataType, endian::Endian};
+use squalr_engine_common::values::{
+    data_type::DataType,
+    endian::Endian,
+};
 use std::sync::Once;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)
@@ -96,42 +99,67 @@ impl ScannerScalarComparer {
         }
     }
 
-    fn check_endian(&self, endian: &Endian) -> bool {
-        (self.target_is_little_endian && *endian == Endian::Little)
-            || (!self.target_is_little_endian && *endian == Endian::Big)
+    fn check_endian(
+        &self,
+        endian: &Endian,
+    ) -> bool {
+        (self.target_is_little_endian && *endian == Endian::Little) || (!self.target_is_little_endian && *endian == Endian::Big)
     }
-    fn get_compare_equal(&self, data_type: &DataType) -> ScalarCompareFnImmediate {
+    fn get_compare_equal(
+        &self,
+        data_type: &DataType,
+    ) -> ScalarCompareFnImmediate {
         match data_type {
             // Note that as an optimization, endian resolving is not required for integer equality comparisons.
-            DataType::U8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const u8) == std::ptr::read_unaligned(b as *const u8) },
-            DataType::I8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const i8) == std::ptr::read_unaligned(b as *const i8) },
-            DataType::U16(_) => |a, b| unsafe { std::ptr::read_unaligned(a as *const u16) == std::ptr::read_unaligned(b as *const u16) },
-            DataType::I16(_) => |a, b| unsafe { std::ptr::read_unaligned(a as *const i16) == std::ptr::read_unaligned(b as *const i16) },
-            DataType::U32(_) => |a, b| unsafe { std::ptr::read_unaligned(a as *const u32) == std::ptr::read_unaligned(b as *const u32) },
-            DataType::I32(_) => |a, b| unsafe { std::ptr::read_unaligned(a as *const i32) == std::ptr::read_unaligned(b as *const i32) },
-            DataType::U64(_) => |a, b| unsafe { std::ptr::read_unaligned(a as *const u64) == std::ptr::read_unaligned(b as *const u64) },
-            DataType::I64(_) => |a, b| unsafe { std::ptr::read_unaligned(a as *const i64) == std::ptr::read_unaligned(b as *const i64) },
+            DataType::U8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u8) == std::ptr::read_unaligned(previous_value_ptr as *const u8)
+            },
+            DataType::I8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i8) == std::ptr::read_unaligned(previous_value_ptr as *const i8)
+            },
+            DataType::U16(_) => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u16) == std::ptr::read_unaligned(previous_value_ptr as *const u16)
+            },
+            DataType::I16(_) => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i16) == std::ptr::read_unaligned(previous_value_ptr as *const i16)
+            },
+            DataType::U32(_) => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u32) == std::ptr::read_unaligned(previous_value_ptr as *const u32)
+            },
+            DataType::I32(_) => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i32) == std::ptr::read_unaligned(previous_value_ptr as *const i32)
+            },
+            DataType::U64(_) => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u64) == std::ptr::read_unaligned(previous_value_ptr as *const u64)
+            },
+            DataType::I64(_) => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i64) == std::ptr::read_unaligned(previous_value_ptr as *const i64)
+            },
             // TODO: FLOATING POINT TOLERANCE SUPPORT
             DataType::F32(endian) => {
                 if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f32) == std::ptr::read_unaligned(b as *const f32) }
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f32) == std::ptr::read_unaligned(previous_value_ptr as *const f32)
+                    }
                 } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u32).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u32).swap_bytes();
-                        *(a_val as *const f32) == *(b_val as *const f32)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes();
+                        *(current_value as *const f32) == *(previous_value as *const f32)
                     }
                 }
             }
             // TODO: FLOATING POINT TOLERANCE SUPPORT
             DataType::F64(endian) => {
                 if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f64) == std::ptr::read_unaligned(b as *const f64) }
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f64) == std::ptr::read_unaligned(previous_value_ptr as *const f64)
+                    }
                 } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u64).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u64).swap_bytes();
-                        *(a_val as *const f64) == *(b_val as *const f64)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes();
+                        *(current_value as *const f64) == *(previous_value as *const f64)
                     }
                 }
             }
@@ -139,38 +167,61 @@ impl ScannerScalarComparer {
         }
     }
 
-    fn get_compare_not_equal(&self, data_type: &DataType) -> ScalarCompareFnImmediate {
+    fn get_compare_not_equal(
+        &self,
+        data_type: &DataType,
+    ) -> ScalarCompareFnImmediate {
         // Note that as an optimization, endian resolving is not required for integer inequality comparisons.
         match data_type {
-            DataType::U8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const u8) != std::ptr::read_unaligned(b as *const u8) },
-            DataType::I8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const i8) != std::ptr::read_unaligned(b as *const i8) },
-            DataType::U16(_) => |a, b| unsafe { std::ptr::read_unaligned(a as *const u16) != std::ptr::read_unaligned(b as *const u16) },
-            DataType::I16(_) => |a, b| unsafe { std::ptr::read_unaligned(a as *const i16) != std::ptr::read_unaligned(b as *const i16) },
-            DataType::U32(_) => |a, b| unsafe { std::ptr::read_unaligned(a as *const u32) != std::ptr::read_unaligned(b as *const u32) },
-            DataType::I32(_) => |a, b| unsafe { std::ptr::read_unaligned(a as *const i32) != std::ptr::read_unaligned(b as *const i32) },
-            DataType::U64(_) => |a, b| unsafe { std::ptr::read_unaligned(a as *const u64) != std::ptr::read_unaligned(b as *const u64) },
-            DataType::I64(_) => |a, b| unsafe { std::ptr::read_unaligned(a as *const i64) != std::ptr::read_unaligned(b as *const i64) },
+            DataType::U8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u8) != std::ptr::read_unaligned(previous_value_ptr as *const u8)
+            },
+            DataType::I8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i8) != std::ptr::read_unaligned(previous_value_ptr as *const i8)
+            },
+            DataType::U16(_) => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u16) != std::ptr::read_unaligned(previous_value_ptr as *const u16)
+            },
+            DataType::I16(_) => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i16) != std::ptr::read_unaligned(previous_value_ptr as *const i16)
+            },
+            DataType::U32(_) => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u32) != std::ptr::read_unaligned(previous_value_ptr as *const u32)
+            },
+            DataType::I32(_) => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i32) != std::ptr::read_unaligned(previous_value_ptr as *const i32)
+            },
+            DataType::U64(_) => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u64) != std::ptr::read_unaligned(previous_value_ptr as *const u64)
+            },
+            DataType::I64(_) => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i64) != std::ptr::read_unaligned(previous_value_ptr as *const i64)
+            },
             // TODO: FLOATING POINT TOLERANCE SUPPORT
             DataType::F32(endian) => {
                 if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f32) != std::ptr::read_unaligned(b as *const f32) }
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f32) != std::ptr::read_unaligned(previous_value_ptr as *const f32)
+                    }
                 } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u32).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u32).swap_bytes();
-                        *(a_val as *const f32) != *(b_val as *const f32)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes();
+                        *(current_value as *const f32) != *(previous_value as *const f32)
                     }
                 }
             }
             // TODO: FLOATING POINT TOLERANCE SUPPORT
             DataType::F64(endian) => {
                 if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f64) != std::ptr::read_unaligned(b as *const f64) }
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f64) != std::ptr::read_unaligned(previous_value_ptr as *const f64)
+                    }
                 } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u64).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u64).swap_bytes();
-                        *(a_val as *const f64) != *(b_val as *const f64)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes();
+                        *(current_value as *const f64) != *(previous_value as *const f64)
                     }
                 }
             }
@@ -178,799 +229,1151 @@ impl ScannerScalarComparer {
         }
     }
 
-    fn get_compare_greater_than(&self, data_type: &DataType) -> ScalarCompareFnImmediate {
+    fn get_compare_greater_than(
+        &self,
+        data_type: &DataType,
+    ) -> ScalarCompareFnImmediate {
         match data_type {
-            DataType::U8() => |a, b| unsafe { *(a as *const u8) > *(b as *const u8) },
-            DataType::I8() => |a, b| unsafe { *(a as *const i8) > *(b as *const i8) },
+            DataType::U8() => |current_value_ptr, previous_value_ptr| unsafe { *(current_value_ptr as *const u8) > *(previous_value_ptr as *const u8) },
+            DataType::I8() => |current_value_ptr, previous_value_ptr| unsafe { *(current_value_ptr as *const i8) > *(previous_value_ptr as *const i8) },
             DataType::U16(endian) => {
                 if self.check_endian(endian) {
-                    |a, b| unsafe { *(a as *const u16) > *(b as *const u16) }
+                    |current_value_ptr, previous_value_ptr| unsafe { *(current_value_ptr as *const u16) > *(previous_value_ptr as *const u16) }
                 } else {
-                    |a, b| unsafe { (*(a as *const u16)).swap_bytes() > (*(b as *const u16)).swap_bytes() }
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        (*(current_value_ptr as *const u16)).swap_bytes() > (*(previous_value_ptr as *const u16)).swap_bytes()
+                    }
                 }
             }
             DataType::I16(endian) => {
                 if self.check_endian(endian) {
-                    |a, b| unsafe { *(a as *const i16) > *(b as *const i16) }
+                    |current_value_ptr, previous_value_ptr| unsafe { *(current_value_ptr as *const i16) > *(previous_value_ptr as *const i16) }
                 } else {
-                    |a, b| unsafe { (*(a as *const i16)).swap_bytes() > (*(b as *const i16)).swap_bytes() }
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        (*(current_value_ptr as *const i16)).swap_bytes() > (*(previous_value_ptr as *const i16)).swap_bytes()
+                    }
                 }
             }
             DataType::U32(endian) => {
                 if self.check_endian(endian) {
-                    |a, b| unsafe { *(a as *const u32) > *(b as *const u32) }
+                    |current_value_ptr, previous_value_ptr| unsafe { *(current_value_ptr as *const u32) > *(previous_value_ptr as *const u32) }
                 } else {
-                    |a, b| unsafe { (*(a as *const u32)).swap_bytes() > (*(b as *const u32)).swap_bytes() }
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        (*(current_value_ptr as *const u32)).swap_bytes() > (*(previous_value_ptr as *const u32)).swap_bytes()
+                    }
                 }
             }
             DataType::I32(endian) => {
                 if self.check_endian(endian) {
-                    |a, b| unsafe { *(a as *const i32) > *(b as *const i32) }
+                    |current_value_ptr, previous_value_ptr| unsafe { *(current_value_ptr as *const i32) > *(previous_value_ptr as *const i32) }
                 } else {
-                    |a, b| unsafe { (*(a as *const i32)).swap_bytes() > (*(b as *const i32)).swap_bytes() }
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        (*(current_value_ptr as *const i32)).swap_bytes() > (*(previous_value_ptr as *const i32)).swap_bytes()
+                    }
                 }
             }
             DataType::U64(endian) => {
                 if self.check_endian(endian) {
-                    |a, b| unsafe { *(a as *const u64) > *(b as *const u64) }
+                    |current_value_ptr, previous_value_ptr| unsafe { *(current_value_ptr as *const u64) > *(previous_value_ptr as *const u64) }
                 } else {
-                    |a, b| unsafe { (*(a as *const u64)).swap_bytes() > (*(b as *const u64)).swap_bytes() }
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        (*(current_value_ptr as *const u64)).swap_bytes() > (*(previous_value_ptr as *const u64)).swap_bytes()
+                    }
                 }
             }
             DataType::I64(endian) => {
                 if self.check_endian(endian) {
-                    |a, b| unsafe { *(a as *const i64) > *(b as *const i64) }
+                    |current_value_ptr, previous_value_ptr| unsafe { *(current_value_ptr as *const i64) > *(previous_value_ptr as *const i64) }
                 } else {
-                    |a, b| unsafe { (*(a as *const i64)).swap_bytes() > (*(b as *const i64)).swap_bytes() }
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        (*(current_value_ptr as *const i64)).swap_bytes() > (*(previous_value_ptr as *const i64)).swap_bytes()
+                    }
                 }
             }
             DataType::F32(endian) => {
                 if self.check_endian(endian) {
-                    |a, b| unsafe { *(a as *const f32) > *(b as *const f32) }
+                    |current_value_ptr, previous_value_ptr| unsafe { *(current_value_ptr as *const f32) > *(previous_value_ptr as *const f32) }
                 } else {
-                    |a, b| unsafe {
-                        let a_val = (*(a as *const u32)).swap_bytes();
-                        let b_val = (*(b as *const u32)).swap_bytes();
-                        *(a_val as *const f32) > *(b_val as *const f32)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = (*(current_value_ptr as *const u32)).swap_bytes();
+                        let previous_value = (*(previous_value_ptr as *const u32)).swap_bytes();
+                        *(current_value as *const f32) > *(previous_value as *const f32)
                     }
                 }
             }
             DataType::F64(endian) => {
                 if self.check_endian(endian) {
-                    |a, b| unsafe { *(a as *const f64) > *(b as *const f64) }
+                    |current_value_ptr, previous_value_ptr| unsafe { *(current_value_ptr as *const f64) > *(previous_value_ptr as *const f64) }
                 } else {
-                    |a, b| unsafe {
-                        let a_val = (*(a as *const u64)).swap_bytes();
-                        let b_val = (*(b as *const u64)).swap_bytes();
-                        *(a_val as *const f64) > *(b_val as *const f64)
-                    }
-                }
-            }
-            _ => panic!("unsupported data type"),
-        }
-    }    
-    
-    fn get_compare_greater_than_or_equal(&self, data_type: &DataType) -> ScalarCompareFnImmediate {
-        match data_type {
-            DataType::U8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const u8) >= std::ptr::read_unaligned(b as *const u8) },
-            DataType::I8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const i8) >= std::ptr::read_unaligned(b as *const i8) },
-            DataType::U16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16) >= std::ptr::read_unaligned(b as *const u16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16).swap_bytes() >= std::ptr::read_unaligned(b as *const u16).swap_bytes() }
-                }
-            }
-            DataType::I16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16) >= std::ptr::read_unaligned(b as *const i16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16).swap_bytes() >= std::ptr::read_unaligned(b as *const i16).swap_bytes() }
-                }
-            }
-            DataType::U32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32) >= std::ptr::read_unaligned(b as *const u32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32).swap_bytes() >= std::ptr::read_unaligned(b as *const u32).swap_bytes() }
-                }
-            }
-            DataType::I32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32) >= std::ptr::read_unaligned(b as *const i32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32).swap_bytes() >= std::ptr::read_unaligned(b as *const i32).swap_bytes() }
-                }
-            }
-            DataType::U64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64) >= std::ptr::read_unaligned(b as *const u64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64).swap_bytes() >= std::ptr::read_unaligned(b as *const u64).swap_bytes() }
-                }
-            }
-            DataType::I64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64) >= std::ptr::read_unaligned(b as *const i64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64).swap_bytes() >= std::ptr::read_unaligned(b as *const i64).swap_bytes() }
-                }
-            }
-            DataType::F32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f32) >= std::ptr::read_unaligned(b as *const f32) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u32).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u32).swap_bytes();
-                        *(a_val as *const f32) >= *(b_val as *const f32)
-                    }
-                }
-            }
-            DataType::F64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f64) >= std::ptr::read_unaligned(b as *const f64) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u64).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u64).swap_bytes();
-                        *(a_val as *const f64) >= *(b_val as *const f64)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = (*(current_value_ptr as *const u64)).swap_bytes();
+                        let previous_value = (*(previous_value_ptr as *const u64)).swap_bytes();
+                        *(current_value as *const f64) > *(previous_value as *const f64)
                     }
                 }
             }
             _ => panic!("unsupported data type"),
         }
     }
-    
-    fn get_compare_less_than(&self, data_type: &DataType) -> ScalarCompareFnImmediate {
+
+    fn get_compare_greater_than_or_equal(
+        &self,
+        data_type: &DataType,
+    ) -> ScalarCompareFnImmediate {
         match data_type {
-            DataType::U8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const u8) < std::ptr::read_unaligned(b as *const u8) },
-            DataType::I8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const i8) < std::ptr::read_unaligned(b as *const i8) },
-            DataType::U16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16) < std::ptr::read_unaligned(b as *const u16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16).swap_bytes() < std::ptr::read_unaligned(b as *const u16).swap_bytes() }
-                }
-            }
-            DataType::I16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16) < std::ptr::read_unaligned(b as *const i16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16).swap_bytes() < std::ptr::read_unaligned(b as *const i16).swap_bytes() }
-                }
-            }
-            DataType::U32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32) < std::ptr::read_unaligned(b as *const u32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32).swap_bytes() < std::ptr::read_unaligned(b as *const u32).swap_bytes() }
-                }
-            }
-            DataType::I32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32) < std::ptr::read_unaligned(b as *const i32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32).swap_bytes() < std::ptr::read_unaligned(b as *const i32).swap_bytes() }
-                }
-            }
-            DataType::U64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64) < std::ptr::read_unaligned(b as *const u64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64).swap_bytes() < std::ptr::read_unaligned(b as *const u64).swap_bytes() }
-                }
-            }
-            DataType::I64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64) < std::ptr::read_unaligned(b as *const i64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64).swap_bytes() < std::ptr::read_unaligned(b as *const i64).swap_bytes() }
-                }
-            }
-            DataType::F32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f32) < std::ptr::read_unaligned(b as *const f32) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u32).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u32).swap_bytes();
-                        *(a_val as *const f32) < *(b_val as *const f32)
-                    }
-                }
-            }
-            DataType::F64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f64) < std::ptr::read_unaligned(b as *const f64) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u64).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u64).swap_bytes();
-                        *(a_val as *const f64) < *(b_val as *const f64)
-                    }
-                }
-            }
-            _ => panic!("unsupported data type"),
-        }
-    }
-    
-    fn get_compare_less_than_or_equal(&self, data_type: &DataType) -> ScalarCompareFnImmediate {
-        match data_type {
-            DataType::U8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const u8) <= std::ptr::read_unaligned(b as *const u8) },
-            DataType::I8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const i8) <= std::ptr::read_unaligned(b as *const i8) },
-            DataType::U16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16) <= std::ptr::read_unaligned(b as *const u16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16).swap_bytes() <= std::ptr::read_unaligned(b as *const u16).swap_bytes() }
-                }
-            }
-            DataType::I16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16) <= std::ptr::read_unaligned(b as *const i16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16).swap_bytes() <= std::ptr::read_unaligned(b as *const i16).swap_bytes() }
-                }
-            }
-            DataType::U32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32) <= std::ptr::read_unaligned(b as *const u32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32).swap_bytes() <= std::ptr::read_unaligned(b as *const u32).swap_bytes() }
-                }
-            }
-            DataType::I32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32) <= std::ptr::read_unaligned(b as *const i32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32).swap_bytes() <= std::ptr::read_unaligned(b as *const i32).swap_bytes() }
-                }
-            }
-            DataType::U64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64) <= std::ptr::read_unaligned(b as *const u64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64).swap_bytes() <= std::ptr::read_unaligned(b as *const u64).swap_bytes() }
-                }
-            }
-            DataType::I64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64) <= std::ptr::read_unaligned(b as *const i64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64).swap_bytes() <= std::ptr::read_unaligned(b as *const i64).swap_bytes() }
-                }
-            }
-            DataType::F32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f32) <= std::ptr::read_unaligned(b as *const f32) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u32).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u32).swap_bytes();
-                        *(a_val as *const f32) <= *(b_val as *const f32)
-                    }
-                }
-            }
-            DataType::F64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f64) <= std::ptr::read_unaligned(b as *const f64) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u64).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u64).swap_bytes();
-                        *(a_val as *const f64) <= *(b_val as *const f64)
-                    }
-                }
-            }
-            _ => panic!("unsupported data type"),
-        }
-    }
-    
-    fn get_compare_changed(&self, data_type: &DataType) -> ScalarCompareFnRelative {
-        match data_type {
-            DataType::U8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const u8) != std::ptr::read_unaligned(b as *const u8) },
-            DataType::I8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const i8) != std::ptr::read_unaligned(b as *const i8) },
-            DataType::U16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16) != std::ptr::read_unaligned(b as *const u16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16).swap_bytes() != std::ptr::read_unaligned(b as *const u16).swap_bytes() }
-                }
-            }
-            DataType::I16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16) != std::ptr::read_unaligned(b as *const i16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16).swap_bytes() != std::ptr::read_unaligned(b as *const i16).swap_bytes() }
-                }
-            }
-            DataType::U32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32) != std::ptr::read_unaligned(b as *const u32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32).swap_bytes() != std::ptr::read_unaligned(b as *const u32).swap_bytes() }
-                }
-            }
-            DataType::I32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32) != std::ptr::read_unaligned(b as *const i32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32).swap_bytes() != std::ptr::read_unaligned(b as *const i32).swap_bytes() }
-                }
-            }
-            DataType::U64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64) != std::ptr::read_unaligned(b as *const u64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64).swap_bytes() != std::ptr::read_unaligned(b as *const u64).swap_bytes() }
-                }
-            }
-            DataType::I64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64) != std::ptr::read_unaligned(b as *const i64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64).swap_bytes() != std::ptr::read_unaligned(b as *const i64).swap_bytes() }
-                }
-            }
-            DataType::F32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f32) != std::ptr::read_unaligned(b as *const f32) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u32).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u32).swap_bytes();
-                        *(a_val as *const f32) != *(b_val as *const f32)
-                    }
-                }
-            }
-            DataType::F64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f64) != std::ptr::read_unaligned(b as *const f64) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u64).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u64).swap_bytes();
-                        *(a_val as *const f64) != *(b_val as *const f64)
-                    }
-                }
-            }
-            _ => panic!("unsupported data type"),
-        }
-    }
-    
-    fn get_compare_unchanged(&self, data_type: &DataType) -> ScalarCompareFnRelative {
-        match data_type {
-            DataType::U8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const u8) == std::ptr::read_unaligned(b as *const u8) },
-            DataType::I8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const i8) == std::ptr::read_unaligned(b as *const i8) },
-            DataType::U16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16) == std::ptr::read_unaligned(b as *const u16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16).swap_bytes() == std::ptr::read_unaligned(b as *const u16).swap_bytes() }
-                }
-            }
-            DataType::I16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16) == std::ptr::read_unaligned(b as *const i16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16).swap_bytes() == std::ptr::read_unaligned(b as *const i16).swap_bytes() }
-                }
-            }
-            DataType::U32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32) == std::ptr::read_unaligned(b as *const u32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32).swap_bytes() == std::ptr::read_unaligned(b as *const u32).swap_bytes() }
-                }
-            }
-            DataType::I32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32) == std::ptr::read_unaligned(b as *const i32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32).swap_bytes() == std::ptr::read_unaligned(b as *const i32).swap_bytes() }
-                }
-            }
-            DataType::U64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64) == std::ptr::read_unaligned(b as *const u64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64).swap_bytes() == std::ptr::read_unaligned(b as *const u64).swap_bytes() }
-                }
-            }
-            DataType::I64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64) == std::ptr::read_unaligned(b as *const i64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64).swap_bytes() == std::ptr::read_unaligned(b as *const i64).swap_bytes() }
-                }
-            }
-            DataType::F32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f32) == std::ptr::read_unaligned(b as *const f32) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u32).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u32).swap_bytes();
-                        *(a_val as *const f32) == *(b_val as *const f32)
-                    }
-                }
-            }
-            DataType::F64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f64) == std::ptr::read_unaligned(b as *const f64) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u64).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u64).swap_bytes();
-                        *(a_val as *const f64) == *(b_val as *const f64)
-                    }
-                }
-            }
-            _ => panic!("unsupported data type"),
-        }
-    }
-    
-    fn get_compare_increased(&self, data_type: &DataType) -> ScalarCompareFnRelative {
-        match data_type {
-            DataType::U8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const u8) > std::ptr::read_unaligned(b as *const u8) },
-            DataType::I8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const i8) > std::ptr::read_unaligned(b as *const i8) },
-            DataType::U16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16) > std::ptr::read_unaligned(b as *const u16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16).swap_bytes() > std::ptr::read_unaligned(b as *const u16).swap_bytes() }
-                }
-            }
-            DataType::I16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16) > std::ptr::read_unaligned(b as *const i16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16).swap_bytes() > std::ptr::read_unaligned(b as *const i16).swap_bytes() }
-                }
-            }
-            DataType::U32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32) > std::ptr::read_unaligned(b as *const u32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32).swap_bytes() > std::ptr::read_unaligned(b as *const u32).swap_bytes() }
-                }
-            }
-            DataType::I32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32) > std::ptr::read_unaligned(b as *const i32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32).swap_bytes() > std::ptr::read_unaligned(b as *const i32).swap_bytes() }
-                }
-            }
-            DataType::U64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64) > std::ptr::read_unaligned(b as *const u64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64).swap_bytes() > std::ptr::read_unaligned(b as *const u64).swap_bytes() }
-                }
-            }
-            DataType::I64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64) > std::ptr::read_unaligned(b as *const i64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64).swap_bytes() > std::ptr::read_unaligned(b as *const i64).swap_bytes() }
-                }
-            }
-            DataType::F32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f32) > std::ptr::read_unaligned(b as *const f32) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u32).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u32).swap_bytes();
-                        *(a_val as *const f32) > *(b_val as *const f32)
-                    }
-                }
-            }
-            DataType::F64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f64) > std::ptr::read_unaligned(b as *const f64) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u64).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u64).swap_bytes();
-                        *(a_val as *const f64) > *(b_val as *const f64)
-                    }
-                }
-            }
-            _ => panic!("unsupported data type"),
-        }
-    }
-    
-    fn get_compare_decreased(&self, data_type: &DataType) -> ScalarCompareFnRelative {
-        match data_type {
-            DataType::U8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const u8) < std::ptr::read_unaligned(b as *const u8) },
-            DataType::I8() => |a, b| unsafe { std::ptr::read_unaligned(a as *const i8) < std::ptr::read_unaligned(b as *const i8) },
-            DataType::U16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16) < std::ptr::read_unaligned(b as *const u16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u16).swap_bytes() < std::ptr::read_unaligned(b as *const u16).swap_bytes() }
-                }
-            }
-            DataType::I16(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16) < std::ptr::read_unaligned(b as *const i16) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i16).swap_bytes() < std::ptr::read_unaligned(b as *const i16).swap_bytes() }
-                }
-            }
-            DataType::U32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32) < std::ptr::read_unaligned(b as *const u32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u32).swap_bytes() < std::ptr::read_unaligned(b as *const u32).swap_bytes() }
-                }
-            }
-            DataType::I32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32) < std::ptr::read_unaligned(b as *const i32) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i32).swap_bytes() < std::ptr::read_unaligned(b as *const i32).swap_bytes() }
-                }
-            }
-            DataType::U64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64) < std::ptr::read_unaligned(b as *const u64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const u64).swap_bytes() < std::ptr::read_unaligned(b as *const u64).swap_bytes() }
-                }
-            }
-            DataType::I64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64) < std::ptr::read_unaligned(b as *const i64) }
-                } else {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const i64).swap_bytes() < std::ptr::read_unaligned(b as *const i64).swap_bytes() }
-                }
-            }
-            DataType::F32(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f32) < std::ptr::read_unaligned(b as *const f32) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u32).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u32).swap_bytes();
-                        *(a_val as *const f32) < *(b_val as *const f32)
-                    }
-                }
-            }
-            DataType::F64(endian) => {
-                if self.check_endian(endian) {
-                    |a, b| unsafe { std::ptr::read_unaligned(a as *const f64) < std::ptr::read_unaligned(b as *const f64) }
-                } else {
-                    |a, b| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u64).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u64).swap_bytes();
-                        *(a_val as *const f64) < *(b_val as *const f64)
-                    }
-                }
-            }
-            _ => panic!("unsupported data type"),
-        }
-    }
-    
-    fn get_compare_increased_by(&self, data_type: &DataType) -> ScalarCompareFnDelta {
-        match data_type {
-            DataType::U8() => |a, b, delta| unsafe {
-                std::ptr::read_unaligned(a as *const u8) == std::ptr::read_unaligned(b as *const u8).wrapping_add(std::ptr::read_unaligned(delta as *const u8))
+            DataType::U8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u8) >= std::ptr::read_unaligned(previous_value_ptr as *const u8)
             },
-            DataType::I8() => |a, b, delta| unsafe {
-                std::ptr::read_unaligned(a as *const i8) == std::ptr::read_unaligned(b as *const i8).wrapping_add(std::ptr::read_unaligned(delta as *const i8))
+            DataType::I8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i8) >= std::ptr::read_unaligned(previous_value_ptr as *const i8)
             },
             DataType::U16(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const u16) == std::ptr::read_unaligned(b as *const u16).wrapping_add(std::ptr::read_unaligned(delta as *const u16))
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16) >= std::ptr::read_unaligned(previous_value_ptr as *const u16)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const u16).swap_bytes()
-                            == std::ptr::read_unaligned(b as *const u16).swap_bytes().wrapping_add(std::ptr::read_unaligned(delta as *const u16).swap_bytes())
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16).swap_bytes()
+                            >= std::ptr::read_unaligned(previous_value_ptr as *const u16).swap_bytes()
                     }
                 }
             }
             DataType::I16(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const i16) == std::ptr::read_unaligned(b as *const i16).wrapping_add(std::ptr::read_unaligned(delta as *const i16))
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16) >= std::ptr::read_unaligned(previous_value_ptr as *const i16)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const i16).swap_bytes()
-                            == std::ptr::read_unaligned(b as *const i16).swap_bytes().wrapping_add(std::ptr::read_unaligned(delta as *const i16).swap_bytes())
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16).swap_bytes()
+                            >= std::ptr::read_unaligned(previous_value_ptr as *const i16).swap_bytes()
                     }
                 }
             }
             DataType::U32(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const u32) == std::ptr::read_unaligned(b as *const u32).wrapping_add(std::ptr::read_unaligned(delta as *const u32))
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32) >= std::ptr::read_unaligned(previous_value_ptr as *const u32)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const u32).swap_bytes()
-                            == std::ptr::read_unaligned(b as *const u32).swap_bytes().wrapping_add(std::ptr::read_unaligned(delta as *const u32).swap_bytes())
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes()
+                            >= std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes()
                     }
                 }
             }
             DataType::I32(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const i32) == std::ptr::read_unaligned(b as *const i32).wrapping_add(std::ptr::read_unaligned(delta as *const i32))
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32) >= std::ptr::read_unaligned(previous_value_ptr as *const i32)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const i32).swap_bytes()
-                            == std::ptr::read_unaligned(b as *const i32).swap_bytes().wrapping_add(std::ptr::read_unaligned(delta as *const i32).swap_bytes())
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32).swap_bytes()
+                            >= std::ptr::read_unaligned(previous_value_ptr as *const i32).swap_bytes()
                     }
                 }
             }
             DataType::U64(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const u64) == std::ptr::read_unaligned(b as *const u64).wrapping_add(std::ptr::read_unaligned(delta as *const u64))
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64) >= std::ptr::read_unaligned(previous_value_ptr as *const u64)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const u64).swap_bytes()
-                            == std::ptr::read_unaligned(b as *const u64).swap_bytes().wrapping_add(std::ptr::read_unaligned(delta as *const u64).swap_bytes())
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes()
+                            >= std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes()
                     }
                 }
             }
             DataType::I64(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const i64) == std::ptr::read_unaligned(b as *const i64).wrapping_add(std::ptr::read_unaligned(delta as *const i64))
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64) >= std::ptr::read_unaligned(previous_value_ptr as *const i64)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const i64).swap_bytes()
-                            == std::ptr::read_unaligned(b as *const i64).swap_bytes().wrapping_add(std::ptr::read_unaligned(delta as *const i64).swap_bytes())
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64).swap_bytes()
+                            >= std::ptr::read_unaligned(previous_value_ptr as *const i64).swap_bytes()
                     }
                 }
             }
             DataType::F32(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const f32) == std::ptr::read_unaligned(b as *const f32) + std::ptr::read_unaligned(delta as *const f32)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f32) >= std::ptr::read_unaligned(previous_value_ptr as *const f32)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u32).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u32).swap_bytes();
-                        *(a_val as *const f32) == *(b_val as *const f32) + std::ptr::read_unaligned(delta as *const f32)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes();
+                        *(current_value as *const f32) >= *(previous_value as *const f32)
                     }
                 }
             }
             DataType::F64(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const f64) == std::ptr::read_unaligned(b as *const f64) + std::ptr::read_unaligned(delta as *const f64)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f64) >= std::ptr::read_unaligned(previous_value_ptr as *const f64)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u64).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u64).swap_bytes();
-                        *(a_val as *const f64) == *(b_val as *const f64) + std::ptr::read_unaligned(delta as *const f64)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes();
+                        *(current_value as *const f64) >= *(previous_value as *const f64)
                     }
                 }
             }
             _ => panic!("unsupported data type"),
         }
     }
-    
-    fn get_compare_decreased_by(&self, data_type: &DataType) -> ScalarCompareFnDelta {
+
+    fn get_compare_less_than(
+        &self,
+        data_type: &DataType,
+    ) -> ScalarCompareFnImmediate {
         match data_type {
-            DataType::U8() => |a, b, delta| unsafe {
-                std::ptr::read_unaligned(a as *const u8) == std::ptr::read_unaligned(b as *const u8).wrapping_sub(std::ptr::read_unaligned(delta as *const u8))
+            DataType::U8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u8) < std::ptr::read_unaligned(previous_value_ptr as *const u8)
             },
-            DataType::I8() => |a, b, delta| unsafe {
-                std::ptr::read_unaligned(a as *const i8) == std::ptr::read_unaligned(b as *const i8).wrapping_sub(std::ptr::read_unaligned(delta as *const i8))
+            DataType::I8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i8) < std::ptr::read_unaligned(previous_value_ptr as *const i8)
             },
             DataType::U16(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const u16) == std::ptr::read_unaligned(b as *const u16).wrapping_sub(std::ptr::read_unaligned(delta as *const u16))
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16) < std::ptr::read_unaligned(previous_value_ptr as *const u16)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const u16).swap_bytes()
-                            == std::ptr::read_unaligned(b as *const u16).swap_bytes().wrapping_sub(std::ptr::read_unaligned(delta as *const u16).swap_bytes())
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16).swap_bytes()
+                            < std::ptr::read_unaligned(previous_value_ptr as *const u16).swap_bytes()
                     }
                 }
             }
             DataType::I16(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const i16) == std::ptr::read_unaligned(b as *const i16).wrapping_sub(std::ptr::read_unaligned(delta as *const i16))
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16) < std::ptr::read_unaligned(previous_value_ptr as *const i16)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const i16).swap_bytes()
-                            == std::ptr::read_unaligned(b as *const i16).swap_bytes().wrapping_sub(std::ptr::read_unaligned(delta as *const i16).swap_bytes())
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16).swap_bytes()
+                            < std::ptr::read_unaligned(previous_value_ptr as *const i16).swap_bytes()
                     }
                 }
             }
             DataType::U32(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const u32) == std::ptr::read_unaligned(b as *const u32).wrapping_sub(std::ptr::read_unaligned(delta as *const u32))
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32) < std::ptr::read_unaligned(previous_value_ptr as *const u32)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const u32).swap_bytes()
-                            == std::ptr::read_unaligned(b as *const u32).swap_bytes().wrapping_sub(std::ptr::read_unaligned(delta as *const u32).swap_bytes())
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes()
+                            < std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes()
                     }
                 }
             }
             DataType::I32(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const i32) == std::ptr::read_unaligned(b as *const i32).wrapping_sub(std::ptr::read_unaligned(delta as *const i32))
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32) < std::ptr::read_unaligned(previous_value_ptr as *const i32)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const i32).swap_bytes()
-                            == std::ptr::read_unaligned(b as *const i32).swap_bytes().wrapping_sub(std::ptr::read_unaligned(delta as *const i32).swap_bytes())
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32).swap_bytes()
+                            < std::ptr::read_unaligned(previous_value_ptr as *const i32).swap_bytes()
                     }
                 }
             }
             DataType::U64(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const u64) == std::ptr::read_unaligned(b as *const u64).wrapping_sub(std::ptr::read_unaligned(delta as *const u64))
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64) < std::ptr::read_unaligned(previous_value_ptr as *const u64)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const u64).swap_bytes()
-                            == std::ptr::read_unaligned(b as *const u64).swap_bytes().wrapping_sub(std::ptr::read_unaligned(delta as *const u64).swap_bytes())
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes()
+                            < std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes()
                     }
                 }
             }
             DataType::I64(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const i64) == std::ptr::read_unaligned(b as *const i64).wrapping_sub(std::ptr::read_unaligned(delta as *const i64))
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64) < std::ptr::read_unaligned(previous_value_ptr as *const i64)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const i64).swap_bytes()
-                            == std::ptr::read_unaligned(b as *const i64).swap_bytes().wrapping_sub(std::ptr::read_unaligned(delta as *const i64).swap_bytes())
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64).swap_bytes()
+                            < std::ptr::read_unaligned(previous_value_ptr as *const i64).swap_bytes()
                     }
                 }
             }
             DataType::F32(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const f32) == std::ptr::read_unaligned(b as *const f32) - std::ptr::read_unaligned(delta as *const f32)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f32) < std::ptr::read_unaligned(previous_value_ptr as *const f32)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u32).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u32).swap_bytes();
-                        *(a_val as *const f32) == *(b_val as *const f32) - std::ptr::read_unaligned(delta as *const f32)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes();
+                        *(current_value as *const f32) < *(previous_value as *const f32)
                     }
                 }
             }
             DataType::F64(endian) => {
                 if self.check_endian(endian) {
-                    |a, b, delta| unsafe {
-                        std::ptr::read_unaligned(a as *const f64) == std::ptr::read_unaligned(b as *const f64) - std::ptr::read_unaligned(delta as *const f64)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f64) < std::ptr::read_unaligned(previous_value_ptr as *const f64)
                     }
                 } else {
-                    |a, b, delta| unsafe {
-                        let a_val = std::ptr::read_unaligned(a as *const u64).swap_bytes();
-                        let b_val = std::ptr::read_unaligned(b as *const u64).swap_bytes();
-                        *(a_val as *const f64) == *(b_val as *const f64) - std::ptr::read_unaligned(delta as *const f64)
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes();
+                        *(current_value as *const f64) < *(previous_value as *const f64)
                     }
                 }
             }
             _ => panic!("unsupported data type"),
         }
-    }    
+    }
+
+    fn get_compare_less_than_or_equal(
+        &self,
+        data_type: &DataType,
+    ) -> ScalarCompareFnImmediate {
+        match data_type {
+            DataType::U8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u8) <= std::ptr::read_unaligned(previous_value_ptr as *const u8)
+            },
+            DataType::I8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i8) <= std::ptr::read_unaligned(previous_value_ptr as *const i8)
+            },
+            DataType::U16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16) <= std::ptr::read_unaligned(previous_value_ptr as *const u16)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16).swap_bytes()
+                            <= std::ptr::read_unaligned(previous_value_ptr as *const u16).swap_bytes()
+                    }
+                }
+            }
+            DataType::I16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16) <= std::ptr::read_unaligned(previous_value_ptr as *const i16)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16).swap_bytes()
+                            <= std::ptr::read_unaligned(previous_value_ptr as *const i16).swap_bytes()
+                    }
+                }
+            }
+            DataType::U32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32) <= std::ptr::read_unaligned(previous_value_ptr as *const u32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes()
+                            <= std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes()
+                    }
+                }
+            }
+            DataType::I32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32) <= std::ptr::read_unaligned(previous_value_ptr as *const i32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32).swap_bytes()
+                            <= std::ptr::read_unaligned(previous_value_ptr as *const i32).swap_bytes()
+                    }
+                }
+            }
+            DataType::U64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64) <= std::ptr::read_unaligned(previous_value_ptr as *const u64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes()
+                            <= std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes()
+                    }
+                }
+            }
+            DataType::I64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64) <= std::ptr::read_unaligned(previous_value_ptr as *const i64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64).swap_bytes()
+                            <= std::ptr::read_unaligned(previous_value_ptr as *const i64).swap_bytes()
+                    }
+                }
+            }
+            DataType::F32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f32) <= std::ptr::read_unaligned(previous_value_ptr as *const f32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes();
+                        *(current_value as *const f32) <= *(previous_value as *const f32)
+                    }
+                }
+            }
+            DataType::F64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f64) <= std::ptr::read_unaligned(previous_value_ptr as *const f64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes();
+                        *(current_value as *const f64) <= *(previous_value as *const f64)
+                    }
+                }
+            }
+            _ => panic!("unsupported data type"),
+        }
+    }
+
+    fn get_compare_changed(
+        &self,
+        data_type: &DataType,
+    ) -> ScalarCompareFnRelative {
+        match data_type {
+            DataType::U8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u8) != std::ptr::read_unaligned(previous_value_ptr as *const u8)
+            },
+            DataType::I8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i8) != std::ptr::read_unaligned(previous_value_ptr as *const i8)
+            },
+            DataType::U16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16) != std::ptr::read_unaligned(previous_value_ptr as *const u16)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16).swap_bytes()
+                            != std::ptr::read_unaligned(previous_value_ptr as *const u16).swap_bytes()
+                    }
+                }
+            }
+            DataType::I16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16) != std::ptr::read_unaligned(previous_value_ptr as *const i16)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16).swap_bytes()
+                            != std::ptr::read_unaligned(previous_value_ptr as *const i16).swap_bytes()
+                    }
+                }
+            }
+            DataType::U32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32) != std::ptr::read_unaligned(previous_value_ptr as *const u32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes()
+                            != std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes()
+                    }
+                }
+            }
+            DataType::I32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32) != std::ptr::read_unaligned(previous_value_ptr as *const i32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32).swap_bytes()
+                            != std::ptr::read_unaligned(previous_value_ptr as *const i32).swap_bytes()
+                    }
+                }
+            }
+            DataType::U64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64) != std::ptr::read_unaligned(previous_value_ptr as *const u64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes()
+                            != std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes()
+                    }
+                }
+            }
+            DataType::I64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64) != std::ptr::read_unaligned(previous_value_ptr as *const i64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64).swap_bytes()
+                            != std::ptr::read_unaligned(previous_value_ptr as *const i64).swap_bytes()
+                    }
+                }
+            }
+            DataType::F32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f32) != std::ptr::read_unaligned(previous_value_ptr as *const f32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes();
+                        *(current_value as *const f32) != *(previous_value as *const f32)
+                    }
+                }
+            }
+            DataType::F64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f64) != std::ptr::read_unaligned(previous_value_ptr as *const f64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes();
+                        *(current_value as *const f64) != *(previous_value as *const f64)
+                    }
+                }
+            }
+            _ => panic!("unsupported data type"),
+        }
+    }
+
+    fn get_compare_unchanged(
+        &self,
+        data_type: &DataType,
+    ) -> ScalarCompareFnRelative {
+        match data_type {
+            DataType::U8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u8) == std::ptr::read_unaligned(previous_value_ptr as *const u8)
+            },
+            DataType::I8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i8) == std::ptr::read_unaligned(previous_value_ptr as *const i8)
+            },
+            DataType::U16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16) == std::ptr::read_unaligned(previous_value_ptr as *const u16)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u16).swap_bytes()
+                    }
+                }
+            }
+            DataType::I16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16) == std::ptr::read_unaligned(previous_value_ptr as *const i16)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i16).swap_bytes()
+                    }
+                }
+            }
+            DataType::U32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32) == std::ptr::read_unaligned(previous_value_ptr as *const u32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes()
+                    }
+                }
+            }
+            DataType::I32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32) == std::ptr::read_unaligned(previous_value_ptr as *const i32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i32).swap_bytes()
+                    }
+                }
+            }
+            DataType::U64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64) == std::ptr::read_unaligned(previous_value_ptr as *const u64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes()
+                    }
+                }
+            }
+            DataType::I64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64) == std::ptr::read_unaligned(previous_value_ptr as *const i64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i64).swap_bytes()
+                    }
+                }
+            }
+            DataType::F32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f32) == std::ptr::read_unaligned(previous_value_ptr as *const f32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes();
+                        *(current_value as *const f32) == *(previous_value as *const f32)
+                    }
+                }
+            }
+            DataType::F64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f64) == std::ptr::read_unaligned(previous_value_ptr as *const f64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes();
+                        *(current_value as *const f64) == *(previous_value as *const f64)
+                    }
+                }
+            }
+            _ => panic!("unsupported data type"),
+        }
+    }
+
+    fn get_compare_increased(
+        &self,
+        data_type: &DataType,
+    ) -> ScalarCompareFnRelative {
+        match data_type {
+            DataType::U8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u8) > std::ptr::read_unaligned(previous_value_ptr as *const u8)
+            },
+            DataType::I8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i8) > std::ptr::read_unaligned(previous_value_ptr as *const i8)
+            },
+            DataType::U16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16) > std::ptr::read_unaligned(previous_value_ptr as *const u16)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16).swap_bytes()
+                            > std::ptr::read_unaligned(previous_value_ptr as *const u16).swap_bytes()
+                    }
+                }
+            }
+            DataType::I16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16) > std::ptr::read_unaligned(previous_value_ptr as *const i16)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16).swap_bytes()
+                            > std::ptr::read_unaligned(previous_value_ptr as *const i16).swap_bytes()
+                    }
+                }
+            }
+            DataType::U32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32) > std::ptr::read_unaligned(previous_value_ptr as *const u32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes()
+                            > std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes()
+                    }
+                }
+            }
+            DataType::I32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32) > std::ptr::read_unaligned(previous_value_ptr as *const i32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32).swap_bytes()
+                            > std::ptr::read_unaligned(previous_value_ptr as *const i32).swap_bytes()
+                    }
+                }
+            }
+            DataType::U64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64) > std::ptr::read_unaligned(previous_value_ptr as *const u64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes()
+                            > std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes()
+                    }
+                }
+            }
+            DataType::I64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64) > std::ptr::read_unaligned(previous_value_ptr as *const i64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64).swap_bytes()
+                            > std::ptr::read_unaligned(previous_value_ptr as *const i64).swap_bytes()
+                    }
+                }
+            }
+            DataType::F32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f32) > std::ptr::read_unaligned(previous_value_ptr as *const f32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes();
+                        *(current_value as *const f32) > *(previous_value as *const f32)
+                    }
+                }
+            }
+            DataType::F64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f64) > std::ptr::read_unaligned(previous_value_ptr as *const f64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes();
+                        *(current_value as *const f64) > *(previous_value as *const f64)
+                    }
+                }
+            }
+            _ => panic!("unsupported data type"),
+        }
+    }
+
+    fn get_compare_decreased(
+        &self,
+        data_type: &DataType,
+    ) -> ScalarCompareFnRelative {
+        match data_type {
+            DataType::U8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u8) < std::ptr::read_unaligned(previous_value_ptr as *const u8)
+            },
+            DataType::I8() => |current_value_ptr, previous_value_ptr| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i8) < std::ptr::read_unaligned(previous_value_ptr as *const i8)
+            },
+            DataType::U16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16) < std::ptr::read_unaligned(previous_value_ptr as *const u16)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16).swap_bytes()
+                            < std::ptr::read_unaligned(previous_value_ptr as *const u16).swap_bytes()
+                    }
+                }
+            }
+            DataType::I16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16) < std::ptr::read_unaligned(previous_value_ptr as *const i16)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16).swap_bytes()
+                            < std::ptr::read_unaligned(previous_value_ptr as *const i16).swap_bytes()
+                    }
+                }
+            }
+            DataType::U32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32) < std::ptr::read_unaligned(previous_value_ptr as *const u32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes()
+                            < std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes()
+                    }
+                }
+            }
+            DataType::I32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32) < std::ptr::read_unaligned(previous_value_ptr as *const i32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32).swap_bytes()
+                            < std::ptr::read_unaligned(previous_value_ptr as *const i32).swap_bytes()
+                    }
+                }
+            }
+            DataType::U64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64) < std::ptr::read_unaligned(previous_value_ptr as *const u64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes()
+                            < std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes()
+                    }
+                }
+            }
+            DataType::I64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64) < std::ptr::read_unaligned(previous_value_ptr as *const i64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64).swap_bytes()
+                            < std::ptr::read_unaligned(previous_value_ptr as *const i64).swap_bytes()
+                    }
+                }
+            }
+            DataType::F32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f32) < std::ptr::read_unaligned(previous_value_ptr as *const f32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes();
+                        *(current_value as *const f32) < *(previous_value as *const f32)
+                    }
+                }
+            }
+            DataType::F64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f64) < std::ptr::read_unaligned(previous_value_ptr as *const f64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes();
+                        *(current_value as *const f64) < *(previous_value as *const f64)
+                    }
+                }
+            }
+            _ => panic!("unsupported data type"),
+        }
+    }
+
+    fn get_compare_increased_by(
+        &self,
+        data_type: &DataType,
+    ) -> ScalarCompareFnDelta {
+        match data_type {
+            DataType::U8() => |current_value_ptr, previous_value_ptr, delta| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u8)
+                    == std::ptr::read_unaligned(previous_value_ptr as *const u8).wrapping_add(std::ptr::read_unaligned(delta as *const u8))
+            },
+            DataType::I8() => |current_value_ptr, previous_value_ptr, delta| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i8)
+                    == std::ptr::read_unaligned(previous_value_ptr as *const i8).wrapping_add(std::ptr::read_unaligned(delta as *const i8))
+            },
+            DataType::U16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u16).wrapping_add(std::ptr::read_unaligned(delta as *const u16))
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u16)
+                                .swap_bytes()
+                                .wrapping_add(std::ptr::read_unaligned(delta as *const u16).swap_bytes())
+                    }
+                }
+            }
+            DataType::I16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i16).wrapping_add(std::ptr::read_unaligned(delta as *const i16))
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i16)
+                                .swap_bytes()
+                                .wrapping_add(std::ptr::read_unaligned(delta as *const i16).swap_bytes())
+                    }
+                }
+            }
+            DataType::U32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u32).wrapping_add(std::ptr::read_unaligned(delta as *const u32))
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u32)
+                                .swap_bytes()
+                                .wrapping_add(std::ptr::read_unaligned(delta as *const u32).swap_bytes())
+                    }
+                }
+            }
+            DataType::I32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i32).wrapping_add(std::ptr::read_unaligned(delta as *const i32))
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i32)
+                                .swap_bytes()
+                                .wrapping_add(std::ptr::read_unaligned(delta as *const i32).swap_bytes())
+                    }
+                }
+            }
+            DataType::U64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u64).wrapping_add(std::ptr::read_unaligned(delta as *const u64))
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u64)
+                                .swap_bytes()
+                                .wrapping_add(std::ptr::read_unaligned(delta as *const u64).swap_bytes())
+                    }
+                }
+            }
+            DataType::I64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i64).wrapping_add(std::ptr::read_unaligned(delta as *const i64))
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i64)
+                                .swap_bytes()
+                                .wrapping_add(std::ptr::read_unaligned(delta as *const i64).swap_bytes())
+                    }
+                }
+            }
+            DataType::F32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f32)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const f32) + std::ptr::read_unaligned(delta as *const f32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes();
+                        *(current_value as *const f32) == *(previous_value as *const f32) + std::ptr::read_unaligned(delta as *const f32)
+                    }
+                }
+            }
+            DataType::F64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f64)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const f64) + std::ptr::read_unaligned(delta as *const f64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes();
+                        *(current_value as *const f64) == *(previous_value as *const f64) + std::ptr::read_unaligned(delta as *const f64)
+                    }
+                }
+            }
+            _ => panic!("unsupported data type"),
+        }
+    }
+
+    fn get_compare_decreased_by(
+        &self,
+        data_type: &DataType,
+    ) -> ScalarCompareFnDelta {
+        match data_type {
+            DataType::U8() => |current_value_ptr, previous_value_ptr, delta| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const u8)
+                    == std::ptr::read_unaligned(previous_value_ptr as *const u8).wrapping_sub(std::ptr::read_unaligned(delta as *const u8))
+            },
+            DataType::I8() => |current_value_ptr, previous_value_ptr, delta| unsafe {
+                std::ptr::read_unaligned(current_value_ptr as *const i8)
+                    == std::ptr::read_unaligned(previous_value_ptr as *const i8).wrapping_sub(std::ptr::read_unaligned(delta as *const i8))
+            },
+            DataType::U16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u16).wrapping_sub(std::ptr::read_unaligned(delta as *const u16))
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u16).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u16)
+                                .swap_bytes()
+                                .wrapping_sub(std::ptr::read_unaligned(delta as *const u16).swap_bytes())
+                    }
+                }
+            }
+            DataType::I16(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i16).wrapping_sub(std::ptr::read_unaligned(delta as *const i16))
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i16).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i16)
+                                .swap_bytes()
+                                .wrapping_sub(std::ptr::read_unaligned(delta as *const i16).swap_bytes())
+                    }
+                }
+            }
+            DataType::U32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u32).wrapping_sub(std::ptr::read_unaligned(delta as *const u32))
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u32)
+                                .swap_bytes()
+                                .wrapping_sub(std::ptr::read_unaligned(delta as *const u32).swap_bytes())
+                    }
+                }
+            }
+            DataType::I32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i32).wrapping_sub(std::ptr::read_unaligned(delta as *const i32))
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i32).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i32)
+                                .swap_bytes()
+                                .wrapping_sub(std::ptr::read_unaligned(delta as *const i32).swap_bytes())
+                    }
+                }
+            }
+            DataType::U64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u64).wrapping_sub(std::ptr::read_unaligned(delta as *const u64))
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const u64)
+                                .swap_bytes()
+                                .wrapping_sub(std::ptr::read_unaligned(delta as *const u64).swap_bytes())
+                    }
+                }
+            }
+            DataType::I64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i64).wrapping_sub(std::ptr::read_unaligned(delta as *const i64))
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const i64).swap_bytes()
+                            == std::ptr::read_unaligned(previous_value_ptr as *const i64)
+                                .swap_bytes()
+                                .wrapping_sub(std::ptr::read_unaligned(delta as *const i64).swap_bytes())
+                    }
+                }
+            }
+            DataType::F32(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f32)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const f32) - std::ptr::read_unaligned(delta as *const f32)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u32).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u32).swap_bytes();
+                        *(current_value as *const f32) == *(previous_value as *const f32) - std::ptr::read_unaligned(delta as *const f32)
+                    }
+                }
+            }
+            DataType::F64(endian) => {
+                if self.check_endian(endian) {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        std::ptr::read_unaligned(current_value_ptr as *const f64)
+                            == std::ptr::read_unaligned(previous_value_ptr as *const f64) - std::ptr::read_unaligned(delta as *const f64)
+                    }
+                } else {
+                    |current_value_ptr, previous_value_ptr, delta| unsafe {
+                        let current_value = std::ptr::read_unaligned(current_value_ptr as *const u64).swap_bytes();
+                        let previous_value = std::ptr::read_unaligned(previous_value_ptr as *const u64).swap_bytes();
+                        *(current_value as *const f64) == *(previous_value as *const f64) - std::ptr::read_unaligned(delta as *const f64)
+                    }
+                }
+            }
+            _ => panic!("unsupported data type"),
+        }
+    }
 }

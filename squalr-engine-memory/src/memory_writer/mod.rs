@@ -20,8 +20,7 @@ pub use crate::memory_writer::windows::windows_memory_writer::WindowsMemoryWrite
 pub struct MemoryWriter;
 
 impl MemoryWriter {
-    pub fn get_instance(
-    ) -> &'static MemoryWriterImpl {
+    pub fn get_instance() -> &'static MemoryWriterImpl {
         static mut INSTANCE: Option<MemoryWriterImpl> = None;
         static INIT: Once = Once::new();
 

@@ -5,12 +5,15 @@ mod command_handlers;
 mod log_listener;
 
 use command_handlers::handle_commands;
-use shlex;
-use std::io::{self, Write};
-use structopt::StructOpt;
-use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_common::logging::log_level::LogLevel;
 use log_listener::LogListener;
+use shlex;
+use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_common::logging::logger::Logger;
+use std::io::{
+    self,
+    Write,
+};
+use structopt::StructOpt;
 
 fn main() {
     // Initialize logger

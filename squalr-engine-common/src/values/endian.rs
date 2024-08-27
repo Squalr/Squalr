@@ -7,8 +7,7 @@ pub enum Endian {
 }
 
 impl Default for Endian {
-    fn default(
-    ) -> Self {
+    fn default() -> Self {
         Endian::Little
     }
 }

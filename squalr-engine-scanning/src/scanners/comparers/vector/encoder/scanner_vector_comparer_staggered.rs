@@ -1,14 +1,14 @@
 use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::ScannerVectorComparer;
 use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::ScannerVectorComparerTrait;
+use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorCompareFnDelta128;
+use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorCompareFnDelta256;
+use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorCompareFnDelta512;
 use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorCompareFnImmediate128;
 use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorCompareFnImmediate256;
 use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorCompareFnImmediate512;
 use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorCompareFnRelative128;
 use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorCompareFnRelative256;
 use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorCompareFnRelative512;
-use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorCompareFnDelta128;
-use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorCompareFnDelta256;
-use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorCompareFnDelta512;
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::data_type::DataType;
 use std::sync::Once;
@@ -67,8 +67,7 @@ macro_rules! impl_scanner_vector_comparer_staggered {
                 scan_compare_type: ScanCompareType,
                 data_type: &DataType,
             ) -> $fn_type_immediate {
-                let base_compare = ScannerVectorComparer::<$vector_bit_size>::get_instance()
-                    .get_immediate_compare_func(scan_compare_type, data_type);
+                let base_compare = ScannerVectorComparer::<$vector_bit_size>::get_instance().get_immediate_compare_func(scan_compare_type, data_type);
 
                 return base_compare;
             }
@@ -78,8 +77,7 @@ macro_rules! impl_scanner_vector_comparer_staggered {
                 scan_compare_type: ScanCompareType,
                 data_type: &DataType,
             ) -> $fn_type_relative {
-                let base_compare = ScannerVectorComparer::<$vector_bit_size>::get_instance()
-                    .get_relative_compare_func(scan_compare_type, data_type);
+                let base_compare = ScannerVectorComparer::<$vector_bit_size>::get_instance().get_relative_compare_func(scan_compare_type, data_type);
 
                 return base_compare;
             }
@@ -89,8 +87,7 @@ macro_rules! impl_scanner_vector_comparer_staggered {
                 scan_compare_type: ScanCompareType,
                 data_type: &DataType,
             ) -> $fn_type_delta {
-                let base_compare = ScannerVectorComparer::<$vector_bit_size>::get_instance()
-                    .get_relative_delta_compare_func(scan_compare_type, data_type);
+                let base_compare = ScannerVectorComparer::<$vector_bit_size>::get_instance().get_relative_delta_compare_func(scan_compare_type, data_type);
 
                 return base_compare;
             }

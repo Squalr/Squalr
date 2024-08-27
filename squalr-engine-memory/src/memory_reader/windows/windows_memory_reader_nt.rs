@@ -20,8 +20,7 @@ pub struct WindowsMemoryReaderNt {
 
 impl WindowsMemoryReaderNt {
     #[allow(unused)] // Disable unused compile warning for now
-    pub fn new(
-    ) -> Self {
+    pub fn new() -> Self {
         unsafe {
             let ntdll = GetModuleHandleA("ntdll.dll\0".as_ptr() as *const u8);
             if ntdll == 0 {
@@ -45,7 +44,7 @@ impl IMemoryReader for WindowsMemoryReaderNt {
         &self,
         process_handle: u64,
         address: u64,
-        dynamic_struct: &mut DynamicStruct
+        dynamic_struct: &mut DynamicStruct,
     ) -> bool {
         unsafe {
             let size = dynamic_struct.get_size_in_bytes() as usize;
@@ -70,7 +69,7 @@ impl IMemoryReader for WindowsMemoryReaderNt {
         &self,
         process_handle: u64,
         address: u64,
-        values: &mut [u8]
+        values: &mut [u8],
     ) -> bool {
         unsafe {
             let size = values.len();

@@ -6,9 +6,13 @@ use crate::scanners::comparers::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use std::simd::cmp::SimdPartialEq;
-use std::simd::{LaneCount, Simd, SupportedLaneCount};
 use std::marker::PhantomData;
+use std::simd::cmp::SimdPartialEq;
+use std::simd::{
+    LaneCount,
+    Simd,
+    SupportedLaneCount,
+};
 
 pub struct ScannerVectorAligned<T: SimdType + Send + Sync, const N: usize>
 where
@@ -22,9 +26,7 @@ where
     LaneCount<N>: SupportedLaneCount,
 {
     pub fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
+        Self { _marker: PhantomData }
     }
 }
 

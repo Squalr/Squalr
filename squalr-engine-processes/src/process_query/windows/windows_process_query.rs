@@ -1,31 +1,56 @@
-use crate::process_info::{Bitness, ProcessInfo};
-use crate::process_query::{IProcessQueryer, ProcessQueryOptions};
+use crate::process_info::{
+    Bitness,
+    ProcessInfo,
+};
+use crate::process_query::{
+    IProcessQueryer,
+    ProcessQueryOptions,
+};
 use std::ffi::CString;
-use sysinfo::{Pid, System};
-use windows_sys::Win32::UI::WindowsAndMessaging::{HICON, FindWindowA, GetWindowThreadProcessId};
-use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_ALL_ACCESS};
-use windows_sys::Win32::Foundation::{HANDLE, CloseHandle, BOOL};
+use sysinfo::{
+    Pid,
+    System,
+};
+use windows_sys::Win32::Foundation::{
+    CloseHandle,
+    BOOL,
+    HANDLE,
+};
+use windows_sys::Win32::System::Threading::{
+    IsWow64Process,
+    IsWow64Process2,
+};
+use windows_sys::Win32::System::Threading::{
+    OpenProcess,
+    PROCESS_ALL_ACCESS,
+};
 use windows_sys::Win32::UI::Shell::ExtractIconA;
-use windows_sys::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
-use windows_sys::Win32::System::Threading::{IsWow64Process, IsWow64Process2};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    FindWindowA,
+    GetWindowThreadProcessId,
+    HICON,
+};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    GetIconInfo,
+    ICONINFO,
+};
 
 pub struct WindowsProcessQuery {
     system: System,
 }
 
 impl WindowsProcessQuery {
-    pub fn new(
-    ) -> Self {
-        WindowsProcessQuery {
-            system: System::new_all(),
-        }
+    pub fn new() -> Self {
+        WindowsProcessQuery { system: System::new_all() }
     }
 
     fn get_process_name(
         &self,
         process_id: Pid,
     ) -> Option<String> {
-        self.system.process(process_id).map(|process| process.name().to_str().unwrap_or_default().to_string())
+        self.system
+            .process(process_id)
+            .map(|process| process.name().to_str().unwrap_or_default().to_string())
     }
 
     fn get_process_bitness(
@@ -70,7 +95,9 @@ impl IProcessQueryer for WindowsProcessQuery {
             processes.truncate(limit as usize);
         }
 
-        let processes: Vec<Pid> = self.system.processes()
+        let processes: Vec<Pid> = self
+            .system
+            .processes()
             .keys()
             .cloned()
             .filter(|pid| {
@@ -105,7 +132,9 @@ impl IProcessQueryer for WindowsProcessQuery {
         &self,
         pid: Pid,
     ) -> Option<String> {
-        self.system.process(pid).map(|process| process.name().to_str().unwrap_or_default().to_string())
+        self.system
+            .process(pid)
+            .map(|process| process.name().to_str().unwrap_or_default().to_string())
     }
 
     fn is_process_windowed(
@@ -157,15 +186,19 @@ impl IProcessQueryer for WindowsProcessQuery {
         unsafe {
             let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_id.as_u32());
             if handle == 0 {
-                return Err("Failed to open process".to_string())
+                return Err("Failed to open process".to_string());
             } else {
                 let bitness = self.get_process_bitness(handle);
-                let process_info = ProcessInfo { pid: *process_id, handle: handle as u64, bitness };
+                let process_info = ProcessInfo {
+                    pid: *process_id,
+                    handle: handle as u64,
+                    bitness,
+                };
                 return Ok(process_info);
             }
         }
     }
-    
+
     fn close_process(
         &self,
         handle: u64,

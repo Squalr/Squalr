@@ -4,13 +4,11 @@ pub struct ScanResult {
     address: u64,
     field_value: FieldValue,
 }
-
 impl ScanResult {
     pub fn new(
-        address:u64,
-        field_value: &FieldValue
-    ) ->
-    Self {
+        address: u64,
+        field_value: &FieldValue,
+    ) -> Self {
         Self {
             address: address,
             field_value: field_value.clone(),

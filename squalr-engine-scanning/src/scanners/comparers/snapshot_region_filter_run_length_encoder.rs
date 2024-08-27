@@ -15,13 +15,11 @@ pub struct SnapshotRegionFilterRunLengthEncoder {
 /// containing the results. We then stop encoding until we reach a new scan that passes, and the cycle repeats until we are done
 /// iterating over the entire block of memory. The caller is responsible for this iteration, as it depends highly on alignment,
 /// SIMD vs scalar, etc.
-/// 
+///
 /// This can be parallelized by the caller by simply creating N run length encoders over a snapshot region filter that has been divided into N chunks.
 /// This requires a post-step of map-reducing the gathered regions and stitching together boundary regions once the run length encoders are complete.
 impl SnapshotRegionFilterRunLengthEncoder {
-    pub fn new(
-        run_length_current_address: u64
-    ) -> Self {
+    pub fn new(run_length_current_address: u64) -> Self {
         Self {
             result_regions: vec![],
             run_length_current_address: run_length_current_address,
@@ -32,9 +30,11 @@ impl SnapshotRegionFilterRunLengthEncoder {
 
     pub fn adjust_for_misalignment(
         &mut self,
-        misalignment_offset: u64
+        misalignment_offset: u64,
     ) {
-        self.run_length_current_address = self.run_length_current_address.saturating_sub(misalignment_offset);
+        self.run_length_current_address = self
+            .run_length_current_address
+            .saturating_sub(misalignment_offset);
     }
 
     /// Encodes the next N bytes as true (ie passing the scan).
@@ -42,7 +42,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
         &mut self,
         // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
         // For scalar scans, this is generally the size of the hardware vector.
-        byte_advance_count: u64
+        byte_advance_count: u64,
     ) {
         self.run_length += byte_advance_count;
         self.is_encoding = true;
@@ -56,10 +56,8 @@ impl SnapshotRegionFilterRunLengthEncoder {
         byte_advance_count: u64,
     ) {
         if self.is_encoding {
-            self.result_regions.push(SnapshotRegionFilter::new(
-                self.run_length_current_address,
-                self.run_length,
-            ));
+            self.result_regions
+                .push(SnapshotRegionFilter::new(self.run_length_current_address, self.run_length));
             self.run_length_current_address += self.run_length;
             self.run_length = 0;
             self.is_encoding = false;
@@ -77,10 +75,8 @@ impl SnapshotRegionFilterRunLengthEncoder {
         pad_size: u64,
     ) {
         if self.is_encoding {
-            self.result_regions.push(SnapshotRegionFilter::new(
-                self.run_length_current_address,
-                self.run_length + pad_size,
-            ));
+            self.result_regions
+                .push(SnapshotRegionFilter::new(self.run_length_current_address, self.run_length + pad_size));
             self.run_length_current_address += self.run_length;
             self.run_length = 0;
             self.is_encoding = false;

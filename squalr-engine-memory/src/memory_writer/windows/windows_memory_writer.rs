@@ -1,44 +1,29 @@
 use crate::memory_writer::memory_writer_trait::IMemoryWriter;
-use windows_sys::Win32::System::Diagnostics::Debug::WriteProcessMemory;
-use windows_sys::Win32::System::Memory::{VirtualProtectEx, PAGE_READWRITE};
 use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 use std::ptr::null_mut;
+use windows_sys::Win32::System::Diagnostics::Debug::WriteProcessMemory;
+use windows_sys::Win32::System::Memory::{
+    VirtualProtectEx,
+    PAGE_READWRITE,
+};
 
 pub struct WindowsMemoryWriter;
 
 impl WindowsMemoryWriter {
-    pub fn new(
-    ) -> Self {
+    pub fn new() -> Self {
         WindowsMemoryWriter
     }
-    
+
     fn write_memory(
         process_handle: u64,
         address: u64,
-        data: &[u8]
+        data: &[u8],
     ) -> bool {
         let mut old_protection = 0;
         let success = unsafe {
-            VirtualProtectEx(
-                process_handle as isize,
-                address as *mut _,
-                data.len(),
-                PAGE_READWRITE,
-                &mut old_protection
-            );
-            let success = WriteProcessMemory(
-                process_handle as isize,
-                address as *mut _,
-                data.as_ptr() as *const _,
-                data.len(), null_mut()
-            ) != 0;
-            VirtualProtectEx(
-                process_handle as isize,
-                address as *mut _,
-                data.len(),
-                old_protection,
-                &mut old_protection
-            );
+            VirtualProtectEx(process_handle as isize, address as *mut _, data.len(), PAGE_READWRITE, &mut old_protection);
+            let success = WriteProcessMemory(process_handle as isize, address as *mut _, data.as_ptr() as *const _, data.len(), null_mut()) != 0;
+            VirtualProtectEx(process_handle as isize, address as *mut _, data.len(), old_protection, &mut old_protection);
             success
         };
 

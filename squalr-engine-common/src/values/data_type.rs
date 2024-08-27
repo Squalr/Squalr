@@ -20,16 +20,13 @@ pub enum DataType {
 }
 
 impl Default for DataType {
-    fn default(
-    ) -> Self {
+    fn default() -> Self {
         DataType::U8()
     }
 }
 
 impl DataType {
-    pub fn get_size_in_bytes(
-        &self
-    ) -> u64 {
+    pub fn get_size_in_bytes(&self) -> u64 {
         match self {
             DataType::U8() => std::mem::size_of::<u8>() as u64,
             DataType::U16(_) => std::mem::size_of::<u16>() as u64,
@@ -46,9 +43,7 @@ impl DataType {
         }
     }
 
-    pub fn to_default_value(
-        &self
-    ) -> DataValue {
+    pub fn to_default_value(&self) -> DataValue {
         match self {
             DataType::U8() => DataValue::U8(0),
             DataType::U16(_) => DataValue::U16(0),
@@ -94,9 +89,7 @@ impl fmt::Display for DataType {
 impl FromStr for DataType {
     type Err = String;
 
-    fn from_str(
-        s: &str
-    ) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split(':').collect();
         if parts.len() != 1 && parts.len() != 2 {
             return Err("Invalid format".to_string());
@@ -125,7 +118,7 @@ impl FromStr for DataType {
                 } else {
                     Endian::Little
                 };
-        
+
                 match type_str {
                     "u8" => Ok(DataType::U8()),
                     "u16" => Ok(DataType::U16(endian)),

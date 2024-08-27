@@ -1,13 +1,11 @@
 use crate::command_handlers::scan::ScanCommand;
 use squalr_engine::session_manager::SessionManager;
-use squalr_engine_scanning::scanners::value_collector::ValueCollector;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use std::thread;
 
-pub fn handle_value_collector_command(
-    cmd: &mut ScanCommand,
-) {
+pub fn handle_value_collector_command(cmd: &mut ScanCommand) {
     if let ScanCommand::Collect = cmd {
         let session_manager_lock = SessionManager::get_instance();
         let process_info = {
@@ -18,12 +16,7 @@ pub fn handle_value_collector_command(
         if let Some(process_info) = process_info {
             let session_manager = session_manager_lock.write().unwrap();
             let snapshot = session_manager.get_snapshot();
-            let task = ValueCollector::collect_values(
-                process_info.clone(),
-                snapshot,
-                None,
-                true,
-            );
+            let task = ValueCollector::collect_values(process_info.clone(), snapshot, None, true);
 
             // Spawn a thread to listen to progress updates
             let progress_receiver = task.add_listener();

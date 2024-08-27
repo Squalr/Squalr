@@ -1,16 +1,27 @@
 use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot::Snapshot;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+use rayon::iter::{
+    IntoParallelIterator,
+    IntoParallelRefMutIterator,
+    ParallelIterator,
+};
 use squalr_engine_common::conversions::value_to_metric_size;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use squalr_engine_processes::process_info::ProcessInfo;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, RwLock};
-use std::time::Instant;
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicUsize,
+    Ordering,
+};
+use std::sync::{
+    Arc,
+    RwLock,
+};
 use std::thread;
+use std::time::Instant;
 
 pub struct HybridScanner;
 
@@ -27,10 +38,7 @@ impl HybridScanner {
         task_identifier: Option<String>,
         with_logging: bool,
     ) -> Arc<TrackableTask<()>> {
-        let task = TrackableTask::<()>::create(
-            HybridScanner::NAME.to_string(),
-            task_identifier,
-        );
+        let task = TrackableTask::<()>::create(HybridScanner::NAME.to_string(), task_identifier);
 
         let task_clone = task.clone();
         let scan_parameters_clone = scan_parameters.clone();
@@ -42,7 +50,7 @@ impl HybridScanner {
                 &scan_parameters_clone,
                 task_clone.clone(),
                 task_clone.get_cancellation_token().clone(),
-                with_logging
+                with_logging,
             );
 
             task_clone.complete(());
@@ -72,9 +80,7 @@ impl HybridScanner {
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
 
-        snapshot_regions
-        .par_iter_mut()
-        .for_each(|snapshot_region| {
+        snapshot_regions.par_iter_mut().for_each(|snapshot_region| {
             if cancellation_token.load(Ordering::SeqCst) {
                 return;
             }
@@ -103,15 +109,12 @@ impl HybridScanner {
 
                     let snapshot_region_filters = snapshot_region_filters.unwrap();
                     let scan_dispatcher = ScanDispatcher::get_instance();
-                    let scan_results = scan_dispatcher.dispatch_scan_parallel(
-                        snapshot_region,
-                        snapshot_region_filters,
-                        scan_parameters,
-                        &scan_filter_parameter,
-                    );
+                    let scan_results =
+                        scan_dispatcher.dispatch_scan_parallel(snapshot_region, snapshot_region_filters, scan_parameters, &scan_filter_parameter);
 
                     return Some((scan_filter_parameter.get_data_type().clone(), scan_results));
-                }).collect();
+                })
+                .collect();
 
             // Update the snapshot region to contain new filtered regions (ie scan results).
             snapshot_region.set_all_filters(new_filters);
@@ -132,7 +135,11 @@ impl HybridScanner {
 
         if with_logging {
             Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
-            Logger::get_instance().log(LogLevel::Info, &format!("{} bytes read ({})", byte_count, value_to_metric_size(byte_count)), None);
+            Logger::get_instance().log(
+                LogLevel::Info,
+                &format!("{} bytes read ({})", byte_count, value_to_metric_size(byte_count)),
+                None,
+            );
         }
     }
 }

@@ -5,10 +5,13 @@ use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::comparers::vector::scanner_vector_aligned::ScannerVectorAligned;
 use crate::scanners::comparers::vector::scanner_vector_sparse::ScannerVectorSparse;
 use crate::scanners::comparers::vector::scanner_vector_staggered::ScannerVectorStaggered;
-use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
+use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{
+    IntoParallelRefIterator,
+    ParallelIterator,
+};
 use squalr_engine_common::values::data_type::DataType;
 use std::sync::Once;
 
@@ -25,8 +28,7 @@ pub struct ScanDispatcher {
 }
 
 impl ScanDispatcher {
-    fn new(
-    ) -> Self {
+    fn new() -> Self {
         Self {
             scanner_aligned_64: ScannerVectorAligned::<u8, 64>::new(),
             scanner_aligned_32: ScannerVectorAligned::<u8, 32>::new(),
@@ -39,9 +41,8 @@ impl ScanDispatcher {
             scanner_staggered_16: ScannerVectorStaggered::<u8, 16>::new(),
         }
     }
-    
-    pub fn get_instance(
-    ) -> &'static ScanDispatcher {
+
+    pub fn get_instance() -> &'static ScanDispatcher {
         static mut INSTANCE: Option<ScanDispatcher> = None;
         static INIT: Once = Once::new();
 
@@ -63,25 +64,17 @@ impl ScanDispatcher {
         scan_filter_parameters: &ScanFilterParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let mut results = vec![];
-    
+
         for snapshot_region_filter in snapshot_region_filters {
-            let scanner_instance = self.acquire_scanner_instance(
-                snapshot_region_filter,
-                scan_filter_parameters
-            );
-    
-            let result_sub_regions = scanner_instance.scan_region(
-                snapshot_region,
-                snapshot_region_filter,
-                scan_parameters,
-                scan_filter_parameters,
-            );
-            
+            let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, scan_filter_parameters);
+
+            let result_sub_regions = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, scan_filter_parameters);
+
             for result_sub_region in result_sub_regions {
                 results.push(result_sub_region);
             }
         }
-    
+
         return results;
     }
 
@@ -96,17 +89,9 @@ impl ScanDispatcher {
             // Convert the iterator to a parallel iterator
             .par_iter()
             .flat_map(|snapshot_region_filter| {
-                let scanner_instance = self.acquire_scanner_instance(
-                    snapshot_region_filter,
-                    scan_filter_parameters
-                );
-    
-                return scanner_instance.scan_region(
-                    snapshot_region,
-                    snapshot_region_filter,
-                    scan_parameters,
-                    scan_filter_parameters,
-                );
+                let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, scan_filter_parameters);
+
+                return scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, scan_filter_parameters);
             })
             .collect()
     }
@@ -142,25 +127,23 @@ impl ScanDispatcher {
                         } else if memory_alignment > data_type_size {
                             return &self.scanner_sparse_64;
                         } else {
-                            return &self.scanner_staggered_64;
+                            // return &self.scanner_staggered_64;
                         }
-                    }
-                    else if bytes_to_scan >= 32 {
+                    } else if bytes_to_scan >= 32 {
                         if memory_alignment == data_type_size {
                             return &self.scanner_aligned_32;
                         } else if memory_alignment > data_type_size {
                             return &self.scanner_sparse_32;
                         } else {
-                            return &self.scanner_staggered_32;
+                            // return &self.scanner_staggered_32;
                         }
-                    }
-                    else if bytes_to_scan >= 16 {
+                    } else if bytes_to_scan >= 16 {
                         if memory_alignment == data_type_size {
                             return &self.scanner_aligned_16;
                         } else if memory_alignment > data_type_size {
                             return &self.scanner_sparse_16;
                         } else {
-                            return &self.scanner_staggered_16;
+                            // return &self.scanner_staggered_16;
                         }
                     }
                 }

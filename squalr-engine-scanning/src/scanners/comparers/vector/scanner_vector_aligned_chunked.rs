@@ -1,4 +1,7 @@
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{
+    IntoParallelIterator,
+    ParallelIterator,
+};
 
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
@@ -8,9 +11,13 @@ use crate::scanners::comparers::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use std::simd::{LaneCount, Simd, SupportedLaneCount};
-use std::simd::prelude::SimdPartialEq;
 use std::marker::PhantomData;
+use std::simd::prelude::SimdPartialEq;
+use std::simd::{
+    LaneCount,
+    Simd,
+    SupportedLaneCount,
+};
 
 pub struct ScannerVectorAlignedChunked<T: SimdType + Send + Sync, const N: usize>
 where
@@ -32,9 +39,7 @@ where
     Simd<T, N>: SimdPartialEq,
 {
     pub fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
+        Self { _marker: PhantomData }
     }
 }
 
@@ -61,12 +66,8 @@ where
         let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size) as usize;
         let vector_comparer = ScannerVectorComparer::<T, N>::new();
 
-        let current_values_slice = unsafe {
-            std::slice::from_raw_parts(current_value_pointer, element_count * memory_alignment as usize)
-        };
-        let previous_values_slice = unsafe {
-            std::slice::from_raw_parts(previous_value_pointer, element_count * memory_alignment as usize)
-        };
+        let current_values_slice = unsafe { std::slice::from_raw_parts(current_value_pointer, element_count * memory_alignment as usize) };
+        let previous_values_slice = unsafe { std::slice::from_raw_parts(previous_value_pointer, element_count * memory_alignment as usize) };
 
         // Experimentally 1MB seemed to be the optimal chunk size on my CPU to keep all threads busy
         let chunk_size = 1 << 20;
@@ -85,7 +86,9 @@ where
                 unsafe {
                     encoder.encode(
                         current_values_slice.as_ptr().add(chunk_address_offset as usize),
-                        previous_values_slice.as_ptr().add(chunk_address_offset as usize),
+                        previous_values_slice
+                            .as_ptr()
+                            .add(chunk_address_offset as usize),
                         scan_parameters,
                         scan_filter_parameters,
                         base_address,

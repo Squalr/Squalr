@@ -1,12 +1,17 @@
 use crate::command_handlers::scan::ScanCommand;
-use squalr_engine_common::values::{data_type::DataType, endian::Endian};
 use squalr_engine::session_manager::SessionManager;
+use squalr_engine_common::values::{
+    data_type::DataType,
+    endian::Endian,
+};
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 
-pub fn handle_new_scan_command(
-    cmd: &mut ScanCommand,
-) {
-    if let ScanCommand::New { scan_filter_parameters, scan_all_primitives } = cmd {
+pub fn handle_new_scan_command(cmd: &mut ScanCommand) {
+    if let ScanCommand::New {
+        scan_filter_parameters,
+        scan_all_primitives,
+    } = cmd
+    {
         let mut scan_filter_parameters = scan_filter_parameters.clone();
 
         if *scan_all_primitives {

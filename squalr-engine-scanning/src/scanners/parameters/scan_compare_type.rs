@@ -1,5 +1,7 @@
+use std::fmt::{
+    self,
+};
 use std::str::FromStr;
-use std::fmt::{self};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScanCompareType {
@@ -20,9 +22,7 @@ pub enum ScanCompareType {
 impl FromStr for ScanCompareType {
     type Err = ParseScanCompareTypeError;
 
-    fn from_str(
-        s: &str
-    ) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "==" => Ok(ScanCompareType::Equal),
             "!=" => Ok(ScanCompareType::NotEqual),
@@ -47,7 +47,7 @@ pub struct ParseScanCompareTypeError;
 impl fmt::Display for ParseScanCompareTypeError {
     fn fmt(
         &self,
-        f: &mut fmt::Formatter<'_>
+        f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         write!(f, "Invalid comparison type")
     }

@@ -1,12 +1,20 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::{CompareFunc, ScannerVectorComparer};
+use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::{
+    CompareFunc,
+    ScannerVectorComparer,
+};
 use crate::scanners::comparers::vector::types::simd_type::SimdType;
-use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
+use crate::scanners::parameters::scan_parameters::ScanParameters;
 use std::marker::PhantomData;
-use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
 use std::simd::prelude::SimdPartialEq;
+use std::simd::{
+    LaneCount,
+    Simd,
+    SimdElement,
+    SupportedLaneCount,
+};
 
 pub struct ScannerVectorEncoder<T, const N: usize>
 where
@@ -27,9 +35,7 @@ where
     Simd<T, N>: SimdPartialEq,
 {
     pub fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
+        Self { _marker: PhantomData }
     }
 
     pub fn encode(
@@ -64,13 +70,7 @@ where
                     let current_value_pointer = current_value_pointer.add(index as usize * N);
                     let compare_result = compare_func(current_value_pointer, immediate_value);
 
-                    self.encode_results(
-                        &compare_result,
-                        &mut run_length_encoder,
-                        data_type_size,
-                        true_mask,
-                        false_mask
-                    );
+                    self.encode_results(&compare_result, &mut run_length_encoder, data_type_size, true_mask, false_mask);
                 }
 
                 // Handle remainder elements
@@ -78,14 +78,8 @@ where
                     let current_value_pointer = current_value_pointer.add((iterations as usize * N) - N);
                     let compare_result = compare_func(current_value_pointer, immediate_value);
 
-                    self.encode_remainder_results(
-                        &compare_result,
-                        &mut run_length_encoder,
-                        data_type_size,
-                        remainder_elements,
-                    );
+                    self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_elements);
                 }
-
             } else if scan_parameters.is_relative_comparison() {
                 let compare_func = match vector_comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type) {
                     CompareFunc::Relative(func) => func,
@@ -98,13 +92,7 @@ where
                     let previous_value_pointer = previous_value_pointer.add(index as usize * N);
                     let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                    self.encode_results(
-                        &compare_result,
-                        &mut run_length_encoder,
-                        data_type_size,
-                        true_mask,
-                        false_mask
-                    );
+                    self.encode_results(&compare_result, &mut run_length_encoder, data_type_size, true_mask, false_mask);
                 }
 
                 // Handle remainder elements
@@ -113,12 +101,7 @@ where
                     let previous_value_pointer = previous_value_pointer.add((iterations as usize * N) - N);
                     let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                    self.encode_remainder_results(
-                        &compare_result,
-                        &mut run_length_encoder,
-                        data_type_size,
-                        remainder_elements,
-                    );
+                    self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_elements);
                 }
             } else if scan_parameters.is_relative_delta_comparison() {
                 let compare_func = match vector_comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type) {
@@ -133,13 +116,7 @@ where
                     let previous_value_pointer = previous_value_pointer.add(index as usize * N);
                     let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg);
 
-                    self.encode_results(
-                        &compare_result,
-                        &mut run_length_encoder,
-                        data_type_size,
-                        true_mask,
-                        false_mask
-                    );
+                    self.encode_results(&compare_result, &mut run_length_encoder, data_type_size, true_mask, false_mask);
                 }
 
                 // Handle remainder elements
@@ -147,12 +124,7 @@ where
                     let current_value_pointer = current_value_pointer.add((iterations as usize * N) - N);
                     let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg);
 
-                    self.encode_remainder_results(
-                        &compare_result,
-                        &mut run_length_encoder,
-                        data_type_size,
-                        remainder_elements,
-                    );
+                    self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_elements);
                 }
             } else {
                 panic!("Unrecognized comparison");
@@ -161,7 +133,7 @@ where
 
         run_length_encoder.finalize_current_encode(0);
 
-        run_length_encoder.result_regions
+        return run_length_encoder.result_regions;
     }
 
     #[inline(always)]
@@ -174,10 +146,10 @@ where
         false_mask: Simd<u8, N>,
     ) {
         // Optimization: Check if all scan results are true. This helps substantially when scanning for common values like 0.
-        if compare_result.eq(&true_mask) {
+        if compare_result.simd_eq(true_mask).all() {
             run_length_encoder.encode_range(N as u64);
         // Optimization: Check if all scan results are false. This is also a very common result, and speeds up scans.
-        } else if compare_result.ne(&false_mask) {
+        } else if compare_result.simd_ne(false_mask).all() {
             run_length_encoder.finalize_current_encode(N as u64);
         // Otherwise, there is a mix of true/false results that need to be processed manually.
         } else {

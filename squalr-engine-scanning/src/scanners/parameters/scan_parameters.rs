@@ -26,10 +26,8 @@ impl ScanParameters {
             compare_immediate: value,
         }
     }
-    
-    pub fn get_compare_type(
-        &self,
-    ) -> ScanCompareType {
+
+    pub fn get_compare_type(&self) -> ScanCompareType {
         self.compare_type.clone()
     }
 
@@ -37,25 +35,22 @@ impl ScanParameters {
         &self,
         data_type: &DataType,
     ) -> DataValue {
-        return self.compare_immediate
+        return self
+            .compare_immediate
             .as_ref()
             .and_then(|value| value.deanonymize_type(data_type).ok())
             .unwrap_or_else(|| panic!("Invalid type"));
     }
 
-    pub fn get_compare_immediate(
-        &self,
-    ) -> Option<&AnonymousValue> {
+    pub fn get_compare_immediate(&self) -> Option<&AnonymousValue> {
         if self.is_immediate_comparison() {
             return self.compare_immediate.as_ref();
         } else {
             return None;
         }
     }
-    
-    pub fn is_valid(
-        &self,
-    ) -> bool {
+
+    pub fn is_valid(&self) -> bool {
         if !self.is_immediate_comparison() {
             return true;
         } else {
@@ -63,31 +58,21 @@ impl ScanParameters {
         }
     }
 
-    pub fn is_relative_delta_comparison(
-        &self,
-    ) -> bool {
+    pub fn is_relative_delta_comparison(&self) -> bool {
         return match self.compare_type {
-            | ScanCompareType::IncreasedByX
-            | ScanCompareType::DecreasedByX => true,
+            ScanCompareType::IncreasedByX | ScanCompareType::DecreasedByX => true,
             _ => false,
         };
     }
 
-    pub fn is_relative_comparison(
-        &self,
-    ) -> bool {
+    pub fn is_relative_comparison(&self) -> bool {
         return match self.compare_type {
-            ScanCompareType::Changed
-            | ScanCompareType::Unchanged
-            | ScanCompareType::Increased
-            | ScanCompareType::Decreased => true,
+            ScanCompareType::Changed | ScanCompareType::Unchanged | ScanCompareType::Increased | ScanCompareType::Decreased => true,
             _ => false,
         };
     }
 
-    pub fn is_immediate_comparison(
-        &self,
-    ) -> bool {
+    pub fn is_immediate_comparison(&self) -> bool {
         return match self.compare_type {
             ScanCompareType::Equal
             | ScanCompareType::NotEqual
@@ -101,9 +86,7 @@ impl ScanParameters {
         };
     }
 
-    pub fn clone(
-        &self,
-    ) -> Self {
+    pub fn clone(&self) -> Self {
         ScanParameters {
             compare_type: self.compare_type.clone(),
             compare_immediate: self.compare_immediate.clone(),
@@ -112,7 +95,7 @@ impl ScanParameters {
 
     pub fn conflicts_with(
         &self,
-        other: &ScanParameters
+        other: &ScanParameters,
     ) -> bool {
         if self.compare_type == other.compare_type {
             return true;
@@ -123,11 +106,19 @@ impl ScanParameters {
         }
 
         if self.is_immediate_comparison() && other.is_immediate_comparison() {
-            if (matches!(self.compare_type, ScanCompareType::LessThan | ScanCompareType::LessThanOrEqual | ScanCompareType::NotEqual)
-                && matches!(other.compare_type, ScanCompareType::GreaterThan | ScanCompareType::GreaterThanOrEqual | ScanCompareType::NotEqual))
-                || (matches!(self.compare_type, ScanCompareType::GreaterThan | ScanCompareType::GreaterThanOrEqual | ScanCompareType::NotEqual)
-                    && matches!(other.compare_type, ScanCompareType::LessThan | ScanCompareType::LessThanOrEqual | ScanCompareType::NotEqual))
-            {
+            if (matches!(
+                self.compare_type,
+                ScanCompareType::LessThan | ScanCompareType::LessThanOrEqual | ScanCompareType::NotEqual
+            ) && matches!(
+                other.compare_type,
+                ScanCompareType::GreaterThan | ScanCompareType::GreaterThanOrEqual | ScanCompareType::NotEqual
+            )) || (matches!(
+                self.compare_type,
+                ScanCompareType::GreaterThan | ScanCompareType::GreaterThanOrEqual | ScanCompareType::NotEqual
+            ) && matches!(
+                other.compare_type,
+                ScanCompareType::LessThan | ScanCompareType::LessThanOrEqual | ScanCompareType::NotEqual
+            )) {
                 return true;
             }
         }

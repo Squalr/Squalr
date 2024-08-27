@@ -1,8 +1,8 @@
 use crate::imemory_queryer::IMemoryQueryer;
-use crate::normalized_region::NormalizedRegion;
-use crate::normalized_module::NormalizedModule;
 use crate::memory_protection_enum::MemoryProtectionEnum;
 use crate::memory_type_enum::MemoryTypeEnum;
+use crate::normalized_module::NormalizedModule;
+use crate::normalized_region::NormalizedRegion;
 use crate::region_bounds_handling::RegionBoundsHandling;
 use std::collections::HashSet;
 use std::process_id::Pid;
@@ -39,49 +39,49 @@ impl IMemoryQueryer for MacOsMemoryQuery {
     fn is_address_writable(
         &self,
         process_id: &Pid,
-        address: u64
+        address: u64,
     ) -> bool {
         unimplemented!()
     }
 
     fn get_maximum_address(
         &self,
-        process_id: &Pid
+        process_id: &Pid,
     ) -> u64 {
         unimplemented!()
     }
 
     fn get_min_usermode_address(
         &self,
-        process_id: &Pid
+        process_id: &Pid,
     ) -> u64 {
         unimplemented!()
     }
 
     fn get_max_usermode_address(
         &self,
-        process_id: &Pid
+        process_id: &Pid,
     ) -> u64 {
         unimplemented!()
     }
 
     fn get_modules(
         &self,
-        process_id: &Pid
+        process_id: &Pid,
     ) -> HashSet<NormalizedModule> {
         unimplemented!()
     }
 
     fn get_stack_addresses(
         &self,
-        process_id: &Pid
+        process_id: &Pid,
     ) -> HashSet<NormalizedRegion> {
         unimplemented!()
     }
 
     fn get_heap_addresses(
         &self,
-        process_id: &Pid
+        process_id: &Pid,
     ) -> HashSet<NormalizedRegion> {
         unimplemented!()
     }
@@ -90,7 +90,7 @@ impl IMemoryQueryer for MacOsMemoryQuery {
         &self,
         process_id: &Pid,
         address: u64,
-        module_name: &mut String
+        module_name: &mut String,
     ) -> u64 {
         unimplemented!()
     }
@@ -98,7 +98,7 @@ impl IMemoryQueryer for MacOsMemoryQuery {
     fn resolve_module(
         &self,
         process_id: &Pid,
-        identifier: &str
+        identifier: &str,
     ) -> u64 {
         unimplemented!()
     }

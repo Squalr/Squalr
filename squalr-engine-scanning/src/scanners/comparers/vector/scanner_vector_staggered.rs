@@ -6,9 +6,13 @@ use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
-use std::simd::{LaneCount, Simd, SupportedLaneCount};
-use std::simd::prelude::SimdPartialEq;
 use std::marker::PhantomData;
+use std::simd::prelude::SimdPartialEq;
+use std::simd::{
+    LaneCount,
+    Simd,
+    SupportedLaneCount,
+};
 
 use super::types::simd_type::SimdType;
 
@@ -32,13 +36,14 @@ where
     Simd<T, N>: SimdPartialEq,
 {
     pub fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
+        Self { _marker: PhantomData }
     }
-    
+
     /// Generates staggered masks for unaligned scans (alignment < data_type_size) based on the data type size and memory alignment.
-    fn get_staggered_mask(data_type_size: u64, memory_alignment: MemoryAlignment) -> Vec<Simd<u8, N>> {
+    fn get_staggered_mask(
+        data_type_size: u64,
+        memory_alignment: MemoryAlignment,
+    ) -> Vec<Simd<u8, N>> {
         match (data_type_size, memory_alignment) {
             // Data type size 2
             (2, MemoryAlignment::Alignment1) => vec![
@@ -221,7 +226,7 @@ where
                     Simd::from_array(mask)
                 },
             ],
-            _ => panic!("Unexpected size/alignment combination.")
+            _ => panic!("Unexpected size/alignment combination."),
         }
     }
 }
