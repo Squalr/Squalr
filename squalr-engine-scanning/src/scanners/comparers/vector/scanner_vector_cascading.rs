@@ -12,7 +12,7 @@ use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 use super::types::simd_type::SimdType;
 
-pub struct ScannerVectorStaggered<T: SimdType + Send + Sync, const N: usize>
+pub struct ScannerVectorCascading<T: SimdType + Send + Sync, const N: usize>
 where
     LaneCount<N>: SupportedLaneCount,
     LaneCount<{ N / 2 }>: SupportedLaneCount,
@@ -23,7 +23,7 @@ where
     _marker: PhantomData<T>,
 }
 
-impl<T: SimdType + Send + Sync, const N: usize> ScannerVectorStaggered<T, N>
+impl<T: SimdType + Send + Sync, const N: usize> ScannerVectorCascading<T, N>
 where
     LaneCount<N>: SupportedLaneCount,
     LaneCount<{ N / 2 }>: SupportedLaneCount,
@@ -35,8 +35,8 @@ where
         Self { _marker: PhantomData }
     }
 
-    /// Generates staggered masks for unaligned scans (alignment < data_type_size) based on the data type size and memory alignment.
-    fn get_staggered_mask(
+    /// Generates cascading masks for unaligned scans (alignment < data_type_size) based on the data type size and memory alignment.
+    fn get_cascading_mask(
         data_type_size: u64,
         memory_alignment: MemoryAlignment,
     ) -> Vec<Simd<u8, N>> {
@@ -227,13 +227,22 @@ where
     }
 }
 
+/// A special encoder that supports cascading scans. These allow for scans where the data type is larger than the alignment.
+/// In this case, the scan results are no longer independent variables, which means contiguous scan reslts need to be combined.
+/// For example, with alignment 2 bytes, data type 4 bytes (ie i32), vector 16 bytes, being compared against a value of 2:
+/// - <2, 0, 131072 0> -> <true, false, false, false> (because 131072 == 2 << 16 bits, or 2 bytes)
+/// Once we shift up by 2 bytes (the alignment size), this same vector becomes:
+/// <131072, 2, 0, 0> (assuming 0s get loaded in for the 2 new bytes)
+/// We then take advantage of periodicity -- if we OR each cascading result group together, we can then advance "slightly more" than
+/// A SIMD vector length.
+///
 /// This algorithm is mostly the same as scanner_vector_aligned. The primary difference is that instead of doing one vector comparison,
 /// multiple scans must be done per vector to scan for mis-aligned values. This adds 2 to 8 additional vector scans, based on the alignment
 /// and data type. Each of these sub-scans is masked against a stagger mask to create the scan result. For example, scanning for 4-byte integer
 /// with a value of 0 with an alignment of 2-bytes against <0, 0, 0, 0, 55, 0, 0, 0, 0, 0> would need to return <255, 0, 0, 0, 255, 255, ..>.
 /// This is accomplished by performing a full vector scan, then masking it against the appropriate stagger mask to extract the relevant scan
 /// results for that iteration. These sub-scans are OR'd together to get a run-length encoded vector of all scan matches.
-impl<T: SimdType + Send + Sync + PartialEq, const N: usize> Scanner for ScannerVectorStaggered<T, N>
+impl<T: SimdType + Send + Sync + PartialEq, const N: usize> Scanner for ScannerVectorCascading<T, N>
 where
     LaneCount<N>: SupportedLaneCount,
     LaneCount<{ N / 2 }>: SupportedLaneCount,
@@ -254,11 +263,11 @@ where
         let encoder = ScannerVectorEncoder::<T, N>::new();
         let vector_comparer = ScannerVectorComparer::<T, N>::new();
 
-        let staggered_masks = Self::get_staggered_mask(data_type_size, memory_alignment);
+        let cascading_masks = Self::get_cascading_mask(data_type_size, memory_alignment);
         let mut results = Vec::new();
 
-        // Loop through each staggered mask and perform the scan
-        for mask in staggered_masks {
+        // Loop through each cascading mask and perform the scan
+        for mask in cascading_masks {
             let sub_results = encoder.encode(
                 snapshot_region.get_current_values_pointer(&snapshot_region_filter),
                 snapshot_region.get_previous_values_pointer(&snapshot_region_filter),
@@ -272,6 +281,6 @@ where
             results.extend(sub_results);
         }
 
-        results
+        return results;
     }
 }

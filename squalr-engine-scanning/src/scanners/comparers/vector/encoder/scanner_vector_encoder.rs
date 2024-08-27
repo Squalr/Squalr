@@ -1,6 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::{CompareFunc, ScannerVectorComparer};
+use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorComparer;
 use crate::scanners::comparers::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
@@ -38,7 +38,7 @@ where
         scan_filter_parameters: &ScanFilterParameters,
         base_address: u64,
         element_count: u64,
-        vector_comparer: &ScannerVectorComparer<T, N>,
+        vector_comparer: &impl VectorComparer<T, N>,
         true_mask: Simd<u8, N>,
     ) -> Vec<SnapshotRegionFilter> {
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
@@ -52,10 +52,7 @@ where
         unsafe {
             if scan_parameters.is_immediate_comparison() {
                 let immediate_value = scan_parameters.deanonymize_type(&data_type).as_ptr();
-                let compare_func = match vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), data_type) {
-                    CompareFunc::Immediate(func) => func,
-                    _ => panic!("Unexpected CompareFunc variant"),
-                };
+                let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), data_type);
 
                 // Compare as many full vectors as we can
                 for index in 0..iterations {
@@ -73,10 +70,7 @@ where
                     self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_elements);
                 }
             } else if scan_parameters.is_relative_comparison() {
-                let compare_func = match vector_comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type) {
-                    CompareFunc::Relative(func) => func,
-                    _ => panic!("Unexpected CompareFunc variant"),
-                };
+                let compare_func = vector_comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type);
 
                 // Compare as many full vectors as we can
                 for index in 0..iterations {
@@ -96,10 +90,7 @@ where
                     self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_elements);
                 }
             } else if scan_parameters.is_relative_delta_comparison() {
-                let compare_func = match vector_comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type) {
-                    CompareFunc::RelativeDelta(func) => func,
-                    _ => panic!("Unexpected CompareFunc variant"),
-                };
+                let compare_func = vector_comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type);
                 let delta_arg = scan_parameters.deanonymize_type(&data_type).as_ptr();
 
                 // Compare as many full vectors as we can

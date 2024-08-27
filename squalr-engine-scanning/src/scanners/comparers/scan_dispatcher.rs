@@ -3,8 +3,8 @@ use crate::scanners::comparers::scalar::scanner_scalar_iterative::ScannerScalarI
 use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::comparers::snapshot_scanner::Scanner;
 use crate::scanners::comparers::vector::scanner_vector_aligned::ScannerVectorAligned;
+use crate::scanners::comparers::vector::scanner_vector_cascading::ScannerVectorCascading;
 use crate::scanners::comparers::vector::scanner_vector_sparse::ScannerVectorSparse;
-use crate::scanners::comparers::vector::scanner_vector_staggered::ScannerVectorStaggered;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
@@ -19,9 +19,9 @@ pub struct ScanDispatcher {
     scanner_sparse_64: ScannerVectorSparse<u8, 64>,
     scanner_sparse_32: ScannerVectorSparse<u8, 32>,
     scanner_sparse_16: ScannerVectorSparse<u8, 16>,
-    scanner_staggered_64: ScannerVectorStaggered<u8, 64>,
-    scanner_staggered_32: ScannerVectorStaggered<u8, 32>,
-    scanner_staggered_16: ScannerVectorStaggered<u8, 16>,
+    scanner_cascading_64: ScannerVectorCascading<u8, 64>,
+    scanner_cascading_32: ScannerVectorCascading<u8, 32>,
+    scanner_cascading_16: ScannerVectorCascading<u8, 16>,
 }
 
 impl ScanDispatcher {
@@ -33,9 +33,9 @@ impl ScanDispatcher {
             scanner_sparse_64: ScannerVectorSparse::<u8, 64>::new(),
             scanner_sparse_32: ScannerVectorSparse::<u8, 32>::new(),
             scanner_sparse_16: ScannerVectorSparse::<u8, 16>::new(),
-            scanner_staggered_64: ScannerVectorStaggered::<u8, 64>::new(),
-            scanner_staggered_32: ScannerVectorStaggered::<u8, 32>::new(),
-            scanner_staggered_16: ScannerVectorStaggered::<u8, 16>::new(),
+            scanner_cascading_64: ScannerVectorCascading::<u8, 64>::new(),
+            scanner_cascading_32: ScannerVectorCascading::<u8, 32>::new(),
+            scanner_cascading_16: ScannerVectorCascading::<u8, 16>::new(),
         }
     }
 
@@ -123,7 +123,7 @@ impl ScanDispatcher {
                         } else if memory_alignment > data_type_size {
                             return &self.scanner_sparse_64;
                         } else {
-                            // return &self.scanner_staggered_64;
+                            return &self.scanner_cascading_64;
                         }
                     } else if bytes_to_scan >= 32 {
                         if memory_alignment == data_type_size {
@@ -131,7 +131,7 @@ impl ScanDispatcher {
                         } else if memory_alignment > data_type_size {
                             return &self.scanner_sparse_32;
                         } else {
-                            // return &self.scanner_staggered_32;
+                            return &self.scanner_cascading_32;
                         }
                     } else if bytes_to_scan >= 16 {
                         if memory_alignment == data_type_size {
@@ -139,7 +139,7 @@ impl ScanDispatcher {
                         } else if memory_alignment > data_type_size {
                             return &self.scanner_sparse_16;
                         } else {
-                            // return &self.scanner_staggered_16;
+                            return &self.scanner_cascading_16;
                         }
                     }
                 }

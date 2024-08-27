@@ -50,7 +50,7 @@ where
         let vector_comparer = ScannerVectorComparer::<T, N>::new();
         let simd_all_true_mask = Simd::<u8, N>::splat(0xFF);
 
-        encoder.encode(
+        let results = encoder.encode(
             snapshot_region.get_current_values_pointer(&snapshot_region_filter),
             snapshot_region.get_previous_values_pointer(&snapshot_region_filter),
             scan_parameters,
@@ -59,6 +59,8 @@ where
             snapshot_region_filter.get_element_count(memory_alignment, data_type_size),
             &vector_comparer,
             simd_all_true_mask,
-        )
+        );
+
+        return results;
     }
 }

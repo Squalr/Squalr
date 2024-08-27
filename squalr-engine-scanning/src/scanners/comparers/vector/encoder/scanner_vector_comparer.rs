@@ -2,12 +2,36 @@ use crate::scanners::comparers::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::endian::Endian;
-use std::marker::PhantomData;
-use std::mem::transmute;
 use std::ops::{Add, Sub};
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
-use std::simd::num::{SimdInt, SimdUint};
-use std::simd::{LaneCount, Mask, MaskElement, Simd, SimdElement, SupportedLaneCount};
+use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
+
+pub trait VectorComparer<T: SimdElement + SimdType + PartialEq, const N: usize>
+where
+    LaneCount<N>: SupportedLaneCount,
+    LaneCount<{ N / 2 }>: SupportedLaneCount,
+    LaneCount<{ N / 4 }>: SupportedLaneCount,
+    LaneCount<{ N / 8 }>: SupportedLaneCount,
+    Simd<T, N>: SimdPartialEq,
+{
+    fn get_immediate_compare_func(
+        &self,
+        scan_compare_type: ScanCompareType,
+        data_type: &DataType,
+    ) -> fn(*const u8, *const u8) -> Simd<u8, N>;
+
+    fn get_relative_compare_func(
+        &self,
+        scan_compare_type: ScanCompareType,
+        data_type: &DataType,
+    ) -> fn(*const u8, *const u8) -> Simd<u8, N>;
+
+    fn get_relative_delta_compare_func(
+        &self,
+        scan_compare_type: ScanCompareType,
+        data_type: &DataType,
+    ) -> fn(*const u8, *const u8, *const u8) -> Simd<u8, N>;
+}
 
 pub struct ScannerVectorComparer<T: SimdElement + SimdType + PartialEq, const N: usize>
 where
@@ -21,7 +45,7 @@ where
     _marker: std::marker::PhantomData<T>,
 }
 
-pub enum CompareFunc<T, const N: usize>
+impl<T, const N: usize> VectorComparer<T, N> for ScannerVectorComparer<T, N>
 where
     T: SimdElement + SimdType + PartialEq,
     LaneCount<N>: SupportedLaneCount,
@@ -30,12 +54,30 @@ where
     LaneCount<{ N / 8 }>: SupportedLaneCount,
     Simd<T, N>: SimdPartialEq,
 {
-    Immediate(fn(*const u8, *const u8) -> Simd<u8, N>),
-    Relative(fn(*const u8, *const u8) -> Simd<u8, N>),
-    RelativeDelta(fn(*const u8, *const u8, *const u8) -> Simd<u8, N>),
-    _Marker(PhantomData<T>),
-}
+    fn get_immediate_compare_func(
+        &self,
+        scan_compare_type: ScanCompareType,
+        data_type: &DataType,
+    ) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+        self.get_immediate_compare_func(scan_compare_type, data_type)
+    }
 
+    fn get_relative_compare_func(
+        &self,
+        scan_compare_type: ScanCompareType,
+        data_type: &DataType,
+    ) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+        self.get_relative_compare_func(scan_compare_type, data_type)
+    }
+
+    fn get_relative_delta_compare_func(
+        &self,
+        scan_compare_type: ScanCompareType,
+        data_type: &DataType,
+    ) -> fn(*const u8, *const u8, *const u8) -> Simd<u8, N> {
+        self.get_relative_delta_compare_func(scan_compare_type, data_type)
+    }
+}
 impl<T: SimdElement + SimdType, const N: usize> ScannerVectorComparer<T, N>
 where
     T: SimdElement + SimdType + PartialEq,
@@ -55,23 +97,14 @@ where
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> CompareFunc<T, N> {
+    ) -> fn(*const u8, *const u8) -> Simd<u8, N> {
         match scan_compare_type {
-            ScanCompareType::Equal => CompareFunc::Immediate(Self::get_compare_equal_func(data_type)),
-            ScanCompareType::NotEqual => CompareFunc::Immediate(Self::get_compare_not_equal_func(data_type)),
-            /*
-            ScanCompareType::GreaterThan => {
-                // CompareFunc::Immediate(Self::get_compare_greater_than(data_type))
-            }
-            ScanCompareType::GreaterThanOrEqual => {
-                // CompareFunc::Immediate(Self::get_compare_greater_than_or_equal(data_type))
-            }
-            ScanCompareType::LessThan => {
-                // CompareFunc::Immediate(Self::get_compare_less_than(data_type))
-            }
-            ScanCompareType::LessThanOrEqual => {
-                // CompareFunc::Immediate(Self::get_compare_less_than_or_equal(data_type))
-            } */
+            ScanCompareType::Equal => Self::get_compare_equal_func(data_type),
+            ScanCompareType::NotEqual => Self::get_compare_not_equal_func(data_type),
+            ScanCompareType::GreaterThan => Self::get_compare_greater_than(data_type),
+            ScanCompareType::GreaterThanOrEqual => Self::get_compare_greater_than_or_equal(data_type),
+            ScanCompareType::LessThan => Self::get_compare_less_than(data_type),
+            ScanCompareType::LessThanOrEqual => Self::get_compare_less_than_or_equal(data_type),
             _ => panic!("Unsupported type passed to get_immediate_compare_func"),
         }
     }
@@ -80,12 +113,12 @@ where
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> CompareFunc<T, N> {
+    ) -> fn(*const u8, *const u8) -> Simd<u8, N> {
         match scan_compare_type {
-            // ScanCompareType::Changed => CompareFunc::Relative(Self::get_compare_changed(data_type)),
-            // ScanCompareType::Unchanged => CompareFunc::Relative(Self::get_compare_unchanged(data_type)),
-            // ScanCompareType::Increased => CompareFunc::Relative(Self::get_compare_increased(data_type)),
-            // ScanCompareType::Decreased => CompareFunc::Relative(Self::get_compare_decreased(data_type)),
+            ScanCompareType::Changed => Self::get_compare_changed(data_type),
+            ScanCompareType::Unchanged => Self::get_compare_unchanged(data_type),
+            ScanCompareType::Increased => Self::get_compare_increased(data_type),
+            ScanCompareType::Decreased => Self::get_compare_decreased(data_type),
             _ => panic!("Unsupported type passed to get_relative_compare_func"),
         }
     }
@@ -94,10 +127,10 @@ where
         &self,
         scan_compare_type: ScanCompareType,
         data_type: &DataType,
-    ) -> CompareFunc<T, N> {
+    ) -> fn(*const u8, *const u8, *const u8) -> Simd<u8, N> {
         match scan_compare_type {
-            // ScanCompareType::IncreasedByX => CompareFunc::RelativeDelta(Self::get_compare_increased_by(data_type)),
-            // ScanCompareType::DecreasedByX => CompareFunc::RelativeDelta(Self::get_compare_decreased_by(data_type)),
+            ScanCompareType::IncreasedByX => Self::get_compare_increased_by(data_type),
+            ScanCompareType::DecreasedByX => Self::get_compare_decreased_by(data_type),
             _ => panic!("Unsupported type passed to get_relative_delta_compare_func"),
         }
     }
@@ -122,7 +155,7 @@ where
         //     "Size mismatch between Mask and Simd<u8, N>"
         // );
 
-        // These are guaranteed to be the same size, but std::mem::transmute is not passing Rust's compile checks
+        // These are guaranteed to be the same size, but std::mem::transmute() is not passing Rust's compile checks
         // Perhaps Rust is not smart enough to realize that the resulting sizes are the exact same.
         return *(&*value as *const _ as *const Simd<u8, N>);
     }
@@ -193,33 +226,263 @@ where
         }
     }
 
-    fn relative_simd_compare(
-        current_values_ptr: *const u8,
-        previous_values_ptr: *const u8,
-        simd_fn: fn(Simd<T, N>, Simd<T, N>) -> Simd<u8, N>,
-    ) -> Simd<u8, N>
-    where
-        LaneCount<N>: SupportedLaneCount,
-    {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let previous_values = unsafe { Simd::<T, N>::from_array(*(previous_values_ptr as *const [T; N])) };
-        simd_fn(current_values, previous_values)
+    fn get_compare_greater_than(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+        match data_type {
+            DataType::U8() => Self::compare_greater_than::<u8, N>,
+            DataType::I8() => Self::compare_greater_than::<i8, N>,
+            DataType::U16(_) => Self::compare_greater_than::<u16, { N / 2 }>,
+            DataType::I16(_) => Self::compare_greater_than::<i16, { N / 2 }>,
+            DataType::U32(_) => Self::compare_greater_than::<u32, { N / 4 }>,
+            DataType::I32(_) => Self::compare_greater_than::<i32, { N / 4 }>,
+            DataType::U64(_) => Self::compare_greater_than::<u64, { N / 8 }>,
+            DataType::I64(_) => Self::compare_greater_than::<i64, { N / 8 }>,
+            DataType::F32(_) => Self::compare_greater_than::<f32, { N / 8 }>,
+            DataType::F64(_) => Self::compare_greater_than::<f64, { N / 8 }>,
+            _ => panic!("Unsupported data type"),
+        }
     }
 
-    fn relative_delta_simd_compare(
+    fn compare_greater_than<M, const M_LANES: usize>(
+        current_values_ptr: *const u8,
+        immediate_ptr: *const u8,
+    ) -> Simd<u8, N>
+    where
+        M: SimdElement + PartialOrd,
+        LaneCount<M_LANES>: SupportedLaneCount,
+        Simd<M, M_LANES>: SimdPartialOrd,
+    {
+        unsafe {
+            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_gt(immediate_value));
+        }
+    }
+
+    fn get_compare_greater_than_or_equal(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+        match data_type {
+            DataType::U8() => Self::compare_greater_than_or_equal::<u8, N>,
+            DataType::I8() => Self::compare_greater_than_or_equal::<i8, N>,
+            DataType::U16(_) => Self::compare_greater_than_or_equal::<u16, { N / 2 }>,
+            DataType::I16(_) => Self::compare_greater_than_or_equal::<i16, { N / 2 }>,
+            DataType::U32(_) => Self::compare_greater_than_or_equal::<u32, { N / 4 }>,
+            DataType::I32(_) => Self::compare_greater_than_or_equal::<i32, { N / 4 }>,
+            DataType::U64(_) => Self::compare_greater_than_or_equal::<u64, { N / 8 }>,
+            DataType::I64(_) => Self::compare_greater_than_or_equal::<i64, { N / 8 }>,
+            DataType::F32(_) => Self::compare_greater_than_or_equal::<f32, { N / 8 }>,
+            DataType::F64(_) => Self::compare_greater_than_or_equal::<f64, { N / 8 }>,
+            _ => panic!("Unsupported data type"),
+        }
+    }
+
+    fn compare_greater_than_or_equal<M, const M_LANES: usize>(
+        current_values_ptr: *const u8,
+        immediate_ptr: *const u8,
+    ) -> Simd<u8, N>
+    where
+        M: SimdElement + PartialOrd,
+        LaneCount<M_LANES>: SupportedLaneCount,
+        Simd<M, M_LANES>: SimdPartialOrd,
+    {
+        unsafe {
+            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_ge(immediate_value));
+        }
+    }
+
+    fn get_compare_less_than(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+        match data_type {
+            DataType::U8() => Self::compare_less_than::<u8, N>,
+            DataType::I8() => Self::compare_less_than::<i8, N>,
+            DataType::U16(_) => Self::compare_less_than::<u16, { N / 2 }>,
+            DataType::I16(_) => Self::compare_less_than::<i16, { N / 2 }>,
+            DataType::U32(_) => Self::compare_less_than::<u32, { N / 4 }>,
+            DataType::I32(_) => Self::compare_less_than::<i32, { N / 4 }>,
+            DataType::U64(_) => Self::compare_less_than::<u64, { N / 8 }>,
+            DataType::I64(_) => Self::compare_less_than::<i64, { N / 8 }>,
+            DataType::F32(_) => Self::compare_less_than::<f32, { N / 8 }>,
+            DataType::F64(_) => Self::compare_less_than::<f64, { N / 8 }>,
+            _ => panic!("Unsupported data type"),
+        }
+    }
+
+    fn compare_less_than<M, const M_LANES: usize>(
+        current_values_ptr: *const u8,
+        immediate_ptr: *const u8,
+    ) -> Simd<u8, N>
+    where
+        M: SimdElement + PartialOrd,
+        LaneCount<M_LANES>: SupportedLaneCount,
+        Simd<M, M_LANES>: SimdPartialOrd,
+    {
+        unsafe {
+            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_lt(immediate_value));
+        }
+    }
+
+    fn get_compare_less_than_or_equal(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+        match data_type {
+            DataType::U8() => Self::compare_less_than_or_equal::<u8, N>,
+            DataType::I8() => Self::compare_less_than_or_equal::<i8, N>,
+            DataType::U16(_) => Self::compare_less_than_or_equal::<u16, { N / 2 }>,
+            DataType::I16(_) => Self::compare_less_than_or_equal::<i16, { N / 2 }>,
+            DataType::U32(_) => Self::compare_less_than_or_equal::<u32, { N / 4 }>,
+            DataType::I32(_) => Self::compare_less_than_or_equal::<i32, { N / 4 }>,
+            DataType::U64(_) => Self::compare_less_than_or_equal::<u64, { N / 8 }>,
+            DataType::I64(_) => Self::compare_less_than_or_equal::<i64, { N / 8 }>,
+            DataType::F32(_) => Self::compare_less_than_or_equal::<f32, { N / 8 }>,
+            DataType::F64(_) => Self::compare_less_than_or_equal::<f64, { N / 8 }>,
+            _ => panic!("Unsupported data type"),
+        }
+    }
+
+    fn compare_less_than_or_equal<M, const M_LANES: usize>(
+        current_values_ptr: *const u8,
+        immediate_ptr: *const u8,
+    ) -> Simd<u8, N>
+    where
+        M: SimdElement + PartialOrd,
+        LaneCount<M_LANES>: SupportedLaneCount,
+        Simd<M, M_LANES>: SimdPartialOrd,
+    {
+        unsafe {
+            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_le(immediate_value));
+        }
+    }
+
+    fn get_compare_changed(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+        match data_type {
+            DataType::U8() => Self::compare_not_equal::<u8, N>,
+            DataType::I8() => Self::compare_not_equal::<i8, N>,
+            DataType::U16(_) => Self::compare_not_equal::<u16, { N / 2 }>,
+            DataType::I16(_) => Self::compare_not_equal::<i16, { N / 2 }>,
+            DataType::U32(_) => Self::compare_not_equal::<u32, { N / 4 }>,
+            DataType::I32(_) => Self::compare_not_equal::<i32, { N / 4 }>,
+            DataType::U64(_) => Self::compare_not_equal::<u64, { N / 8 }>,
+            DataType::I64(_) => Self::compare_not_equal::<i64, { N / 8 }>,
+            DataType::F32(_) => Self::compare_not_equal::<f32, { N / 8 }>,
+            DataType::F64(_) => Self::compare_not_equal::<f64, { N / 8 }>,
+            _ => panic!("Unsupported data type"),
+        }
+    }
+
+    fn get_compare_unchanged(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+        match data_type {
+            DataType::U8() => Self::compare_equal::<u8, N>,
+            DataType::I8() => Self::compare_equal::<i8, N>,
+            DataType::U16(_) => Self::compare_equal::<u16, { N / 2 }>,
+            DataType::I16(_) => Self::compare_equal::<i16, { N / 2 }>,
+            DataType::U32(_) => Self::compare_equal::<u32, { N / 4 }>,
+            DataType::I32(_) => Self::compare_equal::<i32, { N / 4 }>,
+            DataType::U64(_) => Self::compare_equal::<u64, { N / 8 }>,
+            DataType::I64(_) => Self::compare_equal::<i64, { N / 8 }>,
+            DataType::F32(_) => Self::compare_equal::<f32, { N / 8 }>,
+            DataType::F64(_) => Self::compare_equal::<f64, { N / 8 }>,
+            _ => panic!("Unsupported data type"),
+        }
+    }
+
+    fn get_compare_increased(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+        match data_type {
+            DataType::U8() => Self::compare_greater_than::<u8, N>,
+            DataType::I8() => Self::compare_greater_than::<i8, N>,
+            DataType::U16(_) => Self::compare_greater_than::<u16, { N / 2 }>,
+            DataType::I16(_) => Self::compare_greater_than::<i16, { N / 2 }>,
+            DataType::U32(_) => Self::compare_greater_than::<u32, { N / 4 }>,
+            DataType::I32(_) => Self::compare_greater_than::<i32, { N / 4 }>,
+            DataType::U64(_) => Self::compare_greater_than::<u64, { N / 8 }>,
+            DataType::I64(_) => Self::compare_greater_than::<i64, { N / 8 }>,
+            DataType::F32(_) => Self::compare_greater_than::<f32, { N / 8 }>,
+            DataType::F64(_) => Self::compare_greater_than::<f64, { N / 8 }>,
+            _ => panic!("Unsupported data type"),
+        }
+    }
+
+    fn get_compare_decreased(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
+        match data_type {
+            DataType::U8() => Self::compare_less_than::<u8, N>,
+            DataType::I8() => Self::compare_less_than::<i8, N>,
+            DataType::U16(_) => Self::compare_less_than::<u16, { N / 2 }>,
+            DataType::I16(_) => Self::compare_less_than::<i16, { N / 2 }>,
+            DataType::U32(_) => Self::compare_less_than::<u32, { N / 4 }>,
+            DataType::I32(_) => Self::compare_less_than::<i32, { N / 4 }>,
+            DataType::U64(_) => Self::compare_less_than::<u64, { N / 8 }>,
+            DataType::I64(_) => Self::compare_less_than::<i64, { N / 8 }>,
+            DataType::F32(_) => Self::compare_less_than::<f32, { N / 8 }>,
+            DataType::F64(_) => Self::compare_less_than::<f64, { N / 8 }>,
+            _ => panic!("Unsupported data type"),
+        }
+    }
+
+    fn get_compare_increased_by(data_type: &DataType) -> fn(*const u8, *const u8, *const u8) -> Simd<u8, N> {
+        match data_type {
+            DataType::U8() => Self::compare_increased_by::<u8, N>,
+            DataType::I8() => Self::compare_increased_by::<i8, N>,
+            DataType::U16(_) => Self::compare_increased_by::<u16, { N / 2 }>,
+            DataType::I16(_) => Self::compare_increased_by::<i16, { N / 2 }>,
+            DataType::U32(_) => Self::compare_increased_by::<u32, { N / 4 }>,
+            DataType::I32(_) => Self::compare_increased_by::<i32, { N / 4 }>,
+            DataType::U64(_) => Self::compare_increased_by::<u64, { N / 8 }>,
+            DataType::I64(_) => Self::compare_increased_by::<i64, { N / 8 }>,
+            DataType::F32(_) => Self::compare_increased_by::<f32, { N / 8 }>,
+            DataType::F64(_) => Self::compare_increased_by::<f64, { N / 8 }>,
+            _ => panic!("Unsupported data type"),
+        }
+    }
+
+    fn compare_increased_by<M, const M_LANES: usize>(
         current_values_ptr: *const u8,
         previous_values_ptr: *const u8,
         delta_ptr: *const u8,
-        simd_op: fn(Simd<T, N>, Simd<T, N>) -> Simd<T, N>,
-        simd_fn: fn(Simd<T, N>, Simd<T, N>) -> Simd<u8, N>,
     ) -> Simd<u8, N>
     where
-        LaneCount<N>: SupportedLaneCount,
+        M: SimdElement + Add<Output = M> + PartialOrd,
+        LaneCount<M_LANES>: SupportedLaneCount,
+        Simd<M, M_LANES>: SimdPartialOrd + Add<Output = Simd<M, M_LANES>>,
     {
-        let current_values = unsafe { Simd::<T, N>::from_array(*(current_values_ptr as *const [T; N])) };
-        let previous_values = unsafe { Simd::<T, N>::from_array(*(previous_values_ptr as *const [T; N])) };
-        let delta_value = unsafe { Simd::<T, N>::splat(*(delta_ptr as *const T)) };
+        unsafe {
+            let delta_value = Simd::<M, M_LANES>::splat(*(delta_ptr as *const M));
+            let previous_values = Simd::<M, M_LANES>::from_array(*(previous_values_ptr as *const [M; M_LANES]));
+            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_gt(previous_values + delta_value));
+        }
+    }
 
-        simd_fn(current_values, simd_op(previous_values, delta_value))
+    fn get_compare_decreased_by(data_type: &DataType) -> fn(*const u8, *const u8, *const u8) -> Simd<u8, N> {
+        match data_type {
+            DataType::U8() => Self::compare_decreased_by::<u8, N>,
+            DataType::I8() => Self::compare_decreased_by::<i8, N>,
+            DataType::U16(_) => Self::compare_decreased_by::<u16, { N / 2 }>,
+            DataType::I16(_) => Self::compare_decreased_by::<i16, { N / 2 }>,
+            DataType::U32(_) => Self::compare_decreased_by::<u32, { N / 4 }>,
+            DataType::I32(_) => Self::compare_decreased_by::<i32, { N / 4 }>,
+            DataType::U64(_) => Self::compare_decreased_by::<u64, { N / 8 }>,
+            DataType::I64(_) => Self::compare_decreased_by::<i64, { N / 8 }>,
+            DataType::F32(_) => Self::compare_decreased_by::<f32, { N / 8 }>,
+            DataType::F64(_) => Self::compare_decreased_by::<f64, { N / 8 }>,
+            _ => panic!("Unsupported data type"),
+        }
+    }
+
+    fn compare_decreased_by<M, const M_LANES: usize>(
+        current_values_ptr: *const u8,
+        previous_values_ptr: *const u8,
+        delta_ptr: *const u8,
+    ) -> Simd<u8, N>
+    where
+        M: SimdElement + Sub<Output = M> + PartialOrd,
+        LaneCount<M_LANES>: SupportedLaneCount,
+        Simd<M, M_LANES>: SimdPartialOrd + Sub<Output = Simd<M, M_LANES>>,
+    {
+        unsafe {
+            let delta_value = Simd::<M, M_LANES>::splat(*(delta_ptr as *const M));
+            let previous_values = Simd::<M, M_LANES>::from_array(*(previous_values_ptr as *const [M; M_LANES]));
+            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_lt(previous_values - delta_value));
+        }
     }
 }
