@@ -56,6 +56,7 @@ where
 
         let iterations = region_size / step_size_bytes as u64;
         let remainder_bytes = region_size % step_size_bytes as u64;
+        let remainder_ptr_offset = iterations.saturating_sub(1) as usize * step_size_bytes;
         let false_mask = Simd::<u8, N>::splat(0);
 
         unsafe {
@@ -73,7 +74,7 @@ where
 
                 // Handle remainder elements
                 if remainder_bytes > 0 {
-                    let current_value_pointer = current_value_pointer.add((iterations - 1) as usize * step_size_bytes);
+                    let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
                     let compare_result = compare_func(current_value_pointer, immediate_value);
                     self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
                 }
@@ -91,8 +92,8 @@ where
 
                 // Handle remainder elements
                 if remainder_bytes > 0 {
-                    let current_value_pointer = current_value_pointer.add((iterations - 1) as usize * step_size_bytes);
-                    let previous_value_pointer = previous_value_pointer.add((iterations - 1) as usize * step_size_bytes);
+                    let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
+                    let previous_value_pointer = previous_value_pointer.add(remainder_ptr_offset);
                     let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
                     self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
@@ -112,7 +113,7 @@ where
 
                 // Handle remainder elements
                 if remainder_bytes > 0 {
-                    let current_value_pointer = current_value_pointer.add((iterations - 1) as usize * step_size_bytes);
+                    let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
                     let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg);
 
                     self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
