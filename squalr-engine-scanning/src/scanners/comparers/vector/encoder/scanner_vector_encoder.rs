@@ -37,16 +37,25 @@ where
         scan_parameters: &ScanParameters,
         scan_filter_parameters: &ScanFilterParameters,
         base_address: u64,
-        element_count: u64,
+        region_size: u64,
         vector_comparer: &impl VectorComparer<T, N>,
         true_mask: Simd<u8, N>,
     ) -> Vec<SnapshotRegionFilter> {
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_filter_parameters.get_data_type();
-        let data_type_size = data_type.get_size_in_bytes();
-        let comparisons_per_vector = N * std::mem::size_of::<T>() / data_type_size as usize;
-        let iterations = element_count / comparisons_per_vector as u64;
-        let remainder_elements = element_count % comparisons_per_vector as u64;
+        let data_type_size_bytes = data_type.get_size_in_bytes();
+        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default() as u64;
+        let vector_size_in_bytes = N;
+        let mut step_size_bytes = vector_size_in_bytes;
+
+        // For cascading scans, we need to pad each scan with an extra element worth of bytes. This ensures
+        // that the cascading comparer can "reach forward" into memory beyond the size of a SIMD register safely.
+        if memory_alignment < data_type_size_bytes {
+            step_size_bytes += data_type_size_bytes as usize;
+        }
+
+        let iterations = region_size / step_size_bytes as u64;
+        let remainder_bytes = region_size % step_size_bytes as u64;
         let false_mask = Simd::<u8, N>::splat(0);
 
         unsafe {
@@ -56,38 +65,37 @@ where
 
                 // Compare as many full vectors as we can
                 for index in 0..iterations {
-                    let current_value_pointer = current_value_pointer.add(index as usize * N);
+                    let current_value_pointer = current_value_pointer.add(index as usize * step_size_bytes);
                     let compare_result = compare_func(current_value_pointer, immediate_value);
 
-                    self.encode_results(&compare_result, &mut run_length_encoder, data_type_size, true_mask, false_mask);
+                    self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
                 }
 
                 // Handle remainder elements
-                if remainder_elements > 0 {
-                    let current_value_pointer = current_value_pointer.add((iterations as usize * N) - N);
+                if remainder_bytes > 0 {
+                    let current_value_pointer = current_value_pointer.add((iterations as usize * step_size_bytes) - step_size_bytes);
                     let compare_result = compare_func(current_value_pointer, immediate_value);
-
-                    self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_elements);
+                    self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
                 }
             } else if scan_parameters.is_relative_comparison() {
                 let compare_func = vector_comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type);
 
                 // Compare as many full vectors as we can
                 for index in 0..iterations {
-                    let current_value_pointer = current_value_pointer.add(index as usize * N);
-                    let previous_value_pointer = previous_value_pointer.add(index as usize * N);
+                    let current_value_pointer = current_value_pointer.add(index as usize * step_size_bytes);
+                    let previous_value_pointer = previous_value_pointer.add(index as usize * step_size_bytes);
                     let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                    self.encode_results(&compare_result, &mut run_length_encoder, data_type_size, true_mask, false_mask);
+                    self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
                 }
 
                 // Handle remainder elements
-                if remainder_elements > 0 {
-                    let current_value_pointer = current_value_pointer.add((iterations as usize * N) - N);
-                    let previous_value_pointer = previous_value_pointer.add((iterations as usize * N) - N);
+                if remainder_bytes > 0 {
+                    let current_value_pointer = current_value_pointer.add((iterations as usize * step_size_bytes) - step_size_bytes);
+                    let previous_value_pointer = previous_value_pointer.add((iterations as usize * step_size_bytes) - step_size_bytes);
                     let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                    self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_elements);
+                    self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
                 }
             } else if scan_parameters.is_relative_delta_comparison() {
                 let compare_func = vector_comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type);
@@ -95,19 +103,19 @@ where
 
                 // Compare as many full vectors as we can
                 for index in 0..iterations {
-                    let current_value_pointer = current_value_pointer.add(index as usize * N);
-                    let previous_value_pointer = previous_value_pointer.add(index as usize * N);
+                    let current_value_pointer = current_value_pointer.add(index as usize * step_size_bytes);
+                    let previous_value_pointer = previous_value_pointer.add(index as usize * step_size_bytes);
                     let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg);
 
-                    self.encode_results(&compare_result, &mut run_length_encoder, data_type_size, true_mask, false_mask);
+                    self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
                 }
 
                 // Handle remainder elements
-                if remainder_elements > 0 {
-                    let current_value_pointer = current_value_pointer.add((iterations as usize * N) - N);
+                if remainder_bytes > 0 {
+                    let current_value_pointer = current_value_pointer.add((iterations as usize * step_size_bytes) - step_size_bytes);
                     let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg);
 
-                    self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_elements);
+                    self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
                 }
             } else {
                 panic!("Unrecognized comparison");
@@ -152,9 +160,9 @@ where
         compare_result: &Simd<u8, N>,
         run_length_encoder: &mut SnapshotRegionFilterRunLengthEncoder,
         data_type_size: u64,
-        remainder_elements: u64,
+        remainder_bytes: u64,
     ) {
-        let start_byte_index = (N - remainder_elements as usize * data_type_size as usize) as usize;
+        let start_byte_index = N - remainder_bytes as usize;
 
         for byte_index in (start_byte_index..N).step_by(data_type_size as usize) {
             if compare_result[byte_index] != 0 {

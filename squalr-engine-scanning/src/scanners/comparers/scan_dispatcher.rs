@@ -100,9 +100,9 @@ impl ScanDispatcher {
         let data_type = scan_filter_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
+        let memory_alignment_size = memory_alignment as u64;
         let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size);
-        let memory_alignment = memory_alignment as u64;
-        let bytes_to_scan = element_count * data_type_size;
+        let region_size = snapshot_region_filter.get_region_size();
 
         if element_count == 1 {
             // Single element scanner
@@ -117,28 +117,30 @@ impl ScanDispatcher {
                     // We actually don't really care whether the processor supports AVX-512, AVX2, etc, Rust is smart enough to abstract this.
                     // It is actually more performant to greedily try to use AVX-512 even if its not available, because Rust falls back to
                     // essentially unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
-                    if bytes_to_scan >= 64 {
-                        if memory_alignment == data_type_size {
+                    if region_size >= 64 {
+                        if memory_alignment_size == data_type_size {
                             return &self.scanner_aligned_64;
-                        } else if memory_alignment > data_type_size {
+                        } else if memory_alignment_size > data_type_size {
                             return &self.scanner_sparse_64;
-                        } else {
+                        // When memory_alignment_size is < data_type_size, we need to be able to read a bit more than an entire vector,
+                        // due to how cascading scans work. They need to be able to read 1 additional element passed the end of the SIMD vector.
+                        } else if region_size >= 64 + data_type_size {
                             return &self.scanner_cascading_64;
                         }
-                    } else if bytes_to_scan >= 32 {
-                        if memory_alignment == data_type_size {
+                    } else if region_size >= 32 {
+                        if memory_alignment_size == data_type_size {
                             return &self.scanner_aligned_32;
-                        } else if memory_alignment > data_type_size {
+                        } else if memory_alignment_size > data_type_size {
                             return &self.scanner_sparse_32;
-                        } else {
+                        } else if memory_alignment_size >= 32 + data_type_size {
                             return &self.scanner_cascading_32;
                         }
-                    } else if bytes_to_scan >= 16 {
-                        if memory_alignment == data_type_size {
+                    } else if region_size >= 16 {
+                        if memory_alignment_size == data_type_size {
                             return &self.scanner_aligned_16;
-                        } else if memory_alignment > data_type_size {
+                        } else if memory_alignment_size > data_type_size {
                             return &self.scanner_sparse_16;
-                        } else {
+                        } else if region_size >= 16 + data_type_size {
                             return &self.scanner_cascading_16;
                         }
                     }

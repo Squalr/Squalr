@@ -43,9 +43,6 @@ where
         scan_parameters: &ScanParameters,
         scan_filter_parameters: &ScanFilterParameters,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_type = scan_filter_parameters.get_data_type();
-        let data_type_size = data_type.get_size_in_bytes();
-        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
         let encoder = ScannerVectorEncoder::<T, N>::new();
         let vector_comparer = ScannerVectorComparer::<T, N>::new();
         let simd_all_true_mask = Simd::<u8, N>::splat(0xFF);
@@ -56,7 +53,7 @@ where
             scan_parameters,
             scan_filter_parameters,
             snapshot_region_filter.get_base_address(),
-            snapshot_region_filter.get_element_count(memory_alignment, data_type_size),
+            snapshot_region_filter.get_region_size(),
             &vector_comparer,
             simd_all_true_mask,
         );

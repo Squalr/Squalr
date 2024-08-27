@@ -54,6 +54,11 @@ where
     }
 }
 
+/// This vector comparer allows for comparing vectors of data where the memory alignment is smaller than the data type size.
+/// This works by over-reading each SIMD vector by exactly 1 element worth of bytes. For example, if the hardware
+/// vector size is 256 bits (32 bytes), and we want to compare a sequence of 8 byte integers, but the scan alignment
+/// is 2 bytes, we need to step forward in increments of 2 bytes 4 times, causing us to over-read memory. This turns our
+/// 32 byte scan into a 40 byte scan! We OR all of the sub-steps together to get the final scan result.
 impl<T: SimdElement + SimdType, const N: usize> ScannerVectorComparerCascading<T, N>
 where
     T: SimdElement + SimdType + PartialEq,
@@ -70,13 +75,6 @@ where
         }
     }
 
-    fn get_cascade_size(
-        &self,
-        data_type: &DataType,
-    ) -> usize {
-        return data_type.get_size_in_bytes() as usize / self.memory_alignment as usize;
-    }
-
     pub fn get_immediate_compare_func(
         &self,
         scan_compare_type: ScanCompareType,
@@ -85,13 +83,13 @@ where
         let base_compare_func = self
             .inner
             .get_immediate_compare_func(scan_compare_type, data_type);
-        let cascade_size = self.get_cascade_size(data_type);
-        let cascade_compare_func = move |ptr1: *const u8, ptr2: *const u8| {
-            let mut result = base_compare_func(ptr1, ptr2);
-            for cascade_index in 1..cascade_size {
-                let offset_ptr1 = unsafe { ptr1.add(cascade_index) };
-                let offset_ptr2 = unsafe { ptr2.add(cascade_index) };
-                result |= base_compare_func(offset_ptr1, offset_ptr2);
+        let memory_alignment = self.memory_alignment as usize;
+        let data_type_size = data_type.get_size_in_bytes() as usize;
+        let cascade_compare_func = move |current_values_ptr: *const u8, immediate_ptr: *const u8| {
+            let mut result = base_compare_func(current_values_ptr, immediate_ptr);
+            for cascade_offset in (memory_alignment..data_type_size).step_by(memory_alignment) {
+                let current_values_ptr = unsafe { current_values_ptr.add(cascade_offset) };
+                result |= base_compare_func(current_values_ptr, immediate_ptr);
             }
             return result;
         };
@@ -107,15 +105,15 @@ where
         let base_compare_func = self
             .inner
             .get_relative_compare_func(scan_compare_type, data_type);
-        let cascade_size = self.get_cascade_size(data_type);
-        let cascade_compare_func = move |ptr1: *const u8, ptr2: *const u8| {
-            let mut result = base_compare_func(ptr1, ptr2);
-            for cascade_index in 1..cascade_size {
-                let offset_ptr1 = unsafe { ptr1.add(cascade_index) };
-                let offset_ptr2 = unsafe { ptr2.add(cascade_index) };
-                result |= base_compare_func(offset_ptr1, offset_ptr2);
+        let memory_alignment = self.memory_alignment as usize;
+        let data_type_size = data_type.get_size_in_bytes() as usize;
+        let cascade_compare_func = move |current_values_ptr: *const u8, previous_values_ptr: *const u8| {
+            let mut result = base_compare_func(current_values_ptr, previous_values_ptr);
+            for cascade_offset in (memory_alignment..data_type_size).step_by(memory_alignment) {
+                let current_values_ptr = unsafe { current_values_ptr.add(cascade_offset) };
+                let previous_values_ptr = unsafe { previous_values_ptr.add(cascade_offset) };
+                result |= base_compare_func(current_values_ptr, previous_values_ptr);
             }
-
             return result;
         };
 
@@ -130,16 +128,15 @@ where
         let base_compare_func = self
             .inner
             .get_relative_delta_compare_func(scan_compare_type, data_type);
-        let cascade_size = self.get_cascade_size(data_type);
-        let cascade_compare_func = move |ptr1: *const u8, ptr2: *const u8, ptr3: *const u8| {
-            let mut result = base_compare_func(ptr1, ptr2, ptr3);
-            for cascade_index in 1..cascade_size {
-                let offset_ptr1 = unsafe { ptr1.add(cascade_index) };
-                let offset_ptr2 = unsafe { ptr2.add(cascade_index) };
-                let offset_ptr3 = unsafe { ptr3.add(cascade_index) };
-                result |= base_compare_func(offset_ptr1, offset_ptr2, offset_ptr3);
+        let memory_alignment = self.memory_alignment as usize;
+        let data_type_size = data_type.get_size_in_bytes() as usize;
+        let cascade_compare_func = move |current_values_ptr: *const u8, previous_values_ptr: *const u8, immediate_ptr: *const u8| {
+            let mut result = base_compare_func(current_values_ptr, previous_values_ptr, immediate_ptr);
+            for cascade_offset in (memory_alignment..data_type_size).step_by(memory_alignment) {
+                let current_values_ptr = unsafe { current_values_ptr.add(cascade_offset) };
+                let previous_values_ptr = unsafe { previous_values_ptr.add(cascade_offset) };
+                result |= base_compare_func(current_values_ptr, previous_values_ptr, immediate_ptr);
             }
-
             return result;
         };
 

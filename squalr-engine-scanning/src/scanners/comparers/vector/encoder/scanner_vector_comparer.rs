@@ -187,8 +187,8 @@ where
         Simd<M, M_LANES>: SimdPartialEq,
     {
         unsafe {
-            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
-            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            let immediate_value = Simd::<M, M_LANES>::splat(std::ptr::read_unaligned(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(std::ptr::read_unaligned(current_values_ptr as *const [M; M_LANES]));
             return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_eq(immediate_value));
         }
     }
@@ -220,8 +220,8 @@ where
         Simd<M, M_LANES>: SimdPartialEq,
     {
         unsafe {
-            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
-            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            let immediate_value = Simd::<M, M_LANES>::splat(std::ptr::read_unaligned(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(std::ptr::read_unaligned(current_values_ptr as *const [M; M_LANES]));
             return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_ne(immediate_value));
         }
     }
@@ -252,8 +252,8 @@ where
         Simd<M, M_LANES>: SimdPartialOrd,
     {
         unsafe {
-            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
-            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            let immediate_value = Simd::<M, M_LANES>::splat(std::ptr::read_unaligned(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(std::ptr::read_unaligned(current_values_ptr as *const [M; M_LANES]));
             return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_gt(immediate_value));
         }
     }
@@ -284,8 +284,8 @@ where
         Simd<M, M_LANES>: SimdPartialOrd,
     {
         unsafe {
-            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
-            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            let immediate_value = Simd::<M, M_LANES>::splat(std::ptr::read_unaligned(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(std::ptr::read_unaligned(current_values_ptr as *const [M; M_LANES]));
             return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_ge(immediate_value));
         }
     }
@@ -316,8 +316,8 @@ where
         Simd<M, M_LANES>: SimdPartialOrd,
     {
         unsafe {
-            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
-            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            let immediate_value = Simd::<M, M_LANES>::splat(std::ptr::read_unaligned(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(std::ptr::read_unaligned(current_values_ptr as *const [M; M_LANES]));
             return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_lt(immediate_value));
         }
     }
@@ -348,8 +348,8 @@ where
         Simd<M, M_LANES>: SimdPartialOrd,
     {
         unsafe {
-            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
-            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            let immediate_value = Simd::<M, M_LANES>::splat(std::ptr::read_unaligned(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(std::ptr::read_unaligned(current_values_ptr as *const [M; M_LANES]));
             return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_le(immediate_value));
         }
     }
@@ -445,9 +445,9 @@ where
         Simd<M, M_LANES>: SimdPartialOrd + Add<Output = Simd<M, M_LANES>>,
     {
         unsafe {
-            let delta_value = Simd::<M, M_LANES>::splat(*(delta_ptr as *const M));
-            let previous_values = Simd::<M, M_LANES>::from_array(*(previous_values_ptr as *const [M; M_LANES]));
-            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            let current_values = Simd::<M, M_LANES>::from_array(std::ptr::read_unaligned(current_values_ptr as *const [M; M_LANES]));
+            let previous_values = Simd::<M, M_LANES>::from_array(std::ptr::read_unaligned(previous_values_ptr as *const [M; M_LANES]));
+            let delta_value = Simd::<M, M_LANES>::splat(std::ptr::read_unaligned(delta_ptr as *const M));
             return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_gt(previous_values + delta_value));
         }
     }
@@ -479,9 +479,9 @@ where
         Simd<M, M_LANES>: SimdPartialOrd + Sub<Output = Simd<M, M_LANES>>,
     {
         unsafe {
-            let delta_value = Simd::<M, M_LANES>::splat(*(delta_ptr as *const M));
-            let previous_values = Simd::<M, M_LANES>::from_array(*(previous_values_ptr as *const [M; M_LANES]));
-            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            let current_values = Simd::<M, M_LANES>::from_array(std::ptr::read_unaligned(current_values_ptr as *const [M; M_LANES]));
+            let previous_values = Simd::<M, M_LANES>::from_array(std::ptr::read_unaligned(previous_values_ptr as *const [M; M_LANES]));
+            let delta_value = Simd::<M, M_LANES>::splat(std::ptr::read_unaligned(delta_ptr as *const M));
             return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_lt(previous_values - delta_value));
         }
     }
