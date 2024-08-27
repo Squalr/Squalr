@@ -109,6 +109,24 @@ where
         cfg!(target_endian = "little") == (*endian == Endian::Little)
     }
 
+    #[inline(always)]
+    unsafe fn unsafe_transmute<M, const M_LANES: usize>(value: &<Simd<M, M_LANES> as SimdPartialEq>::Mask) -> Simd<u8, N>
+    where
+        M: SimdElement + PartialEq,
+        LaneCount<M_LANES>: SupportedLaneCount,
+        Simd<M, M_LANES>: SimdPartialEq,
+    {
+        // debug_assert_eq!(
+        //     std::mem::size_of::<<Simd<M, M_LANES> as SimdPartialEq>::Mask>(),
+        //     std::mem::size_of::<Simd<u8, N>>(),
+        //     "Size mismatch between Mask and Simd<u8, N>"
+        // );
+
+        // These are guaranteed to be the same size, but std::mem::transmute is not passing Rust's compile checks
+        // Perhaps Rust is not smart enough to realize that the resulting sizes are the exact same.
+        return *(&*value as *const _ as *const Simd<u8, N>);
+    }
+
     fn get_compare_equal_func(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
         match data_type {
             DataType::U8() => Self::compare_equal::<u8, N>,
@@ -123,6 +141,22 @@ where
             DataType::F32(_) => Self::compare_equal::<f32, { N / 8 }>,
             DataType::F64(_) => Self::compare_equal::<f64, { N / 8 }>,
             _ => panic!("Unsupported data type"),
+        }
+    }
+
+    fn compare_equal<M, const M_LANES: usize>(
+        current_values_ptr: *const u8,
+        immediate_ptr: *const u8,
+    ) -> Simd<u8, N>
+    where
+        M: SimdElement + PartialEq,
+        LaneCount<M_LANES>: SupportedLaneCount,
+        Simd<M, M_LANES>: SimdPartialEq,
+    {
+        unsafe {
+            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
+            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
+            return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_eq(immediate_value));
         }
     }
 
@@ -143,41 +177,6 @@ where
         }
     }
 
-    #[inline(always)]
-    unsafe fn unsafe_transmute<M, const M_LANES: usize>(value: &<Simd<M, M_LANES> as SimdPartialEq>::Mask) -> Simd<u8, N>
-    where
-        M: SimdElement + PartialEq,
-        LaneCount<M_LANES>: SupportedLaneCount,
-        Simd<M, M_LANES>: SimdPartialEq,
-    {
-        // debug_assert_eq!(
-        //     std::mem::size_of::<<Simd<M, M_LANES> as SimdPartialEq>::Mask>(),
-        //     std::mem::size_of::<Simd<u8, N>>(),
-        //     "Size mismatch between Mask and Simd<u8, N>"
-        // );
-
-        // These are guaranteed to be the same size, but std::mem::transmute is not passing Rust's compile checks
-        // Perhaps Rust is not smart enough to realize that the resulting sizes are the exact same.
-        return *(&*value as *const _ as *const Simd<u8, N>);
-    }
-
-    fn compare_equal<M, const M_LANES: usize>(
-        current_values_ptr: *const u8,
-        immediate_ptr: *const u8,
-    ) -> Simd<u8, N>
-    where
-        M: SimdElement + PartialEq,
-        LaneCount<M_LANES>: SupportedLaneCount,
-        Simd<M, M_LANES>: SimdPartialEq,
-    {
-        unsafe {
-            let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
-            let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
-            let compare_result = current_values.simd_eq(immediate_value);
-            return Self::unsafe_transmute::<M, M_LANES>(&compare_result);
-        }
-    }
-
     fn compare_not_equal<M, const M_LANES: usize>(
         current_values_ptr: *const u8,
         immediate_ptr: *const u8,
@@ -190,8 +189,7 @@ where
         unsafe {
             let immediate_value = Simd::<M, M_LANES>::splat(*(immediate_ptr as *const M));
             let current_values = Simd::<M, M_LANES>::from_array(*(current_values_ptr as *const [M; M_LANES]));
-            let compare_result = current_values.simd_eq(immediate_value);
-            return Self::unsafe_transmute::<M, M_LANES>(&compare_result);
+            return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_ne(immediate_value));
         }
     }
 

@@ -64,7 +64,6 @@ impl ScanDispatcher {
 
         for snapshot_region_filter in snapshot_region_filters {
             let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, scan_filter_parameters);
-
             let result_sub_regions = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, scan_filter_parameters);
 
             for result_sub_region in result_sub_regions {
