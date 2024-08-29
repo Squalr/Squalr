@@ -33,7 +33,7 @@ impl ScannerScalarEncoderByteArray {
     /// This combination is important to efficiently capture repeated array of byte scans that are sequential in memory.
     /// The run length encoder only produces scan results after encountering a false result (scan failure / mismatch),
     /// or when no more bytes are present (and a full matching byte array was just encoded).
-    pub fn encode(
+    pub unsafe fn encode(
         &self,
         current_value_pointer: *const u8,
         _: *const u8, // previous_value_pointer
@@ -81,50 +81,48 @@ impl ScannerScalarEncoderByteArray {
             matching_suffix_shift_table[suffix_length as usize] = array_length - 1 - index + suffix_length;
         }
 
-        unsafe {
-            if scan_parameters.is_immediate_comparison() {
-                let mut index = 0;
+        if scan_parameters.is_immediate_comparison() {
+            let mut index = 0;
 
-                // Main body of the Boyer-Moore algorithm, see https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string-search_algorithm for details.
-                // Or honestly go watch a YouTube video, visuals are probably better for actually understanding. It's pretty simple actually.
-                while index <= element_count - array_length as u64 {
-                    let mut match_found = true;
-                    let mut shift_value = 1;
+            // Main body of the Boyer-Moore algorithm, see https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string-search_algorithm for details.
+            // Or honestly go watch a YouTube video, visuals are probably better for actually understanding. It's pretty simple actually.
+            while index <= element_count - array_length as u64 {
+                let mut match_found = true;
+                let mut shift_value = 1;
 
-                    for inverse_array_index in (0..array_length).rev() {
-                        let current_byte = *current_value_pointer.add((index + inverse_array_index) as usize);
-                        let pattern_byte = *array_ptr.add(inverse_array_index as usize);
-                        // TODO: Also check masking table when we decide to support masking
-                        let is_mismatch = current_byte != pattern_byte;
+                for inverse_array_index in (0..array_length).rev() {
+                    let current_byte = *current_value_pointer.add((index + inverse_array_index) as usize);
+                    let pattern_byte = *array_ptr.add(inverse_array_index as usize);
+                    // TODO: Also check masking table when we decide to support masking
+                    let is_mismatch = current_byte != pattern_byte;
 
-                        if is_mismatch {
-                            match_found = false;
+                    if is_mismatch {
+                        match_found = false;
 
-                            let bad_char_shift = *mismatch_shift_table.get(&current_byte).unwrap_or(&array_length);
-                            let good_suffix_shift = matching_suffix_shift_table[inverse_array_index as usize];
-                            shift_value = bad_char_shift.max(good_suffix_shift);
+                        let bad_char_shift = *mismatch_shift_table.get(&current_byte).unwrap_or(&array_length);
+                        let good_suffix_shift = matching_suffix_shift_table[inverse_array_index as usize];
+                        shift_value = bad_char_shift.max(good_suffix_shift);
 
-                            break;
-                        }
-                    }
-
-                    // The one key difference to vanilla Boyer-Moore -- our run length encoder needs to advance every time our
-                    // index advances. This is either going to be by the array length (for a match), or the shift length (for a mismatch).
-                    if match_found {
-                        run_length_encoder.encode_range(array_length);
-                        index += array_length;
-                    } else {
-                        run_length_encoder.finalize_current_encode(shift_value);
-                        index += shift_value;
+                        break;
                     }
                 }
-            } else if scan_parameters.is_relative_comparison() {
-                panic!("Not supported yet (or maybe ever)");
-            } else if scan_parameters.is_relative_delta_comparison() {
-                panic!("Not supported yet (or maybe ever)");
-            } else {
-                panic!("Unrecognized comparison");
+
+                // The one key difference to vanilla Boyer-Moore -- our run length encoder needs to advance every time our
+                // index advances. This is either going to be by the array length (for a match), or the shift length (for a mismatch).
+                if match_found {
+                    run_length_encoder.encode_range(array_length);
+                    index += array_length;
+                } else {
+                    run_length_encoder.finalize_current_encode(shift_value);
+                    index += shift_value;
+                }
             }
+        } else if scan_parameters.is_relative_comparison() {
+            panic!("Not supported yet (or maybe ever)");
+        } else if scan_parameters.is_relative_delta_comparison() {
+            panic!("Not supported yet (or maybe ever)");
+        } else {
+            panic!("Unrecognized comparison");
         }
 
         // TODO: Check if a full match is done, otherwise we should just skip finalizing

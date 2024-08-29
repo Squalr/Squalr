@@ -43,6 +43,23 @@ impl DataType {
         }
     }
 
+    pub fn get_endian(&self) -> Endian {
+        match self {
+            DataType::U8() => Endian::default(),
+            DataType::U16(endian) => endian.clone(),
+            DataType::U32(endian) => endian.clone(),
+            DataType::U64(endian) => endian.clone(),
+            DataType::I8() => Endian::default(),
+            DataType::I16(endian) => endian.clone(),
+            DataType::I32(endian) => endian.clone(),
+            DataType::I64(endian) => endian.clone(),
+            DataType::F32(endian) => endian.clone(),
+            DataType::F64(endian) => endian.clone(),
+            DataType::Bytes(_) => Endian::default(),
+            DataType::BitField(_) => Endian::default(),
+        }
+    }
+
     pub fn to_default_value(&self) -> DataValue {
         match self {
             DataType::U8() => DataValue::U8(0),

@@ -4,7 +4,7 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 
 pub trait Scanner: Send + Sync {
-    fn scan_region(
+    unsafe fn scan_region(
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,

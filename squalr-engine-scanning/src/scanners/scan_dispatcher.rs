@@ -66,7 +66,7 @@ impl ScanDispatcher {
 
         for snapshot_region_filter in snapshot_region_filters {
             let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, scan_filter_parameters);
-            let result_sub_regions = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, scan_filter_parameters);
+            let result_sub_regions = unsafe { scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, scan_filter_parameters) };
 
             for result_sub_region in result_sub_regions {
                 results.push(result_sub_region);
@@ -89,7 +89,7 @@ impl ScanDispatcher {
             .flat_map(|snapshot_region_filter| {
                 let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, scan_filter_parameters);
 
-                return scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, scan_filter_parameters);
+                return unsafe { scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, scan_filter_parameters) };
             })
             .collect()
     }
@@ -123,9 +123,7 @@ impl ScanDispatcher {
                             return &self.scanner_aligned_64;
                         } else if memory_alignment_size > data_type_size {
                             return &self.scanner_sparse_64;
-                        // When memory_alignment_size is < data_type_size, we need to be able to read a bit more than an entire vector,
-                        // due to how cascading scans work. They need to be able to read 1 additional element passed the end of the SIMD vector.
-                        } else if region_size >= 64 + data_type_size {
+                        } else {
                             return &self.scanner_cascading_64;
                         }
                     } else if region_size >= 32 {
@@ -133,7 +131,7 @@ impl ScanDispatcher {
                             return &self.scanner_aligned_32;
                         } else if memory_alignment_size > data_type_size {
                             return &self.scanner_sparse_32;
-                        } else if memory_alignment_size >= 32 + data_type_size {
+                        } else {
                             return &self.scanner_cascading_32;
                         }
                     } else if region_size >= 16 {
@@ -141,7 +139,7 @@ impl ScanDispatcher {
                             return &self.scanner_aligned_16;
                         } else if memory_alignment_size > data_type_size {
                             return &self.scanner_sparse_16;
-                        } else if region_size >= 16 + data_type_size {
+                        } else {
                             return &self.scanner_cascading_16;
                         }
                     }

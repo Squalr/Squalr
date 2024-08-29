@@ -30,7 +30,7 @@ impl ScannerScalarSingleElement {
 
 /// Implements a scalar (ie CPU bound, non-SIMD) scanner which only scans a single element of memory (ie only containing 1 data type).
 impl Scanner for ScannerScalarSingleElement {
-    fn scan_region(
+    unsafe fn scan_region(
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,

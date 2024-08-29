@@ -8,7 +8,11 @@ pub enum Endian {
 
 impl Default for Endian {
     fn default() -> Self {
-        Endian::Little
+        if cfg!(target_endian = "little") {
+            return Endian::Little;
+        }
+
+        return Endian::Big;
     }
 }
 
