@@ -86,8 +86,8 @@ where
                 panic!("Unsupported comparison! Cascading periodic scans only work for immediate scans.");
             }
 
-            let immediate_value = scan_parameters.deanonymize_type(&data_type).as_ptr();
-            let periodicity = Self::calculate_periodicity(immediate_value, data_type_size_bytes);
+            let immediate_value_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
+            let periodicity = Self::calculate_periodicity(immediate_value_ptr, data_type_size_bytes);
 
             match periodicity {
                 1 => {
@@ -97,7 +97,7 @@ where
                     // Compare as many full vectors as we can
                     for index in 0..iterations {
                         let current_value_pointer = current_value_pointer.add(index as usize * step_size_bytes);
-                        let compare_result = compare_func(current_value_pointer, immediate_value);
+                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
 
                         self.encode_results(
                             &compare_result,
@@ -112,7 +112,7 @@ where
                     // Handle remainder elements
                     if remainder_bytes > 0 {
                         let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                        let compare_result = compare_func(current_value_pointer, immediate_value);
+                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
                         self.encode_remainder_results(
                             &compare_result,
                             &mut run_length_encoder,
@@ -121,15 +121,22 @@ where
                             data_type_size_bytes,
                         );
                     }
+
+                    // Early exit. No post-scan cleanup needed for 1-byte periodicity.
+                    run_length_encoder.finalize_current_encode(0);
+
+                    return run_length_encoder.take_result_regions();
                 }
                 2 => {
+                    let shifted_immediate_1: [u8; 2] = [*immediate_value_ptr.offset(1), *immediate_value_ptr.offset(0)];
                     let adjusted_data_type = DataType::U16(data_type.get_endian());
                     let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), &adjusted_data_type);
 
                     // Compare as many full vectors as we can
                     for index in 0..iterations {
                         let current_value_pointer = current_value_pointer.add(index as usize * step_size_bytes);
-                        let compare_result = compare_func(current_value_pointer, immediate_value);
+                        let compare_result =
+                            compare_func(current_value_pointer, immediate_value_ptr) | compare_func(current_value_pointer, shifted_immediate_1.as_ptr());
 
                         self.encode_results(
                             &compare_result,
@@ -144,7 +151,7 @@ where
                     // Handle remainder elements
                     if remainder_bytes > 0 {
                         let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                        let compare_result = compare_func(current_value_pointer, immediate_value);
+                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
                         self.encode_remainder_results(
                             &compare_result,
                             &mut run_length_encoder,
@@ -153,15 +160,55 @@ where
                             data_type_size_bytes,
                         );
                     }
+
+                    run_length_encoder.finalize_current_encode(0);
+
+                    let mut result_regions = run_length_encoder.take_result_regions();
+
+                    result_regions.iter_mut().for_each(|snapshot_filter| {
+                        let filter_current_value_index = snapshot_filter.get_base_address() - base_address;
+                        let filter_start_values_ptr = current_value_pointer.offset(filter_current_value_index as isize);
+
+                        // Check for false positive encoding. For 2-byte periodicity, this means offsetting the base and end address by 1.
+                        if *filter_start_values_ptr != *immediate_value_ptr {
+                            snapshot_filter.set_base_address(snapshot_filter.get_base_address() + 1);
+                            snapshot_filter.set_end_address(snapshot_filter.get_end_address() - 2);
+                            // -2 to account for the shifted base address
+                        }
+                    });
+
+                    result_regions.retain(|region| region.get_region_size() > 0);
+                    return result_regions;
                 }
                 4 => {
+                    let shifted_immediate_1: [u8; 4] = [
+                        *immediate_value_ptr.offset(1),
+                        *immediate_value_ptr.offset(2),
+                        *immediate_value_ptr.offset(3),
+                        *immediate_value_ptr.offset(0),
+                    ];
+                    let shifted_immediate_2: [u8; 4] = [
+                        *immediate_value_ptr.offset(2),
+                        *immediate_value_ptr.offset(3),
+                        *immediate_value_ptr.offset(0),
+                        *immediate_value_ptr.offset(1),
+                    ];
+                    let shifted_immediate_3: [u8; 4] = [
+                        *immediate_value_ptr.offset(3),
+                        *immediate_value_ptr.offset(0),
+                        *immediate_value_ptr.offset(1),
+                        *immediate_value_ptr.offset(2),
+                    ];
                     let adjusted_data_type = DataType::U32(data_type.get_endian());
                     let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), &adjusted_data_type);
 
                     // Compare as many full vectors as we can
                     for index in 0..iterations {
                         let current_value_pointer = current_value_pointer.add(index as usize * step_size_bytes);
-                        let compare_result = compare_func(current_value_pointer, immediate_value);
+                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr)
+                            | compare_func(current_value_pointer, shifted_immediate_1.as_ptr())
+                            | compare_func(current_value_pointer, shifted_immediate_2.as_ptr())
+                            | compare_func(current_value_pointer, shifted_immediate_3.as_ptr());
 
                         self.encode_results(
                             &compare_result,
@@ -176,7 +223,7 @@ where
                     // Handle remainder elements
                     if remainder_bytes > 0 {
                         let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                        let compare_result = compare_func(current_value_pointer, immediate_value);
+                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
                         self.encode_remainder_results(
                             &compare_result,
                             &mut run_length_encoder,
@@ -185,15 +232,119 @@ where
                             data_type_size_bytes,
                         );
                     }
+
+                    run_length_encoder.finalize_current_encode(0);
+
+                    let mut result_regions = run_length_encoder.take_result_regions();
+
+                    result_regions.iter_mut().for_each(|snapshot_filter| {
+                        let filter_current_value_index = snapshot_filter.get_base_address() - base_address;
+                        let filter_start_values_ptr = current_value_pointer.offset(filter_current_value_index as isize);
+
+                        let immediate_value = *immediate_value_ptr as u32;
+                        let filter_initial_value = *filter_start_values_ptr as u32;
+                        let mut shift = 0;
+
+                        for byte_index in 0..3 {
+                            if immediate_value == filter_initial_value.rotate_right(byte_index * 8) {
+                                shift = byte_index;
+                                break;
+                            }
+                        }
+
+                        snapshot_filter.set_base_address(snapshot_filter.get_base_address() + shift as u64);
+                        snapshot_filter.set_end_address(snapshot_filter.get_end_address() - 4);
+                    });
+
+                    result_regions.retain(|region| region.get_region_size() > 0);
+
+                    return result_regions;
                 }
                 8 => {
+                    let shifted_immediate_1: [u8; 8] = [
+                        *immediate_value_ptr.offset(1),
+                        *immediate_value_ptr.offset(2),
+                        *immediate_value_ptr.offset(3),
+                        *immediate_value_ptr.offset(4),
+                        *immediate_value_ptr.offset(5),
+                        *immediate_value_ptr.offset(6),
+                        *immediate_value_ptr.offset(7),
+                        *immediate_value_ptr.offset(0),
+                    ];
+                    let shifted_immediate_2: [u8; 8] = [
+                        *immediate_value_ptr.offset(2),
+                        *immediate_value_ptr.offset(3),
+                        *immediate_value_ptr.offset(4),
+                        *immediate_value_ptr.offset(5),
+                        *immediate_value_ptr.offset(6),
+                        *immediate_value_ptr.offset(7),
+                        *immediate_value_ptr.offset(0),
+                        *immediate_value_ptr.offset(1),
+                    ];
+                    let shifted_immediate_3: [u8; 8] = [
+                        *immediate_value_ptr.offset(3),
+                        *immediate_value_ptr.offset(4),
+                        *immediate_value_ptr.offset(5),
+                        *immediate_value_ptr.offset(6),
+                        *immediate_value_ptr.offset(7),
+                        *immediate_value_ptr.offset(0),
+                        *immediate_value_ptr.offset(1),
+                        *immediate_value_ptr.offset(2),
+                    ];
+                    let shifted_immediate_4: [u8; 8] = [
+                        *immediate_value_ptr.offset(4),
+                        *immediate_value_ptr.offset(5),
+                        *immediate_value_ptr.offset(6),
+                        *immediate_value_ptr.offset(7),
+                        *immediate_value_ptr.offset(0),
+                        *immediate_value_ptr.offset(1),
+                        *immediate_value_ptr.offset(2),
+                        *immediate_value_ptr.offset(3),
+                    ];
+                    let shifted_immediate_5: [u8; 8] = [
+                        *immediate_value_ptr.offset(5),
+                        *immediate_value_ptr.offset(6),
+                        *immediate_value_ptr.offset(7),
+                        *immediate_value_ptr.offset(0),
+                        *immediate_value_ptr.offset(1),
+                        *immediate_value_ptr.offset(2),
+                        *immediate_value_ptr.offset(3),
+                        *immediate_value_ptr.offset(4),
+                    ];
+                    let shifted_immediate_6: [u8; 8] = [
+                        *immediate_value_ptr.offset(6),
+                        *immediate_value_ptr.offset(7),
+                        *immediate_value_ptr.offset(0),
+                        *immediate_value_ptr.offset(1),
+                        *immediate_value_ptr.offset(2),
+                        *immediate_value_ptr.offset(3),
+                        *immediate_value_ptr.offset(4),
+                        *immediate_value_ptr.offset(5),
+                    ];
+                    let shifted_immediate_7: [u8; 8] = [
+                        *immediate_value_ptr.offset(7),
+                        *immediate_value_ptr.offset(0),
+                        *immediate_value_ptr.offset(1),
+                        *immediate_value_ptr.offset(2),
+                        *immediate_value_ptr.offset(3),
+                        *immediate_value_ptr.offset(4),
+                        *immediate_value_ptr.offset(5),
+                        *immediate_value_ptr.offset(6),
+                    ];
                     let adjusted_data_type = DataType::U64(data_type.get_endian());
                     let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), &adjusted_data_type);
 
                     // Compare as many full vectors as we can
                     for index in 0..iterations {
                         let current_value_pointer = current_value_pointer.add(index as usize * step_size_bytes);
-                        let compare_result = compare_func(current_value_pointer, immediate_value);
+                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr)
+                            | compare_func(current_value_pointer, shifted_immediate_1.as_ptr())
+                            | compare_func(current_value_pointer, shifted_immediate_2.as_ptr())
+                            | compare_func(current_value_pointer, shifted_immediate_3.as_ptr())
+                            | compare_func(current_value_pointer, shifted_immediate_4.as_ptr())
+                            | compare_func(current_value_pointer, shifted_immediate_5.as_ptr())
+                            | compare_func(current_value_pointer, shifted_immediate_6.as_ptr())
+                            | compare_func(current_value_pointer, shifted_immediate_7.as_ptr());
 
                         self.encode_results(
                             &compare_result,
@@ -208,7 +359,7 @@ where
                     // Handle remainder elements
                     if remainder_bytes > 0 {
                         let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                        let compare_result = compare_func(current_value_pointer, immediate_value);
+                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
                         self.encode_remainder_results(
                             &compare_result,
                             &mut run_length_encoder,
@@ -217,14 +368,37 @@ where
                             data_type_size_bytes,
                         );
                     }
+
+                    run_length_encoder.finalize_current_encode(0);
+
+                    let mut result_regions = run_length_encoder.take_result_regions();
+
+                    result_regions.iter_mut().for_each(|snapshot_filter| {
+                        let filter_current_value_index = snapshot_filter.get_base_address() - base_address;
+                        let filter_start_values_ptr = current_value_pointer.offset(filter_current_value_index as isize);
+
+                        let immediate_value = *immediate_value_ptr as u64;
+                        let filter_initial_value = *filter_start_values_ptr as u64;
+                        let mut shift = 0;
+
+                        for byte_index in 0..7 {
+                            if immediate_value == filter_initial_value.rotate_right(byte_index * 8) {
+                                shift = byte_index;
+                                break;
+                            }
+                        }
+
+                        snapshot_filter.set_base_address(snapshot_filter.get_base_address() + shift as u64);
+                        snapshot_filter.set_end_address(snapshot_filter.get_end_address() - 8);
+                    });
+
+                    result_regions.retain(|region| region.get_region_size() > 0);
+
+                    return result_regions;
                 }
                 _ => panic!("Unsupported periodicity. Should never happen."),
             };
         }
-
-        run_length_encoder.finalize_current_encode(0);
-
-        return run_length_encoder.take_result_regions();
     }
 
     #[inline(always)]
@@ -276,7 +450,7 @@ where
     }
 
     fn calculate_periodicity(
-        immediate_value: *const u8,
+        immediate_value_ptr: *const u8,
         data_type_size_bytes: u64,
     ) -> usize {
         // Assume optimal periodicity to begin with
@@ -285,7 +459,7 @@ where
         // Loop through all remaining bytes, and increase the periodicity when we encounter a byte that violates the current assumption.
         for byte_index in 1..data_type_size_bytes as usize {
             unsafe {
-                if *immediate_value.add(byte_index) != *immediate_value.add(byte_index % period) {
+                if *immediate_value_ptr.add(byte_index) != *immediate_value_ptr.add(byte_index % period) {
                     period = byte_index + 1;
                 }
             }
