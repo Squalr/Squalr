@@ -4,9 +4,10 @@ use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::scalar::scanner_scalar_iterative_byte_array::ScannerScalarIterativeByteArray;
 use crate::scanners::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::vector::scanner_vector_aligned::ScannerVectorAligned;
+use crate::scanners::vector::scanner_vector_aligned_chunked::ScannerVectorAlignedChunked;
 use crate::scanners::vector::scanner_vector_cascading::ScannerVectorCascading;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
-use crate::snapshots::snapshot_region::SnapshotRegion;
+use crate::snapshots::snapshot_region::{SnapshotFilterCollection, SnapshotRegion};
 use crate::{filters::snapshot_region_filter::SnapshotRegionFilter, scanners::snapshot_scanner::Scanner};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_common::values::data_type::DataType;
@@ -22,6 +23,13 @@ pub struct ScanDispatcher {
     scanner_cascading_64: ScannerVectorCascading<u8, 64>,
     scanner_cascading_32: ScannerVectorCascading<u8, 32>,
     scanner_cascading_16: ScannerVectorCascading<u8, 16>,
+
+    scanner_aligned_chunked_64: ScannerVectorAlignedChunked<u8, 64>,
+    scanner_aligned_chunked_32: ScannerVectorAlignedChunked<u8, 32>,
+    scanner_aligned_chunked_16: ScannerVectorAlignedChunked<u8, 16>,
+    scanner_cascading_chunked_64: ScannerVectorCascading<u8, 64>,
+    scanner_cascading_chunked_32: ScannerVectorCascading<u8, 32>,
+    scanner_cascading_chunked_16: ScannerVectorCascading<u8, 16>,
 }
 
 /// Implements a scan dispatcher, which picks the best scanner based on the scan constraints and the region being scanned.
@@ -38,6 +46,13 @@ impl ScanDispatcher {
             scanner_cascading_64: ScannerVectorCascading::<u8, 64>::new(),
             scanner_cascading_32: ScannerVectorCascading::<u8, 32>::new(),
             scanner_cascading_16: ScannerVectorCascading::<u8, 16>::new(),
+
+            scanner_aligned_chunked_64: ScannerVectorAlignedChunked::<u8, 64>::new(),
+            scanner_aligned_chunked_32: ScannerVectorAlignedChunked::<u8, 32>::new(),
+            scanner_aligned_chunked_16: ScannerVectorAlignedChunked::<u8, 16>::new(),
+            scanner_cascading_chunked_64: ScannerVectorCascading::<u8, 64>::new(),
+            scanner_cascading_chunked_32: ScannerVectorCascading::<u8, 32>::new(),
+            scanner_cascading_chunked_16: ScannerVectorCascading::<u8, 16>::new(),
         }
     }
 
@@ -58,20 +73,20 @@ impl ScanDispatcher {
     pub fn dispatch_scan(
         &self,
         snapshot_region: &SnapshotRegion,
-        snapshot_region_filters: &Vec<SnapshotRegionFilter>,
+        snapshot_region_filters: &SnapshotFilterCollection,
         scan_parameters: &ScanParameters,
         scan_filter_parameters: &ScanFilterParameters,
-    ) -> Vec<SnapshotRegionFilter> {
-        let mut results = vec![];
+    ) -> SnapshotFilterCollection {
+        let results = snapshot_region_filters
+            // Convert the iterator to a parallel iterator
+            .iter()
+            .flatten()
+            .map(|snapshot_region_filter| {
+                let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, scan_filter_parameters);
 
-        for snapshot_region_filter in snapshot_region_filters {
-            let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, scan_filter_parameters);
-            let result_sub_regions = unsafe { scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, scan_filter_parameters) };
-
-            for result_sub_region in result_sub_regions {
-                results.push(result_sub_region);
-            }
-        }
+                return unsafe { scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, scan_filter_parameters) };
+            })
+            .collect();
 
         return results;
     }
@@ -79,19 +94,22 @@ impl ScanDispatcher {
     pub fn dispatch_scan_parallel(
         &self,
         snapshot_region: &SnapshotRegion,
-        snapshot_region_filters: &Vec<SnapshotRegionFilter>,
+        snapshot_region_filters: &SnapshotFilterCollection,
         scan_parameters: &ScanParameters,
         scan_filter_parameters: &ScanFilterParameters,
-    ) -> Vec<SnapshotRegionFilter> {
-        snapshot_region_filters
+    ) -> SnapshotFilterCollection {
+        let results = snapshot_region_filters
             // Convert the iterator to a parallel iterator
             .par_iter()
-            .flat_map(|snapshot_region_filter| {
+            .flatten()
+            .map(|snapshot_region_filter| {
                 let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, scan_filter_parameters);
 
                 return unsafe { scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, scan_filter_parameters) };
             })
-            .collect()
+            .collect();
+
+        return results;
     }
 
     fn acquire_scanner_instance(
@@ -109,39 +127,82 @@ impl ScanDispatcher {
         if element_count == 1 {
             // Single element scanner
             return ScannerScalarSingleElement::get_instance();
-        } else {
+        }
+
+        // Chunked scanner tests. So far not looking good.
+        /*
+        if region_size > 0x0800_0000 {
             match data_type {
                 DataType::Bytes(_) => {
                     return ScannerScalarIterativeByteArray::get_instance();
                 }
+                // Check if a vector (SIMD) scan can be applied
                 _ => {
                     // We actually don't really care whether the processor supports AVX-512, AVX2, etc, Rust is smart enough to abstract this.
-                    // It is actually more performant to greedily try to use AVX-512 even if its not available, because Rust falls back to
-                    // essentially unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
+                    // It is actually more performant to greedily try to use AVX-512 even if its not available. Rust seems to fall back to
+                    // unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
                     if region_size >= 64 {
-                        if memory_alignment_size == data_type_size {
-                            return &self.scanner_aligned_64;
+                        if memory_alignment_size < data_type_size {
+                            return &self.scanner_cascading_chunked_64;
+                        } else if memory_alignment_size == data_type_size {
+                            return &self.scanner_aligned_chunked_64;
                         } else if memory_alignment_size > data_type_size {
                             return &self.scanner_sparse_64;
-                        } else {
-                            return &self.scanner_cascading_64;
                         }
                     } else if region_size >= 32 {
-                        if memory_alignment_size == data_type_size {
-                            return &self.scanner_aligned_32;
+                        if memory_alignment_size < data_type_size {
+                            return &self.scanner_cascading_chunked_32;
+                        } else if memory_alignment_size == data_type_size {
+                            return &self.scanner_aligned_chunked_32;
                         } else if memory_alignment_size > data_type_size {
                             return &self.scanner_sparse_32;
-                        } else {
-                            return &self.scanner_cascading_32;
                         }
                     } else if region_size >= 16 {
-                        if memory_alignment_size == data_type_size {
-                            return &self.scanner_aligned_16;
+                        if memory_alignment_size < data_type_size {
+                            return &self.scanner_cascading_chunked_16;
+                        } else if memory_alignment_size == data_type_size {
+                            return &self.scanner_aligned_chunked_16;
                         } else if memory_alignment_size > data_type_size {
                             return &self.scanner_sparse_16;
-                        } else {
-                            return &self.scanner_cascading_16;
                         }
+                    }
+                }
+            }
+        } */
+
+        // Prioritize vector scans for small to large regions.
+        match data_type {
+            DataType::Bytes(_) => {
+                return ScannerScalarIterativeByteArray::get_instance();
+            }
+            // Check if a vector (SIMD) scan can be applied
+            _ => {
+                // We actually don't really care whether the processor supports AVX-512, AVX2, etc, Rust is smart enough to abstract this.
+                // It is actually more performant to greedily try to use AVX-512 even if its not available. Rust seems to fall back to
+                // unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
+                if region_size >= 64 {
+                    if memory_alignment_size < data_type_size {
+                        return &self.scanner_cascading_64;
+                    } else if memory_alignment_size == data_type_size {
+                        return &self.scanner_aligned_64;
+                    } else if memory_alignment_size > data_type_size {
+                        return &self.scanner_sparse_64;
+                    }
+                } else if region_size >= 32 {
+                    if memory_alignment_size < data_type_size {
+                        return &self.scanner_cascading_32;
+                    } else if memory_alignment_size == data_type_size {
+                        return &self.scanner_aligned_32;
+                    } else if memory_alignment_size > data_type_size {
+                        return &self.scanner_sparse_32;
+                    }
+                } else if region_size >= 16 {
+                    if memory_alignment_size < data_type_size {
+                        return &self.scanner_cascading_16;
+                    } else if memory_alignment_size == data_type_size {
+                        return &self.scanner_aligned_16;
+                    } else if memory_alignment_size > data_type_size {
+                        return &self.scanner_sparse_16;
                     }
                 }
             }

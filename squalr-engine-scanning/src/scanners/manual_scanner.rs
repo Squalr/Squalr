@@ -90,8 +90,14 @@ impl ManualScanner {
 
                     let snapshot_region_filters = snapshot_region_filters.unwrap();
                     let scan_dispatcher = ScanDispatcher::get_instance();
-                    let scan_results =
-                        scan_dispatcher.dispatch_scan_parallel(snapshot_region, snapshot_region_filters, scan_parameters, &scan_filter_parameter);
+                    let scan_results;
+
+                    if snapshot_region_filters.len() > 0 {
+                        scan_results =
+                            scan_dispatcher.dispatch_scan_parallel(snapshot_region, snapshot_region_filters, scan_parameters, &scan_filter_parameter);
+                    } else {
+                        scan_results = scan_dispatcher.dispatch_scan(snapshot_region, snapshot_region_filters, scan_parameters, &scan_filter_parameter);
+                    }
 
                     return Some((data_type.clone(), scan_results));
                 })

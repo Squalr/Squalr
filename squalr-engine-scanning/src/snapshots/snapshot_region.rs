@@ -9,12 +9,17 @@ use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
 use std::collections::HashMap;
 
+/// While this looks silly, it is better to have a vector of vectors for parallelization.
+/// This is because when we scan a filter, it produces a list of filters. Combining these back into
+/// one giant list would cost too much scan time, so it's better to keep it as a list of lists.
+pub type SnapshotFilterCollection = Vec<Vec<SnapshotRegionFilter>>;
+
 #[derive(Debug)]
 pub struct SnapshotRegion {
     normalized_region: NormalizedRegion,
     current_values: Vec<u8>,
     previous_values: Vec<u8>,
-    filters: HashMap<DataType, Vec<SnapshotRegionFilter>>,
+    filters: HashMap<DataType, SnapshotFilterCollection>,
     page_boundaries: Vec<u64>,
 }
 
@@ -205,7 +210,7 @@ impl SnapshotRegion {
         for scan_filter_parameter in scan_filter_parameters {
             self.filters
                 .entry(scan_filter_parameter.get_data_type().clone())
-                .or_insert_with(|| vec![SnapshotRegionFilter::new(base_address, region_size)]);
+                .or_insert_with(|| vec![vec![SnapshotRegionFilter::new(base_address, region_size)]]);
         }
     }
 
@@ -213,7 +218,7 @@ impl SnapshotRegion {
     /// Additionally, we resize this region to reduce wasted memory (ie data outside the min/max filter addresses).
     pub fn set_all_filters(
         &mut self,
-        filters: HashMap<DataType, Vec<SnapshotRegionFilter>>,
+        filters: HashMap<DataType, SnapshotFilterCollection>,
     ) {
         self.filters = filters;
 
@@ -226,7 +231,7 @@ impl SnapshotRegion {
         let mut new_end_address = 0u64;
         let mut found_valid_filter = false;
 
-        for filter_vec in self.filters.values() {
+        for filter_vec in self.filters.values().flatten() {
             for filter in filter_vec {
                 let filter_base = filter.get_base_address();
                 let filter_end = filter.get_end_address();
@@ -274,7 +279,7 @@ impl SnapshotRegion {
             .retain(|&boundary| boundary >= new_base_address && boundary <= new_end_address);
     }
 
-    pub fn get_filters(&self) -> &HashMap<DataType, Vec<SnapshotRegionFilter>> {
+    pub fn get_filters(&self) -> &HashMap<DataType, SnapshotFilterCollection> {
         return &self.filters;
     }
 }

@@ -56,7 +56,7 @@ impl Scanner for ScannerScalarIterativeChunked {
         let chunk_size = 1 << 20;
         let num_chunks = (element_count + chunk_size - 1) / chunk_size;
 
-        let mut new_snapshot_region_filters: Vec<SnapshotRegionFilter> = (0..num_chunks)
+        let mut results: Vec<SnapshotRegionFilter> = (0..num_chunks)
             .into_par_iter()
             .map(|chunk_index| {
                 let first_element_index = (chunk_index * chunk_size) as u64;
@@ -85,27 +85,27 @@ impl Scanner for ScannerScalarIterativeChunked {
             })
             .unwrap_or_else(Vec::new);
 
-        // Merge adjacent regions directly within the new_snapshot_region_filters vector to avoid unecessary reallocations.
-        if !new_snapshot_region_filters.is_empty() {
+        // Merge adjacent regions directly within the results vector to avoid unecessary reallocations.
+        if !results.is_empty() {
             // Ensure that filters are sorted by base address ascending.
-            new_snapshot_region_filters.sort_by(|a, b| a.get_base_address().cmp(&b.get_base_address()));
+            results.sort_by(|a, b| a.get_base_address().cmp(&b.get_base_address()));
 
             let mut filter_index = 0;
-            while filter_index < new_snapshot_region_filters.len() - 1 {
-                let (left, right) = new_snapshot_region_filters.split_at_mut(filter_index + 1);
+            while filter_index < results.len() - 1 {
+                let (left, right) = results.split_at_mut(filter_index + 1);
                 let current_region = &mut left[filter_index];
                 let next_region = &right[0];
 
                 if current_region.get_end_address() == next_region.get_base_address() {
                     current_region.set_end_address(next_region.get_end_address());
                     // Remove the next region as it has been merged.
-                    new_snapshot_region_filters.remove(filter_index + 1);
+                    results.remove(filter_index + 1);
                 } else {
                     filter_index += 1;
                 }
             }
         }
 
-        return new_snapshot_region_filters;
+        return results;
     }
 }
