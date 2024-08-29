@@ -1,7 +1,7 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::comparers::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorComparer;
-use crate::scanners::comparers::vector::types::simd_type::SimdType;
+use crate::scanners::comparers::vector::scanner_vector_comparer::VectorComparer;
+use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
+use crate::scanners::encoders::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use std::marker::PhantomData;
@@ -125,7 +125,7 @@ where
 
         run_length_encoder.finalize_current_encode(0);
 
-        return run_length_encoder.result_regions;
+        return run_length_encoder.take_result_regions();
     }
 
     #[inline(always)]

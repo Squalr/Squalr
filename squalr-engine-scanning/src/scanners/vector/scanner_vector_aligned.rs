@@ -1,10 +1,10 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::comparers::snapshot_scanner::Scanner;
-use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::ScannerVectorComparer;
-use crate::scanners::comparers::vector::encoder::scanner_vector_encoder::ScannerVectorEncoder;
-use crate::scanners::comparers::vector::types::simd_type::SimdType;
+use crate::scanners::comparers::vector::scanner_vector_comparer::ScannerVectorComparer;
+use crate::scanners::encoders::vector::encoder::scanner_vector_encoder::ScannerVectorEncoder;
+use crate::scanners::encoders::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
+use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use std::marker::PhantomData;
 use std::simd::cmp::SimdPartialEq;

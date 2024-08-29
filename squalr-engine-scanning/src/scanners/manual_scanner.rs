@@ -1,5 +1,5 @@
-use crate::scanners::comparers::scan_dispatcher::ScanDispatcher;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
+use crate::scanners::scan_dispatcher::ScanDispatcher;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::value_to_metric_size;

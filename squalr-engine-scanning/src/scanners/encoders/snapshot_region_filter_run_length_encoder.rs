@@ -2,7 +2,7 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 
 pub struct SnapshotRegionFilterRunLengthEncoder {
     // Public so that this can be directly taken by callers
-    pub result_regions: Vec<SnapshotRegionFilter>,
+    result_regions: Vec<SnapshotRegionFilter>,
     run_length_current_address: u64,
     is_encoding: bool,
     run_length: u64,
@@ -28,13 +28,8 @@ impl SnapshotRegionFilterRunLengthEncoder {
         }
     }
 
-    pub fn adjust_for_misalignment(
-        &mut self,
-        misalignment_offset: u64,
-    ) {
-        self.run_length_current_address = self
-            .run_length_current_address
-            .saturating_sub(misalignment_offset);
+    pub fn take_result_regions(&mut self) -> Vec<SnapshotRegionFilter> {
+        return std::mem::take(&mut self.result_regions);
     }
 
     /// Encodes the next N bytes as true (ie passing the scan).

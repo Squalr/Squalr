@@ -1,6 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::comparers::scalar::encoder::scanner_scalar_comparer::ScannerScalarComparer;
-use crate::scanners::comparers::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
+use crate::scanners::comparers::scalar::scanner_scalar_comparer::ScannerScalarComparer;
+use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use std::sync::Once;
@@ -26,6 +26,8 @@ impl ScannerScalarEncoder {
         }
     }
 
+    /// Scans a region of memory defined by the given parameters. Uses a run length encoding algorithm to only create the scan
+    /// result when a false comparison is encountered (or if out of bytes to scan).
     pub fn encode(
         &self,
         current_value_pointer: *const u8,
@@ -90,6 +92,6 @@ impl ScannerScalarEncoder {
 
         run_length_encoder.finalize_current_encode_padded(memory_alignment, data_type_size_padding);
 
-        return run_length_encoder.result_regions;
+        return run_length_encoder.take_result_regions();
     }
 }

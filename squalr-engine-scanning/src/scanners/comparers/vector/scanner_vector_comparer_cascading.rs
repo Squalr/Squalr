@@ -1,6 +1,6 @@
-use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::ScannerVectorComparer;
-use crate::scanners::comparers::vector::encoder::scanner_vector_comparer::VectorComparer;
-use crate::scanners::comparers::vector::types::simd_type::SimdType;
+use crate::scanners::comparers::vector::scanner_vector_comparer::ScannerVectorComparer;
+use crate::scanners::comparers::vector::scanner_vector_comparer::VectorComparer;
+use crate::scanners::encoders::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
@@ -54,11 +54,39 @@ where
     }
 }
 
-/// This vector comparer allows for comparing vectors of data where the memory alignment is smaller than the data type size.
-/// This works by over-reading each SIMD vector by exactly 1 element worth of bytes. For example, if the hardware
-/// vector size is 256 bits (32 bytes), and we want to compare a sequence of 8 byte integers, but the scan alignment
-/// is 2 bytes, we need to step forward in increments of 2 bytes 4 times, causing us to over-read memory. This turns our
-/// 32 byte scan into a 40 byte scan! We OR all of the sub-steps together to get the final scan result.
+/// Cascading scans are the single most complex case to handle due to the base addresses not being aligned.
+/// It turns out that this problem has been extensively researched under "string search algorithms".
+///
+/// However, we want to avoid falling back onto a generic search function if we can avoid it. We can pre-analyze the
+/// scan data to use more efficient implementations when possible.
+///
+/// There may be a ton of sub-cases, and this may best be handled by reducing the problem to a several specialized cases.
+///
+/// A) Periodicity Scans with RLE Discard. This is an algorithm that is optmized for periodic data with repeating 1-4 byte patterns.
+///     For 1-periodic scans (all same byte A)
+///         Just do a normal SIMD byte scan, and discard all RLEs < data type size
+///     For 2-periodic scans (repeating 2 bytes A, B)
+///         Create a vector of <A,B,A,B,...> and <B,A,B,A,..>
+///         Do 2-byte SIMD comparisons, and OR the results together.
+///         Note that the shifted pattern could result in matching up to 2 unwanted bytes at the start/end of the RLE encoding.
+///         In the RLE encoder, the first/last bytes need to be manually checked to filter these. Discard RLEs < data size.
+///     For 4-periodic scans (repeating 4 bytes A, B, C, D)
+///         Create a vector of <A,B,C,D,A,B,C,D,...> <B,C,D,A,B,C,D,A,..> <C,D,A,B,C,D,A,B,..> <D,A,B,C,D,A,B,C,..>
+///         As before, we do 4-byte SIMD comparisons. From here we can generalize the RLE trimming.
+///         We can use the first byte + size of run length to determine how much we need to trim.
+///     For 8-periodic, extrapolate.
+///
+/// It is very important to realize that even if the user is scanning for a large data type (ie 8 bytes), it can still fall into
+/// 1, 2, or 4 periodic! This will give us substantial gains over immediately going for the 8-periodic implementation.
+///
+/// Similarly, the same is true for byte array scans! If the array of bytes can be decomposed into periodic sequences, periodicty
+/// scans will results in substantial savings, given that the array fits into a hardware vector Simd<> type.
+///     
+/// B) AoB scans via Boyer-Moore or
+///
+///
+///
+///
 impl<T: SimdElement + SimdType, const N: usize> ScannerVectorComparerCascading<T, N>
 where
     T: SimdElement + SimdType + PartialEq,

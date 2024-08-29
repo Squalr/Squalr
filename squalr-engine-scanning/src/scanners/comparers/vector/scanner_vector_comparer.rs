@@ -1,4 +1,4 @@
-use crate::scanners::comparers::vector::types::simd_type::SimdType;
+use crate::scanners::encoders::vector::types::simd_type::SimdType;
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::endian::Endian;
@@ -160,6 +160,22 @@ where
         return *(&*value as *const _ as *const Simd<u8, N>);
     }
 
+    #[inline(always)]
+    fn safe_transmute<M, const M_LANES: usize>(value: &<Simd<M, M_LANES> as SimdPartialEq>::Mask) -> Simd<u8, N>
+    where
+        M: SimdElement + PartialEq,
+        LaneCount<M_LANES>: SupportedLaneCount,
+        Simd<M, M_LANES>: SimdPartialEq,
+    {
+        let mut result_array = [0u8; N];
+        let value_ptr = value as *const _ as *const u8;
+        unsafe {
+            std::ptr::copy_nonoverlapping(value_ptr, result_array.as_mut_ptr(), std::mem::size_of_val(value));
+        }
+
+        return Simd::<u8, N>::from_array(result_array);
+    }
+
     fn get_compare_equal_func(data_type: &DataType) -> fn(*const u8, *const u8) -> Simd<u8, N> {
         match data_type {
             DataType::U8() => Self::compare_equal::<u8, N>,
@@ -189,7 +205,7 @@ where
         unsafe {
             let immediate_value = Simd::<M, M_LANES>::splat(std::ptr::read_unaligned(immediate_ptr as *const M));
             let current_values = Simd::<M, M_LANES>::from_array(std::ptr::read_unaligned(current_values_ptr as *const [M; M_LANES]));
-            return Self::unsafe_transmute::<M, M_LANES>(&current_values.simd_eq(immediate_value));
+            return Self::safe_transmute::<M, M_LANES>(&current_values.simd_eq(immediate_value));
         }
     }
 

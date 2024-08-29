@@ -1,13 +1,13 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::comparers::scalar::scanner_scalar_iterative::ScannerScalarIterative;
-use crate::scanners::comparers::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
-use crate::scanners::comparers::snapshot_scanner::Scanner;
-use crate::scanners::comparers::vector::scanner_vector_aligned::ScannerVectorAligned;
-use crate::scanners::comparers::vector::scanner_vector_cascading::ScannerVectorCascading;
-use crate::scanners::comparers::vector::scanner_vector_sparse::ScannerVectorSparse;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
+use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
+use crate::scanners::scalar::scanner_scalar_iterative_byte_array::ScannerScalarIterativeByteArray;
+use crate::scanners::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
+use crate::scanners::vector::scanner_vector_aligned::ScannerVectorAligned;
+use crate::scanners::vector::scanner_vector_cascading::ScannerVectorCascading;
+use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use crate::{filters::snapshot_region_filter::SnapshotRegionFilter, scanners::snapshot_scanner::Scanner};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_common::values::data_type::DataType;
 use std::sync::Once;
@@ -24,6 +24,8 @@ pub struct ScanDispatcher {
     scanner_cascading_16: ScannerVectorCascading<u8, 16>,
 }
 
+/// Implements a scan dispatcher, which picks the best scanner based on the scan constraints and the region being scanned.
+/// Choosing the best scanner is critical to maintaining high performance scans.
 impl ScanDispatcher {
     fn new() -> Self {
         Self {
@@ -110,8 +112,7 @@ impl ScanDispatcher {
         } else {
             match data_type {
                 DataType::Bytes(_) => {
-                    // Vector array of bytes scanner
-                    // return ScannerVectorArrayOfBytes::get_instance();
+                    return ScannerScalarIterativeByteArray::get_instance();
                 }
                 _ => {
                     // We actually don't really care whether the processor supports AVX-512, AVX2, etc, Rust is smart enough to abstract this.

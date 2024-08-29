@@ -1,5 +1,2 @@
-pub mod encoder;
-pub mod scanner_vector_aligned;
-pub mod scanner_vector_cascading;
-pub mod scanner_vector_sparse;
-pub mod types;
+pub mod scanner_vector_comparer;
+pub mod scanner_vector_comparer_cascading;
