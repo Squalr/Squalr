@@ -1,6 +1,6 @@
 use crate::scanners::comparers::vector::scanner_vector_comparer::ScannerVectorComparer;
 use crate::scanners::comparers::vector::scanner_vector_comparer::VectorComparer;
-use crate::scanners::encoders::vector::types::simd_type::SimdType;
+use crate::scanners::encoders::vector::simd_type::SimdType;
 use crate::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
