@@ -68,8 +68,8 @@ where
             let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
             let region_size = snapshot_region_filter.get_region_size();
 
-            let chunk_size = 1 << 29; // 512MB chunk size
-            let num_chunks = region_size / chunk_size + 1;
+            let chunk_size = 1024 * 1024 * 1; // 1 MB
+            let num_chunks = (region_size + chunk_size - 1) / chunk_size;
 
             // Convert the pointers to slices
             let current_values_slice = std::slice::from_raw_parts(current_value_pointer, region_size as usize);

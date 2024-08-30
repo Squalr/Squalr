@@ -48,27 +48,23 @@ where
         let vector_comparer = ScannerVectorComparer::<T, N>::new();
         let simd_all_true_mask = Simd::<u8, N>::splat(0xFF);
 
-        let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
-        let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
         let region_size = snapshot_region_filter.get_region_size();
-
-        let chunk_size = 1 << 28; // 128MB chunk size
-        let num_chunks = region_size / chunk_size + 1;
-
-        // Convert the pointers to slices
-        let current_values_slice = std::slice::from_raw_parts(current_value_pointer, region_size as usize);
-        let previous_values_slice = std::slice::from_raw_parts(previous_value_pointer, region_size as usize);
+        let chunk_size = 1024 * 1024 * 1; // 1 MB
+        let num_chunks = (region_size + chunk_size - 1) / chunk_size;
 
         let mut results: Vec<SnapshotRegionFilter> = (0..num_chunks)
             .into_par_iter()
             .map(|chunk_index| {
-                let chunk_start_address = (chunk_index * chunk_size) as u64;
-                let remaining_size = region_size as u64 - chunk_start_address;
+                let chunk_start_offset_bytes = (chunk_index * chunk_size) as u64;
+                let chunk_start_address = snapshot_region_filter.get_base_address() + chunk_start_offset_bytes;
+                let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
+                let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
+                let remaining_size = region_size as u64 - chunk_start_offset_bytes;
                 let chunk_region_size = remaining_size.min(chunk_size as u64);
 
                 encoder.encode(
-                    current_values_slice.as_ptr().add(chunk_start_address as usize),
-                    previous_values_slice.as_ptr().add(chunk_start_address as usize),
+                    current_value_pointer.add(chunk_start_offset_bytes as usize),
+                    previous_value_pointer.add(chunk_start_offset_bytes as usize),
                     scan_parameters,
                     scan_filter_parameters,
                     chunk_start_address,
@@ -83,7 +79,7 @@ where
             })
             .unwrap_or_else(Vec::new);
 
-        // Merge adjacent regions directly within the results vector to avoid unecessary reallocations.
+        // Merge adjacent regions directly within the new_snapshot_region_filters vector to avoid unnecessary reallocations.
         if !results.is_empty() {
             // Ensure that filters are sorted by base address ascending.
             results.sort_by(|a, b| a.get_base_address().cmp(&b.get_base_address()));

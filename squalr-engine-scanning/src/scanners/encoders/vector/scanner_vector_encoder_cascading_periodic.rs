@@ -118,6 +118,7 @@ where
 
                     return run_length_encoder.take_result_regions();
                 }
+                // TODO: 2, 4, 8 if they are more efficient than byte array scans
                 _ => {}
             };
 

@@ -129,9 +129,8 @@ impl ScanDispatcher {
             return ScannerScalarSingleElement::get_instance();
         }
 
-        // Chunked scanner tests. So far not looking good.
-        /*
-        if region_size > 0x0800_0000 {
+        // Use parallel scanners when the region size is >= 64MB
+        if region_size >= 1024 * 1024 * 64 {
             match data_type {
                 DataType::Bytes(_) => {
                     return ScannerScalarIterativeByteArray::get_instance();
@@ -168,7 +167,7 @@ impl ScanDispatcher {
                     }
                 }
             }
-        } */
+        }
 
         // Prioritize vector scans for small to large regions.
         match data_type {
