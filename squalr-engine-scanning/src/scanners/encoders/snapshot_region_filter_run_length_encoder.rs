@@ -43,6 +43,10 @@ impl SnapshotRegionFilterRunLengthEncoder {
         self.is_encoding = true;
     }
 
+    pub fn is_encoding(&self) -> bool {
+        return self.is_encoding;
+    }
+
     /// Completes the current run length encoding, creating a region filter from the result.
     pub fn finalize_current_encode(
         &mut self,

@@ -36,13 +36,12 @@ impl ScannerScalarEncoderByteArray {
     pub unsafe fn encode(
         &self,
         current_value_pointer: *const u8,
-        _: *const u8, // previous_value_pointer
+        _: *const u8,
         scan_parameters: &ScanParameters,
         scan_filter_parameters: &ScanFilterParameters,
         base_address: u64,
-        element_count: u64,
+        region_size: u64,
     ) -> Vec<SnapshotRegionFilter> {
-        let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_filter_parameters.get_data_type();
 
         match data_type {
@@ -50,8 +49,29 @@ impl ScannerScalarEncoderByteArray {
             _ => panic!("Unsupported data type passed to byte array scanner"),
         }
 
-        let array_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
-        let array_length = data_type.get_size_in_bytes();
+        if scan_parameters.is_immediate_comparison() {
+            let array_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
+
+            return self.encode_byte_array(current_value_pointer, array_ptr, data_type.get_size_in_bytes(), base_address, region_size);
+        } else if scan_parameters.is_relative_comparison() {
+            panic!("Not supported yet (or maybe ever)");
+        } else if scan_parameters.is_relative_delta_comparison() {
+            panic!("Not supported yet (or maybe ever)");
+        } else {
+            panic!("Unrecognized comparison");
+        }
+    }
+
+    /// Public encoder without scan paramter and filter args to allow re-use by other scanners.
+    pub unsafe fn encode_byte_array(
+        &self,
+        current_value_pointer: *const u8,
+        array_ptr: *const u8,
+        array_length: u64,
+        base_address: u64,
+        region_size: u64,
+    ) -> Vec<SnapshotRegionFilter> {
+        let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let mut mismatch_shift_table = HashMap::<u8, u64>::new();
         let mut matching_suffix_shift_table = vec![0; array_length as usize];
 
@@ -81,48 +101,40 @@ impl ScannerScalarEncoderByteArray {
             matching_suffix_shift_table[suffix_length as usize] = array_length - 1 - index + suffix_length;
         }
 
-        if scan_parameters.is_immediate_comparison() {
-            let mut index = 0;
+        let mut index = 0;
 
-            // Main body of the Boyer-Moore algorithm, see https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string-search_algorithm for details.
-            // Or honestly go watch a YouTube video, visuals are probably better for actually understanding. It's pretty simple actually.
-            while index <= element_count - array_length as u64 {
-                let mut match_found = true;
-                let mut shift_value = 1;
+        // Main body of the Boyer-Moore algorithm, see https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string-search_algorithm for details.
+        // Or honestly go watch a YouTube video, visuals are probably better for actually understanding. It's pretty simple actually.
+        while index <= region_size - array_length as u64 {
+            let mut match_found = true;
+            let mut shift_value = 1;
 
-                for inverse_array_index in (0..array_length).rev() {
-                    let current_byte = *current_value_pointer.add((index + inverse_array_index) as usize);
-                    let pattern_byte = *array_ptr.add(inverse_array_index as usize);
-                    // TODO: Also check masking table when we decide to support masking
-                    let is_mismatch = current_byte != pattern_byte;
+            for inverse_array_index in (0..array_length).rev() {
+                let current_byte = *current_value_pointer.add((index + inverse_array_index) as usize);
+                let pattern_byte = *array_ptr.add(inverse_array_index as usize);
+                // TODO: Also check masking table when we decide to support masking
+                let is_mismatch = current_byte != pattern_byte;
 
-                    if is_mismatch {
-                        match_found = false;
+                if is_mismatch {
+                    match_found = false;
 
-                        let bad_char_shift = *mismatch_shift_table.get(&current_byte).unwrap_or(&array_length);
-                        let good_suffix_shift = matching_suffix_shift_table[inverse_array_index as usize];
-                        shift_value = bad_char_shift.max(good_suffix_shift);
+                    let bad_char_shift = *mismatch_shift_table.get(&current_byte).unwrap_or(&array_length);
+                    let good_suffix_shift = matching_suffix_shift_table[inverse_array_index as usize];
+                    shift_value = bad_char_shift.max(good_suffix_shift);
 
-                        break;
-                    }
-                }
-
-                // The one key difference to vanilla Boyer-Moore -- our run length encoder needs to advance every time our
-                // index advances. This is either going to be by the array length (for a match), or the shift length (for a mismatch).
-                if match_found {
-                    run_length_encoder.encode_range(array_length);
-                    index += array_length;
-                } else {
-                    run_length_encoder.finalize_current_encode(shift_value);
-                    index += shift_value;
+                    break;
                 }
             }
-        } else if scan_parameters.is_relative_comparison() {
-            panic!("Not supported yet (or maybe ever)");
-        } else if scan_parameters.is_relative_delta_comparison() {
-            panic!("Not supported yet (or maybe ever)");
-        } else {
-            panic!("Unrecognized comparison");
+
+            // The one key difference to vanilla Boyer-Moore -- our run length encoder needs to advance every time our
+            // index advances. This is either going to be by the array length (for a match), or the shift length (for a mismatch).
+            if match_found {
+                run_length_encoder.encode_range(array_length);
+                index += array_length;
+            } else {
+                run_length_encoder.finalize_current_encode(shift_value);
+                index += shift_value;
+            }
         }
 
         // TODO: Check if a full match is done, otherwise we should just skip finalizing

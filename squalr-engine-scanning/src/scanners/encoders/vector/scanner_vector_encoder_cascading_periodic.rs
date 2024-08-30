@@ -1,11 +1,11 @@
-use squalr_engine_common::values::data_type::DataType;
-
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::vector::scanner_vector_comparer::VectorComparer;
+use crate::scanners::encoders::scalar::scanner_scalar_encoder_byte_array::ScannerScalarEncoderByteArray;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::scanners::encoders::vector::simd_type::SimdType;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
+use squalr_engine_common::values::data_type::DataType;
 use std::marker::PhantomData;
 use std::simd::prelude::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
@@ -55,7 +55,7 @@ where
     pub fn encode(
         &self,
         current_value_pointer: *const u8,
-        _: *const u8, // previous_value_pointer
+        _: *const u8,
         scan_parameters: &ScanParameters,
         scan_filter_parameters: &ScanFilterParameters,
         base_address: u64,
@@ -63,14 +63,8 @@ where
         vector_comparer: &impl VectorComparer<T, N>,
         true_mask: Simd<u8, N>,
     ) -> Vec<SnapshotRegionFilter> {
-        let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_filter_parameters.get_data_type();
         let data_type_size_bytes = data_type.get_size_in_bytes();
-        let vector_size_in_bytes = N;
-        let iterations = region_size / vector_size_in_bytes as u64;
-        let remainder_bytes = region_size % vector_size_in_bytes as u64;
-        let remainder_ptr_offset = iterations.saturating_sub(1) as usize * vector_size_in_bytes;
-        let false_mask = Simd::<u8, N>::splat(0);
 
         unsafe {
             if !scan_parameters.is_immediate_comparison() {
@@ -82,6 +76,12 @@ where
 
             match periodicity {
                 1 => {
+                    let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
+                    let vector_size_in_bytes = N;
+                    let iterations = region_size / vector_size_in_bytes as u64;
+                    let remainder_bytes = region_size % vector_size_in_bytes as u64;
+                    let remainder_ptr_offset = iterations.saturating_sub(1) as usize * vector_size_in_bytes;
+                    let false_mask = Simd::<u8, N>::splat(0);
                     let adjusted_data_type = DataType::U8();
                     let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), &adjusted_data_type);
 
@@ -118,277 +118,17 @@ where
 
                     return run_length_encoder.take_result_regions();
                 }
-                2 => {
-                    let shifted_immediate_1: [u8; 2] = [*immediate_value_ptr.offset(1), *immediate_value_ptr.offset(0)];
-                    let adjusted_data_type = DataType::U16(data_type.get_endian());
-                    let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), &adjusted_data_type);
-
-                    // Compare as many full vectors as we can
-                    for index in 0..iterations {
-                        let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
-                        let compare_result =
-                            compare_func(current_value_pointer, immediate_value_ptr) | compare_func(current_value_pointer, shifted_immediate_1.as_ptr());
-
-                        self.encode_results(
-                            &compare_result,
-                            &mut run_length_encoder,
-                            data_type_size_bytes,
-                            true_mask,
-                            false_mask,
-                            data_type_size_bytes,
-                        );
-                    }
-
-                    // Handle remainder elements
-                    if remainder_bytes > 0 {
-                        let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
-                        self.encode_remainder_results(
-                            &compare_result,
-                            &mut run_length_encoder,
-                            data_type_size_bytes,
-                            remainder_bytes,
-                            data_type_size_bytes,
-                        );
-                    }
-
-                    run_length_encoder.finalize_current_encode(0);
-
-                    let mut result_regions = run_length_encoder.take_result_regions();
-
-                    result_regions.iter_mut().for_each(|snapshot_filter| {
-                        let filter_current_value_index = snapshot_filter.get_base_address() - base_address;
-                        let filter_start_values_ptr = current_value_pointer.offset(filter_current_value_index as isize);
-
-                        // Check for false positive encoding. For 2-byte periodicity, this means offsetting the base and end address by 1.
-                        if *filter_start_values_ptr != *immediate_value_ptr {
-                            snapshot_filter.set_base_address(snapshot_filter.get_base_address() + 1);
-                            snapshot_filter.set_end_address(snapshot_filter.get_end_address() - 2);
-                            // -2 to account for the shifted base address
-                        }
-                    });
-
-                    result_regions.retain(|region| region.get_region_size() > 0);
-                    return result_regions;
-                }
-                4 => {
-                    let shifted_immediate_1: [u8; 4] = [
-                        *immediate_value_ptr.offset(1),
-                        *immediate_value_ptr.offset(2),
-                        *immediate_value_ptr.offset(3),
-                        *immediate_value_ptr.offset(0),
-                    ];
-                    let shifted_immediate_2: [u8; 4] = [
-                        *immediate_value_ptr.offset(2),
-                        *immediate_value_ptr.offset(3),
-                        *immediate_value_ptr.offset(0),
-                        *immediate_value_ptr.offset(1),
-                    ];
-                    let shifted_immediate_3: [u8; 4] = [
-                        *immediate_value_ptr.offset(3),
-                        *immediate_value_ptr.offset(0),
-                        *immediate_value_ptr.offset(1),
-                        *immediate_value_ptr.offset(2),
-                    ];
-                    let adjusted_data_type = DataType::U32(data_type.get_endian());
-                    let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), &adjusted_data_type);
-
-                    // Compare as many full vectors as we can
-                    for index in 0..iterations {
-                        let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
-                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr)
-                            | compare_func(current_value_pointer, shifted_immediate_1.as_ptr())
-                            | compare_func(current_value_pointer, shifted_immediate_2.as_ptr())
-                            | compare_func(current_value_pointer, shifted_immediate_3.as_ptr());
-
-                        self.encode_results(
-                            &compare_result,
-                            &mut run_length_encoder,
-                            data_type_size_bytes,
-                            true_mask,
-                            false_mask,
-                            data_type_size_bytes,
-                        );
-                    }
-
-                    // Handle remainder elements
-                    if remainder_bytes > 0 {
-                        let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
-                        self.encode_remainder_results(
-                            &compare_result,
-                            &mut run_length_encoder,
-                            data_type_size_bytes,
-                            remainder_bytes,
-                            data_type_size_bytes,
-                        );
-                    }
-
-                    run_length_encoder.finalize_current_encode(0);
-
-                    let mut result_regions = run_length_encoder.take_result_regions();
-
-                    result_regions.iter_mut().for_each(|snapshot_filter| {
-                        let filter_current_value_index = snapshot_filter.get_base_address() - base_address;
-                        let filter_start_values_ptr = current_value_pointer.offset(filter_current_value_index as isize);
-
-                        let immediate_value = *immediate_value_ptr as u32;
-                        let filter_initial_value = *filter_start_values_ptr as u32;
-                        let mut shift = 0;
-
-                        for byte_index in 0..3 {
-                            if immediate_value == filter_initial_value.rotate_right(byte_index * 8) {
-                                shift = byte_index;
-                                break;
-                            }
-                        }
-
-                        snapshot_filter.set_base_address(snapshot_filter.get_base_address() + shift as u64);
-                        snapshot_filter.set_end_address(snapshot_filter.get_end_address() - 4);
-                    });
-
-                    result_regions.retain(|region| region.get_region_size() > 0);
-
-                    return result_regions;
-                }
-                8 => {
-                    let shifted_immediate_1: [u8; 8] = [
-                        *immediate_value_ptr.offset(1),
-                        *immediate_value_ptr.offset(2),
-                        *immediate_value_ptr.offset(3),
-                        *immediate_value_ptr.offset(4),
-                        *immediate_value_ptr.offset(5),
-                        *immediate_value_ptr.offset(6),
-                        *immediate_value_ptr.offset(7),
-                        *immediate_value_ptr.offset(0),
-                    ];
-                    let shifted_immediate_2: [u8; 8] = [
-                        *immediate_value_ptr.offset(2),
-                        *immediate_value_ptr.offset(3),
-                        *immediate_value_ptr.offset(4),
-                        *immediate_value_ptr.offset(5),
-                        *immediate_value_ptr.offset(6),
-                        *immediate_value_ptr.offset(7),
-                        *immediate_value_ptr.offset(0),
-                        *immediate_value_ptr.offset(1),
-                    ];
-                    let shifted_immediate_3: [u8; 8] = [
-                        *immediate_value_ptr.offset(3),
-                        *immediate_value_ptr.offset(4),
-                        *immediate_value_ptr.offset(5),
-                        *immediate_value_ptr.offset(6),
-                        *immediate_value_ptr.offset(7),
-                        *immediate_value_ptr.offset(0),
-                        *immediate_value_ptr.offset(1),
-                        *immediate_value_ptr.offset(2),
-                    ];
-                    let shifted_immediate_4: [u8; 8] = [
-                        *immediate_value_ptr.offset(4),
-                        *immediate_value_ptr.offset(5),
-                        *immediate_value_ptr.offset(6),
-                        *immediate_value_ptr.offset(7),
-                        *immediate_value_ptr.offset(0),
-                        *immediate_value_ptr.offset(1),
-                        *immediate_value_ptr.offset(2),
-                        *immediate_value_ptr.offset(3),
-                    ];
-                    let shifted_immediate_5: [u8; 8] = [
-                        *immediate_value_ptr.offset(5),
-                        *immediate_value_ptr.offset(6),
-                        *immediate_value_ptr.offset(7),
-                        *immediate_value_ptr.offset(0),
-                        *immediate_value_ptr.offset(1),
-                        *immediate_value_ptr.offset(2),
-                        *immediate_value_ptr.offset(3),
-                        *immediate_value_ptr.offset(4),
-                    ];
-                    let shifted_immediate_6: [u8; 8] = [
-                        *immediate_value_ptr.offset(6),
-                        *immediate_value_ptr.offset(7),
-                        *immediate_value_ptr.offset(0),
-                        *immediate_value_ptr.offset(1),
-                        *immediate_value_ptr.offset(2),
-                        *immediate_value_ptr.offset(3),
-                        *immediate_value_ptr.offset(4),
-                        *immediate_value_ptr.offset(5),
-                    ];
-                    let shifted_immediate_7: [u8; 8] = [
-                        *immediate_value_ptr.offset(7),
-                        *immediate_value_ptr.offset(0),
-                        *immediate_value_ptr.offset(1),
-                        *immediate_value_ptr.offset(2),
-                        *immediate_value_ptr.offset(3),
-                        *immediate_value_ptr.offset(4),
-                        *immediate_value_ptr.offset(5),
-                        *immediate_value_ptr.offset(6),
-                    ];
-                    let adjusted_data_type = DataType::U64(data_type.get_endian());
-                    let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), &adjusted_data_type);
-
-                    // Compare as many full vectors as we can
-                    for index in 0..iterations {
-                        let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
-                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr)
-                            | compare_func(current_value_pointer, shifted_immediate_1.as_ptr())
-                            | compare_func(current_value_pointer, shifted_immediate_2.as_ptr())
-                            | compare_func(current_value_pointer, shifted_immediate_3.as_ptr())
-                            | compare_func(current_value_pointer, shifted_immediate_4.as_ptr())
-                            | compare_func(current_value_pointer, shifted_immediate_5.as_ptr())
-                            | compare_func(current_value_pointer, shifted_immediate_6.as_ptr())
-                            | compare_func(current_value_pointer, shifted_immediate_7.as_ptr());
-
-                        self.encode_results(
-                            &compare_result,
-                            &mut run_length_encoder,
-                            data_type_size_bytes,
-                            true_mask,
-                            false_mask,
-                            data_type_size_bytes,
-                        );
-                    }
-
-                    // Handle remainder elements
-                    if remainder_bytes > 0 {
-                        let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
-                        self.encode_remainder_results(
-                            &compare_result,
-                            &mut run_length_encoder,
-                            data_type_size_bytes,
-                            remainder_bytes,
-                            data_type_size_bytes,
-                        );
-                    }
-
-                    run_length_encoder.finalize_current_encode(0);
-
-                    let mut result_regions = run_length_encoder.take_result_regions();
-
-                    result_regions.iter_mut().for_each(|snapshot_filter| {
-                        let filter_current_value_index = snapshot_filter.get_base_address() - base_address;
-                        let filter_start_values_ptr = current_value_pointer.offset(filter_current_value_index as isize);
-
-                        let immediate_value = *immediate_value_ptr as u64;
-                        let filter_initial_value = *filter_start_values_ptr as u64;
-                        let mut shift = 0;
-
-                        for byte_index in 0..7 {
-                            if immediate_value == filter_initial_value.rotate_right(byte_index * 8) {
-                                shift = byte_index;
-                                break;
-                            }
-                        }
-
-                        snapshot_filter.set_base_address(snapshot_filter.get_base_address() + shift as u64);
-                        snapshot_filter.set_end_address(snapshot_filter.get_end_address() - 8);
-                    });
-
-                    result_regions.retain(|region| region.get_region_size() > 0);
-
-                    return result_regions;
-                }
-                _ => panic!("Unsupported periodicity. Should never happen."),
+                _ => {}
             };
+
+            // Default to an array of byte scan for unsupported periodicity lengths.
+            return ScannerScalarEncoderByteArray::get_instance().encode_byte_array(
+                current_value_pointer,
+                immediate_value_ptr,
+                data_type_size_bytes,
+                base_address,
+                region_size,
+            );
         }
     }
 
@@ -397,7 +137,7 @@ where
         &self,
         compare_result: &Simd<u8, N>,
         run_length_encoder: &mut SnapshotRegionFilterRunLengthEncoder,
-        data_type_size: u64,
+        data_type_size_bytes: u64,
         true_mask: Simd<u8, N>,
         false_mask: Simd<u8, N>,
         minimum_size_bytes: u64,
@@ -410,11 +150,11 @@ where
             run_length_encoder.finalize_current_encode_with_minimum_size(N as u64, minimum_size_bytes);
         // Otherwise, there is a mix of true/false results that need to be processed manually.
         } else {
-            for byte_index in (0..N).step_by(data_type_size as usize) {
+            for byte_index in (0..N).step_by(data_type_size_bytes as usize) {
                 if compare_result[byte_index] != 0 {
-                    run_length_encoder.encode_range(data_type_size);
+                    run_length_encoder.encode_range(data_type_size_bytes);
                 } else {
-                    run_length_encoder.finalize_current_encode_with_minimum_size(data_type_size, minimum_size_bytes);
+                    run_length_encoder.finalize_current_encode_with_minimum_size(data_type_size_bytes, minimum_size_bytes);
                 }
             }
         }
@@ -425,25 +165,28 @@ where
         &self,
         compare_result: &Simd<u8, N>,
         run_length_encoder: &mut SnapshotRegionFilterRunLengthEncoder,
-        data_type_size: u64,
+        data_type_size_bytes: u64,
         remainder_bytes: u64,
         minimum_size_bytes: u64,
     ) {
         let start_byte_index = N - remainder_bytes as usize;
 
-        for byte_index in (start_byte_index..N).step_by(data_type_size as usize) {
+        for byte_index in (start_byte_index..N).step_by(data_type_size_bytes as usize) {
             if compare_result[byte_index] != 0 {
-                run_length_encoder.encode_range(data_type_size);
+                run_length_encoder.encode_range(data_type_size_bytes);
             } else {
                 run_length_encoder.finalize_current_encode_with_minimum_size(N as u64, minimum_size_bytes);
             }
         }
     }
 
+    /// Calculates the length of repeating byte patterns within a given data type and value combination.
+    /// If there are no repeating patterns, the periodicity will be equal to the data type size.
+    /// For example, 7C 01 7C 01 has a data typze size of 4, but a periodicity of 2.
     fn calculate_periodicity(
         immediate_value_ptr: *const u8,
         data_type_size_bytes: u64,
-    ) -> usize {
+    ) -> u64 {
         // Assume optimal periodicity to begin with
         let mut period = 1;
 
@@ -456,6 +199,6 @@ where
             }
         }
 
-        return period;
+        return period as u64;
     }
 }

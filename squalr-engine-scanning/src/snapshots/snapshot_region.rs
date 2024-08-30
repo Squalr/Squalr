@@ -231,19 +231,17 @@ impl SnapshotRegion {
         let mut new_end_address = 0u64;
         let mut found_valid_filter = false;
 
-        for filter_vec in self.filters.values().flatten() {
-            for filter in filter_vec {
-                let filter_base = filter.get_base_address();
-                let filter_end = filter.get_end_address();
+        for filter in self.filters.values().flatten().flatten() {
+            let filter_base = filter.get_base_address();
+            let filter_end = filter.get_end_address();
 
-                if filter_base < new_base_address {
-                    new_base_address = filter_base;
-                }
-                if filter_end > new_end_address {
-                    new_end_address = filter_end;
-                }
-                found_valid_filter = true;
+            if filter_base < new_base_address {
+                new_base_address = filter_base;
             }
+            if filter_end > new_end_address {
+                new_end_address = filter_end;
+            }
+            found_valid_filter = true;
         }
 
         if !found_valid_filter {
