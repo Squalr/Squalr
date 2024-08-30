@@ -52,7 +52,7 @@ where
         let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
         let region_size = snapshot_region_filter.get_region_size();
 
-        let chunk_size = 1 << 29; // 512MB chunk size
+        let chunk_size = 1 << 28; // 128MB chunk size
         let num_chunks = region_size / chunk_size + 1;
 
         // Convert the pointers to slices

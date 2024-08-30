@@ -132,7 +132,6 @@ where
         }
     }
 
-    #[inline(always)]
     fn encode_results(
         &self,
         compare_result: &Simd<u8, N>,
@@ -160,7 +159,6 @@ where
         }
     }
 
-    #[inline(always)]
     fn encode_remainder_results(
         &self,
         compare_result: &Simd<u8, N>,

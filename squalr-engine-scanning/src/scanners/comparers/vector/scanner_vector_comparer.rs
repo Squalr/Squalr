@@ -142,7 +142,6 @@ where
         cfg!(target_endian = "little") == (*endian == Endian::Little)
     }
 
-    #[inline(always)]
     unsafe fn unsafe_transmute<M, const M_LANES: usize>(value: &<Simd<M, M_LANES> as SimdPartialEq>::Mask) -> Simd<u8, N>
     where
         M: SimdElement + PartialEq,
@@ -160,7 +159,6 @@ where
         return *(&*value as *const _ as *const Simd<u8, N>);
     }
 
-    #[inline(always)]
     fn safe_transmute<M, const M_LANES: usize>(value: &<Simd<M, M_LANES> as SimdPartialEq>::Mask) -> Simd<u8, N>
     where
         M: SimdElement + PartialEq,
