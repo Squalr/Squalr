@@ -66,19 +66,10 @@ where
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_filter_parameters.get_data_type();
         let data_type_size_bytes = data_type.get_size_in_bytes();
-        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default() as u64;
         let vector_size_in_bytes = N;
-        let mut step_size_bytes = vector_size_in_bytes;
-
-        // For cascading scans, we need to pad each scan with an extra element worth of bytes. This ensures
-        // that the cascading comparer can "reach forward" into memory beyond the size of a SIMD register safely.
-        if memory_alignment < data_type_size_bytes {
-            step_size_bytes += data_type_size_bytes as usize;
-        }
-
-        let iterations = region_size / step_size_bytes as u64;
-        let remainder_bytes = region_size % step_size_bytes as u64;
-        let remainder_ptr_offset = iterations.saturating_sub(1) as usize * step_size_bytes;
+        let iterations = region_size / vector_size_in_bytes as u64;
+        let remainder_bytes = region_size % vector_size_in_bytes as u64;
+        let remainder_ptr_offset = iterations.saturating_sub(1) as usize * vector_size_in_bytes;
         let false_mask = Simd::<u8, N>::splat(0);
 
         unsafe {
@@ -96,7 +87,7 @@ where
 
                     // Compare as many full vectors as we can
                     for index in 0..iterations {
-                        let current_value_pointer = current_value_pointer.add(index as usize * step_size_bytes);
+                        let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
                         let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
 
                         self.encode_results(
@@ -134,7 +125,7 @@ where
 
                     // Compare as many full vectors as we can
                     for index in 0..iterations {
-                        let current_value_pointer = current_value_pointer.add(index as usize * step_size_bytes);
+                        let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
                         let compare_result =
                             compare_func(current_value_pointer, immediate_value_ptr) | compare_func(current_value_pointer, shifted_immediate_1.as_ptr());
 
@@ -204,7 +195,7 @@ where
 
                     // Compare as many full vectors as we can
                     for index in 0..iterations {
-                        let current_value_pointer = current_value_pointer.add(index as usize * step_size_bytes);
+                        let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
                         let compare_result = compare_func(current_value_pointer, immediate_value_ptr)
                             | compare_func(current_value_pointer, shifted_immediate_1.as_ptr())
                             | compare_func(current_value_pointer, shifted_immediate_2.as_ptr())
@@ -336,7 +327,7 @@ where
 
                     // Compare as many full vectors as we can
                     for index in 0..iterations {
-                        let current_value_pointer = current_value_pointer.add(index as usize * step_size_bytes);
+                        let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
                         let compare_result = compare_func(current_value_pointer, immediate_value_ptr)
                             | compare_func(current_value_pointer, shifted_immediate_1.as_ptr())
                             | compare_func(current_value_pointer, shifted_immediate_2.as_ptr())
