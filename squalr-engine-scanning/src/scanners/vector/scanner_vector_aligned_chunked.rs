@@ -47,7 +47,6 @@ where
         let encoder = ScannerVectorEncoder::<T, N>::new();
         let vector_comparer = ScannerVectorComparer::<T, N>::new();
         let simd_all_true_mask = Simd::<u8, N>::splat(0xFF);
-
         let region_size = snapshot_region_filter.get_region_size();
         let chunk_size = 1024 * 1024 * 1; // 1 MB
         let num_chunks = (region_size + chunk_size - 1) / chunk_size;

@@ -1,6 +1,6 @@
 use crate::logging::log_level::LogLevel;
 
-pub trait ILoggerObserver {
+pub trait LoggerObserver {
     fn on_log_event(
         &self,
         log_level: LogLevel,
@@ -11,7 +11,7 @@ pub trait ILoggerObserver {
 
 pub struct ConsoleLogger;
 
-impl ILoggerObserver for ConsoleLogger {
+impl LoggerObserver for ConsoleLogger {
     fn on_log_event(
         &self,
         log_level: LogLevel,

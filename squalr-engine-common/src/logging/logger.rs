@@ -1,5 +1,5 @@
 use crate::logging::log_level::LogLevel;
-use crate::logging::logger_observer::ILoggerObserver;
+use crate::logging::logger_observer::LoggerObserver;
 use crate::logging::observer_handle::ObserverHandle;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, Once};
@@ -31,7 +31,7 @@ impl Logger {
 
     pub fn subscribe(
         &self,
-        observer: Arc<dyn ILoggerObserver + Send + Sync>,
+        observer: Arc<dyn LoggerObserver + Send + Sync>,
     ) {
         self.observers
             .lock()
@@ -41,7 +41,7 @@ impl Logger {
 
     pub fn unsubscribe(
         &self,
-        observer: &Arc<dyn ILoggerObserver + Send + Sync>,
+        observer: &Arc<dyn LoggerObserver + Send + Sync>,
     ) {
         self.observers
             .lock()

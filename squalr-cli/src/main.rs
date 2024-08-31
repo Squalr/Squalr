@@ -1,28 +1,43 @@
 mod cli;
 use cli::Cli;
+mod cli_log_listener;
 mod command;
 mod command_handlers;
-mod log_listener;
 
+use cli_log_listener::CliLogListener;
 use command_handlers::handle_commands;
-use log_listener::LogListener;
 use shlex;
+use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use std::io::{self, Write};
 use structopt::StructOpt;
 
 fn main() {
-    // Initialize logger
-    let log_listener = LogListener::new();
-    Logger::get_instance().subscribe(log_listener);
+    // Initialize cli log listener to route log output to command line
+    let cli_log_listener = CliLogListener::new();
+
+    let hardware_vector_size = vectors::get_hardware_vector_size();
+    let hardware_vector_name = vectors::get_hardware_vector_name();
+
+    Logger::get_instance().subscribe(cli_log_listener);
     Logger::get_instance().log(LogLevel::Info, "Logger initialized", None);
+    Logger::get_instance().log(
+        LogLevel::Info,
+        format!(
+            "CPU vector size for accelerated scans: {:?} bytes ({:?} bits), architecture: {}",
+            hardware_vector_size,
+            hardware_vector_size * 8,
+            hardware_vector_name,
+        )
+        .as_str(),
+        None,
+    );
 
     let mut stdout = io::stdout();
     let stdin = io::stdin();
 
     loop {
-        print!("(Sqlr) ");
         stdout.flush().unwrap();
 
         let mut input = String::new();
@@ -33,13 +48,21 @@ fn main() {
             break;
         }
 
-        let args = match shlex::split(input) {
+        let mut args = match shlex::split(input) {
             Some(args) => args,
             None => {
                 Logger::get_instance().log(LogLevel::Error, "Error parsing input", None);
                 continue;
             }
         };
+
+        if args.is_empty() {
+            continue;
+        }
+
+        // Little bit of a hack, but our command system seems to require the first command to be typed twice so just insert it.
+        // We could structopt(flatten), our commands to avoid this, but then this creates even stranger command conflict issues.
+        args.insert(0, args[0].clone());
 
         let mut cli = match Cli::from_iter_safe(&args) {
             Ok(cli) => cli,

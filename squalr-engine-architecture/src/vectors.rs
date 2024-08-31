@@ -7,6 +7,7 @@ pub mod vectors {
     // Lazy static variable to cache the result of vector support check
     pub static HAS_VECTOR_SUPPORT: OnceLock<bool> = OnceLock::new();
     pub static HARDWARE_VECTOR_SIZE: OnceLock<u64> = OnceLock::new();
+    pub static HARDWARE_VECTOR_NAME: OnceLock<String> = OnceLock::new();
 
     pub fn has_vector_support() -> bool {
         *HAS_VECTOR_SUPPORT.get_or_init(|| {
@@ -44,6 +45,32 @@ pub mod vectors {
                 16 // SSE uses 128-bit (16 bytes) vectors
             } else {
                 0 // No SIMD support, or unhandled case
+            }
+        })
+    }
+
+    pub fn get_hardware_vector_name() -> &'static String {
+        HARDWARE_VECTOR_NAME.get_or_init(|| {
+            if is_x86_feature_detected!("avx512f") {
+                "avx512f".to_string()
+            } else if is_x86_feature_detected!("avx2") {
+                "avx2".to_string()
+            } else if is_x86_feature_detected!("avx") {
+                "avx".to_string()
+            } else if is_x86_feature_detected!("sse4.2") {
+                "sse4.2".to_string()
+            } else if is_x86_feature_detected!("sse4.1") {
+                "sse4.1".to_string()
+            } else if is_x86_feature_detected!("ssse3") {
+                "ssse3".to_string()
+            } else if is_x86_feature_detected!("sse3") {
+                "sse3".to_string()
+            } else if is_x86_feature_detected!("sse2") {
+                "sse2".to_string()
+            } else if is_x86_feature_detected!("sse") {
+                "sse".to_string()
+            } else {
+                "(none)".to_string()
             }
         })
     }

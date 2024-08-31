@@ -1,8 +1,8 @@
-use crate::logging::logger_observer::ILoggerObserver;
+use crate::logging::logger_observer::LoggerObserver;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-pub struct ObserverHandle(Arc<dyn ILoggerObserver + Send + Sync>);
+pub struct ObserverHandle(Arc<dyn LoggerObserver + Send + Sync>);
 
 impl PartialEq for ObserverHandle {
     fn eq(
@@ -20,18 +20,18 @@ impl Hash for ObserverHandle {
         &self,
         state: &mut H,
     ) {
-        let ptr: *const dyn ILoggerObserver = &*self.0;
+        let ptr: *const dyn LoggerObserver = &*self.0;
         let thin_ptr: *const () = ptr as *const ();
         thin_ptr.hash(state);
     }
 }
 
 impl ObserverHandle {
-    pub fn new(observer: Arc<dyn ILoggerObserver + Send + Sync>) -> Self {
+    pub fn new(observer: Arc<dyn LoggerObserver + Send + Sync>) -> Self {
         ObserverHandle(observer)
     }
 
-    pub fn get(&self) -> &Arc<dyn ILoggerObserver + Send + Sync> {
+    pub fn get(&self) -> &Arc<dyn LoggerObserver + Send + Sync> {
         &self.0
     }
 }

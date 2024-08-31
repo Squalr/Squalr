@@ -108,7 +108,7 @@ impl MemoryQueryer {
         let excluded_page_flags = MemoryQueryer::get_excluded_protection_settings();
         let allowed_type_flags = MemoryQueryer::get_allowed_type_settings();
 
-        let (start_address, end_address) = if MemorySettings::get_instance().is_usermode() {
+        let (start_address, end_address) = if MemorySettings::get_instance().get_only_scan_usermode() {
             (0, MemoryQueryer::get_instance().get_max_usermode_address(process_info))
         } else {
             (

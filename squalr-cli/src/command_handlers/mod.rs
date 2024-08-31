@@ -4,6 +4,7 @@ pub mod memory;
 pub mod process;
 pub mod project;
 pub mod scan;
+pub mod settings;
 
 pub fn handle_commands(command: &mut Command) {
     match command {
@@ -11,5 +12,6 @@ pub fn handle_commands(command: &mut Command) {
         Command::Process(cmd) => process::handle_process_command(cmd),
         Command::Scan(cmd) => scan::handle_scan_command(cmd),
         Command::Project(cmd) => project::handle_project_command(cmd),
+        Command::Settings(cmd) => settings::handle_settings_command(cmd),
     }
 }

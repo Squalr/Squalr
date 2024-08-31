@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::Once;
 use std::sync::{Arc, RwLock};
 
@@ -14,7 +15,31 @@ pub struct Config {
     pub excluded_copy_on_write: bool,
     pub start_address: u64,
     pub end_address: u64,
-    pub is_usermode: bool,
+    pub only_scan_usermode: bool,
+}
+
+impl fmt::Debug for Config {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        formatter
+            .debug_struct("memory_settings")
+            .field("memory_type_none", &self.memory_type_none)
+            .field("memory_type_private", &self.memory_type_private)
+            .field("memory_type_image", &self.memory_type_image)
+            .field("memory_type_mapped", &self.memory_type_mapped)
+            .field("required_write", &self.required_write)
+            .field("required_execute", &self.required_execute)
+            .field("required_copy_on_write", &self.required_copy_on_write)
+            .field("excluded_write", &self.excluded_write)
+            .field("excluded_execute", &self.excluded_execute)
+            .field("excluded_copy_on_write", &self.excluded_copy_on_write)
+            .field("start_address", &self.start_address)
+            .field("end_address", &self.end_address)
+            .field("only_scan_usermode", &self.only_scan_usermode)
+            .finish()
+    }
 }
 
 impl Default for Config {
@@ -35,7 +60,7 @@ impl Default for Config {
 
             start_address: 0,
             end_address: u64::MAX,
-            is_usermode: true,
+            only_scan_usermode: true,
         }
     }
 }
@@ -63,6 +88,10 @@ impl MemorySettings {
 
             return INSTANCE.as_ref().unwrap_unchecked();
         }
+    }
+
+    pub fn get_full_config(&self) -> &Arc<RwLock<Config>> {
+        return &self.config;
     }
 
     pub fn get_memory_type_none(&self) -> bool {
@@ -197,14 +226,14 @@ impl MemorySettings {
         self.config.write().unwrap().end_address = value;
     }
 
-    pub fn is_usermode(&self) -> bool {
-        return self.config.read().unwrap().is_usermode;
+    pub fn get_only_scan_usermode(&self) -> bool {
+        return self.config.read().unwrap().only_scan_usermode;
     }
 
-    pub fn set_is_usermode(
+    pub fn set_only_scan_usermode(
         &self,
         value: bool,
     ) {
-        self.config.write().unwrap().is_usermode = value;
+        self.config.write().unwrap().only_scan_usermode = value;
     }
 }
