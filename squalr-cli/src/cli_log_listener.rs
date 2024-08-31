@@ -1,10 +1,10 @@
 use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger_observer::ILoggerObserver;
+use squalr_engine_common::logging::logger_observer::LoggerObserver;
 use std::sync::Arc;
 
 pub struct CliLogListener;
 
-impl ILoggerObserver for CliLogListener {
+impl LoggerObserver for CliLogListener {
     fn on_log_event(
         &self,
         log_level: LogLevel,
