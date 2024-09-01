@@ -7,14 +7,14 @@ type ScanResultRangeMap = RangeInclusiveMap<u64, u64>;
 #[derive(Debug)]
 pub struct ScanResultsIndexMap {
     scan_result_range_map: ScanResultRangeMap,
-    number_of_results: u64,
+    number_of_result_bytes: u64,
 }
 
 impl ScanResultsIndexMap {
     pub fn new() -> Self {
         Self {
             scan_result_range_map: ScanResultRangeMap::new(),
-            number_of_results: 0,
+            number_of_result_bytes: 0,
         }
     }
 
@@ -22,8 +22,8 @@ impl ScanResultsIndexMap {
         return &self.scan_result_range_map;
     }
 
-    pub fn get_number_of_results(&self) -> u64 {
-        return self.number_of_results;
+    pub fn get_number_of_result_bytes(&self) -> u64 {
+        return self.number_of_result_bytes;
     }
 
     pub fn insert(
@@ -35,11 +35,11 @@ impl ScanResultsIndexMap {
         self.scan_result_range_map
             .insert(RangeInclusive::new(range_start, range_start + range_size), value);
 
-        self.number_of_results += range_size;
+        self.number_of_result_bytes += range_size;
     }
 
     pub fn clear(&mut self) {
         self.scan_result_range_map.clear();
-        self.number_of_results = 0;
+        self.number_of_result_bytes = 0;
     }
 }

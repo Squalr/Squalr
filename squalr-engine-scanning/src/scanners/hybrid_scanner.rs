@@ -137,9 +137,12 @@ impl HybridScanner {
 
             for scan_parameters_filter in scan_parameters_filters {
                 let data_type = scan_parameters_filter.get_data_type();
-                let element_count = snapshot.get_scan_results().get_number_of_results(data_type);
+                let memory_alignment = scan_parameters_filter.get_memory_alignment_or_default();
+                let element_count = snapshot
+                    .get_scan_results()
+                    .get_number_of_results(data_type, memory_alignment);
 
-                Logger::get_instance().log(LogLevel::Info, &format!("Results[{:?}]: {} elements", data_type, element_count), None);
+                Logger::get_instance().log(LogLevel::Info, &format!("Results [{:?}]: {} element(s)", data_type, element_count), None);
             }
 
             Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);

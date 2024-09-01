@@ -57,9 +57,10 @@ impl SnapshotScanResults {
     pub fn get_number_of_results(
         &self,
         data_type: &DataType,
+        memory_alignment: MemoryAlignment,
     ) -> u64 {
         if let Some(scan_filter_map) = self.scan_result_lookup_tables.get(&data_type) {
-            return scan_filter_map.get_number_of_results();
+            return scan_filter_map.get_number_of_result_bytes() / (memory_alignment as u64);
         }
 
         return 0;
@@ -101,11 +102,11 @@ impl SnapshotScanResults {
                     continue;
                 }
 
-                let number_of_filter_results = snapshot_region_scan_results.get_number_of_results(data_type);
-                let current_number_of_results = scan_results_lookup_table.get_number_of_results();
+                let number_of_filter_result_bytes = snapshot_region_scan_results.get_number_of_result_bytes(data_type);
+                let current_number_of_result_bytes = scan_results_lookup_table.get_number_of_result_bytes();
 
                 // Simply map the result range onto a the index of a particular snapshot region.
-                scan_results_lookup_table.insert(current_number_of_results, number_of_filter_results, region_index as u64);
+                scan_results_lookup_table.insert(current_number_of_result_bytes, number_of_filter_result_bytes, region_index as u64);
             }
 
             self.scan_result_lookup_tables

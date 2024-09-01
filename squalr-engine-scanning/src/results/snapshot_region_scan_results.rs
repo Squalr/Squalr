@@ -44,12 +44,12 @@ impl SnapshotRegionScanResults {
         }
     }
 
-    pub fn get_number_of_results(
+    pub fn get_number_of_result_bytes(
         &self,
         data_type: &DataType,
     ) -> u64 {
         if let Some(scan_filter_map) = self.scan_result_lookup_tables.get(&data_type) {
-            return scan_filter_map.get_number_of_results();
+            return scan_filter_map.get_number_of_result_bytes();
         }
 
         return 0;
@@ -127,11 +127,11 @@ impl SnapshotRegionScanResults {
 
             // Iterate every snapshot region contained by the snapshot.
             for (filter_index, filter) in filters.into_iter().flatten().enumerate() {
-                let current_number_of_results = scan_results_lookup_table.get_number_of_results();
+                let current_number_of_result_bytes = scan_results_lookup_table.get_number_of_result_bytes();
                 let filter_size = filter.get_region_size();
 
                 // Simply map the result range onto a the index of a particular snapshot region.
-                scan_results_lookup_table.insert(current_number_of_results, filter_size, filter_index as u64);
+                scan_results_lookup_table.insert(current_number_of_result_bytes, filter_size, filter_index as u64);
             }
 
             self.scan_result_lookup_tables
