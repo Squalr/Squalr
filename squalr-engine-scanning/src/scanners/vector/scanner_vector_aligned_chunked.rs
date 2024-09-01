@@ -2,11 +2,12 @@ use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::vector::scanner_vector_comparer::ScannerVectorComparer;
 use crate::scanners::encoders::vector::scanner_vector_encoder::ScannerVectorEncoder;
 use crate::scanners::encoders::vector::simd_type::SimdType;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::marker::PhantomData;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
@@ -42,7 +43,8 @@ where
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        data_type: &DataType,
+        _: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
         let encoder = ScannerVectorEncoder::<T, N>::new();
         let vector_comparer = ScannerVectorComparer::<T, N>::new();
@@ -65,7 +67,7 @@ where
                     current_value_pointer.add(chunk_start_offset_bytes as usize),
                     previous_value_pointer.add(chunk_start_offset_bytes as usize),
                     scan_parameters,
-                    scan_filter_parameters,
+                    data_type,
                     chunk_start_address,
                     chunk_region_size,
                     &vector_comparer,

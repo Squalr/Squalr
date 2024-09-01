@@ -1,9 +1,10 @@
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::scalar::scanner_scalar_encoder::ScannerScalarEncoder;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::sync::Once;
 
 pub struct ScannerScalarIterative {}
@@ -38,18 +39,18 @@ impl Scanner for ScannerScalarIterative {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        data_type: &DataType,
+        memory_alignment: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_type = scan_filter_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
-        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
         let encoder = ScannerScalarEncoder::get_instance();
 
         let results = encoder.encode(
             snapshot_region.get_current_values_pointer(&snapshot_region_filter),
             snapshot_region.get_previous_values_pointer(&snapshot_region_filter),
             scan_parameters,
-            scan_filter_parameters,
+            data_type,
+            memory_alignment,
             snapshot_region_filter.get_base_address(),
             snapshot_region_filter.get_element_count(memory_alignment, data_type_size),
         );

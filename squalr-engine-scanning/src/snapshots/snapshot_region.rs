@@ -1,8 +1,8 @@
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::memory_reader::MemoryReader;
@@ -240,12 +240,12 @@ impl SnapshotRegion {
 
     pub fn create_initial_scan_results(
         &mut self,
-        scan_filter_parameters: &Vec<ScanFilterParameters>,
+        data_types: &Vec<DataType>,
     ) {
         let base_address = self.get_base_address();
         let region_size = self.get_region_size();
 
         self.scan_results
-            .create_initial_scan_results(base_address, region_size, scan_filter_parameters);
+            .create_initial_scan_results(base_address, region_size, data_types);
     }
 }

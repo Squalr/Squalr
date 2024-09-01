@@ -1,7 +1,9 @@
+use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
+
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::scalar::scanner_scalar_comparer::ScannerScalarComparer;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use std::sync::Once;
 
@@ -33,15 +35,15 @@ impl ScannerScalarEncoder {
         current_value_pointer: *const u8,
         previous_value_pointer: *const u8,
         scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        data_type: &DataType,
+        memory_alignment: MemoryAlignment,
         base_address: u64,
         element_count: u64,
     ) -> Vec<SnapshotRegionFilter> {
         let comparer = ScannerScalarComparer::get_instance();
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type = scan_filter_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
-        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default() as u64;
+        let memory_alignment = memory_alignment as u64;
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment);
 
         unsafe {

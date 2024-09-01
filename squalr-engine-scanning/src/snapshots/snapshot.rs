@@ -1,17 +1,20 @@
+use crate::results::scan_result::ScanResult;
 use crate::results::snapshot_scan_results::SnapshotScanResults;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_queryer::PageRetrievalMode;
 use squalr_engine_processes::process_info::ProcessInfo;
-use std::mem::take;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,
-    scan_results: SnapshotScanResults,
+    scan_results_by_data_type: HashMap<DataType, SnapshotScanResults>,
 }
 
 /// Represents a snapshot of memory in an external process that contains current and previous values of memory pages.
@@ -23,7 +26,7 @@ impl Snapshot {
 
         Self {
             snapshot_regions,
-            scan_results: SnapshotScanResults::new(),
+            scan_results_by_data_type: HashMap::new(),
         }
     }
 
@@ -32,9 +35,19 @@ impl Snapshot {
         process_info: &ProcessInfo,
         scan_filter_parameters: Vec<ScanFilterParameters>,
     ) {
-        self.scan_results
-            .set_scan_filter_parameters(scan_filter_parameters);
         self.create_initial_snapshot_regions(process_info);
+        self.scan_results_by_data_type.clear();
+
+        for scan_filter_parameter in scan_filter_parameters {
+            self.scan_results_by_data_type.insert(
+                scan_filter_parameter.get_data_type().clone(),
+                SnapshotScanResults::new(
+                    scan_filter_parameter.get_data_type().clone(),
+                    scan_filter_parameter.get_memory_alignment_or_default(),
+                ),
+            );
+        }
+
         Logger::get_instance().log(LogLevel::Info, "New scan created.", None);
     }
 
@@ -63,20 +76,53 @@ impl Snapshot {
             .sum();
     }
 
-    pub fn get_scan_results(&self) -> &SnapshotScanResults {
-        return &self.scan_results;
+    pub fn get_scan_result(
+        &self,
+        index: u64,
+        data_type: &DataType,
+    ) -> Option<ScanResult> {
+        if let Some(scan_results) = self.scan_results_by_data_type.get(data_type) {
+            return scan_results.get_scan_result(index, &self.snapshot_regions);
+        }
+        return None;
     }
 
-    pub fn get_scan_parameters_filters(&self) -> &Vec<ScanFilterParameters> {
-        return self.scan_results.get_scan_parameters_filters();
+    pub fn get_memory_alignment_or_default_for_data_type(
+        &self,
+        data_type: &DataType,
+    ) -> MemoryAlignment {
+        if let Some(scan_results) = self.scan_results_by_data_type.get(data_type) {
+            return scan_results.get_memory_alignment();
+        }
+        return MemoryAlignment::Alignment1;
     }
 
-    pub fn take_scan_parameters_filters(&mut self) -> Vec<ScanFilterParameters> {
-        return take(&mut self.scan_results.take_scan_parameters_filters());
+    pub fn get_scan_results_by_data_type(&self) -> &HashMap<DataType, SnapshotScanResults> {
+        return &self.scan_results_by_data_type;
+    }
+
+    pub fn get_data_types(&self) -> Vec<DataType> {
+        let result = self.scan_results_by_data_type.keys().cloned().collect();
+        return result;
+    }
+
+    pub fn get_data_types_and_alignments(&self) -> Vec<(DataType, MemoryAlignment)> {
+        let result: Vec<(DataType, MemoryAlignment)> = self
+            .scan_results_by_data_type
+            .iter()
+            .map(|(data_type, scan_result)| {
+                let alignment = scan_result.get_memory_alignment();
+                (data_type.clone(), alignment)
+            })
+            .collect();
+
+        return result;
     }
 
     pub fn build_scan_results(&mut self) {
-        self.scan_results.build_scan_results(&self.snapshot_regions);
+        for (_data_type, scan_result) in &mut self.scan_results_by_data_type {
+            scan_result.build_scan_results(&self.snapshot_regions);
+        }
     }
 
     pub fn create_initial_snapshot_regions(

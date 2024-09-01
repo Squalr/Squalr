@@ -1,7 +1,6 @@
 use crate::results::scan_results_index_map::ScanResultsIndexMap;
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use rangemap::RangeInclusiveMap;
-use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 
 #[derive(Debug)]

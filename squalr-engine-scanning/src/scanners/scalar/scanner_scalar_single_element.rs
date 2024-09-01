@@ -1,9 +1,10 @@
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::scalar::scanner_scalar_comparer::ScannerScalarComparer;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::sync::Once;
 
 pub struct ScannerScalarSingleElement {}
@@ -35,9 +36,9 @@ impl Scanner for ScannerScalarSingleElement {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        data_type: &DataType,
+        _: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_type = scan_filter_parameters.get_data_type();
         let scalar_comparer = ScannerScalarComparer::get_instance();
         let compare_result;
 

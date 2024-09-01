@@ -1,6 +1,5 @@
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::results::snapshot_region_scan_results::SnapshotFilterCollection;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::scalar::scanner_scalar_iterative_byte_array::ScannerScalarIterativeByteArray;
@@ -13,6 +12,7 @@ use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::sync::Once;
 
 pub struct ScanDispatcher {
@@ -80,15 +80,16 @@ impl ScanDispatcher {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filters: &SnapshotFilterCollection,
         scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        data_type: &DataType,
+        memory_alignment: MemoryAlignment,
     ) -> SnapshotFilterCollection {
         let results = snapshot_region_filters
             .iter()
             .flatten()
             .map(|snapshot_region_filter| {
-                let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, scan_filter_parameters);
+                let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
 
-                return unsafe { scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, scan_filter_parameters) };
+                return unsafe { scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment) };
             })
             .collect();
 
@@ -100,15 +101,16 @@ impl ScanDispatcher {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filters: &SnapshotFilterCollection,
         scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        data_type: &DataType,
+        memory_alignment: MemoryAlignment,
     ) -> SnapshotFilterCollection {
         let results = snapshot_region_filters
             .par_iter()
             .flatten()
             .map(|snapshot_region_filter| {
-                let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, scan_filter_parameters);
+                let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
 
-                return unsafe { scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, scan_filter_parameters) };
+                return unsafe { scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment) };
             })
             .collect();
 
@@ -118,11 +120,10 @@ impl ScanDispatcher {
     fn acquire_scanner_instance(
         &self,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_filter_parameters: &ScanFilterParameters,
+        data_type: &DataType,
+        memory_alignment: MemoryAlignment,
     ) -> &dyn Scanner {
-        let data_type = scan_filter_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
-        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
         let memory_alignment_size = memory_alignment as u64;
         let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size);
         let region_size = snapshot_region_filter.get_region_size();

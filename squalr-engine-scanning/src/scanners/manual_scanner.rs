@@ -2,7 +2,7 @@ use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scan_dispatcher::ScanDispatcher;
 use crate::snapshots::snapshot::Snapshot;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -56,8 +56,11 @@ impl ManualScanner {
             Logger::get_instance().log(LogLevel::Info, "Performing manual scan...", None);
         }
 
+        let data_types_and_alignments = {
+            let snapshot = snapshot.read().unwrap();
+            snapshot.get_data_types_and_alignments()
+        };
         let region_count = snapshot.read().unwrap().get_region_count();
-        let scan_parameters_filters = snapshot.read().unwrap().get_scan_parameters_filters().clone();
         let mut snapshot = snapshot.write().unwrap();
         let snapshot_regions = snapshot.get_snapshot_regions_for_update();
         let scan_parameters = &scan_parameters.clone();
@@ -76,15 +79,13 @@ impl ManualScanner {
             }
 
             // Iterate over each data type in the scan. Generally there is only 1, but multiple simultaneous scans are supported.
-            let new_filters = scan_parameters_filters
-                .clone()
-                .into_par_iter()
-                .filter_map(|scan_filter_parameter| {
+            let new_snapshot_region_filters = data_types_and_alignments
+                .par_iter()
+                .filter_map(|(data_type, memory_alignment)| {
                     // Extract the filters from the previous scan to use in this scan.
-                    let data_type = scan_filter_parameter.get_data_type();
                     let previous_scan_results = snapshot_region.get_scan_results();
                     let snapshot_region_filters_map = previous_scan_results.get_filters();
-                    let snapshot_region_filters = snapshot_region_filters_map.get(data_type);
+                    let snapshot_region_filters = snapshot_region_filters_map.get(&data_type);
 
                     if snapshot_region_filters.is_none() {
                         return None;
@@ -96,16 +97,16 @@ impl ManualScanner {
 
                     if snapshot_region_filters.len() > 0 {
                         scan_results =
-                            scan_dispatcher.dispatch_scan_parallel(snapshot_region, snapshot_region_filters, scan_parameters, &scan_filter_parameter);
+                            scan_dispatcher.dispatch_scan_parallel(snapshot_region, snapshot_region_filters, scan_parameters, &data_type, *memory_alignment);
                     } else {
-                        scan_results = scan_dispatcher.dispatch_scan(snapshot_region, snapshot_region_filters, scan_parameters, &scan_filter_parameter);
+                        scan_results = scan_dispatcher.dispatch_scan(snapshot_region, snapshot_region_filters, scan_parameters, &data_type, *memory_alignment);
                     }
 
                     return Some((data_type.clone(), scan_results));
                 })
                 .collect();
 
-            snapshot_region.set_scan_results(SnapshotRegionScanResults::new_from_filters(new_filters));
+            snapshot_region.set_scan_results(SnapshotRegionScanResults::new_from_filters(new_snapshot_region_filters));
 
             let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
 
@@ -125,14 +126,13 @@ impl ManualScanner {
 
             Logger::get_instance().log(LogLevel::Info, &format!("Results: {} bytes", value_to_metric_size(byte_count)), None);
 
-            for scan_parameters_filter in scan_parameters_filters {
-                let data_type = scan_parameters_filter.get_data_type();
-                let memory_alignment = scan_parameters_filter.get_memory_alignment_or_default();
-                let element_count = snapshot
-                    .get_scan_results()
-                    .get_number_of_results(data_type, memory_alignment);
+            let scan_results = snapshot.get_scan_results_by_data_type();
 
-                Logger::get_instance().log(LogLevel::Info, &format!("Results [{:?}]: {} element(s)", data_type, element_count), None);
+            for (data_type, _) in data_types_and_alignments {
+                if let Some(scan_results_for_type) = scan_results.get(&data_type) {
+                    let element_count = scan_results_for_type.get_number_of_results();
+                    Logger::get_instance().log(LogLevel::Info, &format!("Results [{:?}]: {} element(s)", data_type, element_count), None);
+                }
             }
 
             Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);

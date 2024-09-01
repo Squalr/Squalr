@@ -1,8 +1,8 @@
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::collections::HashMap;
 use std::sync::Once;
 
@@ -38,12 +38,11 @@ impl ScannerScalarEncoderByteArray {
         current_value_pointer: *const u8,
         _: *const u8,
         scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        data_type: &DataType,
+        _: MemoryAlignment,
         base_address: u64,
         region_size: u64,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_type = scan_filter_parameters.get_data_type();
-
         match data_type {
             DataType::Bytes(_) => {}
             _ => panic!("Unsupported data type passed to byte array scanner"),

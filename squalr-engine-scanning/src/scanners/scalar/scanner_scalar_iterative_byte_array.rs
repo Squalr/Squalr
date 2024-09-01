@@ -1,6 +1,8 @@
+use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
+
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::scalar::scanner_scalar_encoder_byte_array::ScannerScalarEncoderByteArray;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
@@ -38,7 +40,8 @@ impl Scanner for ScannerScalarIterativeByteArray {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        data_type: &DataType,
+        memory_alignment: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
         let encoder = ScannerScalarEncoderByteArray::get_instance();
 
@@ -46,7 +49,8 @@ impl Scanner for ScannerScalarIterativeByteArray {
             snapshot_region.get_current_values_pointer(&snapshot_region_filter),
             snapshot_region.get_previous_values_pointer(&snapshot_region_filter),
             scan_parameters,
-            scan_filter_parameters,
+            data_type,
+            memory_alignment,
             snapshot_region_filter.get_base_address(),
             snapshot_region_filter.get_region_size(),
         );

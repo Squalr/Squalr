@@ -1,10 +1,11 @@
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::scalar::scanner_scalar_encoder::ScannerScalarEncoder;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::prelude::*;
+use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::sync::Once;
 
 pub struct ScannerScalarIterativeChunked {}
@@ -39,13 +40,12 @@ impl Scanner for ScannerScalarIterativeChunked {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        data_type: &DataType,
+        memory_alignment: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
         let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
-        let data_type = scan_filter_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
-        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
         let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size) as usize;
 
         // Convert raw pointers to slices
@@ -72,7 +72,8 @@ impl Scanner for ScannerScalarIterativeChunked {
                             .as_ptr()
                             .add(chunk_address_offset as usize),
                         scan_parameters,
-                        scan_filter_parameters,
+                        data_type,
+                        memory_alignment,
                         base_address,
                         last_element_index - first_element_index,
                     );

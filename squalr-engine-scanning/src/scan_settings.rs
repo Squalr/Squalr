@@ -10,9 +10,10 @@ use std::{fmt, fs};
 
 #[derive(Deserialize, Serialize)]
 pub struct Config {
-    pub result_read_interval: i32,
-    pub table_read_interval: i32,
-    pub freeze_interval: i32,
+    pub results_page_size: u32,
+    pub results_read_interval: u32,
+    pub table_read_interval: u32,
+    pub freeze_interval: u32,
     pub alignment: Option<MemoryAlignment>,
     pub floating_point_tolerance: FloatingPointTolerance,
 }
@@ -32,7 +33,8 @@ impl fmt::Debug for Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            result_read_interval: 2500,
+            results_page_size: 16,
+            results_read_interval: 2500,
             table_read_interval: 2500,
             freeze_interval: 50,
             alignment: None,
@@ -97,37 +99,49 @@ impl ScanSettings {
         return &self.config;
     }
 
-    pub fn get_result_read_interval(&self) -> i32 {
-        return self.config.read().unwrap().result_read_interval;
+    pub fn get_results_page_size(&self) -> u32 {
+        return self.config.read().unwrap().results_page_size;
     }
 
-    pub fn set_result_read_interval(
+    pub fn set_results_page_size(
         &self,
-        value: i32,
+        value: u32,
     ) {
-        self.config.write().unwrap().result_read_interval = value;
+        self.config.write().unwrap().results_page_size = value;
         self.save_config();
     }
 
-    pub fn get_table_read_interval(&self) -> i32 {
+    pub fn get_results_read_interval(&self) -> u32 {
+        return self.config.read().unwrap().results_read_interval;
+    }
+
+    pub fn set_results_read_interval(
+        &self,
+        value: u32,
+    ) {
+        self.config.write().unwrap().results_read_interval = value;
+        self.save_config();
+    }
+
+    pub fn get_table_read_interval(&self) -> u32 {
         return self.config.read().unwrap().table_read_interval;
     }
 
     pub fn set_table_read_interval(
         &self,
-        value: i32,
+        value: u32,
     ) {
         self.config.write().unwrap().table_read_interval = value;
         self.save_config();
     }
 
-    pub fn get_freeze_interval(&self) -> i32 {
+    pub fn get_freeze_interval(&self) -> u32 {
         return self.config.read().unwrap().freeze_interval;
     }
 
     pub fn set_freeze_interval(
         &self,
-        value: i32,
+        value: u32,
     ) {
         self.config.write().unwrap().freeze_interval = value;
         self.save_config();

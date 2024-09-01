@@ -3,7 +3,6 @@ use crate::scanners::comparers::vector::scanner_vector_comparer::VectorComparer;
 use crate::scanners::encoders::scalar::scanner_scalar_encoder_byte_array::ScannerScalarEncoderByteArray;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::scanners::encoders::vector::simd_type::SimdType;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_common::values::data_type::DataType;
 use std::marker::PhantomData;
@@ -57,13 +56,12 @@ where
         current_value_pointer: *const u8,
         _: *const u8,
         scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        data_type: &DataType,
         base_address: u64,
         region_size: u64,
         vector_comparer: &impl VectorComparer<T, N>,
         true_mask: Simd<u8, N>,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_type = scan_filter_parameters.get_data_type();
         let data_type_size_bytes = data_type.get_size_in_bytes();
 
         unsafe {

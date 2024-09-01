@@ -1,7 +1,6 @@
 use crate::results::scan_result::ScanResult;
 use crate::results::scan_results_index_map::ScanResultsIndexMap;
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::collections::HashMap;
@@ -99,11 +98,11 @@ impl SnapshotRegionScanResults {
         &mut self,
         base_address: u64,
         region_size: u64,
-        scan_filter_parameters: &Vec<ScanFilterParameters>,
+        data_types: &Vec<DataType>,
     ) {
-        for scan_filter_parameter in scan_filter_parameters {
+        for data_type in data_types {
             self.filters
-                .entry(scan_filter_parameter.get_data_type().clone())
+                .entry(data_type.clone())
                 .or_insert_with(|| vec![vec![SnapshotRegionFilter::new(base_address, region_size)]]);
         }
     }

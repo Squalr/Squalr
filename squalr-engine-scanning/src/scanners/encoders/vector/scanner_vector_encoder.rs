@@ -1,8 +1,9 @@
+use squalr_engine_common::values::data_type::DataType;
+
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::vector::scanner_vector_comparer::VectorComparer;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::scanners::encoders::vector::simd_type::SimdType;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use std::marker::PhantomData;
 use std::simd::prelude::SimdPartialEq;
@@ -35,14 +36,13 @@ where
         current_value_pointer: *const u8,
         previous_value_pointer: *const u8,
         scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        data_type: &DataType,
         base_address: u64,
         region_size: u64,
         vector_comparer: &impl VectorComparer<T, N>,
         true_mask: Simd<u8, N>,
     ) -> Vec<SnapshotRegionFilter> {
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type = scan_filter_parameters.get_data_type();
         let data_type_size_bytes = data_type.get_size_in_bytes();
         let vector_size_in_bytes = N;
         let iterations = region_size / vector_size_in_bytes as u64;
