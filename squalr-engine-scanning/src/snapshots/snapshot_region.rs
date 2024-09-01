@@ -13,7 +13,7 @@ pub struct SnapshotRegion {
     normalized_region: NormalizedRegion,
     current_values: Vec<u8>,
     previous_values: Vec<u8>,
-    scan_result_lookup_table: SnapshotRegionScanResults,
+    scan_results: SnapshotRegionScanResults,
     page_boundaries: Vec<u64>,
 }
 
@@ -26,7 +26,7 @@ impl SnapshotRegion {
             normalized_region: normalized_region,
             current_values: vec![],
             previous_values: vec![],
-            scan_result_lookup_table: SnapshotRegionScanResults::new(),
+            scan_results: SnapshotRegionScanResults::new(),
             page_boundaries: page_boundaries,
         }
     }
@@ -192,12 +192,65 @@ impl SnapshotRegion {
         return true;
     }
 
+    pub fn take_scan_results(&mut self) -> SnapshotRegionScanResults {
+        return std::mem::take(&mut self.scan_results);
+    }
+
+    pub fn get_scan_results(&self) -> &SnapshotRegionScanResults {
+        return &self.scan_results;
+    }
+
+    pub fn set_scan_results(
+        &mut self,
+        scan_results: SnapshotRegionScanResults,
+    ) {
+        self.scan_results = scan_results;
+
+        let original_base_address = self.get_base_address();
+        let original_end_address = self.get_end_address();
+
+        // Constrict this snapshot region based on the highest and lowest addresses in the contained scan result filters.
+        if let Some((new_base_address, new_end_address)) = self
+            .scan_results
+            .get_filter_bounds(original_base_address, original_end_address)
+        {
+            let new_region_size = new_end_address - new_base_address;
+            self.normalized_region.set_base_address(new_base_address);
+            self.normalized_region.set_region_size(new_region_size);
+
+            let start_offset = (new_base_address - original_base_address) as usize;
+            let new_length = (new_end_address - new_base_address) as usize;
+
+            if !self.current_values.is_empty() {
+                self.current_values.drain(..start_offset);
+                self.current_values.truncate(new_length);
+            }
+
+            if !self.previous_values.is_empty() {
+                self.previous_values.drain(..start_offset);
+                self.previous_values.truncate(new_length);
+            }
+
+            // Remove any page boundaries outside of the resized region
+            self.page_boundaries
+                .retain(|&boundary| boundary >= new_base_address && boundary <= new_end_address);
+
+            self.build_scan_results();
+        } else {
+            // No filters remaining! Set this regions size to 0 so that it can be cleaned up later.
+            self.normalized_region.set_region_size(0);
+        }
+    }
+
     pub fn create_initial_scan_results(
         &mut self,
         scan_filter_parameters: &Vec<ScanFilterParameters>,
     ) {
-        self.scan_result_lookup_table
-            .create_initial_scan_results(scan_filter_parameters);
+        let base_address = self.get_base_address();
+        let region_size = self.get_region_size();
+
+        self.scan_results
+            .create_initial_scan_results(base_address, region_size, scan_filter_parameters);
     }
 
     fn build_scan_results(&mut self) {

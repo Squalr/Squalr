@@ -39,7 +39,7 @@ impl SnapshotScanResults {
                 if *snapshot_region_index < snapshot_regions.len() as u64 {
                     let snapshot_region = &snapshot_regions[*snapshot_region_index as usize];
 
-                    snapshot_region.get_filters();
+                    // snapshot_region.get_filters();
                 }
             }
         }
@@ -73,13 +73,21 @@ impl SnapshotScanResults {
             let scan_results_lookup_table = ScanResultsIndexMap::new();
 
             // Iterate every snapshot region contained by the snapshot.
-            for (region_index, region) in snapshot_regions.iter().enumerate() {
-                if !region.get_filters().contains_key(data_type) {
+            for (region_index, snapshot_region) in snapshot_regions.iter().enumerate() {
+                let snapshot_region_scan_results = snapshot_region.get_scan_results();
+
+                if !snapshot_region_scan_results
+                    .get_filters()
+                    .contains_key(data_type)
+                {
                     continue;
                 }
 
-                let filter_regions = region.get_filters().get(data_type).unwrap();
-                let number_of_filter_results = filter_regions.get_number_of_results();
+                let filter_regions = snapshot_region_scan_results
+                    .get_filters()
+                    .get(data_type)
+                    .unwrap();
+                let number_of_filter_results = snapshot_region_scan_results.get_number_of_results();
                 let current_number_of_results = scan_results_lookup_table.get_number_of_results();
 
                 // Simply map the result range onto a the index of a particular snapshot region.

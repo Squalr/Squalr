@@ -1,3 +1,4 @@
+use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scan_dispatcher::ScanDispatcher;
 use crate::snapshots::snapshot::Snapshot;
@@ -89,8 +90,11 @@ impl HybridScanner {
                 .clone()
                 .into_par_iter()
                 .filter_map(|scan_filter_parameter| {
-                    let snapshot_region_filters_map = snapshot_region.get_filters();
-                    let snapshot_region_filters = snapshot_region_filters_map.get(scan_filter_parameter.get_data_type());
+                    // Extract the filters from the previous scan to use in this scan.
+                    let data_type = scan_filter_parameter.get_data_type();
+                    let previous_scan_results = snapshot_region.get_scan_results();
+                    let snapshot_region_filters_map = previous_scan_results.get_filters();
+                    let snapshot_region_filters = snapshot_region_filters_map.get(data_type);
 
                     if snapshot_region_filters.is_none() {
                         return None;
@@ -107,12 +111,11 @@ impl HybridScanner {
                         scan_results = scan_dispatcher.dispatch_scan(snapshot_region, snapshot_region_filters, scan_parameters, &scan_filter_parameter);
                     }
 
-                    return Some((scan_filter_parameter.get_data_type().clone(), scan_results));
+                    return Some((data_type.clone(), scan_results));
                 })
                 .collect();
 
-            // Update the snapshot region to contain new filtered regions (ie scan results).
-            snapshot_region.set_all_filters(new_filters);
+            snapshot_region.set_scan_results(SnapshotRegionScanResults::new_from_filters(new_filters));
 
             let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
 
