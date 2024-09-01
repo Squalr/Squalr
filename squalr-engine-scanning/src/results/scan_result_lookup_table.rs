@@ -1,5 +1,5 @@
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
-use crate::snapshots::snapshot_region::SnapshotRegion;
+use crate::snapshots::snapshot_filter_collection::SnapshotFilterCollection;
 use rangemap::RangeInclusiveMap;
 use squalr_engine_common::values::data_type::DataType;
 use std::mem::take;
@@ -62,8 +62,9 @@ impl ScanResultLookupTable {
 
     pub fn build_scan_results(
         &mut self,
-        snapshot_regions: &Vec<SnapshotRegion>,
+        snapshot_regions: &SnapshotFilterCollection,
     ) {
+        /*
         let mut scan_result_index: u64 = 0;
 
         for (_, scan_filter_parameters) in self.scan_filter_parameters.iter().enumerate() {
@@ -99,6 +100,6 @@ impl ScanResultLookupTable {
                     );
                 }
             }
-        }
+        }*/
     }
 }

@@ -14,4 +14,12 @@ impl ScanResult {
             field_value: field_value.clone(),
         }
     }
+
+    pub fn get_address(&self) -> u64 {
+        return self.address;
+    }
+
+    pub fn get_value(&self) -> &FieldValue {
+        return &self.field_value;
+    }
 }

@@ -1,6 +1,7 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
+use crate::snapshots::snapshot_filter_collection::SnapshotFilterCollection;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
@@ -8,11 +9,6 @@ use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
 use std::collections::HashMap;
-
-/// While this looks silly, it is better to have a vector of vectors for parallelization.
-/// This is because when we scan a filter, it produces a list of filters. Combining these back into
-/// one giant list would cost too much scan time, so it's better to keep it as a list of lists.
-pub type SnapshotFilterCollection = Vec<Vec<SnapshotRegionFilter>>;
 
 #[derive(Debug)]
 pub struct SnapshotRegion {
@@ -210,7 +206,7 @@ impl SnapshotRegion {
         for scan_filter_parameter in scan_filter_parameters {
             self.filters
                 .entry(scan_filter_parameter.get_data_type().clone())
-                .or_insert_with(|| vec![vec![SnapshotRegionFilter::new(base_address, region_size)]]);
+                .or_insert_with(|| SnapshotFilterCollection::new_from_single_filter(SnapshotRegionFilter::new(base_address, region_size)));
         }
     }
 
@@ -231,17 +227,19 @@ impl SnapshotRegion {
         let mut new_end_address = 0u64;
         let mut found_valid_filter = false;
 
-        for filter in self.filters.values().flatten().flatten() {
-            let filter_base = filter.get_base_address();
-            let filter_end = filter.get_end_address();
+        for filter_collection in self.filters.values() {
+            for filter in filter_collection.get_filters().into_iter().flatten() {
+                let filter_base = filter.get_base_address();
+                let filter_end = filter.get_end_address();
 
-            if filter_base < new_base_address {
-                new_base_address = filter_base;
+                if filter_base < new_base_address {
+                    new_base_address = filter_base;
+                }
+                if filter_end > new_end_address {
+                    new_end_address = filter_end;
+                }
+                found_valid_filter = true;
             }
-            if filter_end > new_end_address {
-                new_end_address = filter_end;
-            }
-            found_valid_filter = true;
         }
 
         if !found_valid_filter {

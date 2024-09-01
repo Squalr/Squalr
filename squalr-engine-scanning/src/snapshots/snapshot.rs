@@ -71,11 +71,6 @@ impl Snapshot {
         return take(&mut self.scan_result_lookup_table.take_scan_parameters_filters());
     }
 
-    pub fn update_scan_results(&mut self) {
-        self.scan_result_lookup_table
-            .build_scan_results(&self.snapshot_regions);
-    }
-
     pub fn create_initial_snapshot_regions(
         &mut self,
         process_info: &ProcessInfo,

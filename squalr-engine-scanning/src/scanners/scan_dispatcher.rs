@@ -7,7 +7,8 @@ use crate::scanners::vector::scanner_vector_aligned::ScannerVectorAligned;
 use crate::scanners::vector::scanner_vector_aligned_chunked::ScannerVectorAlignedChunked;
 use crate::scanners::vector::scanner_vector_cascading::ScannerVectorCascading;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
-use crate::snapshots::snapshot_region::{SnapshotFilterCollection, SnapshotRegion};
+use crate::snapshots::snapshot_filter_collection::SnapshotFilterCollection;
+use crate::snapshots::snapshot_region::SnapshotRegion;
 use crate::{filters::snapshot_region_filter::SnapshotRegionFilter, scanners::snapshot_scanner::Scanner};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_common::values::data_type::DataType;
@@ -17,9 +18,11 @@ pub struct ScanDispatcher {
     scanner_aligned_64: ScannerVectorAligned<u8, 64>,
     scanner_aligned_32: ScannerVectorAligned<u8, 32>,
     scanner_aligned_16: ScannerVectorAligned<u8, 16>,
+
     scanner_sparse_64: ScannerVectorSparse<u8, 64>,
     scanner_sparse_32: ScannerVectorSparse<u8, 32>,
     scanner_sparse_16: ScannerVectorSparse<u8, 16>,
+
     scanner_cascading_64: ScannerVectorCascading<u8, 64>,
     scanner_cascading_32: ScannerVectorCascading<u8, 32>,
     scanner_cascading_16: ScannerVectorCascading<u8, 16>,
@@ -27,6 +30,7 @@ pub struct ScanDispatcher {
     scanner_aligned_chunked_64: ScannerVectorAlignedChunked<u8, 64>,
     scanner_aligned_chunked_32: ScannerVectorAlignedChunked<u8, 32>,
     scanner_aligned_chunked_16: ScannerVectorAlignedChunked<u8, 16>,
+
     scanner_cascading_chunked_64: ScannerVectorCascading<u8, 64>,
     scanner_cascading_chunked_32: ScannerVectorCascading<u8, 32>,
     scanner_cascading_chunked_16: ScannerVectorCascading<u8, 16>,
@@ -78,7 +82,7 @@ impl ScanDispatcher {
         scan_filter_parameters: &ScanFilterParameters,
     ) -> SnapshotFilterCollection {
         let results = snapshot_region_filters
-            // Convert the iterator to a parallel iterator
+            .get_filters()
             .iter()
             .flatten()
             .map(|snapshot_region_filter| {
@@ -88,7 +92,7 @@ impl ScanDispatcher {
             })
             .collect();
 
-        return results;
+        return SnapshotFilterCollection::new(results);
     }
 
     pub fn dispatch_scan_parallel(
@@ -99,7 +103,7 @@ impl ScanDispatcher {
         scan_filter_parameters: &ScanFilterParameters,
     ) -> SnapshotFilterCollection {
         let results = snapshot_region_filters
-            // Convert the iterator to a parallel iterator
+            .get_filters()
             .par_iter()
             .flatten()
             .map(|snapshot_region_filter| {
@@ -109,7 +113,7 @@ impl ScanDispatcher {
             })
             .collect();
 
-        return results;
+        return SnapshotFilterCollection::new(results);
     }
 
     fn acquire_scanner_instance(
