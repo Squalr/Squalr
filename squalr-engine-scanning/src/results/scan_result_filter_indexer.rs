@@ -19,7 +19,7 @@ impl SnapshotFilterIndexer {
         &self,
         memory_alignment: MemoryAlignment,
     ) -> u64 {
-        return self.filter_results_lookup_table.get_number_of_result_bytes() / (memory_alignment as u64);
+        return self.filter_results_lookup_table.get_number_of_results() / (memory_alignment as u64);
     }
 
     pub fn get_scan_result_range_map(&self) -> &RangeInclusiveMap<u64, u64> {
@@ -35,7 +35,7 @@ impl SnapshotFilterIndexer {
         // Iterate all snapshot filters mapped over the same snapshot_region.
         for (filter_region_index, filter_region) in snapshot_filters.iter().flatten().enumerate() {
             let filter_size = filter_region.get_region_size();
-            let current_number_of_result_bytes = self.filter_results_lookup_table.get_number_of_result_bytes();
+            let current_number_of_result_bytes = self.filter_results_lookup_table.get_number_of_results();
 
             // Map the element range onto the filter region index.
             self.filter_results_lookup_table

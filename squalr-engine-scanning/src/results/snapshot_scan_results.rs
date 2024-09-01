@@ -37,17 +37,20 @@ impl SnapshotScanResults {
         index: u64,
         snapshot_regions: &Vec<SnapshotRegion>,
     ) -> Option<ScanResult> {
-        if let Some((snapshot_region_range, snapshot_region_index)) = self
+        // Access the scan result lookup table to get the snapshot_region containing this scan result index.
+        if let Some((scan_result_index_range, snapshot_region_index)) = self
             .lookup_table
             .get_scan_result_range_map()
             .get_key_value(&index)
         {
             if *snapshot_region_index < snapshot_regions.len() as u64 {
                 let snapshot_region = &snapshot_regions[*snapshot_region_index as usize];
-                let snapshot_region_scan_results = snapshot_region.get_scan_results();
-                let snapshot_filter_index = snapshot_region_range.end() - index;
+                let snapshot_region_scan_results_map = snapshot_region.get_region_scan_results();
+                let snapshot_filter_index = scan_result_index_range.end() - index;
 
-                return snapshot_region_scan_results.get_scan_result(snapshot_filter_index, &self.data_type, self.memory_alignment);
+                if let Some(snapshot_region_scan_results) = snapshot_region_scan_results_map.get(&self.data_type) {
+                    return snapshot_region_scan_results.get_scan_result(snapshot_filter_index, self.memory_alignment);
+                }
             }
         }
 
@@ -55,7 +58,7 @@ impl SnapshotScanResults {
     }
 
     pub fn get_number_of_results(&self) -> u64 {
-        return self.lookup_table.get_number_of_result_bytes() / (self.memory_alignment as u64);
+        return self.lookup_table.get_number_of_results();
     }
 
     pub fn set_scan_filter_parameters(
@@ -82,21 +85,16 @@ impl SnapshotScanResults {
 
         // Iterate every snapshot region contained by the snapshot.
         for (region_index, snapshot_region) in snapshot_regions.iter().enumerate() {
-            let snapshot_region_scan_results = snapshot_region.get_scan_results();
+            let snapshot_region_scan_results_map = snapshot_region.get_region_scan_results();
 
-            if !snapshot_region_scan_results
-                .get_filters()
-                .contains_key(&self.data_type)
-            {
-                continue;
+            if let Some(snapshot_region_scan_results) = snapshot_region_scan_results_map.get(&self.data_type) {
+                let number_of_filter_results = snapshot_region_scan_results.get_number_of_results();
+                let current_number_of_results = self.lookup_table.get_number_of_results();
+
+                // Simply map the result range onto a the index of a particular snapshot region.
+                self.lookup_table
+                    .insert(current_number_of_results, number_of_filter_results, region_index as u64);
             }
-
-            let number_of_filter_result_bytes = snapshot_region_scan_results.get_number_of_result_bytes(&self.data_type);
-            let current_number_of_result_bytes = self.lookup_table.get_number_of_result_bytes();
-
-            // Simply map the result range onto a the index of a particular snapshot region.
-            self.lookup_table
-                .insert(current_number_of_result_bytes, number_of_filter_result_bytes, region_index as u64);
         }
     }
 }

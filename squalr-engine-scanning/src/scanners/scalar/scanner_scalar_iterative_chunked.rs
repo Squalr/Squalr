@@ -46,7 +46,7 @@ impl Scanner for ScannerScalarIterativeChunked {
         let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
         let data_type_size = data_type.get_size_in_bytes();
-        let element_count = snapshot_region_filter.get_element_count(memory_alignment, data_type_size) as usize;
+        let element_count = snapshot_region_filter.get_element_count(data_type_size, memory_alignment) as usize;
 
         // Convert raw pointers to slices
         let current_values_slice = unsafe { std::slice::from_raw_parts(current_value_pointer, element_count * memory_alignment as usize) };

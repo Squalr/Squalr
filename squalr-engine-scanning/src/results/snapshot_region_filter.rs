@@ -47,19 +47,19 @@ impl SnapshotRegionFilter {
 
     pub fn get_element_count(
         &self,
-        alignment: MemoryAlignment,
         data_type_size: u64,
+        memory_alignment: MemoryAlignment,
     ) -> u64 {
         let get_size_in_bytes = self.get_region_size();
-        let misalignment = self.get_misaligned_starting_byte_count(alignment);
-        let alignment: u64 = max(alignment as u64, 1);
+        let misalignment = self.get_misaligned_starting_byte_count(memory_alignment);
+        let memory_alignment: u64 = max(memory_alignment as u64, 1);
 
         // If a filter is misaligned or an invalid size, something has gone horribly wrong and we want to debug it.
-        debug_assert!(alignment > 0);
+        debug_assert!(memory_alignment > 0);
         debug_assert!(misalignment == 0);
         debug_assert!(get_size_in_bytes >= data_type_size);
 
-        return get_size_in_bytes / alignment;
+        return get_size_in_bytes / memory_alignment;
     }
 
     fn get_misaligned_starting_byte_count(

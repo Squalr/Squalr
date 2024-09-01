@@ -22,7 +22,7 @@ impl ScanResultsIndexMap {
         return &self.scan_result_range_map;
     }
 
-    pub fn get_number_of_result_bytes(&self) -> u64 {
+    pub fn get_number_of_results(&self) -> u64 {
         return self.number_of_result_bytes;
     }
 

@@ -52,7 +52,7 @@ impl Scanner for ScannerScalarIterative {
             data_type,
             memory_alignment,
             snapshot_region_filter.get_base_address(),
-            snapshot_region_filter.get_element_count(memory_alignment, data_type_size),
+            snapshot_region_filter.get_element_count(data_type_size, memory_alignment),
         );
 
         return results;

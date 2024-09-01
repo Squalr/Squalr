@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use crate::results::scan_result::ScanResult;
 use crate::results::snapshot_scan_results::SnapshotScanResults;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use dashmap::DashMap;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::values::data_type::DataType;
@@ -9,12 +12,11 @@ use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_queryer::PageRetrievalMode;
 use squalr_engine_processes::process_info::ProcessInfo;
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,
-    scan_results_by_data_type: HashMap<DataType, SnapshotScanResults>,
+    scan_results_by_data_type: Arc<DashMap<DataType, SnapshotScanResults>>,
 }
 
 /// Represents a snapshot of memory in an external process that contains current and previous values of memory pages.
@@ -26,7 +28,7 @@ impl Snapshot {
 
         Self {
             snapshot_regions,
-            scan_results_by_data_type: HashMap::new(),
+            scan_results_by_data_type: Arc::new(DashMap::new()),
         }
     }
 
@@ -97,31 +99,30 @@ impl Snapshot {
         return MemoryAlignment::Alignment1;
     }
 
-    pub fn get_scan_results_by_data_type(&self) -> &HashMap<DataType, SnapshotScanResults> {
+    pub fn get_scan_results_by_data_type(&self) -> &DashMap<DataType, SnapshotScanResults> {
         return &self.scan_results_by_data_type;
-    }
-
-    pub fn get_data_types(&self) -> Vec<DataType> {
-        let result = self.scan_results_by_data_type.keys().cloned().collect();
-        return result;
     }
 
     pub fn get_data_types_and_alignments(&self) -> Vec<(DataType, MemoryAlignment)> {
         let result: Vec<(DataType, MemoryAlignment)> = self
             .scan_results_by_data_type
             .iter()
-            .map(|(data_type, scan_result)| {
+            .map(|entry| {
+                let data_type = entry.key().clone();
+                let scan_result = entry.value();
                 let alignment = scan_result.get_memory_alignment();
-                (data_type.clone(), alignment)
+                (data_type, alignment)
             })
             .collect();
 
-        return result;
+        result
     }
 
     pub fn build_scan_results(&mut self) {
-        for (_data_type, scan_result) in &mut self.scan_results_by_data_type {
-            scan_result.build_scan_results(&self.snapshot_regions);
+        for mut scan_results in self.scan_results_by_data_type.iter_mut() {
+            return scan_results
+                .value_mut()
+                .build_scan_results(&self.snapshot_regions);
         }
     }
 

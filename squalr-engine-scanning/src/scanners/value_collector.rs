@@ -1,5 +1,7 @@
+use crate::results::snapshot_region_filter::SnapshotRegionFilter;
+use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::snapshots::snapshot::Snapshot;
-use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -55,13 +57,9 @@ impl ValueCollector {
             Logger::get_instance().log(LogLevel::Info, "Reading values from memory...", None);
         }
 
-        let data_types = {
+        let data_types_and_alignments = {
             let snapshot = snapshot.read().unwrap();
-            snapshot
-                .get_scan_results_by_data_type()
-                .keys()
-                .cloned()
-                .collect()
+            snapshot.get_data_types_and_alignments()
         };
         let mut snapshot = snapshot.write().unwrap();
         let total_region_count = snapshot.get_region_count();
@@ -76,10 +74,23 @@ impl ValueCollector {
                     return;
                 }
 
-                // Create the default scan result containers on the first scan.
-                if !snapshot_region.has_current_values() {
-                    snapshot_region.create_initial_scan_results(&data_types);
-                }
+                let region_scan_results_map = snapshot_region.get_region_scan_results();
+
+                // Create the initial scan results for this data type if none exist.
+                let _ = data_types_and_alignments
+                    .par_iter()
+                    .map(|(data_type, memory_alignment)| {
+                        if !region_scan_results_map.contains_key(&data_type) {
+                            let initial_scan_results = vec![vec![SnapshotRegionFilter::new(
+                                snapshot_region.get_base_address(),
+                                snapshot_region.get_region_size(),
+                            )]];
+                            region_scan_results_map.insert(
+                                data_type.clone(),
+                                SnapshotRegionScanResults::new_from_filters(initial_scan_results, data_type, *memory_alignment),
+                            );
+                        }
+                    });
 
                 // Attempt to read new (or initial) memory values. Ignore failures, as these are generally just deallocated pages.
                 let _ = snapshot_region.read_all_memory(process_info.handle);
@@ -91,6 +102,9 @@ impl ValueCollector {
                     task.set_progress(progress);
                 }
             });
+
+        snapshot.discard_empty_regions();
+        snapshot.build_scan_results();
 
         if with_logging {
             let duration = start_time.elapsed();

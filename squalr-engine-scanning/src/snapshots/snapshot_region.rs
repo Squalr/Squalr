@@ -1,19 +1,20 @@
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
+use dashmap::DashMap;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::values::data_type::DataType;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct SnapshotRegion {
     normalized_region: NormalizedRegion,
     current_values: Vec<u8>,
     previous_values: Vec<u8>,
-    scan_results: SnapshotRegionScanResults,
+    region_scan_results_by_data_type: Arc<DashMap<DataType, SnapshotRegionScanResults>>,
     page_boundaries: Vec<u64>,
 }
 
@@ -26,7 +27,7 @@ impl SnapshotRegion {
             normalized_region: normalized_region,
             current_values: vec![],
             previous_values: vec![],
-            scan_results: SnapshotRegionScanResults::new(),
+            region_scan_results_by_data_type: Arc::new(DashMap::new()),
             page_boundaries: page_boundaries,
         }
     }
@@ -162,13 +163,6 @@ impl SnapshotRegion {
         return self.normalized_region.get_region_size();
     }
 
-    pub fn set_alignment(
-        &mut self,
-        alignment: MemoryAlignment,
-    ) {
-        self.normalized_region.set_alignment(alignment);
-    }
-
     pub fn has_current_values(&self) -> bool {
         return !self.current_values.is_empty();
     }
@@ -192,30 +186,32 @@ impl SnapshotRegion {
         return true;
     }
 
-    pub fn get_scan_results(&self) -> &SnapshotRegionScanResults {
-        return &self.scan_results;
+    pub fn get_region_scan_results(&self) -> &Arc<DashMap<DataType, SnapshotRegionScanResults>> {
+        return &self.region_scan_results_by_data_type;
     }
 
-    pub fn set_scan_results(
-        &mut self,
-        scan_results: SnapshotRegionScanResults,
-    ) {
-        self.scan_results = scan_results;
-
+    pub fn resize_to_filters(&mut self) {
         let original_base_address = self.get_base_address();
-        let original_end_address = self.get_end_address();
 
         // Constrict this snapshot region based on the highest and lowest addresses in the contained scan result filters.
-        if let Some((new_base_address, new_end_address)) = self
-            .scan_results
-            .get_filter_bounds(original_base_address, original_end_address)
-        {
-            let new_region_size = new_end_address - new_base_address;
-            self.normalized_region.set_base_address(new_base_address);
+        for scan_results in self.region_scan_results_by_data_type.iter() {
+            let scan_results = scan_results.value();
+            let (filter_lowest_address, filter_highest_address) = scan_results.get_filter_bounds();
+
+            let new_region_size = filter_highest_address - filter_lowest_address;
+
+            // No filters remaining! Set this regions size to 0 so that it can be cleaned up later.
+            if new_region_size <= 0 {
+                self.normalized_region.set_region_size(0);
+                self.page_boundaries.clear();
+                return;
+            }
+
+            self.normalized_region.set_base_address(filter_lowest_address);
             self.normalized_region.set_region_size(new_region_size);
 
-            let start_offset = (new_base_address - original_base_address) as usize;
-            let new_length = (new_end_address - new_base_address) as usize;
+            let start_offset = (filter_lowest_address - original_base_address) as usize;
+            let new_length = (filter_highest_address - filter_lowest_address) as usize;
 
             if !self.current_values.is_empty() {
                 self.current_values.drain(..start_offset);
@@ -229,23 +225,7 @@ impl SnapshotRegion {
 
             // Remove any page boundaries outside of the resized region
             self.page_boundaries
-                .retain(|&boundary| boundary >= new_base_address && boundary <= new_end_address);
-
-            self.scan_results.build_scan_results();
-        } else {
-            // No filters remaining! Set this regions size to 0 so that it can be cleaned up later.
-            self.normalized_region.set_region_size(0);
+                .retain(|&boundary| boundary >= filter_lowest_address && boundary <= filter_highest_address);
         }
-    }
-
-    pub fn create_initial_scan_results(
-        &mut self,
-        data_types: &Vec<DataType>,
-    ) {
-        let base_address = self.get_base_address();
-        let region_size = self.get_region_size();
-
-        self.scan_results
-            .create_initial_scan_results(base_address, region_size, data_types);
     }
 }
