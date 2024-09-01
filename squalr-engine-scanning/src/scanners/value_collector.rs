@@ -77,9 +77,9 @@ impl ValueCollector {
                 let region_scan_results_map = snapshot_region.get_region_scan_results();
 
                 // Create the initial scan results for this data type if none exist.
-                let _ = data_types_and_alignments
+                data_types_and_alignments
                     .par_iter()
-                    .map(|(data_type, memory_alignment)| {
+                    .for_each(|(data_type, memory_alignment)| {
                         if !region_scan_results_map.contains_key(&data_type) {
                             let initial_scan_results = vec![vec![SnapshotRegionFilter::new(
                                 snapshot_region.get_base_address(),
