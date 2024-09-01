@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
-use std::fmt;
+use squalr_engine_common::config::serialized_config_updater;
+use std::path::PathBuf;
 use std::sync::Once;
 use std::sync::{Arc, RwLock};
+use std::{fmt, fs};
 
 #[derive(Deserialize, Serialize)]
 pub struct Config {
@@ -58,12 +60,24 @@ impl Default for Config {
 
 pub struct MemorySettings {
     config: Arc<RwLock<Config>>,
+    config_file: PathBuf,
 }
 
 impl MemorySettings {
     fn new() -> Self {
+        let config_file = Self::default_config_path();
+        let config = if config_file.exists() {
+            match fs::read_to_string(&config_file) {
+                Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
+                Err(_) => Config::default(),
+            }
+        } else {
+            Config::default()
+        };
+
         Self {
-            config: Arc::new(RwLock::new(Config::default())),
+            config: Arc::new(RwLock::new(config)),
+            config_file,
         }
     }
 
@@ -81,6 +95,21 @@ impl MemorySettings {
         }
     }
 
+    fn default_config_path() -> PathBuf {
+        std::env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("memory_settings.json")
+    }
+
+    fn save_config(&self) {
+        let config = self.config.read().unwrap();
+        if let Ok(json) = to_string_pretty(&*config) {
+            let _ = fs::write(&self.config_file, json);
+        }
+    }
+
     pub fn get_full_config(&self) -> &Arc<RwLock<Config>> {
         return &self.config;
     }
@@ -94,6 +123,7 @@ impl MemorySettings {
         value: bool,
     ) {
         self.config.write().unwrap().memory_type_none = value;
+        self.save_config();
     }
 
     pub fn get_memory_type_private(&self) -> bool {
@@ -105,6 +135,7 @@ impl MemorySettings {
         value: bool,
     ) {
         self.config.write().unwrap().memory_type_private = value;
+        self.save_config();
     }
 
     pub fn get_memory_type_image(&self) -> bool {
@@ -116,6 +147,7 @@ impl MemorySettings {
         value: bool,
     ) {
         self.config.write().unwrap().memory_type_image = value;
+        self.save_config();
     }
 
     pub fn get_memory_type_mapped(&self) -> bool {
@@ -127,6 +159,7 @@ impl MemorySettings {
         value: bool,
     ) {
         self.config.write().unwrap().memory_type_mapped = value;
+        self.save_config();
     }
 
     pub fn get_required_write(&self) -> bool {
@@ -138,6 +171,7 @@ impl MemorySettings {
         value: bool,
     ) {
         self.config.write().unwrap().required_write = value;
+        self.save_config();
     }
 
     pub fn get_required_execute(&self) -> bool {
@@ -149,6 +183,7 @@ impl MemorySettings {
         value: bool,
     ) {
         self.config.write().unwrap().required_execute = value;
+        self.save_config();
     }
 
     pub fn get_required_copy_on_write(&self) -> bool {
@@ -160,6 +195,7 @@ impl MemorySettings {
         value: bool,
     ) {
         self.config.write().unwrap().required_copy_on_write = value;
+        self.save_config();
     }
 
     pub fn get_excluded_write(&self) -> bool {
@@ -171,6 +207,7 @@ impl MemorySettings {
         value: bool,
     ) {
         self.config.write().unwrap().excluded_write = value;
+        self.save_config();
     }
 
     pub fn get_excluded_execute(&self) -> bool {
@@ -182,6 +219,7 @@ impl MemorySettings {
         value: bool,
     ) {
         self.config.write().unwrap().excluded_execute = value;
+        self.save_config();
     }
 
     pub fn get_excluded_copy_on_write(&self) -> bool {
@@ -193,6 +231,7 @@ impl MemorySettings {
         value: bool,
     ) {
         self.config.write().unwrap().excluded_copy_on_write = value;
+        self.save_config();
     }
 
     pub fn get_start_address(&self) -> u64 {
@@ -204,6 +243,7 @@ impl MemorySettings {
         value: u64,
     ) {
         self.config.write().unwrap().start_address = value;
+        self.save_config();
     }
 
     pub fn get_end_address(&self) -> u64 {
@@ -215,6 +255,7 @@ impl MemorySettings {
         value: u64,
     ) {
         self.config.write().unwrap().end_address = value;
+        self.save_config();
     }
 
     pub fn get_only_scan_usermode(&self) -> bool {
@@ -226,5 +267,16 @@ impl MemorySettings {
         value: bool,
     ) {
         self.config.write().unwrap().only_scan_usermode = value;
+        self.save_config();
+    }
+
+    pub fn update_config_field(
+        &self,
+        field: &str,
+        value: &str,
+    ) {
+        let mut config = self.config.write().unwrap();
+        serialized_config_updater::update_config_field(&mut *config, field, value);
+        self.save_config();
     }
 }

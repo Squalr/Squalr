@@ -1,11 +1,12 @@
 use crate::floating_point_tolerance::FloatingPointTolerance;
-
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
+use squalr_engine_common::config::serialized_config_updater;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
-use std::fmt;
+use std::path::PathBuf;
 use std::sync::Once;
 use std::sync::{Arc, RwLock};
+use std::{fmt, fs};
 
 #[derive(Deserialize, Serialize)]
 pub struct Config {
@@ -42,12 +43,24 @@ impl Default for Config {
 
 pub struct ScanSettings {
     config: Arc<RwLock<Config>>,
+    config_file: PathBuf,
 }
 
 impl ScanSettings {
     fn new() -> Self {
+        let config_file = Self::default_config_path();
+        let config = if config_file.exists() {
+            match fs::read_to_string(&config_file) {
+                Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
+                Err(_) => Config::default(),
+            }
+        } else {
+            Config::default()
+        };
+
         Self {
-            config: Arc::new(RwLock::new(Config::default())),
+            config: Arc::new(RwLock::new(config)),
+            config_file,
         }
     }
 
@@ -65,6 +78,21 @@ impl ScanSettings {
         }
     }
 
+    fn default_config_path() -> PathBuf {
+        std::env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("scan_settings.json")
+    }
+
+    fn save_config(&self) {
+        let config = self.config.read().unwrap();
+        if let Ok(json) = to_string_pretty(&*config) {
+            let _ = fs::write(&self.config_file, json);
+        }
+    }
+
     pub fn get_full_config(&self) -> &Arc<RwLock<Config>> {
         return &self.config;
     }
@@ -78,6 +106,7 @@ impl ScanSettings {
         value: i32,
     ) {
         self.config.write().unwrap().result_read_interval = value;
+        self.save_config();
     }
 
     pub fn get_table_read_interval(&self) -> i32 {
@@ -89,6 +118,7 @@ impl ScanSettings {
         value: i32,
     ) {
         self.config.write().unwrap().table_read_interval = value;
+        self.save_config();
     }
 
     pub fn get_freeze_interval(&self) -> i32 {
@@ -100,6 +130,7 @@ impl ScanSettings {
         value: i32,
     ) {
         self.config.write().unwrap().freeze_interval = value;
+        self.save_config();
     }
 
     pub fn get_alignment(&self) -> Option<MemoryAlignment> {
@@ -111,6 +142,7 @@ impl ScanSettings {
         value: Option<MemoryAlignment>,
     ) {
         self.config.write().unwrap().alignment = value;
+        self.save_config();
     }
 
     pub fn get_floating_point_tolerance(&self) -> FloatingPointTolerance {
@@ -122,5 +154,20 @@ impl ScanSettings {
         value: FloatingPointTolerance,
     ) {
         self.config.write().unwrap().floating_point_tolerance = value;
+        self.save_config();
+    }
+
+    pub fn update_config_field(
+        &self,
+        field: &str,
+        value: &str,
+    ) {
+        // Scope to drop write lock before saving.
+        {
+            let mut config = self.config.write().unwrap();
+            serialized_config_updater::update_config_field(&mut *config, field, value);
+        }
+
+        self.save_config();
     }
 }

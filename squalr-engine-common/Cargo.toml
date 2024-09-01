@@ -7,9 +7,11 @@ edition = "2021"
 
 [dependencies]
 futures = ">=0.3"
-uuid = { version = ">=1.9.1", features = ["v4"] }
-rayon = { version = ">=1.10.0" }
 hex = { version = ">=0.4.3" }
+rayon = { version = ">=1.10.0" }
+serde = { version = ">=1.0.0", features = ["derive"] }
+serde_json = ">=1.0.0"
+uuid = { version = ">=1.9.1", features = ["v4"] }
 
 [build-dependencies]
 

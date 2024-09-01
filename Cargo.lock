@@ -445,6 +445,8 @@ dependencies = [
  "futures",
  "hex",
  "rayon",
+ "serde",
+ "serde_json",
  "uuid",
 ]
 
