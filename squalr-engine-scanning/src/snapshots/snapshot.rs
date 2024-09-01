@@ -11,7 +11,7 @@ use std::mem::take;
 #[derive(Debug)]
 pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,
-    snapshot_scan_results: SnapshotScanResults,
+    scan_results: SnapshotScanResults,
 }
 
 /// Represents a snapshot of memory in an external process that contains current and previous values of memory pages.
@@ -23,7 +23,7 @@ impl Snapshot {
 
         Self {
             snapshot_regions,
-            snapshot_scan_results: SnapshotScanResults::new(),
+            scan_results: SnapshotScanResults::new(),
         }
     }
 
@@ -32,7 +32,7 @@ impl Snapshot {
         process_info: &ProcessInfo,
         scan_filter_parameters: Vec<ScanFilterParameters>,
     ) {
-        self.snapshot_scan_results
+        self.scan_results
             .set_scan_filter_parameters(scan_filter_parameters);
         self.create_initial_snapshot_regions(process_info);
         Logger::get_instance().log(LogLevel::Info, "New scan created.", None);
@@ -63,17 +63,20 @@ impl Snapshot {
             .sum();
     }
 
+    pub fn get_scan_results(&self) -> &SnapshotScanResults {
+        return &self.scan_results;
+    }
+
     pub fn get_scan_parameters_filters(&self) -> &Vec<ScanFilterParameters> {
-        return self.snapshot_scan_results.get_scan_parameters_filters();
+        return self.scan_results.get_scan_parameters_filters();
     }
 
     pub fn take_scan_parameters_filters(&mut self) -> Vec<ScanFilterParameters> {
-        return take(&mut self.snapshot_scan_results.take_scan_parameters_filters());
+        return take(&mut self.scan_results.take_scan_parameters_filters());
     }
 
-    pub fn update_scan_results(&mut self) {
-        self.snapshot_scan_results
-            .build_scan_results(&self.snapshot_regions);
+    pub fn build_scan_results(&mut self) {
+        self.scan_results.build_scan_results(&self.snapshot_regions);
     }
 
     pub fn create_initial_snapshot_regions(

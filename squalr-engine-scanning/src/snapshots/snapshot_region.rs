@@ -192,10 +192,6 @@ impl SnapshotRegion {
         return true;
     }
 
-    pub fn take_scan_results(&mut self) -> SnapshotRegionScanResults {
-        return std::mem::take(&mut self.scan_results);
-    }
-
     pub fn get_scan_results(&self) -> &SnapshotRegionScanResults {
         return &self.scan_results;
     }

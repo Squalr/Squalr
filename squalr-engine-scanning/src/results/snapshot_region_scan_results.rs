@@ -44,6 +44,17 @@ impl SnapshotRegionScanResults {
         }
     }
 
+    pub fn get_number_of_results(
+        &self,
+        data_type: &DataType,
+    ) -> u64 {
+        if let Some(scan_filter_map) = self.scan_result_lookup_tables.get(&data_type) {
+            return scan_filter_map.get_number_of_results();
+        }
+
+        return 0;
+    }
+
     pub fn get_scan_result(
         &self,
         index: u64,

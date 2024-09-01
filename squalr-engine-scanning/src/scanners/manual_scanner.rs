@@ -117,12 +117,21 @@ impl ManualScanner {
         });
 
         snapshot.discard_empty_regions();
-
-        let byte_count = snapshot.get_byte_count();
-        let duration = start_time.elapsed();
+        snapshot.build_scan_results();
 
         if with_logging {
+            let byte_count = snapshot.get_byte_count();
+            let duration = start_time.elapsed();
+
             Logger::get_instance().log(LogLevel::Info, &format!("Results: {} bytes", value_to_metric_size(byte_count)), None);
+
+            for scan_parameters_filter in scan_parameters_filters {
+                let data_type = scan_parameters_filter.get_data_type();
+                let element_count = snapshot.get_scan_results().get_number_of_results(data_type);
+
+                Logger::get_instance().log(LogLevel::Info, &format!("Results[{:?}]: {} elements", data_type, element_count), None);
+            }
+
             Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
         }
     }
