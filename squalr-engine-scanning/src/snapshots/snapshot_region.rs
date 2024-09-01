@@ -235,7 +235,7 @@ impl SnapshotRegion {
             self.page_boundaries
                 .retain(|&boundary| boundary >= new_base_address && boundary <= new_end_address);
 
-            self.build_scan_results();
+            self.scan_results.build_scan_results();
         } else {
             // No filters remaining! Set this regions size to 0 so that it can be cleaned up later.
             self.normalized_region.set_region_size(0);
@@ -251,9 +251,5 @@ impl SnapshotRegion {
 
         self.scan_results
             .create_initial_scan_results(base_address, region_size, scan_filter_parameters);
-    }
-
-    fn build_scan_results(&mut self) {
-        panic!("implement me");
     }
 }

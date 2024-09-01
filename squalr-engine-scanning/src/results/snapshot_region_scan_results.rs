@@ -2,10 +2,11 @@ use crate::results::scan_result::ScanResult;
 use crate::results::scan_results_index_map::ScanResultsIndexMap;
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
-use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::collections::HashMap;
 
+/// A custom type that defines a set of filters (scan results) discovered by scanners.
 /// While this looks silly, it is better to have a vector of vectors for parallelization.
 /// This is because when we scan a filter, it produces a list of filters. Combining these back into
 /// one giant list would cost too much scan time, so it's better to keep it as a list of lists.
@@ -17,14 +18,17 @@ pub struct SnapshotRegionScanResults {
     filters: HashMap<DataType, SnapshotFilterCollection>,
 }
 
-/// Fundamentally, we need to be able to quickly navigate to a specific page number and offset of scan results within a snapshot region.
-/// We need to avoid 'seeking' implementations that require repeatedly iterating over the entire scan, and for this we need to use interval trees.
+/// Scan results are stored by using interval trees to map into snapshot regions / snapshot filters.
 ///
-/// There are two steps of obtaining a scan result.
-/// 1) Map the scan result index to a particular snapshot region.
-/// 2) Map a local index (details later) to a particular scan result address within this region.
+/// This solves two problems:
+/// 1) We need to be able to quickly navigate to a specific page number and offset of scan results within a snapshot region.
+/// 2) We need to avoid 'seeking' implementations that require large CPU costs, as well as any data structure that has high storage requirements.
 ///
-/// Scan result collections are separated by data type for improved parallelism.
+/// We need to use two layers of interval trees to obtain a scan result:
+/// 1) An interval tree to map the scan result index to a particular snapshot region.
+/// 2) Offset this index to map into a particular scan result within this region.
+///
+/// Additionally, there are separate sets of scan results for each data type, as this helps substantially with parallalism in scans.
 impl SnapshotRegionScanResults {
     pub fn new() -> Self {
         Self {
@@ -43,15 +47,34 @@ impl SnapshotRegionScanResults {
     pub fn get_scan_result(
         &self,
         index: u64,
-        snapshot_regions: &Vec<SnapshotRegion>,
         data_type: &DataType,
+        memory_alignment: MemoryAlignment,
     ) -> Option<ScanResult> {
-        if let Some(scan_results_collection) = self.scan_result_lookup_tables.get(&data_type) {
-            if let Some(snapshot_region_index) = scan_results_collection.get_scan_result_range_map().get(&index) {
-                if *snapshot_region_index < snapshot_regions.len() as u64 {
-                    let snapshot_region = &snapshot_regions[*snapshot_region_index as usize];
+        // Select the set of results for the provided data type.
+        if let Some(scan_filter_map) = self.scan_result_lookup_tables.get(&data_type) {
+            // Select the list of filters for the given data type.
+            if let Some(filter) = self.filters.get(&data_type) {
+                // Get the index of the filter from the lookup table.
+                if let Some((filter_range, snapshot_filter_index)) = scan_filter_map
+                    .get_scan_result_range_map()
+                    .get_key_value(&index)
+                {
+                    // Because our filters are a vector of vectors, we have to iterate to index into the filter we want.
+                    let mut iter = filter
+                        .into_iter()
+                        .flatten()
+                        .skip(*snapshot_filter_index as usize);
 
-                    // snapshot_region.get_filters();
+                    // Get the filter to which the scan result is mapped.
+                    if let Some(filter) = iter.next() {
+                        // The index passed to this so far has only helped us identify the filter. We can use the mapping range
+                        // to determine which element specifically we are trying to fetch.
+                        let element_index = filter_range.end() - index;
+                        let scan_result_address = filter.get_base_address() + element_index * memory_alignment as u64;
+                        let scan_result = ScanResult::new(scan_result_address);
+
+                        return Some(scan_result);
+                    }
                 }
             }
         }
@@ -80,6 +103,29 @@ impl SnapshotRegionScanResults {
         filters: HashMap<DataType, SnapshotFilterCollection>,
     ) {
         self.filters = filters;
+    }
+
+    pub fn get_filters(&self) -> &HashMap<DataType, SnapshotFilterCollection> {
+        return &self.filters;
+    }
+
+    pub fn build_scan_results(&mut self) {
+        // Build the scan results for each data type being scanned.
+        for (_, (data_type, filters)) in self.filters.iter().enumerate() {
+            let mut scan_results_lookup_table = ScanResultsIndexMap::new();
+
+            // Iterate every snapshot region contained by the snapshot.
+            for (filter_index, filter) in filters.into_iter().flatten().enumerate() {
+                let current_number_of_results = scan_results_lookup_table.get_number_of_results();
+                let filter_size = filter.get_region_size();
+
+                // Simply map the result range onto a the index of a particular snapshot region.
+                scan_results_lookup_table.insert(current_number_of_results, filter_size, filter_index as u64);
+            }
+
+            self.scan_result_lookup_tables
+                .insert(data_type.clone(), scan_results_lookup_table);
+        }
     }
 
     /// Additionally, we resize this region to reduce wasted memory (ie data outside the min/max filter addresses).
@@ -123,40 +169,5 @@ impl SnapshotRegionScanResults {
         new_end_address = new_end_address.min(original_end_address);
 
         return Some((new_base_address, new_end_address));
-    }
-
-    pub fn get_filters(&self) -> &HashMap<DataType, SnapshotFilterCollection> {
-        return &self.filters;
-    }
-
-    pub fn build_scan_results(
-        &mut self,
-        snapshot_regions: &Vec<SnapshotRegion>,
-    ) {
-        /*
-        // Build the scan results for each data type being scanned.
-        for (_, scan_filter_parameters) in self.scan_filter_parameters.iter().enumerate() {
-            let data_type = scan_filter_parameters.get_data_type();
-
-            let scan_results_lookup_table = ScanResultsIndexMap::new();
-
-            // Iterate every snapshot region contained by the snapshot.
-            for (region_index, region) in snapshot_regions.iter().enumerate() {
-                if !region.get_filters().contains_key(data_type) {
-                    continue;
-                }
-
-                let filter_regions = region.get_filters().get(data_type).unwrap();
-                let number_of_filter_results = filter_regions.get_number_of_results();
-                let current_number_of_results = scan_results_lookup_table.get_number_of_results();
-
-                // Simply map the result range onto a the index of a particular snapshot region.
-                scan_results_lookup_table.insert(current_number_of_results, number_of_filter_results, region_index as u64);
-            }
-
-            self.scan_result_lookup_tables
-                .insert(*data_type, scan_results_lookup_table);
-
-        }*/
     }
 }

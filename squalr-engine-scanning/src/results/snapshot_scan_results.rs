@@ -3,6 +3,7 @@ use crate::results::scan_results_index_map::ScanResultsIndexMap;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::collections::HashMap;
 use std::mem::take;
 
@@ -33,13 +34,19 @@ impl SnapshotScanResults {
         index: u64,
         snapshot_regions: &Vec<SnapshotRegion>,
         data_type: &DataType,
+        memory_alignment: MemoryAlignment,
     ) -> Option<ScanResult> {
         if let Some(scan_results_collection) = self.scan_result_lookup_tables.get(&data_type) {
-            if let Some(snapshot_region_index) = scan_results_collection.get_scan_result_range_map().get(&index) {
+            if let Some((snapshot_region_range, snapshot_region_index)) = scan_results_collection
+                .get_scan_result_range_map()
+                .get_key_value(&index)
+            {
                 if *snapshot_region_index < snapshot_regions.len() as u64 {
                     let snapshot_region = &snapshot_regions[*snapshot_region_index as usize];
+                    let snapshot_region_scan_results = snapshot_region.get_scan_results();
+                    let snapshot_filter_index = snapshot_region_range.end() - index;
 
-                    // snapshot_region.get_filters();
+                    return snapshot_region_scan_results.get_scan_result(snapshot_filter_index, data_type, memory_alignment);
                 }
             }
         }
