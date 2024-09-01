@@ -1,7 +1,10 @@
+use serde::{Deserialize, Serialize};
+use serde_json::to_string_pretty;
 use std::fmt;
 use std::sync::Once;
 use std::sync::{Arc, RwLock};
 
+#[derive(Deserialize, Serialize)]
 pub struct Config {
     pub memory_type_none: bool,
     pub memory_type_private: bool,
@@ -23,22 +26,10 @@ impl fmt::Debug for Config {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        formatter
-            .debug_struct("memory_settings")
-            .field("memory_type_none", &self.memory_type_none)
-            .field("memory_type_private", &self.memory_type_private)
-            .field("memory_type_image", &self.memory_type_image)
-            .field("memory_type_mapped", &self.memory_type_mapped)
-            .field("required_write", &self.required_write)
-            .field("required_execute", &self.required_execute)
-            .field("required_copy_on_write", &self.required_copy_on_write)
-            .field("excluded_write", &self.excluded_write)
-            .field("excluded_execute", &self.excluded_execute)
-            .field("excluded_copy_on_write", &self.excluded_copy_on_write)
-            .field("start_address", &self.start_address)
-            .field("end_address", &self.end_address)
-            .field("only_scan_usermode", &self.only_scan_usermode)
-            .finish()
+        match to_string_pretty(&self) {
+            Ok(json) => write!(formatter, "Settings for memory: {}", json),
+            Err(_) => write!(formatter, "Memory config {{ could not serialize to JSON }}"),
+        }
     }
 }
 

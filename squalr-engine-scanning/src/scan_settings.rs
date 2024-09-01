@@ -1,10 +1,13 @@
 use crate::floating_point_tolerance::FloatingPointTolerance;
 
+use serde::{Deserialize, Serialize};
+use serde_json::to_string_pretty;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::fmt;
 use std::sync::Once;
 use std::sync::{Arc, RwLock};
 
+#[derive(Deserialize, Serialize)]
 pub struct Config {
     pub result_read_interval: i32,
     pub table_read_interval: i32,
@@ -18,14 +21,10 @@ impl fmt::Debug for Config {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        formatter
-            .debug_struct("scan_settings")
-            .field("result_read_interval", &self.result_read_interval)
-            .field("table_read_interval", &self.table_read_interval)
-            .field("freeze_interval", &self.freeze_interval)
-            .field("alignment", &self.alignment)
-            .field("floating_point_tolerance", &self.floating_point_tolerance)
-            .finish()
+        match to_string_pretty(&self) {
+            Ok(json) => write!(formatter, "Settings for scan: {}", json),
+            Err(_) => write!(formatter, "Scan config {{ could not serialize to JSON }}"),
+        }
     }
 }
 
