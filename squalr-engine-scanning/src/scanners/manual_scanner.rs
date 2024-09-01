@@ -92,7 +92,7 @@ impl ManualScanner {
                     let scan_dispatcher = ScanDispatcher::get_instance();
                     let scan_results;
 
-                    if snapshot_region_filters.get_filters().len() > 0 {
+                    if snapshot_region_filters.len() > 0 {
                         scan_results =
                             scan_dispatcher.dispatch_scan_parallel(snapshot_region, snapshot_region_filters, scan_parameters, &scan_filter_parameter);
                     } else {

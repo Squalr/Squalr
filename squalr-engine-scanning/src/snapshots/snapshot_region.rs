@@ -1,21 +1,19 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
+use crate::results::snapshot_region_filter::SnapshotRegionFilter;
+use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
-use crate::snapshots::snapshot_filter_collection::SnapshotFilterCollection;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
-use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct SnapshotRegion {
     normalized_region: NormalizedRegion,
     current_values: Vec<u8>,
     previous_values: Vec<u8>,
-    filters: HashMap<DataType, SnapshotFilterCollection>,
+    scan_result_lookup_table: SnapshotRegionScanResults,
     page_boundaries: Vec<u64>,
 }
 
@@ -28,7 +26,7 @@ impl SnapshotRegion {
             normalized_region: normalized_region,
             current_values: vec![],
             previous_values: vec![],
-            filters: HashMap::new(),
+            scan_result_lookup_table: SnapshotRegionScanResults::new(),
             page_boundaries: page_boundaries,
         }
     }
@@ -194,88 +192,15 @@ impl SnapshotRegion {
         return true;
     }
 
-    /// Creates the initial set of filters for the given set of scan filter parameters.
-    /// At first, these filters are equal in size to the entire snapshot region.
     pub fn create_initial_scan_results(
         &mut self,
         scan_filter_parameters: &Vec<ScanFilterParameters>,
     ) {
-        let base_address = self.get_base_address();
-        let region_size = self.get_region_size();
-
-        for scan_filter_parameter in scan_filter_parameters {
-            self.filters
-                .entry(scan_filter_parameter.get_data_type().clone())
-                .or_insert_with(|| SnapshotFilterCollection::new_from_single_filter(SnapshotRegionFilter::new(base_address, region_size)));
-        }
+        self.scan_result_lookup_table
+            .create_initial_scan_results(scan_filter_parameters);
     }
 
-    /// Updates the set of filters over this snapshot region. Filters are essentially scan results for a given data type.
-    /// Additionally, we resize this region to reduce wasted memory (ie data outside the min/max filter addresses).
-    pub fn set_all_filters(
-        &mut self,
-        filters: HashMap<DataType, SnapshotFilterCollection>,
-    ) {
-        self.filters = filters;
-
-        if self.filters.is_empty() {
-            self.normalized_region.set_region_size(0);
-            return;
-        }
-
-        let mut new_base_address = u64::MAX;
-        let mut new_end_address = 0u64;
-        let mut found_valid_filter = false;
-
-        for filter_collection in self.filters.values() {
-            for filter in filter_collection.get_filters().into_iter().flatten() {
-                let filter_base = filter.get_base_address();
-                let filter_end = filter.get_end_address();
-
-                if filter_base < new_base_address {
-                    new_base_address = filter_base;
-                }
-                if filter_end > new_end_address {
-                    new_end_address = filter_end;
-                }
-                found_valid_filter = true;
-            }
-        }
-
-        if !found_valid_filter {
-            self.normalized_region.set_region_size(0);
-            return;
-        }
-
-        let original_base_address = self.get_base_address();
-        let original_end_address = self.get_end_address();
-
-        new_base_address = new_base_address.max(original_base_address);
-        new_end_address = new_end_address.min(original_end_address);
-
-        let new_region_size = new_end_address - new_base_address;
-        self.normalized_region.set_base_address(new_base_address);
-        self.normalized_region.set_region_size(new_region_size);
-
-        let start_offset = (new_base_address - original_base_address) as usize;
-        let new_length = (new_end_address - new_base_address) as usize;
-
-        if !self.current_values.is_empty() {
-            self.current_values.drain(..start_offset);
-            self.current_values.truncate(new_length);
-        }
-
-        if !self.previous_values.is_empty() {
-            self.previous_values.drain(..start_offset);
-            self.previous_values.truncate(new_length);
-        }
-
-        // Remove any page boundaries outside of the resized region
-        self.page_boundaries
-            .retain(|&boundary| boundary >= new_base_address && boundary <= new_end_address);
-    }
-
-    pub fn get_filters(&self) -> &HashMap<DataType, SnapshotFilterCollection> {
-        return &self.filters;
+    fn build_scan_results(&mut self) {
+        panic!("implement me");
     }
 }

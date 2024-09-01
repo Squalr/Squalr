@@ -1,15 +1,16 @@
+use crate::results::snapshot_region_filter::SnapshotRegionFilter;
+use crate::results::snapshot_region_scan_results::SnapshotFilterCollection;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::scalar::scanner_scalar_iterative_byte_array::ScannerScalarIterativeByteArray;
 use crate::scanners::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
+use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::vector::scanner_vector_aligned::ScannerVectorAligned;
 use crate::scanners::vector::scanner_vector_aligned_chunked::ScannerVectorAlignedChunked;
 use crate::scanners::vector::scanner_vector_cascading::ScannerVectorCascading;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
-use crate::snapshots::snapshot_filter_collection::SnapshotFilterCollection;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use crate::{filters::snapshot_region_filter::SnapshotRegionFilter, scanners::snapshot_scanner::Scanner};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_common::values::data_type::DataType;
 use std::sync::Once;
@@ -82,7 +83,6 @@ impl ScanDispatcher {
         scan_filter_parameters: &ScanFilterParameters,
     ) -> SnapshotFilterCollection {
         let results = snapshot_region_filters
-            .get_filters()
             .iter()
             .flatten()
             .map(|snapshot_region_filter| {
@@ -92,7 +92,7 @@ impl ScanDispatcher {
             })
             .collect();
 
-        return SnapshotFilterCollection::new(results);
+        return results;
     }
 
     pub fn dispatch_scan_parallel(
@@ -103,7 +103,6 @@ impl ScanDispatcher {
         scan_filter_parameters: &ScanFilterParameters,
     ) -> SnapshotFilterCollection {
         let results = snapshot_region_filters
-            .get_filters()
             .par_iter()
             .flatten()
             .map(|snapshot_region_filter| {
@@ -113,7 +112,7 @@ impl ScanDispatcher {
             })
             .collect();
 
-        return SnapshotFilterCollection::new(results);
+        return results;
     }
 
     fn acquire_scanner_instance(

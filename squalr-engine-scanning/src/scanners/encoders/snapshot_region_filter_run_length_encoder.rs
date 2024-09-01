@@ -1,4 +1,4 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
+use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 
 pub struct SnapshotRegionFilterRunLengthEncoder {
     // Public so that this can be directly taken by callers

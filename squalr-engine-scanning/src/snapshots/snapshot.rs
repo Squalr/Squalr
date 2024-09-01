@@ -1,4 +1,4 @@
-use crate::results::scan_result_lookup_table::ScanResultLookupTable;
+use crate::results::snapshot_scan_results::SnapshotScanResults;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -11,7 +11,7 @@ use std::mem::take;
 #[derive(Debug)]
 pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,
-    scan_result_lookup_table: ScanResultLookupTable,
+    snapshot_scan_results: SnapshotScanResults,
 }
 
 /// Represents a snapshot of memory in an external process that contains current and previous values of memory pages.
@@ -23,7 +23,7 @@ impl Snapshot {
 
         Self {
             snapshot_regions,
-            scan_result_lookup_table: ScanResultLookupTable::new(256),
+            snapshot_scan_results: SnapshotScanResults::new(),
         }
     }
 
@@ -32,7 +32,7 @@ impl Snapshot {
         process_info: &ProcessInfo,
         scan_filter_parameters: Vec<ScanFilterParameters>,
     ) {
-        self.scan_result_lookup_table
+        self.snapshot_scan_results
             .set_scan_filter_parameters(scan_filter_parameters);
         self.create_initial_snapshot_regions(process_info);
         Logger::get_instance().log(LogLevel::Info, "New scan created.", None);
@@ -64,11 +64,16 @@ impl Snapshot {
     }
 
     pub fn get_scan_parameters_filters(&self) -> &Vec<ScanFilterParameters> {
-        return self.scan_result_lookup_table.get_scan_parameters_filters();
+        return self.snapshot_scan_results.get_scan_parameters_filters();
     }
 
     pub fn take_scan_parameters_filters(&mut self) -> Vec<ScanFilterParameters> {
-        return take(&mut self.scan_result_lookup_table.take_scan_parameters_filters());
+        return take(&mut self.snapshot_scan_results.take_scan_parameters_filters());
+    }
+
+    pub fn update_scan_results(&mut self) {
+        self.snapshot_scan_results
+            .build_scan_results(&self.snapshot_regions);
     }
 
     pub fn create_initial_snapshot_regions(

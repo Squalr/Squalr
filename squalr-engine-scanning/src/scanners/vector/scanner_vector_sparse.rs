@@ -1,4 +1,4 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
+use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::vector::scanner_vector_comparer::ScannerVectorComparer;
 use crate::scanners::encoders::vector::scanner_vector_encoder::ScannerVectorEncoder;
 use crate::scanners::encoders::vector::simd_type::SimdType;
