@@ -133,6 +133,7 @@ impl SnapshotRegionScanResults {
         &mut self,
         snapshot_regions: &Vec<SnapshotRegion>,
     ) {
+        /*
         // Build the scan results for each data type being scanned.
         for (_, scan_filter_parameters) in self.scan_filter_parameters.iter().enumerate() {
             let data_type = scan_filter_parameters.get_data_type();
@@ -155,6 +156,7 @@ impl SnapshotRegionScanResults {
 
             self.scan_result_lookup_tables
                 .insert(*data_type, scan_results_lookup_table);
-        }
+
+        }*/
     }
 }

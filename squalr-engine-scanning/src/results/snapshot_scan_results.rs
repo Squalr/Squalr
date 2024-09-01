@@ -83,6 +83,7 @@ impl SnapshotScanResults {
                     continue;
                 }
 
+                /*
                 let filter_regions = snapshot_region_scan_results
                     .get_filters()
                     .get(data_type)
@@ -91,11 +92,11 @@ impl SnapshotScanResults {
                 let current_number_of_results = scan_results_lookup_table.get_number_of_results();
 
                 // Simply map the result range onto a the index of a particular snapshot region.
-                scan_results_lookup_table.insert(current_number_of_results, number_of_filter_results, region_index as u64);
+                scan_results_lookup_table.insert(current_number_of_results, number_of_filter_results, region_index as u64); */
             }
 
             self.scan_result_lookup_tables
-                .insert(*data_type, scan_results_lookup_table);
+                .insert(data_type.clone(), scan_results_lookup_table);
         }
     }
 }
