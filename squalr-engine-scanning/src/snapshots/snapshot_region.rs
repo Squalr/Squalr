@@ -80,7 +80,7 @@ impl SnapshotRegion {
         process_handle: u64,
     ) -> Result<(), String> {
         let region_size = self.get_region_size() as usize;
-        let chunk_size = 2 << 23; // 16MB seems to be the optimal value for my CPU
+        let chunk_size = 1024 * 1024 * 16; // 16MB
 
         if region_size <= chunk_size {
             return self.read_all_memory(process_handle);

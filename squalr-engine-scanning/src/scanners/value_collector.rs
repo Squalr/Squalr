@@ -65,43 +65,41 @@ impl ValueCollector {
         let total_region_count = snapshot.get_region_count();
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
+        let snapshot_regions = snapshot.get_snapshot_regions_for_update();
 
-        snapshot
-            .get_snapshot_regions_for_update()
-            .par_iter_mut()
-            .for_each(|snapshot_region| {
-                if cancellation_token.load(Ordering::SeqCst) {
-                    return;
-                }
+        snapshot_regions.iter_mut().for_each(|snapshot_region| {
+            if cancellation_token.load(Ordering::SeqCst) {
+                return;
+            }
 
-                let region_scan_results_map = snapshot_region.get_region_scan_results();
+            // Attempt to read new (or initial) memory values. Ignore failures, as these are generally just deallocated pages.
+            let _ = snapshot_region.read_all_memory(process_info.handle);
 
-                // Create the initial scan results for this data type if none exist.
-                data_types_and_alignments
-                    .par_iter()
-                    .for_each(|(data_type, memory_alignment)| {
-                        if !region_scan_results_map.contains_key(&data_type) {
-                            let initial_scan_results = vec![vec![SnapshotRegionFilter::new(
-                                snapshot_region.get_base_address(),
-                                snapshot_region.get_region_size(),
-                            )]];
-                            region_scan_results_map.insert(
-                                data_type.clone(),
-                                SnapshotRegionScanResults::new_from_filters(initial_scan_results, data_type, *memory_alignment),
-                            );
-                        }
-                    });
+            let region_scan_results_map = snapshot_region.get_region_scan_results();
 
-                // Attempt to read new (or initial) memory values. Ignore failures, as these are generally just deallocated pages.
-                let _ = snapshot_region.read_all_memory(process_info.handle);
+            // Create the initial scan results for this data type if none exist.
+            data_types_and_alignments
+                .iter()
+                .for_each(|(data_type, memory_alignment)| {
+                    if !region_scan_results_map.contains_key(&data_type) {
+                        let initial_scan_results = vec![vec![SnapshotRegionFilter::new(
+                            snapshot_region.get_base_address(),
+                            snapshot_region.get_region_size(),
+                        )]];
+                        region_scan_results_map.insert(
+                            data_type.clone(),
+                            SnapshotRegionScanResults::new_from_filters(initial_scan_results, data_type, *memory_alignment),
+                        );
+                    }
+                });
 
-                // Report progress periodically (not every time for performance)
-                let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
-                if processed % 32 == 0 {
-                    let progress = (processed as f32 / total_region_count as f32) * 100.0;
-                    task.set_progress(progress);
-                }
-            });
+            // Report progress periodically (not every time for performance)
+            let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
+            if processed % 32 == 0 {
+                let progress = (processed as f32 / total_region_count as f32) * 100.0;
+                task.set_progress(progress);
+            }
+        });
 
         snapshot.discard_empty_regions();
         snapshot.build_scan_results();

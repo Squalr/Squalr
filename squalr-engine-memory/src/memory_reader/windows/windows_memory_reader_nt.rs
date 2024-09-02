@@ -46,23 +46,14 @@ impl IMemoryReader for WindowsMemoryReaderNt {
         address: u64,
         dynamic_struct: &mut DynamicStruct,
     ) -> bool {
-        unsafe {
-            let size = dynamic_struct.get_size_in_bytes() as usize;
-            let mut buffer = vec![0u8; size];
-            let mut bytes_read = 0;
+        let mut buffer = vec![0u8; dynamic_struct.get_size_in_bytes() as usize];
 
-            let result = (self.nt_read_virtual_memory)(
-                process_handle as isize,
-                address as *const c_void,
-                buffer.as_mut_ptr() as *mut c_void,
-                size,
-                &mut bytes_read,
-            );
-
+        let success = self.read_bytes(process_handle, address, &mut buffer);
+        if success {
             dynamic_struct.copy_from_bytes(&buffer);
-
-            return result != 0;
         }
+
+        return success;
     }
 
     fn read_bytes(

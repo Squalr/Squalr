@@ -14,7 +14,8 @@ use windows_sys::Win32::System::Memory::{
     VirtualQueryEx, MEMORY_BASIC_INFORMATION64, PAGE_EXECUTE, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE, PAGE_EXECUTE_WRITECOPY, PAGE_READWRITE, PAGE_WRITECOPY,
 };
 use windows_sys::Win32::System::ProcessStatus::{K32EnumProcessModulesEx, K32GetModuleFileNameExA, K32GetModuleInformation, LIST_MODULES_ALL, MODULEINFO};
-use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
+use windows_sys::Win32::System::Threading::OpenProcess;
+use windows_sys::Win32::System::Threading::PROCESS_ALL_ACCESS;
 
 pub struct WindowsMemoryQueryer;
 
@@ -27,7 +28,7 @@ impl WindowsMemoryQueryer {
         &self,
         process_info: &ProcessInfo,
     ) -> HANDLE {
-        unsafe { OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, process_info.pid.as_u32()) }
+        unsafe { OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.pid.as_u32()) }
     }
 
     fn get_protection_flags(
