@@ -19,11 +19,12 @@ pub struct WindowsMemoryReaderNt {
 }
 
 impl WindowsMemoryReaderNt {
-    #[allow(unused)] // Disable unused compile warning for now
+    // Disable unused compile warning since we ofen swich implementations for testing.
+    #[allow(unused)]
     pub fn new() -> Self {
         unsafe {
             let ntdll = GetModuleHandleA("ntdll.dll\0".as_ptr() as *const u8);
-            if ntdll == 0 {
+            if ntdll == std::ptr::null_mut() {
                 panic!("Failed to load ntdll.dll: {}", GetLastError());
             }
 

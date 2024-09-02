@@ -67,7 +67,7 @@ impl ValueCollector {
         let processed_region_count = Arc::new(AtomicUsize::new(0));
         let snapshot_regions = snapshot.get_snapshot_regions_for_update();
 
-        snapshot_regions.iter_mut().for_each(|snapshot_region| {
+        snapshot_regions.par_iter_mut().for_each(|snapshot_region| {
             if cancellation_token.load(Ordering::SeqCst) {
                 return;
             }
@@ -79,7 +79,7 @@ impl ValueCollector {
 
             // Create the initial scan results for this data type if none exist.
             data_types_and_alignments
-                .iter()
+                .par_iter()
                 .for_each(|(data_type, memory_alignment)| {
                     if !region_scan_results_map.contains_key(&data_type) {
                         let initial_scan_results = vec![vec![SnapshotRegionFilter::new(

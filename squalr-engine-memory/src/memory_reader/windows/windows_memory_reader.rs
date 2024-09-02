@@ -6,7 +6,8 @@ use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 pub struct WindowsMemoryReader;
 
 impl WindowsMemoryReader {
-    #[allow(unused)] // Disable unused compile warning for now
+    // Disable unused compile warning since we ofen swich implementations for testing.
+    #[allow(unused)]
     pub fn new() -> Self {
         WindowsMemoryReader
     }
@@ -25,7 +26,7 @@ impl IMemoryReader for WindowsMemoryReader {
             let mut bytes_read = 0;
 
             let result = ReadProcessMemory(
-                process_handle as isize,
+                process_handle as *mut c_void,
                 address as *const c_void,
                 buffer.as_mut_ptr() as *mut c_void,
                 size,
@@ -49,7 +50,7 @@ impl IMemoryReader for WindowsMemoryReader {
             let mut bytes_read = 0;
 
             let result = ReadProcessMemory(
-                process_handle as isize,
+                process_handle as *mut c_void,
                 address as *const c_void,
                 values.as_mut_ptr() as *mut c_void,
                 size,
