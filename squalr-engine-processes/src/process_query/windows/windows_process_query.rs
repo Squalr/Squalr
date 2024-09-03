@@ -119,7 +119,7 @@ impl IProcessQueryer for WindowsProcessQuery {
             unsafe {
                 let process_name = CString::new(process_name).expect("CString::new failed");
                 let handle = FindWindowA(std::ptr::null(), process_name.as_ptr() as *const u8);
-                if handle == 0 {
+                if handle == std::ptr::null_mut() {
                     return false;
                 }
                 let mut pid = 0;
@@ -138,8 +138,8 @@ impl IProcessQueryer for WindowsProcessQuery {
         if let Some(process_name) = self.get_process_name(*process_id) {
             unsafe {
                 let process_name = CString::new(process_name).expect("CString::new failed");
-                let hicon: HICON = ExtractIconA(0, process_name.as_ptr() as *const u8, 0);
-                if hicon == 0 {
+                let hicon: HICON = ExtractIconA(std::ptr::null_mut(), process_name.as_ptr() as *const u8, 0);
+                if hicon == std::ptr::null_mut() {
                     return None;
                 }
                 let mut icon_info: ICONINFO = std::mem::zeroed();
@@ -159,7 +159,7 @@ impl IProcessQueryer for WindowsProcessQuery {
     ) -> Result<ProcessInfo, String> {
         unsafe {
             let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_id.as_u32());
-            if handle == 0 {
+            if handle == std::ptr::null_mut() {
                 return Err("Failed to open process".to_string());
             } else {
                 let bitness = self.get_process_bitness(handle);

@@ -44,6 +44,8 @@ impl SnapshotRegion {
         &mut self,
         process_handle: u64,
     ) -> Result<(), String> {
+        self.resize_to_filters();
+
         let region_size = self.get_region_size() as usize;
 
         std::mem::swap(&mut self.current_values, &mut self.previous_values);
@@ -79,6 +81,8 @@ impl SnapshotRegion {
         &mut self,
         process_handle: u64,
     ) -> Result<(), String> {
+        self.resize_to_filters();
+
         let region_size = self.get_region_size() as usize;
         let chunk_size = 1024 * 1024 * 4; // 4MB
 

@@ -1,0 +1,34 @@
+
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+export component TitleBar inherits Rectangle {
+    in property <[string]> model: [];
+    in property <string> title <=> label.text;
+    height: 64px;
+    accessible-role: tab;
+    Rectangle {
+        background: Palette.background.darker(0.2);
+    }
+
+    HorizontalBox {
+        padding-left: 0px;
+        padding-right: 0px;
+        alignment: start;
+        label := Text {
+            font-size: 16px;
+            vertical-alignment: center;
+        }
+
+        navigation := HorizontalLayout {
+            alignment: start;
+            vertical-stretch: 0;
+        }
+
+        HorizontalLayout {
+            left := HorizontalBox {
+                padding-top: 0px;
+                padding-bottom: 0px;
+                @children
+            }
+        }
+    }
+}

@@ -211,6 +211,43 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'squalr'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=squalr",
+                    "--package=squalr"
+                ],
+                "filter": {
+                    "name": "squalr",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'squalr'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=squalr",
+                    "--package=squalr"
+                ],
+                "filter": {
+                    "name": "squalr",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
         }
     ]
 }
