@@ -1,34 +1,137 @@
+import { HorizontalBox, VerticalBox, Palette, Button } from "std-widgets.slint";
+import {Theme} from "theme.slint";
 
-import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 export component TitleBar inherits Rectangle {
     in property <[string]> model: [];
-    in property <string> title <=> label.text;
+    in property <string> title <=> title.text;
+    callback close();
+    callback maximize();
+    callback minimize();
+    callback move();
+    callback menu-toggled();
     height: 64px;
     accessible-role: tab;
     Rectangle {
         background: Palette.background.darker(0.2);
     }
 
-    HorizontalBox {
-        padding-left: 0px;
-        padding-right: 0px;
-        alignment: start;
-        label := Text {
-            font-size: 16px;
-            vertical-alignment: center;
-        }
+    VerticalLayout {
+        padding: 0;
+        // Title Bar
+        Rectangle {
+            height: 38px;
+            background: Theme.background;
+            HorizontalLayout {
+                padding-right: 8px;
+                padding-left: 8px;
+                Image {
+                    horizontal-alignment: left;
+                    source: @image-url("../images/app/app_icon.png");
+                    animate colorize {
+                        duration: 250ms;
+                        easing: ease-in-out;
+                    }
+                    states [
+                        hvr when minBtn-ta.has-hover: {
+                            colorize: Theme.accent;
+                        }
+                        nthvr when !minBtn-ta.has-hover: {
+                            colorize: Theme.background-lightest;
+                        }
+                    ]
+                }
 
-        navigation := HorizontalLayout {
-            alignment: start;
-            vertical-stretch: 0;
-        }
+                title := Text {
+                    padding-left: 8px;
+                    font-size: 13pt;
+                    color: Theme.short-round;
+                    vertical-alignment: center;
+                    horizontal-alignment: left;
+                    TouchArea {
+                        moved => {
+                            if (self.pressed && self.enabled) {
+                                root.move();
+                            }
+                        }
+                    }
+                }
 
-        HorizontalLayout {
-            left := HorizontalBox {
-                padding-top: 0px;
-                padding-bottom: 0px;
-                @children
+                Rectangle {
+                    y: parent.height / 2 - self.height / 2;
+                    width: parent.height * 0.75;
+                    height: parent.height * 0.75;
+                    minBtn-ta := TouchArea {
+                        clicked => {
+                            root.minimize()
+                        }
+                    }
+
+                    Image {
+                        source: @image-url("../images/app/minimize.png");
+                        animate colorize {
+                            duration: 250ms;
+                            easing: ease-in-out;
+                        }
+                        states [
+                            hvr when minBtn-ta.has-hover: {
+                                colorize: Theme.accent;
+                            }
+                            nthvr when !minBtn-ta.has-hover: {
+                                colorize: Theme.background-lightest;
+                            }
+                        ]
+                    }
+                }
+
+                Rectangle {
+                    y: parent.height / 2 - self.height / 2;
+                    width: parent.height * 0.75;
+                    height: parent.height * 0.75;
+                    maxBtn-ta := TouchArea {
+                        clicked => {
+                            root.maximize()
+                        }
+                    }
+
+                    Image {
+                        source: @image-url("../images/app/maximize.png");
+                        animate colorize {
+                            duration: 250ms;
+                            easing: ease-in-out;
+                        }
+                        states [
+                            hvr when minBtn-ta.has-hover: {
+                                colorize: Theme.accent;
+                            }
+                            nthvr when !minBtn-ta.has-hover: {
+                                colorize: Theme.background-lightest;
+                            }
+                        ]
+                    }
+                }
+
+                Rectangle {
+                    y: parent.height / 2 - self.height / 2;
+                    width: parent.height * 0.75;
+                    height: parent.height * 0.75;
+                    closeBtn-ta := TouchArea {
+                        clicked => {
+                            root.close()
+                        }
+                    }
+
+                    Image {
+                        source: @image-url("../images/app/close.png");
+                        colorize: closeBtn-ta.has-hover ? closeBtn-ta.pressed ? Theme.background-light : Theme.focus-round : Theme.background-lightest;
+                        animate colorize { duration: 250ms; }
+                    }
+                }
             }
+        }
+
+        Rectangle {
+            background: Theme.background;
+            @children
         }
     }
 }
