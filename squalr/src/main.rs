@@ -3,8 +3,8 @@ pub mod cli_log_listener;
 pub mod mvc;
 pub mod ui;
 
+use crate::ui::main_window_view::MainWindowView;
 use cli_log_listener::CliLogListener;
-use slint::ComponentHandle;
 use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -33,28 +33,7 @@ pub fn main() {
         None,
     );
 
-    let main_window = init();
+    let main_window = MainWindowView::new();
 
-    main_window.run().unwrap();
-}
-
-fn init() -> ui::MainWindow {
-    let view_handle = ui::MainWindow::new().unwrap();
-
-    // TODO
-    // view_handle.window().set_minimized(true);
-
-    let title_bar_controller = mvc::TitleBarController::new();
-    ui::title_bar_adapter::connect(&view_handle, title_bar_controller.clone());
-
-    let task_list_controller = mvc::TaskListController::new(mvc::task_repo());
-    ui::task_list_adapter::connect(&view_handle, task_list_controller.clone());
-    ui::navigation_adapter::connect_task_list_controller(&view_handle, task_list_controller.clone());
-
-    let create_task_controller = mvc::CreateTaskController::new(mvc::date_time_repo());
-    ui::create_task_adapter::connect(&view_handle, create_task_controller.clone());
-    ui::navigation_adapter::connect_create_task_controller(&view_handle, create_task_controller);
-    ui::create_task_adapter::connect_task_list_controller(&view_handle, task_list_controller);
-
-    return view_handle;
+    main_window.run();
 }

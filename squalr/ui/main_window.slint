@@ -24,7 +24,8 @@ export global NavigationAdapter {
 export component MainWindow inherits Window {
     preferred-width: 1280px;
     preferred-height: 640px;
-    title: "Squalr";
+    no-frame: true;
+    title: @tr("Squalr");
     VerticalLayout {
         title-bar := TitleBarView {
             title: @tr("Squalr");

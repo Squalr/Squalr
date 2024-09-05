@@ -1,42 +1,41 @@
+use crate::ui;
 use slint::*;
+use std::sync::Arc;
 
-use crate::{mvc::TitleBarController, ui};
-
-// a helper function to make adapter and controller connection a little bit easier
-fn connect_with_controller(
-    view_handle: &ui::MainWindow,
-    controller: &TitleBarController,
-    connect_adapter_controller: impl FnOnce(ui::TitleBarAdapter, TitleBarController) + 'static,
-) {
-    connect_adapter_controller(view_handle.global::<ui::TitleBarAdapter>(), controller.clone());
+pub struct TitleBarView {
+    view_handle: Arc<ui::MainWindow>,
 }
 
-// one place to implement connection between adapter (view) and controller
-pub fn connect(
-    view_handle: &ui::MainWindow,
-    controller: TitleBarController,
-) {
-    connect_with_controller(view_handle, &controller, {
-        move |adapter, controller| {
-            adapter.on_minimize(move || {
-                controller.minimize();
-            })
-        }
-    });
+/// Wraps the slint main window to internally manage and track the view handle for later use, as well as setting up
+/// view code bindings to the corresponding slint UI.
+impl TitleBarView {
+    pub fn new(view_handle: Arc<ui::MainWindow>) -> Self {
+        let view = TitleBarView {
+            view_handle: view_handle.clone(),
+        };
 
-    connect_with_controller(view_handle, &controller, {
-        move |adapter, controller| {
-            adapter.on_maximize(move || {
-                controller.maximize();
-            })
-        }
-    });
+        view.bind_view_to_ui();
 
-    connect_with_controller(view_handle, &controller, {
-        move |adapter, controller| {
-            adapter.on_close(move || {
-                controller.close();
-            })
-        }
-    });
+        return view;
+    }
+
+    fn bind_view_to_ui(&self) {
+        let title_bar_adapter = self.view_handle.global::<ui::TitleBarAdapter>();
+
+        let view_handle = self.view_handle.clone();
+        title_bar_adapter.on_minimize(move || {
+            view_handle.window().set_minimized(true);
+        });
+
+        let view_handle = self.view_handle.clone();
+        title_bar_adapter.on_maximize(move || {
+            view_handle
+                .window()
+                .set_maximized(!view_handle.window().is_maximized());
+        });
+
+        title_bar_adapter.on_close(move || {
+            let _ = slint::quit_event_loop();
+        });
+    }
 }

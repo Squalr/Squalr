@@ -9,7 +9,7 @@ pub struct Logger {
 }
 
 impl Logger {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Logger {
             observers: Arc::new(Mutex::new(HashSet::new())),
         }
