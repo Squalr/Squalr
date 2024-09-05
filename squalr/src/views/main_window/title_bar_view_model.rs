@@ -1,5 +1,5 @@
+use crate::views::view_model::ViewModel;
 use crate::MainWindowView;
-use crate::PanelWindowViewModel;
 use crate::TitleBarAdapter;
 use slint::ComponentHandle;
 use std::sync::Arc;
@@ -16,12 +16,14 @@ impl TitleBarViewModel {
             view_handle: view_handle.clone(),
         };
 
-        view.bind_view_to_ui();
+        view.create_bindings();
 
         return view;
     }
+}
 
-    fn bind_view_to_ui(&self) {
+impl ViewModel for TitleBarViewModel {
+    fn create_bindings(&self) {
         let title_bar_adapter = self.view_handle.global::<TitleBarAdapter>();
 
         let view_handle = self.view_handle.clone();
@@ -37,11 +39,20 @@ impl TitleBarViewModel {
         });
 
         title_bar_adapter.on_close(move || {
+            /*
             let _ = slint::invoke_from_event_loop(|| {
                 PanelWindowViewModel::new().show();
-            });
+            }); */
 
-            // let _ = slint::quit_event_loop();
+            let _ = slint::quit_event_loop();
+        });
+
+        let view_handle = self.view_handle.clone();
+        title_bar_adapter.on_drag(move |delta_x, delta_y| {
+            let mut position = view_handle.window().position();
+            position.x = position.x + delta_x;
+            position.y = position.y + delta_y;
+            view_handle.window().set_position(position);
         });
     }
 }

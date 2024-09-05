@@ -1,6 +1,9 @@
 import { TitleBarView, TitleBarAdapter } from "./title_bar_view.slint";
 export { TitleBarAdapter }
 
+import { DockRoot } from "./docking/dock_root.slint";
+export { DockRoot }
+
 import { PanelWindowView, PanelWindowAdapter } from "./docking/panel_window_view.slint";
 export { PanelWindowView, PanelWindowAdapter }
 
@@ -13,5 +16,7 @@ export component MainWindowView inherits Window {
         title-bar := TitleBarView {
             title: @tr("Squalr");
         }
+
+        dock-root := DockRoot { }
     }
 }

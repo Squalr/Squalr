@@ -6,133 +6,125 @@ export global TitleBarAdapter {
     callback close();
     callback maximize();
     callback minimize();
-    callback drag();
+    callback drag(int, int);
 }
 
 export component TitleBarView inherits Rectangle {
     in property <[string]> model: [];
     in property <string> title <=> title.text;
-    height: 64px;
+    height: 32px;
     accessible-role: tab;
     Rectangle {
-        background: Palette.background.darker(0.2);
-    }
-
-    VerticalLayout {
-        padding: 0;
-        // Title Bar
-        Rectangle {
-            height: 38px;
-            background: Theme.background;
-            HorizontalLayout {
-                padding-right: 8px;
-                padding-left: 8px;
-                Image {
-                    horizontal-alignment: left;
-                    source: @image-url("../images/app/app_icon.png");
-                }
-
-                title := Text {
-                    padding-left: 8px;
-                    font-size: 13pt;
-                    color: Theme.short-round;
-                    vertical-alignment: center;
-                    horizontal-alignment: left;
-                    TouchArea {
-                        moved => {
-                            if (self.pressed && self.enabled) {
-                                TitleBarAdapter.drag();
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    y: parent.height / 2 - self.height / 2;
-                    width: parent.height * 0.75;
-                    height: parent.height * 0.75;
-                    minBtn-ta := TouchArea {
-                        clicked => {
-                            TitleBarAdapter.minimize()
-                        }
-                    }
-
-                    Image {
-                        source: @image-url("../images/app/minimize.png");
-                        animate colorize {
-                            duration: 50ms;
-                            easing: ease-in-out;
-                        }
-                        states [
-                            hvr when minBtn-ta.has-hover: {
-                                colorize: Theme.accent;
-                            }
-                            nthvr when !minBtn-ta.has-hover: {
-                                colorize: Theme.background-lightest;
-                            }
-                        ]
-                    }
-                }
-
-                Rectangle {
-                    y: parent.height / 2 - self.height / 2;
-                    width: parent.height * 0.75;
-                    height: parent.height * 0.75;
-                    maxBtn-ta := TouchArea {
-                        clicked => {
-                            TitleBarAdapter.maximize()
-                        }
-                    }
-
-                    Image {
-                        source: @image-url("../images/app/maximize.png");
-                        animate colorize {
-                            duration: 50ms;
-                            easing: ease-in-out;
-                        }
-                        states [
-                            hvr when maxBtn-ta.has-hover: {
-                                colorize: Theme.accent;
-                            }
-                            nthvr when !maxBtn-ta.has-hover: {
-                                colorize: Theme.background-lightest;
-                            }
-                        ]
-                    }
-                }
-
-                Rectangle {
-                    y: parent.height / 2 - self.height / 2;
-                    width: parent.height * 0.75;
-                    height: parent.height * 0.75;
-                    closeBtn-ta := TouchArea {
-                        clicked => {
-                            TitleBarAdapter.close()
-                        }
-                    }
-
-                    Image {
-                        source: @image-url("../images/app/close.png");
-                        animate colorize {
-                            duration: 50ms;
-                            easing: ease-in-out;
-                        }
-                        states [
-                            hvr when closeBtn-ta.has-hover: {
-                                colorize: Theme.accent;
-                            }
-                            nthvr when !closeBtn-ta.has-hover: {
-                                colorize: Theme.background-lightest;
-                            }
-                        ]
-                    }
+        background: Theme.background;
+        title-drag := TouchArea {
+            moved => {
+                if (self.pressed && self.enabled) {
+                    TitleBarAdapter.drag((title-drag.mouse-x - title-drag.pressed-x) / 1px, (title-drag.mouse-y - title-drag.pressed-y) / 1px);
                 }
             }
         }
 
-        Rectangle {
-            background: Theme.background;
-            @children
+        HorizontalLayout {
+            app_icon := Image {
+                y: parent.height / 2 - self.height / 2;
+                padding-left: 8px;
+                width: 24px;
+                height: 24px;
+                horizontal-alignment: left;
+                vertical-alignment: center;
+                source: @image-url("../images/app/app_icon.png");
+            }
+
+            title := Text {
+                y: parent.height / 2 - self.height / 2;
+                padding-left: 8px;
+                font-size: 13pt;
+                color: Theme.foreground;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+            }
+
+            minimize-button := Rectangle {
+                y: parent.height / 2 - self.height / 2;
+                width: 24px;
+                height: 24px;
+                minBtn-ta := TouchArea {
+                    clicked => {
+                        TitleBarAdapter.minimize()
+                    }
+                }
+
+                Image {
+                    source: @image-url("../images/app/minimize.png");
+                    animate colorize {
+                        duration: 50ms;
+                        easing: ease-in-out;
+                    }
+                    states [
+                        hvr when minBtn-ta.has-hover: {
+                            colorize: Theme.accent;
+                        }
+                        nthvr when !minBtn-ta.has-hover: {
+                            colorize: Theme.background-lightest;
+                        }
+                    ]
+                }
+            }
+
+            maximize-button := Rectangle {
+                y: parent.height / 2 - self.height / 2;
+                width: 24px;
+                height: 24px;
+                maxBtn-ta := TouchArea {
+                    clicked => {
+                        TitleBarAdapter.maximize()
+                    }
+                }
+
+                Image {
+                    source: @image-url("../images/app/maximize.png");
+                    animate colorize {
+                        duration: 50ms;
+                        easing: ease-in-out;
+                    }
+                    states [
+                        hvr when maxBtn-ta.has-hover: {
+                            colorize: Theme.accent;
+                        }
+                        nthvr when !maxBtn-ta.has-hover: {
+                            colorize: Theme.background-lightest;
+                        }
+                    ]
+                }
+            }
+
+            close-button := Rectangle {
+                y: parent.height / 2 - self.height / 2;
+                width: 24px;
+                height: 24px;
+                padding-right: 8px;
+                closeBtn-ta := TouchArea {
+                    clicked => {
+                        TitleBarAdapter.close()
+                    }
+                }
+
+                Image {
+                    source: @image-url("../images/app/close.png");
+                    animate colorize {
+                        duration: 50ms;
+                        easing: ease-in-out;
+                    }
+                    states [
+                        hvr when closeBtn-ta.has-hover: {
+                            colorize: Theme.accent;
+                        }
+                        nthvr when !closeBtn-ta.has-hover: {
+                            colorize: Theme.background-lightest;
+                        }
+                    ]
+                }
+            }
         }
     }
 }

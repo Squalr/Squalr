@@ -1,0 +1,13 @@
+
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+
+component DockRoot inherits Rectangle {
+    in property <bool> selected;
+    in property <bool> has-focus;
+}
+
+export component DockRoot inherits Rectangle {
+    Rectangle {
+        background: Palette.background.darker(0.2);
+    }
+}
