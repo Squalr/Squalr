@@ -41,6 +41,12 @@ pub fn main() {
 fn init() -> ui::MainWindow {
     let view_handle = ui::MainWindow::new().unwrap();
 
+    // TODO
+    // view_handle.window().set_minimized(true);
+
+    let title_bar_controller = mvc::TitleBarController::new();
+    ui::title_bar_adapter::connect(&view_handle, title_bar_controller.clone());
+
     let task_list_controller = mvc::TaskListController::new(mvc::task_repo());
     ui::task_list_adapter::connect(&view_handle, task_list_controller.clone());
     ui::navigation_adapter::connect_task_list_controller(&view_handle, task_list_controller.clone());
@@ -50,5 +56,5 @@ fn init() -> ui::MainWindow {
     ui::navigation_adapter::connect_create_task_controller(&view_handle, create_task_controller);
     ui::create_task_adapter::connect_task_list_controller(&view_handle, task_list_controller);
 
-    view_handle
+    return view_handle;
 }

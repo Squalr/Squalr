@@ -1,14 +1,17 @@
 import { HorizontalBox, VerticalBox, Palette, Button } from "std-widgets.slint";
-import {Theme} from "theme.slint";
+import {Theme} from "../theme.slint";
 
-export component TitleBar inherits Rectangle {
-    in property <[string]> model: [];
-    in property <string> title <=> title.text;
+
+export global TitleBarAdapter {
     callback close();
     callback maximize();
     callback minimize();
+}
+
+export component TitleBarView inherits Rectangle {
+    in property <[string]> model: [];
+    in property <string> title <=> title.text;
     callback move();
-    callback menu-toggled();
     height: 64px;
     accessible-role: tab;
     Rectangle {
@@ -27,18 +30,6 @@ export component TitleBar inherits Rectangle {
                 Image {
                     horizontal-alignment: left;
                     source: @image-url("../images/app/app_icon.png");
-                    animate colorize {
-                        duration: 250ms;
-                        easing: ease-in-out;
-                    }
-                    states [
-                        hvr when minBtn-ta.has-hover: {
-                            colorize: Theme.accent;
-                        }
-                        nthvr when !minBtn-ta.has-hover: {
-                            colorize: Theme.background-lightest;
-                        }
-                    ]
                 }
 
                 title := Text {
@@ -62,7 +53,7 @@ export component TitleBar inherits Rectangle {
                     height: parent.height * 0.75;
                     minBtn-ta := TouchArea {
                         clicked => {
-                            root.minimize()
+                            TitleBarAdapter.minimize()
                         }
                     }
 
@@ -89,7 +80,7 @@ export component TitleBar inherits Rectangle {
                     height: parent.height * 0.75;
                     maxBtn-ta := TouchArea {
                         clicked => {
-                            root.maximize()
+                            TitleBarAdapter.maximize()
                         }
                     }
 
@@ -100,10 +91,10 @@ export component TitleBar inherits Rectangle {
                             easing: ease-in-out;
                         }
                         states [
-                            hvr when minBtn-ta.has-hover: {
+                            hvr when maxBtn-ta.has-hover: {
                                 colorize: Theme.accent;
                             }
-                            nthvr when !minBtn-ta.has-hover: {
+                            nthvr when !maxBtn-ta.has-hover: {
                                 colorize: Theme.background-lightest;
                             }
                         ]
@@ -116,7 +107,7 @@ export component TitleBar inherits Rectangle {
                     height: parent.height * 0.75;
                     closeBtn-ta := TouchArea {
                         clicked => {
-                            root.close()
+                            TitleBarAdapter.close()
                         }
                     }
 
