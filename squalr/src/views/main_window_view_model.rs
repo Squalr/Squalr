@@ -1,31 +1,33 @@
-use crate::views::title_bar_view::TitleBarView;
-use crate::MainWindow;
+use crate::views::title_bar_view_model::TitleBarViewModel;
+use crate::MainWindowView;
 use slint::*;
 use std::sync::Arc;
 
-pub struct MainWindowView {
-    view_handle: Arc<MainWindow>,
-    title_bar_view: Arc<TitleBarView>,
+pub struct MainWindowViewModel {
+    view_handle: Arc<MainWindowView>,
+    title_bar_view: Arc<TitleBarViewModel>,
 }
 
 /// Wraps the slint main window to internally manage and track the view handle for later use, as well as setting up
 /// view code bindings to the corresponding slint UI.
-impl MainWindowView {
+impl MainWindowViewModel {
     pub fn new() -> Self {
-        let view_handle = Arc::new(MainWindow::new().unwrap());
-        let view = MainWindowView {
+        let view_handle = Arc::new(MainWindowView::new().unwrap());
+        let view = MainWindowViewModel {
             view_handle: view_handle.clone(),
-            title_bar_view: Arc::new(TitleBarView::new(view_handle.clone())),
+            title_bar_view: Arc::new(TitleBarViewModel::new(view_handle.clone())),
         };
 
         return view;
     }
 
     pub fn run_event_loop(&self) {
+        self.view_handle.run();
+
         return self.view_handle.run().unwrap();
     }
 
-    pub fn get_title_bar_view(&self) -> &Arc<TitleBarView> {
+    pub fn get_title_bar_view(&self) -> &Arc<TitleBarViewModel> {
         return &self.title_bar_view;
     }
 

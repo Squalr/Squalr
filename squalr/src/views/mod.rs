@@ -1,2 +1,3 @@
-pub mod main_window_view;
-pub mod title_bar_view;
+pub mod docking;
+pub mod main_window_view_model;
+pub mod title_bar_view_model;

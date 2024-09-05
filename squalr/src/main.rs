@@ -2,7 +2,8 @@ pub mod callback;
 pub mod cli_log_listener;
 pub mod views;
 
-use crate::views::main_window_view::MainWindowView;
+use crate::views::docking::panel_window_view_model::PanelWindowViewModel;
+use crate::views::main_window_view_model::MainWindowViewModel;
 use cli_log_listener::CliLogListener;
 use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -34,5 +35,6 @@ pub fn main() {
     );
 
     // Run the slint window event loop until slint::quit_event_loop() is called.
-    MainWindowView::new().run_event_loop();
+    // PanelWindowViewModel::new().run_event_loop();
+    MainWindowViewModel::new().run_event_loop();
 }

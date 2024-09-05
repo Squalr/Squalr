@@ -1,0 +1,17 @@
+import { TitleBarView, TitleBarAdapter } from "./title_bar_view.slint";
+export { TitleBarAdapter }
+
+import { PanelWindowView, PanelWindowAdapter } from "./docking/panel_window_view.slint";
+export { PanelWindowView, PanelWindowAdapter }
+
+export component MainWindowView inherits Window {
+    preferred-width: 1280px;
+    preferred-height: 640px;
+    no-frame: true;
+    title: @tr("Squalr");
+    VerticalLayout {
+        title-bar := TitleBarView {
+            title: @tr("Squalr");
+        }
+    }
+}
