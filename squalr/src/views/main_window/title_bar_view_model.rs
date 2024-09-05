@@ -8,8 +8,7 @@ pub struct TitleBarViewModel {
     view_handle: Arc<MainWindowView>,
 }
 
-/// Wraps the slint main window to internally manage and track the view handle for later use, as well as setting up
-/// view code bindings to the corresponding slint UI.
+/// Custom title bar implementation with minimize/maximize/close and dragging.
 impl TitleBarViewModel {
     pub fn new(view_handle: Arc<MainWindowView>) -> Self {
         let view = TitleBarViewModel {
@@ -45,6 +44,13 @@ impl ViewModel for TitleBarViewModel {
             }); */
 
             let _ = slint::quit_event_loop();
+        });
+
+        let view_handle = self.view_handle.clone();
+        title_bar_adapter.on_double_clicked(move || {
+            view_handle
+                .window()
+                .set_maximized(!view_handle.window().is_maximized());
         });
 
         let view_handle = self.view_handle.clone();

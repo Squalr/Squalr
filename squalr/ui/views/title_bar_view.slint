@@ -6,6 +6,7 @@ export global TitleBarAdapter {
     callback close();
     callback maximize();
     callback minimize();
+    callback double-clicked();
     callback drag(int, int);
 }
 
@@ -17,6 +18,11 @@ export component TitleBarView inherits Rectangle {
     Rectangle {
         background: Theme.background;
         title-drag := TouchArea {
+            double-clicked => {
+                if (self.pressed && self.enabled) {
+                    TitleBarAdapter.double-clicked();
+                }
+            }
             moved => {
                 if (self.pressed && self.enabled) {
                     TitleBarAdapter.drag((title-drag.mouse-x - title-drag.pressed-x) / 1px, (title-drag.mouse-y - title-drag.pressed-y) / 1px);

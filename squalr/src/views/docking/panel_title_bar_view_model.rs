@@ -7,8 +7,6 @@ pub struct PanelTitleBarViewModel {
     view_handle: Arc<PanelWindowView>,
 }
 
-/// Wraps the slint main window to internally manage and track the view handle for later use, as well as setting up
-/// view code bindings to the corresponding slint UI.
 impl PanelTitleBarViewModel {
     pub fn new(view_handle: Arc<PanelWindowView>) -> Self {
         let view = PanelTitleBarViewModel {
