@@ -1,7 +1,6 @@
 import { CheckBox, StandardListView } from "std-widgets.slint";
 import { AboutPage, ControlsPage, EasingsPage, ListViewPage, TableViewPage, TableViewPageAdapter, TextEditPage } from "pages/pages.slint";
 import { GallerySettings } from "gallery_settings.slint";
-import { TitleBar } from "title_bar.slint";
 import { SideBar } from "side_bar.slint";
 
 export { TableViewPageAdapter }
@@ -13,10 +12,6 @@ export component MainWindow inherits Window {
     title: @tr("Squalr");
     // icon: @image-url("../../logo/slint-logo-small-light.png");
     VerticalLayout {
-        title-bar := TitleBar {
-            title: @tr("Squalr");
-        }
-
         HorizontalLayout {
             side-bar := SideBar {
                 title: @tr("Slint Widgets Gallery");

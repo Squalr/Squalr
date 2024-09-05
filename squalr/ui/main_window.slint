@@ -1,26 +1,6 @@
 import { TitleBarView, TitleBarAdapter } from "./views/title_bar_view.slint";
 export { TitleBarAdapter }
 
-import { TaskListView, TaskListAdapter } from "./views/task_list_view.slint";
-export { TaskListAdapter }
-
-import { CreateTaskView, CreateTaskAdapter } from "./views/create_task_view.slint";
-export { CreateTaskAdapter }
-
-import { AnimationSettings } from "./widgets/styling.slint";
-
-export global NavigationAdapter {
-    out property <int> current-page;
-
-    public function next-page() {
-        root.current-page += 1;
-    }
-
-    public function previous-page() {
-        root.current-page = max(0, root.current-page - 1);
-    }
-}
-
 export component MainWindow inherits Window {
     preferred-width: 1280px;
     preferred-height: 640px;
@@ -30,7 +10,5 @@ export component MainWindow inherits Window {
         title-bar := TitleBarView {
             title: @tr("Squalr");
         }
-
-        TaskListView { }
     }
 }

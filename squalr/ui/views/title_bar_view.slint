@@ -6,12 +6,12 @@ export global TitleBarAdapter {
     callback close();
     callback maximize();
     callback minimize();
+    callback drag();
 }
 
 export component TitleBarView inherits Rectangle {
     in property <[string]> model: [];
     in property <string> title <=> title.text;
-    callback move();
     height: 64px;
     accessible-role: tab;
     Rectangle {
@@ -41,7 +41,7 @@ export component TitleBarView inherits Rectangle {
                     TouchArea {
                         moved => {
                             if (self.pressed && self.enabled) {
-                                root.move();
+                                TitleBarAdapter.drag();
                             }
                         }
                     }
