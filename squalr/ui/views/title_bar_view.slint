@@ -60,7 +60,7 @@ export component TitleBarView inherits Rectangle {
                     Image {
                         source: @image-url("../images/app/minimize.png");
                         animate colorize {
-                            duration: 250ms;
+                            duration: 50ms;
                             easing: ease-in-out;
                         }
                         states [
@@ -87,7 +87,7 @@ export component TitleBarView inherits Rectangle {
                     Image {
                         source: @image-url("../images/app/maximize.png");
                         animate colorize {
-                            duration: 250ms;
+                            duration: 50ms;
                             easing: ease-in-out;
                         }
                         states [
@@ -113,8 +113,18 @@ export component TitleBarView inherits Rectangle {
 
                     Image {
                         source: @image-url("../images/app/close.png");
-                        colorize: closeBtn-ta.has-hover ? closeBtn-ta.pressed ? Theme.background-light : Theme.focus-round : Theme.background-lightest;
-                        animate colorize { duration: 250ms; }
+                        animate colorize {
+                            duration: 50ms;
+                            easing: ease-in-out;
+                        }
+                        states [
+                            hvr when closeBtn-ta.has-hover: {
+                                colorize: Theme.accent;
+                            }
+                            nthvr when !closeBtn-ta.has-hover: {
+                                colorize: Theme.background-lightest;
+                            }
+                        ]
                     }
                 }
             }

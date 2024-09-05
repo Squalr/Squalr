@@ -1,6 +1,3 @@
-// Copyright © SixtyFPS GmbH <info@slint.dev>
-// SPDX-License-Identifier: MIT
-
 slint::include_modules!();
 
 pub mod create_task_adapter;

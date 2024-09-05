@@ -1,6 +1,3 @@
-// Copyright © SixtyFPS GmbH <info@slint.dev>
-// SPDX-License-Identifier: MIT
-
 use slint::*;
 use std::rc::Rc;
 
