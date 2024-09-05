@@ -22,8 +22,6 @@ impl MainWindowViewModel {
     }
 
     pub fn run_event_loop(&self) {
-        self.view_handle.run();
-
         return self.view_handle.run().unwrap();
     }
 

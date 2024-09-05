@@ -1,4 +1,5 @@
 use crate::MainWindowView;
+use crate::PanelWindowViewModel;
 use crate::TitleBarAdapter;
 use slint::ComponentHandle;
 use std::sync::Arc;
@@ -36,7 +37,11 @@ impl TitleBarViewModel {
         });
 
         title_bar_adapter.on_close(move || {
-            let _ = slint::quit_event_loop();
+            let _ = slint::invoke_from_event_loop(|| {
+                PanelWindowViewModel::new().show();
+            });
+
+            // let _ = slint::quit_event_loop();
         });
     }
 }

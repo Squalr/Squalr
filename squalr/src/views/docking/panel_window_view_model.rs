@@ -21,10 +21,8 @@ impl PanelWindowViewModel {
         return view;
     }
 
-    pub fn run_event_loop(&self) {
-        self.view_handle.run();
-
-        return self.view_handle.run().unwrap();
+    pub fn show(&self) {
+        return self.view_handle.show().unwrap();
     }
 
     pub fn get_title_bar_view(&self) -> &Arc<PanelTitleBarViewModel> {
