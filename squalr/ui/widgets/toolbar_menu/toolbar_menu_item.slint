@@ -25,6 +25,10 @@ export component ToolbarMenuItem inherits Rectangle {
         x: label.x;
         y: label.y + label.height;
         content := VerticalBox {
+            padding: 0px;
+            horizontal-stretch: 100%;
+            vertical-stretch: 100%;
+            spacing: 0px;
             @children
         }
     }

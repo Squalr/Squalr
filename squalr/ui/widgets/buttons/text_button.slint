@@ -6,11 +6,7 @@ import { StateLayer } from "./../state_layer.slint";
 export component TextButton {
     in property <string> text;
     callback clicked;
-
-    vertical-stretch: 0;
     forward-focus: touch-area;
-    min-width: content-layer.min-width;
-    min-height: max(content-layer.min-height, SizeSettings.control-height);
     accessible-role: button;
     accessible-label: root.text;
     accessible-action-default => {
@@ -26,7 +22,7 @@ export component TextButton {
         }
     }
 
-    StateLayer {
+    state-layer := StateLayer {
         width: 100%;
         height: 100%;
         pressed: touch-area.pressed || touch-area.enter-pressed;
