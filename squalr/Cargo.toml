@@ -24,3 +24,4 @@ sysinfo = ">=0.30"
 
 [build-dependencies]
 slint-build = { version = ">=1.7.2" }
+winresource = ">=0.1.17"

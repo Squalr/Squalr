@@ -13,7 +13,7 @@ export global TitleBarAdapter {
 
 export component TitleBarView inherits Rectangle {
     in property <string> title <=> title.text;
-    height: 64px;
+    height: 32px;
     Rectangle {
         border-top-left-radius: 8px;
         border-top-right-radius: 8px;
@@ -36,9 +36,8 @@ export component TitleBarView inherits Rectangle {
             padding-left: 8px;
             spacing: 8px;
             app_icon := Image {
-                width: 24px;
-                height: 24px;
                 source: @image-url("../images/app/app_icon.png");
+                width: 24px;
             }
 
             title := Text {
@@ -51,7 +50,6 @@ export component TitleBarView inherits Rectangle {
                 icon: @image-url("../images/app/minimize.png");
                 accessible-label: @tr("Minimize");
                 width: 24px;
-                height: 24px;
                 clicked => {
                     TitleBarAdapter.minimize()
                 }
@@ -61,7 +59,6 @@ export component TitleBarView inherits Rectangle {
                 icon: @image-url("../images/app/maximize.png");
                 accessible-label: @tr("Maximize");
                 width: 24px;
-                height: 24px;
                 clicked => {
                     TitleBarAdapter.maximize()
                 }
@@ -71,7 +68,6 @@ export component TitleBarView inherits Rectangle {
                 icon: @image-url("../images/app/close.png");
                 accessible-label: @tr("Close");
                 width: 24px;
-                height: 24px;
                 clicked => {
                     TitleBarAdapter.close()
                 }
