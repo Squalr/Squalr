@@ -17,22 +17,9 @@ fn main() {
     // Initialize cli log listener to route log output to command line
     let cli_log_listener = CliLogListener::new();
 
-    let hardware_vector_size = vectors::get_hardware_vector_size();
-    let hardware_vector_name = vectors::get_hardware_vector_name();
-
     Logger::get_instance().subscribe(cli_log_listener);
     Logger::get_instance().log(LogLevel::Info, "Logger initialized", None);
-    Logger::get_instance().log(
-        LogLevel::Info,
-        format!(
-            "CPU vector size for accelerated scans: {:?} bytes ({:?} bits), architecture: {}",
-            hardware_vector_size,
-            hardware_vector_size * 8,
-            hardware_vector_name,
-        )
-        .as_str(),
-        None,
-    );
+    vectors::log_vector_architecture();
 
     let mut stdout = io::stdout();
     let stdin = io::stdin();

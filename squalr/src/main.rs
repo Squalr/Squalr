@@ -18,22 +18,12 @@ pub fn main() {
     let cli_log_listener = CliLogListener::new();
 
     Logger::get_instance().subscribe(cli_log_listener);
-
-    let hardware_vector_size = vectors::get_hardware_vector_size();
-    let hardware_vector_name = vectors::get_hardware_vector_name();
-
     Logger::get_instance().log(LogLevel::Info, "Logger initialized", None);
-    Logger::get_instance().log(
-        LogLevel::Info,
-        format!(
-            "CPU vector size for accelerated scans: {:?} bytes ({:?} bits), architecture: {}",
-            hardware_vector_size,
-            hardware_vector_size * 8,
-            hardware_vector_name,
-        )
-        .as_str(),
-        None,
-    );
+    vectors::log_vector_architecture();
+
+    // Override the default backend (femtovg => software). I wont want to rely on devs having QT installed,
+    // and femtovg is shit at rendering font. Skia doesn't install properly on nightly, so software renderer it is.
+    std::env::set_var("SLINT_BACKEND", "winit-software");
 
     // Run the slint window event loop until slint::quit_event_loop() is called.
     MainWindowViewModel::new().run_event_loop();

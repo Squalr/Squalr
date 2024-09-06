@@ -1,3 +1,5 @@
+use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_common::logging::logger::Logger;
 use std::arch::is_x86_feature_detected;
 use std::sync::OnceLock;
 
@@ -8,6 +10,23 @@ pub mod vectors {
     pub static HAS_VECTOR_SUPPORT: OnceLock<bool> = OnceLock::new();
     pub static HARDWARE_VECTOR_SIZE: OnceLock<u64> = OnceLock::new();
     pub static HARDWARE_VECTOR_NAME: OnceLock<String> = OnceLock::new();
+
+    pub fn log_vector_architecture() {
+        let hardware_vector_size = vectors::get_hardware_vector_size();
+        let hardware_vector_name = vectors::get_hardware_vector_name();
+
+        Logger::get_instance().log(
+            LogLevel::Info,
+            format!(
+                "CPU vector size for accelerated scans: {:?} bytes ({:?} bits), architecture: {}",
+                hardware_vector_size,
+                hardware_vector_size * 8,
+                hardware_vector_name,
+            )
+            .as_str(),
+            None,
+        );
+    }
 
     pub fn has_vector_support() -> bool {
         *HAS_VECTOR_SUPPORT.get_or_init(|| {
