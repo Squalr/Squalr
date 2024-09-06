@@ -10,7 +10,7 @@ export component ToolbarMenuItem inherits Rectangle {
     callback clicked <=> touch-area.clicked;
     label := Text {
         color: Theme.foreground;
-        font-size: 10pt;
+        font-size: 12pt;
         vertical-alignment: center;
     }
 
@@ -23,8 +23,10 @@ export component ToolbarMenuItem inherits Rectangle {
     }
 
     context-menu := ContextMenu {
-        x: touch-area.mouse-x;
-        y: touch-area.mouse-y;
-        @children
+        x: label.x;
+        y: label.y + label.height;
+        bottom := VerticalBox {
+            @children
+        }
     }
 }

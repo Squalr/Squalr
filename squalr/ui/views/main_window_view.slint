@@ -6,12 +6,11 @@ export { TitleBarAdapter }
 import { FooterView, FooterAdapter } from "./footer_view.slint";
 export { FooterAdapter }
 
-import { DockRoot } from "./docking/dock_root.slint";
-export { DockRoot }
-
 import { PanelWindowView, PanelWindowAdapter } from "./docking/panel_window_view.slint";
 export { PanelWindowView, PanelWindowAdapter }
 
+import { DockRoot } from "./../widgets/docking/dock_root.slint";
+export { DockRoot }
 
 import { HSeparator } from "./../widgets/separator.slint";
 import { ContextMenu } from "./../widgets/context_menu/context_menu.slint";
@@ -20,11 +19,12 @@ import { ToolbarMenu } from "./../widgets/toolbar_menu/toolbar_menu.slint";
 import { ToolbarMenuItem } from "./../widgets/toolbar_menu/toolbar_menu_item.slint";
 
 export component MainWindowView inherits Window {
+    title: @tr("Squalr");
+    default-font-family: "Segoe UI";
     preferred-width: 1280px;
     preferred-height: 840px;
     background: transparent;
     no-frame: true;
-    title: @tr("Squalr");
     VerticalLayout {
         title-bar := TitleBarView {
             title: @tr("Squalr");
