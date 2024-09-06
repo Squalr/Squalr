@@ -1,0 +1,30 @@
+import {Theme} from "./../../theme.slint";
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+
+import { ContextMenu } from "./../context_menu/context_menu.slint";
+
+export component ToolbarMenuItem inherits Rectangle {
+    in property <bool> selected;
+    in property <bool> has-focus;
+    in-out property <string> text <=> label.text;
+    callback clicked <=> touch-area.clicked;
+    label := Text {
+        color: Theme.foreground;
+        font-size: 10pt;
+        vertical-alignment: center;
+    }
+
+    touch-area := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => {
+            context-menu.show()
+        }
+    }
+
+    context-menu := ContextMenu {
+        x: touch-area.mouse-x;
+        y: touch-area.mouse-y;
+        @children
+    }
+}

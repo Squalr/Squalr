@@ -1,4 +1,4 @@
-
+import {Theme} from "./../../theme.slint";
 import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 
 export component ContextMenuItem inherits Rectangle {
@@ -6,33 +6,9 @@ export component ContextMenuItem inherits Rectangle {
     in property <bool> has-focus;
     in-out property <string> text <=> label.text;
     callback clicked <=> touch.clicked;
-    min-height: l.preferred-height;
-    states [
-        pressed when touch.pressed: {
-            state.opacity: 0.8;
-        }
-        hover when touch.has-hover: {
-            state.opacity: 0.6;
-        }
-        selected when root.selected: {
-            state.opacity: 1;
-        }
-        focused when root.has-focus: {
-            state.opacity: 0.8;
-        }
-    ]
-    state := Rectangle {
-        opacity: 0;
-        background: Palette.background;
-        animate opacity { duration: 150ms; }
-    }
-
-    l := HorizontalBox {
-        y: (parent.height - self.height) / 2;
-        spacing: 0px;
-        label := Text {
-            vertical-alignment: center;
-        }
+    label := Text {
+        color: Theme.foreground;
+        vertical-alignment: center;
     }
 
     touch := TouchArea {

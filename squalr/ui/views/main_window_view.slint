@@ -16,6 +16,8 @@ export { PanelWindowView, PanelWindowAdapter }
 import { HSeparator } from "./../widgets/separator.slint";
 import { ContextMenu } from "./../widgets/context_menu/context_menu.slint";
 import { ContextMenuItem } from "./../widgets/context_menu/context_menu_item.slint";
+import { ToolbarMenu } from "./../widgets/toolbar_menu/toolbar_menu.slint";
+import { ToolbarMenuItem } from "./../widgets/toolbar_menu/toolbar_menu_item.slint";
 
 export component MainWindowView inherits Window {
     preferred-width: 1280px;
@@ -28,44 +30,17 @@ export component MainWindowView inherits Window {
             title: @tr("Squalr");
         }
 
-        // File/Edit/etc menu bar
-        Rectangle {
-            background: Theme.background-primary;
-            height: 24px;
-            menu-bar := HorizontalLayout {
-                alignment: start;
-                spacing: 8px;
-                padding-left: 8px;
-                file-header-button := Rectangle {
-                    title := Text {
-                        text: "File";
-                        font-size: 10pt;
-                        color: Theme.foreground;
-                    }
+        toolbar-menu := ToolbarMenu {
+            file-menu := ToolbarMenuItem {
+                text: "File";
+                select-project := ContextMenuItem {
+                    text: "Select Project";
+                }
 
-                    file-header-touch-area := TouchArea {
-                        clicked => {
-                            file-menu.show()
-                        }
-                    }
+                HSeparator { }
 
-                    file-menu := ContextMenu {
-                        x: file-header-touch-area.mouse-x;
-                        y: file-header-touch-area.mouse-y;
-                        select-project := Text {
-                            font-size: 10pt;
-                            color: Theme.foreground;
-                            text: "Select Project";
-                        }
-
-                        HSeparator { }
-
-                        exit-app := Text {
-                            font-size: 10pt;
-                            color: Theme.foreground;
-                            text: "Exit Squalr";
-                        }
-                    }
+                exit-app := ContextMenuItem {
+                    text: "Exit Squalr";
                 }
             }
         }
