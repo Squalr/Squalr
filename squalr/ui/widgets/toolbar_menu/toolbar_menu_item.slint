@@ -5,8 +5,6 @@ import { TextButton } from "../../widgets/buttons/text_button.slint";
 
 export component ToolbarMenuItem inherits HorizontalLayout {
     in property <string> text;
-    in property <bool> selected;
-    in property <bool> has-focus;
     text-button := TextButton {
         text: root.text;
         clicked => {

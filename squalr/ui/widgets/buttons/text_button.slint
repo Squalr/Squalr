@@ -12,11 +12,9 @@ export component TextButton {
     accessible-action-default => {
         touch-area.clicked();
     }
-
     touch-area := FocusTouchArea {
         width: 100%;
         height: 100%;
-
         clicked => {
             root.clicked();
         }
@@ -25,7 +23,7 @@ export component TextButton {
     state-layer := StateLayer {
         width: 100%;
         height: 100%;
-        pressed: touch-area.pressed || touch-area.enter-pressed;
+        pressed: touch-area.is-pressed || touch-area.enter-pressed;
         has-focus: touch-area.has-focus;
         has-hover: touch-area.has-hover;
     }
