@@ -12,6 +12,11 @@ export { DockRoot }
 import { PanelWindowView, PanelWindowAdapter } from "./docking/panel_window_view.slint";
 export { PanelWindowView, PanelWindowAdapter }
 
+
+import { HSeparator } from "./../widgets/separator.slint";
+import { ContextMenu } from "./../widgets/context_menu/context_menu.slint";
+import { ContextMenuItem } from "./../widgets/context_menu/context_menu_item.slint";
+
 export component MainWindowView inherits Window {
     preferred-width: 1280px;
     preferred-height: 840px;
@@ -32,39 +37,10 @@ export component MainWindowView inherits Window {
                 spacing: 8px;
                 padding-left: 8px;
                 file-header-button := Rectangle {
-                    file-menu := PopupWindow {
-                        Rectangle {
-                            height: 100%;
-                            width: 100%;
-                            background: Theme.background-primary;
-                            VerticalLayout {
-                                padding-left: 8px;
-                                padding-right: 8px;
-                                padding-top: 4px;
-                                padding-bottom: 4px;
-                                spacing: 8px;
-                                select-project := Text {
-                                    font-size: 10pt;
-                                    color: Theme.foreground;
-                                    text: "Select Project";
-                                }
-
-                                Rectangle {
-                                    height: 2px;
-                                    width: 100%;
-                                    background: Theme.foreground;
-                                }
-
-                                exit-app := Text {
-                                    font-size: 10pt;
-                                    color: Theme.foreground;
-                                    text: "Exit Squalr";
-                                }
-                            }
-                        }
-
-                        x: 20px;
-                        y: 20px;
+                    title := Text {
+                        text: "File";
+                        font-size: 10pt;
+                        color: Theme.foreground;
                     }
 
                     file-header-touch-area := TouchArea {
@@ -73,10 +49,22 @@ export component MainWindowView inherits Window {
                         }
                     }
 
-                    title := Text {
-                        text: "File";
-                        font-size: 10pt;
-                        color: Theme.foreground;
+                    file-menu := ContextMenu {
+                        x: file-header-touch-area.mouse-x;
+                        y: file-header-touch-area.mouse-y;
+                        select-project := Text {
+                            font-size: 10pt;
+                            color: Theme.foreground;
+                            text: "Select Project";
+                        }
+
+                        HSeparator { }
+
+                        exit-app := Text {
+                            font-size: 10pt;
+                            color: Theme.foreground;
+                            text: "Exit Squalr";
+                        }
                     }
                 }
             }

@@ -1,0 +1,21 @@
+import {Theme} from "../theme.slint";
+
+export component HSeparator {
+    callback clicked;
+
+    Rectangle {
+        height: 2px;
+        width: 100%;
+        background: Theme.foreground;
+    }
+}
+
+export component VSeparator {
+    callback clicked;
+
+    Rectangle {
+        height: 100%;
+        width: 2px;
+        background: Theme.foreground;
+    }
+}
