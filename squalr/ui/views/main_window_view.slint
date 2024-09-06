@@ -21,6 +21,8 @@ import { ToolbarMenuItem } from "./../widgets/toolbar_menu/toolbar_menu_item.sli
 export component MainWindowView inherits Window {
     title: @tr("Squalr");
     default-font-family: "Segoe UI";
+    default-font-size: 10pt;
+    default-font-weight: 525;
     preferred-width: 1280px;
     preferred-height: 840px;
     background: transparent;
@@ -33,14 +35,117 @@ export component MainWindowView inherits Window {
         toolbar-menu := ToolbarMenu {
             file-menu := ToolbarMenuItem {
                 text: "File";
-                select-project := ContextMenuItem {
+                select-project-item := ContextMenuItem {
                     text: "Select Project";
+                    clicked => {
+                    }
                 }
 
                 HSeparator { }
 
-                exit-app := ContextMenuItem {
+                exit-app-item := ContextMenuItem {
                     text: "Exit Squalr";
+                    clicked => {
+                    }
+                }
+            }
+
+            edit-menu := ToolbarMenuItem {
+                text: "Edit";
+                settings-item := ContextMenuItem {
+                    text: "Settings";
+                    clicked => {
+                    }
+                }
+            }
+
+            layout-menu := ToolbarMenuItem {
+                text: "Layout";
+                reset-layout-item := ContextMenuItem {
+                    text: "Reset Layout";
+                    clicked => {
+                    }
+                }
+            }
+
+            windows-menu := ToolbarMenuItem {
+                text: "Windows";
+                process-selector-item := ContextMenuItem {
+                    text: "Process Selector";
+                    clicked => {
+                    }
+                }
+
+                project-explorer-item := ContextMenuItem {
+                    text: "Project Explorer";
+                    clicked => {
+                    }
+                }
+
+                property-viewer-item := ContextMenuItem {
+                    text: "Property Viewer";
+                    clicked => {
+                    }
+                }
+
+                output-item := ContextMenuItem {
+                    text: "Output";
+                    clicked => {
+                    }
+                }
+
+                memory-viewer-item := ContextMenuItem {
+                    text: "Memory Viewer";
+                    clicked => {
+                    }
+                }
+
+                scan-results-item := ContextMenuItem {
+                    text: "Scan Results";
+                    clicked => {
+                    }
+                }
+
+                pointer-scan-results-item := ContextMenuItem {
+                    text: "Pointer Scan Results";
+                    clicked => {
+                    }
+                }
+
+                snapshot-manager-item := ContextMenuItem {
+                    text: "Snapshot Manager";
+                    clicked => {
+                    }
+                }
+
+                dot-net-explorer-item := ContextMenuItem {
+                    text: ".NET Explorer";
+                    clicked => {
+                    }
+                }
+            }
+
+            scans-menu := ToolbarMenuItem {
+                text: "Scans";
+                pointer-scan-item := ContextMenuItem {
+                    text: "Pointer Scan";
+                    clicked => {
+                    }
+                }
+            }
+
+            debugger-menu := ToolbarMenuItem {
+                text: "Debugger";
+                disassembly-item := ContextMenuItem {
+                    text: "Disassembly";
+                    clicked => {
+                    }
+                }
+
+                code-tracer-item := ContextMenuItem {
+                    text: "Code Tracer";
+                    clicked => {
+                    }
                 }
             }
         }
