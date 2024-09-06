@@ -48,6 +48,10 @@ struct SidePanelGroup {
 /// Represents the entire layout structure.
 #[derive(Serialize, Deserialize)]
 struct Layout {
+    // The saved width of the window.
+    window_width: u32,
+    // The saved height of the window.
+    window_height: u32,
     /// The root of the N-ary tree representing docked panels.
     docked_panels: DockedPanelNode,
     /// The list of standalone windows that can be docked.

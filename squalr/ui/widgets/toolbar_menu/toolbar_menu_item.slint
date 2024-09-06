@@ -1,4 +1,4 @@
-import {Theme} from "./../../theme.slint";
+import { Theme } from "./../../theme.slint";
 import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 
 import { ContextMenu } from "./../context_menu/context_menu.slint";
@@ -24,7 +24,7 @@ export component ToolbarMenuItem inherits Rectangle {
     context-menu := ContextMenu {
         x: label.x;
         y: label.y + label.height;
-        bottom := VerticalBox {
+        content := VerticalBox {
             @children
         }
     }

@@ -1,10 +1,8 @@
+import { Theme } from "./../theme.slint";
 import { TodoPalette, AnimationSettings } from "styling.slint";
 
 export component StateLayer {
-    // styling
     in property <length> border-radius <=> state-layer.border-radius;
-
-    // states
     in property <bool> pressed;
     in property <bool> has-hover;
     in property <bool> has-focus;
@@ -15,17 +13,17 @@ export component StateLayer {
         width: root.width + 2 * root.focus-padding;
         height: root.height + 2 * root.focus-padding;
         border-radius: state-layer.border-radius + root.focus-padding;
-        border-width: 1px;
-        border-color: TodoPalette.focus-border;
-        opacity: 0;
+        border-width: 2px;
 
+        /*
+        opacity: 1;
         states [
             focused when root.has-focus: {
                 opacity: 1;
             }
         ]
-
         animate opacity { duration: AnimationSettings.color-duration; }
+        */
     }
 
     state-layer := Rectangle {
@@ -37,10 +35,12 @@ export component StateLayer {
 
     states [
         pressed when root.pressed: {
-            state-layer.background: TodoPalette.state-pressed;
+            state-layer.background: Theme.selected-background;
+            focus-border.background: Theme.selected-border;
         }
         hoverd when root.has-hover: {
-            state-layer.background: TodoPalette.state-hovered;
+            state-layer.background: Theme.focused-background;
+            focus-border.background: Theme.focused-border;
         }
     ]
 }

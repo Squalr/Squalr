@@ -3,18 +3,13 @@ import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 
 export component ContextMenu inherits PopupWindow {
     Rectangle {
-        height: 100%;
-        width: 100%;
         background: Theme.background-primary;
-        border-radius: 2px;
         border-color: Theme.foreground;
+        border-radius: 2px;
         border-width: 1px;
-        bottom := VerticalBox {
-            padding-left: 0px;
-            padding-right: 0px;
-            padding-top: 4px;
-            padding-bottom: 4px;
-            spacing: 8px;
+        padding: 0px;
+        content := VerticalBox {
+            padding: 0px;
             @children
         }
     }
