@@ -1,6 +1,3 @@
-// Copyright © SixtyFPS GmbH <info@slint.dev>
-// SPDX-License-Identifier: MIT
-
 import { SizeSettings, SpaceSettings, FontSettings, TodoPalette } from "styling.slint";
 import { FocusTouchArea } from "focus_touch_area.slint";
 import { StateLayer } from "./state_layer.slint";
@@ -17,7 +14,9 @@ export component TextButton {
 
     accessible-role: button;
     accessible-label: root.text;
-    accessible-action-default => { touch-area.clicked(); }
+    accessible-action-default => {
+        touch-area.clicked();
+    }
 
     touch-area := FocusTouchArea {
         width: 100%;
@@ -27,7 +26,7 @@ export component TextButton {
             root.clicked();
         }
     }
-        
+
     StateLayer {
         width: 100%;
         height: 100%;
@@ -36,7 +35,7 @@ export component TextButton {
         has-hover: touch-area.has-hover;
     }
 
-    content-layer := HorizontalLayout {       
+    content-layer := HorizontalLayout {
         Text {
             text: root.text;
             horizontal-alignment: left;

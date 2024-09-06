@@ -1,5 +1,6 @@
 import { HorizontalBox, VerticalBox, Palette, Button } from "std-widgets.slint";
-import {Theme} from "../theme.slint";
+import { IconButton } from "../widgets/icon_button.slint";
+import { Theme } from "../theme.slint";
 
 
 export global TitleBarAdapter {
@@ -11,10 +12,8 @@ export global TitleBarAdapter {
 }
 
 export component TitleBarView inherits Rectangle {
-    in property <[string]> model: [];
     in property <string> title <=> title.text;
-    height: 32px;
-    accessible-role: tab;
+    height: 64px;
     Rectangle {
         background: Theme.background;
         title-drag := TouchArea {
@@ -31,104 +30,48 @@ export component TitleBarView inherits Rectangle {
         }
 
         HorizontalLayout {
+            padding-top: 4px;
+            padding-left: 8px;
+            spacing: 8px;
             app_icon := Image {
-                y: parent.height / 2 - self.height / 2;
-                padding-left: 8px;
                 width: 24px;
                 height: 24px;
-                horizontal-alignment: left;
-                vertical-alignment: center;
                 source: @image-url("../images/app/app_icon.png");
             }
 
             title := Text {
-                y: parent.height / 2 - self.height / 2;
-                padding-left: 8px;
-                font-size: 13pt;
-                color: Theme.foreground;
                 vertical-alignment: center;
-                horizontal-alignment: left;
+                font-size: 10pt;
+                color: Theme.foreground;
             }
 
-            minimize-button := Rectangle {
-                y: parent.height / 2 - self.height / 2;
+            minimize-button := IconButton {
+                icon: @image-url("../images/app/minimize.png");
+                accessible-label: @tr("Minimize");
                 width: 24px;
                 height: 24px;
-                minBtn-ta := TouchArea {
-                    clicked => {
-                        TitleBarAdapter.minimize()
-                    }
-                }
-
-                Image {
-                    source: @image-url("../images/app/minimize.png");
-                    animate colorize {
-                        duration: 50ms;
-                        easing: ease-in-out;
-                    }
-                    states [
-                        hvr when minBtn-ta.has-hover: {
-                            colorize: Theme.accent;
-                        }
-                        nthvr when !minBtn-ta.has-hover: {
-                            colorize: Theme.background-lightest;
-                        }
-                    ]
+                clicked => {
+                    TitleBarAdapter.minimize()
                 }
             }
 
-            maximize-button := Rectangle {
-                y: parent.height / 2 - self.height / 2;
+            maximize-button := IconButton {
+                icon: @image-url("../images/app/maximize.png");
+                accessible-label: @tr("Maximize");
                 width: 24px;
                 height: 24px;
-                maxBtn-ta := TouchArea {
-                    clicked => {
-                        TitleBarAdapter.maximize()
-                    }
-                }
-
-                Image {
-                    source: @image-url("../images/app/maximize.png");
-                    animate colorize {
-                        duration: 50ms;
-                        easing: ease-in-out;
-                    }
-                    states [
-                        hvr when maxBtn-ta.has-hover: {
-                            colorize: Theme.accent;
-                        }
-                        nthvr when !maxBtn-ta.has-hover: {
-                            colorize: Theme.background-lightest;
-                        }
-                    ]
+                clicked => {
+                    TitleBarAdapter.maximize()
                 }
             }
 
-            close-button := Rectangle {
-                y: parent.height / 2 - self.height / 2;
+            close-button := IconButton {
+                icon: @image-url("../images/app/close.png");
+                accessible-label: @tr("Close");
                 width: 24px;
                 height: 24px;
-                padding-right: 8px;
-                closeBtn-ta := TouchArea {
-                    clicked => {
-                        TitleBarAdapter.close()
-                    }
-                }
-
-                Image {
-                    source: @image-url("../images/app/close.png");
-                    animate colorize {
-                        duration: 50ms;
-                        easing: ease-in-out;
-                    }
-                    states [
-                        hvr when closeBtn-ta.has-hover: {
-                            colorize: Theme.accent;
-                        }
-                        nthvr when !closeBtn-ta.has-hover: {
-                            colorize: Theme.background-lightest;
-                        }
-                    ]
+                clicked => {
+                    TitleBarAdapter.close()
                 }
             }
         }

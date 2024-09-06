@@ -1,6 +1,3 @@
-// Copyright © SixtyFPS GmbH <info@slint.dev>
-// SPDX-License-Identifier: MIT
-
 import { SizeSettings, TodoPalette } from "styling.slint";
 import { FocusTouchArea } from "focus_touch_area.slint";
 import { StateLayer } from "./state_layer.slint";
@@ -17,7 +14,9 @@ export component ActionButton {
     height: SizeSettings.control-big-height;
 
     accessible-role: button;
-    accessible-action-default => { touch-area.clicked(); }
+    accessible-action-default => {
+        touch-area.clicked();
+    }
 
     touch-area := FocusTouchArea {
         width: 100%;
@@ -27,14 +26,14 @@ export component ActionButton {
             root.clicked();
         }
     }
-    
+
     background-layer := Rectangle {
         width: 100%;
         height: 100%;
         background: TodoPalette.accent-background;
         border-radius: self.height / 2;
     }
-    
+
     StateLayer {
         width: 100%;
         height: 100%;
@@ -52,6 +51,6 @@ export component ActionButton {
             height: SizeSettings.control-icon-big-height;
             y: (parent.height - self.height) / 2;
             colorize: TodoPalette.accent-foreground;
-        }        
-   }
+        }
+    }
 }

@@ -1,6 +1,3 @@
-// Copyright © SixtyFPS GmbH <info@slint.dev>
-// SPDX-License-Identifier: MIT
-
 import { TodoPalette, AnimationSettings } from "styling.slint";
 
 export component StateLayer {
@@ -12,7 +9,6 @@ export component StateLayer {
     in property <bool> has-hover;
     in property <bool> has-focus;
     in property <length> focus-padding: 2px;
-    
     focus-border := Rectangle {
         x: (root.width - self.width) / 2;
         y: (root.height - self.height) / 2;
@@ -24,27 +20,23 @@ export component StateLayer {
         opacity: 0;
 
         states [
-            focused when root.has-focus : {
+            focused when root.has-focus: {
                 opacity: 1;
             }
         ]
 
-        animate opacity {
-            duration: AnimationSettings.color-duration;
-        }
+        animate opacity { duration: AnimationSettings.color-duration; }
     }
-    
+
     state-layer := Rectangle {
         width: 100%;
         height: 100%;
 
-        animate background {
-            duration: AnimationSettings.color-duration;
-        }
+        animate background { duration: AnimationSettings.color-duration; }
     }
 
     states [
-        pressed when root.pressed : {
+        pressed when root.pressed: {
             state-layer.background: TodoPalette.state-pressed;
         }
         hoverd when root.has-hover: {

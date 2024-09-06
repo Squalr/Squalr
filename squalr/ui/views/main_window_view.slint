@@ -1,3 +1,5 @@
+import {Theme} from "../theme.slint";
+
 import { TitleBarView, TitleBarAdapter } from "./title_bar_view.slint";
 export { TitleBarAdapter }
 
@@ -15,6 +17,65 @@ export component MainWindowView inherits Window {
     VerticalLayout {
         title-bar := TitleBarView {
             title: @tr("Squalr");
+        }
+
+        // File/Edit/etc menu bar
+        Rectangle {
+            background: Theme.background;
+            height: 24px;
+            menu-bar := HorizontalLayout {
+                alignment: start;
+                spacing: 8px;
+                padding-left: 8px;
+                file-header-button := Rectangle {
+                    file-menu := PopupWindow {
+                        Rectangle {
+                            height: 100%;
+                            width: 100%;
+                            background: Theme.background;
+                            VerticalLayout {
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                padding-top: 4px;
+                                padding-bottom: 4px;
+                                spacing: 8px;
+                                select-project := Text {
+                                    font-size: 10pt;
+                                    color: Theme.foreground;
+                                    text: "Select Project";
+                                }
+
+                                Rectangle {
+                                    height: 2px;
+                                    width: 100%;
+                                    background: Theme.foreground;
+                                }
+
+                                exit-app := Text {
+                                    font-size: 10pt;
+                                    color: Theme.foreground;
+                                    text: "Exit Squalr";
+                                }
+                            }
+                        }
+
+                        x: 20px;
+                        y: 20px;
+                    }
+
+                    file-header-touch-area := TouchArea {
+                        clicked => {
+                            file-menu.show()
+                        }
+                    }
+
+                    title := Text {
+                        text: "File";
+                        font-size: 10pt;
+                        color: Theme.foreground;
+                    }
+                }
+            }
         }
 
         dock-root := DockRoot { }
