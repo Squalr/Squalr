@@ -1,0 +1,14 @@
+import { HorizontalBox, VerticalBox, Palette, Button } from "std-widgets.slint";
+import { IconButton } from "../widgets/icon_button.slint";
+import { Theme } from "../theme.slint";
+
+export global FooterAdapter { }
+
+export component FooterView inherits Rectangle {
+    height: 24px;
+    Rectangle {
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+        background: Theme.border-blue;
+    }
+}

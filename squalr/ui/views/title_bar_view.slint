@@ -15,7 +15,9 @@ export component TitleBarView inherits Rectangle {
     in property <string> title <=> title.text;
     height: 64px;
     Rectangle {
-        background: Theme.background;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        background: Theme.background-primary;
         title-drag := TouchArea {
             double-clicked => {
                 if (self.pressed && self.enabled) {

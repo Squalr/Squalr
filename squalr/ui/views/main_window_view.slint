@@ -3,6 +3,9 @@ import {Theme} from "../theme.slint";
 import { TitleBarView, TitleBarAdapter } from "./title_bar_view.slint";
 export { TitleBarAdapter }
 
+import { FooterView, FooterAdapter } from "./footer_view.slint";
+export { FooterAdapter }
+
 import { DockRoot } from "./docking/dock_root.slint";
 export { DockRoot }
 
@@ -11,7 +14,8 @@ export { PanelWindowView, PanelWindowAdapter }
 
 export component MainWindowView inherits Window {
     preferred-width: 1280px;
-    preferred-height: 640px;
+    preferred-height: 840px;
+    background: transparent;
     no-frame: true;
     title: @tr("Squalr");
     VerticalLayout {
@@ -21,7 +25,7 @@ export component MainWindowView inherits Window {
 
         // File/Edit/etc menu bar
         Rectangle {
-            background: Theme.background;
+            background: Theme.background-primary;
             height: 24px;
             menu-bar := HorizontalLayout {
                 alignment: start;
@@ -32,7 +36,7 @@ export component MainWindowView inherits Window {
                         Rectangle {
                             height: 100%;
                             width: 100%;
-                            background: Theme.background;
+                            background: Theme.background-primary;
                             VerticalLayout {
                                 padding-left: 8px;
                                 padding-right: 8px;
@@ -79,5 +83,7 @@ export component MainWindowView inherits Window {
         }
 
         dock-root := DockRoot { }
+
+        footer := FooterView { }
     }
 }
