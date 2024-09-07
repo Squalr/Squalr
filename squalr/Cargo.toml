@@ -18,7 +18,7 @@ squalr-engine-scripting = { path = "../squalr-engine-scripting" }
 futures = ">=0.3"
 serde = { version = ">=1.0.0", features = ["derive"] }
 serde_json = ">=1.0.0"
-slint = { version = ">=1.7.2", features = ["backend-winit"] }
+slint = { version = ">=1.7.2", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "renderer-software", "std"] }
 structopt = ">=0.3"
 sysinfo = ">=0.30"
 

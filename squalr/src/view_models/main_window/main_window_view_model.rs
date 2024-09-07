@@ -4,7 +4,6 @@ use crate::view_models::view_model::ViewModel;
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
 use slint::ComponentHandle;
-use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use std::sync::Arc;
@@ -31,8 +30,13 @@ impl MainWindowViewModel {
         return view;
     }
 
-    pub fn run_event_loop(&self) {
-        return self.view_handle.run().unwrap();
+    pub fn show(&self) {
+        match self.view_handle.show() {
+            Ok(_) => {}
+            Err(e) => {
+                Logger::get_instance().log(LogLevel::Error, "Fatal error showing the main window.", Some(e.to_string().as_str()));
+            }
+        }
     }
 
     pub fn get_manual_scan_view(&self) -> &Arc<ManualScanViewModel> {
@@ -46,8 +50,6 @@ impl ViewModel for MainWindowViewModel {
 
         // Bind our output viewmodel to the Squalr logger
         Logger::get_instance().subscribe(self.output_view_model.clone());
-        vectors::log_vector_architecture();
-        Logger::get_instance().log(LogLevel::Info, "Squalr started", None);
 
         let view_handle = self.view_handle.clone();
         view.on_minimize(move || {
