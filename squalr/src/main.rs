@@ -1,3 +1,6 @@
+// Disable terminal from spawning. All relevant output is routed to the output view anyways.
+#![windows_subsystem = "windows"]
+
 pub mod callback;
 pub mod cli_log_listener;
 pub mod docking;

@@ -64,11 +64,6 @@ impl ViewModel for MainWindowViewModel {
         });
 
         view.on_close(move || {
-            /*
-            let _ = slint::invoke_from_event_loop(|| {
-                PanelWindowViewModel::new().show();
-            }); */
-
             let _ = slint::quit_event_loop();
         });
 

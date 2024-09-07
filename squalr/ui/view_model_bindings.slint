@@ -26,3 +26,18 @@ export global ProcessViewModelBindings {
 export global OutputViewModelBindings {
     in-out property <string> output-text;
 }
+
+export global ScanViewModelBindings {
+    callback new_scan();
+    callback set_scan_constraint(int);
+}
+
+export global SettingsViewModelBindings { }
+
+export global ProjectExplorerViewModelBindings { }
+
+export global ScanResultsViewModelBindings { }
+
+export global PointerScanResultsViewModelBindings { }
+
+export global PropertyViewerViewModelBindings { }
