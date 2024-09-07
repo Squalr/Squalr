@@ -12,3 +12,13 @@ export global WindowViewModelBindings {
     callback double-clicked();
     callback drag(int, int);
 }
+
+struct ProcessViewData {
+    name: string,
+    icon: image,
+}
+
+export global ProcessViewModelBindings {
+    callback open-process(int);
+    in property <[ProcessViewData]> processes;
+}

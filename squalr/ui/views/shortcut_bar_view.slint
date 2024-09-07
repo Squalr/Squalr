@@ -1,11 +1,50 @@
 import { Theme } from "../theme.slint";
+import { WindowViewModelBindings } from "./../view_model_bindings.slint";
 
 import { HorizontalBox, VerticalBox, Palette, Button } from "std-widgets.slint";
 import { IconButton } from "../components/buttons/icon_button.slint";
 
+import { ProcessQuickSelector } from "./../controls/process_quick_selector_control.slint";
+
 export component ShortcutBarView inherits Rectangle {
     height: 24px;
     Rectangle {
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
         background: Theme.background-primary;
+        HorizontalLayout {
+            // Shortcut
+            HorizontalBox {
+                alignment: start;
+                padding-left: 4px;
+                padding-right: 0px;
+                padding-top: 0px;
+                padding-bottom: 0px;
+                spacing: 4px;
+                select-process-button := IconButton {
+                    icon: @image-url("../images/select_process.png");
+                    accessible-label: @tr("Minimize");
+                    icon-width: 24px;
+                    icon-height: 24px;
+                    width: 36px;
+                    clicked => {
+                    }
+                }
+
+                open-project-button := IconButton {
+                    icon: @image-url("../images/file_system/open_folder.png");
+                    accessible-label: @tr("Open Project");
+                    icon-width: 24px;
+                    icon-height: 24px;
+                    width: 36px;
+                    clicked => {
+                    }
+                }
+
+                process-quick-selector := ProcessQuickSelector {
+                    selected-process-name: "Temp test";
+                }
+            }
+        }
     }
 }

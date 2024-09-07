@@ -2,9 +2,11 @@ import { Theme } from "./../../theme.slint";
 import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 
 export component ContextMenu inherits PopupWindow {
+    in property <color> background: Theme.background-primary;
+    in property <color> border-color: Theme.submenu-border;
     Rectangle {
-        background: Theme.background-primary;
-        border-color: Theme.submenu-border;
+        background: root.background;
+        border-color: root.border-color;
         border-radius: 2px;
         border-width: 1px;
         content := VerticalBox {

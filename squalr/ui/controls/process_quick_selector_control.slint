@@ -1,0 +1,45 @@
+import { Theme } from "./../theme.slint";
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+import { ContextMenu } from "./../components/context_menu/context_menu.slint";
+import { TextButton } from "./../components/buttons/text_button.slint";
+
+export component ProcessQuickSelector inherits Rectangle {
+    in property <string> selected-process-name;
+    background: Theme.background-control;
+    border-color: Theme.submenu-border;
+    border-width: 1px;
+    width: 192px;
+    text-button := TextButton {
+        width: 100%;
+        height: 100%;
+        text: root.selected-process-name;
+        text-padding-top: 0px;
+        text-padding-bottom: 0px;
+        text-horizontal-alignment: left;
+        text-vertical-alignment: center;
+        clicked => {
+            context-menu.show();
+        }
+    }
+
+    context-menu := ContextMenu {
+        x: text-button.x;
+        y: text-button.y + text-button.height;
+        width: 256px;
+        content := VerticalBox {
+            padding: 0px;
+            spacing: 0px;
+            detach-from-process := TextButton {
+                height: 32px;
+                text: "== Detach from current process == ";
+                text-padding-top: 0px;
+                text-padding-bottom: 0px;
+                text-horizontal-alignment: left;
+                text-vertical-alignment: center;
+                clicked => {
+                    context-menu.show();
+                }
+            }
+        }
+    }
+}
