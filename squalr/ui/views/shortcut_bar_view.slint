@@ -6,6 +6,8 @@ import { IconButton } from "../components/buttons/icon_button.slint";
 import { TextField } from "../components/input/text_field.slint";
 
 import { ProcessQuickSelector } from "./../controls/process_quick_selector_control.slint";
+import { DataTypeSelector } from "../controls/data_type_selector.slint";
+import { ScanConstraintTypeSelector } from "../controls/scan_constraint_selector.slint";
 
 export component ShortcutBarView inherits Rectangle {
     height: 24px;
@@ -44,6 +46,8 @@ export component ShortcutBarView inherits Rectangle {
                     selected-process-name: "Temp test";
                 }
 
+                data-type-selector := DataTypeSelector { }
+
                 new-scan-button := IconButton {
                     icon: @image-url("../images/scans/scan_new.png");
                     tooltip-text: @tr("New Scan");
@@ -63,6 +67,8 @@ export component ShortcutBarView inherits Rectangle {
                     clicked => {
                     }
                 }
+
+                scan-constraint-selector := ScanConstraintTypeSelector { }
 
                 scan-value := TextField {
                     width: 192px;
