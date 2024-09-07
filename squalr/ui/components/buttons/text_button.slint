@@ -1,7 +1,9 @@
 import { Theme } from "./../../theme.slint";
+
 import { SizeSettings, SpaceSettings, FontSettings, TodoPalette } from "./../styling.slint";
 import { FocusTouchArea } from "./../focus_touch_area.slint";
 import { StateLayer } from "./../state_layer.slint";
+import { Tooltip } from "../tooltips/tooltip.slint";
 
 export component TextButton {
     in property <string> text;
@@ -11,13 +13,9 @@ export component TextButton {
     in property <length> text-padding-right: 8px;
     in property <TextHorizontalAlignment> text-horizontal-alignment: left;
     in property <TextVerticalAlignment> text-vertical-alignment: center;
+    in property <string> tooltip-text;
     callback clicked;
     forward-focus: touch-area;
-    accessible-role: button;
-    accessible-label: root.text;
-    accessible-action-default => {
-        touch-area.clicked();
-    }
     touch-area := FocusTouchArea {
         width: 100%;
         height: 100%;
@@ -45,5 +43,16 @@ export component TextButton {
             vertical-alignment: root.text-vertical-alignment;
             color: Theme.foreground;
         }
+    }
+
+    // TODO
+    // if tooltip-text != "" {
+       //  tooltip.show();
+    // }
+
+    tooltip := Tooltip {
+        x: content-layer.x;
+        y: content-layer.y + content-layer.height;
+        text: root.tooltip-text;
     }
 }

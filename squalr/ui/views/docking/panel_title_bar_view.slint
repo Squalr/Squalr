@@ -40,7 +40,7 @@ export component PanelTitleBarView inherits Rectangle {
 
             minimize-button := IconButton {
                 icon: @image-url("../../images/app/minimize.png");
-                accessible-label: @tr("Minimize");
+                tooltip-text: @tr("Minimize");
                 width: 24px;
                 clicked => {
                     WindowViewModelBindings.minimize()
@@ -49,7 +49,7 @@ export component PanelTitleBarView inherits Rectangle {
 
             maximize-button := IconButton {
                 icon: @image-url("../../images/app/maximize.png");
-                accessible-label: @tr("Maximize");
+                tooltip-text: @tr("Maximize");
                 width: 24px;
                 clicked => {
                     WindowViewModelBindings.maximize()
@@ -58,7 +58,7 @@ export component PanelTitleBarView inherits Rectangle {
 
             close-button := IconButton {
                 icon: @image-url("../../images/app/close.png");
-                accessible-label: @tr("Close");
+                tooltip-text: @tr("Close");
                 width: 24px;
                 clicked => {
                     WindowViewModelBindings.close()

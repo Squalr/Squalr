@@ -51,7 +51,7 @@ export component TitleBarView inherits Rectangle {
                 spacing: 0px;
                 minimize-button := IconButton {
                     icon: @image-url("../images/app/minimize.png");
-                    accessible-label: @tr("Minimize");
+                    tooltip-text: @tr("Minimize");
                     icon-width: 24px;
                     icon-height: 24px;
                     width: 36px;
@@ -62,7 +62,7 @@ export component TitleBarView inherits Rectangle {
 
                 maximize-button := IconButton {
                     icon: @image-url("../images/app/maximize.png");
-                    accessible-label: @tr("Maximize");
+                    tooltip-text: @tr("Maximize");
                     icon-width: 24px;
                     icon-height: 24px;
                     width: 36px;
@@ -73,7 +73,7 @@ export component TitleBarView inherits Rectangle {
 
                 close-button := IconButton {
                     icon: @image-url("../images/app/close.png");
-                    accessible-label: @tr("Close");
+                    tooltip-text: @tr("Close");
                     icon-width: 24px;
                     icon-height: 24px;
                     width: 36px;

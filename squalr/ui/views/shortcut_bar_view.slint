@@ -22,7 +22,7 @@ export component ShortcutBarView inherits Rectangle {
                 spacing: 4px;
                 select-process-button := IconButton {
                     icon: @image-url("../images/select_process.png");
-                    accessible-label: @tr("Minimize");
+                    tooltip-text: @tr("Select Process");
                     icon-width: 24px;
                     icon-height: 24px;
                     width: 36px;
@@ -32,7 +32,7 @@ export component ShortcutBarView inherits Rectangle {
 
                 open-project-button := IconButton {
                     icon: @image-url("../images/file_system/open_folder.png");
-                    accessible-label: @tr("Open Project");
+                    tooltip-text: @tr("Open Project");
                     icon-width: 24px;
                     icon-height: 24px;
                     width: 36px;
@@ -46,7 +46,7 @@ export component ShortcutBarView inherits Rectangle {
 
                 new-scan-button := IconButton {
                     icon: @image-url("../images/scans/scan_new.png");
-                    accessible-label: @tr("New Scan");
+                    tooltip-text: @tr("New Scan");
                     icon-width: 24px;
                     icon-height: 24px;
                     width: 36px;
@@ -56,7 +56,7 @@ export component ShortcutBarView inherits Rectangle {
 
                 collect-values-button := IconButton {
                     icon: @image-url("../images/scans/scan_collect_values.png");
-                    accessible-label: @tr("Collect Values");
+                    tooltip-text: @tr("Collect Values");
                     icon-width: 24px;
                     icon-height: 24px;
                     width: 36px;
@@ -71,7 +71,7 @@ export component ShortcutBarView inherits Rectangle {
 
                 start-scan-button := IconButton {
                     icon: @image-url("../images/navigation/right_arrow.png");
-                    accessible-label: @tr("Start Scan");
+                    tooltip-text: @tr("Start Scan");
                     icon-width: 24px;
                     icon-height: 24px;
                     width: 36px;

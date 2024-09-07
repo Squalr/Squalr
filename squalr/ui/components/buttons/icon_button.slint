@@ -1,18 +1,16 @@
 import { Theme } from "./../../theme.slint";
 import { FocusTouchArea } from "./../focus_touch_area.slint";
 import { StateLayer } from "./../state_layer.slint";
+import { Tooltip } from "../tooltips/tooltip.slint";
 
 export component IconButton {
     in property <image> icon;
     in property <length> icon-width;
     in property <length> icon-height;
+    in property <string> tooltip-text;
     callback clicked;
 
     forward-focus: touch-area;
-    accessible-role: button;
-    accessible-action-default => {
-        touch-area.clicked();
-    }
 
     touch-area := FocusTouchArea {
         width: 100%;
@@ -37,5 +35,16 @@ export component IconButton {
         icon-image := Image {
             source: root.icon;
         }
+    }
+
+    // TODO
+    // if tooltip-text != "" {
+       //  tooltip.show();
+    // }
+
+    tooltip := Tooltip {
+        x: content-layer.x;
+        y: content-layer.y + content-layer.height;
+        text: root.tooltip-text;
     }
 }

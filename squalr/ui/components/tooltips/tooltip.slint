@@ -1,0 +1,25 @@
+import { Theme } from "./../../theme.slint";
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+
+export component Tooltip inherits PopupWindow {
+    in property <string> text;
+    in property <color> background: Theme.background-primary;
+    in property <color> foreground: Theme.foreground;
+    in property <color> border-color: Theme.submenu-border;
+    in property <length> wrap-width: 128px;
+    Rectangle {
+        background: root.background;
+        border-color: root.border-color;
+        border-radius: 0px;
+        border-width: 1px;
+        HorizontalLayout {
+            min-width: 32px;
+            max-width: max(32px, root.wrap-width);
+            content := Text {
+                text: root.text;
+                wrap: word-wrap;
+                color: root.foreground;
+            }
+        }
+    }
+}

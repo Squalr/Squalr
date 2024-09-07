@@ -18,11 +18,6 @@ export component TextField {
     in property <color> foreground-preview: Theme.foreground-preview;
     in property <color> border-color: Theme.submenu-border;
     forward-focus: touch-area;
-    accessible-role: button;
-    accessible-label: root.default-text;
-    accessible-action-default => {
-        touch-area.clicked();
-    }
     touch-area := FocusTouchArea {
         width: 100%;
         height: 100%;
