@@ -3,14 +3,13 @@ import { WindowViewModelBindings } from "./../view_model_bindings.slint";
 
 import { HorizontalBox, VerticalBox, Palette, Button } from "std-widgets.slint";
 import { IconButton } from "../components/buttons/icon_button.slint";
+import { TextField } from "../components/input/text_field.slint";
 
 import { ProcessQuickSelector } from "./../controls/process_quick_selector_control.slint";
 
 export component ShortcutBarView inherits Rectangle {
     height: 24px;
     Rectangle {
-        border-top-left-radius: 8px;
-        border-top-right-radius: 8px;
         background: Theme.background-primary;
         HorizontalLayout {
             // Shortcut
@@ -43,6 +42,41 @@ export component ShortcutBarView inherits Rectangle {
 
                 process-quick-selector := ProcessQuickSelector {
                     selected-process-name: "Temp test";
+                }
+
+                new-scan-button := IconButton {
+                    icon: @image-url("../images/scans/scan_new.png");
+                    accessible-label: @tr("New Scan");
+                    icon-width: 24px;
+                    icon-height: 24px;
+                    width: 36px;
+                    clicked => {
+                    }
+                }
+
+                collect-values-button := IconButton {
+                    icon: @image-url("../images/scans/scan_collect_values.png");
+                    accessible-label: @tr("Collect Values");
+                    icon-width: 24px;
+                    icon-height: 24px;
+                    width: 36px;
+                    clicked => {
+                    }
+                }
+
+                scan-value := TextField {
+                    width: 192px;
+                    preview-text: "Enter a scan value...";
+                }
+
+                start-scan-button := IconButton {
+                    icon: @image-url("../images/navigation/right_arrow.png");
+                    accessible-label: @tr("Start Scan");
+                    icon-width: 24px;
+                    icon-height: 24px;
+                    width: 36px;
+                    clicked => {
+                    }
                 }
             }
         }
