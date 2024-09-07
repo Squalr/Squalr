@@ -3,4 +3,8 @@
 import { MainWindowView } from "./views/main_window_view.slint";
 import { PanelWindowView } from "./views/docking/panel_window_view.slint";
 
+// Export the two primary window types -- the main window and panel windows.
 export { MainWindowView, PanelWindowView }
+
+// Export all view model bindings such that Rust can interact with each view type through globals.
+export * from "./view_model_bindings.slint";

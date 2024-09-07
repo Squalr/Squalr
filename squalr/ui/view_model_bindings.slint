@@ -1,0 +1,14 @@
+/// This file contains every binding between the UI (view) and Rust (view-model).
+/// The MVVM pattern is really simple. You have:
+/// - A view (.slint files)
+/// - A model (squalr libraries)
+/// - And a view-model (glue that connects the two)
+/// The bindings below are how the view <=> view-model connect to one another.
+
+export global WindowViewModelBindings {
+    callback close();
+    callback maximize();
+    callback minimize();
+    callback double-clicked();
+    callback drag(int, int);
+}

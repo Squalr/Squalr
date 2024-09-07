@@ -1,5 +1,6 @@
 use crate::view_models::view_model::ViewModel;
 use crate::PanelWindowView;
+use crate::WindowViewModelBindings;
 use slint::*;
 use std::sync::Arc;
 
@@ -26,31 +27,33 @@ impl PanelWindowViewModel {
 
 impl ViewModel for PanelWindowViewModel {
     fn create_bindings(&self) {
+        let view = self.view_handle.global::<WindowViewModelBindings>();
+
         let view_handle = self.view_handle.clone();
-        self.view_handle.on_minimize(move || {
+        view.on_minimize(move || {
             view_handle.window().set_minimized(true);
         });
 
         let view_handle = self.view_handle.clone();
-        self.view_handle.on_maximize(move || {
+        view.on_maximize(move || {
             view_handle
                 .window()
                 .set_maximized(!view_handle.window().is_maximized());
         });
 
-        self.view_handle.on_close(move || {
+        view.on_close(move || {
             let _ = slint::quit_event_loop();
         });
 
         let view_handle = self.view_handle.clone();
-        self.view_handle.on_double_clicked(move || {
+        view.on_double_clicked(move || {
             view_handle
                 .window()
                 .set_maximized(!view_handle.window().is_maximized());
         });
 
         let view_handle = self.view_handle.clone();
-        self.view_handle.on_drag(move |delta_x, delta_y| {
+        view.on_drag(move |delta_x, delta_y| {
             let mut position = view_handle.window().position();
             position.x = position.x + delta_x;
             position.y = position.y + delta_y;

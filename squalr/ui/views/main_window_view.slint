@@ -9,11 +9,6 @@ import { TitleBarView } from "./title_bar_view.slint";
 import { ShortcutBarView } from "./shortcut_bar_view.slint";
 
 export component MainWindowView inherits Window {
-    callback close();
-    callback maximize();
-    callback minimize();
-    callback double-clicked();
-    callback drag(int, int);
     title: @tr("Squalr");
     default-font-family: "Segoe UI";
     default-font-size: 10pt;
@@ -25,21 +20,6 @@ export component MainWindowView inherits Window {
     VerticalLayout {
         title-bar := TitleBarView {
             title: @tr("Squalr");
-            close() => {
-                root.close();
-            }
-            maximize() => {
-                root.maximize();
-            }
-            minimize() => {
-                root.close();
-            }
-            double-clicked() => {
-                root.double-clicked();
-            }
-            drag(x, y) => {
-                root.drag(x, y);
-            }
         }
 
         toolbar-menu := ToolbarMenu {

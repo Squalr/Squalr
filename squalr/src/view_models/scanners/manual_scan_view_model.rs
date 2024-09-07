@@ -3,13 +3,13 @@ use crate::MainWindowView;
 use slint::ComponentHandle;
 use std::sync::Arc;
 
-pub struct ScanViewModel {
+pub struct ManualScanViewModel {
     view_handle: Arc<MainWindowView>,
 }
 
-impl ScanViewModel {
+impl ManualScanViewModel {
     pub fn new(view_handle: Arc<MainWindowView>) -> Self {
-        let view = ScanViewModel {
+        let view = ManualScanViewModel {
             view_handle: view_handle.clone(),
         };
 
@@ -19,7 +19,7 @@ impl ScanViewModel {
     }
 }
 
-impl ViewModel for ScanViewModel {
+impl ViewModel for ManualScanViewModel {
     fn create_bindings(&self) {
         // let _ = self.view_handle.global::<ScanAdapter>();
     }

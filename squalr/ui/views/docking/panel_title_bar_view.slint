@@ -1,5 +1,5 @@
 import { Theme } from "../../theme.slint";
-// import { WindowAdapter } from "../../view_model_locator.slint";
+import { WindowViewModelBindings } from "./../../view_model_bindings.slint";
 
 import { HorizontalBox, VerticalBox, Palette, Button } from "std-widgets.slint";
 import { IconButton } from "../../components/buttons/icon_button.slint";
@@ -19,12 +19,12 @@ export component PanelTitleBarView inherits Rectangle {
         title-drag := TouchArea {
             double-clicked => {
                 if (self.pressed && self.enabled) {
-                    root.double-clicked();
+                    WindowViewModelBindings.double-clicked();
                 }
             }
             moved => {
                 if (self.pressed && self.enabled) {
-                    root.drag((title-drag.mouse-x - title-drag.pressed-x) / 1px, (title-drag.mouse-y - title-drag.pressed-y) / 1px);
+                    WindowViewModelBindings.drag((title-drag.mouse-x - title-drag.pressed-x) / 1px, (title-drag.mouse-y - title-drag.pressed-y) / 1px);
                 }
             }
         }
@@ -48,7 +48,7 @@ export component PanelTitleBarView inherits Rectangle {
                 accessible-label: @tr("Minimize");
                 width: 24px;
                 clicked => {
-                    root.minimize()
+                    WindowViewModelBindings.minimize()
                 }
             }
 
@@ -57,7 +57,7 @@ export component PanelTitleBarView inherits Rectangle {
                 accessible-label: @tr("Maximize");
                 width: 24px;
                 clicked => {
-                    root.maximize()
+                    WindowViewModelBindings.maximize()
                 }
             }
 
@@ -66,7 +66,7 @@ export component PanelTitleBarView inherits Rectangle {
                 accessible-label: @tr("Close");
                 width: 24px;
                 clicked => {
-                    root.close()
+                    WindowViewModelBindings.close()
                 }
             }
         }
