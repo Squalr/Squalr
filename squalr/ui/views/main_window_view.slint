@@ -1,27 +1,19 @@
-import {Theme} from "../theme.slint";
+import { Theme } from "../theme.slint";
 
-import { TitleBarView, TitleBarAdapter } from "./title_bar_view.slint";
-export { TitleBarAdapter }
+import { DockRoot } from "./../components/docking/dock_root.slint";
+import { HSeparator } from "./../components/separator.slint";
+import { ToolbarMenu } from "./../components/toolbar_menu/toolbar_menu.slint";
 
-import { ShortcutBarView, ScanAdapter } from "./shortcut_bar_view.slint";
-export { ScanAdapter }
-
-import { FooterView, FooterAdapter } from "./footer_view.slint";
-export { FooterAdapter }
-
-import { PanelWindowView, PanelWindowAdapter } from "./docking/panel_window_view.slint";
-export { PanelWindowView, PanelWindowAdapter }
-
-import { DockRoot } from "./../widgets/docking/dock_root.slint";
-export { DockRoot }
-
-import { HSeparator } from "./../widgets/separator.slint";
-import { ContextMenu } from "./../widgets/context_menu/context_menu.slint";
-import { ContextMenuItem } from "./../widgets/context_menu/context_menu_item.slint";
-import { ToolbarMenu } from "./../widgets/toolbar_menu/toolbar_menu.slint";
-import { ToolbarMenuItem } from "./../widgets/toolbar_menu/toolbar_menu_item.slint";
+import { FooterView } from "./footer_view.slint";
+import { TitleBarView } from "./title_bar_view.slint";
+import { ShortcutBarView } from "./shortcut_bar_view.slint";
 
 export component MainWindowView inherits Window {
+    callback close();
+    callback maximize();
+    callback minimize();
+    callback double-clicked();
+    callback drag(int, int);
     title: @tr("Squalr");
     default-font-family: "Segoe UI";
     default-font-size: 10pt;
@@ -33,6 +25,21 @@ export component MainWindowView inherits Window {
     VerticalLayout {
         title-bar := TitleBarView {
             title: @tr("Squalr");
+            close() => {
+                root.close();
+            }
+            maximize() => {
+                root.maximize();
+            }
+            minimize() => {
+                root.close();
+            }
+            double-clicked() => {
+                root.double-clicked();
+            }
+            drag(x, y) => {
+                root.drag(x, y);
+            }
         }
 
         toolbar-menu := ToolbarMenu {

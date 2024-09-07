@@ -3,7 +3,6 @@ pub mod cli_log_listener;
 pub mod docking;
 pub mod view_models;
 
-use crate::view_models::docking::panel_window_view_model::PanelWindowViewModel;
 use crate::view_models::main_window::main_window_view_model::MainWindowViewModel;
 use cli_log_listener::CliLogListener;
 use squalr_engine_architecture::vectors::vectors;

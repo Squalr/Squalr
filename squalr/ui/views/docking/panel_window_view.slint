@@ -1,9 +1,11 @@
-import { PanelTitleBarView, PanelTitleBarAdapter } from "./panel_title_bar_view.slint";
-export { PanelTitleBarAdapter }
-
-export global PanelWindowAdapter { }
+import { PanelTitleBarView } from "./panel_title_bar_view.slint";
 
 export component PanelWindowView inherits Window {
+    callback close();
+    callback maximize();
+    callback minimize();
+    callback double-clicked();
+    callback drag(int, int);
     preferred-width: 480px;
     preferred-height: 320px;
     no-frame: true;
@@ -11,6 +13,21 @@ export component PanelWindowView inherits Window {
     VerticalLayout {
         title-bar := PanelTitleBarView {
             title: @tr("Tool");
+            close() => {
+                root.close();
+            }
+            maximize() => {
+                root.maximize();
+            }
+            minimize() => {
+                root.close();
+            }
+            double-clicked() => {
+                root.double-clicked();
+            }
+            drag(x, y) => {
+                root.drag(x, y);
+            }
         }
     }
 }
