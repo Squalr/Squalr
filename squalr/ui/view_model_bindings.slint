@@ -22,3 +22,7 @@ export global ProcessViewModelBindings {
     callback open-process(int);
     in property <[ProcessViewData]> processes;
 }
+
+export global OutputViewModelBindings {
+    in-out property <string> output-text;
+}

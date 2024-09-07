@@ -7,6 +7,7 @@ import { ToolbarMenu } from "./../components/toolbar_menu/toolbar_menu.slint";
 import { FooterView } from "./footer_view.slint";
 import { TitleBarView } from "./title_bar_view.slint";
 import { ShortcutBarView } from "./shortcut_bar_view.slint";
+import { OutputView } from "output_view.slint";
 
 export component MainWindowView inherits Window {
     title: @tr("Squalr");
@@ -50,7 +51,9 @@ export component MainWindowView inherits Window {
 
         shortcut-bar := ShortcutBarView { }
 
-        dock-root := DockRoot { }
+        dock-root := DockRoot {
+            output-view := OutputView { }
+        }
 
         footer := FooterView { }
     }

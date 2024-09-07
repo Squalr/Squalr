@@ -1,4 +1,5 @@
 pub mod docking;
 pub mod main_window;
+pub mod output;
 pub mod scanners;
 pub mod view_model;

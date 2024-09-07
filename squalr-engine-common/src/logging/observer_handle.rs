@@ -2,7 +2,7 @@ use crate::logging::logger_observer::LoggerObserver;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-pub struct ObserverHandle(Arc<dyn LoggerObserver + Send + Sync>);
+pub struct ObserverHandle(Arc<dyn LoggerObserver>);
 
 impl PartialEq for ObserverHandle {
     fn eq(
@@ -27,11 +27,11 @@ impl Hash for ObserverHandle {
 }
 
 impl ObserverHandle {
-    pub fn new(observer: Arc<dyn LoggerObserver + Send + Sync>) -> Self {
+    pub fn new(observer: Arc<dyn LoggerObserver>) -> Self {
         ObserverHandle(observer)
     }
 
-    pub fn get(&self) -> &Arc<dyn LoggerObserver + Send + Sync> {
+    pub fn get(&self) -> &Arc<dyn LoggerObserver> {
         &self.0
     }
 }

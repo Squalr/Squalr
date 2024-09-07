@@ -31,7 +31,7 @@ impl Logger {
 
     pub fn subscribe(
         &self,
-        observer: Arc<dyn LoggerObserver + Send + Sync>,
+        observer: Arc<dyn LoggerObserver>,
     ) {
         self.observers
             .lock()
@@ -41,7 +41,7 @@ impl Logger {
 
     pub fn unsubscribe(
         &self,
-        observer: &Arc<dyn LoggerObserver + Send + Sync>,
+        observer: &Arc<dyn LoggerObserver>,
     ) {
         self.observers
             .lock()

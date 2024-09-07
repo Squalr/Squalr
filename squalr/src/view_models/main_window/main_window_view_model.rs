@@ -1,12 +1,18 @@
+use crate::view_models::output::output_view_model::OutputViewModel;
+use crate::view_models::scanners::manual_scan_view_model::ManualScanViewModel;
 use crate::view_models::view_model::ViewModel;
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
 use slint::ComponentHandle;
+use squalr_engine_architecture::vectors::vectors;
+use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_common::logging::logger::Logger;
 use std::sync::Arc;
 
 pub struct MainWindowViewModel {
     view_handle: Arc<MainWindowView>,
-    // manual_scan_view: Arc<ManualScanViewModel>,
+    manual_scan_view: Arc<ManualScanViewModel>,
+    output_view: Arc<OutputViewModel>,
 }
 
 /// Wraps the slint main window to internally manage and track the view handle for later use, as well as setting up
@@ -16,7 +22,8 @@ impl MainWindowViewModel {
         let view_handle = Arc::new(MainWindowView::new().unwrap());
         let view = MainWindowViewModel {
             view_handle: view_handle.clone(),
-            // manual_scan_view: Arc::new(ManualScanViewModel::new(view_handle.clone())),
+            manual_scan_view: Arc::new(ManualScanViewModel::new(view_handle.clone())),
+            output_view: Arc::new(OutputViewModel::new(view_handle.clone())),
         };
 
         view.create_bindings();
@@ -28,15 +35,18 @@ impl MainWindowViewModel {
         return self.view_handle.run().unwrap();
     }
 
-    /*
     pub fn get_manual_scan_view(&self) -> &Arc<ManualScanViewModel> {
         return &self.manual_scan_view;
-    } */
+    }
 }
 
 impl ViewModel for MainWindowViewModel {
     fn create_bindings(&self) {
         let view = self.view_handle.global::<WindowViewModelBindings>();
+
+        Logger::get_instance().subscribe(self.output_view.clone());
+        Logger::get_instance().log(LogLevel::Info, "Logger initialized", None);
+        vectors::log_vector_architecture();
 
         let view_handle = self.view_handle.clone();
         view.on_minimize(move || {
