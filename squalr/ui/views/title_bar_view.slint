@@ -6,7 +6,8 @@ import { IconButton } from "../components/buttons/icon_button.slint";
 
 export component TitleBarView inherits Rectangle {
     in property <string> title <=> title.text;
-    height: 28px;
+    in property <length> bottom-padding: 4px;
+    height: 28px + root.bottom-padding;
     Rectangle {
         border-top-left-radius: 8px;
         border-top-right-radius: 8px;
@@ -31,7 +32,7 @@ export component TitleBarView inherits Rectangle {
                 padding-left: 4px;
                 padding-right: 0px;
                 padding-top: 0px;
-                padding-bottom: 0px;
+                padding-bottom: root.bottom-padding;
                 spacing: 4px;
                 app_icon := Image {
                     source: @image-url("../images/app/app_icon.png");

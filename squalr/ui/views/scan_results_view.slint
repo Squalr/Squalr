@@ -1,0 +1,14 @@
+import { Theme } from "./../theme.slint";
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+
+export component ScanResultsView inherits Rectangle {
+    background: Theme.background-primary;
+    border-color: Theme.submenu-border;
+    border-radius: 2px;
+    border-width: 1px;
+    content := VerticalBox {
+        padding: 0px;
+        spacing: 0px;
+        @children
+    }
+}

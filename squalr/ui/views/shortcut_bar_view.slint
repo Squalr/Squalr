@@ -10,7 +10,8 @@ import { DataTypeSelector } from "../controls/data_type_selector.slint";
 import { ScanConstraintTypeSelector } from "../controls/scan_constraint_selector.slint";
 
 export component ShortcutBarView inherits Rectangle {
-    height: 24px;
+    in property <length> bottom-padding: 4px;
+    height: 24px + root.bottom-padding;
     Rectangle {
         background: Theme.background-primary;
         HorizontalLayout {
@@ -20,7 +21,7 @@ export component ShortcutBarView inherits Rectangle {
                 padding-left: 4px;
                 padding-right: 0px;
                 padding-top: 0px;
-                padding-bottom: 0px;
+                padding-bottom: root.bottom-padding;
                 spacing: 4px;
                 select-process-button := IconButton {
                     icon: @image-url("../images/select_process.png");

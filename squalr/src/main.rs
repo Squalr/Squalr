@@ -19,14 +19,17 @@ pub fn main() {
     // and femtovg is shit at rendering font. Skia doesn't install properly on nightly, so software renderer it is.
     std::env::set_var("SLINT_BACKEND", "winit-software");
 
-    // Run the slint window event loop until slint::quit_event_loop() is called.
+    // Create and show the main window, which in turn will instantiate all other windows and panels.
     MainWindowViewModel::new().show();
 
     vectors::log_vector_architecture();
     Logger::get_instance().log(LogLevel::Info, "Squalr started", None);
 
+    // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {
-        Ok(_) => {}
+        Ok(_) => {
+            MainWindowViewModel::new().hide();
+        }
         Err(e) => {
             Logger::get_instance().log(LogLevel::Error, "Fatal error starting Squalr.", Some(e.to_string().as_str()));
         }

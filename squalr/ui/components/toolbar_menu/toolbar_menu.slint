@@ -9,17 +9,25 @@ export struct ToolbarMenuData {
 
 export component ToolbarMenu inherits Rectangle {
     in-out property <[ToolbarMenuData]> menus;
-    height: 24px;
+    in property <length> bottom-padding: 4px;
+    callback onItemClicked(string);
+    height: 24px + root.bottom-padding;
     background: Theme.background-primary;
     HorizontalLayout {
         content := HorizontalBox {
             alignment: start;
-            padding: 0px;
+            padding-left: 0px;
+            padding-right: 0px;
+            padding-top: 0px;
+            padding-bottom: bottom-padding;
             spacing: 0px;
             for menu in menus: ToolbarMenuItem {
                 parent-toolbar-size: content.width;
                 text: menu.header;
                 items: menu.items;
+                onItemClicked(key) => {
+                    root.onItemClicked(key);
+                }
             }
         }
 

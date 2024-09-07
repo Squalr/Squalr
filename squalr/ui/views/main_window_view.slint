@@ -10,6 +10,11 @@ import { ShortcutBarView } from "./shortcut_bar_view.slint";
 import { OutputView } from "output_view.slint";
 import { ProcessSelectorView } from "process_selector_view.slint";
 
+import { WindowViewModelBindings } from "./../view_model_bindings.slint";
+import { HorizontalBox } from "std-widgets.slint";
+import { ScanResultsView } from "scan_results_view.slint";
+import { PropertyViewerView } from "property_viewer_view.slint";
+
 export component MainWindowView inherits Window {
     title: @tr("Squalr");
     default-font-family: "Segoe UI";
@@ -29,26 +34,52 @@ export component MainWindowView inherits Window {
             menus: [
                 {
                     header: "File",
-                    items:[{ text:"Select Project" }, { text:"Exit Squalr", separator: true }]
+                    items:[
+                        { key: "select-project", text:"Select Project" },
+                        { key: "export-project", text:"Export Project as Table..." },
+                        { key: "exit", text: "Exit Squalr", separator: true }
+                    ]
                 },
-                { header: "Edit", items:[{ text:"Settings" }] },
-                { header: "Layout", items:[{ text:"Reset Layout" }] },
+                { header: "Edit", items:[{ key: "settings", text:"Settings" }] },
+                { header: "Layout", items:[{ key: "layout-reset", text:"Reset Layout" }] },
                 {
                     header: "Windows",
                     items:[
-                        { text:"Process Selector" },
-                        { text:"Project Explorer" },
-                        { text:"Property Viewer" },
-                        { text:"Memory Viewer" },
-                        { text:"Scan Results" },
-                        { text:"Pointer Scan Results" },
-                        { text:"Snapshot Manager" },
-                        { text:".NET Explorer" },
+                        { key: "process-selector", text:"Process Selector" },
+                        { key: "project-explorer", text:"Project Explorer" },
+                        { key: "property-viewer", text:"Property Viewer" },
+                        { key: "memory-viewer", text:"Memory Viewer" },
+                        { key: "scan-results", text:"Scan Results" },
+                        { key: "pointer-results", text:"Pointer Scan Results" },
+                        { key: "snapshot-manager", text:"Snapshot Manager" },
+                        { key: "dotnet-explorer", text:".NET Explorer" },
                     ]
                 },
-                { header: "Scans", items:[{ text:"Pointer Scan" }] },
-                { header: "Debugger", items:[{ text:"Disassembly" }, { text:"Code Tracer" }] },
+                { header: "Scans", items:[{ key: "scans", text:"Pointer Scan" }] },
+                {
+                    header: "Debugger",
+                    items:[
+                        { key: "disassembly", text:"Disassembly" },
+                        { key: "code-tracer", text:"Code Tracer" }
+                    ]
+                },
             ];
+            onItemClicked(key) => {
+                if key == "exit" {
+                    WindowViewModelBindings.close();
+                } else if key == "select-project" {
+                } else if key == "export-project" {
+                } else if key == "settings" {
+                } else if key == "layout-reset" {
+                } else if key == "process-selector" {
+                } else if key == "project-explorer" {
+                } else if key == "memory-viewer" {
+                } else if key == "scan-results" {
+                } else if key == "pointer-results" {
+                } else if key == "snapshot-manager" {
+                } else if key == "dotnet-explorer" {
+                }
+            }
         }
 
         shortcut-bar := ShortcutBarView { }
@@ -56,11 +87,25 @@ export component MainWindowView inherits Window {
         dock-root := DockRoot {
             GridLayout {
                 Row {
-                    process-selector-view := ProcessSelectorView { }
+                    HorizontalBox {
+                        padding: 0px;
+                        spacing: 0px;
+                        process-selector-view := ProcessSelectorView { }
+
+                        settings-view := ProcessSelectorView { }
+
+                        scan-results-view := ScanResultsView { }
+                    }
                 }
 
                 Row {
-                    output-view := OutputView { }
+                    HorizontalBox {
+                        padding: 0px;
+                        spacing: 0px;
+                        output-view := OutputView { }
+
+                        property-viewer-view := PropertyViewerView { }
+                    }
                 }
             }
         }

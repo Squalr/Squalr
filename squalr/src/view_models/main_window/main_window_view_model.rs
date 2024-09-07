@@ -34,7 +34,16 @@ impl MainWindowViewModel {
         match self.view_handle.show() {
             Ok(_) => {}
             Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, "Fatal error showing the main window.", Some(e.to_string().as_str()));
+                Logger::get_instance().log(LogLevel::Error, "Error showing the main window.", Some(e.to_string().as_str()));
+            }
+        }
+    }
+
+    pub fn hide(&self) {
+        match self.view_handle.hide() {
+            Ok(_) => {}
+            Err(e) => {
+                Logger::get_instance().log(LogLevel::Error, "Error hiding the main window.", Some(e.to_string().as_str()));
             }
         }
     }
