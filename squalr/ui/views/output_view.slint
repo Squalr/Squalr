@@ -4,16 +4,20 @@ import { HorizontalBox, VerticalBox, Palette, ScrollView } from "std-widgets.sli
 import { OutputViewModelBindings } from "./../view_model_bindings.slint";
 
 export component OutputView inherits Rectangle {
-    background: Theme.background-primary;
+    background: Theme.background-panel;
     border-color: Theme.submenu-border;
     border-width: 1px;
     content := ScrollView {
         padding: 0px;
-        output-text-display := Text {
-            text <=> OutputViewModelBindings.output-text;
-            horizontal-alignment: left;
-            vertical-alignment: top;
-            color: Theme.foreground;
+        HorizontalLayout {
+            padding: 4px;
+            alignment: start;
+            output-text-display := Text {
+                text <=> OutputViewModelBindings.output-text;
+                horizontal-alignment: left;
+                vertical-alignment: top;
+                color: Theme.foreground;
+            }
         }
     }
 }

@@ -11,8 +11,8 @@ use std::sync::Arc;
 
 pub struct MainWindowViewModel {
     view_handle: Arc<MainWindowView>,
-    manual_scan_view: Arc<ManualScanViewModel>,
-    output_view: Arc<OutputViewModel>,
+    manual_scan_view_model: Arc<ManualScanViewModel>,
+    output_view_model: Arc<OutputViewModel>,
 }
 
 /// Wraps the slint main window to internally manage and track the view handle for later use, as well as setting up
@@ -22,8 +22,8 @@ impl MainWindowViewModel {
         let view_handle = Arc::new(MainWindowView::new().unwrap());
         let view = MainWindowViewModel {
             view_handle: view_handle.clone(),
-            manual_scan_view: Arc::new(ManualScanViewModel::new(view_handle.clone())),
-            output_view: Arc::new(OutputViewModel::new(view_handle.clone())),
+            manual_scan_view_model: Arc::new(ManualScanViewModel::new(view_handle.clone())),
+            output_view_model: Arc::new(OutputViewModel::new(view_handle.clone())),
         };
 
         view.create_bindings();
@@ -36,7 +36,7 @@ impl MainWindowViewModel {
     }
 
     pub fn get_manual_scan_view(&self) -> &Arc<ManualScanViewModel> {
-        return &self.manual_scan_view;
+        return &self.manual_scan_view_model;
     }
 }
 
@@ -44,9 +44,10 @@ impl ViewModel for MainWindowViewModel {
     fn create_bindings(&self) {
         let view = self.view_handle.global::<WindowViewModelBindings>();
 
-        Logger::get_instance().subscribe(self.output_view.clone());
-        Logger::get_instance().log(LogLevel::Info, "Logger initialized", None);
+        // Bind our output viewmodel to the Squalr logger
+        Logger::get_instance().subscribe(self.output_view_model.clone());
         vectors::log_vector_architecture();
+        Logger::get_instance().log(LogLevel::Info, "Squalr started", None);
 
         let view_handle = self.view_handle.clone();
         view.on_minimize(move || {

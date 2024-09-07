@@ -36,7 +36,7 @@ impl Logger {
         self.observers
             .lock()
             .unwrap()
-            .insert(ObserverHandle::new(observer));
+            .insert(ObserverHandle::new(observer.clone()));
     }
 
     pub fn unsubscribe(
@@ -58,7 +58,7 @@ impl Logger {
     ) {
         let observers = self.observers.lock().unwrap();
         for observer in observers.iter() {
-            observer.get().on_log_event(log_level, message, inner_message);
+            self.log_to_observer(observer.get(), log_level, message, inner_message);
         }
     }
 
@@ -71,5 +71,15 @@ impl Logger {
     ) {
         let inner_message = exception.map(|e| e.to_string());
         self.log(log_level, message, inner_message.as_deref());
+    }
+
+    fn log_to_observer(
+        &self,
+        observer: &Arc<dyn LoggerObserver>,
+        log_level: LogLevel,
+        message: &str,
+        inner_message: Option<&str>,
+    ) {
+        observer.on_log_event(log_level, message, inner_message);
     }
 }

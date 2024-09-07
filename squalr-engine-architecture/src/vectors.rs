@@ -18,7 +18,7 @@ pub mod vectors {
         Logger::get_instance().log(
             LogLevel::Info,
             format!(
-                "CPU vector size for accelerated scans: {:?} bytes ({:?} bits), architecture: {}",
+                "CPU vector size for accelerated scans: {:?} bytes ({:?} bits), architecture: {}.",
                 hardware_vector_size,
                 hardware_vector_size * 8,
                 hardware_vector_name,

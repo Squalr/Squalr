@@ -30,8 +30,8 @@ impl LoggerObserver for OutputViewModel {
         inner_message: Option<&str>,
     ) {
         let log_message = match inner_message {
-            Some(inner) => format!("[{:?}] {} - {}", log_level, message, inner),
-            None => format!("[{:?}] {}", log_level, message),
+            Some(inner) => format!("[{:?}] {} - {}\n", log_level, message, inner),
+            None => format!("[{:?}] {}\n", log_level, message),
         };
 
         let view = self.view_handle.global::<OutputViewModelBindings>();
