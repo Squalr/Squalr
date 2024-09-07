@@ -1,6 +1,6 @@
-use crate::views::main_window::footer_view_model::FooterViewModel;
-use crate::views::main_window::title_bar_view_model::TitleBarViewModel;
-use crate::views::view_model::ViewModel;
+use crate::view_models::main_window::footer_view_model::FooterViewModel;
+use crate::view_models::main_window::title_bar_view_model::TitleBarViewModel;
+use crate::view_models::view_model::ViewModel;
 use crate::MainWindowView;
 use slint::ComponentHandle;
 use std::sync::Arc;
@@ -34,10 +34,12 @@ impl MainWindowViewModel {
     pub fn get_title_bar_view(&self) -> &Arc<TitleBarViewModel> {
         return &self.title_bar_view;
     }
+
+    pub fn get_footer_view(&self) -> &Arc<FooterViewModel> {
+        return &self.footer_view;
+    }
 }
 
 impl ViewModel for MainWindowViewModel {
-    fn create_bindings(&self) {
-        // Bindings here, if any necessary.
-    }
+    fn create_bindings(&self) {}
 }

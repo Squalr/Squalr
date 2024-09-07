@@ -1,17 +1,16 @@
-use crate::views::view_model::ViewModel;
-use crate::FooterAdapter;
+use crate::view_models::view_model::ViewModel;
 use crate::MainWindowView;
+use crate::ScanAdapter;
 use slint::ComponentHandle;
 use std::sync::Arc;
 
-pub struct FooterViewModel {
+pub struct ScanViewModel {
     view_handle: Arc<MainWindowView>,
 }
 
-/// Custom title bar implementation with minimize/maximize/close and dragging.
-impl FooterViewModel {
+impl ScanViewModel {
     pub fn new(view_handle: Arc<MainWindowView>) -> Self {
-        let view = FooterViewModel {
+        let view = ScanViewModel {
             view_handle: view_handle.clone(),
         };
 
@@ -21,8 +20,8 @@ impl FooterViewModel {
     }
 }
 
-impl ViewModel for FooterViewModel {
+impl ViewModel for ScanViewModel {
     fn create_bindings(&self) {
-        let _ = self.view_handle.global::<FooterAdapter>();
+        let _ = self.view_handle.global::<ScanAdapter>();
     }
 }

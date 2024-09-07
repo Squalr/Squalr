@@ -1,4 +1,4 @@
-use crate::views::docking::panel_title_bar_view_model::PanelTitleBarViewModel;
+use crate::view_models::docking::panel_title_bar_view_model::PanelTitleBarViewModel;
 use crate::PanelWindowView;
 use slint::*;
 use std::sync::Arc;

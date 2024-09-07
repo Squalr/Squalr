@@ -3,6 +3,9 @@ import {Theme} from "../theme.slint";
 import { TitleBarView, TitleBarAdapter } from "./title_bar_view.slint";
 export { TitleBarAdapter }
 
+import { ShortcutBarView, ScanAdapter } from "./shortcut_bar_view.slint";
+export { ScanAdapter }
+
 import { FooterView, FooterAdapter } from "./footer_view.slint";
 export { FooterAdapter }
 
@@ -35,7 +38,7 @@ export component MainWindowView inherits Window {
         toolbar-menu := ToolbarMenu {
             menus: [
                 { header: "File", items:[{ text:"Select Project" }, { text:"Exit Squalr" }] },
-                { header: "Edit", items:[{ text:"Settings" }, { text:"pause" }] },
+                { header: "Edit", items:[{ text:"Settings" }] },
                 { header: "Layout", items:[{ text:"Reset Layout" }] },
                 {
                     header: "Windows",
@@ -54,6 +57,8 @@ export component MainWindowView inherits Window {
                 { header: "Debugger", items:[{ text:"Disassembly" }, { text:"Code Tracer" }] },
             ];
         }
+
+        shortcut-bar := ShortcutBarView { }
 
         dock-root := DockRoot { }
 

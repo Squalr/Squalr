@@ -1,4 +1,4 @@
-use crate::views::view_model::ViewModel;
+use crate::view_models::view_model::ViewModel;
 use crate::MainWindowView;
 use crate::PanelWindowViewModel;
 use crate::TitleBarAdapter;

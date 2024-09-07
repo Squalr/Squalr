@@ -12,7 +12,7 @@ export component ToolbarMenu inherits Rectangle {
             padding: 0px;
             spacing: 0px;
             for menu in menus: ToolbarMenuItem {
-                parent-toolbar-size: content.width / 1px;
+                parent-toolbar-size: content.width;
                 text: menu.header;
                 items: menu.items;
             }
