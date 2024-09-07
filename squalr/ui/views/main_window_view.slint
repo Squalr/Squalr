@@ -33,121 +33,26 @@ export component MainWindowView inherits Window {
         }
 
         toolbar-menu := ToolbarMenu {
-            file-menu := ToolbarMenuItem {
-                text: "File";
-                select-project-item := ContextMenuItem {
-                    text: "Select Project";
-                    clicked => {
-                    }
-                }
-
-                HSeparator { }
-
-                exit-app-item := ContextMenuItem {
-                    text: "Exit Squalr";
-                    clicked => {
-                    }
-                }
-            }
-
-            edit-menu := ToolbarMenuItem {
-                text: "Edit";
-                settings-item := ContextMenuItem {
-                    text: "Settings";
-                    clicked => {
-                    }
-                }
-            }
-
-            layout-menu := ToolbarMenuItem {
-                text: "Layout";
-                reset-layout-item := ContextMenuItem {
-                    text: "Reset Layout";
-                    clicked => {
-                    }
-                }
-            }
-
-            windows-menu := ToolbarMenuItem {
-                text: "Windows";
-                process-selector-item := ContextMenuItem {
-                    text: "Process Selector";
-                    clicked => {
-                    }
-                }
-
-                project-explorer-item := ContextMenuItem {
-                    text: "Project Explorer";
-                    clicked => {
-                    }
-                }
-
-                property-viewer-item := ContextMenuItem {
-                    text: "Property Viewer";
-                    clicked => {
-                    }
-                }
-
-                output-item := ContextMenuItem {
-                    text: "Output";
-                    clicked => {
-                    }
-                }
-
-                memory-viewer-item := ContextMenuItem {
-                    text: "Memory Viewer";
-                    clicked => {
-                    }
-                }
-
-                scan-results-item := ContextMenuItem {
-                    text: "Scan Results";
-                    clicked => {
-                    }
-                }
-
-                pointer-scan-results-item := ContextMenuItem {
-                    text: "Pointer Scan Results";
-                    clicked => {
-                    }
-                }
-
-                snapshot-manager-item := ContextMenuItem {
-                    text: "Snapshot Manager";
-                    clicked => {
-                    }
-                }
-
-                dot-net-explorer-item := ContextMenuItem {
-                    text: ".NET Explorer";
-                    clicked => {
-                    }
-                }
-            }
-
-            scans-menu := ToolbarMenuItem {
-                text: "Scans";
-                pointer-scan-item := ContextMenuItem {
-                    text: "Pointer Scan";
-                    clicked => {
-                    }
-                }
-            }
-
-            debugger-menu := ToolbarMenuItem {
-                text: "Debugger";
-                disassembly-item := ContextMenuItem {
-                    text: "Disassembly";
-                    clicked => {
-                    }
-                }
-
-                code-tracer-item := ContextMenuItem {
-                    text: "Code Tracer";
-                    clicked => {
-                    }
-                }
-            }
+            menus: [
+                { header: "File", items:[{ text:"Select Project" }, { text:"Exit Squalr" }] },
+                { header: "Edit", items:[{ text:"Settings" }, { text:"pause" }] },
+                { header: "Layout", items:[{ text:"Reset Layout" }] },
+                {
+                    header: "Windows",
+                    items:[
+                        { text:"Process Selector" },
+                        { text:"Project Explorer" },
+                        { text:"Property Viewer" },
+                        { text:"Memory Viewer" },
+                        { text:"Scan Results" },
+                        { text:"Pointer Scan Results" },
+                        { text:"Snapshot Manager" },
+                        { text:".NET Explorer" },
+                    ]
+                },
+                { header: "Scans", items:[{ text:"Pointer Scan" }] },
+                { header: "Debugger", items:[{ text:"Disassembly" }, { text:"Code Tracer" }] },
+            ];
         }
 
         dock-root := DockRoot { }

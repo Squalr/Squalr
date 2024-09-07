@@ -1,5 +1,6 @@
 use crate::views::view_model::ViewModel;
 use crate::MainWindowView;
+use crate::PanelWindowViewModel;
 use crate::TitleBarAdapter;
 use slint::ComponentHandle;
 use std::sync::Arc;
