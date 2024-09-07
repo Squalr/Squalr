@@ -1,5 +1,5 @@
-
-import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+import { Theme } from "./../../theme.slint";
+import { HorizontalBox, VerticalBox } from "std-widgets.slint";
 
 component DockRoot inherits Rectangle {
     in property <bool> selected;
@@ -8,6 +8,6 @@ component DockRoot inherits Rectangle {
 
 export component DockRoot inherits Rectangle {
     Rectangle {
-        background: Palette.background.darker(0.2);
+        background: Theme.background-primary;
     }
 }

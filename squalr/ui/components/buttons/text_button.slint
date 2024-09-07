@@ -5,6 +5,12 @@ import { StateLayer } from "./../state_layer.slint";
 
 export component TextButton {
     in property <string> text;
+    in property <length> text-padding-top: 4px;
+    in property <length> text-padding-bottom: 4px;
+    in property <length> text-padding-left: 8px;
+    in property <length> text-padding-right: 8px;
+    in property <TextHorizontalAlignment> text-horizontal-alignment: left;
+    in property <TextVerticalAlignment> text-vertical-alignment: center;
     callback clicked;
     forward-focus: touch-area;
     accessible-role: button;
@@ -29,14 +35,14 @@ export component TextButton {
     }
 
     content-layer := HorizontalLayout {
-        padding-top: 4px;
-        padding-bottom: 4px;
-        padding-left: 8px;
-        padding-right: 8px;
+        padding-top: root.text-padding-top;
+        padding-bottom: root.text-padding-bottom;
+        padding-left: root.text-padding-left;
+        padding-right: root.text-padding-right;
         Text {
             text: root.text;
-            horizontal-alignment: left;
-            vertical-alignment: center;
+            horizontal-alignment: root.text-horizontal-alignment;
+            vertical-alignment: root.text-vertical-alignment;
             color: Theme.foreground;
         }
     }

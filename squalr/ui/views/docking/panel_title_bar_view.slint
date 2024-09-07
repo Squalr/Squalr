@@ -6,11 +6,6 @@ import { IconButton } from "../../components/buttons/icon_button.slint";
 
 export component PanelTitleBarView inherits Rectangle {
     in property <string> title <=> title.text;
-    callback close();
-    callback maximize();
-    callback minimize();
-    callback double-clicked();
-    callback drag(int, int);
     height: 32px;
     Rectangle {
         border-top-left-radius: 8px;

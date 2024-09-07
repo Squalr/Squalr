@@ -24,7 +24,10 @@ export component MainWindowView inherits Window {
 
         toolbar-menu := ToolbarMenu {
             menus: [
-                { header: "File", items:[{ text:"Select Project" }, { text:"Exit Squalr" }] },
+                {
+                    header: "File",
+                    items:[{ text:"Select Project" }, { text:"Exit Squalr", separator: true }]
+                },
                 { header: "Edit", items:[{ text:"Settings" }] },
                 { header: "Layout", items:[{ text:"Reset Layout" }] },
                 {

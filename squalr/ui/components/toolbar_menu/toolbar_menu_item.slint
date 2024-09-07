@@ -2,13 +2,23 @@ import { Theme } from "./../../theme.slint";
 import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 import { ContextMenu } from "./../context_menu/context_menu.slint";
 import { TextButton } from "../../components/buttons/text_button.slint";
+import { HSeparator } from "../separator.slint";
+
+export struct ToolbarMenuItemData {
+    text: string,
+    separator: bool,
+}
 
 export component ToolbarMenuItem inherits HorizontalLayout {
     in property <string> text;
     in property <length> parent-toolbar-size;
-    in-out property <[{text:string}]> items;
+    in-out property <[ToolbarMenuItemData]> items;
     text-button := TextButton {
         text: root.text;
+        text-padding-top: 0px;
+        text-padding-bottom: 0px;
+        text-horizontal-alignment: center;
+        text-vertical-alignment: center;
         clicked => {
             context-menu.show();
         }
@@ -20,8 +30,20 @@ export component ToolbarMenuItem inherits HorizontalLayout {
         content := VerticalBox {
             padding: 0px;
             spacing: 0px;
-            for item in items: TextButton {
-                text: item.text;
+            for item in items: VerticalLayout {
+                if(item.separator): VerticalBox {
+                    padding: 0px;
+                    padding-top: 4px;
+                    spacing: 4px;
+                    HSeparator { }
+
+                    TextButton {
+                        text: item.text;
+                    }
+                }
+                if(!item.separator): TextButton {
+                    text: item.text;
+                }
             }
         }
     }
