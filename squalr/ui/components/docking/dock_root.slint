@@ -1,13 +1,159 @@
 import { Theme } from "./../../theme.slint";
 import { HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { DockedWindowView } from "../../views/docking/docked_window_view.slint";
 
-component DockRoot inherits Rectangle {
-    in property <bool> selected;
-    in property <bool> has-focus;
+export struct DockedWindowLayoutNode {
+    dock-window-id: string,
+    children: [string],
+    split-orientation: string,
+    size-ratio: float,
 }
 
+export component DockedWindowHorizontalSplitter inherits Rectangle {
+    in-out property <[DockedWindowLayoutNode]> layout;
+    in-out property <[string]> children;
+    // Layout is opposite to the split direction.
+    VerticalLayout {
+        VerticalBox {
+            @children
+        }
+    }
+}
+
+export component DockedWindowVerticalSplitter inherits Rectangle {
+    in-out property <[DockedWindowLayoutNode]> layout;
+    in-out property <[string]> children;
+    // Layout is opposite to the split direction.
+    HorizontalLayout {
+        HorizontalBox {
+            @children
+        }
+    }
+}
+
+export component DockRecurseEnd inherits Rectangle {
+    in property <[DockedWindowLayoutNode]> layout;
+    in property <string> child;
+    for node in layout: Rectangle {
+        if node.dock-window-id == root.child && node.children.length == 0: DockedWindowView {
+            docked-window-id: node.dock-window-id;
+        }
+    }
+}
+
+export component DockRecurse3 inherits Rectangle {
+    in property <[DockedWindowLayoutNode]> layout;
+    in property <string> child;
+    for node in layout: Rectangle {
+        if node.dock-window-id == root.child && node.children.length == 0: DockedWindowView {
+            docked-window-id: node.dock-window-id;
+        }
+        if node.dock-window-id == root.child && node.children.length > 0 && node.split-orientation == "horizontal": DockedWindowHorizontalSplitter {
+            layout: layout;
+            children: node.children;
+            for nested-child in node.children: DockRecurseEnd {
+                layout: layout;
+                child: nested-child;
+            }
+        }
+        if node.dock-window-id == root.child && node.children.length > 0 && node.split-orientation == "vertical": DockedWindowVerticalSplitter {
+            layout: layout;
+            children: node.children;
+            for nested-child in node.children: DockRecurseEnd {
+                layout: layout;
+                child: nested-child;
+            }
+        }
+    }
+}
+
+export component DockRecurse2 inherits Rectangle {
+    in property <[DockedWindowLayoutNode]> layout;
+    in property <string> child;
+    for node in layout: Rectangle {
+        if node.dock-window-id == root.child && node.children.length == 0: DockedWindowView {
+            docked-window-id: node.dock-window-id;
+        }
+        if node.dock-window-id == root.child && node.children.length > 0 && node.split-orientation == "horizontal": DockedWindowHorizontalSplitter {
+            layout: layout;
+            children: node.children;
+            for nested-child in node.children: DockRecurse3 {
+                layout: layout;
+                child: nested-child;
+            }
+        }
+        if node.dock-window-id == root.child && node.children.length > 0 && node.split-orientation == "vertical": DockedWindowVerticalSplitter {
+            layout: layout;
+            children: node.children;
+            for nested-child in node.children: DockRecurse3 {
+                layout: layout;
+                child: nested-child;
+            }
+        }
+    }
+}
+
+export component DockRecurse1 inherits Rectangle {
+    in property <[DockedWindowLayoutNode]> layout;
+    in property <string> child;
+    for node in layout: Rectangle {
+        if node.dock-window-id == root.child && node.children.length == 0: DockedWindowView {
+            docked-window-id: node.dock-window-id;
+        }
+        if node.dock-window-id == root.child && node.children.length > 0 && node.split-orientation == "horizontal": DockedWindowHorizontalSplitter {
+            layout: layout;
+            children: node.children;
+            for nested-child in node.children: DockRecurse2 {
+                layout: layout;
+                child: nested-child;
+            }
+        }
+        if node.dock-window-id == root.child && node.children.length > 0 && node.split-orientation == "vertical": DockedWindowVerticalSplitter {
+            layout: layout;
+            children: node.children;
+            for nested-child in node.children: DockRecurse2 {
+                layout: layout;
+                child: nested-child;
+            }
+        }
+    }
+}
+
+export component DockRecurse0 inherits Rectangle {
+    in property <[DockedWindowLayoutNode]> layout;
+    in property <string> child;
+    for node in layout: Rectangle {
+        if node.dock-window-id == root.child && node.children.length == 0: DockedWindowView {
+            docked-window-id: node.dock-window-id;
+        }
+        if node.dock-window-id == root.child && node.children.length > 0 && node.split-orientation == "horizontal": DockedWindowHorizontalSplitter {
+            layout: layout;
+            children: node.children;
+            for nested-child in node.children: DockRecurse1 {
+                layout: layout;
+                child: nested-child;
+            }
+        }
+        if node.dock-window-id == root.child && node.children.length > 0 && node.split-orientation == "vertical": DockedWindowVerticalSplitter {
+            layout: layout;
+            children: node.children;
+            for nested-child in node.children: DockRecurse1 {
+                layout: layout;
+                child: nested-child;
+            }
+        }
+    }
+}
+
+// This is mega stupid, but due to lack of recursion support, this is the only way. The strategy is as follows:
+// Iterate over all children "pseudo-recursively" starting from the root. There is no actual recursion support, so we hard code N deep
+// iterations. We start with "root", and check for any leaf nodes. These get turned into dock windows. Rinse and repeat.
 export component DockRoot inherits Rectangle {
-    Rectangle {
-        background: Theme.background-primary;
+    in-out property <[DockedWindowLayoutNode]> layout;
+    background: Theme.background-primary;
+    // Pseudo-recurse starting from the root.
+    DockRecurse0 {
+        layout: layout;
+        child: "root";
     }
 }

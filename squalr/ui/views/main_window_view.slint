@@ -1,6 +1,6 @@
 import { Theme } from "../theme.slint";
 
-import { DockRoot } from "./../components/docking/dock_root.slint";
+import { DockRoot, DockedWindowLayoutNode } from "./../components/docking/dock_root.slint";
 import { HSeparator } from "./../components/separator.slint";
 import { ToolbarMenu } from "./../components/toolbar_menu/toolbar_menu.slint";
 
@@ -38,49 +38,46 @@ export component MainWindowView inherits Window {
                 {
                     header: "File",
                     items:[
-                        { key: "select-project", text:"Select Project" },
-                        { key: "export-project", text:"Export Project as Table..." },
-                        { key: "exit", text: "Exit Squalr", separator: true }
+                        { id: "select-project", text:"Select Project" },
+                        { id: "export-project", text:"Export Project as Table..." },
+                        { id: "exit", text: "Exit Squalr", separator: true }
                     ]
                 },
-                { header: "Edit", items:[{ key: "settings", text:"Settings" }] },
-                { header: "Layout", items:[{ key: "layout-reset", text:"Reset Layout" }] },
+                { header: "Edit", items:[{ id: "settings", text:"Settings" }] },
+                { header: "Layout", items:[{ id: "layout-reset", text:"Reset Layout" }] },
                 {
                     header: "Windows",
                     items:[
-                        { key: "process-selector", text:"Process Selector" },
-                        { key: "project-explorer", text:"Project Explorer" },
-                        { key: "property-viewer", text:"Property Viewer" },
-                        { key: "memory-viewer", text:"Memory Viewer" },
-                        { key: "scan-results", text:"Scan Results" },
-                        { key: "pointer-results", text:"Pointer Scan Results" },
-                        { key: "snapshot-manager", text:"Snapshot Manager" },
-                        { key: "dotnet-explorer", text:".NET Explorer" },
+                        { id: "process-selector", text:"Process Selector" },
+                        { id: "project-explorer", text:"Project Explorer" },
+                        { id: "property-viewer", text:"Property Viewer" },
+                        { id: "memory-viewer", text:"Memory Viewer" },
+                        { id: "scan-results", text:"Scan Results" },
+                        { id: "pointer-results", text:"Pointer Scan Results" },
+                        { id: "snapshot-manager", text:"Snapshot Manager" },
+                        { id: "dotnet-explorer", text:".NET Explorer" },
                     ]
                 },
-                { header: "Scans", items:[{ key: "scans", text:"Pointer Scan" }] },
+                { header: "Scans", items:[{ id: "scans", text:"Pointer Scan" }] },
                 {
                     header: "Debugger",
-                    items:[
-                        { key: "disassembly", text:"Disassembly" },
-                        { key: "code-tracer", text:"Code Tracer" }
-                    ]
+                    items:[{ id: "disassembly", text:"Disassembly" }, { id: "code-tracer", text:"Code Tracer" }]
                 },
             ];
-            onItemClicked(key) => {
-                if key == "exit" {
+            onItemClicked(id) => {
+                if id == "exit" {
                     WindowViewModelBindings.close();
-                } else if key == "select-project" {
-                } else if key == "export-project" {
-                } else if key == "settings" {
-                } else if key == "layout-reset" {
-                } else if key == "process-selector" {
-                } else if key == "project-explorer" {
-                } else if key == "memory-viewer" {
-                } else if key == "scan-results" {
-                } else if key == "pointer-results" {
-                } else if key == "snapshot-manager" {
-                } else if key == "dotnet-explorer" {
+                } else if id == "select-project" {
+                } else if id == "export-project" {
+                } else if id == "settings" {
+                } else if id == "layout-reset" {
+                } else if id == "process-selector" {
+                } else if id == "project-explorer" {
+                } else if id == "memory-viewer" {
+                } else if id == "scan-results" {
+                } else if id == "pointer-results" {
+                } else if id == "snapshot-manager" {
+                } else if id == "dotnet-explorer" {
                 }
             }
         }
@@ -88,40 +85,77 @@ export component MainWindowView inherits Window {
         shortcut-bar := ShortcutBarView { }
 
         dock-root := DockRoot {
-            GridLayout {
-                Row {
-                    HorizontalBox {
-                        padding: 0px;
-                        spacing: 0px;
-                        process-selector-view := DockedWindowView {
-                            docked-window-id: "process-selector";
-                        }
-
-                        settings-view := DockedWindowView {
-                            docked-window-id: "settings";
-                        }
-
-                        scan-results-view := DockedWindowView {
-                            docked-window-id: "scan-results";
-                        }
-                    }
-                }
-
-                Row {
-                    HorizontalBox {
-                        padding: 0px;
-                        spacing: 0px;
-                        output-view := DockedWindowView {
-                            docked-window-id: "output";
-                        }
-
-                        property-viewer-view := DockedWindowView {
-                            docked-window-id: "property-viewer";
-                        }
-                    }
-                }
-            }
+            layout: [
+                // All heirarchy relationships
+                {
+                    dock-window-id: "root",
+                    size-ratio: 1.0,
+                    split-orientation: "vertical",
+                    children: ["settings", "split1"],
+                },
+                {
+                    dock-window-id: "split1",
+                    size-ratio: 0.65,
+                    split-orientation: "horizontal",
+                    children: ["scan-results", "output"],
+                },
+                // All leaf elements
+                {
+                    dock-window-id: "output",
+                    size-ratio: 0.5,
+                    children: [],
+                },
+                {
+                    dock-window-id: "scan-results",
+                    size-ratio: 0.5,
+                    children: [],
+                },
+                {
+                    dock-window-id: "process-selector",
+                    size-ratio: 0.5,
+                    children: [],
+                },
+                {
+                    dock-window-id: "property-viewer",
+                    size-ratio: 0.5,
+                    children: [],
+                },
+                {
+                    dock-window-id: "project-explorer",
+                    size-ratio: 0.35,
+                    children: [],
+                },
+                {
+                    dock-window-id: "settings",
+                    size-ratio: 0.65,
+                    children: [],
+                },
+            ];
         }
+
+        /*
+        dock-root := DockRoot {
+            layout: [
+                {
+                    dock-window-id: "root",
+                    size-ratio: 1.0,
+                    split-orientation: "vertical",
+                    children: ["section1", "section2", "output"],
+                },
+                {
+                    dock-window-id: "section1",
+                    size-ratio: 0.2,
+                    split-orientation: "vertical",
+                    children: ["project-explorer", "settings"],
+                },
+                {
+                    dock-window-id: "section2",
+                    size-ratio: 0.4,
+                    split-orientation: "horizontal",
+                    children: ["scan-results", "property-viewer"],
+                },
+            ];
+        }*/
 
         footer := FooterView { }
     }

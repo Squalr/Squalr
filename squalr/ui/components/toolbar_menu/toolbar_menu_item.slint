@@ -5,7 +5,7 @@ import { TextButton } from "./../../components/buttons/text_button.slint";
 import { HSeparator } from "./../separator.slint";
 
 export struct ToolbarMenuItemData {
-    key: string,
+    id: string,
     text: string,
     separator: bool,
 }
@@ -42,7 +42,7 @@ export component ToolbarMenuItem inherits HorizontalLayout {
                     TextButton {
                         text: item.text;
                         clicked => {
-                            root.onItemClicked(item.key);
+                            root.onItemClicked(item.id);
                         }
                     }
                 }
