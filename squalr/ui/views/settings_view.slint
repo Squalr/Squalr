@@ -2,8 +2,12 @@ import { Theme } from "./../theme.slint";
 
 import { HorizontalBox, VerticalBox } from "std-widgets.slint";
 import { TextButton } from "../components/buttons/text_button.slint";
+import { TextField } from "../components/input/text_field.slint";
+import { Checkbox } from "../components/checkboxes/checkbox.slint";
+import { ScanSettingsViewModelBindings, MemorySettingsViewModelBindings } from "../view_model_bindings.slint";
 
 export component SettingsView inherits Rectangle {
+    property <int> selected-tab: 1;
     background: Theme.background-panel;
     border-color: Theme.submenu-border;
     border-radius: 2px;
@@ -11,33 +15,118 @@ export component SettingsView inherits Rectangle {
     content := VerticalBox {
         padding: 0px;
         spacing: 0px;
-        header := HorizontalBox {
-            alignment: start;
-            padding: 0px;
-            spacing: 0px;
-            height: 24px;
-            TextButton {
-                text: "General";
-            }
+        Rectangle {
+            background: Theme.background-control;
+            header := HorizontalBox {
+                alignment: start;
+                padding: 0px;
+                spacing: 0px;
+                height: 24px;
+                general-tab := TextButton {
+                    text: "General";
+                    clicked => {
+                        root.selected-tab = 0;
+                    }
+                }
 
-            TextButton {
-                text: "Memory";
-            }
+                memory-tab := TextButton {
+                    text: "Memory";
+                    clicked => {
+                        root.selected-tab = 1;
+                    }
+                }
 
-            TextButton {
-                text: "Intervals";
-            }
+                scans-tab := TextButton {
+                    text: "Scan";
+                    clicked => {
+                        root.selected-tab = 2;
+                    }
+                }
 
-            TextButton {
-                text: "Middleware";
+                middleware-tab := TextButton {
+                    text: "Middleware";
+                    clicked => {
+                        root.selected-tab = 3;
+                    }
+                }
             }
         }
 
-        HorizontalBox {
-            vertical-stretch: 100%;
-            Text {
-                text: "Suh";
+        Rectangle {
+            general-content := VerticalBox { }
+
+            memory-content := VerticalBox {
+                Checkbox {
+                    is-checked <=> MemorySettingsViewModelBindings.required_write;
+                    check-changed(value) => {
+                        MemorySettingsViewModelBindings.required_write_changed(value);
+                    }
+                }
+
+                Checkbox {
+                    is-checked <=> MemorySettingsViewModelBindings.required_execute;
+                    check-changed(value) => {
+                        MemorySettingsViewModelBindings.required_execute_changed(value);
+                    }
+                }
+
+                Checkbox {
+                    is-checked <=> MemorySettingsViewModelBindings.required_copy_on_write;
+                    check-changed(value) => {
+                        MemorySettingsViewModelBindings.required_copy_on_write_changed(value);
+                    }
+                }
             }
+
+            scans-content := VerticalBox {
+                GridLayout {
+                    spacing: 4px;
+                    Row {
+                        TextField {
+                            default-text: "50";
+                        }
+
+                        Text {
+                            text: "Freeze Interval";
+                            color: Theme.foreground;
+                        }
+                    }
+
+                    Row {
+                        TextField {
+                            height: 24px;
+                            default-text: "100";
+                        }
+
+                        Text {
+                            text: "Project Read Interval";
+                            color: Theme.foreground;
+                        }
+                    }
+
+                    Row {
+                        TextField {
+                            default-text: "100";
+                        }
+
+                        Text {
+                            text: "Result Read Interval";
+                            color: Theme.foreground;
+                        }
+                    }
+                }
+            }
+
+            middleware-content := VerticalBox { }
         }
+
+        states [
+            _ when root.selected-tab >= 0: {
+                general-content.visible: root.selected-tab == 0;
+                memory-content.visible: root.selected-tab == 1;
+                scans-content.visible: root.selected-tab == 2;
+                middleware-content.visible: root.selected-tab == 3;
+            }
+        ]
     }
 }

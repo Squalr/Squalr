@@ -1,0 +1,57 @@
+import { Theme } from "./../../theme.slint";
+import { FocusTouchArea } from "./../focus_touch_area.slint";
+import { StateLayer } from "./../state_layer.slint";
+import { Tooltip } from "../tooltips/tooltip.slint";
+
+export component Checkbox inherits Rectangle {
+    in-out property <bool> is-checked: false;
+    in property <image> checked-icon: @image-url("./../../images/app/close.png");
+    in property <length> icon-width: 16px;
+    in property <length> icon-height: 16px;
+    in property <string> tooltip-text;
+    callback check-changed(bool);
+    width: 20px;
+    height: 20px;
+    background: Theme.background-control;
+    border-width: 1px;
+    border-color: Theme.submenu-border;
+    forward-focus: touch-area;
+
+    touch-area := FocusTouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => {
+            root.is-checked = !is-checked;
+            root.check-changed(root.is-checked);
+        }
+    }
+
+    state-layer := StateLayer {
+        width: 100%;
+        height: 100%;
+        pressed: touch-area.is-pressed || touch-area.enter-pressed;
+        has-focus: touch-area.has-focus;
+        has-hover: touch-area.has-hover;
+    }
+
+    content-layer := HorizontalLayout {
+        alignment: center;
+        width: icon-width;
+        height: icon-height;
+        icon-image := Image {
+            source: root.checked-icon;
+            visible <=> root.is-checked;
+        }
+    }
+
+    // TODO
+    // if tooltip-text != "" {
+       //  tooltip.show();
+    // }
+
+    tooltip := Tooltip {
+        x: content-layer.x;
+        y: content-layer.y + content-layer.height;
+        text: root.tooltip-text;
+    }
+}

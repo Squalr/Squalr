@@ -32,7 +32,51 @@ export global ScanViewModelBindings {
     callback set_scan_constraint(int);
 }
 
-export global SettingsViewModelBindings { }
+export global MemorySettingsViewModelBindings {
+    in-out property <bool> memory_type_none;
+    callback memory_type_none_changed(bool);
+    in-out property <bool> memory_type_private;
+    callback memory_type_private_changed(bool);
+    in-out property <bool> memory_type_image;
+    callback memory_type_image_changed(bool);
+    in-out property <bool> memory_type_mapped;
+    callback memory_type_mapped_changed(bool);
+    in-out property <bool> required_write;
+    callback required_write_changed(bool);
+    in-out property <bool> required_execute;
+    callback required_execute_changed(bool);
+    in-out property <bool> required_copy_on_write;
+    callback required_copy_on_write_changed(bool);
+    in-out property <bool> excluded_write;
+    callback excluded_write_changed(bool);
+    in-out property <bool> excluded_execute;
+    callback excluded_execute_changed(bool);
+    in-out property <bool> excluded_copy_on_write;
+    callback excluded_copy_on_write_changed(bool);
+    in-out property <string> start_address;
+    callback start_address_changed(string);
+    in-out property <string> end_address;
+    callback end_address_changed(string);
+    in-out property <bool> only_scan_usermode;
+    callback only_scan_usermode_changed(bool);
+}
+
+export global ScanSettingsViewModelBindings {
+    in-out property <int> results_page_size;
+    callback results_page_size_changed(int);
+    in-out property <int> results_read_interval;
+    callback results_read_interval_changed(int);
+    in-out property <int> table_read_interval;
+    callback table_read_interval_changed(int);
+    in-out property <int> freeze_interval;
+    callback freeze_interval_changed(int);
+    // Option<MemoryAlignment>,
+    in-out property <int> memory_alignment;
+    callback memory_alignment_changed(int);
+    // FloatingPointTolerance,
+    in-out property <int> floating_point_tolerance;
+    callback floating_point_tolerance_changed(int);
+}
 
 export global ProjectExplorerViewModelBindings { }
 
