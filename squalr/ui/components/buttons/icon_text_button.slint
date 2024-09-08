@@ -6,7 +6,7 @@ import { StateLayer } from "./../state_layer.slint";
 import { Tooltip } from "../tooltips/tooltip.slint";
 import { HorizontalBox } from "std-widgets.slint";
 
-export component IconTextButton {
+export component IconTextButton inherits Rectangle {
     in property <image> icon;
     in property <length> icon-width: 0px;
     in property <length> icon-height: 0px;

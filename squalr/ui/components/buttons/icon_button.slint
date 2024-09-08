@@ -3,7 +3,7 @@ import { FocusTouchArea } from "./../focus_touch_area.slint";
 import { StateLayer } from "./../state_layer.slint";
 import { Tooltip } from "../tooltips/tooltip.slint";
 
-export component IconButton {
+export component IconButton inherits Rectangle {
     in property <image> icon;
     in property <length> icon-width;
     in property <length> icon-height;

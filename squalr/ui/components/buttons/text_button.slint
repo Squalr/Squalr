@@ -5,7 +5,7 @@ import { FocusTouchArea } from "./../focus_touch_area.slint";
 import { StateLayer } from "./../state_layer.slint";
 import { Tooltip } from "../tooltips/tooltip.slint";
 
-export component TextButton {
+export component TextButton inherits Rectangle {
     in property <string> text;
     in property <length> text-padding-top: 4px;
     in property <length> text-padding-bottom: 4px;
