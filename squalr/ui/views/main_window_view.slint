@@ -14,6 +14,7 @@ import { WindowViewModelBindings } from "./../view_model_bindings.slint";
 import { HorizontalBox } from "std-widgets.slint";
 import { ScanResultsView } from "scan_results_view.slint";
 import { PropertyViewerView } from "property_viewer_view.slint";
+import { SettingsView } from "settings_view.slint";
 
 export component MainWindowView inherits Window {
     title: @tr("Squalr");
@@ -92,7 +93,7 @@ export component MainWindowView inherits Window {
                         spacing: 0px;
                         process-selector-view := ProcessSelectorView { }
 
-                        settings-view := ProcessSelectorView { }
+                        settings-view := SettingsView { }
 
                         scan-results-view := ScanResultsView { }
                     }
