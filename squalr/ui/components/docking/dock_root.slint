@@ -1,35 +1,9 @@
 import { Theme } from "./../../theme.slint";
-import { HorizontalBox, VerticalBox } from "std-widgets.slint";
+
+import { DockedWindowLayoutNode } from "./docked_window_layout_node.slint";
+import { DockedWindowHorizontalSplitter } from "./docked_window_horizontal_splitter.slint";
+import { DockedWindowVerticalSplitter } from "./docked_window_vertical_splitter.slint";
 import { DockedWindowView } from "../../views/docking/docked_window_view.slint";
-
-export struct DockedWindowLayoutNode {
-    dock-window-id: string,
-    children: [string],
-    split-orientation: string,
-    size-ratio: float,
-}
-
-export component DockedWindowHorizontalSplitter inherits Rectangle {
-    in-out property <[DockedWindowLayoutNode]> layout;
-    in-out property <[string]> children;
-    // Layout is opposite to the split direction.
-    VerticalLayout {
-        VerticalBox {
-            @children
-        }
-    }
-}
-
-export component DockedWindowVerticalSplitter inherits Rectangle {
-    in-out property <[DockedWindowLayoutNode]> layout;
-    in-out property <[string]> children;
-    // Layout is opposite to the split direction.
-    HorizontalLayout {
-        HorizontalBox {
-            @children
-        }
-    }
-}
 
 export component DockRecurseEnd inherits Rectangle {
     in property <[DockedWindowLayoutNode]> layout;
@@ -123,9 +97,7 @@ export component DockRecurse0 inherits Rectangle {
     in property <[DockedWindowLayoutNode]> layout;
     in property <string> child;
     for node in layout: Rectangle {
-        if node.dock-window-id == root.child && node.children.length == 0: DockedWindowView {
-            docked-window-id: node.dock-window-id;
-        }
+        // (No leaf nodes in first recurse)
         if node.dock-window-id == root.child && node.children.length > 0 && node.split-orientation == "horizontal": DockedWindowHorizontalSplitter {
             layout: layout;
             children: node.children;

@@ -1,10 +1,33 @@
 import { Theme } from "./../../theme.slint";
-import { HorizontalBox, VerticalBox } from "std-widgets.slint";
+
 import { DockedWindowView } from "../../views/docking/docked_window_view.slint";
-import { DockedWindowHorizontalSplitter } from "./docked_window_horizontal_splitter.slint";
-import { DockedWindowVerticalSplitter } from "./docked_window_vertical_splitter.slint";
+import { HorizontalBox, VerticalBox } from "std-widgets.slint";
+
+export struct LeafNodes {
+    docking-window-ids: [string],
+    // MVVM bindings to get split ratios?
+}
 
 export struct DockedWindowLayoutNode {
+    dock-window-id: string,
+    children: [string],
+    leaf-nodes: [string],
+    split-orientation: string,
+    size-ratio: float,
+}
+
+// WIP: Need a new structure that minimizes needless looping that is causing binary bloat.
+
+export struct LeafGroup {
+    split-orientation: string,
+    leafs: [string],
+}
+
+export struct Mix {
+    leaf-groups: [LeafGroup],
+}
+
+export struct SplitsForDepth {
     dock-window-id: string,
     children: [string],
     split-orientation: string,

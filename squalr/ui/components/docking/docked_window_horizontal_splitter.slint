@@ -3,8 +3,13 @@ import { Theme } from "./../../theme.slint";
 import { DockedWindowLayoutNode } from "./docked_window_layout_node.slint";
 import { VerticalBox } from "std-widgets.slint";
 
-export component DockedWindowSplitter inherits Rectangle {
+export component DockedWindowHorizontalSplitter inherits Rectangle {
     in-out property <[DockedWindowLayoutNode]> layout;
     in-out property <[string]> children;
-    @children
+    // Layout is opposite to the split direction.
+    VerticalLayout {
+        VerticalBox {
+            @children
+        }
+    }
 }

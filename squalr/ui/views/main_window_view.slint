@@ -1,6 +1,7 @@
 import { Theme } from "../theme.slint";
 
-import { DockRoot, DockedWindowLayoutNode } from "./../components/docking/dock_root.slint";
+import { DockedWindowLayoutNode } from "./../components/docking/docked_window_layout_node.slint";
+import { DockRoot } from "./../components/docking/dock_root.slint";
 import { HSeparator } from "./../components/separator.slint";
 import { ToolbarMenu } from "./../components/toolbar_menu/toolbar_menu.slint";
 
@@ -89,46 +90,31 @@ export component MainWindowView inherits Window {
                 // All heirarchy relationships
                 {
                     dock-window-id: "root",
-                    size-ratio: 1.0,
                     split-orientation: "vertical",
-                    children: ["settings", "split1"],
+                    children: ["settings", "split1", "property-viewer"],
                 },
                 {
                     dock-window-id: "split1",
-                    size-ratio: 0.65,
                     split-orientation: "horizontal",
                     children: ["scan-results", "output"],
                 },
-                // All leaf elements
                 {
                     dock-window-id: "output",
-                    size-ratio: 0.5,
-                    children: [],
                 },
                 {
                     dock-window-id: "scan-results",
-                    size-ratio: 0.5,
-                    children: [],
                 },
                 {
                     dock-window-id: "process-selector",
-                    size-ratio: 0.5,
-                    children: [],
                 },
                 {
                     dock-window-id: "property-viewer",
-                    size-ratio: 0.5,
-                    children: [],
                 },
                 {
                     dock-window-id: "project-explorer",
-                    size-ratio: 0.35,
-                    children: [],
                 },
                 {
                     dock-window-id: "settings",
-                    size-ratio: 0.65,
-                    children: [],
                 },
             ];
         }
