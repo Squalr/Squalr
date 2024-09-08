@@ -4,7 +4,7 @@ import { WindowViewModelBindings } from "./../../view_model_bindings.slint";
 import { HorizontalBox, VerticalBox, Palette, Button } from "std-widgets.slint";
 import { IconButton } from "../../components/buttons/icon_button.slint";
 
-export component PanelTitleBarView inherits Rectangle {
+export component UndockedWindowTitleBarView inherits Rectangle {
     in property <string> title <=> title.text;
     height: 32px;
     Rectangle {

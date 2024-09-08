@@ -1,0 +1,20 @@
+import { Theme } from "./../../theme.slint";
+
+import { OutputView } from "../output_view.slint";
+import { PropertyViewerView } from "../property_viewer_view.slint";
+import { ProcessSelectorView } from "../process_selector_view.slint";
+import { ScanResultsView } from "../scan_results_view.slint";
+import { SettingsView } from "../settings_view.slint";
+
+export component DockedWindowView inherits Rectangle {
+    in property <string> docked-window-id;
+    background: Theme.background-panel;
+    border-color: Theme.submenu-border;
+    border-radius: 2px;
+    border-width: 1px;
+    if docked-window-id == "output": OutputView { }
+    if docked-window-id == "property-viewer": PropertyViewerView { }
+    if docked-window-id == "process-selector": ProcessSelectorView { }
+    if docked-window-id == "scan-results": ScanResultsView { }
+    if docked-window-id == "settings": SettingsView { }
+}

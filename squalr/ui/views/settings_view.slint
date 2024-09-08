@@ -8,12 +8,8 @@ import { Checkbox } from "../components/checkboxes/checkbox.slint";
 import { ScanSettingsViewModelBindings, MemorySettingsViewModelBindings } from "../view_model_bindings.slint";
 import { TextCheckbox } from "../components/checkboxes/text_checkbox.slint";
 
-export component SettingsView inherits Rectangle {
+export component SettingsView {
     property <int> selected-tab: 1;
-    background: Theme.background-panel;
-    border-color: Theme.submenu-border;
-    border-radius: 2px;
-    border-width: 1px;
     content := VerticalBox {
         padding: 0px;
         spacing: 0px;

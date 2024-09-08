@@ -11,10 +11,12 @@ import { OutputView } from "output_view.slint";
 import { ProcessSelectorView } from "process_selector_view.slint";
 
 import { WindowViewModelBindings } from "./../view_model_bindings.slint";
+import { ScanResultsView } from "./scan_results_view.slint";
+import { PropertyViewerView } from "./property_viewer_view.slint";
+import { SettingsView } from "./settings_view.slint";
+import { DockedWindowView } from "./docking/docked_window_view.slint";
+
 import { HorizontalBox } from "std-widgets.slint";
-import { ScanResultsView } from "scan_results_view.slint";
-import { PropertyViewerView } from "property_viewer_view.slint";
-import { SettingsView } from "settings_view.slint";
 
 export component MainWindowView inherits Window {
     title: @tr("Squalr");
@@ -91,11 +93,17 @@ export component MainWindowView inherits Window {
                     HorizontalBox {
                         padding: 0px;
                         spacing: 0px;
-                        process-selector-view := ProcessSelectorView { }
+                        process-selector-view := DockedWindowView {
+                            docked-window-id: "process-selector";
+                        }
 
-                        settings-view := SettingsView { }
+                        settings-view := DockedWindowView {
+                            docked-window-id: "settings";
+                        }
 
-                        scan-results-view := ScanResultsView { }
+                        scan-results-view := DockedWindowView {
+                            docked-window-id: "scan-results";
+                        }
                     }
                 }
 
@@ -103,9 +111,13 @@ export component MainWindowView inherits Window {
                     HorizontalBox {
                         padding: 0px;
                         spacing: 0px;
-                        output-view := OutputView { }
+                        output-view := DockedWindowView {
+                            docked-window-id: "output";
+                        }
 
-                        property-viewer-view := PropertyViewerView { }
+                        property-viewer-view := DockedWindowView {
+                            docked-window-id: "property-viewer";
+                        }
                     }
                 }
             }

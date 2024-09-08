@@ -1,19 +1,19 @@
 use crate::view_models::view_model::ViewModel;
-use crate::PanelWindowView;
+use crate::UndockedWindowView;
 use crate::WindowViewModelBindings;
 use slint::*;
 use std::sync::Arc;
 
-pub struct PanelWindowViewModel {
-    view_handle: Arc<PanelWindowView>,
+pub struct UndockedWindowViewModel {
+    view_handle: Arc<UndockedWindowView>,
 }
 
 /// Wraps the slint main window to internally manage and track the view handle for later use, as well as setting up
 /// view code bindings to the corresponding slint UI.
-impl PanelWindowViewModel {
+impl UndockedWindowViewModel {
     pub fn new() -> Self {
-        let view_handle = Arc::new(PanelWindowView::new().unwrap());
-        let view = PanelWindowViewModel {
+        let view_handle = Arc::new(UndockedWindowView::new().unwrap());
+        let view = UndockedWindowViewModel {
             view_handle: view_handle.clone(),
         };
 
@@ -25,7 +25,7 @@ impl PanelWindowViewModel {
     }
 }
 
-impl ViewModel for PanelWindowViewModel {
+impl ViewModel for UndockedWindowViewModel {
     fn create_bindings(&self) {
         let view = self.view_handle.global::<WindowViewModelBindings>();
 
