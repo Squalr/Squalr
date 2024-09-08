@@ -1,5 +1,6 @@
 use crate::view_models::view_model::ViewModel;
 use crate::MainWindowView;
+use crate::ScanSettingsViewModelBindings;
 use slint::ComponentHandle;
 use std::sync::Arc;
 
@@ -21,6 +22,6 @@ impl ManualScanViewModel {
 
 impl ViewModel for ManualScanViewModel {
     fn create_bindings(&self) {
-        // let _ = self.view_handle.global::<ScanAdapter>();
+        let _ = self.view_handle.global::<ScanSettingsViewModelBindings>();
     }
 }

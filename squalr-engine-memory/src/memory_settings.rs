@@ -20,7 +20,7 @@ pub struct Config {
     pub excluded_copy_on_write: bool,
     pub start_address: u64,
     pub end_address: u64,
-    pub only_scan_usermode: bool,
+    pub only_query_usermode: bool,
 }
 
 impl fmt::Debug for Config {
@@ -53,7 +53,7 @@ impl Default for Config {
 
             start_address: 0,
             end_address: u64::MAX,
-            only_scan_usermode: true,
+            only_query_usermode: true,
         }
     }
 }
@@ -258,15 +258,15 @@ impl MemorySettings {
         self.save_config();
     }
 
-    pub fn get_only_scan_usermode(&self) -> bool {
-        return self.config.read().unwrap().only_scan_usermode;
+    pub fn get_only_query_usermode(&self) -> bool {
+        return self.config.read().unwrap().only_query_usermode;
     }
 
-    pub fn set_only_scan_usermode(
+    pub fn set_only_query_usermode(
         &self,
         value: bool,
     ) {
-        self.config.write().unwrap().only_scan_usermode = value;
+        self.config.write().unwrap().only_query_usermode = value;
         self.save_config();
     }
 

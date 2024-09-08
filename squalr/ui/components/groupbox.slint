@@ -1,0 +1,44 @@
+import {Theme} from "../theme.slint";
+import { VerticalBox, HorizontalBox } from "std-widgets.slint";
+
+export component GroupBox {
+    in property <string> header-text: "Groupbox";
+    in property <color> background: Theme.background-panel;
+    in property <length> top-extra-padding: 4px;
+    in property <length> inner-padding: 12px;
+    Rectangle {
+        border-color: Theme.submenu-border;
+        background: root.background;
+        border-radius: 4px;
+        border-width: 1px;
+        // This is how we get the border to "cull" -- we just paint a 1px rectangle over the groupbox border that matches the background color.
+        HorizontalLayout {
+            alignment: start;
+            padding-left: 6px;
+            header-fill := Rectangle {
+                background: root.background;
+                width: header.width + 12px;
+                height: 1px;
+                header := Text {
+                    padding-top: 0px;
+                    padding-bottom: 0px;
+                    horizontal-alignment: left;
+                    vertical-alignment: top;
+                    text: root.header-text;
+                    color: Theme.foreground;
+                }
+            }
+        }
+
+        grouping := Rectangle {
+            VerticalLayout {
+                padding-left: root.inner-padding;
+                padding-right: root.inner-padding;
+                padding-bottom: root.inner-padding;
+                padding-top: root.top-extra-padding + root.inner-padding;
+                spacing: 0px;
+                @children
+            }
+        }
+    }
+}

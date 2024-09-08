@@ -1,10 +1,12 @@
 import { Theme } from "./../theme.slint";
 
 import { HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { GroupBox } from "../components/groupbox.slint";
 import { TextButton } from "../components/buttons/text_button.slint";
 import { TextField } from "../components/input/text_field.slint";
 import { Checkbox } from "../components/checkboxes/checkbox.slint";
 import { ScanSettingsViewModelBindings, MemorySettingsViewModelBindings } from "../view_model_bindings.slint";
+import { TextCheckbox } from "../components/checkboxes/text_checkbox.slint";
 
 export component SettingsView inherits Rectangle {
     property <int> selected-tab: 1;
@@ -23,28 +25,28 @@ export component SettingsView inherits Rectangle {
                 spacing: 0px;
                 height: 24px;
                 general-tab := TextButton {
-                    text: "General";
+                    text: @tr("General");
                     clicked => {
                         root.selected-tab = 0;
                     }
                 }
 
                 memory-tab := TextButton {
-                    text: "Memory";
+                    text: @tr("Memory");
                     clicked => {
                         root.selected-tab = 1;
                     }
                 }
 
                 scans-tab := TextButton {
-                    text: "Scan";
+                    text: @tr("Scan");
                     clicked => {
                         root.selected-tab = 2;
                     }
                 }
 
                 middleware-tab := TextButton {
-                    text: "Middleware";
+                    text: @tr("Middleware");
                     clicked => {
                         root.selected-tab = 3;
                     }
@@ -55,25 +57,146 @@ export component SettingsView inherits Rectangle {
         Rectangle {
             general-content := VerticalBox { }
 
-            memory-content := VerticalBox {
-                Checkbox {
-                    is-checked <=> MemorySettingsViewModelBindings.required_write;
-                    check-changed(value) => {
-                        MemorySettingsViewModelBindings.required_write_changed(value);
+            memory-content := GridLayout {
+                padding: 8px;
+                spacing: 8px;
+                Row {
+                    GroupBox {
+                        header-text: "Required Protection Flags";
+                        VerticalBox {
+                            alignment: start;
+                            padding: 0px;
+                            spacing: 6px;
+                            TextCheckbox {
+                                text: @tr("Write");
+                                is-checked <=> MemorySettingsViewModelBindings.required_write;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.required_write_changed(value);
+                                }
+                            }
+
+                            TextCheckbox {
+                                text: @tr("Execute");
+                                is-checked <=> MemorySettingsViewModelBindings.required_execute;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.required_execute_changed(value);
+                                }
+                            }
+
+                            TextCheckbox {
+                                text: @tr("Copy on Write");
+                                is-checked <=> MemorySettingsViewModelBindings.required_copy_on_write;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.required_copy_on_write_changed(value);
+                                }
+                            }
+                        }
+                    }
+
+                    GroupBox {
+                        header-text: "Excluded Protection Flags";
+                        VerticalBox {
+                            alignment: start;
+                            padding: 0px;
+                            spacing: 6px;
+                            TextCheckbox {
+                                text: @tr("Write");
+                                is-checked <=> MemorySettingsViewModelBindings.excluded_write;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.excluded_write_changed(value);
+                                }
+                            }
+
+                            TextCheckbox {
+                                text: @tr("Execute");
+                                is-checked <=> MemorySettingsViewModelBindings.excluded_execute;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.excluded_execute_changed(value);
+                                }
+                            }
+
+                            TextCheckbox {
+                                text: @tr("Copy on Write");
+                                is-checked <=> MemorySettingsViewModelBindings.excluded_copy_on_write;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.excluded_copy_on_write_changed(value);
+                                }
+                            }
+                        }
                     }
                 }
 
-                Checkbox {
-                    is-checked <=> MemorySettingsViewModelBindings.required_execute;
-                    check-changed(value) => {
-                        MemorySettingsViewModelBindings.required_execute_changed(value);
-                    }
-                }
+                Row {
+                    GroupBox {
+                        header-text: "Memory Types";
+                        VerticalBox {
+                            alignment: start;
+                            padding: 0px;
+                            spacing: 6px;
+                            TextCheckbox {
+                                text: @tr("None");
+                                is-checked <=> MemorySettingsViewModelBindings.memory_type_none;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.memory_type_none_changed(value);
+                                }
+                            }
 
-                Checkbox {
-                    is-checked <=> MemorySettingsViewModelBindings.required_copy_on_write;
-                    check-changed(value) => {
-                        MemorySettingsViewModelBindings.required_copy_on_write_changed(value);
+                            TextCheckbox {
+                                text: @tr("Image");
+                                is-checked <=> MemorySettingsViewModelBindings.memory_type_image;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.memory_type_image_changed(value);
+                                }
+                            }
+
+                            TextCheckbox {
+                                text: @tr("Private");
+                                is-checked <=> MemorySettingsViewModelBindings.memory_type_private;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.memory_type_private_changed(value);
+                                }
+                            }
+
+                            TextCheckbox {
+                                text: @tr("Mapped");
+                                is-checked <=> MemorySettingsViewModelBindings.memory_type_mapped;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.memory_type_mapped_changed(value);
+                                }
+                            }
+                        }
+                    }
+
+                    GroupBox {
+                        header-text: "Virtual Memory Querying";
+                        VerticalBox {
+                            alignment: start;
+                            padding: 0px;
+                            spacing: 6px;
+                            TextCheckbox {
+                                text: @tr("Query All Memory");
+                                is-checked <=> MemorySettingsViewModelBindings.only_query_usermode;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.only_query_usermode_changed(value);
+                                }
+                            }
+
+                            TextCheckbox {
+                                text: @tr("Query All Usermode Memory");
+                                is-checked <=> MemorySettingsViewModelBindings.only_query_usermode;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.only_query_usermode_changed(value);
+                                }
+                            }
+
+                            TextCheckbox {
+                                text: @tr("Query Custom Range");
+                                is-checked <=> MemorySettingsViewModelBindings.only_query_usermode;
+                                check-changed(value) => {
+                                    MemorySettingsViewModelBindings.only_query_usermode_changed(value);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -82,36 +205,41 @@ export component SettingsView inherits Rectangle {
                 GridLayout {
                     spacing: 4px;
                     Row {
-                        TextField {
-                            default-text: "50";
-                        }
+                        HorizontalBox {
+                            TextField {
+                                default-text: "50";
+                            }
 
-                        Text {
-                            text: "Freeze Interval";
-                            color: Theme.foreground;
-                        }
-                    }
-
-                    Row {
-                        TextField {
-                            height: 24px;
-                            default-text: "100";
-                        }
-
-                        Text {
-                            text: "Project Read Interval";
-                            color: Theme.foreground;
+                            Text {
+                                text: @tr("Freeze Interval");
+                                color: Theme.foreground;
+                            }
                         }
                     }
 
                     Row {
-                        TextField {
-                            default-text: "100";
-                        }
+                        HorizontalBox {
+                            TextField {
+                                default-text: "100";
+                            }
 
-                        Text {
-                            text: "Result Read Interval";
-                            color: Theme.foreground;
+                            Text {
+                                text: @tr("Project Read Interval");
+                                color: Theme.foreground;
+                            }
+                        }
+                    }
+
+                    Row {
+                        HorizontalBox {
+                            TextField {
+                                default-text: "100";
+                            }
+
+                            Text {
+                                text: @tr("Result Read Interval");
+                                color: Theme.foreground;
+                            }
                         }
                     }
                 }
