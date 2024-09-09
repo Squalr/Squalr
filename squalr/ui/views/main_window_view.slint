@@ -1,6 +1,5 @@
 import { Theme } from "../theme.slint";
 
-import { DockedWindowLayoutNode } from "./../components/docking/docked_window_layout_node.slint";
 import { DockRoot } from "./../components/docking/dock_root.slint";
 import { HSeparator } from "./../components/separator.slint";
 import { ToolbarMenu } from "./../components/toolbar_menu/toolbar_menu.slint";
@@ -18,6 +17,7 @@ import { SettingsView } from "./settings_view.slint";
 import { DockedWindowView } from "./docking/docked_window_view.slint";
 
 import { HorizontalBox } from "std-widgets.slint";
+import { ProjectExplorerView } from "project_explorer_view.slint";
 
 export component MainWindowView inherits Window {
     title: @tr("Squalr");
@@ -86,62 +86,18 @@ export component MainWindowView inherits Window {
         shortcut-bar := ShortcutBarView { }
 
         dock-root := DockRoot {
-            layout: [
-                // All heirarchy relationships
-                {
-                    dock-window-id: "root",
-                    split-orientation: "vertical",
-                    children: ["settings", "split1", "property-viewer"],
-                },
-                {
-                    dock-window-id: "split1",
-                    split-orientation: "horizontal",
-                    children: ["scan-results", "output"],
-                },
-                {
-                    dock-window-id: "output",
-                },
-                {
-                    dock-window-id: "scan-results",
-                },
-                {
-                    dock-window-id: "process-selector",
-                },
-                {
-                    dock-window-id: "property-viewer",
-                },
-                {
-                    dock-window-id: "project-explorer",
-                },
-                {
-                    dock-window-id: "settings",
-                },
-            ];
-        }
+            OutputView { }
 
-        /*
-        dock-root := DockRoot {
-            layout: [
-                {
-                    dock-window-id: "root",
-                    size-ratio: 1.0,
-                    split-orientation: "vertical",
-                    children: ["section1", "section2", "output"],
-                },
-                {
-                    dock-window-id: "section1",
-                    size-ratio: 0.2,
-                    split-orientation: "vertical",
-                    children: ["project-explorer", "settings"],
-                },
-                {
-                    dock-window-id: "section2",
-                    size-ratio: 0.4,
-                    split-orientation: "horizontal",
-                    children: ["scan-results", "property-viewer"],
-                },
-            ];
-        }*/
+            PropertyViewerView { }
+
+            ProcessSelectorView { }
+
+            ProjectExplorerView { }
+
+            ScanResultsView { }
+
+            SettingsView { }
+        }
 
         footer := FooterView { }
     }
