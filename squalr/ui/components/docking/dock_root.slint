@@ -1,5 +1,11 @@
 import { Theme } from "./../../theme.slint";
 import { DockedWindowView } from "../../views/docking/docked_window_view.slint";
+import { OutputView } from "../../views/output_view.slint";
+import { PropertyViewerView } from "../../views/property_viewer_view.slint";
+import { ProcessSelectorView } from "../../views/process_selector_view.slint";
+import { ProjectExplorerView } from "../../views/project_explorer_view.slint";
+import { ScanResultsView } from "../../views/scan_results_view.slint";
+import { SettingsView } from "../../views/settings_view.slint";
 
 export component DockRoot inherits Rectangle {
     background: Theme.background-primary;
@@ -21,50 +27,50 @@ export component DockRoot inherits Rectangle {
 
     // 'settings' window
     DockedWindowView {
-        docked-window-id: "settings";
         x: 0;
         y: 0;
         width: root.settings_width;
         height: root.height;
+        SettingsView { }
     }
 
     // 'scan-results' window
     DockedWindowView {
-        docked-window-id: "scan-results";
         x: root.settings_width;
         y: 0;
         width: root.split1_width;
         height: root.scan_results_height;
+        ScanResultsView { }
     }
 
     // 'output' window
     DockedWindowView {
-        docked-window-id: "output";
         x: root.settings_width;
         y: root.scan_results_height;
         width: root.split1_width;
         height: root.output_height;
+        OutputView { }
     }
 
     // Hidden windows (collapsed)
     DockedWindowView {
-        docked-window-id: "process-selector";
         visible: false;
         width: 0;
         height: 0;
+        ProcessSelectorView { }
     }
 
     DockedWindowView {
-        docked-window-id: "property-viewer";
         visible: false;
         width: 0;
         height: 0;
+        PropertyViewerView { }
     }
 
     DockedWindowView {
-        docked-window-id: "project-explorer";
         visible: false;
         width: 0;
         height: 0;
+        ProjectExplorerView { }
     }
 }
