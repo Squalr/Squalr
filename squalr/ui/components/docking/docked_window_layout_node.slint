@@ -1,0 +1,10 @@
+import { Theme } from "./../../theme.slint";
+import { HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { DockedWindowView } from "../../views/docking/docked_window_view.slint";
+
+export struct DockedWindowLayoutNode {
+    dock-window-id: string,
+    children: [string],
+    split-orientation: string,
+    size-ratio: float,
+}

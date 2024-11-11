@@ -1,9 +1,70 @@
 import { Theme } from "./../../theme.slint";
-
 import { DockedWindowView } from "../../views/docking/docked_window_view.slint";
 
 export component DockRoot inherits Rectangle {
-    in-out property <string> layout;
     background: Theme.background-primary;
-    @children
+
+    // Define size ratios for the docking layout
+    // Root is split vertically between 'settings' and 'split1'
+    property <float> settings_size_ratio: 0.65;
+    property <float> split1_size_ratio: 1.0 - settings_size_ratio;
+
+    // 'split1' is split horizontally between 'scan-results' and 'output'
+    property <float> scan_results_size_ratio: 0.5;
+    property <float> output_size_ratio: 1.0 - scan_results_size_ratio;
+
+    // Compute widths and heights based on ratios
+    property <length> settings_width: self.width * settings_size_ratio;
+    property <length> split1_width: self.width - settings_width;
+    property <length> scan_results_height: self.height * scan_results_size_ratio;
+    property <length> output_height: self.height - scan_results_height;
+
+    // 'settings' window
+    DockedWindowView {
+        docked-window-id: "settings";
+        x: 0;
+        y: 0;
+        width: root.settings_width;
+        height: root.height;
+    }
+
+    // 'scan-results' window
+    DockedWindowView {
+        docked-window-id: "scan-results";
+        x: root.settings_width;
+        y: 0;
+        width: root.split1_width;
+        height: root.scan_results_height;
+    }
+
+    // 'output' window
+    DockedWindowView {
+        docked-window-id: "output";
+        x: root.settings_width;
+        y: root.scan_results_height;
+        width: root.split1_width;
+        height: root.output_height;
+    }
+
+    // Hidden windows (collapsed)
+    DockedWindowView {
+        docked-window-id: "process-selector";
+        visible: false;
+        width: 0;
+        height: 0;
+    }
+
+    DockedWindowView {
+        docked-window-id: "property-viewer";
+        visible: false;
+        width: 0;
+        height: 0;
+    }
+
+    DockedWindowView {
+        docked-window-id: "project-explorer";
+        visible: false;
+        width: 0;
+        height: 0;
+    }
 }
