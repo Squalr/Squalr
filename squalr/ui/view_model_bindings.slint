@@ -13,6 +13,17 @@ export global WindowViewModelBindings {
     callback drag(int, int);
 }
 
+export global DockedWindowViewModelBindings {
+    callback close();
+    callback maximize();
+    callback minimize();
+    callback double-clicked();
+    callback drag-left(int, int);
+    callback drag-right(int, int);
+    callback drag-top(int, int);
+    callback drag-bottom(int, int);
+}
+
 struct ProcessViewData {
     name: string,
     icon: image,
