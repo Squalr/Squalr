@@ -6,6 +6,12 @@ pub enum DockSplitDirection {
     Vertical,
 }
 
+impl Default for DockSplitDirection {
+    fn default() -> Self {
+        DockSplitDirection::Horizontal
+    }
+}
+
 #[derive(Deserialize, Serialize, Clone)]
 pub struct DockedWindowNode {
     pub window_identifier: String,
