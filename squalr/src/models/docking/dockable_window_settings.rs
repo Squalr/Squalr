@@ -1,27 +1,22 @@
+use crate::models::docking::docked_window_node::DockedWindowNode;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use squalr_engine_common::config::serialized_config_updater;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Once;
 use std::sync::{Arc, RwLock};
-use std::{collections::HashMap, fs};
 
 #[derive(Deserialize, Serialize)]
 pub struct Config {
-    pub windows: HashMap<String, DockedWindowLayout>,
-}
-
-#[derive(Deserialize, Serialize, Clone)]
-pub struct DockedWindowLayout {
-    pub x: f32,
-    pub y: f32,
-    pub w: f32,
-    pub h: f32,
+    pub dock_root: DockedWindowNode,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { windows: HashMap::new() }
+        Self {
+            dock_root: DockedWindowNode::default(),
+        }
     }
 }
 
@@ -82,19 +77,15 @@ impl DockableWindowSettings {
         &self.config
     }
 
-    pub fn get_window_settings(
-        &self,
-        window_id: &str,
-    ) -> Option<DockedWindowLayout> {
-        self.config.read().unwrap().windows.get(window_id).cloned()
+    pub fn get_dock_layout_settings(&self) -> Option<DockedWindowNode> {
+        Some(self.config.read().unwrap().dock_root.clone())
     }
 
-    pub fn set_window_settings(
+    pub fn set_dock_layout_settings(
         &self,
-        window_id: String,
-        settings: DockedWindowLayout,
+        settings: DockedWindowNode,
     ) {
-        self.config.write().unwrap().windows.insert(window_id, settings);
+        self.config.write().unwrap().dock_root = settings;
         self.save_config();
     }
 

@@ -1,2 +1,3 @@
 pub mod dockable_window_settings;
+pub mod docked_window_node;
 pub mod docking_layout;
