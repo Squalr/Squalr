@@ -36,15 +36,15 @@ impl ViewModel for DockedWindowViewModel {
         view.on_double_clicked(move || {});
 
         let view_handle = self.view_handle.clone();
-        view.on_drag_left(move |delta_x, delta_y| {});
+        view.on_drag_left(move |dockable_window_id, delta_x, delta_y| {});
 
         let view_handle = self.view_handle.clone();
-        view.on_drag_right(move |delta_x, delta_y| {});
+        view.on_drag_right(move |dockable_window_id, delta_x, delta_y| {});
 
         let view_handle = self.view_handle.clone();
-        view.on_drag_top(move |delta_x, delta_y| {});
+        view.on_drag_top(move |dockable_window_id, delta_x, delta_y| {});
 
         let view_handle = self.view_handle.clone();
-        view.on_drag_bottom(move |delta_x, delta_y| {});
+        view.on_drag_bottom(move |dockable_window_id, delta_x, delta_y| {});
     }
 }

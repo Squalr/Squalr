@@ -71,7 +71,7 @@ impl ViewModel for MainWindowViewModel {
     fn create_bindings(&self) {
         let view = self.view_handle.global::<WindowViewModelBindings>();
 
-        // Bind our output viewmodel to the Squalr logger
+        // Bind our output viewmodel to the logger.
         Logger::get_instance().subscribe(self.output_view_model.clone());
 
         let view_handle = self.view_handle.clone();

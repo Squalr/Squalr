@@ -13,18 +13,33 @@ export global WindowViewModelBindings {
     callback drag(int, int);
 }
 
+export struct DockedWindowData {
+    identifier: string,
+    is-docked: bool,
+    position-x: length,
+    position-y: length,
+    width: length,
+    height: length,
+}
+
 export global DockedWindowViewModelBindings {
     callback close();
     callback maximize();
     callback minimize();
     callback double-clicked();
-    callback drag-left(int, int);
-    callback drag-right(int, int);
-    callback drag-top(int, int);
-    callback drag-bottom(int, int);
+    callback drag-left(string, int, int);
+    callback drag-right(string, int, int);
+    callback drag-top(string, int, int);
+    callback drag-bottom(string, int, int);
+    in-out property <DockedWindowData> scan-results-panel;
+    in-out property <DockedWindowData> output-panel;
+    in-out property <DockedWindowData> process-selector-panel;
+    in-out property <DockedWindowData> property-viewer-panel;
+    in-out property <DockedWindowData> project-explorer-panel;
+    in-out property <DockedWindowData> settings-panel;
 }
 
-struct ProcessViewData {
+export struct ProcessViewData {
     name: string,
     icon: image,
 }
