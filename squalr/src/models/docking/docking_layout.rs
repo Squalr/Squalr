@@ -5,12 +5,16 @@ use crate::models::docking::docked_window_node::DockedWindowNode;
 
 pub struct DockingLayout {
     root: DockedWindowNode,
+    available_width: f32,
+    available_height: f32,
 }
 
 impl DockingLayout {
     pub fn new() -> Self {
         Self {
             root: DockedWindowNode::default(),
+            available_width: 0.0,
+            available_height: 0.0,
         }
     }
 
@@ -37,7 +41,25 @@ impl DockingLayout {
     }
 
     pub fn from_builder(builder: DockBuilder) -> Self {
-        Self { root: builder.build() }
+        Self {
+            root: builder.build(),
+            available_width: 0.0,
+            available_height: 0.0,
+        }
+    }
+
+    pub fn set_available_width(
+        &mut self,
+        available_width: f32,
+    ) {
+        self.available_width = available_width;
+    }
+
+    pub fn set_available_height(
+        &mut self,
+        available_height: f32,
+    ) {
+        self.available_height = available_height;
     }
 
     pub fn resize_window(
@@ -81,10 +103,8 @@ impl DockingLayout {
     pub fn calculate_window_rect(
         &self,
         window_id: &str,
-        total_width: f32,
-        total_height: f32,
     ) -> Option<(f32, f32, f32, f32)> {
-        Self::find_window_rect(&self.root, window_id, 0.0, 0.0, total_width, total_height)
+        Self::find_window_rect(&self.root, window_id, 0.0, 0.0, self.available_width, self.available_height)
     }
 
     pub fn save(&self) {

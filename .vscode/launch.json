@@ -7,177 +7,6 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'squalr-engine'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=squalr-engine"
-                ],
-                "filter": {
-                    "name": "squalr-engine",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'squalr-engine-common'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=squalr-engine-common"
-                ],
-                "filter": {
-                    "name": "squalr-engine-common",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'squalr-engine-memory'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=squalr-engine-memory"
-                ],
-                "filter": {
-                    "name": "squalr-engine-memory",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'squalr-engine-processes'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=squalr-engine-processes"
-                ],
-                "filter": {
-                    "name": "squalr-engine-processes",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'squalr-engine-scanning'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=squalr-engine-scanning"
-                ],
-                "filter": {
-                    "name": "squalr-engine-scanning",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'squalr-engine-architecture'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=squalr-engine-architecture"
-                ],
-                "filter": {
-                    "name": "squalr-engine-architecture",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'squalr-engine-debuggers'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=squalr-engine-debuggers"
-                ],
-                "filter": {
-                    "name": "squalr-engine-debuggers",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'squalr-engine-projects'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=squalr-engine-projects"
-                ],
-                "filter": {
-                    "name": "squalr-engine-projects",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in library 'squalr-engine-scripting'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=squalr-engine-scripting"
-                ],
-                "filter": {
-                    "name": "squalr-engine-scripting",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
             "name": "Debug executable 'squalr-cli'",
             "cargo": {
                 "args": [
@@ -196,11 +25,11 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'squalr-cli'",
+            "name": "Release executable 'squalr-cli'",
             "cargo": {
                 "args": [
-                    "test",
-                    "--no-run",
+                    "build",
+                    "--release",
                     "--bin=squalr-cli",
                     "--package=squalr-cli"
                 ],
@@ -233,11 +62,11 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'squalr'",
+            "name": "Release executable 'squalr'",
             "cargo": {
                 "args": [
-                    "test",
-                    "--no-run",
+                    "build",
+                    "--release",
                     "--bin=squalr",
                     "--package=squalr"
                 ],

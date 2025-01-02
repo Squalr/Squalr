@@ -9,8 +9,11 @@ import { SettingsView } from "../../views/settings_view.slint";
 import { DockedWindowViewModelBindings } from "./../../view_model_bindings.slint";
 
 export component DockRoot inherits Rectangle {
-    // width <=> DockedWindowViewModelBindings.dock_root_width;
-    // height <=> DockedWindowViewModelBindings.dock_root_height;
+    // This is a bit of a trick to send the width and height we want to Rust, which will just return the same value.
+    // This allows for Slint and Rust to reach an agreement as to what the available width and height for the dock space is.
+    // The field is not actually used, but are bound in order to force Slint to send the width and height to Rust.
+    // These functions just return 0, so the x is not actually modified in this process.
+    x: DockedWindowViewModelBindings.update_dock_root_width(root.width) + DockedWindowViewModelBindings.update_dock_root_height(root.height);
     background: Theme.background-primary;
 
     // 'Settings' window

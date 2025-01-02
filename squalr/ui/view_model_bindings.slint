@@ -31,8 +31,8 @@ export global DockedWindowViewModelBindings {
     callback drag-right(string, int, int);
     callback drag-top(string, int, int);
     callback drag-bottom(string, int, int);
-    in-out property <length> dock_root_width;
-    in-out property <length> dock_root_height;
+    pure callback update_dock_root_width(length) -> length;
+    pure callback update_dock_root_height(length) -> length;
     in-out property <DockedWindowData> scan-results-panel;
     in-out property <DockedWindowData> output-panel;
     in-out property <DockedWindowData> process-selector-panel;
