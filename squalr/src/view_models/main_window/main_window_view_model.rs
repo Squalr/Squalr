@@ -1,4 +1,5 @@
 use crate::models::docking::docking_layout::DockingLayout;
+use crate::view_models::docking::docked_window_view_model::DockedWindowViewModel;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::scanners::manual_scan_view_model::ManualScanViewModel;
 use crate::view_models::settings::memory_settings_view_model::MemorySettingsViewModel;
@@ -16,6 +17,7 @@ use std::sync::Arc;
 pub struct MainWindowViewModel {
     view_handle: Arc<MainWindowView>,
     docking_layout: Arc<RefCell<DockingLayout>>,
+    docked_window_view_model: Arc<DockedWindowViewModel>,
     manual_scan_view_model: Arc<ManualScanViewModel>,
     memory_settings_view_model: Arc<MemorySettingsViewModel>,
     output_view_model: Arc<OutputViewModel>,
@@ -27,10 +29,12 @@ pub struct MainWindowViewModel {
 impl MainWindowViewModel {
     pub fn new() -> Self {
         let view_handle = Arc::new(MainWindowView::new().unwrap());
+        let docking_layout = Arc::new(RefCell::new(DockingLayout::default()));
 
         let view = MainWindowViewModel {
             view_handle: view_handle.clone(),
-            docking_layout: Arc::new(RefCell::new(DockingLayout::default())),
+            docking_layout: docking_layout.clone(),
+            docked_window_view_model: Arc::new(DockedWindowViewModel::new(view_handle.clone(), docking_layout.clone())),
             manual_scan_view_model: Arc::new(ManualScanViewModel::new(view_handle.clone())),
             memory_settings_view_model: Arc::new(MemorySettingsViewModel::new(view_handle.clone())),
             output_view_model: Arc::new(OutputViewModel::new(view_handle.clone())),
@@ -59,6 +63,10 @@ impl MainWindowViewModel {
                 Logger::get_instance().log(LogLevel::Error, "Error hiding the main window.", Some(e.to_string().as_str()));
             }
         }
+    }
+
+    pub fn get_docked_window_view_model(&self) -> &Arc<DockedWindowViewModel> {
+        return &self.docked_window_view_model;
     }
 
     pub fn get_manual_scan_view_model(&self) -> &Arc<ManualScanViewModel> {
@@ -164,15 +172,8 @@ impl ViewModel for MainWindowViewModel {
 
         let view_handle = self.view_handle.clone();
         let docking_layout = self.docking_layout.clone();
-        docked_window_view.on_update_dock_root_width(move |width| {
+        docked_window_view.on_update_dock_root_size(move |width, height| {
             docking_layout.borrow_mut().set_available_width(width);
-            Self::propagate_layout(&view_handle, &docking_layout);
-            return 0.0;
-        });
-
-        let view_handle = self.view_handle.clone();
-        let docking_layout = self.docking_layout.clone();
-        docked_window_view.on_update_dock_root_height(move |height| {
             docking_layout.borrow_mut().set_available_height(height);
             Self::propagate_layout(&view_handle, &docking_layout);
             return 0.0;
