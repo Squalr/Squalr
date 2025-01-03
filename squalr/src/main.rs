@@ -1,7 +1,6 @@
 // Disable terminal from spawning. All relevant output is routed to the output view anyways.
 #![windows_subsystem = "windows"]
 
-pub mod callback;
 pub mod cli_log_listener;
 pub mod docking;
 pub mod models;
@@ -21,16 +20,16 @@ pub fn main() {
     std::env::set_var("SLINT_BACKEND", "winit-software");
 
     // Create and show the main window, which in turn will instantiate all other windows and panels.
-    MainWindowViewModel::new().show();
+    let main_window_view = MainWindowViewModel::new();
 
     vectors::log_vector_architecture();
     Logger::get_instance().log(LogLevel::Info, "Squalr started", None);
 
+    main_window_view.initialize();
+
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {
-        Ok(_) => {
-            MainWindowViewModel::new().hide();
-        }
+        Ok(_) => {}
         Err(e) => {
             Logger::get_instance().log(LogLevel::Error, "Fatal error starting Squalr.", Some(e.to_string().as_str()));
         }

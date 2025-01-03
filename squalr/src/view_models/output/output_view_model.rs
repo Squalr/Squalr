@@ -1,19 +1,19 @@
 use crate::view_models::view_model_base::ViewModel;
+use crate::view_models::view_model_base::ViewModelBase;
 use crate::MainWindowView;
 use crate::OutputViewModelBindings;
 use slint::ComponentHandle;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger_observer::LoggerObserver;
-use std::sync::Arc;
 
 pub struct OutputViewModel {
-    view_handle: Arc<MainWindowView>,
+    view_model_base: ViewModelBase<MainWindowView>,
 }
 
 impl OutputViewModel {
-    pub fn new(view_handle: Arc<MainWindowView>) -> Self {
+    pub fn new(view_model_base: ViewModelBase<MainWindowView>) -> Self {
         let view = OutputViewModel {
-            view_handle: view_handle.clone(),
+            view_model_base: view_model_base,
         };
 
         view.create_view_bindings();
@@ -34,15 +34,21 @@ impl LoggerObserver for OutputViewModel {
             None => format!("[{:?}] {}\n", log_level, message),
         };
 
-        let view = self.view_handle.global::<OutputViewModelBindings>();
-        let mut shared_string = view.get_output_text();
-        shared_string.push_str(log_message.as_str());
-        view.set_output_text(shared_string);
+        self.view_model_base
+            .execute_on_ui_thread(move |main_window_view, _view_model_base| {
+                let view = main_window_view.global::<OutputViewModelBindings>();
+                let mut shared_string = view.get_output_text();
+                shared_string.push_str(log_message.as_str());
+                view.set_output_text(shared_string);
+            });
     }
 }
 
 impl ViewModel for OutputViewModel {
     fn create_view_bindings(&self) {
-        let _ = self.view_handle.global::<OutputViewModelBindings>();
+        self.view_model_base
+            .execute_on_ui_thread(move |_main_window_view, _view_model_base| {
+                // TODO
+            });
     }
 }

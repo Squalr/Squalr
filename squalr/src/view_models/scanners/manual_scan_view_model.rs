@@ -1,17 +1,15 @@
 use crate::view_models::view_model_base::ViewModel;
+use crate::view_models::view_model_base::ViewModelBase;
 use crate::MainWindowView;
-use crate::ScanSettingsViewModelBindings;
-use slint::ComponentHandle;
-use std::sync::Arc;
 
 pub struct ManualScanViewModel {
-    view_handle: Arc<MainWindowView>,
+    view_model_base: ViewModelBase<MainWindowView>,
 }
 
 impl ManualScanViewModel {
-    pub fn new(view_handle: Arc<MainWindowView>) -> Self {
+    pub fn new(view_model_base: ViewModelBase<MainWindowView>) -> Self {
         let view = ManualScanViewModel {
-            view_handle: view_handle.clone(),
+            view_model_base: view_model_base,
         };
 
         view.create_view_bindings();
@@ -22,6 +20,9 @@ impl ManualScanViewModel {
 
 impl ViewModel for ManualScanViewModel {
     fn create_view_bindings(&self) {
-        let _ = self.view_handle.global::<ScanSettingsViewModelBindings>();
+        self.view_model_base
+            .execute_on_ui_thread(move |_main_window_view, _view_model_base| {
+                // TODO
+            });
     }
 }

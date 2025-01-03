@@ -1,23 +1,24 @@
 use crate::models::docking::docking_layout::DockingLayout;
 use crate::view_models::view_model_base::ViewModel;
+use crate::view_models::view_model_base::ViewModelBase;
 use crate::DockedWindowViewModelBindings;
 use crate::MainWindowView;
 use slint::ComponentHandle;
-use std::cell::RefCell;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 pub struct DockedWindowViewModel {
-    view_handle: Arc<MainWindowView>,
-    docking_layout: Arc<RefCell<DockingLayout>>,
+    view_model_base: ViewModelBase<MainWindowView>,
+    docking_layout: Arc<Mutex<DockingLayout>>,
 }
 
 impl DockedWindowViewModel {
     pub fn new(
-        view_handle: Arc<MainWindowView>,
-        docking_layout: Arc<RefCell<DockingLayout>>,
+        view_model_base: ViewModelBase<MainWindowView>,
+        docking_layout: Arc<Mutex<DockingLayout>>,
     ) -> Self {
         let view = DockedWindowViewModel {
-            view_handle: view_handle.clone(),
+            view_model_base: view_model_base,
             docking_layout: docking_layout.clone(),
         };
 
@@ -29,29 +30,32 @@ impl DockedWindowViewModel {
 
 impl ViewModel for DockedWindowViewModel {
     fn create_view_bindings(&self) {
-        let docked_window_view = self.view_handle.global::<DockedWindowViewModelBindings>();
+        self.view_model_base
+            .execute_on_ui_thread(|main_window_view, view_model_base| {
+                let docked_window_view = main_window_view.global::<DockedWindowViewModelBindings>();
 
-        let view_handle = self.view_handle.clone();
-        docked_window_view.on_minimize(move || {});
+                let view_handle = main_window_view.clone();
+                docked_window_view.on_minimize(move || {});
 
-        let view_handle = self.view_handle.clone();
-        docked_window_view.on_maximize(move || {});
+                let view_handle = main_window_view.clone();
+                docked_window_view.on_maximize(move || {});
 
-        docked_window_view.on_close(move || {});
+                docked_window_view.on_close(move || {});
 
-        let view_handle = self.view_handle.clone();
-        docked_window_view.on_double_clicked(move || {});
+                let view_handle = main_window_view.clone();
+                docked_window_view.on_double_clicked(move || {});
 
-        let view_handle = self.view_handle.clone();
-        docked_window_view.on_drag_left(move |dockable_window_id, delta_x, delta_y| {});
+                let view_handle = main_window_view.clone();
+                docked_window_view.on_drag_left(move |dockable_window_id, delta_x, delta_y| {});
 
-        let view_handle = self.view_handle.clone();
-        docked_window_view.on_drag_right(move |dockable_window_id, delta_x, delta_y| {});
+                let view_handle = main_window_view.clone();
+                docked_window_view.on_drag_right(move |dockable_window_id, delta_x, delta_y| {});
 
-        let view_handle = self.view_handle.clone();
-        docked_window_view.on_drag_top(move |dockable_window_id, delta_x, delta_y| {});
+                let view_handle = main_window_view.clone();
+                docked_window_view.on_drag_top(move |dockable_window_id, delta_x, delta_y| {});
 
-        let view_handle = self.view_handle.clone();
-        docked_window_view.on_drag_bottom(move |dockable_window_id, delta_x, delta_y| {});
+                let view_handle = main_window_view.clone();
+                docked_window_view.on_drag_bottom(move |dockable_window_id, delta_x, delta_y| {});
+            });
     }
 }
