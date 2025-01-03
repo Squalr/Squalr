@@ -1,4 +1,4 @@
-use crate::view_models::view_model::ViewModel;
+use crate::view_models::view_model_base::ViewModel;
 use crate::MainWindowView;
 use crate::ScanSettingsViewModelBindings;
 use slint::ComponentHandle;
@@ -14,14 +14,14 @@ impl ManualScanViewModel {
             view_handle: view_handle.clone(),
         };
 
-        view.create_bindings();
+        view.create_view_bindings();
 
         return view;
     }
 }
 
 impl ViewModel for ManualScanViewModel {
-    fn create_bindings(&self) {
+    fn create_view_bindings(&self) {
         let _ = self.view_handle.global::<ScanSettingsViewModelBindings>();
     }
 }

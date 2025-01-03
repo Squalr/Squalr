@@ -4,7 +4,7 @@ use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::scanners::manual_scan_view_model::ManualScanViewModel;
 use crate::view_models::settings::memory_settings_view_model::MemorySettingsViewModel;
 use crate::view_models::settings::scan_settings_view_model::ScanSettingsViewModel;
-use crate::view_models::view_model::ViewModel;
+use crate::view_models::view_model_base::ViewModel;
 use crate::DockedWindowViewModelBindings;
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
@@ -41,7 +41,7 @@ impl MainWindowViewModel {
             scan_settings_view_model: Arc::new(ScanSettingsViewModel::new(view_handle.clone())),
         };
 
-        view.create_bindings();
+        view.create_view_bindings();
         Self::propagate_layout(&view_handle, &view.docking_layout);
 
         return view;
@@ -163,7 +163,7 @@ impl MainWindowViewModel {
 }
 
 impl ViewModel for MainWindowViewModel {
-    fn create_bindings(&self) {
+    fn create_view_bindings(&self) {
         let main_window_view = self.view_handle.global::<WindowViewModelBindings>();
         let docked_window_view = self.view_handle.global::<DockedWindowViewModelBindings>();
 

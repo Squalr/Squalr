@@ -1,5 +1,5 @@
 use crate::models::docking::docking_layout::DockingLayout;
-use crate::view_models::view_model::ViewModel;
+use crate::view_models::view_model_base::ViewModel;
 use crate::DockedWindowViewModelBindings;
 use crate::MainWindowView;
 use slint::ComponentHandle;
@@ -21,14 +21,14 @@ impl DockedWindowViewModel {
             docking_layout: docking_layout.clone(),
         };
 
-        view.create_bindings();
+        view.create_view_bindings();
 
         return view;
     }
 }
 
 impl ViewModel for DockedWindowViewModel {
-    fn create_bindings(&self) {
+    fn create_view_bindings(&self) {
         let docked_window_view = self.view_handle.global::<DockedWindowViewModelBindings>();
 
         let view_handle = self.view_handle.clone();

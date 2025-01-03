@@ -1,4 +1,4 @@
-use crate::view_models::view_model::ViewModel;
+use crate::view_models::view_model_base::ViewModel;
 use crate::MainWindowView;
 use crate::MemorySettingsViewModelBindings;
 use slint::ComponentHandle;
@@ -15,14 +15,14 @@ impl MemorySettingsViewModel {
             view_handle: view_handle.clone(),
         };
 
-        view.create_bindings();
+        view.create_view_bindings();
 
         return view;
     }
 }
 
 impl ViewModel for MemorySettingsViewModel {
-    fn create_bindings(&self) {
+    fn create_view_bindings(&self) {
         let memory_settings_view = self.view_handle.global::<MemorySettingsViewModelBindings>();
 
         // Required

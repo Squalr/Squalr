@@ -1,4 +1,4 @@
-use crate::view_models::view_model::ViewModel;
+use crate::view_models::view_model_base::ViewModel;
 use crate::UndockedWindowView;
 use crate::WindowViewModelBindings;
 use slint::*;
@@ -26,7 +26,7 @@ impl UndockedWindowViewModel {
 }
 
 impl ViewModel for UndockedWindowViewModel {
-    fn create_bindings(&self) {
+    fn create_view_bindings(&self) {
         let view = self.view_handle.global::<WindowViewModelBindings>();
 
         let view_handle = self.view_handle.clone();
