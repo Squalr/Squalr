@@ -1,12 +1,14 @@
-import { Theme } from "./../theme.slint";
-
 import { HorizontalBox, VerticalBox } from "std-widgets.slint";
-import { GroupBox } from "../components/groupbox.slint";
-import { Button } from "../components/buttons/button.slint";
-import { TextField } from "../components/input/text_field.slint";
-import { Checkbox } from "../components/checkboxes/checkbox.slint";
-import { ScanSettingsViewModelBindings, MemorySettingsViewModelBindings } from "../view_model_bindings.slint";
-import { TextCheckbox } from "../components/checkboxes/text_checkbox.slint";
+
+import { Theme } from "../../theme.slint";
+
+import { ScanSettingsViewModelBindings, MemorySettingsViewModelBindings } from "../../view_model_bindings.slint";
+
+import { GroupBox } from "../../components/groupbox.slint";
+import { Button } from "../../components/buttons/button.slint";
+import { TextField } from "../../components/input/text_field.slint";
+import { Checkbox } from "../../components/checkboxes/checkbox.slint";
+import { TextCheckbox } from "../../components/checkboxes/text_checkbox.slint";
 
 export component SettingsView inherits Rectangle {
     property <int> selected-tab: 1;

@@ -1,23 +1,22 @@
-import { Theme } from "../theme.slint";
+import { HorizontalBox } from "std-widgets.slint";
 
-import { DockRoot } from "./../components/docking/dock_root.slint";
-import { HSeparator } from "./../components/separator.slint";
-import { ToolbarMenu } from "./../components/toolbar_menu/toolbar_menu.slint";
+import { Theme } from "../../theme.slint";
+import { WindowViewModelBindings } from "../../view_model_bindings.slint";
 
 import { FooterView } from "./footer_view.slint";
 import { TitleBarView } from "./title_bar_view.slint";
 import { ShortcutBarView } from "./shortcut_bar_view.slint";
-import { OutputView } from "output_view.slint";
-import { ProcessSelectorView } from "process_selector_view.slint";
+import { OutputView } from "../output/output_view.slint";
+import { ProcessSelectorView } from "../process_selector/process_selector_view.slint";
+import { ScanResultsView } from "../scan_results/scan_results_view.slint";
+import { PropertyViewerView } from "../property_viewer/property_viewer_view.slint";
+import { SettingsView } from "../settings/settings_view.slint";
+import { DockedWindowView } from "../docking/docked_window_view.slint";
+import { ProjectExplorerView } from "../project_explorer/project_explorer_view.slint";
 
-import { WindowViewModelBindings } from "./../view_model_bindings.slint";
-import { ScanResultsView } from "./scan_results_view.slint";
-import { PropertyViewerView } from "./property_viewer_view.slint";
-import { SettingsView } from "./settings_view.slint";
-import { DockedWindowView } from "./docking/docked_window_view.slint";
-
-import { HorizontalBox } from "std-widgets.slint";
-import { ProjectExplorerView } from "project_explorer_view.slint";
+import { DockRoot } from "./../../components/docking/dock_root.slint";
+import { HSeparator } from "./../../components/separator.slint";
+import { ToolbarMenu } from "./../../components/toolbar_menu/toolbar_menu.slint";
 
 export component MainWindowView inherits Window {
     title: @tr("Squalr");

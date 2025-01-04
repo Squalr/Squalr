@@ -1,13 +1,13 @@
-import { Theme } from "../theme.slint";
-import { WindowViewModelBindings } from "./../view_model_bindings.slint";
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 
-import { HorizontalBox, VerticalBox, Palette, Button } from "std-widgets.slint";
-import { Button } from "../components/buttons/button.slint";
-import { TextField } from "../components/input/text_field.slint";
+import { Theme } from "../../theme.slint";
+import { WindowViewModelBindings } from "../../view_model_bindings.slint";
 
-import { ProcessQuickSelector } from "./../controls/process_quick_selector_control.slint";
-import { DataTypeSelector } from "../controls/data_type_selector.slint";
-import { ScanConstraintTypeSelector } from "../controls/scan_constraint_selector.slint";
+import { Button } from "../../components/buttons/button.slint";
+import { TextField } from "../../components/input/text_field.slint";
+import { ProcessQuickSelector } from "../../controls/process_quick_selector_control.slint";
+import { DataTypeSelector } from "../../controls/data_type_selector.slint";
+import { ScanConstraintTypeSelector } from "../../controls/scan_constraint_selector.slint";
 
 export component ShortcutBarView inherits Rectangle {
     in property <length> bottom-padding: 4px;
@@ -35,7 +35,7 @@ export component ShortcutBarView inherits Rectangle {
                         height: 16px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
-                        source: @image-url("../images/select_process.png");
+                        source: @image-url("../../images/select_process.png");
                     }
                 }
 
@@ -51,7 +51,7 @@ export component ShortcutBarView inherits Rectangle {
                         height: 16px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
-                        source: @image-url("../images/file_system/open_folder.png");
+                        source: @image-url("../../images/file_system/open_folder.png");
                     }
                 }
 
@@ -73,7 +73,7 @@ export component ShortcutBarView inherits Rectangle {
                         height: 16px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
-                        source: @image-url("../images/scans/scan_new.png");
+                        source: @image-url("../../images/scans/scan_new.png");
                     }
                 }
 
@@ -89,7 +89,7 @@ export component ShortcutBarView inherits Rectangle {
                         height: 16px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
-                        source: @image-url("../images/scans/scan_collect_values.png");
+                        source: @image-url("../../images/scans/scan_collect_values.png");
                     }
                 }
 
@@ -114,7 +114,7 @@ export component ShortcutBarView inherits Rectangle {
                         height: 16px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
-                        source: @image-url("../images/navigation/right_arrow.png");
+                        source: @image-url("../../images/navigation/right_arrow.png");
                     }
                 }
             }

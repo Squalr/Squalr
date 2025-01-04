@@ -1,7 +1,9 @@
-import { Theme } from "../theme.slint";
-import { WindowViewModelBindings } from "./../view_model_bindings.slint";
 import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
-import { Button } from "../components/buttons/button.slint";
+
+import { Theme } from "../../theme.slint";
+import { WindowViewModelBindings } from "../../view_model_bindings.slint";
+
+import { Button } from "../../components/buttons/button.slint";
 
 export component TitleBarView inherits Rectangle {
     in property <string> title <=> title.text;
@@ -34,7 +36,7 @@ export component TitleBarView inherits Rectangle {
                 padding-bottom: root.bottom-padding;
                 spacing: 4px;
                 app_icon := Image {
-                    source: @image-url("../images/app/app_icon.png");
+                    source: @image-url("../../images/app/app_icon.png");
                     width: 24px;
                 }
 
@@ -61,7 +63,7 @@ export component TitleBarView inherits Rectangle {
                         height: 16px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
-                        source: @image-url("../images/app/minimize.png");
+                        source: @image-url("../../images/app/minimize.png");
                     }
                 }
 
@@ -77,7 +79,7 @@ export component TitleBarView inherits Rectangle {
                         height: 16px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
-                        source: @image-url("../images/app/maximize.png");
+                        source: @image-url("../../images/app/maximize.png");
                     }
                 }
 
@@ -93,7 +95,7 @@ export component TitleBarView inherits Rectangle {
                         height: 16px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
-                        source: @image-url("../images/app/close.png");
+                        source: @image-url("../../images/app/close.png");
                     }
                 }
             }

@@ -41,8 +41,8 @@ impl DockingLayout {
                     0.3,
                     DockBuilder::new("vsplit_2")
                         .direction(DockSplitDirection::Vertical)
-                        .split(0.7, DockBuilder::new("scan-results"))
-                        .split(0.3, DockBuilder::new("property-viewer")),
+                        .split(0.6, DockBuilder::new("scan-results"))
+                        .split(0.4, DockBuilder::new("property-viewer")),
                 ),
         )
     }
