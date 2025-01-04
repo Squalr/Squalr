@@ -18,20 +18,33 @@ export component DataTypeSelector inherits Rectangle {
             context-menu.show();
         }
         HorizontalLayout {
+            padding-top: 0px;
+            padding-bottom: 0px;
+            padding-left: 8px;
+            padding-right: 0px;
             HorizontalBox {
-                Text {
-                    text: @tr("Data Type");
-                    color: Theme.foreground;
-                    horizontal-alignment: left;
-                    vertical-alignment: center;
+                alignment: start;
+                padding: 0px;
+                spacing: 4px;
+                VerticalLayout {
+                    alignment: center;
+                    Text {
+                        text: @tr("Data Type");
+                        color: Theme.foreground;
+                        horizontal-alignment: left;
+                        vertical-alignment: center;
+                    }
                 }
 
-                Image {
-                    width: 16px;
-                    height: 16px;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                    source: @image-url("./../images/data_types/blue_blocks_4.png");
+                VerticalLayout {
+                    alignment: center;
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal-alignment: left;
+                        vertical-alignment: center;
+                        source: @image-url("./../images/data_types/blue_blocks_4.png");
+                    }
                 }
             }
         }

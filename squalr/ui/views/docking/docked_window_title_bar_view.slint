@@ -21,11 +21,16 @@ export component DockedWindowTitleBarView inherits Rectangle {
     }
 
     HorizontalLayout {
+        padding: 0px;
         // Title
-        HorizontalBox {
-            alignment: start;
-            spacing: 4px;
+        VerticalLayout {
+            alignment: center;
+            padding-top: 0px;
+            padding-bottom: 0px;
+            padding-left: 8px;
+            padding-right: 0px;
             title := Text {
+                text: "<Docked window title bar>";
                 vertical-alignment: center;
                 color: Theme.foreground;
             }
