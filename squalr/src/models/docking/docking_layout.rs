@@ -27,7 +27,14 @@ impl DockingLayout {
                     0.7,
                     DockBuilder::new("vsplit_1")
                         .direction(DockSplitDirection::Vertical)
-                        .split(0.5, DockBuilder::new("settings"))
+                        .split(
+                            0.5,
+                            DockBuilder::new("hsplit_1")
+                                .direction(DockSplitDirection::Horizontal)
+                                .split(0.2, DockBuilder::new("process-selector"))
+                                .split(0.3, DockBuilder::new("project-explorer"))
+                                .split(0.5, DockBuilder::new("settings")),
+                        )
                         .split(0.5, DockBuilder::new("output")),
                 )
                 .split(

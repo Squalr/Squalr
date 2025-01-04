@@ -100,6 +100,7 @@ impl MainWindowViewModel {
         view_model_base.execute_on_ui_thread(move |main_window_view, _view_model_base| {
             let docked_window_bindings = main_window_view.global::<DockedWindowViewModelBindings>();
 
+            let process_selector_identifier = "process-selector";
             let project_explorer_identifier = "project-explorer";
             let property_viewer_identifier = "property-viewer";
             let scan_results_identifier = "scan-results";
@@ -113,6 +114,17 @@ impl MainWindowViewModel {
                     return;
                 }
             };
+
+            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(process_selector_identifier) {
+                docked_window_bindings.set_process_selector_panel(crate::DockedWindowData {
+                    identifier: process_selector_identifier.into(),
+                    is_docked: true,
+                    position_x: docked_window_bounds.0,
+                    position_y: docked_window_bounds.1,
+                    width: docked_window_bounds.2,
+                    height: docked_window_bounds.3,
+                });
+            }
 
             if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(project_explorer_identifier) {
                 docked_window_bindings.set_project_explorer_panel(crate::DockedWindowData {
