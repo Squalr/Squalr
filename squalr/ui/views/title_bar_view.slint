@@ -1,8 +1,7 @@
 import { Theme } from "../theme.slint";
 import { WindowViewModelBindings } from "./../view_model_bindings.slint";
-
-import { HorizontalBox, VerticalBox, Palette, Button } from "std-widgets.slint";
-import { IconButton } from "../components/buttons/icon_button.slint";
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+import { Button } from "../components/buttons/button.slint";
 
 export component TitleBarView inherits Rectangle {
     in property <string> title <=> title.text;
@@ -45,41 +44,56 @@ export component TitleBarView inherits Rectangle {
                 }
             }
 
-            // Minimize/maximize/close
-            HorizontalBox {
+           // Minimize/maximize/close
+           HorizontalBox {
                 alignment: end;
                 padding: 0px;
                 spacing: 0px;
-                minimize-button := IconButton {
-                    icon: @image-url("../images/app/minimize.png");
+                minimize-button := Button {
+                    width: 36px;
                     tooltip-text: @tr("Minimize");
-                    icon-width: 24px;
-                    icon-height: 24px;
-                    width: 36px;
+                    click-sound: "";
                     clicked => {
-                        WindowViewModelBindings.minimize()
+                        WindowViewModelBindings.minimize();
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        source: @image-url("../images/app/minimize.png");
                     }
                 }
 
-                maximize-button := IconButton {
-                    icon: @image-url("../images/app/maximize.png");
+                maximize-button := Button {
+                    width: 36px;
                     tooltip-text: @tr("Maximize");
-                    icon-width: 24px;
-                    icon-height: 24px;
-                    width: 36px;
+                    click-sound: "";
                     clicked => {
-                        WindowViewModelBindings.maximize()
+                        WindowViewModelBindings.minimize();
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        source: @image-url("../images/app/maximize.png");
                     }
                 }
 
-                close-button := IconButton {
-                    icon: @image-url("../images/app/close.png");
-                    tooltip-text: @tr("Close");
-                    icon-width: 24px;
-                    icon-height: 24px;
+                close-button := Button {
                     width: 36px;
+                    tooltip-text: @tr("Close");
+                    click-sound: "";
                     clicked => {
-                        WindowViewModelBindings.close()
+                        WindowViewModelBindings.close();
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        source: @image-url("../images/app/close.png");
                     }
                 }
             }

@@ -71,6 +71,7 @@ impl ScanDispatcher {
                 INSTANCE = Some(instance);
             });
 
+            #[allow(static_mut_refs)]
             return INSTANCE.as_ref().unwrap_unchecked();
         }
     }

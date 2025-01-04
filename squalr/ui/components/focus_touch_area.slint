@@ -5,7 +5,10 @@ export component FocusTouchArea {
     out property <bool> is-pressed <=> touch-area.pressed;
     out property <bool> has-hover <=> touch-area.has-hover;
     out property <bool> enter-pressed;
-    callback clicked <=> touch-area.clicked;
+    out property <bool> has-hover-exited: false;
+    callback clicked(length, length);
+    callback mouse-entered();
+    callback mouse-exited();
     forward-focus: focus-scope;
     focus-scope := FocusScope {
         x: 0;
@@ -20,7 +23,7 @@ export component FocusTouchArea {
                 touch-area.clicked();
                 return accept;
             }
-            reject
+            return reject;
         }
         key-released(event) => {
             if !root.enabled {
@@ -30,11 +33,25 @@ export component FocusTouchArea {
                 root.enter-pressed = false;
                 return accept;
             }
-            reject
+            return reject;
         }
     }
 
     touch-area := TouchArea {
         enabled: root.enabled;
+        width: 100%;
+        height: 100%;
+        changed has-hover => {
+            if (has-hover) {
+                root.mouse-entered();
+            } else {
+                root.mouse-exited();
+            }
+        }
+        clicked => {
+            if root.enabled {
+                root.clicked(touch-area.mouse-x, touch-area.mouse-y);
+            }
+        }
     }
 }

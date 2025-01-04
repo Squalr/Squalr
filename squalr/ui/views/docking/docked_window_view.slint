@@ -1,5 +1,7 @@
 import { Theme } from "./../../theme.slint";
 import { DockedWindowViewModelBindings, DockedWindowData } from "./../../view_model_bindings.slint";
+import { DockedWindowTitleBarView } from "docked_window_title_bar_view.slint";
+import { VerticalBox } from "std-widgets.slint";
 
 export component DockedWindowView inherits Rectangle {
     in-out property <DockedWindowData> docked-window-data;
@@ -9,6 +11,28 @@ export component DockedWindowView inherits Rectangle {
     width: root.docked-window-data.width;
     height: root.docked-window-data.height;
     background: Theme.background-control;
+    VerticalLayout {
+        x: resize-padding;
+        y: resize-padding;
+        width: root.docked-window-data.width - resize-padding * 2;
+        height: root.docked-window-data.height - resize-padding * 2;
+        spacing: 0px;
+        padding: 0px;
+        VerticalBox {
+            DockedWindowTitleBarView {
+                title: docked-window-data.identifier;
+            }
+
+            // Main content area
+            Rectangle {
+                background: Theme.background-panel;
+                border-color: Theme.submenu-border;
+                border-radius: 2px;
+                border-width: 1px;
+                @children
+            }
+        }
+    }
 
     // Left border splitter
     Rectangle {
@@ -88,18 +112,5 @@ export component DockedWindowView inherits Rectangle {
                 }
             }
         }
-    }
-
-    // Main content area
-    Rectangle {
-        background: Theme.background-panel;
-        border-color: Theme.submenu-border;
-        border-radius: 2px;
-        border-width: 1px;
-        x: resize-padding;
-        y: resize-padding;
-        width: root.docked-window-data.width - resize-padding * 2;
-        height: root.docked-window-data.height - resize-padding * 2;
-        @children
     }
 }
