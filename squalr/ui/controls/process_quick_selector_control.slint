@@ -1,7 +1,7 @@
 import { Theme } from "./../theme.slint";
 import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 import { ContextMenu } from "./../components/context_menu/context_menu.slint";
-import { TextButton } from "./../components/buttons/text_button.slint";
+import { Button } from "./../components/buttons/button.slint";
 
 export component ProcessQuickSelector inherits Rectangle {
     in property <string> selected-process-name;
@@ -9,16 +9,17 @@ export component ProcessQuickSelector inherits Rectangle {
     border-color: Theme.submenu-border;
     border-width: 1px;
     width: 192px;
-    text-button := TextButton {
+    text-button := Button {
         width: 100%;
         height: 100%;
-        text: root.selected-process-name;
-        text-padding-top: 0px;
-        text-padding-bottom: 0px;
-        text-horizontal-alignment: left;
-        text-vertical-alignment: center;
         clicked => {
             context-menu.show();
+        }
+        Text {
+            horizontal-alignment: left;
+            vertical-alignment: center;
+            text: root.selected-process-name;
+            color: Theme.foreground;
         }
     }
 
@@ -29,15 +30,16 @@ export component ProcessQuickSelector inherits Rectangle {
         content := VerticalBox {
             padding: 0px;
             spacing: 0px;
-            detach-from-process := TextButton {
+            detach-from-process := Button {
                 height: 32px;
-                text: "== Detach from current process == ";
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
                 clicked => {
                     context-menu.show();
+                }
+                Text {
+                    horizontal-alignment: left;
+                    vertical-alignment: center;
+                    text: @tr("== Detach from current process == ");
+                    color: Theme.foreground;
                 }
             }
         }

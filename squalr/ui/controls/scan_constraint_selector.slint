@@ -1,198 +1,104 @@
 import { Theme } from "./../theme.slint";
 import { HorizontalBox, VerticalBox, Palette, GridBox } from "std-widgets.slint";
 import { ContextMenu } from "./../components/context_menu/context_menu.slint";
-import { IconTextButton } from "../components/buttons/icon_text_button.slint";
+import { Button } from "../components/buttons/button.slint";
+import { ScanConstraintButton } from "./scan_constraint_button.slint";
 
 export component ScanConstraintTypeSelector inherits Rectangle {
     background: Theme.background-control;
     border-color: Theme.submenu-border;
     border-width: 1px;
-    text-button := IconTextButton {
+    width: 36px;
+    select-scan-constraint-button := Button {
         width: 100%;
         height: 100%;
-        icon: @image-url("./../images/scans/scan_equal.png");
-        icon-width: 24px;
-        icon-height: 24px;
-        text-padding-top: 0px;
-        text-padding-bottom: 0px;
+        tooltip-text: @tr("Select a scan type...");
+        click-sound: "";
         clicked => {
             context-menu.show();
+        }
+        Image {
+            width: 16px;
+            height: 16px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            source: @image-url("./../images/scans/scan_equal.png");
         }
     }
 
     context-menu := ContextMenu {
-        x: text-button.x;
-        y: text-button.y + text-button.height;
-        content := VerticalBox {
-            padding: 0px;
-            spacing: 0px;
-            constraint-changed := IconTextButton {
-                icon: @image-url("./../images/scans/scan_changed.png");
-                icon-width: 24px;
-                icon-height: 24px;
-                text: @tr("Changed");
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
-                tooltip-text: "Scan for values that have changed since the previous scan.";
-                clicked => {
-                }
-            }
+        x: select-scan-constraint-button.x;
+        y: select-scan-constraint-button.y + select-scan-constraint-button.height;
+        constraint-changed := ScanConstraintButton {
+            text: @tr("Changed");
+            icon: @image-url("./../images/scans/scan_changed.png");
+            tooltip-text: "Scan for values that have changed since the previous scan.";
+        }
 
-            constraint-unchanged := IconTextButton {
-                icon: @image-url("./../images/scans/scan_unchanged.png");
-                icon-width: 24px;
-                icon-height: 24px;
-                text: @tr("Unchanged");
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
-                tooltip-text: "Scan for values that have NOT changed since the previous scan.";
-                clicked => {
-                }
-            }
+        constraint-unchanged := ScanConstraintButton {
+            text: @tr("Unchanged");
+            icon: @image-url("./../images/scans/scan_unchanged.png");
+            tooltip-text: "Scan for values that have not changed since the previous scan.";
+        }
 
-            constraint-increased := IconTextButton {
-                icon: @image-url("./../images/scans/scan_increased.png");
-                icon-width: 24px;
-                icon-height: 24px;
-                text: @tr("Increased");
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
-                tooltip-text: "Scan for values that have increased since the previous scan.";
-                clicked => {
-                }
-            }
+        constraint-increased := ScanConstraintButton {
+            text: @tr("Increased");
+            icon: @image-url("./../images/scans/scan_increased.png");
+            tooltip-text: "Scan for values that have increased since the previous scan.";
+        }
 
-            constraint-decreased := IconTextButton {
-                icon: @image-url("./../images/scans/scan_decreased.png");
-                icon-width: 24px;
-                icon-height: 24px;
-                text: @tr("Decreased");
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
-                tooltip-text: "Scan for values that have decreased since the previous scan.";
-                clicked => {
-                }
-            }
+        constraint-decreased := ScanConstraintButton {
+            text: @tr("Decreased");
+            icon: @image-url("./../images/scans/scan_decreased.png");
+            tooltip-text: "Scan for values that have decreased since the previous scan.";
+        }
 
-            constraint-equal := IconTextButton {
-                icon: @image-url("./../images/scans/scan_equal.png");
-                icon-width: 24px;
-                icon-height: 24px;
-                text: @tr("Equal");
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
-                tooltip-text: "Scan for values that are equal to the entered value.";
-                clicked => {
-                }
-            }
+        constraint-equal := ScanConstraintButton {
+            text: @tr("Equal");
+            icon: @image-url("./../images/scans/scan_equal.png");
+            tooltip-text: "Scan for values that are equal to the entered value.";
+        }
 
-            constraint-not-equal := IconTextButton {
-                icon: @image-url("./../images/scans/scan_not_equal.png");
-                icon-width: 24px;
-                icon-height: 24px;
-                text: @tr("Not Equal");
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
-                tooltip-text: "Scan for values that are not equal to the entered value.";
-                clicked => {
-                }
-            }
+        constraint-not-equal := ScanConstraintButton {
+            text: @tr("Equal");
+            icon: @image-url("./../images/scans/scan_not_equal.png");
+            tooltip-text: "Scan for values that are not equal to the entered value.";
+        }
 
-            constraint-increased-by-x := IconTextButton {
-                icon: @image-url("./../images/scans/scan_increased_by_x.png");
-                icon-width: 24px;
-                icon-height: 24px;
-                text: @tr("Increased by");
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
-                tooltip-text: "Scan for values that have increased by the entered value.";
-                clicked => {
-                }
-            }
+        constraint-increased-by-x := ScanConstraintButton {
+            text: @tr("Increased by");
+            icon: @image-url("./../images/scans/scan_increased_by_x.png");
+            tooltip-text: "Scan for values that have increased by the entered value.";
+        }
 
-            constraint-decreased-by-x := IconTextButton {
-                icon: @image-url("./../images/scans/scan_decreased_by_x.png");
-                icon-width: 24px;
-                icon-height: 24px;
-                text: @tr("Decreased by");
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
-                tooltip-text: "Scan for values that have decreased by the entered value.";
-                clicked => {
-                }
-            }
+        constraint-decreased-by-x := ScanConstraintButton {
+            text: @tr("Decreased by");
+            icon: @image-url("./../images/scans/scan_decreased_by_x.png");
+            tooltip-text: "Scan for values that have decreased by the entered value.";
+        }
 
-            constraint-greater-than := IconTextButton {
-                icon: @image-url("./../images/scans/scan_greater_than.png");
-                icon-width: 24px;
-                icon-height: 24px;
-                text: @tr("Greater Than");
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
-                tooltip-text: "Scan for values that are greater than the entered value.";
-                clicked => {
-                }
-            }
+        constraint-greater-than := ScanConstraintButton {
+            text: @tr("Greater Than");
+            icon: @image-url("./../images/scans/scan_greater_than.png");
+            tooltip-text: "Scan for values that are greater than the entered value.";
+        }
 
-            constraint-greater-than-or-equal := IconTextButton {
-                icon: @image-url("./../images/scans/scan_greater_than_or_equal.png");
-                icon-width: 24px;
-                icon-height: 24px;
-                text: @tr("Greater Than or Equal to");
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
-                tooltip-text: "Scan for values that are greater than or equal to the entered value.";
-                clicked => {
-                }
-            }
+        constraint-greater-than-or-equal := ScanConstraintButton {
+            text: @tr("Greater Than or Equal to");
+            icon: @image-url("./../images/scans/scan_greater_than_or_equal.png");
+            tooltip-text: "Scan for values that are greater than or equal to the entered value.";
+        }
 
-            constraint-less-than := IconTextButton {
-                icon: @image-url("./../images/scans/scan_less_than.png");
-                icon-width: 24px;
-                icon-height: 24px;
-                text: @tr("Less Than");
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
-                tooltip-text: "Scan for values that are less than the entered value.";
-                clicked => {
-                }
-            }
+        constraint-less-than := ScanConstraintButton {
+            text: @tr("Less Than");
+            icon: @image-url("./../images/scans/scan_less_than.png");
+            tooltip-text: "Scan for values that are less than the entered value.";
+        }
 
-            constraint-less-than-or-equal := IconTextButton {
-                icon: @image-url("./../images/scans/scan_less_than_or_equal.png");
-                icon-width: 24px;
-                icon-height: 24px;
-                text: @tr("Less Than or Equal to");
-                text-padding-top: 0px;
-                text-padding-bottom: 0px;
-                text-horizontal-alignment: left;
-                text-vertical-alignment: center;
-                tooltip-text: "Scan for values that are less than or equal to the entered value.";
-                clicked => {
-                }
-            }
+        constraint-less-than-or-equal := ScanConstraintButton {
+            text: @tr("Less Than or Equal to");
+            icon: @image-url("./../images/scans/scan_less_than_or_equal.png");
+            tooltip-text: "Scan for values that are less than or equal to the entered value.";
         }
     }
 }

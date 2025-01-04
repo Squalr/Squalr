@@ -10,7 +10,6 @@ use crate::DockedWindowViewModelBindings;
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
 use slint::ComponentHandle;
-use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use std::borrow::BorrowMut;
 use std::sync::Arc;
@@ -196,20 +195,42 @@ impl ViewModel for MainWindowViewModel {
                 let docked_window_view = main_window_view.global::<DockedWindowViewModelBindings>();
 
                 let view_model = view_model_base.clone();
-                let mut docking_layout = docking_layout.clone();
+                let mut docking_layout_mut = docking_layout.clone();
                 docked_window_view.on_update_dock_root_size(move |width, height| {
-                    docking_layout
+                    docking_layout_mut
                         .lock()
                         .unwrap()
                         .borrow_mut()
                         .set_available_width(width);
-                    docking_layout
+                    docking_layout_mut
                         .borrow_mut()
                         .lock()
                         .unwrap()
                         .set_available_height(height);
-                    Self::propagate_layout(&view_model, &docking_layout);
+                    Self::propagate_layout(&view_model, &docking_layout_mut);
                     return 0.0;
+                });
+
+                let view_model = view_model_base.clone();
+                let mut docking_layout_mut = docking_layout.clone();
+                docked_window_view.on_update_dock_root_width(move |width| {
+                    docking_layout_mut
+                        .lock()
+                        .unwrap()
+                        .borrow_mut()
+                        .set_available_width(width);
+                    Self::propagate_layout(&view_model, &docking_layout_mut);
+                });
+
+                let view_model = view_model_base.clone();
+                let mut docking_layout_mut = docking_layout.clone();
+                docked_window_view.on_update_dock_root_height(move |height| {
+                    docking_layout_mut
+                        .borrow_mut()
+                        .lock()
+                        .unwrap()
+                        .set_available_height(height);
+                    Self::propagate_layout(&view_model, &docking_layout_mut);
                 });
             });
 

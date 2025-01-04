@@ -14,6 +14,14 @@ export component DockRoot inherits Rectangle {
     // The function just returns 0, so the x is not actually modified in this process.
     x: DockedWindowViewModelBindings.update_dock_root_size(root.width, root.height);
     background: Theme.background-primary;
+    // This is much less responsive than the hack solution, so we'll stick with the hack.
+    /*
+    changed width => {
+        DockedWindowViewModelBindings.update_dock_root_width(root.width)
+    }
+    changed height => {
+        DockedWindowViewModelBindings.update_dock_root_height(root.height)
+    }*/
 
     // 'Settings' window
     DockedWindowView {

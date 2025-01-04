@@ -1,7 +1,7 @@
 import { Theme } from "./../../theme.slint";
 import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 import { ContextMenu } from "./../context_menu/context_menu.slint";
-import { TextButton } from "./../../components/buttons/text_button.slint";
+import { Button } from "./../../components/buttons/button.slint";
 import { HSeparator } from "./../separator.slint";
 
 export struct ToolbarMenuItemData {
@@ -15,14 +15,19 @@ export component ToolbarMenuItem inherits HorizontalLayout {
     in property <length> parent-toolbar-size;
     in-out property <[ToolbarMenuItemData]> items;
     callback onItemClicked(string);
-    text-button := TextButton {
-        text: root.text;
-        text-padding-top: 0px;
-        text-padding-bottom: 0px;
-        text-horizontal-alignment: center;
-        text-vertical-alignment: center;
+    text-button := Button {
         clicked => {
             context-menu.show();
+        }
+        HorizontalLayout {
+            padding-left: 8px;
+            padding-right: 8px;
+            Text {
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                text: root.text;
+                color: Theme.foreground;
+            }
         }
     }
 
@@ -39,15 +44,38 @@ export component ToolbarMenuItem inherits HorizontalLayout {
                     spacing: 4px;
                     HSeparator { }
 
-                    TextButton {
-                        text: item.text;
+                    Button {
+                        height: 24px;
                         clicked => {
                             root.onItemClicked(item.id);
                         }
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            Text {
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                                text: item.text;
+                                color: Theme.foreground;
+                            }
+                        }
                     }
                 }
-                if(!item.separator): TextButton {
-                    text: item.text;
+                if(!item.separator): Button {
+                    height: 24px;
+                    clicked => {
+                        root.onItemClicked(item.id);
+                    }
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        Text {
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                            text: item.text;
+                            color: Theme.foreground;
+                        }
+                    }
                 }
             }
         }
