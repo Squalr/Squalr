@@ -22,8 +22,8 @@ pub fn main() {
     // Create and show the main window, which in turn will instantiate all other windows and panels.
     let main_window_view = MainWindowViewModel::new();
 
-    vectors::log_vector_architecture();
     Logger::get_instance().log(LogLevel::Info, "Squalr started", None);
+    vectors::log_vector_architecture();
 
     main_window_view.initialize();
 
