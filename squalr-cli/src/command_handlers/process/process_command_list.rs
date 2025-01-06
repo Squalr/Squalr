@@ -21,7 +21,7 @@ pub fn handle_process_list(cmd: &mut ProcessCommand) {
             None,
         );
 
-        let mut queryer = ProcessQuery::get_instance();
+        let mut queryer = ProcessQuery::;
         let options = ProcessQueryOptions {
             require_windowed: *require_windowed,
             required_pid: None,

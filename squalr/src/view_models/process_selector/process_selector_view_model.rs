@@ -3,13 +3,13 @@ use crate::view_models::view_model_base::ViewModelBase;
 use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
-use image::DynamicImage;
 use slint::ComponentHandle;
 use slint::Image;
 use slint::SharedPixelBuffer;
 use squalr_engine::session_manager::SessionManager;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_processes::process_info::ProcessIcon;
 use squalr_engine_processes::process_info::ProcessInfo;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
@@ -42,26 +42,33 @@ impl ProcessSelectorViewModel {
                 match_case: false,
                 limit: None,
             };
-            let process_list = ProcessQuery::get_instance().get_processes(process_query_options);
+
+            let start_time = std::time::Instant::now();
+
+            let process_list = ProcessQuery::get_processes(process_query_options);
             let process_selector_view = main_window_view.global::<ProcessSelectorViewModelBindings>();
 
-            // First collect icons and metadata in parallel
-            let process_data_raw: Vec<(ProcessInfo, DynamicImage)> = process_list
+            Logger::get_instance().log(LogLevel::Info, &format!("Process gathering duration: {:?}", start_time.elapsed()), None);
+
+            let start_time = std::time::Instant::now();
+
+            // Gather process icons.
+            let process_data_raw: Vec<(ProcessInfo, ProcessIcon)> = process_list
                 .iter()
-                .filter_map(|process_info| {
-                    ProcessQuery::get_instance()
-                        .get_icon_rgba(&process_info.pid)
-                        .map(|icon| (process_info.clone(), icon))
-                })
+                .filter_map(|process_info| ProcessQuery::get_icon(&process_info.pid).map(|icon| (process_info.clone(), icon)))
                 .collect();
 
-            // Then create SharedPixelBuffers on the UI thread
+            Logger::get_instance().log(LogLevel::Info, &format!("Process icons gathering duration: {:?}", start_time.elapsed()), None);
+
+            let start_time = std::time::Instant::now();
+
+            // Create shared pixel buffers from the icons.
             let process_data: Vec<ProcessViewData> = process_data_raw
-                .into_iter() // Regular iterator since we're on UI thread
+                .into_iter()
                 .map(|(process_info, icon)| {
-                    let mut icon_data = SharedPixelBuffer::new(icon.width(), icon.height());
+                    let mut icon_data = SharedPixelBuffer::new(icon.width, icon.height);
                     let icon_data_bytes = icon_data.make_mut_bytes();
-                    icon_data_bytes.copy_from_slice(icon.as_bytes());
+                    icon_data_bytes.copy_from_slice(&icon.bytes_rgba);
 
                     ProcessViewData {
                         process_id_str: process_info.pid.to_string().into(),
@@ -71,6 +78,8 @@ impl ProcessSelectorViewModel {
                     }
                 })
                 .collect();
+
+            Logger::get_instance().log(LogLevel::Info, &format!("Pixel buffers creation duration: {:?}", start_time.elapsed()), None);
 
             if refresh_windowed_list {
                 process_selector_view.set_windowed_processes(process_data.as_slice().into());
@@ -102,7 +111,7 @@ impl ViewModel for ProcessSelectorViewModel {
                         pid: Pid::from_u32(process_entry.process_id as u32),
                         name: "".to_string(),
                     };
-                    match ProcessQuery::get_instance().open_process(&process_to_open) {
+                    match ProcessQuery::open_process(&process_to_open) {
                         Ok(opened_process) => {
                             if let Ok(mut session_manager) = SessionManager::get_instance().write() {
                                 session_manager.set_opened_process(opened_process);

@@ -1,29 +1,14 @@
 use crate::process_info::OpenedProcessInfo;
+use crate::process_info::ProcessIcon;
 use crate::process_info::ProcessInfo;
-use image::DynamicImage;
 use sysinfo::Pid;
 
 pub trait ProcessQueryer {
-    fn open_process(
-        &self,
-        process_info: &ProcessInfo,
-    ) -> Result<OpenedProcessInfo, String>;
-    fn close_process(
-        &self,
-        handle: u64,
-    ) -> Result<(), String>;
-    fn get_processes(
-        &mut self,
-        options: ProcessQueryOptions,
-    ) -> Vec<ProcessInfo>;
-    fn is_process_windowed(
-        &self,
-        pid: &Pid,
-    ) -> bool;
-    fn get_icon_rgba(
-        &self,
-        pid: &Pid,
-    ) -> Option<DynamicImage>;
+    fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String>;
+    fn close_process(handle: u64) -> Result<(), String>;
+    fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo>;
+    fn is_process_windowed(pid: &Pid) -> bool;
+    fn get_icon(pid: &Pid) -> Option<ProcessIcon>;
 }
 
 pub struct ProcessQueryOptions {
@@ -46,7 +31,23 @@ pub use crate::process_query::windows::windows_process_query::WindowsProcessQuer
 pub struct ProcessQuery;
 
 impl ProcessQuery {
-    pub fn get_instance() -> Box<dyn crate::process_query::process_queryer::ProcessQueryer> {
-        return Box::new(ProcessQueryImpl::new());
+    pub fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
+        ProcessQueryImpl::open_process(process_info)
+    }
+
+    pub fn close_process(handle: u64) -> Result<(), String> {
+        ProcessQueryImpl::close_process(handle)
+    }
+
+    pub fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
+        ProcessQueryImpl::get_processes(options)
+    }
+
+    pub fn is_process_windowed(pid: &Pid) -> bool {
+        ProcessQueryImpl::is_process_windowed(pid)
+    }
+
+    pub fn get_icon(pid: &Pid) -> Option<ProcessIcon> {
+        ProcessQueryImpl::get_icon(pid)
     }
 }

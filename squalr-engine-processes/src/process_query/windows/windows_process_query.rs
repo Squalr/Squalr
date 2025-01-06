@@ -1,10 +1,12 @@
+use crate::process_info::ProcessIcon;
 use crate::process_info::{Bitness, OpenedProcessInfo, ProcessInfo};
 use crate::process_query::process_queryer::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
 use crate::process_query::windows::windows_icon_handle::{DcHandle, IconHandle};
-use image::{DynamicImage, ImageBuffer, Rgba};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
+use sysinfo::ProcessRefreshKind;
+use sysinfo::RefreshKind;
 use sysinfo::{Pid, System};
 use windows_sys::Win32::Foundation::{CloseHandle, BOOL, HANDLE, HWND, LPARAM};
 use windows_sys::Win32::Graphics::Gdi::{GetDC, GetDIBits, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS};
@@ -16,19 +18,10 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, IsWindowVisible};
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowThreadProcessId, HICON};
 
-pub struct WindowsProcessQuery {
-    system: System,
-}
+pub struct WindowsProcessQuery {}
 
 impl WindowsProcessQuery {
-    pub fn new() -> Self {
-        WindowsProcessQuery { system: System::new_all() }
-    }
-
-    fn get_process_bitness(
-        &self,
-        handle: &HANDLE,
-    ) -> Bitness {
+    fn get_process_bitness(handle: &HANDLE) -> Bitness {
         // Default to returning 64 bit.
         let result = Bitness::Bit64;
 
@@ -58,10 +51,7 @@ impl WindowsProcessQuery {
 }
 
 impl ProcessQueryer for WindowsProcessQuery {
-    fn open_process(
-        &self,
-        process_info: &ProcessInfo,
-    ) -> Result<OpenedProcessInfo, String> {
+    fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
         unsafe {
             let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.pid.as_u32());
             if handle == std::ptr::null_mut() {
@@ -70,7 +60,7 @@ impl ProcessQueryer for WindowsProcessQuery {
                 let opened_process_info = OpenedProcessInfo {
                     pid: process_info.pid,
                     name: process_info.name.clone(),
-                    bitness: self.get_process_bitness(&handle),
+                    bitness: Self::get_process_bitness(&handle),
                     handle: handle as u64,
                 };
 
@@ -79,10 +69,7 @@ impl ProcessQueryer for WindowsProcessQuery {
         }
     }
 
-    fn close_process(
-        &self,
-        handle: u64,
-    ) -> Result<(), String> {
+    fn close_process(handle: u64) -> Result<(), String> {
         unsafe {
             if CloseHandle(handle as HANDLE) == 0 {
                 Err("Failed to close process handle".to_string())
@@ -92,14 +79,13 @@ impl ProcessQueryer for WindowsProcessQuery {
         }
     }
 
-    fn get_processes(
-        &mut self,
-        options: ProcessQueryOptions,
-    ) -> Vec<ProcessInfo> {
-        self.system.refresh_all();
+    fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
+        let mut system = System::new_with_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::everything()));
+
+        system.refresh_all();
 
         // Convert the process iterator to a vector for parallel processing.
-        let processes: Vec<_> = self.system.processes().iter().collect();
+        let processes: Vec<_> = system.processes().iter().collect();
 
         let filtered_processes: Vec<ProcessInfo> = processes
             .iter()
@@ -107,7 +93,7 @@ impl ProcessQueryer for WindowsProcessQuery {
                 let mut matches = true;
 
                 if options.require_windowed {
-                    matches &= self.is_process_windowed(pid);
+                    matches &= Self::is_process_windowed(pid);
                 }
 
                 let process_name = process.name().to_string_lossy().into_owned();
@@ -139,10 +125,7 @@ impl ProcessQueryer for WindowsProcessQuery {
         }
     }
 
-    fn is_process_windowed(
-        &self,
-        process_id: &Pid,
-    ) -> bool {
+    fn is_process_windowed(process_id: &Pid) -> bool {
         struct WindowFinder {
             pid: u32,
             found: AtomicBool,
@@ -184,10 +167,7 @@ impl ProcessQueryer for WindowsProcessQuery {
         finder.found.load(Ordering::SeqCst)
     }
 
-    fn get_icon_rgba(
-        &self,
-        process_id: &Pid,
-    ) -> Option<DynamicImage> {
+    fn get_icon(process_id: &Pid) -> Option<ProcessIcon> {
         unsafe {
             let process_handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, process_id.as_u32() as u32);
 
@@ -237,28 +217,28 @@ impl ProcessQueryer for WindowsProcessQuery {
                 return None;
             }
 
-            // Convert raw pixels to DynamicImage
+            // Convert BGR to RGB while keeping alpha
             let width = bmi.bmiHeader.biWidth as u32;
             let height = bmi.bmiHeader.biHeight.unsigned_abs();
-            let mut img = ImageBuffer::new(width, height);
+            let mut rgba = Vec::with_capacity((width * height * 4) as usize);
 
             for y in 0..height {
                 for x in 0..width {
                     let i = ((y * width + x) * 4) as usize;
-                    img.put_pixel(
-                        x,
-                        y,
-                        Rgba([
-                            pixels[i + 2], // BGR to RGB
-                            pixels[i + 1],
-                            pixels[i],
-                            pixels[i + 3],
-                        ]),
-                    );
+                    rgba.extend_from_slice(&[
+                        pixels[i + 2], // B to R
+                        pixels[i + 1], // G stays G
+                        pixels[i],     // R to B
+                        pixels[i + 3], // Alpha stays
+                    ]);
                 }
             }
 
-            Some(DynamicImage::ImageRgba8(img))
+            Some(ProcessIcon {
+                bytes_rgba: rgba,
+                width: width,
+                height: height,
+            })
         }
     }
 }

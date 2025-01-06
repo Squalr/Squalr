@@ -7,6 +7,13 @@ pub enum Bitness {
 }
 
 #[derive(Clone, Debug)]
+pub struct ProcessIcon {
+    pub bytes_rgba: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Clone, Debug)]
 pub struct ProcessInfo {
     pub pid: Pid,
     pub name: String,

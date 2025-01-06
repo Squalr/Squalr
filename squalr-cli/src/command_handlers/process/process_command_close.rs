@@ -16,7 +16,7 @@ pub fn handle_process_close(cmd: &mut ProcessCommand) {
                 None,
             );
 
-            let queryer = ProcessQuery::get_instance();
+            let queryer = ProcessQuery::;
 
             match queryer.close_process(process_info.handle) {
                 Ok(_) => {

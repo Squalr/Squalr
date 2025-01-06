@@ -18,7 +18,7 @@ pub fn handle_process_open(cmd: &mut ProcessCommand) {
 
         Logger::get_instance().log(LogLevel::Info, "Opening process", None);
 
-        let mut queryer = ProcessQuery::get_instance();
+        let mut queryer = ProcessQuery::;
         let options = ProcessQueryOptions {
             require_windowed: false,
             required_pid: pid.map(Pid::from_u32),
@@ -30,7 +30,7 @@ pub fn handle_process_open(cmd: &mut ProcessCommand) {
         let processes = queryer.get_processes(options);
 
         if let Some(process_info) = processes.first() {
-            let queryer = ProcessQuery::get_instance();
+            let queryer = ProcessQuery::;
 
             match queryer.open_process(&process_info) {
                 Ok(opened_process_info) => {
