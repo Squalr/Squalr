@@ -7,6 +7,7 @@ pub mod models;
 pub mod view_models;
 
 use crate::view_models::main_window::main_window_view_model::MainWindowViewModel;
+use squalr_engine::session_manager::SessionManager;
 use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -24,6 +25,12 @@ pub fn main() {
 
     Logger::get_instance().log(LogLevel::Info, "Squalr started", None);
     vectors::log_vector_architecture();
+
+    if let Ok(session_manager) = SessionManager::get_instance().read() {
+        session_manager.initialize();
+    } else {
+        Logger::get_instance().log(LogLevel::Error, "Fatal error initializing session manager.", None);
+    }
 
     main_window_view.initialize();
 

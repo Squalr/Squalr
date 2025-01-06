@@ -3,10 +3,11 @@ use crate::process_info::{Bitness, OpenedProcessInfo, ProcessInfo};
 use crate::process_query::process_queryer::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
 use crate::process_query::windows::windows_icon_handle::{DcHandle, IconHandle};
+use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_common::logging::logger::Logger;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use sysinfo::ProcessRefreshKind;
-use sysinfo::RefreshKind;
+use std::sync::{Arc, RwLock};
 use sysinfo::{Pid, System};
 use windows_sys::Win32::Foundation::{CloseHandle, BOOL, HANDLE, HWND, LPARAM};
 use windows_sys::Win32::Graphics::Gdi::{GetDC, GetDIBits, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS};
@@ -47,82 +48,6 @@ impl WindowsProcessQuery {
         }
 
         result
-    }
-}
-
-impl ProcessQueryer for WindowsProcessQuery {
-    fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
-        unsafe {
-            let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.pid.as_u32());
-            if handle == std::ptr::null_mut() {
-                Err("Failed to open process".to_string())
-            } else {
-                let opened_process_info = OpenedProcessInfo {
-                    pid: process_info.pid,
-                    name: process_info.name.clone(),
-                    bitness: Self::get_process_bitness(&handle),
-                    handle: handle as u64,
-                };
-
-                Ok(opened_process_info)
-            }
-        }
-    }
-
-    fn close_process(handle: u64) -> Result<(), String> {
-        unsafe {
-            if CloseHandle(handle as HANDLE) == 0 {
-                Err("Failed to close process handle".to_string())
-            } else {
-                Ok(())
-            }
-        }
-    }
-
-    fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
-        let mut system = System::new_with_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::everything()));
-
-        system.refresh_all();
-
-        // Convert the process iterator to a vector for parallel processing.
-        let processes: Vec<_> = system.processes().iter().collect();
-
-        let filtered_processes: Vec<ProcessInfo> = processes
-            .iter()
-            .filter_map(|(pid, process)| {
-                let mut matches = true;
-
-                if options.require_windowed {
-                    matches &= Self::is_process_windowed(pid);
-                }
-
-                let process_name = process.name().to_string_lossy().into_owned();
-
-                if let Some(ref term) = options.search_name {
-                    if options.match_case {
-                        matches &= process_name.contains(term);
-                    } else {
-                        matches &= process_name.to_lowercase().contains(&term.to_lowercase());
-                    }
-                }
-
-                if matches {
-                    Some(ProcessInfo {
-                        pid: **pid,
-                        name: process_name,
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        // Apply limit if specified.
-        if let Some(limit) = options.limit {
-            filtered_processes.into_iter().take(limit as usize).collect()
-        } else {
-            filtered_processes
-        }
     }
 
     fn is_process_windowed(process_id: &Pid) -> bool {
@@ -240,5 +165,86 @@ impl ProcessQueryer for WindowsProcessQuery {
                 height: height,
             })
         }
+    }
+}
+
+impl ProcessQueryer for WindowsProcessQuery {
+    fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
+        unsafe {
+            let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.pid.as_u32());
+            if handle == std::ptr::null_mut() {
+                Err("Failed to open process".to_string())
+            } else {
+                let opened_process_info = OpenedProcessInfo {
+                    pid: process_info.pid,
+                    name: process_info.name.clone(),
+                    bitness: Self::get_process_bitness(&handle),
+                    handle: handle as u64,
+                    icon: process_info.icon.clone(),
+                };
+
+                Ok(opened_process_info)
+            }
+        }
+    }
+
+    fn close_process(handle: u64) -> Result<(), String> {
+        unsafe {
+            if CloseHandle(handle as HANDLE) == 0 {
+                Err("Failed to close process handle".to_string())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    fn get_processes(
+        options: ProcessQueryOptions,
+        system: Arc<RwLock<System>>,
+    ) -> Vec<ProcessInfo> {
+        let system_guard = match system.read() {
+            Ok(guard) => guard,
+            Err(e) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire system read lock: {}", e), None);
+                return Vec::new();
+            }
+        };
+
+        // Process and filter in a single pass.
+        let filtered_processes: Vec<ProcessInfo> = system_guard
+            .processes()
+            .iter()
+            .filter_map(|(pid, process)| {
+                let mut matches = true;
+                let process_info = ProcessInfo {
+                    pid: *pid,
+                    name: process.name().to_string_lossy().into_owned(),
+                    is_windowed: Self::is_process_windowed(pid),
+                    icon: if options.fetch_icons { Self::get_icon(pid) } else { None },
+                };
+
+                // Apply filters.
+                if options.require_windowed {
+                    matches &= process_info.is_windowed;
+                }
+
+                if let Some(ref term) = options.search_name {
+                    if options.match_case {
+                        matches &= process_info.name.contains(term);
+                    } else {
+                        matches &= process_info.name.to_lowercase().contains(&term.to_lowercase());
+                    }
+                }
+
+                if let Some(required_pid) = options.required_pid {
+                    matches &= process_info.pid == required_pid;
+                }
+
+                matches.then_some(process_info)
+            })
+            .take(options.limit.unwrap_or(usize::MAX as u64) as usize)
+            .collect();
+
+        filtered_processes
     }
 }

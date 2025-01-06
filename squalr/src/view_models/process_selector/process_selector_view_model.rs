@@ -9,7 +9,6 @@ use slint::SharedPixelBuffer;
 use squalr_engine::session_manager::SessionManager;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_processes::process_info::ProcessIcon;
 use squalr_engine_processes::process_info::ProcessInfo;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
@@ -36,10 +35,12 @@ impl ProcessSelectorViewModel {
     ) {
         view_model_base.execute_on_ui_thread(move |main_window_view, _view_model_base| {
             let process_query_options = ProcessQueryOptions {
-                require_windowed: refresh_windowed_list,
                 required_pid: None,
                 search_name: None,
+                require_windowed: refresh_windowed_list,
                 match_case: false,
+                fetch_icons: true,
+                skip_cache: false,
                 limit: None,
             };
 
@@ -52,29 +53,31 @@ impl ProcessSelectorViewModel {
 
             let start_time = std::time::Instant::now();
 
-            // Gather process icons.
-            let process_data_raw: Vec<(ProcessInfo, ProcessIcon)> = process_list
-                .iter()
-                .filter_map(|process_info| ProcessQuery::get_icon(&process_info.pid).map(|icon| (process_info.clone(), icon)))
-                .collect();
-
-            Logger::get_instance().log(LogLevel::Info, &format!("Process icons gathering duration: {:?}", start_time.elapsed()), None);
-
-            let start_time = std::time::Instant::now();
-
             // Create shared pixel buffers from the icons.
-            let process_data: Vec<ProcessViewData> = process_data_raw
+            let process_data: Vec<ProcessViewData> = process_list
                 .into_iter()
-                .map(|(process_info, icon)| {
-                    let mut icon_data = SharedPixelBuffer::new(icon.width, icon.height);
-                    let icon_data_bytes = icon_data.make_mut_bytes();
-                    icon_data_bytes.copy_from_slice(&icon.bytes_rgba);
+                .map(|process_info| {
+                    let icon = process_info.icon.map_or_else(
+                        || {
+                            // Create 1x1 transparent image as fallback.
+                            let mut icon_data = SharedPixelBuffer::new(1, 1);
+                            let icon_data_bytes = icon_data.make_mut_bytes();
+                            icon_data_bytes.copy_from_slice(&[0, 0, 0, 0]);
+                            Image::from_rgba8(icon_data)
+                        },
+                        |icon| {
+                            let mut icon_data = SharedPixelBuffer::new(icon.width, icon.height);
+                            let icon_data_bytes = icon_data.make_mut_bytes();
+                            icon_data_bytes.copy_from_slice(&icon.bytes_rgba);
+                            Image::from_rgba8(icon_data)
+                        },
+                    );
 
                     ProcessViewData {
                         process_id_str: process_info.pid.to_string().into(),
                         process_id: process_info.pid.as_u32() as i32,
                         name: process_info.name.to_string().into(),
-                        icon: Image::from_rgba8(icon_data),
+                        icon: icon,
                     }
                 })
                 .collect();
@@ -107,9 +110,12 @@ impl ViewModel for ProcessSelectorViewModel {
                 });
 
                 process_selector_view.on_select_process(|process_entry| {
+                    // TODO: Maybe this should be PID based and do a lookup internally.
                     let process_to_open = ProcessInfo {
                         pid: Pid::from_u32(process_entry.process_id as u32),
                         name: "".to_string(),
+                        is_windowed: false,
+                        icon: None,
                     };
                     match ProcessQuery::open_process(&process_to_open) {
                         Ok(opened_process) => {

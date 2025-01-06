@@ -17,6 +17,8 @@ pub struct ProcessIcon {
 pub struct ProcessInfo {
     pub pid: Pid,
     pub name: String,
+    pub is_windowed: bool,
+    pub icon: Option<ProcessIcon>,
 }
 
 #[derive(Clone, Debug)]
@@ -25,4 +27,5 @@ pub struct OpenedProcessInfo {
     pub name: String,
     pub handle: u64,
     pub bitness: Bitness,
+    pub icon: Option<ProcessIcon>,
 }

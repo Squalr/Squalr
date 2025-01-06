@@ -1,4 +1,5 @@
-use squalr_engine_processes::process_info::OpenedProcessInfo;
+use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
+use squalr_engine_processes::{process_info::OpenedProcessInfo, process_query::process_queryer::ProcessQuery};
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
 use std::sync::{Arc, Once, RwLock};
 
@@ -27,6 +28,12 @@ impl SessionManager {
 
             #[allow(static_mut_refs)]
             return INSTANCE.as_ref().unwrap_unchecked().clone();
+        }
+    }
+
+    pub fn initialize(&self) {
+        if let Err(err) = ProcessQuery::start_monitoring() {
+            Logger::get_instance().log(LogLevel::Error, &format!("Failed to monitor system processes: {}", err), None);
         }
     }
 

@@ -1,36 +1,66 @@
 use crate::process_info::OpenedProcessInfo;
-use crate::process_info::ProcessIcon;
 use crate::process_info::ProcessInfo;
+use crate::process_monitor::ProcessMonitor;
+use once_cell::sync::Lazy;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::RwLock;
 use sysinfo::Pid;
+use sysinfo::System;
 
-pub trait ProcessQueryer {
+pub(crate) trait ProcessQueryer {
     fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String>;
     fn close_process(handle: u64) -> Result<(), String>;
-    fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo>;
-    fn is_process_windowed(pid: &Pid) -> bool;
-    fn get_icon(pid: &Pid) -> Option<ProcessIcon>;
+    fn get_processes(
+        options: ProcessQueryOptions,
+        system: Arc<RwLock<System>>,
+    ) -> Vec<ProcessInfo>;
 }
 
 pub struct ProcessQueryOptions {
-    pub require_windowed: bool,
     pub required_pid: Option<Pid>,
     pub search_name: Option<String>,
+    pub require_windowed: bool,
     pub match_case: bool,
+    pub fetch_icons: bool,
+    pub skip_cache: bool,
     pub limit: Option<u64>,
 }
 
 #[cfg(any(target_os = "linux"))]
-pub use crate::process_query::linux::linux_process_query::LinuxProcessQuery as ProcessQueryImpl;
+use crate::process_query::linux::linux_process_query::LinuxProcessQuery as ProcessQueryImpl;
 
 #[cfg(any(target_os = "macos"))]
-pub use crate::process_query::macos::macos_process_query::MacOsProcessQuery as ProcessQueryImpl;
+use crate::process_query::macos::macos_process_query::MacOsProcessQuery as ProcessQueryImpl;
 
 #[cfg(target_os = "windows")]
-pub use crate::process_query::windows::windows_process_query::WindowsProcessQuery as ProcessQueryImpl;
+use crate::process_query::windows::windows_process_query::WindowsProcessQuery as ProcessQueryImpl;
 
 pub struct ProcessQuery;
 
+pub(crate) static PROCESS_MONITOR: Lazy<Mutex<ProcessMonitor>> = Lazy::new(|| Mutex::new(ProcessMonitor::new()));
+
 impl ProcessQuery {
+    pub fn start_monitoring() -> Result<(), String> {
+        let mut monitor = PROCESS_MONITOR
+            .lock()
+            .map_err(|e| format!("Failed to acquire process monitor lock: {}", e))?;
+
+        monitor.start_monitoring();
+
+        Ok(())
+    }
+
+    pub fn stop_monitoring() -> Result<(), String> {
+        let mut monitor = PROCESS_MONITOR
+            .lock()
+            .map_err(|e| format!("Failed to acquire process monitor lock: {}", e))?;
+
+        monitor.stop_monitoring();
+
+        Ok(())
+    }
+
     pub fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
         ProcessQueryImpl::open_process(process_info)
     }
@@ -40,14 +70,13 @@ impl ProcessQuery {
     }
 
     pub fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
-        ProcessQueryImpl::get_processes(options)
-    }
-
-    pub fn is_process_windowed(pid: &Pid) -> bool {
-        ProcessQueryImpl::is_process_windowed(pid)
-    }
-
-    pub fn get_icon(pid: &Pid) -> Option<ProcessIcon> {
-        ProcessQueryImpl::get_icon(pid)
+        if let Ok(monitor) = PROCESS_MONITOR
+            .lock()
+            .map_err(|e| format!("Failed to acquire process monitor lock: {}", e))
+        {
+            ProcessQueryImpl::get_processes(options, monitor.get_system())
+        } else {
+            vec![]
+        }
     }
 }
