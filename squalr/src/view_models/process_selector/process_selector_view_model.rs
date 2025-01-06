@@ -33,6 +33,8 @@ impl ProcessSelectorViewModel {
         view_model_base: ViewModelBase<MainWindowView>,
         refresh_windowed_list: bool,
     ) {
+        let total_time = std::time::Instant::now();
+
         view_model_base.execute_on_ui_thread(move |main_window_view, _view_model_base| {
             let process_query_options = ProcessQueryOptions {
                 required_pid: None,
@@ -83,12 +85,16 @@ impl ProcessSelectorViewModel {
                 .collect();
 
             Logger::get_instance().log(LogLevel::Info, &format!("Pixel buffers creation duration: {:?}", start_time.elapsed()), None);
+            let start_time = std::time::Instant::now();
 
             if refresh_windowed_list {
                 process_selector_view.set_windowed_processes(process_data.as_slice().into());
             } else {
                 process_selector_view.set_processes(process_data.as_slice().into());
             }
+
+            Logger::get_instance().log(LogLevel::Info, &format!("Assignment duration: {:?}", start_time.elapsed()), None);
+            Logger::get_instance().log(LogLevel::Info, &format!("Total duration: {:?}", total_time.elapsed()), None);
         });
     }
 }

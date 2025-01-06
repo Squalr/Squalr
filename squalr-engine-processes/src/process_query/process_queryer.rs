@@ -1,7 +1,10 @@
 use crate::process_info::OpenedProcessInfo;
+use crate::process_info::ProcessIcon;
 use crate::process_info::ProcessInfo;
 use crate::process_monitor::ProcessMonitor;
 use once_cell::sync::Lazy;
+use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_common::logging::logger::Logger;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::RwLock;
@@ -15,6 +18,8 @@ pub(crate) trait ProcessQueryer {
         options: ProcessQueryOptions,
         system: Arc<RwLock<System>>,
     ) -> Vec<ProcessInfo>;
+    fn is_process_windowed(process_id: &Pid) -> bool;
+    fn get_icon(process_id: &Pid) -> Option<ProcessIcon>;
 }
 
 pub struct ProcessQueryOptions {
@@ -70,12 +75,10 @@ impl ProcessQuery {
     }
 
     pub fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
-        if let Ok(monitor) = PROCESS_MONITOR
-            .lock()
-            .map_err(|e| format!("Failed to acquire process monitor lock: {}", e))
-        {
+        if let Ok(monitor) = PROCESS_MONITOR.lock() {
             ProcessQueryImpl::get_processes(options, monitor.get_system())
         } else {
+            Logger::get_instance().log(LogLevel::Error, "Error fetching processes: Failed to acquire process monitor lock.", None);
             vec![]
         }
     }

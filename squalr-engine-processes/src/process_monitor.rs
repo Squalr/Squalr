@@ -56,7 +56,8 @@ impl ProcessMonitor {
             if let Ok(mut sys) = system.write() {
                 sys.refresh_all();
             }
-            thread::sleep(Duration::from_millis(100));
+
+            thread::sleep(Duration::from_millis(250));
         }
     }
 }
