@@ -1,6 +1,7 @@
 use crate::models::docking::docking_layout::DockingLayout;
 use crate::view_models::docking::docked_window_view_model::DockedWindowViewModel;
 use crate::view_models::output::output_view_model::OutputViewModel;
+use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
 use crate::view_models::scanners::manual_scan_view_model::ManualScanViewModel;
 use crate::view_models::settings::memory_settings_view_model::MemorySettingsViewModel;
 use crate::view_models::settings::scan_settings_view_model::ScanSettingsViewModel;
@@ -23,6 +24,7 @@ pub struct MainWindowViewModel {
     manual_scan_view_model: Arc<ManualScanViewModel>,
     memory_settings_view_model: Arc<MemorySettingsViewModel>,
     output_view_model: Arc<OutputViewModel>,
+    process_selector_view_model: Arc<ProcessSelectorViewModel>,
     scan_settings_view_model: Arc<ScanSettingsViewModel>,
 }
 
@@ -42,6 +44,7 @@ impl MainWindowViewModel {
             manual_scan_view_model: Arc::new(ManualScanViewModel::new(view_model_base.clone())),
             memory_settings_view_model: Arc::new(MemorySettingsViewModel::new(view_model_base.clone())),
             output_view_model: Arc::new(OutputViewModel::new(view_model_base.clone())),
+            process_selector_view_model: Arc::new(ProcessSelectorViewModel::new(view_model_base.clone())),
             scan_settings_view_model: Arc::new(ScanSettingsViewModel::new(view_model_base.clone())),
         };
 
@@ -85,6 +88,14 @@ impl MainWindowViewModel {
 
     pub fn get_memory_settings_view_model(&self) -> &Arc<MemorySettingsViewModel> {
         return &self.memory_settings_view_model;
+    }
+
+    pub fn get_output_view_model(&self) -> &Arc<OutputViewModel> {
+        return &self.output_view_model;
+    }
+
+    pub fn get_process_selector_view_model(&self) -> &Arc<ProcessSelectorViewModel> {
+        return &self.process_selector_view_model;
     }
 
     pub fn get_scan_settings_view_model(&self) -> &Arc<ScanSettingsViewModel> {
@@ -210,15 +221,10 @@ impl ViewModel for MainWindowViewModel {
                 let mut docking_layout_mut = docking_layout.clone();
                 docked_window_view.on_update_dock_root_size(move |width, height| {
                     docking_layout_mut
-                        .lock()
-                        .unwrap()
-                        .borrow_mut()
-                        .set_available_width(width);
-                    docking_layout_mut
                         .borrow_mut()
                         .lock()
                         .unwrap()
-                        .set_available_height(height);
+                        .set_available_size(width, height);
                     Self::propagate_layout(&view_model, &docking_layout_mut);
                     return 0.0;
                 });
@@ -227,9 +233,9 @@ impl ViewModel for MainWindowViewModel {
                 let mut docking_layout_mut = docking_layout.clone();
                 docked_window_view.on_update_dock_root_width(move |width| {
                     docking_layout_mut
+                        .borrow_mut()
                         .lock()
                         .unwrap()
-                        .borrow_mut()
                         .set_available_width(width);
                     Self::propagate_layout(&view_model, &docking_layout_mut);
                 });

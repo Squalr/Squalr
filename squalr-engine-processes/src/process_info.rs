@@ -6,9 +6,10 @@ pub enum Bitness {
     Bit64,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct ProcessInfo {
     pub pid: Pid,
+    pub name: String,
     pub handle: u64,
     pub bitness: Bitness,
 }

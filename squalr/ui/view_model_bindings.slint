@@ -44,12 +44,16 @@ export global DockedWindowViewModelBindings {
 }
 
 export struct ProcessViewData {
+    process-id: string,
     name: string,
     icon: image,
 }
 
-export global ProcessViewModelBindings {
-    callback open-process(int);
+export global ProcessSelectorViewModelBindings {
+    callback refresh-windowed-process-list();
+    callback refresh-full-process-list();
+    callback select-process(ProcessViewData);
+    in property <[ProcessViewData]> windowed-processes;
     in property <[ProcessViewData]> processes;
 }
 

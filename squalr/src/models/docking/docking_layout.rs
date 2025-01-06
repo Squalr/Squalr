@@ -69,6 +69,15 @@ impl DockingLayout {
         self.available_height = available_height;
     }
 
+    pub fn set_available_size(
+        &mut self,
+        available_width: f32,
+        available_height: f32,
+    ) {
+        self.available_width = available_width;
+        self.available_height = available_height;
+    }
+
     pub fn resize_window(
         &mut self,
         window_id: &str,

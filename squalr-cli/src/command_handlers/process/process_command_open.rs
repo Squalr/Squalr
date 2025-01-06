@@ -2,8 +2,8 @@ use crate::command_handlers::process::process_command::ProcessCommand;
 use squalr_engine::session_manager::SessionManager;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_processes::process_query::ProcessQuery;
-use squalr_engine_processes::process_query::ProcessQueryOptions;
+use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
+use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
 use sysinfo::Pid;
 
 pub fn handle_process_open(cmd: &mut ProcessCommand) {

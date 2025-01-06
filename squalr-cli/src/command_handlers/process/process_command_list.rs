@@ -1,10 +1,8 @@
 use crate::command_handlers::process::process_command::ProcessCommand;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_processes::process_query::{
-    ProcessQuery,
-    ProcessQueryOptions,
-};
+use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
+use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
 
 pub fn handle_process_list(cmd: &mut ProcessCommand) {
     if let ProcessCommand::List {
