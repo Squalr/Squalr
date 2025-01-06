@@ -37,15 +37,24 @@ impl ProcessSelectorViewModel {
             };
             let process_list = ProcessQuery::get_instance().get_processes(process_query_options);
             let process_selector_view = main_window_view.global::<ProcessSelectorViewModelBindings>();
+            let mut process_data = vec![];
 
-            let process_data: Vec<ProcessViewData> = process_list
-                .iter()
-                .map(|process_info| ProcessViewData {
-                    process_id: process_info.pid.to_string().into(),
-                    name: process_info.name.to_string().into(),
-                    icon: Image::from_rgb8(SharedPixelBuffer::new(1, 1)),
-                })
-                .collect();
+            process_data.reserve(process_list.len());
+
+            for process_info in process_list {
+                if let Some(icon) = ProcessQuery::get_instance().get_icon(&process_info.pid) {
+                    let mut icon_data = SharedPixelBuffer::new(icon.width(), icon.height());
+                    let icon_data_bytes = icon_data.make_mut_bytes();
+
+                    icon_data_bytes.copy_from_slice(icon.as_bytes());
+
+                    process_data.push(ProcessViewData {
+                        process_id: process_info.pid.to_string().into(),
+                        name: process_info.name.to_string().into(),
+                        icon: Image::from_rgba8(icon_data),
+                    });
+                }
+            }
 
             if refresh_windowed_list {
                 process_selector_view.set_windowed_processes(process_data.as_slice().into());

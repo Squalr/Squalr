@@ -44,6 +44,28 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Release (with debug info) executable 'squalr-cli'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--release",
+                    "--bin=squalr-cli",
+                    "--package=squalr-cli"
+                ],
+                "filter": {
+                    "name": "squalr-cli",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUSTFLAGS": "-g"
+            }
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug executable 'squalr'",
             "cargo": {
                 "args": [
@@ -77,6 +99,28 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release-with-debug executable 'squalr'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--release",
+                    "--bin=squalr",
+                    "--package=squalr"
+                ],
+                "filter": {
+                    "name": "squalr",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUSTFLAGS": "-g"
+            }
         }
     ]
 }

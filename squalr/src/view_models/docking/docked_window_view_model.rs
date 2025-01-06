@@ -34,27 +34,20 @@ impl ViewModel for DockedWindowViewModel {
             .execute_on_ui_thread(|main_window_view, view_model_base| {
                 let docked_window_view = main_window_view.global::<DockedWindowViewModelBindings>();
 
-                let view_handle = main_window_view.clone();
                 docked_window_view.on_minimize(move || {});
 
-                let view_handle = main_window_view.clone();
                 docked_window_view.on_maximize(move || {});
 
                 docked_window_view.on_close(move || {});
 
-                let view_handle = main_window_view.clone();
                 docked_window_view.on_double_clicked(move || {});
 
-                let view_handle = main_window_view.clone();
                 docked_window_view.on_drag_left(move |dockable_window_id, delta_x, delta_y| {});
 
-                let view_handle = main_window_view.clone();
                 docked_window_view.on_drag_right(move |dockable_window_id, delta_x, delta_y| {});
 
-                let view_handle = main_window_view.clone();
                 docked_window_view.on_drag_top(move |dockable_window_id, delta_x, delta_y| {});
 
-                let view_handle = main_window_view.clone();
                 docked_window_view.on_drag_bottom(move |dockable_window_id, delta_x, delta_y| {});
             });
     }

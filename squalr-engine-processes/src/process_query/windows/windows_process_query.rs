@@ -11,33 +11,12 @@ use windows_sys::Win32::System::ProcessStatus::K32GetModuleFileNameExW;
 use windows_sys::Win32::System::Threading::{IsWow64Process, IsWow64Process2};
 use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_ALL_ACCESS, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
 use windows_sys::Win32::UI::Shell::ExtractIconW;
-use windows_sys::Win32::UI::WindowsAndMessaging::{DestroyIcon, EnumWindows};
+use windows_sys::Win32::UI::WindowsAndMessaging::{DestroyIcon, EnumWindows, IsWindowVisible};
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowThreadProcessId, HICON};
 
 pub struct WindowsProcessQuery {
     system: System,
-}
-
-struct WindowFinder {
-    pid: u32,
-    found: AtomicBool,
-}
-
-unsafe extern "system" fn enum_window_callback(
-    hwnd: HWND,
-    lparam: LPARAM,
-) -> BOOL {
-    let finder = &*(lparam as *mut WindowFinder);
-    let mut process_id: u32 = 0;
-    GetWindowThreadProcessId(hwnd, &mut process_id);
-
-    if process_id == finder.pid {
-        finder.found.store(true, Ordering::SeqCst);
-        BOOL::from(false)
-    } else {
-        BOOL::from(true)
-    }
 }
 
 impl WindowsProcessQuery {
@@ -122,7 +101,7 @@ impl ProcessQueryer for WindowsProcessQuery {
             })
             .collect();
 
-        // Limit the result after filtering
+        // Limit the result after filtering.
         if let Some(limit) = options.limit {
             processes.truncate(limit as usize);
         }
@@ -143,6 +122,35 @@ impl ProcessQueryer for WindowsProcessQuery {
         &self,
         process_id: &Pid,
     ) -> bool {
+        struct WindowFinder {
+            pid: u32,
+            found: AtomicBool,
+        }
+
+        unsafe extern "system" fn enum_window_callback(
+            hwnd: HWND,
+            lparam: LPARAM,
+        ) -> BOOL {
+            let finder = &*(lparam as *mut WindowFinder);
+            let mut process_id: u32 = 0;
+            GetWindowThreadProcessId(hwnd, &mut process_id);
+
+            if process_id == finder.pid {
+                // Only count the window if visible.
+                if IsWindowVisible(hwnd) == BOOL::from(true) {
+                    finder.found.store(true, Ordering::SeqCst);
+                    // Stop enumeration.
+                    BOOL::from(false)
+                } else {
+                    // Continue enumeration.
+                    BOOL::from(true)
+                }
+            } else {
+                // Continue enumeration.
+                BOOL::from(true)
+            }
+        }
+
         let finder = WindowFinder {
             pid: process_id.as_u32(),
             found: AtomicBool::new(false),
