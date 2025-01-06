@@ -4,31 +4,21 @@ use crate::memory_queryer::memory_type_enum::MemoryTypeEnum;
 use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
 use crate::normalized_module::NormalizedModule;
 use crate::normalized_region::NormalizedRegion;
-
+use core::ffi::c_void;
 use core::mem::size_of;
 use squalr_engine_processes::process_info::Bitness;
-use squalr_engine_processes::process_info::ProcessInfo;
-use windows_sys::Win32::Foundation::HANDLE;
+use squalr_engine_processes::process_info::OpenedProcessInfo;
 use windows_sys::Win32::Foundation::HMODULE;
 use windows_sys::Win32::System::Memory::{
     VirtualQueryEx, MEMORY_BASIC_INFORMATION64, PAGE_EXECUTE, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE, PAGE_EXECUTE_WRITECOPY, PAGE_READWRITE, PAGE_WRITECOPY,
 };
 use windows_sys::Win32::System::ProcessStatus::{K32EnumProcessModulesEx, K32GetModuleFileNameExA, K32GetModuleInformation, LIST_MODULES_ALL, MODULEINFO};
-use windows_sys::Win32::System::Threading::OpenProcess;
-use windows_sys::Win32::System::Threading::PROCESS_ALL_ACCESS;
 
 pub struct WindowsMemoryQueryer;
 
 impl WindowsMemoryQueryer {
     pub fn new() -> Self {
         WindowsMemoryQueryer
-    }
-
-    fn open_process(
-        &self,
-        process_info: &ProcessInfo,
-    ) -> HANDLE {
-        unsafe { OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.pid.as_u32()) }
     }
 
     fn get_protection_flags(
@@ -56,7 +46,7 @@ impl WindowsMemoryQueryer {
 impl IMemoryQueryer for WindowsMemoryQueryer {
     fn get_virtual_pages(
         &self,
-        process_info: &ProcessInfo,
+        process_info: &OpenedProcessInfo,
         required_protection: MemoryProtectionEnum,
         excluded_protection: MemoryProtectionEnum,
         allowed_types: MemoryTypeEnum,
@@ -64,7 +54,6 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         end_address: u64,
         region_bounds_handling: RegionBoundsHandling,
     ) -> Vec<NormalizedRegion> {
-        let process_handle = self.open_process(process_info);
         let required_flags = self.get_protection_flags(&required_protection);
         let excluded_flags = self.get_protection_flags(&excluded_protection);
         let mut regions = vec![];
@@ -87,7 +76,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
             let mut mbi: MEMORY_BASIC_INFORMATION64 = unsafe { std::mem::zeroed() };
             let result = unsafe {
                 VirtualQueryEx(
-                    process_handle,
+                    process_info.handle as *mut c_void,
                     address as *const _,
                     &mut mbi as *mut _ as *mut _,
                     size_of::<MEMORY_BASIC_INFORMATION64>(),
@@ -176,7 +165,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
     fn get_all_virtual_pages(
         &self,
-        process_info: &ProcessInfo,
+        process_info: &OpenedProcessInfo,
     ) -> Vec<NormalizedRegion> {
         let start_address = 0;
         let end_address = self.get_maximum_address(process_info);
@@ -193,7 +182,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
     fn is_address_writable(
         &self,
-        process_info: &ProcessInfo,
+        process_info: &OpenedProcessInfo,
         address: u64,
     ) -> bool {
         let start_address = address;
@@ -216,7 +205,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
     fn get_maximum_address(
         &self,
-        process_info: &ProcessInfo,
+        process_info: &OpenedProcessInfo,
     ) -> u64 {
         if process_info.bitness == Bitness::Bit32 {
             return u32::MAX as u64;
@@ -227,7 +216,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
     fn get_min_usermode_address(
         &self,
-        _: &ProcessInfo,
+        _: &OpenedProcessInfo,
     ) -> u64 {
         // In windows, anything below this is not addressable by a normal program.
         return 0x10000;
@@ -235,7 +224,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
     fn get_max_usermode_address(
         &self,
-        process_info: &ProcessInfo,
+        process_info: &OpenedProcessInfo,
     ) -> u64 {
         if process_info.bitness == Bitness::Bit32 {
             // For 32-bit applications, the usermode memory is generally the first 2GB of process RAM.
@@ -249,16 +238,15 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
     fn get_modules(
         &self,
-        process_info: &ProcessInfo,
+        process_info: &OpenedProcessInfo,
     ) -> Vec<NormalizedModule> {
-        let process_handle = self.open_process(process_info);
         let mut modules = vec![];
         let mut module_handles: [HMODULE; 1024] = [0 as HMODULE; 1024];
         let mut cb_needed = 0;
 
         let result = unsafe {
             K32EnumProcessModulesEx(
-                process_handle,
+                process_info.handle as *mut c_void,
                 module_handles.as_mut_ptr(),
                 std::mem::size_of_val(&module_handles) as u32,
                 &mut cb_needed,
@@ -274,7 +262,14 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
         for index in 0..num_modules as usize {
             let mut module_name = vec![0u8; 1024];
-            let result = unsafe { K32GetModuleFileNameExA(process_handle, module_handles[index], module_name.as_mut_ptr(), module_name.len() as u32) };
+            let result = unsafe {
+                K32GetModuleFileNameExA(
+                    process_info.handle as *mut c_void,
+                    module_handles[index],
+                    module_name.as_mut_ptr(),
+                    module_name.len() as u32,
+                )
+            };
 
             if result == 0 {
                 continue;
@@ -285,7 +280,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
             let result = unsafe {
                 K32GetModuleInformation(
-                    process_handle,
+                    process_info.handle as *mut c_void,
                     module_handles[index],
                     &mut module_info,
                     std::mem::size_of::<MODULEINFO>() as u32,
@@ -308,7 +303,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
     fn address_to_module(
         &self,
-        process_info: &ProcessInfo,
+        process_info: &OpenedProcessInfo,
         address: u64,
         module_name: &mut String,
     ) -> u64 {
@@ -327,7 +322,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
     fn resolve_module(
         &self,
-        process_info: &ProcessInfo,
+        process_info: &OpenedProcessInfo,
         identifier: &str,
     ) -> u64 {
         let modules = self.get_modules(process_info);

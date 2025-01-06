@@ -6,8 +6,13 @@ use crate::ProcessViewData;
 use slint::ComponentHandle;
 use slint::Image;
 use slint::SharedPixelBuffer;
+use squalr_engine::session_manager::SessionManager;
+use squalr_engine_common::logging::log_level::LogLevel;
+use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_processes::process_info::ProcessInfo;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
+use sysinfo::Pid;
 
 pub struct ProcessSelectorViewModel {
     view_model_base: ViewModelBase<MainWindowView>,
@@ -28,9 +33,10 @@ impl ProcessSelectorViewModel {
         view_model_base: ViewModelBase<MainWindowView>,
         refresh_windowed_list: bool,
     ) {
-        view_model_base.execute_on_ui_thread(move |main_window_view, view_model_base| {
+        view_model_base.execute_on_ui_thread(move |main_window_view, _view_model_base| {
             let process_query_options = ProcessQueryOptions {
                 require_windowed: refresh_windowed_list,
+                required_pid: None,
                 search_name: None,
                 match_case: false,
                 limit: None,
@@ -42,14 +48,15 @@ impl ProcessSelectorViewModel {
             process_data.reserve(process_list.len());
 
             for process_info in process_list {
-                if let Some(icon) = ProcessQuery::get_instance().get_icon(&process_info.pid) {
+                if let Some(icon) = ProcessQuery::get_instance().get_icon_rgba(&process_info.pid) {
                     let mut icon_data = SharedPixelBuffer::new(icon.width(), icon.height());
                     let icon_data_bytes = icon_data.make_mut_bytes();
 
                     icon_data_bytes.copy_from_slice(icon.as_bytes());
 
                     process_data.push(ProcessViewData {
-                        process_id: process_info.pid.to_string().into(),
+                        process_id_str: process_info.pid.to_string().into(),
+                        process_id: process_info.pid.as_u32() as i32,
                         name: process_info.name.to_string().into(),
                         icon: Image::from_rgba8(icon_data),
                     });
@@ -82,15 +89,22 @@ impl ViewModel for ProcessSelectorViewModel {
                 });
 
                 process_selector_view.on_select_process(|process_entry| {
-                    /*
-                    SessionManager::set_opened_process(
-                        &mut self,
-                        ProcessInfo {
-                            pid: Pid,
-                            handle: u64,
-                            bitness: Bitness,
-                        },
-                    );*/
+                    let process_to_open = ProcessInfo {
+                        pid: Pid::from_u32(process_entry.process_id as u32),
+                        name: "".to_string(),
+                    };
+                    match ProcessQuery::get_instance().open_process(&process_to_open) {
+                        Ok(opened_process) => {
+                            if let Ok(mut session_manager) = SessionManager::get_instance().write() {
+                                session_manager.set_opened_process(opened_process);
+                            } else {
+                                Logger::get_instance().log(LogLevel::Warn, "Failed to open process.", None);
+                            }
+                        }
+                        Err(err) => {
+                            Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", process_to_open.pid, err), None);
+                        }
+                    }
                 });
             });
     }

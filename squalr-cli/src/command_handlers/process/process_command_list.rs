@@ -24,6 +24,7 @@ pub fn handle_process_list(cmd: &mut ProcessCommand) {
         let mut queryer = ProcessQuery::get_instance();
         let options = ProcessQueryOptions {
             require_windowed: *require_windowed,
+            required_pid: None,
             search_name: search_name.as_ref().cloned(),
             match_case: *match_case,
             limit: *limit,
@@ -31,10 +32,8 @@ pub fn handle_process_list(cmd: &mut ProcessCommand) {
 
         let processes = queryer.get_processes(options);
 
-        for pid in processes {
-            if let Some(name) = queryer.get_process_name(pid) {
-                Logger::get_instance().log(LogLevel::Info, &format!("PID: {}, Name: {}", pid, name), None);
-            }
+        for process_info in processes {
+            Logger::get_instance().log(LogLevel::Info, &format!("PID: {}, Name: {}", process_info.pid, process_info.name), None);
         }
     }
 }

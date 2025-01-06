@@ -18,38 +18,31 @@ pub fn handle_process_open(cmd: &mut ProcessCommand) {
 
         Logger::get_instance().log(LogLevel::Info, "Opening process", None);
 
-        let mut pid = match pid {
-            Some(pid) => Pid::from_u32(*pid),
-            None => Pid::from_u32(0),
+        let mut queryer = ProcessQuery::get_instance();
+        let options = ProcessQueryOptions {
+            require_windowed: false,
+            required_pid: pid.map(Pid::from_u32),
+            search_name: search_name.clone(),
+            match_case: *match_case,
+            limit: Some(1),
         };
 
-        // Overwrite pid if a search name is provided
-        if search_name.is_some() {
-            let mut queryer = ProcessQuery::get_instance();
-            let options = ProcessQueryOptions {
-                require_windowed: false,
-                search_name: search_name.as_ref().cloned(),
-                match_case: *match_case,
-                limit: Some(1),
-            };
+        let processes = queryer.get_processes(options);
 
-            let processes = queryer.get_processes(options);
+        if let Some(process_info) = processes.first() {
+            let queryer = ProcessQuery::get_instance();
 
-            if let Some(found_pid) = processes.first() {
-                pid = *found_pid;
+            match queryer.open_process(&process_info) {
+                Ok(opened_process_info) => {
+                    session_manager.set_opened_process(opened_process_info.clone());
+                    Logger::get_instance().log(LogLevel::Info, &format!("Process opened: {:?}", opened_process_info.pid), None);
+                }
+                Err(err) => {
+                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", process_info.pid, err), None);
+                }
             }
-        }
-
-        let queryer = ProcessQuery::get_instance();
-
-        match queryer.open_process(&pid) {
-            Ok(process_info) => {
-                session_manager.set_opened_process(process_info);
-                Logger::get_instance().log(LogLevel::Info, &format!("Process opened: {:?}", process_info), None);
-            }
-            Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", pid, e), None);
-            }
+        } else {
+            Logger::get_instance().log(LogLevel::Warn, "No matching process found.", None);
         }
     }
 }

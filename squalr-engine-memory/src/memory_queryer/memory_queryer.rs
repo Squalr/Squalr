@@ -5,7 +5,7 @@ use crate::memory_queryer::MemoryQueryerImpl;
 use crate::normalized_region::NormalizedRegion;
 use crate::{memory_queryer::memory_queryer_trait::IMemoryQueryer, memory_settings::MemorySettings};
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
-use squalr_engine_processes::process_info::ProcessInfo;
+use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::{collections::HashSet, sync::Once};
 
 bitflags::bitflags! {
@@ -38,7 +38,7 @@ impl MemoryQueryer {
 
     // TODO: Support middle-ware for emulator types to filter down the address space
     pub fn get_memory_page_bounds(
-        process_info: &ProcessInfo,
+        process_info: &OpenedProcessInfo,
         page_retrieval_mode: PageRetrievalMode,
     ) -> Vec<NormalizedRegion> {
         match page_retrieval_mode {
@@ -62,7 +62,7 @@ impl MemoryQueryer {
     }
 
     pub fn query_pages_by_address_range(
-        process_info: &ProcessInfo,
+        process_info: &OpenedProcessInfo,
         start_address: u64,
         end_address: u64,
     ) -> Vec<NormalizedRegion> {
@@ -84,7 +84,7 @@ impl MemoryQueryer {
         return normalized_regions;
     }
 
-    fn query_pages_from_usermode_memory(process_info: &ProcessInfo) -> Vec<NormalizedRegion> {
+    fn query_pages_from_usermode_memory(process_info: &OpenedProcessInfo) -> Vec<NormalizedRegion> {
         let required_page_flags = MemoryProtectionEnum::empty();
         let excluded_page_flags = MemoryProtectionEnum::empty();
         let allowed_type_flags = MemoryTypeEnum::NONE | MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE;
@@ -104,7 +104,7 @@ impl MemoryQueryer {
         return normalized_regions;
     }
 
-    fn query_pages_from_settings(process_info: &ProcessInfo) -> Vec<NormalizedRegion> {
+    fn query_pages_from_settings(process_info: &OpenedProcessInfo) -> Vec<NormalizedRegion> {
         let required_page_flags = MemoryQueryer::get_required_protection_settings();
         let excluded_page_flags = MemoryQueryer::get_excluded_protection_settings();
         let allowed_type_flags = MemoryQueryer::get_allowed_type_settings();
@@ -131,7 +131,7 @@ impl MemoryQueryer {
         return normalized_regions;
     }
 
-    fn query_pages_from_modules(process_info: &ProcessInfo) -> Vec<NormalizedRegion> {
+    fn query_pages_from_modules(process_info: &OpenedProcessInfo) -> Vec<NormalizedRegion> {
         // Note that we use into_base_region to extract the base region without copying, instead taking ownership
         let module_regions = MemoryQueryer::get_instance()
             .get_modules(process_info)
@@ -142,7 +142,7 @@ impl MemoryQueryer {
         return module_regions;
     }
 
-    fn query_pages_from_non_modules(process_info: &ProcessInfo) -> Vec<NormalizedRegion> {
+    fn query_pages_from_non_modules(process_info: &OpenedProcessInfo) -> Vec<NormalizedRegion> {
         let modules: HashSet<u64> = MemoryQueryer::get_instance()
             .get_modules(process_info)
             .into_iter()

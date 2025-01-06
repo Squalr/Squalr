@@ -8,7 +8,7 @@ use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
-use squalr_engine_processes::process_info::ProcessInfo;
+use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -23,7 +23,7 @@ impl HybridScanner {
     const NAME: &'static str = "Hybrid Scan";
 
     pub fn scan(
-        process_info: ProcessInfo,
+        process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         scan_parameters: &ScanParameters,
         task_identifier: Option<String>,
@@ -51,7 +51,7 @@ impl HybridScanner {
     }
 
     fn scan_task(
-        process_info: ProcessInfo,
+        process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         scan_parameters: &ScanParameters,
         task: Arc<TrackableTask<()>>,

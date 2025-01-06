@@ -1,8 +1,17 @@
+use crate::process_info::OpenedProcessInfo;
 use crate::process_info::ProcessInfo;
 use image::DynamicImage;
 use sysinfo::Pid;
 
 pub trait ProcessQueryer {
+    fn open_process(
+        &self,
+        process_info: &ProcessInfo,
+    ) -> Result<OpenedProcessInfo, String>;
+    fn close_process(
+        &self,
+        handle: u64,
+    ) -> Result<(), String>;
     fn get_processes(
         &mut self,
         options: ProcessQueryOptions,
@@ -11,26 +20,15 @@ pub trait ProcessQueryer {
         &self,
         pid: &Pid,
     ) -> bool;
-    fn get_icon(
+    fn get_icon_rgba(
         &self,
         pid: &Pid,
     ) -> Option<DynamicImage>;
-    fn get_process_name(
-        &self,
-        pid: Pid,
-    ) -> Option<String>;
-    fn open_process(
-        &self,
-        process_id: &Pid,
-    ) -> Result<ProcessInfo, String>;
-    fn close_process(
-        &self,
-        handle: u64,
-    ) -> Result<(), String>;
 }
 
 pub struct ProcessQueryOptions {
     pub require_windowed: bool,
+    pub required_pid: Option<Pid>,
     pub search_name: Option<String>,
     pub match_case: bool,
     pub limit: Option<u64>,

@@ -6,7 +6,7 @@ use squalr_engine_common::conversions::value_to_metric_size;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
-use squalr_engine_processes::process_info::ProcessInfo;
+use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -19,7 +19,7 @@ impl ValueCollector {
     const NAME: &'static str = "Value Collector";
 
     pub fn collect_values(
-        process_info: ProcessInfo,
+        process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         task_identifier: Option<String>,
         with_logging: bool,
@@ -47,7 +47,7 @@ impl ValueCollector {
     }
 
     fn collect_values_task(
-        process_info: Arc<ProcessInfo>,
+        process_info: Arc<OpenedProcessInfo>,
         snapshot: Arc<RwLock<Snapshot>>,
         with_logging: bool,
         task: Arc<TrackableTask<()>>,

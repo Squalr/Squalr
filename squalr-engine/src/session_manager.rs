@@ -1,9 +1,9 @@
-use squalr_engine_processes::process_info::ProcessInfo;
+use squalr_engine_processes::process_info::OpenedProcessInfo;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
 use std::sync::{Arc, Once, RwLock};
 
 pub struct SessionManager {
-    opened_process: Option<ProcessInfo>,
+    opened_process: Option<OpenedProcessInfo>,
     snapshot: Arc<RwLock<Snapshot>>,
 }
 
@@ -32,7 +32,7 @@ impl SessionManager {
 
     pub fn set_opened_process(
         &mut self,
-        process_info: ProcessInfo,
+        process_info: OpenedProcessInfo,
     ) {
         self.opened_process = Some(process_info);
     }
@@ -41,7 +41,7 @@ impl SessionManager {
         self.opened_process = None;
     }
 
-    pub fn get_opened_process(&self) -> Option<&ProcessInfo> {
+    pub fn get_opened_process(&self) -> Option<&OpenedProcessInfo> {
         self.opened_process.as_ref()
     }
 

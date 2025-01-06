@@ -18,8 +18,8 @@ fn main() {
     let cli_log_listener = CliLogListener::new();
 
     Logger::get_instance().subscribe(cli_log_listener);
-    vectors::log_vector_architecture();
     Logger::get_instance().log(LogLevel::Info, "Squalr started", None);
+    vectors::log_vector_architecture();
 
     let mut stdout = io::stdout();
     let stdin = io::stdin();

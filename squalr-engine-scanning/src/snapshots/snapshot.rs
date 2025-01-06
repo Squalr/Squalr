@@ -11,7 +11,7 @@ use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_queryer::PageRetrievalMode;
-use squalr_engine_processes::process_info::ProcessInfo;
+use squalr_engine_processes::process_info::OpenedProcessInfo;
 
 #[derive(Debug)]
 pub struct Snapshot {
@@ -34,7 +34,7 @@ impl Snapshot {
 
     pub fn new_scan(
         &mut self,
-        process_info: &ProcessInfo,
+        process_info: &OpenedProcessInfo,
         scan_filter_parameters: Vec<ScanFilterParameters>,
     ) {
         self.create_initial_snapshot_regions(process_info);
@@ -128,7 +128,7 @@ impl Snapshot {
 
     pub fn create_initial_snapshot_regions(
         &mut self,
-        process_info: &ProcessInfo,
+        process_info: &OpenedProcessInfo,
     ) {
         // Query all memory pages for the process from the OS
         let memory_pages = MemoryQueryer::get_memory_page_bounds(process_info, PageRetrievalMode::FROM_SETTINGS);
