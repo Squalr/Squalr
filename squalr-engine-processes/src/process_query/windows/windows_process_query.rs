@@ -97,44 +97,46 @@ impl ProcessQueryer for WindowsProcessQuery {
         options: ProcessQueryOptions,
     ) -> Vec<ProcessInfo> {
         self.system.refresh_all();
-        let mut processes = Vec::new();
 
-        // Iterate through processes and apply filters
-        for (pid, process) in self.system.processes() {
-            // Check if process matches all filter criteria
-            let mut matches = true;
-            if options.require_windowed {
-                matches &= self.is_process_windowed(pid);
-            }
+        // Convert the process iterator to a vector for parallel processing.
+        let processes: Vec<_> = self.system.processes().iter().collect();
 
-            let process_name = process.name().to_string_lossy().into_owned();
+        let filtered_processes: Vec<ProcessInfo> = processes
+            .iter()
+            .filter_map(|(pid, process)| {
+                let mut matches = true;
 
-            if let Some(ref term) = options.search_name {
-                if options.match_case {
-                    matches &= process_name.contains(term);
+                if options.require_windowed {
+                    matches &= self.is_process_windowed(pid);
+                }
+
+                let process_name = process.name().to_string_lossy().into_owned();
+
+                if let Some(ref term) = options.search_name {
+                    if options.match_case {
+                        matches &= process_name.contains(term);
+                    } else {
+                        matches &= process_name.to_lowercase().contains(&term.to_lowercase());
+                    }
+                }
+
+                if matches {
+                    Some(ProcessInfo {
+                        pid: **pid,
+                        name: process_name,
+                    })
                 } else {
-                    matches &= process_name.to_lowercase().contains(&term.to_lowercase());
+                    None
                 }
-            }
+            })
+            .collect();
 
-            if !matches {
-                continue;
-            }
-
-            // Create ProcessInfo for matching processes
-            let process_info = ProcessInfo { pid: *pid, name: process_name };
-            processes.push(process_info);
-
-            // Apply limit if specified
-            if let Some(limit) = options.limit {
-                if processes.len() >= limit as usize {
-                    break;
-                }
-            }
+        // Apply limit if specified.
+        if let Some(limit) = options.limit {
+            filtered_processes.into_iter().take(limit as usize).collect()
+        } else {
+            filtered_processes
         }
-
-        // No need for final truncate since we checked limit during collection
-        processes
     }
 
     fn is_process_windowed(

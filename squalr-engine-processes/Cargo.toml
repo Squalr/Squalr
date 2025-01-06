@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 squalr-engine-common = { path = "../squalr-engine-common" }
 image = ">=0.25.5"
+rayon = ">=1.10.0"
 sysinfo = ">=0.31.2"
 windows-sys = { version = ">=0.59", features = [
     "Win32_Graphics_Gdi",

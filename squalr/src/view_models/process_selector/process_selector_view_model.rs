@@ -3,6 +3,7 @@ use crate::view_models::view_model_base::ViewModelBase;
 use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
+use image::DynamicImage;
 use slint::ComponentHandle;
 use slint::Image;
 use slint::SharedPixelBuffer;
@@ -43,25 +44,33 @@ impl ProcessSelectorViewModel {
             };
             let process_list = ProcessQuery::get_instance().get_processes(process_query_options);
             let process_selector_view = main_window_view.global::<ProcessSelectorViewModelBindings>();
-            let mut process_data = vec![];
 
-            process_data.reserve(process_list.len());
+            // First collect icons and metadata in parallel
+            let process_data_raw: Vec<(ProcessInfo, DynamicImage)> = process_list
+                .iter()
+                .filter_map(|process_info| {
+                    ProcessQuery::get_instance()
+                        .get_icon_rgba(&process_info.pid)
+                        .map(|icon| (process_info.clone(), icon))
+                })
+                .collect();
 
-            for process_info in process_list {
-                if let Some(icon) = ProcessQuery::get_instance().get_icon_rgba(&process_info.pid) {
+            // Then create SharedPixelBuffers on the UI thread
+            let process_data: Vec<ProcessViewData> = process_data_raw
+                .into_iter() // Regular iterator since we're on UI thread
+                .map(|(process_info, icon)| {
                     let mut icon_data = SharedPixelBuffer::new(icon.width(), icon.height());
                     let icon_data_bytes = icon_data.make_mut_bytes();
-
                     icon_data_bytes.copy_from_slice(icon.as_bytes());
 
-                    process_data.push(ProcessViewData {
+                    ProcessViewData {
                         process_id_str: process_info.pid.to_string().into(),
                         process_id: process_info.pid.as_u32() as i32,
                         name: process_info.name.to_string().into(),
                         icon: Image::from_rgba8(icon_data),
-                    });
-                }
-            }
+                    }
+                })
+                .collect();
 
             if refresh_windowed_list {
                 process_selector_view.set_windowed_processes(process_data.as_slice().into());

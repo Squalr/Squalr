@@ -3946,6 +3946,7 @@ name = "squalr"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "image 0.25.5",
  "log",
  "serde",
  "serde_json",
@@ -4044,6 +4045,7 @@ name = "squalr-engine-processes"
 version = "0.1.0"
 dependencies = [
  "image 0.25.5",
+ "rayon",
  "squalr-engine-common",
  "sysinfo 0.31.2",
  "windows-sys 0.59.0",
