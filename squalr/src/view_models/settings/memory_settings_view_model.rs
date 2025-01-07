@@ -1,7 +1,7 @@
-use crate::view_models::view_model_base::ViewModel;
-use crate::view_models::view_model_base::ViewModelBase;
 use crate::MainWindowView;
 use crate::MemorySettingsViewModelBindings;
+use crate::mvvm::view_model_base::ViewModel;
+use crate::mvvm::view_model_base::ViewModelBase;
 use slint::ComponentHandle;
 use squalr_engine_memory::memory_settings::MemorySettings;
 

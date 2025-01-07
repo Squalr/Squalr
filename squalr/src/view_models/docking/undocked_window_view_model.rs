@@ -1,7 +1,7 @@
-use crate::view_models::view_model_base::ViewModel;
-use crate::view_models::view_model_base::ViewModelBase;
 use crate::UndockedWindowView;
 use crate::WindowViewModelBindings;
+use crate::mvvm::view_model_base::ViewModel;
+use crate::mvvm::view_model_base::ViewModelBase;
 use slint::ComponentHandle;
 
 pub struct UndockedWindowViewModel {

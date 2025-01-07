@@ -1,5 +1,5 @@
 use crate::ProcessViewData;
-use crate::view_models::view_data_converter::ViewDataConverter;
+use crate::mvvm::view_data_converter::ViewDataConverter;
 use slint::Image;
 use slint::SharedPixelBuffer;
 use squalr_engine_processes::process_info::ProcessInfo;

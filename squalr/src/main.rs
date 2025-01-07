@@ -4,6 +4,7 @@
 pub mod cli_log_listener;
 pub mod docking;
 pub mod models;
+pub mod mvvm;
 pub mod view_models;
 
 use crate::view_models::main_window::main_window_view_model::MainWindowViewModel;

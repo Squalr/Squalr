@@ -1,7 +1,7 @@
-use crate::view_models::view_model_base::ViewModel;
-use crate::view_models::view_model_base::ViewModelBase;
 use crate::MainWindowView;
 use crate::OutputViewModelBindings;
+use crate::mvvm::view_model_base::ViewModel;
+use crate::mvvm::view_model_base::ViewModelBase;
 use slint::ComponentHandle;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger_observer::LoggerObserver;

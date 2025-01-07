@@ -1,8 +1,8 @@
-use crate::models::docking::docking_layout::DockingLayout;
-use crate::view_models::view_model_base::ViewModel;
-use crate::view_models::view_model_base::ViewModelBase;
 use crate::DockedWindowViewModelBindings;
 use crate::MainWindowView;
+use crate::models::docking::docking_layout::DockingLayout;
+use crate::mvvm::view_model_base::ViewModel;
+use crate::mvvm::view_model_base::ViewModelBase;
 use slint::ComponentHandle;
 use std::sync::Arc;
 use std::sync::Mutex;
