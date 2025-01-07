@@ -8,6 +8,9 @@ import { Button } from "../../components/buttons/button.slint";
 
 export component ProcessEntry inherits Button {
     in property <ProcessViewData> process_view_data;
+    clicked => {
+        ProcessSelectorViewModelBindings.select-process(root.process_view_data);
+    }
     HorizontalLayout {
         HorizontalBox {
             Image {

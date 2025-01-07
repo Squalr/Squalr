@@ -18,24 +18,21 @@ pub fn handle_process_open(cmd: &mut ProcessCommand) {
 
         Logger::get_instance().log(LogLevel::Info, "Opening process", None);
 
-        let mut queryer = ProcessQuery::;
         let options = ProcessQueryOptions {
-            require_windowed: false,
-            required_pid: pid.map(Pid::from_u32),
             search_name: search_name.clone(),
+            required_pid: pid.map(Pid::from_u32),
+            require_windowed: false,
             match_case: *match_case,
+            fetch_icons: false,
             limit: Some(1),
         };
 
-        let processes = queryer.get_processes(options);
+        let processes = ProcessQuery::get_processes(options);
 
         if let Some(process_info) = processes.first() {
-            let queryer = ProcessQuery::;
-
-            match queryer.open_process(&process_info) {
+            match ProcessQuery::open_process(&process_info) {
                 Ok(opened_process_info) => {
                     session_manager.set_opened_process(opened_process_info.clone());
-                    Logger::get_instance().log(LogLevel::Info, &format!("Process opened: {:?}", opened_process_info.pid), None);
                 }
                 Err(err) => {
                     Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", process_info.pid, err), None);

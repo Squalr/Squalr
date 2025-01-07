@@ -21,16 +21,16 @@ pub fn handle_process_list(cmd: &mut ProcessCommand) {
             None,
         );
 
-        let mut queryer = ProcessQuery::;
         let options = ProcessQueryOptions {
-            require_windowed: *require_windowed,
-            required_pid: None,
             search_name: search_name.as_ref().cloned(),
+            required_pid: None,
+            require_windowed: *require_windowed,
             match_case: *match_case,
+            fetch_icons: false,
             limit: *limit,
         };
 
-        let processes = queryer.get_processes(options);
+        let processes = ProcessQuery::get_processes(options);
 
         for process_info in processes {
             Logger::get_instance().log(LogLevel::Info, &format!("PID: {}, Name: {}", process_info.pid, process_info.name), None);

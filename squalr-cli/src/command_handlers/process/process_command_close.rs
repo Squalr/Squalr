@@ -16,12 +16,9 @@ pub fn handle_process_close(cmd: &mut ProcessCommand) {
                 None,
             );
 
-            let queryer = ProcessQuery::;
-
-            match queryer.close_process(process_info.handle) {
+            match ProcessQuery::close_process(process_info.handle) {
                 Ok(_) => {
                     session_manager.clear_opened_process();
-                    Logger::get_instance().log(LogLevel::Info, "Process closed", None);
                 }
                 Err(e) => {
                     Logger::get_instance().log(LogLevel::Error, &format!("Failed to close process handle {}: {}", process_info.handle, e), None);

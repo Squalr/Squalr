@@ -2,11 +2,11 @@ use crate::command_handlers::memory::memory_command::MemoryCommand;
 use squalr_engine::session_manager::SessionManager;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::memory_reader::MemoryReader;
+use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 
 pub fn handle_memory_read(cmd: &mut MemoryCommand) {
-    if let MemoryCommand::Read { address, ref mut value } = cmd {
+    if let MemoryCommand::Read { address, mut value } = cmd {
         let session_manager_lock = SessionManager::get_instance();
         let session_manager = session_manager_lock.read().unwrap();
         if let Some(process_info) = session_manager.get_opened_process() {

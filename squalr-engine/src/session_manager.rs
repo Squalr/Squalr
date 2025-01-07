@@ -41,11 +41,17 @@ impl SessionManager {
         &mut self,
         process_info: OpenedProcessInfo,
     ) {
+        Logger::get_instance().log(
+            LogLevel::Info,
+            &format!("Opened process: {}, pid: {}", process_info.name, process_info.pid),
+            None,
+        );
         self.opened_process = Some(process_info);
     }
 
     pub fn clear_opened_process(&mut self) {
         self.opened_process = None;
+        Logger::get_instance().log(LogLevel::Info, "Process closed", None);
     }
 
     pub fn get_opened_process(&self) -> Option<&OpenedProcessInfo> {

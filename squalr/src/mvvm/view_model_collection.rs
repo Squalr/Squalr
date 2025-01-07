@@ -3,6 +3,10 @@ use slint::{ComponentHandle, ModelRc, VecModel, Weak};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
+/// Defines a collection (a vector) of data that automatically syncs to the UI.
+///     - Note that this class does not actually store the data yet, but rather just converts it via update_from_source.
+///         This may be added at a future time, but for now this is easiest.
+/// This is done by using the given converter to convert data to a type that the UI recognizes.
 pub struct ViewModelCollection<T, U, V>
 where
     T: Clone + PartialEq + 'static,
