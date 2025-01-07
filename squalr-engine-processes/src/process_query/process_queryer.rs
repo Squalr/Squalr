@@ -28,7 +28,6 @@ pub struct ProcessQueryOptions {
     pub require_windowed: bool,
     pub match_case: bool,
     pub fetch_icons: bool,
-    pub skip_cache: bool,
     pub limit: Option<u64>,
 }
 
