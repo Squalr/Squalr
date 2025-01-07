@@ -1,3 +1,4 @@
+use slint::Model;
 use slint::{ComponentHandle, ModelRc, VecModel, Weak};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -39,21 +40,45 @@ where
         let view_handle = self.view_handle.clone();
         let model_setter = self.model_setter.clone();
 
-        // Safely get the weak handle
         let weak_handle = view_handle.lock().unwrap().clone();
 
         weak_handle
             .upgrade_in_event_loop(move |handle| {
-                // Do the conversion on the UI thread
                 let converted: Vec<T> = source_data.into_iter().map(|item| (converter)(item)).collect();
+                let model = VecModel::from(vec![]);
+                let mut has_changes = false;
 
-                let current_model = Rc::new(VecModel::from(vec![]));
+                // Get the current state
+                let current_row_count = model.row_count();
 
-                for item in converted {
-                    current_model.push(item);
+                // Update existing entries and add new ones
+                for (index, new_entry) in converted.iter().enumerate() {
+                    if index < current_row_count {
+                        // Check if we need to update
+                        if let Some(current) = model.row_data(index) {
+                            if current != *new_entry {
+                                model.set_row_data(index, new_entry.clone());
+                                has_changes = true;
+                            }
+                        }
+                    } else {
+                        // Add new entry
+                        model.push(new_entry.clone());
+                        has_changes = true;
+                    }
                 }
 
-                (model_setter)(&handle, ModelRc::from(current_model));
+                // Remove excess entries if new data is shorter
+                while model.row_count() > converted.len() {
+                    model.remove(model.row_count() - 1);
+                    has_changes = true;
+                }
+
+                // Only update the UI if something actually changed
+                if has_changes {
+                    let model_rc = ModelRc::from(Rc::new(model));
+                    (model_setter)(&handle, model_rc);
+                }
             })
             .expect("Failed to schedule UI update");
     }

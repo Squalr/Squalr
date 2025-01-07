@@ -5,7 +5,6 @@ use crate::mvvm::view_data_converter::ViewDataConverter;
 use crate::mvvm::view_model_base::ViewModel;
 use crate::mvvm::view_model_base::ViewModelBase;
 use crate::mvvm::view_model_collection::ViewModelCollection;
-use crate::mvvm::view_model_entry::ViewModelEntry;
 use crate::view_models::process_selector::process_info_converter::ProcessInfoConverter;
 use slint::ComponentHandle;
 use squalr_engine::session_manager::SessionManager;
@@ -15,8 +14,6 @@ use squalr_engine_processes::process_info::ProcessInfo;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
 use sysinfo::Pid;
-
-impl ViewModelEntry for ProcessViewData {}
 
 pub struct ProcessSelectorViewModel {
     view_model_base: ViewModelBase<MainWindowView>,
@@ -55,6 +52,17 @@ impl ProcessSelectorViewModel {
         view.create_view_bindings();
         view
     }
+
+    fn get_process_query_options(require_windowed: bool) -> ProcessQueryOptions {
+        ProcessQueryOptions {
+            required_pid: None,
+            search_name: None,
+            require_windowed: require_windowed,
+            match_case: false,
+            fetch_icons: true,
+            limit: None,
+        }
+    }
 }
 
 impl ViewModel for ProcessSelectorViewModel {
@@ -67,29 +75,13 @@ impl ViewModel for ProcessSelectorViewModel {
                 let process_selector_view = main_window_view.global::<ProcessSelectorViewModelBindings>();
 
                 process_selector_view.on_refresh_full_process_list(move || {
-                    let process_query_options = ProcessQueryOptions {
-                        required_pid: None,
-                        search_name: None,
-                        require_windowed: false,
-                        match_case: false,
-                        fetch_icons: true,
-                        limit: None,
-                    };
-
+                    let process_query_options = Self::get_process_query_options(false);
                     let processes = ProcessQuery::get_processes(process_query_options);
                     process_info_converter.update_from_source(processes);
                 });
 
                 process_selector_view.on_refresh_windowed_process_list(move || {
-                    let process_query_options = ProcessQueryOptions {
-                        required_pid: None,
-                        search_name: None,
-                        require_windowed: true,
-                        match_case: false,
-                        fetch_icons: true,
-                        limit: None,
-                    };
-
+                    let process_query_options = Self::get_process_query_options(true);
                     let processes = ProcessQuery::get_processes(process_query_options);
                     windowed_process_info_converter.update_from_source(processes);
                 });
