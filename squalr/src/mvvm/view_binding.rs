@@ -2,10 +2,6 @@ use crate::mvvm::view_model_collection::ViewModelCollection;
 use slint::{ComponentHandle, ModelRc, Weak};
 use std::sync::{Arc, Mutex};
 
-pub trait ViewModel {
-    fn create_view_bindings(&self);
-}
-
 pub struct ViewBinding<T: 'static + ComponentHandle> {
     view_handle: Arc<Mutex<Weak<T>>>,
 }

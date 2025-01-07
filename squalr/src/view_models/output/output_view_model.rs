@@ -1,6 +1,5 @@
 use crate::MainWindowView;
 use crate::OutputViewModelBindings;
-use crate::mvvm::view_binding::ViewModel;
 use crate::mvvm::view_binding::ViewBinding;
 use slint::ComponentHandle;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -12,11 +11,7 @@ pub struct OutputViewModel {
 
 impl OutputViewModel {
     pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
-        let view = OutputViewModel {
-            view_binding: view_binding,
-        };
-
-        view.create_view_bindings();
+        let view = OutputViewModel { view_binding: view_binding };
 
         return view;
     }
@@ -40,15 +35,6 @@ impl LoggerObserver for OutputViewModel {
                 let mut shared_string = view.get_output_text();
                 shared_string.push_str(log_message.as_str());
                 view.set_output_text(shared_string);
-            });
-    }
-}
-
-impl ViewModel for OutputViewModel {
-    fn create_view_bindings(&self) {
-        self.view_binding
-            .execute_on_ui_thread(move |_main_window_view, _view_binding| {
-                // TODO
             });
     }
 }

@@ -1,9 +1,10 @@
 use crate::DockedWindowViewModelBindings;
 use crate::MainWindowView;
 use crate::models::docking::docking_layout::DockingLayout;
-use crate::mvvm::view_binding::ViewModel;
 use crate::mvvm::view_binding::ViewBinding;
 use slint::ComponentHandle;
+use slint::SharedString;
+use slint_mvvm_macros::create_view_bindings;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -22,33 +23,90 @@ impl DockedWindowViewModel {
             docking_layout: docking_layout.clone(),
         };
 
-        view.create_view_bindings();
+        create_view_bindings!(
+            view.view_binding.clone(),
+            {
+                DockedWindowViewModelBindings => {
+                    {
+                        on_minimize() => Self::on_minimize
+                    },
+                    {
+                        on_maximize() => Self::on_maximize
+                    },
+                    {
+                        on_close() => Self::on_close
+                    },
+                    {
+                        on_double_clicked() => Self::on_double_clicked
+                    },
+                    {
+                        on_drag_left(dockable_window_id: SharedString, delta_x: i32, delta_y: i32)
+                            => Self::on_drag_left
+                    },
+                    {
+                        on_drag_right(dockable_window_id: SharedString, delta_x: i32, delta_y: i32)
+                            => Self::on_drag_right
+                    },
+                    {
+                        on_drag_top(dockable_window_id: SharedString, delta_x: i32, delta_y: i32)
+                            => Self::on_drag_top
+                    },
+                    {
+                        on_drag_bottom(dockable_window_id: SharedString, delta_x: i32, delta_y: i32)
+                            => Self::on_drag_bottom
+                    }
+                }
+            }
+        );
 
         return view;
     }
-}
 
-impl ViewModel for DockedWindowViewModel {
-    fn create_view_bindings(&self) {
-        self.view_binding
-            .execute_on_ui_thread(|main_window_view, view_binding| {
-                let docked_window_view = main_window_view.global::<DockedWindowViewModelBindings>();
+    fn on_minimize() {
+        // TODO: Implement as needed
+    }
 
-                docked_window_view.on_minimize(move || {});
+    fn on_maximize() {
+        // TODO: Implement as needed
+    }
 
-                docked_window_view.on_maximize(move || {});
+    fn on_close() {
+        // TODO: Implement as needed
+    }
 
-                docked_window_view.on_close(move || {});
+    fn on_double_clicked() {
+        // TODO: Implement as needed
+    }
 
-                docked_window_view.on_double_clicked(move || {});
+    fn on_drag_left(
+        _dockable_window_id: SharedString,
+        _delta_x: i32,
+        _delta_y: i32,
+    ) {
+        // TODO: Implement as needed
+    }
 
-                docked_window_view.on_drag_left(move |dockable_window_id, delta_x, delta_y| {});
+    fn on_drag_right(
+        _dockable_window_id: SharedString,
+        _delta_x: i32,
+        _delta_y: i32,
+    ) {
+        // TODO: Implement as needed
+    }
 
-                docked_window_view.on_drag_right(move |dockable_window_id, delta_x, delta_y| {});
+    fn on_drag_top(
+        _dockable_window_id: SharedString,
+        _delta_x: i32,
+        _delta_y: i32,
+    ) {
+        // TODO: Implement as needed
+    }
 
-                docked_window_view.on_drag_top(move |dockable_window_id, delta_x, delta_y| {});
-
-                docked_window_view.on_drag_bottom(move |dockable_window_id, delta_x, delta_y| {});
-            });
+    fn on_drag_bottom(
+        _dockable_window_id: SharedString,
+        _delta_x: i32,
+        _delta_y: i32,
+    ) {
+        // TODO: Implement as needed
     }
 }
