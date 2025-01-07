@@ -2,7 +2,7 @@
 name = "squalr-engine-scanning"
 version = "0.1.0"
 authors = ["Zachary Canann"]
-edition = "2021"
+edition = "2024"
 # build = "build.rs"
 
 [dependencies]

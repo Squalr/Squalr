@@ -62,7 +62,7 @@ impl DataValue {
             DataValue::I64(_) => std::mem::size_of::<i64>() as u64,
             DataValue::F32(_) => std::mem::size_of::<f32>() as u64,
             DataValue::F64(_) => std::mem::size_of::<f64>() as u64,
-            DataValue::Bytes(ref bytes) => bytes.len() as u64,
+            DataValue::Bytes(bytes) => bytes.len() as u64,
             DataValue::BitField { bits, .. } => ((*bits + 7) / 8) as u64,
         }
     }
@@ -139,14 +139,14 @@ impl DataValue {
 
     pub fn as_bytes(&self) -> Option<&[u8]> {
         return match self {
-            DataValue::Bytes(ref v) => Some(v.as_slice()),
+            DataValue::Bytes(v) => Some(v.as_slice()),
             _ => None,
         };
     }
 
     pub fn as_bitfield(&self) -> Option<(&[u8], u16)> {
         return match self {
-            DataValue::BitField { ref value, bits } => Some((value.as_slice(), *bits)),
+            DataValue::BitField { value, bits } => Some((value.as_slice(), *bits)),
             _ => None,
         };
     }

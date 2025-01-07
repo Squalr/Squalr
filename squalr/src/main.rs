@@ -18,7 +18,9 @@ slint::include_modules!();
 pub fn main() {
     // Override the default backend (femtovg => software). I wont want to rely on devs having QT installed,
     // and femtovg is shit at rendering font. Skia doesn't install properly on nightly, so software renderer it is.
-    std::env::set_var("SLINT_BACKEND", "winit-software");
+    unsafe {
+        std::env::set_var("SLINT_BACKEND", "winit-software");
+    }
 
     // Create and show the main window, which in turn will instantiate all other windows and panels.
     let main_window_view = MainWindowViewModel::new();
