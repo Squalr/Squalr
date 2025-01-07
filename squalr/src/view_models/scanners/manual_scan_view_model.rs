@@ -1,15 +1,15 @@
 use crate::MainWindowView;
-use crate::mvvm::view_model_base::ViewModel;
-use crate::mvvm::view_model_base::ViewModelBase;
+use crate::mvvm::view_binding::ViewModel;
+use crate::mvvm::view_binding::ViewBinding;
 
 pub struct ManualScanViewModel {
-    view_model_base: ViewModelBase<MainWindowView>,
+    view_binding: ViewBinding<MainWindowView>,
 }
 
 impl ManualScanViewModel {
-    pub fn new(view_model_base: ViewModelBase<MainWindowView>) -> Self {
+    pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
         let view = ManualScanViewModel {
-            view_model_base: view_model_base,
+            view_binding: view_binding,
         };
 
         view.create_view_bindings();
@@ -20,8 +20,8 @@ impl ManualScanViewModel {
 
 impl ViewModel for ManualScanViewModel {
     fn create_view_bindings(&self) {
-        self.view_model_base
-            .execute_on_ui_thread(move |_main_window_view, _view_model_base| {
+        self.view_binding
+            .execute_on_ui_thread(move |_main_window_view, _view_binding| {
                 // TODO
             });
     }

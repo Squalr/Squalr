@@ -1,19 +1,17 @@
 use crate::MainWindowView;
 use crate::MemorySettingsViewModelBindings;
-use crate::mvvm::view_model_base::ViewModel;
-use crate::mvvm::view_model_base::ViewModelBase;
+use crate::mvvm::view_binding::ViewBinding;
+use crate::mvvm::view_binding::ViewModel;
 use slint::ComponentHandle;
 use squalr_engine_memory::memory_settings::MemorySettings;
 
 pub struct MemorySettingsViewModel {
-    view_model_base: ViewModelBase<MainWindowView>,
+    view_binding: ViewBinding<MainWindowView>,
 }
 
 impl MemorySettingsViewModel {
-    pub fn new(view_model_base: ViewModelBase<MainWindowView>) -> Self {
-        let view = MemorySettingsViewModel {
-            view_model_base: view_model_base,
-        };
+    pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
+        let view = MemorySettingsViewModel { view_binding: view_binding };
 
         view.create_view_bindings();
 
@@ -23,8 +21,8 @@ impl MemorySettingsViewModel {
 
 impl ViewModel for MemorySettingsViewModel {
     fn create_view_bindings(&self) {
-        self.view_model_base
-            .execute_on_ui_thread(move |main_window_view, _view_model_base| {
+        self.view_binding
+            .execute_on_ui_thread(move |main_window_view, _view_binding| {
                 let memory_settings_view = main_window_view.global::<MemorySettingsViewModelBindings>();
 
                 // Required

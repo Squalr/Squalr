@@ -3,8 +3,8 @@ use crate::DockedWindowViewModelBindings;
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
 use crate::models::docking::docking_layout::DockingLayout;
-use crate::mvvm::view_model_base::ViewModel;
-use crate::mvvm::view_model_base::ViewModelBase;
+use crate::mvvm::view_binding::ViewBinding;
+use crate::mvvm::view_binding::ViewModel;
 use crate::view_models::docking::docked_window_view_model::DockedWindowViewModel;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
@@ -19,7 +19,7 @@ use std::sync::Mutex;
 
 pub struct MainWindowViewModel {
     _view: MainWindowView,
-    view_model_base: ViewModelBase<MainWindowView>,
+    view_binding: ViewBinding<MainWindowView>,
     docking_layout: Arc<Mutex<DockingLayout>>,
     docked_window_view_model: Arc<DockedWindowViewModel>,
     manual_scan_view_model: Arc<ManualScanViewModel>,
@@ -34,23 +34,23 @@ pub struct MainWindowViewModel {
 impl MainWindowViewModel {
     pub fn new() -> Self {
         let view = MainWindowView::new().unwrap();
-        let view_model_base = ViewModelBase::new(ComponentHandle::as_weak(&view));
+        let view_binding = ViewBinding::new(ComponentHandle::as_weak(&view));
         let docking_layout = Arc::new(Mutex::new(DockingLayout::default()));
 
         let view = MainWindowViewModel {
             _view: view,
-            view_model_base: view_model_base.clone(),
+            view_binding: view_binding.clone(),
             docking_layout: docking_layout.clone(),
-            docked_window_view_model: Arc::new(DockedWindowViewModel::new(view_model_base.clone(), docking_layout.clone())),
-            manual_scan_view_model: Arc::new(ManualScanViewModel::new(view_model_base.clone())),
-            memory_settings_view_model: Arc::new(MemorySettingsViewModel::new(view_model_base.clone())),
-            output_view_model: Arc::new(OutputViewModel::new(view_model_base.clone())),
-            process_selector_view_model: Arc::new(ProcessSelectorViewModel::new(view_model_base.clone())),
-            scan_settings_view_model: Arc::new(ScanSettingsViewModel::new(view_model_base.clone())),
+            docked_window_view_model: Arc::new(DockedWindowViewModel::new(view_binding.clone(), docking_layout.clone())),
+            manual_scan_view_model: Arc::new(ManualScanViewModel::new(view_binding.clone())),
+            memory_settings_view_model: Arc::new(MemorySettingsViewModel::new(view_binding.clone())),
+            output_view_model: Arc::new(OutputViewModel::new(view_binding.clone())),
+            process_selector_view_model: Arc::new(ProcessSelectorViewModel::new(view_binding.clone())),
+            scan_settings_view_model: Arc::new(ScanSettingsViewModel::new(view_binding.clone())),
         };
 
         view.create_view_bindings();
-        Self::propagate_layout(&view_model_base, &view.docking_layout);
+        Self::propagate_layout(&view_binding, &view.docking_layout);
 
         return view;
     }
@@ -60,7 +60,7 @@ impl MainWindowViewModel {
     }
 
     pub fn show(&self) {
-        if let Ok(handle) = self.view_model_base.get_view_handle().lock() {
+        if let Ok(handle) = self.view_binding.get_view_handle().lock() {
             if let Some(view) = handle.upgrade() {
                 if let Err(err) = view.show() {
                     log::error!("Error showing the main window: {err}");
@@ -70,7 +70,7 @@ impl MainWindowViewModel {
     }
 
     pub fn hide(&self) {
-        if let Ok(handle) = self.view_model_base.get_view_handle().lock() {
+        if let Ok(handle) = self.view_binding.get_view_handle().lock() {
             if let Some(view) = handle.upgrade() {
                 if let Err(err) = view.hide() {
                     log::error!("Error hiding the main window: {err}");
@@ -118,12 +118,12 @@ impl MainWindowViewModel {
     }
 
     fn propagate_layout(
-        view_model_base: &ViewModelBase<MainWindowView>,
+        view_binding: &ViewBinding<MainWindowView>,
         docking_layout: &Arc<Mutex<DockingLayout>>,
     ) {
         let docking_layout = docking_layout.clone();
 
-        view_model_base.execute_on_ui_thread(move |main_window_view, _view_model_base| {
+        view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
             let docked_window_bindings = main_window_view.global::<DockedWindowViewModelBindings>();
 
             let process_selector_identifier = "process-selector";
@@ -175,11 +175,11 @@ impl ViewModel for MainWindowViewModel {
 
         let docking_layout = self.docking_layout.clone();
 
-        self.view_model_base
-            .execute_on_ui_thread(move |main_window_view, view_model_base| {
+        self.view_binding
+            .execute_on_ui_thread(move |main_window_view, view_binding| {
                 let docked_window_view = main_window_view.global::<DockedWindowViewModelBindings>();
 
-                let view_model = view_model_base.clone();
+                let view_model = view_binding.clone();
                 let mut docking_layout_mut = docking_layout.clone();
                 docked_window_view.on_update_dock_root_size(move |width, height| {
                     docking_layout_mut
@@ -191,7 +191,7 @@ impl ViewModel for MainWindowViewModel {
                     return 0.0;
                 });
 
-                let view_model = view_model_base.clone();
+                let view_model = view_binding.clone();
                 let mut docking_layout_mut = docking_layout.clone();
                 docked_window_view.on_update_dock_root_width(move |width| {
                     docking_layout_mut
@@ -202,7 +202,7 @@ impl ViewModel for MainWindowViewModel {
                     Self::propagate_layout(&view_model, &docking_layout_mut);
                 });
 
-                let view_model = view_model_base.clone();
+                let view_model = view_binding.clone();
                 let mut docking_layout_mut = docking_layout.clone();
                 docked_window_view.on_update_dock_root_height(move |height| {
                     docking_layout_mut
@@ -214,23 +214,23 @@ impl ViewModel for MainWindowViewModel {
                 });
             });
 
-        self.view_model_base
-            .execute_on_ui_thread(move |main_window_view, view_model_base| {
+        self.view_binding
+            .execute_on_ui_thread(move |main_window_view, view_binding| {
                 let main_window_bindings = main_window_view.global::<WindowViewModelBindings>();
 
                 // Set up minimize handler
-                let view_model = view_model_base.clone();
+                let view_model = view_binding.clone();
                 main_window_bindings.on_minimize(move || {
-                    view_model.execute_on_ui_thread(move |main_window_view, _view_model_base| {
+                    view_model.execute_on_ui_thread(move |main_window_view, _view_binding| {
                         let window = main_window_view.window();
                         window.set_minimized(true);
                     });
                 });
 
                 // Set up maximize handler
-                let view_model = view_model_base.clone();
+                let view_model = view_binding.clone();
                 main_window_bindings.on_maximize(move || {
-                    view_model.execute_on_ui_thread(move |main_window_view, _view_model_base| {
+                    view_model.execute_on_ui_thread(move |main_window_view, _view_binding| {
                         let window = main_window_view.window();
                         window.set_maximized(!window.is_maximized());
                     });
@@ -244,18 +244,18 @@ impl ViewModel for MainWindowViewModel {
                 });
 
                 // Set up double click handler
-                let view_model = view_model_base.clone();
+                let view_model = view_binding.clone();
                 main_window_bindings.on_double_clicked(move || {
-                    view_model.execute_on_ui_thread(move |main_window_view, _view_model_base| {
+                    view_model.execute_on_ui_thread(move |main_window_view, _view_binding| {
                         let window = main_window_view.window();
                         window.set_maximized(!window.is_maximized());
                     });
                 });
 
                 // Set up drag handler
-                let view_model = view_model_base.clone();
+                let view_model = view_binding.clone();
                 main_window_bindings.on_drag(move |delta_x: i32, delta_y| {
-                    view_model.execute_on_ui_thread(move |main_window_view, _view_model_base| {
+                    view_model.execute_on_ui_thread(move |main_window_view, _view_binding| {
                         let window = main_window_view.window();
                         let mut position = window.position();
                         position.x += delta_x;

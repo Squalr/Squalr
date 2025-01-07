@@ -21,13 +21,13 @@ where
     V: 'static + ComponentHandle,
 {
     pub fn new(
-        view_handle: Weak<V>,
+        view_handle: &Weak<V>,
         converter: impl Fn(U) -> T + Send + Sync + 'static,
         model_setter: impl Fn(&V, ModelRc<T>) + Send + Sync + 'static,
     ) -> Self {
         ViewModelCollection {
             converter: Arc::new(converter),
-            view_handle: Arc::new(Mutex::new(view_handle)),
+            view_handle: Arc::new(Mutex::new(view_handle.clone())),
             model_setter: Arc::new(model_setter),
         }
     }

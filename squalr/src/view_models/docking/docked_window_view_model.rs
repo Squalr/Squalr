@@ -1,24 +1,24 @@
 use crate::DockedWindowViewModelBindings;
 use crate::MainWindowView;
 use crate::models::docking::docking_layout::DockingLayout;
-use crate::mvvm::view_model_base::ViewModel;
-use crate::mvvm::view_model_base::ViewModelBase;
+use crate::mvvm::view_binding::ViewModel;
+use crate::mvvm::view_binding::ViewBinding;
 use slint::ComponentHandle;
 use std::sync::Arc;
 use std::sync::Mutex;
 
 pub struct DockedWindowViewModel {
-    view_model_base: ViewModelBase<MainWindowView>,
+    view_binding: ViewBinding<MainWindowView>,
     docking_layout: Arc<Mutex<DockingLayout>>,
 }
 
 impl DockedWindowViewModel {
     pub fn new(
-        view_model_base: ViewModelBase<MainWindowView>,
+        view_binding: ViewBinding<MainWindowView>,
         docking_layout: Arc<Mutex<DockingLayout>>,
     ) -> Self {
         let view = DockedWindowViewModel {
-            view_model_base: view_model_base,
+            view_binding: view_binding,
             docking_layout: docking_layout.clone(),
         };
 
@@ -30,8 +30,8 @@ impl DockedWindowViewModel {
 
 impl ViewModel for DockedWindowViewModel {
     fn create_view_bindings(&self) {
-        self.view_model_base
-            .execute_on_ui_thread(|main_window_view, view_model_base| {
+        self.view_binding
+            .execute_on_ui_thread(|main_window_view, view_binding| {
                 let docked_window_view = main_window_view.global::<DockedWindowViewModelBindings>();
 
                 docked_window_view.on_minimize(move || {});

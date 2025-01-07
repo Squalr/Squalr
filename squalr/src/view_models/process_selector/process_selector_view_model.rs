@@ -2,8 +2,8 @@ use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
 use crate::mvvm::view_data_converter::ViewDataConverter;
-use crate::mvvm::view_model_base::ViewModel;
-use crate::mvvm::view_model_base::ViewModelBase;
+use crate::mvvm::view_binding::ViewModel;
+use crate::mvvm::view_binding::ViewBinding;
 use crate::mvvm::view_model_collection::ViewModelCollection;
 use crate::view_models::process_selector::process_info_converter::ProcessInfoConverter;
 use slint::ComponentHandle;
@@ -16,27 +16,23 @@ use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions
 use sysinfo::Pid;
 
 pub struct ProcessSelectorViewModel {
-    view_model_base: ViewModelBase<MainWindowView>,
+    view_binding: ViewBinding<MainWindowView>,
     processes: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>,
     windowed_processes: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>,
 }
 
 impl ProcessSelectorViewModel {
-    pub fn new(view_model_base: ViewModelBase<MainWindowView>) -> Self {
-        let view_handle = view_model_base.get_view_handle().lock().unwrap().clone();
-
-        let processes = ViewModelCollection::new(
-            view_handle.clone(),
-            |process| ProcessInfoConverter.convert(process),
+    pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
+        let processes = view_binding.create_collection(
+            |process: ProcessInfo| ProcessInfoConverter.convert(process),
             |view: &MainWindowView, model| {
                 view.global::<ProcessSelectorViewModelBindings>()
                     .set_processes(model)
             },
         );
 
-        let windowed_processes = ViewModelCollection::new(
-            view_handle,
-            |process| ProcessInfoConverter.convert(process),
+        let windowed_processes = view_binding.create_collection(
+            |process: ProcessInfo| ProcessInfoConverter.convert(process),
             |view: &MainWindowView, model| {
                 view.global::<ProcessSelectorViewModelBindings>()
                     .set_windowed_processes(model)
@@ -44,7 +40,7 @@ impl ProcessSelectorViewModel {
         );
 
         let view = ProcessSelectorViewModel {
-            view_model_base,
+            view_binding,
             processes,
             windowed_processes,
         };
@@ -70,7 +66,7 @@ impl ViewModel for ProcessSelectorViewModel {
         let process_info_converter = self.processes.clone();
         let windowed_process_info_converter = self.windowed_processes.clone();
 
-        self.view_model_base
+        self.view_binding
             .execute_on_ui_thread(move |main_window_view, _| {
                 let process_selector_view = main_window_view.global::<ProcessSelectorViewModelBindings>();
 
