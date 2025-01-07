@@ -1,3 +1,4 @@
+use crate::DockedWindowData;
 use crate::DockedWindowViewModelBindings;
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
@@ -102,6 +103,20 @@ impl MainWindowViewModel {
         return &self.scan_settings_view_model;
     }
 
+    fn create_docked_window_data(
+        identifier: &str,
+        docked_window_bounds: (f32, f32, f32, f32),
+    ) -> DockedWindowData {
+        DockedWindowData {
+            identifier: identifier.into(),
+            is_docked: true,
+            position_x: docked_window_bounds.0,
+            position_y: docked_window_bounds.1,
+            width: docked_window_bounds.2,
+            height: docked_window_bounds.3,
+        }
+    }
+
     fn propagate_layout(
         view_model_base: &ViewModelBase<MainWindowView>,
         docking_layout: &Arc<Mutex<DockingLayout>>,
@@ -127,80 +142,27 @@ impl MainWindowViewModel {
             };
 
             if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(process_selector_identifier) {
-                docked_window_bindings.set_process_selector_panel(crate::DockedWindowData {
-                    identifier: process_selector_identifier.into(),
-                    is_docked: true,
-                    position_x: docked_window_bounds.0,
-                    position_y: docked_window_bounds.1,
-                    width: docked_window_bounds.2,
-                    height: docked_window_bounds.3,
-                });
+                docked_window_bindings.set_process_selector_panel(Self::create_docked_window_data(process_selector_identifier, docked_window_bounds));
             }
 
             if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(project_explorer_identifier) {
-                docked_window_bindings.set_project_explorer_panel(crate::DockedWindowData {
-                    identifier: project_explorer_identifier.into(),
-                    is_docked: true,
-                    position_x: docked_window_bounds.0,
-                    position_y: docked_window_bounds.1,
-                    width: docked_window_bounds.2,
-                    height: docked_window_bounds.3,
-                });
+                docked_window_bindings.set_project_explorer_panel(Self::create_docked_window_data(project_explorer_identifier, docked_window_bounds));
             }
 
             if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(property_viewer_identifier) {
-                docked_window_bindings.set_property_viewer_panel(crate::DockedWindowData {
-                    identifier: property_viewer_identifier.into(),
-                    is_docked: true,
-                    position_x: docked_window_bounds.0,
-                    position_y: docked_window_bounds.1,
-                    width: docked_window_bounds.2,
-                    height: docked_window_bounds.3,
-                });
-            }
-
-            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(project_explorer_identifier) {
-                docked_window_bindings.set_project_explorer_panel(crate::DockedWindowData {
-                    identifier: project_explorer_identifier.into(),
-                    is_docked: true,
-                    position_x: docked_window_bounds.0,
-                    position_y: docked_window_bounds.1,
-                    width: docked_window_bounds.2,
-                    height: docked_window_bounds.3,
-                });
+                docked_window_bindings.set_property_viewer_panel(Self::create_docked_window_data(property_viewer_identifier, docked_window_bounds));
             }
 
             if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(scan_results_identifier) {
-                docked_window_bindings.set_scan_results_panel(crate::DockedWindowData {
-                    identifier: scan_results_identifier.into(),
-                    is_docked: true,
-                    position_x: docked_window_bounds.0,
-                    position_y: docked_window_bounds.1,
-                    width: docked_window_bounds.2,
-                    height: docked_window_bounds.3,
-                });
+                docked_window_bindings.set_scan_results_panel(Self::create_docked_window_data(scan_results_identifier, docked_window_bounds));
             }
 
             if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(output_identifier) {
-                docked_window_bindings.set_output_panel(crate::DockedWindowData {
-                    identifier: output_identifier.into(),
-                    is_docked: true,
-                    position_x: docked_window_bounds.0,
-                    position_y: docked_window_bounds.1,
-                    width: docked_window_bounds.2,
-                    height: docked_window_bounds.3,
-                });
+                docked_window_bindings.set_output_panel(Self::create_docked_window_data(output_identifier, docked_window_bounds));
             }
 
             if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(settings_identifier) {
-                docked_window_bindings.set_settings_panel(crate::DockedWindowData {
-                    identifier: settings_identifier.into(),
-                    is_docked: true,
-                    position_x: docked_window_bounds.0,
-                    position_y: docked_window_bounds.1,
-                    width: docked_window_bounds.2,
-                    height: docked_window_bounds.3,
-                });
+                docked_window_bindings.set_settings_panel(Self::create_docked_window_data(settings_identifier, docked_window_bounds));
             }
         });
     }
