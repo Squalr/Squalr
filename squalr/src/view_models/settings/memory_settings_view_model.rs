@@ -55,7 +55,7 @@ impl MemorySettingsViewModel {
             memory_settings_view.set_memory_type_private(MemorySettings::get_instance().get_memory_type_private());
             memory_settings_view.set_memory_type_mapped(MemorySettings::get_instance().get_memory_type_mapped());
 
-            let _implement_me_query_ranges = 5;
+            let implement_me_query_ranges = 5;
         });
     }
 }

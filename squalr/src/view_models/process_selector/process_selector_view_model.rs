@@ -24,7 +24,7 @@ pub struct ProcessSelectorViewModel {
 impl ProcessSelectorViewModel {
     pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
         let processes = view_binding.create_collection(
-            |process: ProcessInfo| ProcessInfoConverter.convert(process),
+            |process: ProcessInfo| ProcessInfoConverter.convert(&process),
             |view: &MainWindowView, model| {
                 view.global::<ProcessSelectorViewModelBindings>()
                     .set_processes(model)
@@ -32,7 +32,7 @@ impl ProcessSelectorViewModel {
         );
 
         let windowed_processes = view_binding.create_collection(
-            |process: ProcessInfo| ProcessInfoConverter.convert(process),
+            |process: ProcessInfo| ProcessInfoConverter.convert(&process),
             |view: &MainWindowView, model| {
                 view.global::<ProcessSelectorViewModelBindings>()
                     .set_windowed_processes(model)
@@ -49,7 +49,7 @@ impl ProcessSelectorViewModel {
             ProcessSelectorViewModelBindings => {
                 on_refresh_full_process_list() -> [processes] -> Self::on_refresh_full_process_list
                 on_refresh_windowed_process_list() -> [windowed_processes] -> Self::on_refresh_windowed_process_list
-                on_select_process(process_entry: ProcessViewData) -> [] -> Self::on_select_process
+                on_select_process(process_entry: ProcessViewData) -> [view_binding] -> Self::on_select_process
             }
         });
 
@@ -83,7 +83,10 @@ impl ProcessSelectorViewModel {
         windowed_process_info_converter.update_from_source(processes);
     }
 
-    fn on_select_process(process_entry: ProcessViewData) {
+    fn on_select_process(
+        view_binding: ViewBinding<MainWindowView>,
+        process_entry: ProcessViewData,
+    ) {
         let process_query_options = Self::get_process_query_options(Some(Pid::from_u32(process_entry.process_id as u32)), true, Some(1));
         let processes = ProcessQuery::get_processes(process_query_options);
 
@@ -92,6 +95,13 @@ impl ProcessSelectorViewModel {
                 Ok(opened_process) => {
                     if let Ok(mut session_manager) = SessionManager::get_instance().write() {
                         session_manager.set_opened_process(opened_process);
+
+                        let process_to_open = process_to_open.clone();
+                        view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
+                            main_window_view
+                                .global::<ProcessSelectorViewModelBindings>()
+                                .set_selected_process(ProcessInfoConverter.convert(&process_to_open));
+                        });
                     } else {
                         Logger::get_instance().log(LogLevel::Warn, "Failed to open process.", None);
                     }

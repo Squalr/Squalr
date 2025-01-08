@@ -8,29 +8,63 @@ import { ContextMenu } from "../../components/context_menu/context_menu.slint";
 import { Button } from "../../components/buttons/button.slint";
 
 export component ProcessQuickSelector inherits Rectangle {
-    in property <string> selected-process-name;
     background: Theme.background-control;
     border-color: Theme.submenu-border;
     border-width: 1px;
     width: 192px;
-    text-button := Button {
+    dropdown-button := Button {
         width: 100%;
         height: 100%;
         clicked => {
             ProcessSelectorViewModelBindings.refresh-windowed-process-list();
             context-menu.show();
         }
-        Text {
-            horizontal-alignment: left;
-            vertical-alignment: center;
-            text: root.selected-process-name;
-            color: Theme.foreground;
+        VerticalLayout {
+            alignment: center;
+            HorizontalLayout {
+                padding-left: 4px;
+                alignment: start;
+                HorizontalBox {
+                    padding: 0px;
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        source: ProcessSelectorViewModelBindings.selected-process.icon;
+                    }
+
+                    Text {
+                        color: Theme.foreground;
+                        horizontal-alignment: left;
+                        vertical-alignment: center;
+                        text: ProcessSelectorViewModelBindings.selected-process.name;
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            alignment: end;
+            padding-right: 4px;
+            Image {
+                source: @image-url("../../images/navigation/down_arrow_small.png");
+            }
+        }
+
+        HorizontalLayout {
+            alignment: end;
+            padding-right: 24px;
+            Rectangle {
+                background: Theme.submenu-border;
+                width: 1px;
+            }
         }
     }
 
     context-menu := ContextMenu {
-        x: text-button.x;
-        y: text-button.y + text-button.height;
+        x: dropdown-button.x;
+        y: dropdown-button.y + dropdown-button.height;
         Rectangle {
             background: Theme.background-control;
             border-color: Theme.submenu-border;
