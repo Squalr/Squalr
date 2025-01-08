@@ -49,23 +49,20 @@ impl MainWindowViewModel {
 
         Logger::get_instance().subscribe(view.output_view_model.clone());
 
-        create_view_bindings!(
-            view_binding,
-            {
-                WindowViewModelBindings => {
-                    on_minimize() -> Self::on_minimize [view_binding],
-                    on_maximize() -> Self::on_maximize [view_binding],
-                    on_close() -> Self::on_close [],
-                    on_double_clicked() -> Self::on_double_clicked [view_binding],
-                    on_drag(delta_x: i32, delta_y: i32) -> Self::on_drag [view_binding]
-                },
-                DockedWindowViewModelBindings => {
-                    on_update_dock_root_size(width: f32, height: f32) -> Self::on_update_dock_root_size [view_binding, docking_layout],
-                    on_update_dock_root_width(width: f32) -> Self::on_update_dock_root_width [view_binding, docking_layout],
-                    on_update_dock_root_height(height: f32) -> Self::on_update_dock_root_height [view_binding, docking_layout]
-                }
+        create_view_bindings!(view_binding, {
+            WindowViewModelBindings => {
+                on_minimize() -> [view_binding] -> Self::on_minimize,
+                on_maximize() -> [view_binding] -> Self::on_maximize,
+                on_close() -> [] -> Self::on_close,
+                on_double_clicked() -> [view_binding] -> Self::on_double_clicked,
+                on_drag(delta_x: i32, delta_y: i32) -> [view_binding] -> Self::on_drag
+            },
+            DockedWindowViewModelBindings => {
+                on_update_dock_root_size(width: f32, height: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_size,
+                on_update_dock_root_width(width: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_width,
+                on_update_dock_root_height(height: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_height
             }
-        );
+        });
 
         Self::propagate_layout(&view.view_binding, &view.docking_layout);
 

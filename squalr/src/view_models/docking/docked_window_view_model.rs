@@ -23,21 +23,18 @@ impl DockedWindowViewModel {
             _docking_layout: docking_layout.clone(),
         };
 
-        create_view_bindings!(
-            view_binding,
-            {
-                DockedWindowViewModelBindings => {
-                        on_minimize() -> Self::on_minimize,
-                        on_maximize() -> Self::on_maximize,
-                        on_close() -> Self::on_close,
-                        on_double_clicked() -> Self::on_double_clicked,
-                        on_drag_left(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> Self::on_drag_left,
-                        on_drag_right(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> Self::on_drag_right,
-                        on_drag_top(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> Self::on_drag_top,
-                        on_drag_bottom(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> Self::on_drag_bottom,
-                }
+        create_view_bindings!(view_binding, {
+            DockedWindowViewModelBindings => {
+                    on_minimize() -> [] -> Self::on_minimize,
+                    on_maximize() -> [] -> Self::on_maximize,
+                    on_close() -> [] -> Self::on_close,
+                    on_double_clicked() -> [] -> Self::on_double_clicked,
+                    on_drag_left(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_left,
+                    on_drag_right(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_right,
+                    on_drag_top(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_top,
+                    on_drag_bottom(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_bottom,
             }
-        );
+        });
 
         return view;
     }

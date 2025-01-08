@@ -15,23 +15,20 @@ impl MemorySettingsViewModel {
             view_binding: view_binding.clone(),
         };
 
-        create_view_bindings!(
-            view_binding,
-            {
-                MemorySettingsViewModelBindings => {
-                    on_required_write_changed(value: bool) -> |value| { MemorySettings::get_instance().set_required_write(value); },
-                    on_required_execute_changed(value: bool) -> |value| { MemorySettings::get_instance().set_required_execute(value); },
-                    on_required_copy_on_write_changed(value: bool) -> |value| { MemorySettings::get_instance().set_required_copy_on_write(value); },
-                    on_excluded_write_changed(value: bool) -> |value| { MemorySettings::get_instance().set_excluded_write(value); },
-                    on_excluded_execute_changed(value: bool) -> |value| { MemorySettings::get_instance().set_excluded_execute(value); },
-                    on_excluded_copy_on_write_changed(value: bool) -> |value| { MemorySettings::get_instance().set_excluded_copy_on_write(value); },
-                    on_memory_type_none_changed(value: bool) -> |value| { MemorySettings::get_instance().set_memory_type_none(value); },
-                    on_memory_type_image_changed(value: bool) -> |value| { MemorySettings::get_instance().set_memory_type_image(value); },
-                    on_memory_type_private_changed(value: bool) -> |value| { MemorySettings::get_instance().set_memory_type_private(value); },
-                    on_memory_type_mapped_changed(value: bool) -> |value| { MemorySettings::get_instance().set_memory_type_mapped(value); },
-                }
+        create_view_bindings!(view_binding, {
+            MemorySettingsViewModelBindings => {
+                on_required_write_changed(value: bool) -> [] -> |value| { MemorySettings::get_instance().set_required_write(value); },
+                on_required_execute_changed(value: bool) -> [] -> |value| { MemorySettings::get_instance().set_required_execute(value); },
+                on_required_copy_on_write_changed(value: bool) -> [] -> |value| { MemorySettings::get_instance().set_required_copy_on_write(value); },
+                on_excluded_write_changed(value: bool) -> [] -> |value| { MemorySettings::get_instance().set_excluded_write(value); },
+                on_excluded_execute_changed(value: bool) -> [] -> |value| { MemorySettings::get_instance().set_excluded_execute(value); },
+                on_excluded_copy_on_write_changed(value: bool) -> [] -> |value| { MemorySettings::get_instance().set_excluded_copy_on_write(value); },
+                on_memory_type_none_changed(value: bool) -> [] -> |value| { MemorySettings::get_instance().set_memory_type_none(value); },
+                on_memory_type_image_changed(value: bool) -> [] -> |value| { MemorySettings::get_instance().set_memory_type_image(value); },
+                on_memory_type_private_changed(value: bool) -> [] -> |value| { MemorySettings::get_instance().set_memory_type_private(value); },
+                on_memory_type_mapped_changed(value: bool) -> [] -> |value| { MemorySettings::get_instance().set_memory_type_mapped(value); },
             }
-        );
+        });
 
         view.sync_ui_with_memory_settings();
 

@@ -107,15 +107,20 @@ impl BindingGroup {
 }
 
 // -------------------------------------------------------------------------------------
-// 3) CallbackDefinition (supports a Path or a Closure)
+// 3) CallbackDefinition
+//
+// Now we support the new syntax:
+//
+//    on_something(arg1: Type1, arg2: Type2) -> [capture1, capture2, ...] -> SomePath
+// or on_something() -> [] -> |args| { ... }
+//
+// The bracketed captures can be empty, e.g. -> [] ->
 // -------------------------------------------------------------------------------------
 struct CallbackDefinition {
     callback_name: Ident,
-    // We still parse function-like arguments from `(foo: Type, bar: Type)`,
-    // but we might ignore them if the user writes a closure after `->`.
     args: Vec<(Ident, Ident)>,
-    target: CallbackTarget,
     captures: Vec<Expr>,
+    target: CallbackTarget,
 }
 
 enum CallbackTarget {
@@ -125,10 +130,6 @@ enum CallbackTarget {
 
 impl Parse for CallbackDefinition {
     fn parse(input: ParseStream) -> SynResult<Self> {
-        // Example lines:
-        //   on_drag(delta_x: i32, delta_y: i32) -> Self::on_drag [view_binding.clone()]
-        //   on_required_write_changed(value: bool) -> |value| { ... } [captures]
-
         // 1) Parse callback_name (e.g. `on_drag`)
         let callback_name: Ident = input.parse()?;
 
@@ -140,7 +141,22 @@ impl Parse for CallbackDefinition {
         // 3) Parse '->'
         input.parse::<Token![->]>()?;
 
-        // 4) Decide if it's a Path or a Closure
+        // 4) Parse bracketed captures: [foo, bar, ...], which may be empty
+        let bracketed;
+        syn::bracketed!(bracketed in input);
+        let captures = if !bracketed.is_empty() {
+            let exprs = Punctuated::<Expr, Token![,]>::parse_terminated(&bracketed)?;
+            exprs.into_iter().collect()
+        } else {
+            vec![]
+        };
+
+        // 5) Parse another '->'
+        input.parse::<Token![->]>()?;
+
+        // 6) Decide if it's a Path or a Closure
+        //
+        // We look ahead for a pipe `|`, or an ident/Path.
         let lookahead = input.lookahead1();
         let target = if lookahead.peek(Token![|]) {
             // It's a lambda-style closure
@@ -152,21 +168,11 @@ impl Parse for CallbackDefinition {
             CallbackTarget::Path(path)
         };
 
-        // 5) Optionally parse bracketed captures: `[expr, expr, ...]`
-        let captures = if input.peek(syn::token::Bracket) {
-            let bracketed;
-            syn::bracketed!(bracketed in input);
-            let exprs = Punctuated::<Expr, Token![,]>::parse_terminated(&bracketed)?;
-            exprs.into_iter().collect()
-        } else {
-            vec![]
-        };
-
         Ok(Self {
             callback_name,
             args,
-            target,
             captures,
+            target,
         })
     }
 }
@@ -194,6 +200,8 @@ fn parse_args(input: ParseStream) -> SynResult<Vec<(Ident, Ident)>> {
 impl CallbackDefinition {
     fn expand(&self) -> proc_macro2::TokenStream {
         let callback_name = &self.callback_name;
+
+        // We'll create local cloned captures so that they can be used inside the closure:
         let captures_lets = self.captures.iter().enumerate().map(|(i, cap_expr)| {
             let cap_var = format_ident!("__cap_{}", i);
             quote! {
@@ -201,12 +209,12 @@ impl CallbackDefinition {
             }
         });
 
+        // We'll collect those variables into a list to be used inside the callback:
         let cap_vars = (0..self.captures.len())
             .map(|i| format_ident!("__cap_{}", i))
             .collect::<Vec<_>>();
 
-        // We still have (arg_name, arg_type) from the parentheses, though in closure mode,
-        // we might simply ignore them or unify them. For path style, we need them.
+        // The user-specified arguments, e.g. (delta_x: i32, delta_y: i32)
         let arg_patterns = self
             .args
             .iter()
@@ -214,10 +222,10 @@ impl CallbackDefinition {
 
         match &self.target {
             // ---------------------------------------------------------------------------------
-            // Path-based target: e.g. `-> Self::some_fn`
+            // Path-based target: e.g. `-> [some_caps] -> Self::some_fn`
             // ---------------------------------------------------------------------------------
             CallbackTarget::Path(path) => {
-                // e.g. Self::on_drag
+                // We'll call the function with captures + arguments
                 let fn_call = if self.captures.is_empty() {
                     // No captures
                     if self.args.is_empty() {
@@ -253,22 +261,18 @@ impl CallbackDefinition {
             }
 
             // ---------------------------------------------------------------------------------
-            // Closure-based target: e.g. `-> |value| { ... }`
+            // Closure-based target: e.g. `-> [some_caps] -> |args| { ... }`
             // ---------------------------------------------------------------------------------
             CallbackTarget::Closure(expr_closure) => {
-                // We don’t need to generate a closure in a closure.
-                // We can directly pass the user’s closure to `group_bindings.<callback_name>()`,
-                // but we still wrap it in `move` and handle captures.
-                //
-                // NOTE: If you want to enforce that the user must define the same arguments
-                // in the closure as in `(foo: Type)`, you can add checks or unify them here.
-                // For now, we just ignore the parentheses-based arguments.
+                // We don’t need to generate an additional closure around the user’s closure;
+                // we just pass a `move` closure capturing the variables.
+                // The original parenthesized arguments are ignored in favor of the user's closure args.
+                // If you need to unify them, you can do so here.
                 quote! {
                     {
                         #(#captures_lets)*
 
                         group_bindings.#callback_name(
-                            // We capture everything, then call the user’s closure
                             move #expr_closure
                         );
                     }

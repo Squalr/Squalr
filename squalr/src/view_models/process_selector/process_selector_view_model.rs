@@ -45,16 +45,13 @@ impl ProcessSelectorViewModel {
             _windowed_processes: windowed_processes.clone(),
         };
 
-        create_view_bindings!(
-            view_binding,
-            {
-                ProcessSelectorViewModelBindings => {
-                    on_refresh_full_process_list() -> Self::on_refresh_full_process_list [processes]
-                    on_refresh_windowed_process_list() -> Self::on_refresh_windowed_process_list [windowed_processes]
-                    on_select_process(process_entry: ProcessViewData) -> Self::on_select_process
-                }
+        create_view_bindings!(view_binding, {
+            ProcessSelectorViewModelBindings => {
+                on_refresh_full_process_list() -> [processes] -> Self::on_refresh_full_process_list
+                on_refresh_windowed_process_list() -> [windowed_processes] -> Self::on_refresh_windowed_process_list
+                on_select_process(process_entry: ProcessViewData) -> [] -> Self::on_select_process
             }
-        );
+        });
 
         view
     }
