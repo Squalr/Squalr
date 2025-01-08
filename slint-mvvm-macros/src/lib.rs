@@ -1,10 +1,18 @@
-//
-// Cargo.toml for your proc-macro crate must include:
-// [lib]
-// proc-macro = true
-//
-// This file provides a `create_view_bindings!` macro that supports multi-binding formats.
-// The MainWindowViewModel implementation at the end demonstrates usage.
+// Usage example:
+// create_view_bindings!(
+//     view_binding,
+//     {
+//         SomeBindings => {
+//             on_minimize() -> Self::on_minimize [capture1.clone()],
+//             on_maximize() -> Self::on_maximize [capture1.clone()],
+//             on_close() -> Self::on_close [],
+//             on_drag(delta_x: i32, delta_y: i32) -> Self::on_drag [capture2.clone()]
+//         },
+//         AnotherBindings => {
+//             on_callback(arg: i32) -> Self::other_callback [capture1.clone(), capture2.clone()]
+//         }
+//     }
+// );
 //
 
 use proc_macro::TokenStream;
@@ -17,7 +25,23 @@ use syn::{
     Expr, Ident, Path, Result as SynResult, Token,
 };
 
-/// The main proc-macro entry point for multi-binding creation.
+/// The main proc-macro entry point for multi-binding creation,
+/// supporting the **NEW** format only:
+///
+/// ```ignore
+/// create_view_bindings!(
+///     some_view_expr,
+///     {
+///         SomeBindings => {
+///             on_minimize() -> Self::on_minimize [view_binding.clone()],
+///             on_maximize() -> Self::on_maximize [view_binding.clone()],
+///             on_close() -> Self::on_close [],
+///             on_drag(delta_x: i32, delta_y: i32) -> Self::on_drag [view_binding.clone()]
+///         },
+///         ...
+///     }
+/// );
+/// ```
 #[proc_macro]
 pub fn create_view_bindings(input: TokenStream) -> TokenStream {
     let parsed = parse_macro_input!(input as CreateViewBindingsInput);
@@ -25,34 +49,22 @@ pub fn create_view_bindings(input: TokenStream) -> TokenStream {
 }
 
 /// Top-level input for `create_view_bindings!`.
-/// Example usage:
-/// ```ignore
-/// create_view_bindings!(
-///     some_view_expr,
-///     {
-///         SomeBindings => {
-///             {
-///                 captures = [capture1.clone(), capture2.clone()],
-///                 on_callback(arg: i32) => Self::target_fn
-///             },
-///             ...
-///         },
-///         ...
-///     }
-/// );
-/// ```
 struct CreateViewBindingsInput {
+    /// The expression (e.g. `view_binding.clone()`) that will call `execute_on_ui_thread`.
     view_expr: Expr,
+    /// One or more binding groups `{ MyBindings => { ... }, OtherBindings => { ... } }`.
     groups: Vec<BindingGroup>,
 }
 
 impl Parse for CreateViewBindingsInput {
     fn parse(input: ParseStream) -> SynResult<Self> {
+        // First parse the expression (e.g. `view_binding.clone()`).
         let view_expr: Expr = input.parse()?;
         if input.peek(Token![,]) {
             input.parse::<Token![,]>()?;
         }
 
+        // Then parse the braces containing the binding groups.
         let content;
         braced!(content in input);
 
@@ -70,7 +82,8 @@ impl Parse for CreateViewBindingsInput {
 }
 
 impl CreateViewBindingsInput {
-    /// Generates the final macro expansion.
+    /// Generates the final macro expansion that calls `execute_on_ui_thread`
+    /// once, and places each binding group inside.
     fn expand(&self) -> proc_macro2::TokenStream {
         let view_expr = &self.view_expr;
         let groups_code = self.groups.iter().map(|group| group.expand());
@@ -83,7 +96,7 @@ impl CreateViewBindingsInput {
     }
 }
 
-/// Represents each binding group, e.g. `SomeBindings => { ... }`.
+/// Represents each binding group, e.g. `SomeBindings => { on_minimize() -> Self::on_minimize [caps], ... }`.
 struct BindingGroup {
     group_name: Path,
     callbacks: Vec<CallbackDefinition>,
@@ -91,7 +104,7 @@ struct BindingGroup {
 
 impl Parse for BindingGroup {
     fn parse(input: ParseStream) -> SynResult<Self> {
-        let group_name: Path = input.parse()?;
+        let group_name: Path = input.parse()?; // e.g. `WindowViewModelBindings`
         input.parse::<Token![=>]>()?;
 
         let callbacks_block;
@@ -111,7 +124,8 @@ impl Parse for BindingGroup {
 }
 
 impl BindingGroup {
-    /// Expands one group of callbacks.
+    /// Expands the group into code that fetches the group bindings
+    /// and registers each callback definition.
     fn expand(&self) -> proc_macro2::TokenStream {
         let group_name = &self.group_name;
         let callback_defs = self.callbacks.iter().map(|cb| cb.expand());
@@ -125,143 +139,121 @@ impl BindingGroup {
     }
 }
 
-/// Represents one callback definition within a group.
+/// Represents one callback definition in the new format:
+///
+/// ```ignore
+/// on_something(arg: Type, arg2: Type) -> Self::my_target_fn [cap1.clone(), cap2.clone()]
+/// ```
 struct CallbackDefinition {
-    captures: Vec<Expr>,
     callback_name: Ident,
     args: Vec<(Ident, Ident)>,
-    return_type: Option<Ident>,
     target_fn: Path,
+    captures: Vec<Expr>,
 }
 
 impl Parse for CallbackDefinition {
     fn parse(input: ParseStream) -> SynResult<Self> {
-        let content;
-        braced!(content in input);
+        // Example line:
+        // on_drag(delta_x: i32, delta_y: i32) -> Self::on_drag [view_binding.clone()]
 
-        let mut captures = Vec::new();
-        let mut callback_name: Option<Ident> = None;
-        let mut args: Vec<(Ident, Ident)> = Vec::new();
-        let mut return_type: Option<Ident> = None;
-        let mut target_fn: Option<Path> = None;
+        // 1) Parse callback_name (e.g. `on_drag`)
+        let callback_name: Ident = input.parse()?;
 
-        while !content.is_empty() {
-            if content.peek(Ident) {
-                let ident_peek: Ident = content.fork().parse()?;
-                if ident_peek == "captures" {
-                    content.parse::<Ident>()?; // "captures"
-                    content.parse::<Token![=]>()?;
-                    let bracketed;
-                    syn::bracketed!(bracketed in content);
-                    let exprs = Punctuated::<Expr, Token![,]>::parse_terminated(&bracketed)?;
-                    captures = exprs.into_iter().collect();
+        // 2) Parse parentheses with arguments (e.g. `(delta_x: i32, delta_y: i32)`)
+        let args_braces;
+        parenthesized!(args_braces in input);
+        let args = parse_args(&args_braces)?;
 
-                    if content.peek(Token![,]) {
-                        content.parse::<Token![,]>()?;
-                    }
-                } else {
-                    let (cb_name, cb_args, cb_ret, cb_target) = parse_callback_signature(&&content)?;
-                    callback_name = Some(cb_name);
-                    args = cb_args;
-                    return_type = cb_ret;
-                    target_fn = Some(cb_target);
-                }
-            } else {
-                break;
-            }
-        }
+        // 3) Parse `->`
+        input.parse::<Token![->]>()?;
 
-        if callback_name.is_none() || target_fn.is_none() {
-            return Err(syn::Error::new_spanned(
-                content.parse::<proc_macro2::TokenStream>()?,
-                "Missing callback signature.",
-            ));
-        }
+        // 4) Parse the path to the target function (e.g. `Self::on_drag`)
+        let target_fn: Path = input.parse()?;
+
+        // 5) Parse optional bracketed captures: `[expr, expr, ...]`
+        //    Use `syn::token::Bracket` instead of `Token!['[']`.
+        let captures = if input.peek(syn::token::Bracket) {
+            let bracketed;
+            syn::bracketed!(bracketed in input);
+            let exprs = Punctuated::<Expr, Token![,]>::parse_terminated(&bracketed)?;
+            exprs.into_iter().collect()
+        } else {
+            vec![]
+        };
 
         Ok(Self {
-            captures,
-            callback_name: callback_name.unwrap(),
+            callback_name,
             args,
-            return_type,
-            target_fn: target_fn.unwrap(),
+            target_fn,
+            captures,
         })
     }
 }
 
-/// Parses something like:
-///   on_something(arg: Type, arg2: Type) -> ReturnType => Self::some_fn
-fn parse_callback_signature(input: &ParseStream) -> SynResult<(Ident, Vec<(Ident, Ident)>, Option<Ident>, Path)> {
-    let callback_name: Ident = input.parse()?;
-
-    let args_braces;
-    parenthesized!(args_braces in input);
-
+/// Helper to parse a comma-separated list of `(ident: Type)` pairs.
+fn parse_args(input: ParseStream) -> SynResult<Vec<(Ident, Ident)>> {
     let mut args = Vec::new();
-    while !args_braces.is_empty() {
-        if args_braces.peek(Ident) {
-            let arg_name: Ident = args_braces.parse()?;
-            args_braces.parse::<Token![:]>()?;
-            let arg_type: Ident = args_braces.parse()?;
-            args.push((arg_name, arg_type));
 
-            if args_braces.peek(Token![,]) {
-                args_braces.parse::<Token![,]>()?;
-            }
-        } else {
-            break;
+    while !input.is_empty() {
+        // e.g. `delta_x: i32`
+        let arg_name: Ident = input.parse()?;
+        input.parse::<Token![:]>()?;
+        let arg_type: Ident = input.parse()?;
+        args.push((arg_name, arg_type));
+
+        // If there's another comma, consume it.
+        if input.peek(Token![,]) {
+            input.parse::<Token![,]>()?;
         }
     }
 
-    let mut return_type = None;
-    if input.peek(Token![->]) {
-        input.parse::<Token![->]>()?;
-        let rt: Ident = input.parse()?;
-        return_type = Some(rt);
-    }
-
-    input.parse::<Token![=>]>()?;
-    let target_fn: Path = input.parse()?;
-
-    Ok((callback_name, args, return_type, target_fn))
+    Ok(args)
 }
 
 impl CallbackDefinition {
-    /// Generates the code for a single callback definition.
+    /// Expands into the code that will register the callback with the given captures and arguments.
     fn expand(&self) -> proc_macro2::TokenStream {
         let callback_name = &self.callback_name;
         let target_fn = &self.target_fn;
 
-        // Create locals for captures
+        // Create locals for captures, e.g.:
+        // let __cap_0 = view_binding.clone();
         let captures_lets = self.captures.iter().enumerate().map(|(i, cap_expr)| {
             let cap_var = format_ident!("__cap_{}", i);
-            quote! { let #cap_var = #cap_expr; }
+            quote! {
+                let #cap_var = #cap_expr;
+            }
         });
 
+        // Prepare the captured variables for calling the function
         let cap_vars = (0..self.captures.len())
             .map(|i| format_ident!("__cap_{}", i))
             .collect::<Vec<_>>();
 
-        // Generate closure arguments, e.g. |arg: Type, ...|
+        // Generate closure arguments: |arg: Type, ...|
         let arg_patterns = self.args.iter().map(|(arg_name, arg_type)| {
             quote! { #arg_name: #arg_type }
         });
 
-        // Attach optional return type
-        let maybe_return = if let Some(rt) = &self.return_type { quote!(-> #rt) } else { quote!() };
-
-        // Build function call inside the closure
-        let call_args = if self.captures.is_empty() {
+        // Generate the function call inside the closure
+        let fn_call = if self.captures.is_empty() {
+            // No captures
             if self.args.is_empty() {
+                // No arguments
                 quote!(#target_fn())
             } else {
+                // Just arguments
                 let arg_names = self.args.iter().map(|(arg_name, _)| quote!(#arg_name));
                 quote!(#target_fn(#(#arg_names),*))
             }
         } else {
+            // We have captures
             let cloned_caps = cap_vars.iter().map(|var| quote!(#var.clone()));
             if self.args.is_empty() {
+                // Captures, no arguments
                 quote!(#target_fn(#(#cloned_caps),*))
             } else {
+                // Both captures and arguments
                 let arg_names = self.args.iter().map(|(arg_name, _)| quote!(#arg_name));
                 quote!(#target_fn(#(#cloned_caps),*, #(#arg_names),*))
             }
@@ -271,8 +263,8 @@ impl CallbackDefinition {
             {
                 #(#captures_lets)*
 
-                group_bindings.#callback_name(move |#(#arg_patterns),*| #maybe_return {
-                    #call_args
+                group_bindings.#callback_name(move |#(#arg_patterns),*| {
+                    #fn_call
                 });
             }
         }

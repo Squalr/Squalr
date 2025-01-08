@@ -52,17 +52,9 @@ impl ProcessSelectorViewModel {
             view.view_binding.clone(),
             {
                 ProcessSelectorViewModelBindings => {
-                    {
-                        captures = [process_info_converter],
-                        on_refresh_full_process_list() => Self::on_refresh_full_process_list
-                    },
-                    {
-                        captures = [windowed_process_info_converter],
-                        on_refresh_windowed_process_list() => Self::on_refresh_windowed_process_list
-                    },
-                    {
-                        on_select_process(process_entry: ProcessViewData) => Self::on_select_process
-                    }
+                    on_refresh_full_process_list() -> Self::on_refresh_full_process_list [process_info_converter]
+                    on_refresh_windowed_process_list() -> Self::on_refresh_windowed_process_list [windowed_process_info_converter]
+                    on_select_process(process_entry: ProcessViewData) -> Self::on_select_process
                 }
             }
         );

@@ -53,40 +53,16 @@ impl MainWindowViewModel {
             view_binding.clone(),
             {
                 WindowViewModelBindings => {
-                    {
-                        captures = [view_binding.clone()],
-                        on_minimize() => Self::on_minimize
-                    },
-                    {
-                        captures = [view_binding.clone()],
-                        on_maximize() => Self::on_maximize
-                    },
-                    {
-                        captures = [],
-                        on_close() => Self::on_close
-                    },
-                    {
-                        captures = [view_binding.clone()],
-                        on_double_clicked() => Self::on_double_clicked
-                    },
-                    {
-                        captures = [view_binding.clone()],
-                        on_drag(delta_x: i32, delta_y: i32) => Self::on_drag
-                    }
+                    on_minimize() -> Self::on_minimize [view_binding.clone()],
+                    on_maximize() -> Self::on_maximize [view_binding.clone()],
+                    on_close() -> Self::on_close [],
+                    on_double_clicked() -> Self::on_double_clicked [view_binding.clone()],
+                    on_drag(delta_x: i32, delta_y: i32) -> Self::on_drag [view_binding.clone()]
                 },
                 DockedWindowViewModelBindings => {
-                    {
-                        captures = [view_binding.clone(), docking_layout.clone()],
-                        on_update_dock_root_size(width: f32, height: f32) => Self::on_update_dock_root_size
-                    },
-                    {
-                        captures = [view_binding.clone(), docking_layout.clone()],
-                        on_update_dock_root_width(width: f32) => Self::on_update_dock_root_width
-                    },
-                    {
-                        captures = [view_binding.clone(), docking_layout.clone()],
-                        on_update_dock_root_height(height: f32) => Self::on_update_dock_root_height
-                    }
+                    on_update_dock_root_size(width: f32, height: f32) -> Self::on_update_dock_root_size [view_binding.clone(), docking_layout.clone()],
+                    on_update_dock_root_width(width: f32) -> Self::on_update_dock_root_width [view_binding.clone(), docking_layout.clone()],
+                    on_update_dock_root_height(height: f32) -> Self::on_update_dock_root_height [view_binding.clone(), docking_layout.clone()]
                 }
             }
         );
@@ -248,14 +224,6 @@ impl MainWindowViewModel {
 
         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
             let docked_window_bindings = main_window_view.global::<DockedWindowViewModelBindings>();
-
-            let process_selector_identifier = "process-selector";
-            let project_explorer_identifier = "project-explorer";
-            let property_viewer_identifier = "property-viewer";
-            let scan_results_identifier = "scan-results";
-            let output_identifier = "output";
-            let settings_identifier = "settings";
-
             let docking_layout = match docking_layout.lock() {
                 Ok(guard) => guard,
                 Err(err) => {
@@ -264,28 +232,34 @@ impl MainWindowViewModel {
                 }
             };
 
-            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(process_selector_identifier) {
-                docked_window_bindings.set_process_selector_panel(Self::create_docked_window_data(process_selector_identifier, docked_window_bounds));
+            let window_identifier = "process-selector";
+            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(window_identifier) {
+                docked_window_bindings.set_process_selector_panel(Self::create_docked_window_data(window_identifier, docked_window_bounds));
             }
 
-            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(project_explorer_identifier) {
-                docked_window_bindings.set_project_explorer_panel(Self::create_docked_window_data(project_explorer_identifier, docked_window_bounds));
+            let window_identifier = "project-explorer";
+            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(window_identifier) {
+                docked_window_bindings.set_project_explorer_panel(Self::create_docked_window_data(window_identifier, docked_window_bounds));
             }
 
-            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(property_viewer_identifier) {
-                docked_window_bindings.set_property_viewer_panel(Self::create_docked_window_data(property_viewer_identifier, docked_window_bounds));
+            let window_identifier = "property-viewer";
+            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(window_identifier) {
+                docked_window_bindings.set_property_viewer_panel(Self::create_docked_window_data(window_identifier, docked_window_bounds));
             }
 
-            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(scan_results_identifier) {
-                docked_window_bindings.set_scan_results_panel(Self::create_docked_window_data(scan_results_identifier, docked_window_bounds));
+            let window_identifier = "scan-results";
+            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(window_identifier) {
+                docked_window_bindings.set_scan_results_panel(Self::create_docked_window_data(window_identifier, docked_window_bounds));
             }
 
-            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(output_identifier) {
-                docked_window_bindings.set_output_panel(Self::create_docked_window_data(output_identifier, docked_window_bounds));
+            let window_identifier = "output";
+            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(window_identifier) {
+                docked_window_bindings.set_output_panel(Self::create_docked_window_data(window_identifier, docked_window_bounds));
             }
 
-            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(settings_identifier) {
-                docked_window_bindings.set_settings_panel(Self::create_docked_window_data(settings_identifier, docked_window_bounds));
+            let window_identifier = "settings";
+            if let Some(docked_window_bounds) = docking_layout.calculate_window_rect(window_identifier) {
+                docked_window_bindings.set_settings_panel(Self::create_docked_window_data(window_identifier, docked_window_bounds));
             }
         });
     }

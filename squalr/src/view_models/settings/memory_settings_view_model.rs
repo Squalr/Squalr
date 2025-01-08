@@ -20,36 +20,16 @@ impl MemorySettingsViewModel {
             view_binding.clone(),
             {
                 MemorySettingsViewModelBindings => {
-                    {
-                        on_required_write_changed(value: bool) => Self::set_required_write
-                    },
-                    {
-                        on_required_execute_changed(value: bool) => Self::set_required_execute
-                    },
-                    {
-                        on_required_copy_on_write_changed(value: bool) => Self::set_required_copy_on_write
-                    },
-                    {
-                        on_excluded_write_changed(value: bool) => Self::set_excluded_write
-                    },
-                    {
-                        on_excluded_execute_changed(value: bool) => Self::set_excluded_execute
-                    },
-                    {
-                        on_excluded_copy_on_write_changed(value: bool) => Self::set_excluded_copy_on_write
-                    },
-                    {
-                        on_memory_type_none_changed(value: bool) => Self::set_memory_type_none
-                    },
-                    {
-                        on_memory_type_image_changed(value: bool) => Self::set_memory_type_image
-                    },
-                    {
-                        on_memory_type_private_changed(value: bool) => Self::set_memory_type_private
-                    },
-                    {
-                        on_memory_type_mapped_changed(value: bool) => Self::set_memory_type_mapped
-                    }
+                    on_required_write_changed(value: bool) -> Self::set_required_write,
+                    on_required_execute_changed(value: bool) -> Self::set_required_execute,
+                    on_required_copy_on_write_changed(value: bool) -> Self::set_required_copy_on_write,
+                    on_excluded_write_changed(value: bool) -> Self::set_excluded_write,
+                    on_excluded_execute_changed(value: bool) -> Self::set_excluded_execute,
+                    on_excluded_copy_on_write_changed(value: bool) -> Self::set_excluded_copy_on_write,
+                    on_memory_type_none_changed(value: bool) -> Self::set_memory_type_none,
+                    on_memory_type_image_changed(value: bool) -> Self::set_memory_type_image,
+                    on_memory_type_private_changed(value: bool) -> Self::set_memory_type_private,
+                    on_memory_type_mapped_changed(value: bool) -> Self::set_memory_type_mapped
                 }
             }
         );
