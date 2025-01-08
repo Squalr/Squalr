@@ -50,19 +50,19 @@ impl MainWindowViewModel {
         Logger::get_instance().subscribe(view.output_view_model.clone());
 
         create_view_bindings!(
-            view_binding.clone(),
+            view_binding,
             {
                 WindowViewModelBindings => {
-                    on_minimize() -> Self::on_minimize [view_binding.clone()],
-                    on_maximize() -> Self::on_maximize [view_binding.clone()],
+                    on_minimize() -> Self::on_minimize [view_binding],
+                    on_maximize() -> Self::on_maximize [view_binding],
                     on_close() -> Self::on_close [],
-                    on_double_clicked() -> Self::on_double_clicked [view_binding.clone()],
-                    on_drag(delta_x: i32, delta_y: i32) -> Self::on_drag [view_binding.clone()]
+                    on_double_clicked() -> Self::on_double_clicked [view_binding],
+                    on_drag(delta_x: i32, delta_y: i32) -> Self::on_drag [view_binding]
                 },
                 DockedWindowViewModelBindings => {
-                    on_update_dock_root_size(width: f32, height: f32) -> Self::on_update_dock_root_size [view_binding.clone(), docking_layout.clone()],
-                    on_update_dock_root_width(width: f32) -> Self::on_update_dock_root_width [view_binding.clone(), docking_layout.clone()],
-                    on_update_dock_root_height(height: f32) -> Self::on_update_dock_root_height [view_binding.clone(), docking_layout.clone()]
+                    on_update_dock_root_size(width: f32, height: f32) -> Self::on_update_dock_root_size [view_binding, docking_layout],
+                    on_update_dock_root_width(width: f32) -> Self::on_update_dock_root_width [view_binding, docking_layout],
+                    on_update_dock_root_height(height: f32) -> Self::on_update_dock_root_height [view_binding, docking_layout]
                 }
             }
         );

@@ -18,14 +18,14 @@ impl UndockedWindowViewModel {
         };
 
         create_view_bindings!(
-            view_binding.clone(),
+            view_binding,
             {
                 WindowViewModelBindings => {
-                    on_minimize() -> Self::on_minimize [view_binding.clone()],
-                    on_maximize() -> Self::on_maximize [view_binding.clone()],
+                    on_minimize() -> Self::on_minimize [view_binding],
+                    on_maximize() -> Self::on_maximize [view_binding],
                     on_close() -> Self::on_close,
-                    on_double_clicked() -> Self::on_double_clicked [view_binding.clone()],
-                    on_drag(delta_x: i32, delta_y: i32) -> Self::on_drag [view_binding.clone()]
+                    on_double_clicked() -> Self::on_double_clicked [view_binding],
+                    on_drag(delta_x: i32, delta_y: i32) -> Self::on_drag [view_binding]
                 }
             }
         );

@@ -88,10 +88,23 @@ impl CreateViewBindingsInput {
         let view_expr = &self.view_expr;
         let groups_code = self.groups.iter().map(|group| group.expand());
 
+        // Instead of:
+        //
+        // quote! {
+        //     #view_expr.execute_on_ui_thread(move |main_window_view, view_binding| {
+        //         #(#groups_code)*
+        //     });
+        // }
+        //
+        // do something like this:
         quote! {
-            #view_expr.execute_on_ui_thread(move |main_window_view, view_binding| {
-                #(#groups_code)*
-            });
+            {
+                // Force a clone here
+                let __view_binding = #view_expr.clone();
+                __view_binding.execute_on_ui_thread(move |main_window_view, view_binding| {
+                    #(#groups_code)*
+                });
+            }
         }
     }
 }
@@ -221,7 +234,7 @@ impl CallbackDefinition {
         let captures_lets = self.captures.iter().enumerate().map(|(i, cap_expr)| {
             let cap_var = format_ident!("__cap_{}", i);
             quote! {
-                let #cap_var = #cap_expr;
+                let #cap_var = #cap_expr.clone();
             }
         });
 

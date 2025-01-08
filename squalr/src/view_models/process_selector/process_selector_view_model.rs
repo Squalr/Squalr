@@ -16,9 +16,9 @@ use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions
 use sysinfo::Pid;
 
 pub struct ProcessSelectorViewModel {
-    view_binding: ViewBinding<MainWindowView>,
-    processes: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>,
-    windowed_processes: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>,
+    _view_binding: ViewBinding<MainWindowView>,
+    _processes: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>,
+    _windowed_processes: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>,
 }
 
 impl ProcessSelectorViewModel {
@@ -39,21 +39,18 @@ impl ProcessSelectorViewModel {
             },
         );
 
-        let process_info_converter = processes.clone();
-        let windowed_process_info_converter = windowed_processes.clone();
-
         let view = ProcessSelectorViewModel {
-            view_binding,
-            processes,
-            windowed_processes,
+            _view_binding: view_binding.clone(),
+            _processes: processes.clone(),
+            _windowed_processes: windowed_processes.clone(),
         };
 
         create_view_bindings!(
-            view.view_binding.clone(),
+            view_binding,
             {
                 ProcessSelectorViewModelBindings => {
-                    on_refresh_full_process_list() -> Self::on_refresh_full_process_list [process_info_converter]
-                    on_refresh_windowed_process_list() -> Self::on_refresh_windowed_process_list [windowed_process_info_converter]
+                    on_refresh_full_process_list() -> Self::on_refresh_full_process_list [processes]
+                    on_refresh_windowed_process_list() -> Self::on_refresh_windowed_process_list [windowed_processes]
                     on_select_process(process_entry: ProcessViewData) -> Self::on_select_process
                 }
             }

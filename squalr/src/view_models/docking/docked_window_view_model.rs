@@ -9,8 +9,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 pub struct DockedWindowViewModel {
-    view_binding: ViewBinding<MainWindowView>,
-    docking_layout: Arc<Mutex<DockingLayout>>,
+    _view_binding: ViewBinding<MainWindowView>,
+    _docking_layout: Arc<Mutex<DockingLayout>>,
 }
 
 impl DockedWindowViewModel {
@@ -19,12 +19,12 @@ impl DockedWindowViewModel {
         docking_layout: Arc<Mutex<DockingLayout>>,
     ) -> Self {
         let view = DockedWindowViewModel {
-            view_binding: view_binding,
-            docking_layout: docking_layout.clone(),
+            _view_binding: view_binding.clone(),
+            _docking_layout: docking_layout.clone(),
         };
 
         create_view_bindings!(
-            view.view_binding.clone(),
+            view_binding,
             {
                 DockedWindowViewModelBindings => {
                         on_minimize() -> Self::on_minimize,
