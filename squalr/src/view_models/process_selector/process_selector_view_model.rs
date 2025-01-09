@@ -1,3 +1,6 @@
+use std::thread;
+use std::time::Duration;
+
 use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
@@ -17,13 +20,13 @@ use sysinfo::Pid;
 
 pub struct ProcessSelectorViewModel {
     _view_binding: ViewBinding<MainWindowView>,
-    _processes: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>,
-    _windowed_processes: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>,
+    processes_collection: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>,
+    _windowed_processes_collection: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>,
 }
 
 impl ProcessSelectorViewModel {
     pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
-        let processes = view_binding.create_collection(
+        let processes_collection = view_binding.create_collection(
             |process: ProcessInfo| ProcessInfoConverter.convert(&process),
             |view: &MainWindowView, model| {
                 view.global::<ProcessSelectorViewModelBindings>()
@@ -31,7 +34,7 @@ impl ProcessSelectorViewModel {
             },
         );
 
-        let windowed_processes = view_binding.create_collection(
+        let windowed_processes_collection = view_binding.create_collection(
             |process: ProcessInfo| ProcessInfoConverter.convert(&process),
             |view: &MainWindowView, model| {
                 view.global::<ProcessSelectorViewModelBindings>()
@@ -41,19 +44,36 @@ impl ProcessSelectorViewModel {
 
         let view = ProcessSelectorViewModel {
             _view_binding: view_binding.clone(),
-            _processes: processes.clone(),
-            _windowed_processes: windowed_processes.clone(),
+            processes_collection: processes_collection.clone(),
+            _windowed_processes_collection: windowed_processes_collection.clone(),
         };
 
         create_view_bindings!(view_binding, {
             ProcessSelectorViewModelBindings => {
-                on_refresh_full_process_list() -> [processes] -> Self::on_refresh_full_process_list
-                on_refresh_windowed_process_list() -> [windowed_processes] -> Self::on_refresh_windowed_process_list
+                on_refresh_full_process_list() -> [processes_collection] -> Self::on_refresh_full_process_list
+                on_refresh_windowed_process_list() -> [windowed_processes_collection] -> Self::on_refresh_windowed_process_list
                 on_select_process(process_entry: ProcessViewData) -> [view_binding] -> Self::on_select_process
             }
         });
 
+        view.start_refresh_process_lists_task();
+
         view
+    }
+
+    fn start_refresh_process_lists_task(&self) {
+        let processes_collection = self.processes_collection.clone();
+
+        // Spawn a background thread
+        thread::spawn(move || {
+            loop {
+                thread::sleep(Duration::from_millis(250));
+
+                let process_query_options = ProcessSelectorViewModel::get_process_query_options(None, false, None);
+                let processes = ProcessQuery::get_processes(process_query_options);
+                processes_collection.update_from_source(processes);
+            }
+        });
     }
 
     fn get_process_query_options(
