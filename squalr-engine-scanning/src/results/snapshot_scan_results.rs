@@ -37,6 +37,11 @@ impl SnapshotScanResults {
         index: u64,
         snapshot_regions: &Vec<SnapshotRegion>,
     ) -> Option<ScanResult> {
+        /*
+        if index >= self.get_number_of_results() {
+            return None;
+        } */
+
         // Access the scan result lookup table to get the snapshot_region containing this scan result index.
         if let Some((scan_result_index_range, snapshot_region_index)) = self
             .lookup_table

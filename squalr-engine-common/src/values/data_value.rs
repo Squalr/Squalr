@@ -1,5 +1,6 @@
 use crate::values::data_type::DataType;
 use std::cmp::Ordering;
+use std::fmt;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -16,6 +17,35 @@ pub enum DataValue {
     F64(f64),
     Bytes(Vec<u8>),
     BitField { value: Vec<u8>, bits: u16 },
+}
+
+impl fmt::Display for DataValue {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match self {
+            DataValue::U8(v) => write!(f, "{}=u8", v),
+            DataValue::U16(v) => write!(f, "{}=u16", v),
+            DataValue::U32(v) => write!(f, "{}=u32", v),
+            DataValue::U64(v) => write!(f, "{}=u64", v),
+            DataValue::I8(v) => write!(f, "{}=i8", v),
+            DataValue::I16(v) => write!(f, "{}=i16", v),
+            DataValue::I32(v) => write!(f, "{}=i32", v),
+            DataValue::I64(v) => write!(f, "{}=i64", v),
+            DataValue::F32(v) => write!(f, "{}=f32", v),
+            DataValue::F64(v) => write!(f, "{}=f64", v),
+            DataValue::Bytes(v) => {
+                // Convert bytes to hex string
+                let hex = v.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+                write!(f, "{}=bytes[{}]", hex, v.len())
+            }
+            DataValue::BitField { value, bits } => {
+                let hex = value.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+                write!(f, "{}=bitfield[{}]", hex, bits)
+            }
+        }
+    }
 }
 
 impl Ord for DataValue {

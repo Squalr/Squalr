@@ -136,7 +136,6 @@ impl ScanDispatcher {
 
         // Use parallel scanners when the region size is >= 64MB
         // DISABLED: Results are being missed in aligned chunked scans.
-        /*
         if region_size >= 1024 * 1024 * 64 {
             match data_type {
                 DataType::Bytes(_) => {
@@ -174,7 +173,7 @@ impl ScanDispatcher {
                     }
                 }
             }
-        } */
+        }
 
         // Prioritize vector scans for small to large regions.
         match data_type {

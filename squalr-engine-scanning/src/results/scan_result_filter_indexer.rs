@@ -3,6 +3,7 @@ use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use rangemap::RangeInclusiveMap;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 
+/*
 #[derive(Debug)]
 pub struct SnapshotFilterIndexer {
     filter_results_lookup_table: ScanResultsIndexMap,
@@ -39,7 +40,8 @@ impl SnapshotFilterIndexer {
 
             // Map the element range onto the filter region index.
             self.filter_results_lookup_table
-                .insert(current_number_of_result_bytes, filter_size, filter_region_index as u64);
+                .insert(current_number_of_result_bytes, filter_size.saturating_sub(1), filter_region_index as u64);
         }
     }
 }
+ */

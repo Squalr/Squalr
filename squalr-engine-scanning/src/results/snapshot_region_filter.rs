@@ -50,16 +50,19 @@ impl SnapshotRegionFilter {
         data_type_size: u64,
         memory_alignment: MemoryAlignment,
     ) -> u64 {
-        let get_size_in_bytes = self.get_region_size();
         let misalignment = self.get_misaligned_starting_byte_count(memory_alignment);
         let memory_alignment: u64 = max(memory_alignment as u64, 1);
+        let trailing_bytes = data_type_size.saturating_sub(memory_alignment);
+        let size_in_bytes = self.get_region_size();
+        let effective_size_in_bytes = size_in_bytes.saturating_sub(trailing_bytes);
 
-        // If a filter is misaligned or an invalid size, something has gone horribly wrong and we want to debug it.
+        // Check for things that have gone horribly wrong. None of these should ever happen. Happy debugging!
         debug_assert!(memory_alignment > 0);
         debug_assert!(misalignment == 0);
-        debug_assert!(get_size_in_bytes >= data_type_size);
+        debug_assert!(size_in_bytes >= data_type_size);
+        debug_assert!(size_in_bytes >= trailing_bytes);
 
-        return get_size_in_bytes / memory_alignment;
+        return effective_size_in_bytes / memory_alignment;
     }
 
     fn get_misaligned_starting_byte_count(
@@ -71,6 +74,6 @@ impl SnapshotRegionFilter {
         let misalignment = base_address % alignment;
 
         // Additional modulo to handle the case where misalignment is 0.
-        return (alignment - misalignment) % alignment;
+        return (alignment.saturating_sub(misalignment)) % alignment;
     }
 }
