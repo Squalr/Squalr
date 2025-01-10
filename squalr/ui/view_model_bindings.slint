@@ -17,10 +17,12 @@ export global WindowViewModelBindings {
 export struct DockedWindowData {
     identifier: string,
     is-docked: bool,
+    is-visible: bool,
     position-x: length,
     position-y: length,
     width: length,
     height: length,
+    tabs: [string],
 }
 
 export global DockedWindowViewModelBindings {

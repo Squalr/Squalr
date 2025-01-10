@@ -27,7 +27,7 @@ impl DockedWindowViewModel {
             DockedWindowViewModelBindings => {
                     on_minimize() -> [] -> Self::on_minimize,
                     on_maximize() -> [] -> Self::on_maximize,
-                    on_close() -> [] -> Self::on_close,
+                    on_close() -> [view_binding] -> Self::on_close,
                     on_double_clicked() -> [] -> Self::on_double_clicked,
                     on_drag_left(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_left,
                     on_drag_right(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_right,
@@ -40,19 +40,21 @@ impl DockedWindowViewModel {
     }
 
     fn on_minimize() {
-        // TODO: Implement as needed
+        // TODO: Implement me.
     }
 
     fn on_maximize() {
-        // TODO: Implement as needed
+        // TODO: Implement me.
     }
 
-    fn on_close() {
-        // TODO: Implement as needed
+    fn on_close(view_binding: ViewBinding<MainWindowView>) {
+        view_binding.execute_on_ui_thread(|_view_binding, _main_window_view_model| {
+            //
+        });
     }
 
     fn on_double_clicked() {
-        // TODO: Implement as needed
+        // TODO: Implement me.
     }
 
     fn on_drag_left(
@@ -60,7 +62,7 @@ impl DockedWindowViewModel {
         _delta_x: i32,
         _delta_y: i32,
     ) {
-        // TODO: Implement as needed
+        // TODO: Implement me.
     }
 
     fn on_drag_right(
@@ -68,7 +70,7 @@ impl DockedWindowViewModel {
         _delta_x: i32,
         _delta_y: i32,
     ) {
-        // TODO: Implement as needed
+        // TODO: Implement me.
     }
 
     fn on_drag_top(
@@ -76,7 +78,7 @@ impl DockedWindowViewModel {
         _delta_x: i32,
         _delta_y: i32,
     ) {
-        // TODO: Implement as needed
+        // TODO: Implement me.
     }
 
     fn on_drag_bottom(
@@ -84,6 +86,6 @@ impl DockedWindowViewModel {
         _delta_x: i32,
         _delta_y: i32,
     ) {
-        // TODO: Implement as needed
+        // TODO: Implement me.
     }
 }

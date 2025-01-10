@@ -1,0 +1,18 @@
+import { Theme } from "../../theme.slint";
+import { WindowViewModelBindings } from "./../../view_model_bindings.slint";
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+import { Button } from "../../components/buttons/button.slint";
+
+export component DockedWindowFooter inherits Rectangle {
+    background: Theme.background-primary;
+    height: 24px;
+    HorizontalLayout {
+        padding: 0px;
+        HorizontalBox {
+            alignment: start;
+            padding: 0px;
+            spacing: 0px;
+            // TODO: Buttons
+        }
+    }
+}
