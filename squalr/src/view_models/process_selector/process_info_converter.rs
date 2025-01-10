@@ -11,7 +11,7 @@ impl ViewDataConverter<ProcessInfo, ProcessViewData> for ProcessInfoConverter {
         &self,
         process_info: &ProcessInfo,
     ) -> ProcessViewData {
-        let icon: Image = if let Some(icon_data) = &process_info.icon {
+        let icon = if let Some(icon_data) = &process_info.icon {
             // Create new buffer and copy the data
             let mut icon_buffer = SharedPixelBuffer::new(icon_data.width, icon_data.height);
             let icon_buffer_bytes = icon_buffer.make_mut_bytes();

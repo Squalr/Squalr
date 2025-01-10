@@ -78,14 +78,26 @@ impl ProcessSelectorViewModel {
     fn start_refresh_process_lists_task(&self) {
         let processes_collection = self.processes_collection.clone();
 
-        // Spawn a background thread
         thread::spawn(move || {
+            // Phase 1: Gradually load the first set of processes.
             loop {
-                thread::sleep(Duration::from_millis(250));
+                let initial_processes = ProcessQuery::get_processes(ProcessSelectorViewModel::get_process_query_options(None, false, None));
+                if initial_processes.is_empty() {
+                    thread::sleep(Duration::from_millis(25));
+                    continue;
+                }
+                for i in 1..=initial_processes.len() {
+                    processes_collection.update_from_source(initial_processes[..i].to_vec());
+                    thread::sleep(Duration::from_millis(5));
+                }
+                break;
+            }
 
-                let process_query_options = ProcessSelectorViewModel::get_process_query_options(None, false, None);
-                let processes = ProcessQuery::get_processes(process_query_options);
+            // Phase 2: full loop. We should be hitting cache mostly in the UI by now, so it should be fine.
+            loop {
+                let processes = ProcessQuery::get_processes(ProcessSelectorViewModel::get_process_query_options(None, false, None));
                 processes_collection.update_from_source(processes);
+                thread::sleep(Duration::from_millis(250));
             }
         });
     }
