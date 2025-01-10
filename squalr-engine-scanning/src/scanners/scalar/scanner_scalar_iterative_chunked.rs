@@ -36,7 +36,7 @@ impl Scanner for ScannerScalarIterativeChunked {
     /// is used to generate new sub-regions as the scan progresses.
     ///
     /// This is substantially faster than the sequential version, but requires a post-step of stitching together subregions that are adjacent.
-    unsafe fn scan_region(
+    fn scan_region(
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,

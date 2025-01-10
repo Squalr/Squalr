@@ -1,7 +1,6 @@
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 
 pub struct SnapshotRegionFilterRunLengthEncoder {
-    // Public so that this can be directly taken by callers
     result_regions: Vec<SnapshotRegionFilter>,
     run_length_current_address: u64,
     is_encoding: bool,

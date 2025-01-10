@@ -34,7 +34,7 @@ impl ScannerScalarEncoderByteArray {
     /// This combination is important to efficiently capture repeated array of byte scans that are sequential in memory.
     /// The run length encoder only produces scan results after encountering a false result (scan failure / mismatch),
     /// or when no more bytes are present (and a full matching byte array was just encoded).
-    pub unsafe fn encode(
+    pub fn encode(
         &self,
         current_value_pointer: *const u8,
         _: *const u8,
@@ -52,7 +52,7 @@ impl ScannerScalarEncoderByteArray {
         if scan_parameters.is_immediate_comparison() {
             let array_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
 
-            return self.encode_byte_array(current_value_pointer, array_ptr, data_type.get_size_in_bytes(), base_address, region_size);
+            return unsafe { self.encode_byte_array(current_value_pointer, array_ptr, data_type.get_size_in_bytes(), base_address, region_size) };
         } else if scan_parameters.is_relative_comparison() {
             panic!("Not supported yet (or maybe ever)");
         } else if scan_parameters.is_relative_delta_comparison() {
@@ -62,7 +62,7 @@ impl ScannerScalarEncoderByteArray {
         }
     }
 
-    /// Public encoder without scan paramter and filter args to allow re-use by other scanners.
+    /// Public encoder without scan parameter and filter args to allow re-use by other scanners.
     pub unsafe fn encode_byte_array(
         &self,
         current_value_pointer: *const u8,
@@ -110,9 +110,9 @@ impl ScannerScalarEncoderByteArray {
             let mut shift_value = 1;
 
             for inverse_array_index in (0..array_length).rev() {
-                let current_byte = *current_value_pointer.add((index + inverse_array_index) as usize);
-                let pattern_byte = *array_ptr.add(inverse_array_index as usize);
-                // TODO: Also check masking table when we decide to support masking
+                let current_byte = unsafe { *current_value_pointer.add((index + inverse_array_index) as usize) };
+                let pattern_byte = unsafe { *array_ptr.add(inverse_array_index as usize) };
+                // TODO: Also check masking table when we decide to support masking.
                 let is_mismatch = current_byte != pattern_byte;
 
                 if is_mismatch {
@@ -137,8 +137,7 @@ impl ScannerScalarEncoderByteArray {
             }
         }
 
-        // TODO: Check if a full match is done, otherwise we should just skip finalizing
-        run_length_encoder.finalize_current_encode(0);
+        run_length_encoder.finalize_current_encode_with_minimum_size(0, array_length);
 
         return run_length_encoder.take_result_regions();
     }

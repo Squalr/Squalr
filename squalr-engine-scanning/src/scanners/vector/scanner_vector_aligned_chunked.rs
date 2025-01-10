@@ -38,7 +38,7 @@ where
 {
     /// Performs a sequential iteration over a region of memory, performing the scan comparison.
     /// A run-length encoding algorithm is used to generate new sub-regions as the scan progresses.
-    unsafe fn scan_region(
+    fn scan_region(
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
@@ -64,8 +64,8 @@ where
                 let chunk_region_size = remaining_size.min(chunk_size as u64);
 
                 encoder.encode(
-                    current_value_pointer.add(chunk_start_offset_bytes as usize),
-                    previous_value_pointer.add(chunk_start_offset_bytes as usize),
+                    unsafe { current_value_pointer.add(chunk_start_offset_bytes as usize) },
+                    unsafe { previous_value_pointer.add(chunk_start_offset_bytes as usize) },
                     scan_parameters,
                     data_type,
                     chunk_start_address,

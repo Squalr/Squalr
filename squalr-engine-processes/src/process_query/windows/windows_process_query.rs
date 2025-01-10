@@ -11,8 +11,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 use sysinfo::{Pid, System};
-use windows_sys::Win32::Foundation::{CloseHandle, BOOL, HANDLE, HWND, LPARAM};
-use windows_sys::Win32::Graphics::Gdi::{GetDC, GetDIBits, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS};
+use windows_sys::Win32::Foundation::{BOOL, CloseHandle, HANDLE, HWND, LPARAM};
+use windows_sys::Win32::Graphics::Gdi::{BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS, GetDC, GetDIBits};
 use windows_sys::Win32::System::ProcessStatus::K32GetModuleFileNameExW;
 use windows_sys::Win32::System::Threading::{IsWow64Process, IsWow64Process2};
 use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_ALL_ACCESS, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
@@ -181,13 +181,13 @@ impl ProcessQueryer for WindowsProcessQuery {
             hwnd: HWND,
             lparam: LPARAM,
         ) -> BOOL {
-            let finder = &*(lparam as *mut WindowFinder);
+            let finder = unsafe { &*(lparam as *mut WindowFinder) };
             let mut process_id: u32 = 0;
-            GetWindowThreadProcessId(hwnd, &mut process_id);
+            unsafe { GetWindowThreadProcessId(hwnd, &mut process_id) };
 
             if process_id == finder.pid {
                 // Only count the window if visible.
-                if IsWindowVisible(hwnd) == BOOL::from(true) {
+                if unsafe { IsWindowVisible(hwnd) } == BOOL::from(true) {
                     finder.found.store(true, Ordering::SeqCst);
                     // Stop enumeration.
                     BOOL::from(false)

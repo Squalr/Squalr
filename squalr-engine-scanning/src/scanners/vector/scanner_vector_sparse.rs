@@ -78,7 +78,7 @@ where
     LaneCount<{ N / 8 }>: SupportedLaneCount,
     Simd<T, N>: SimdPartialEq,
 {
-    unsafe fn scan_region(
+    fn scan_region(
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,

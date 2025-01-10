@@ -37,7 +37,7 @@ where
 {
     /// Performs a sequential iteration over a region of memory, performing the scan comparison.
     /// A run-length encoding algorithm is used to generate new sub-regions as the scan progresses.
-    unsafe fn scan_region(
+    fn scan_region(
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,

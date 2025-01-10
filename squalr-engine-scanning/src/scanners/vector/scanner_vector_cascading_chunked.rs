@@ -51,7 +51,7 @@ where
     LaneCount<{ N / 8 }>: SupportedLaneCount,
     Simd<T, N>: SimdPartialEq,
 {
-    unsafe fn scan_region(
+    fn scan_region(
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
@@ -74,8 +74,8 @@ where
             let num_chunks = (region_size + chunk_size - 1) / chunk_size;
 
             // Convert the pointers to slices
-            let current_values_slice = std::slice::from_raw_parts(current_value_pointer, region_size as usize);
-            let previous_values_slice = std::slice::from_raw_parts(previous_value_pointer, region_size as usize);
+            let current_values_slice = unsafe { std::slice::from_raw_parts(current_value_pointer, region_size as usize) };
+            let previous_values_slice = unsafe { std::slice::from_raw_parts(previous_value_pointer, region_size as usize) };
 
             results = (0..num_chunks)
                 .into_par_iter()

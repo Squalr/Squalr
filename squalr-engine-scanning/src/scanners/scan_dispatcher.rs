@@ -90,7 +90,7 @@ impl ScanDispatcher {
             .map(|snapshot_region_filter| {
                 let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
 
-                return unsafe { scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment) };
+                return scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment);
             })
             .collect();
 
@@ -111,7 +111,7 @@ impl ScanDispatcher {
             .map(|snapshot_region_filter| {
                 let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
 
-                return unsafe { scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment) };
+                return scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment);
             })
             .collect();
 
