@@ -1,6 +1,3 @@
-use std::thread;
-use std::time::Duration;
-
 use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
@@ -16,6 +13,9 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_info::ProcessInfo;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 use sysinfo::Pid;
 
 pub struct ProcessSelectorViewModel {
@@ -28,17 +28,31 @@ impl ProcessSelectorViewModel {
     pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
         let processes_collection = view_binding.create_collection(
             |process: ProcessInfo| ProcessInfoConverter.convert(&process),
+            Some(Arc::new(|a: &ProcessViewData, b: &ProcessViewData| a.process_id == b.process_id)),
             |view: &MainWindowView, model| {
                 view.global::<ProcessSelectorViewModelBindings>()
                     .set_processes(model)
+            },
+            |view: &MainWindowView| {
+                Some(
+                    view.global::<ProcessSelectorViewModelBindings>()
+                        .get_processes(),
+                )
             },
         );
 
         let windowed_processes_collection = view_binding.create_collection(
             |process: ProcessInfo| ProcessInfoConverter.convert(&process),
+            Some(Arc::new(|a: &ProcessViewData, b: &ProcessViewData| a.process_id == b.process_id)),
             |view: &MainWindowView, model| {
                 view.global::<ProcessSelectorViewModelBindings>()
                     .set_windowed_processes(model)
+            },
+            |view: &MainWindowView| {
+                Some(
+                    view.global::<ProcessSelectorViewModelBindings>()
+                        .get_windowed_processes(),
+                )
             },
         );
 

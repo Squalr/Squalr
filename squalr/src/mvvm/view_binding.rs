@@ -41,16 +41,16 @@ impl<T: 'static + ComponentHandle> ViewBinding<T> {
     pub fn create_collection<SourceItem, TargetItem>(
         &self,
         converter: impl Fn(SourceItem) -> TargetItem + Send + Sync + 'static,
+        comparer: Option<Arc<dyn Fn(&TargetItem, &TargetItem) -> bool + Send + Sync>>, // NEW
         model_setter: impl Fn(&T, ModelRc<TargetItem>) + Send + Sync + 'static,
+        model_getter: impl Fn(&T) -> Option<ModelRc<TargetItem>> + Send + Sync + 'static,
     ) -> ViewModelCollection<TargetItem, SourceItem, T>
     where
         TargetItem: Clone + PartialEq + 'static,
         SourceItem: Send + 'static,
     {
-        // Lock once here, so the caller doesn't have to.
-        // It would be nice to handle this unwrap(), but it is not clear how to best handle this without destroying our API.
         let locked_handle = self.view_handle.lock().unwrap().clone();
-        ViewModelCollection::new(&locked_handle, converter, model_setter)
+        ViewModelCollection::new(&locked_handle, converter, comparer, model_setter, model_getter)
     }
 }
 

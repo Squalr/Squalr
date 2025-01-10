@@ -1,21 +1,30 @@
-use slint::Model;
-use slint::{ComponentHandle, ModelRc, VecModel, Weak};
-use std::rc::Rc;
+use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 use std::sync::{Arc, Mutex};
 
 /// Defines a collection (a vector) of data that automatically syncs to the UI.
-///     - Note that this class does not actually store the data yet, but rather just converts it via update_from_source.
-///         This may be added at a future time, but for now this is easiest.
-/// This is done by using the given converter to convert data to a type that the UI recognizes.
+/// This is done by using the given converter to convert data to a type that the UI recognizes,
+/// and by retrieving the existing model (via a model_getter) so we can update it *in place*.
 pub struct ViewModelCollection<T, U, V>
 where
-    T: Clone + PartialEq + 'static,
+    T: Clone + 'static,
     U: Send + 'static,
     V: 'static + ComponentHandle,
 {
+    /// A function that converts your `U` into a `T` recognized by the UI.
     converter: Arc<dyn Fn(U) -> T + Send + Sync>,
+
+    /// An optional custom comparer for T. If `None`, fall back to `==`.
+    /// If provided, should return true if the two T items are "equal" in your sense of equality.
+    comparer: Option<Arc<dyn Fn(&T, &T) -> bool + Send + Sync>>,
+
+    /// The handle to the UI component (for scheduling updates).
     view_handle: Arc<Mutex<Weak<V>>>,
+
+    /// A function that sets the model in the UI, if we create a new one.
     model_setter: Arc<dyn Fn(&V, ModelRc<T>) + Send + Sync>,
+
+    /// A function that retrieves the current model from the UI (if any).
+    model_getter: Arc<dyn Fn(&V) -> Option<ModelRc<T>> + Send + Sync>,
 }
 
 impl<T, U, V> ViewModelCollection<T, U, V>
@@ -24,64 +33,120 @@ where
     U: Send + 'static,
     V: 'static + ComponentHandle,
 {
+    /// Create a new ViewModelCollection with:
+    /// - A converter: `U -> T`
+    /// - A setter for storing the final `ModelRc<T>` (if we create a new one)
+    /// - A getter for retrieving the existing `ModelRc<T>` (if any)
+    /// - An optional comparer for T. If `None`, we default to using `==`.
     pub fn new(
         view_handle: &Weak<V>,
         converter: impl Fn(U) -> T + Send + Sync + 'static,
+        comparer: Option<Arc<dyn Fn(&T, &T) -> bool + Send + Sync>>,
         model_setter: impl Fn(&V, ModelRc<T>) + Send + Sync + 'static,
+        model_getter: impl Fn(&V) -> Option<ModelRc<T>> + Send + Sync + 'static,
     ) -> Self {
         ViewModelCollection {
             converter: Arc::new(converter),
+            comparer,
             view_handle: Arc::new(Mutex::new(view_handle.clone())),
             model_setter: Arc::new(model_setter),
+            model_getter: Arc::new(model_getter),
         }
     }
 
+    /// Called whenever the source data changes, so we can update the UI model accordingly.
+    /// Grab the existing model (if any) and edit it in place. If no model exists or types
+    /// mismatch, create a new one and store it via the `model_setter` closure.
     pub fn update_from_source(
         &self,
         source_data: Vec<U>,
     ) {
         let converter = self.converter.clone();
+        let comparer = self.comparer.clone();
         let view_handle = self.view_handle.clone();
         let model_setter = self.model_setter.clone();
+        let model_getter = self.model_getter.clone();
+
         let weak_handle = view_handle.lock().unwrap().clone();
 
+        // Schedule a UI update via Slint’s event loop.
         weak_handle
             .upgrade_in_event_loop(move |handle| {
-                let converted: Vec<T> = source_data.into_iter().map(|item| (converter)(item)).collect();
-                let model = VecModel::from(vec![]);
-                let mut has_changes = false;
+                // Try to grab the existing model from the UI.
+                let maybe_existing_model = (model_getter)(&handle);
 
-                // Get the current state.
-                let current_row_count = model.row_count();
-
-                // Update existing entries and add new ones.
-                for (index, new_entry) in converted.iter().enumerate() {
-                    if index < current_row_count {
-                        // Check if we need to update.
-                        if let Some(current) = model.row_data(index) {
-                            if current != *new_entry {
-                                model.set_row_data(index, new_entry.clone());
-                                has_changes = true;
-                            }
+                // Decide whether to re-use the existing model or create a new one.
+                let model_rc = match maybe_existing_model {
+                    Some(existing_model_rc) => {
+                        // Attempt downcast to VecModel<T>.
+                        if existing_model_rc
+                            .as_any()
+                            .downcast_ref::<VecModel<T>>()
+                            .is_some()
+                        {
+                            // We can re-use the existing VecModel
+                            existing_model_rc
+                        } else {
+                            // Downcast failed, create and set a new VecModel
+                            let new_model = VecModel::from(vec![]);
+                            let new_model_rc = ModelRc::new(new_model);
+                            (model_setter)(&handle, new_model_rc.clone());
+                            new_model_rc
                         }
-                    } else {
-                        // Add new entry.
-                        model.push(new_entry.clone());
-                        has_changes = true;
                     }
+                    None => {
+                        // No model present, create and set a new VecModel
+                        let new_model = VecModel::from(vec![]);
+                        let new_model_rc = ModelRc::new(new_model);
+                        (model_setter)(&handle, new_model_rc.clone());
+                        new_model_rc
+                    }
+                };
+
+                // At this point, we are guaranteed to have a VecModel<T>.
+                let vec_model = model_rc
+                    .as_any()
+                    .downcast_ref::<VecModel<T>>()
+                    .expect("The model in the UI is not a VecModel<T>—type mismatch!");
+
+                // Convert the incoming data items into the UI type T.
+                let converted: Vec<T> = source_data.into_iter().map(|item| (converter)(item)).collect();
+
+                // We'll use either the custom comparer or a fallback to `==`.
+                let compare_fn: Arc<dyn Fn(&T, &T) -> bool + Send + Sync> = {
+                    if let Some(c) = &comparer {
+                        c.clone()
+                    } else {
+                        // Fallback to standard equality
+                        Arc::new(|a: &T, b: &T| a == b) as Arc<dyn Fn(&T, &T) -> bool + Send + Sync>
+                    }
+                };
+
+                // In-place update for as many entries that overlap.
+                let mut index = 0;
+                while index < converted.len() && index < vec_model.row_count() {
+                    let current_row = vec_model.row_data(index).unwrap();
+                    let new_row = &converted[index];
+                    if !compare_fn(&current_row, new_row) {
+                        vec_model.set_row_data(index, new_row.clone());
+                    }
+                    index += 1;
                 }
 
-                // Remove excess entries if new data is shorter.
-                while model.row_count() > converted.len() {
-                    model.remove(model.row_count() - 1);
-                    has_changes = true;
+                // If the new data has more items than the existing model.
+                while index < converted.len() {
+                    vec_model.push(converted[index].clone());
+                    index += 1;
                 }
 
-                // Only update the UI if something actually changed.
-                if has_changes {
-                    let model_rc = ModelRc::from(Rc::new(model));
-                    (model_setter)(&handle, model_rc);
+                // If the new data has fewer items than the existing model.
+                while vec_model.row_count() > converted.len() {
+                    vec_model.remove(vec_model.row_count() - 1);
                 }
+
+                // IMPORTANT: We do *not* call (model_setter) here unless we created
+                // a new `VecModel` above. The existing model is already "wired up"
+                // and the in-place modifications have triggered the necessary UI updates.
             })
             .expect("Failed to schedule UI update");
     }
@@ -89,15 +154,17 @@ where
 
 impl<T, U, V> Clone for ViewModelCollection<T, U, V>
 where
-    T: Clone + PartialEq + 'static,
+    T: Clone + 'static,
     U: Send + 'static,
     V: 'static + ComponentHandle,
 {
     fn clone(&self) -> Self {
         ViewModelCollection {
             converter: self.converter.clone(),
+            comparer: self.comparer.clone(),
             view_handle: self.view_handle.clone(),
             model_setter: self.model_setter.clone(),
+            model_getter: self.model_getter.clone(),
         }
     }
 }
