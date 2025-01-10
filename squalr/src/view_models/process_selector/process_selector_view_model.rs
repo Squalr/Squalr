@@ -2,58 +2,46 @@ use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
 use crate::mvvm::view_binding::ViewBinding;
+use crate::mvvm::view_data_comparer::ViewDataComparer;
 use crate::mvvm::view_data_converter::ViewDataConverter;
-use crate::mvvm::view_model_collection::ViewModelCollection;
+use crate::mvvm::view_model_collection_binding::ViewModelCollectionBinding;
+use crate::view_models::process_selector::process_info_comparer::ProcessInfoComparer;
 use crate::view_models::process_selector::process_info_converter::ProcessInfoConverter;
 use slint::ComponentHandle;
 use slint_mvvm_macros::create_view_bindings;
+use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::session_manager::SessionManager;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_info::ProcessInfo;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use sysinfo::Pid;
 
 pub struct ProcessSelectorViewModel {
     _view_binding: ViewBinding<MainWindowView>,
-    processes_collection: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>,
-    _windowed_processes_collection: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>,
+    processes_collection: ViewModelCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
+    _windowed_processes_collection: ViewModelCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
 }
 
 impl ProcessSelectorViewModel {
     pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
-        let processes_collection = view_binding.create_collection(
-            |process: ProcessInfo| ProcessInfoConverter.convert(&process),
-            Some(Arc::new(|a: &ProcessViewData, b: &ProcessViewData| a.process_id == b.process_id)),
-            |view: &MainWindowView, model| {
-                view.global::<ProcessSelectorViewModelBindings>()
-                    .set_processes(model)
-            },
-            |view: &MainWindowView| {
-                Some(
-                    view.global::<ProcessSelectorViewModelBindings>()
-                        .get_processes(),
-                )
-            },
+        // Create a binding that allows us to easily update the view's process list.
+        let processes_collection = create_view_model_collection!(
+            view_binding -> MainWindowView,
+            ProcessSelectorViewModelBindings -> { set_processes, get_processes },
+            ProcessInfoConverter,
+            ProcessInfoComparer,
         );
 
-        let windowed_processes_collection = view_binding.create_collection(
-            |process: ProcessInfo| ProcessInfoConverter.convert(&process),
-            Some(Arc::new(|a: &ProcessViewData, b: &ProcessViewData| a.process_id == b.process_id)),
-            |view: &MainWindowView, model| {
-                view.global::<ProcessSelectorViewModelBindings>()
-                    .set_windowed_processes(model)
-            },
-            |view: &MainWindowView| {
-                Some(
-                    view.global::<ProcessSelectorViewModelBindings>()
-                        .get_windowed_processes(),
-                )
-            },
+        // Create a binding that allows us to easily update the view's windowed process list.
+        let windowed_processes_collection = create_view_model_collection!(
+            view_binding -> MainWindowView,
+            ProcessSelectorViewModelBindings -> { set_windowed_processes, get_windowed_processes },
+            ProcessInfoConverter,
+            ProcessInfoComparer,
         );
 
         let view = ProcessSelectorViewModel {
@@ -62,6 +50,7 @@ impl ProcessSelectorViewModel {
             _windowed_processes_collection: windowed_processes_collection.clone(),
         };
 
+        // Route all view bindings to Rust.
         create_view_bindings!(view_binding, {
             ProcessSelectorViewModelBindings => {
                 on_refresh_full_process_list() -> [processes_collection] -> Self::on_refresh_full_process_list
@@ -117,13 +106,13 @@ impl ProcessSelectorViewModel {
         }
     }
 
-    fn on_refresh_full_process_list(process_info_converter: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>) {
+    fn on_refresh_full_process_list(process_info_converter: ViewModelCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
         let process_query_options = Self::get_process_query_options(None, false, None);
         let processes = ProcessQuery::get_processes(process_query_options);
         process_info_converter.update_from_source(processes);
     }
 
-    fn on_refresh_windowed_process_list(windowed_process_info_converter: ViewModelCollection<ProcessViewData, ProcessInfo, MainWindowView>) {
+    fn on_refresh_windowed_process_list(windowed_process_info_converter: ViewModelCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
         let process_query_options = Self::get_process_query_options(None, true, None);
         let processes = ProcessQuery::get_processes(process_query_options);
         windowed_process_info_converter.update_from_source(processes);

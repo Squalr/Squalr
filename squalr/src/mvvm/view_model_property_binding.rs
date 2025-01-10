@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 /// Defines a collection (a vector) of data that automatically syncs to the UI.
 /// This is done by using the given converter to convert data to a type that the UI recognizes,
 /// and by retrieving the existing model (via a model_getter) so we can update it *in place*.
-pub struct ViewModelCollection<T, U, V>
+pub struct ViewModelPropertyBinding<T, U, V>
 where
     T: Clone + 'static,
     U: Send + 'static,
@@ -27,13 +27,13 @@ where
     model_getter: Arc<dyn Fn(&V) -> Option<ModelRc<T>> + Send + Sync>,
 }
 
-impl<T, U, V> ViewModelCollection<T, U, V>
+impl<T, U, V> ViewModelPropertyBinding<T, U, V>
 where
     T: Clone + PartialEq + 'static,
     U: Send + 'static,
     V: 'static + ComponentHandle,
 {
-    /// Create a new ViewModelCollection with:
+    /// Create a new ViewModelPropertyBinding with:
     /// - A converter: `U -> T`
     /// - A setter for storing the final `ModelRc<T>` (if we create a new one)
     /// - A getter for retrieving the existing `ModelRc<T>` (if any)
@@ -45,7 +45,7 @@ where
         model_setter: impl Fn(&V, ModelRc<T>) + Send + Sync + 'static,
         model_getter: impl Fn(&V) -> Option<ModelRc<T>> + Send + Sync + 'static,
     ) -> Self {
-        ViewModelCollection {
+        ViewModelPropertyBinding {
             converter: Arc::new(converter),
             comparer,
             view_handle: Arc::new(Mutex::new(view_handle.clone())),
@@ -152,14 +152,14 @@ where
     }
 }
 
-impl<T, U, V> Clone for ViewModelCollection<T, U, V>
+impl<T, U, V> Clone for ViewModelPropertyBinding<T, U, V>
 where
     T: Clone + 'static,
     U: Send + 'static,
     V: 'static + ComponentHandle,
 {
     fn clone(&self) -> Self {
-        ViewModelCollection {
+        ViewModelPropertyBinding {
             converter: self.converter.clone(),
             comparer: self.comparer.clone(),
             view_handle: self.view_handle.clone(),

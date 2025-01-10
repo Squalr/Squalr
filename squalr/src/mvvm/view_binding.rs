@@ -1,5 +1,4 @@
-use crate::mvvm::view_model_collection::ViewModelCollection;
-use slint::{ComponentHandle, ModelRc, Weak};
+use slint::{ComponentHandle, Weak};
 use std::sync::{Arc, Mutex};
 
 pub struct ViewBinding<T: 'static + ComponentHandle> {
@@ -35,22 +34,6 @@ impl<T: 'static + ComponentHandle> ViewBinding<T> {
         if let Err(e) = handle.upgrade_in_event_loop(move |view| f(&view, view_model)) {
             log::error!("Failed to upgrade view in event loop: {}", e);
         }
-    }
-
-    /// Helper function to easily create a view model collection for this view binding.
-    pub fn create_collection<SourceItem, TargetItem>(
-        &self,
-        converter: impl Fn(SourceItem) -> TargetItem + Send + Sync + 'static,
-        comparer: Option<Arc<dyn Fn(&TargetItem, &TargetItem) -> bool + Send + Sync>>, // NEW
-        model_setter: impl Fn(&T, ModelRc<TargetItem>) + Send + Sync + 'static,
-        model_getter: impl Fn(&T) -> Option<ModelRc<TargetItem>> + Send + Sync + 'static,
-    ) -> ViewModelCollection<TargetItem, SourceItem, T>
-    where
-        TargetItem: Clone + PartialEq + 'static,
-        SourceItem: Send + 'static,
-    {
-        let locked_handle = self.view_handle.lock().unwrap().clone();
-        ViewModelCollection::new(&locked_handle, converter, comparer, model_setter, model_getter)
     }
 }
 
