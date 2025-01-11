@@ -2,9 +2,9 @@ use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
 use crate::mvvm::view_binding::ViewBinding;
+use crate::mvvm::view_collection_binding::ViewCollectionBinding;
 use crate::mvvm::view_data_comparer::ViewDataComparer;
 use crate::mvvm::view_data_converter::ViewDataConverter;
-use crate::mvvm::view_model_collection_binding::ViewModelCollectionBinding;
 use crate::view_models::process_selector::process_info_comparer::ProcessInfoComparer;
 use crate::view_models::process_selector::process_info_converter::ProcessInfoConverter;
 use slint::ComponentHandle;
@@ -22,8 +22,8 @@ use sysinfo::Pid;
 
 pub struct ProcessSelectorViewModel {
     _view_binding: ViewBinding<MainWindowView>,
-    processes_collection: ViewModelCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
-    _windowed_processes_collection: ViewModelCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
+    processes_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
+    _windowed_processes_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
 }
 
 impl ProcessSelectorViewModel {
@@ -75,8 +75,8 @@ impl ProcessSelectorViewModel {
                     thread::sleep(Duration::from_millis(25));
                     continue;
                 }
-                for i in 1..=initial_processes.len() {
-                    processes_collection.update_from_source(initial_processes[..i].to_vec());
+                for index in 1..=initial_processes.len() {
+                    processes_collection.update_from_source(initial_processes[..index].to_vec());
                     thread::sleep(Duration::from_millis(5));
                 }
                 break;
@@ -106,13 +106,13 @@ impl ProcessSelectorViewModel {
         }
     }
 
-    fn on_refresh_full_process_list(process_info_converter: ViewModelCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
+    fn on_refresh_full_process_list(process_info_converter: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
         let process_query_options = Self::get_process_query_options(None, false, None);
         let processes = ProcessQuery::get_processes(process_query_options);
         process_info_converter.update_from_source(processes);
     }
 
-    fn on_refresh_windowed_process_list(windowed_process_info_converter: ViewModelCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
+    fn on_refresh_windowed_process_list(windowed_process_info_converter: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
         let process_query_options = Self::get_process_query_options(None, true, None);
         let processes = ProcessQuery::get_processes(process_query_options);
         windowed_process_info_converter.update_from_source(processes);

@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 /// Defines a collection (a vector) of data that automatically syncs to the UI.
 /// This is done by using the given converter to convert data to a type that the UI recognizes,
 /// and by retrieving the existing model (via a model_getter) so we can update it *in place*.
-pub struct ViewModelPropertyBinding<T, U, V>
+pub struct ViewCollectionBinding<T, U, V>
 where
     T: Clone + 'static,
     U: Send + 'static,
@@ -15,7 +15,7 @@ where
 
     /// An optional custom comparer for T. If `None`, fall back to `==`.
     /// If provided, should return true if the two T items are "equal" in your sense of equality.
-    comparer: Option<Arc<dyn Fn(&T, &T) -> bool + Send + Sync>>,
+    comparer: Arc<dyn Fn(&T, &T) -> bool + Send + Sync>,
 
     /// The handle to the UI component (for scheduling updates).
     view_handle: Arc<Mutex<Weak<V>>>,
@@ -24,30 +24,30 @@ where
     model_setter: Arc<dyn Fn(&V, ModelRc<T>) + Send + Sync>,
 
     /// A function that retrieves the current model from the UI (if any).
-    model_getter: Arc<dyn Fn(&V) -> Option<ModelRc<T>> + Send + Sync>,
+    model_getter: Arc<dyn Fn(&V) -> ModelRc<T> + Send + Sync>,
 }
 
-impl<T, U, V> ViewModelPropertyBinding<T, U, V>
+impl<T, U, V> ViewCollectionBinding<T, U, V>
 where
     T: Clone + PartialEq + 'static,
     U: Send + 'static,
     V: 'static + ComponentHandle,
 {
-    /// Create a new ViewModelPropertyBinding with:
+    /// Create a new ViewCollectionBinding with:
     /// - A converter: `U -> T`
     /// - A setter for storing the final `ModelRc<T>` (if we create a new one)
     /// - A getter for retrieving the existing `ModelRc<T>` (if any)
     /// - An optional comparer for T. If `None`, we default to using `==`.
     pub fn new(
         view_handle: &Weak<V>,
-        converter: impl Fn(U) -> T + Send + Sync + 'static,
-        comparer: Option<Arc<dyn Fn(&T, &T) -> bool + Send + Sync>>,
         model_setter: impl Fn(&V, ModelRc<T>) + Send + Sync + 'static,
-        model_getter: impl Fn(&V) -> Option<ModelRc<T>> + Send + Sync + 'static,
+        model_getter: impl Fn(&V) -> ModelRc<T> + Send + Sync + 'static,
+        converter: impl Fn(U) -> T + Send + Sync + 'static,
+        comparer: impl Fn(&T, &T) -> bool + Send + Sync + 'static,
     ) -> Self {
-        ViewModelPropertyBinding {
+        ViewCollectionBinding {
             converter: Arc::new(converter),
-            comparer,
+            comparer: Arc::new(comparer),
             view_handle: Arc::new(Mutex::new(view_handle.clone())),
             model_setter: Arc::new(model_setter),
             model_getter: Arc::new(model_getter),
@@ -73,34 +73,21 @@ where
         weak_handle
             .upgrade_in_event_loop(move |handle| {
                 // Try to grab the existing model from the UI.
-                let maybe_existing_model = (model_getter)(&handle);
+                let existing_model_rc = (model_getter)(&handle);
 
-                // Decide whether to re-use the existing model or create a new one.
-                let model_rc = match maybe_existing_model {
-                    Some(existing_model_rc) => {
-                        // Attempt downcast to VecModel<T>.
-                        if existing_model_rc
-                            .as_any()
-                            .downcast_ref::<VecModel<T>>()
-                            .is_some()
-                        {
-                            // We can re-use the existing VecModel
-                            existing_model_rc
-                        } else {
-                            // Downcast failed, create and set a new VecModel
-                            let new_model = VecModel::from(vec![]);
-                            let new_model_rc = ModelRc::new(new_model);
-                            (model_setter)(&handle, new_model_rc.clone());
-                            new_model_rc
-                        }
-                    }
-                    None => {
-                        // No model present, create and set a new VecModel
-                        let new_model = VecModel::from(vec![]);
-                        let new_model_rc = ModelRc::new(new_model);
-                        (model_setter)(&handle, new_model_rc.clone());
-                        new_model_rc
-                    }
+                let model_rc = if existing_model_rc
+                    .as_any()
+                    .downcast_ref::<VecModel<T>>()
+                    .is_some()
+                {
+                    // We can re-use the existing VecModel
+                    existing_model_rc
+                } else {
+                    // Downcast failed, create and set a new VecModel
+                    let new_model = VecModel::from(vec![]);
+                    let new_model_rc = ModelRc::new(new_model);
+                    (model_setter)(&handle, new_model_rc.clone());
+                    new_model_rc
                 };
 
                 // At this point, we are guaranteed to have a VecModel<T>.
@@ -112,22 +99,12 @@ where
                 // Convert the incoming data items into the UI type T.
                 let converted: Vec<T> = source_data.into_iter().map(|item| (converter)(item)).collect();
 
-                // We'll use either the custom comparer or a fallback to `==`.
-                let compare_fn: Arc<dyn Fn(&T, &T) -> bool + Send + Sync> = {
-                    if let Some(c) = &comparer {
-                        c.clone()
-                    } else {
-                        // Fallback to standard equality
-                        Arc::new(|a: &T, b: &T| a == b) as Arc<dyn Fn(&T, &T) -> bool + Send + Sync>
-                    }
-                };
-
                 // In-place update for as many entries that overlap.
                 let mut index = 0;
                 while index < converted.len() && index < vec_model.row_count() {
                     let current_row = vec_model.row_data(index).unwrap();
                     let new_row = &converted[index];
-                    if !compare_fn(&current_row, new_row) {
+                    if !comparer(&current_row, new_row) {
                         vec_model.set_row_data(index, new_row.clone());
                     }
                     index += 1;
@@ -152,14 +129,14 @@ where
     }
 }
 
-impl<T, U, V> Clone for ViewModelPropertyBinding<T, U, V>
+impl<T, U, V> Clone for ViewCollectionBinding<T, U, V>
 where
     T: Clone + 'static,
     U: Send + 'static,
     V: 'static + ComponentHandle,
 {
     fn clone(&self) -> Self {
-        ViewModelPropertyBinding {
+        ViewCollectionBinding {
             converter: self.converter.clone(),
             comparer: self.comparer.clone(),
             view_handle: self.view_handle.clone(),

@@ -94,7 +94,7 @@ impl CreateViewModelCollectionInput {
         // Generate the desired code:
         //
         // 1) Acquire the Weak<MainWindowView> (or default if lock is poisoned).
-        // 2) Build the `ViewModelCollectionBinding::new(...)`.
+        // 2) Build the `ViewCollectionBinding::new(...)`.
 
         quote! {
             {
@@ -103,7 +103,7 @@ impl CreateViewModelCollectionInput {
                     .lock()
                     .map_or_else(|_| slint::Weak::default(), |guard| guard.clone());
 
-                ViewModelCollectionBinding::new(
+                ViewCollectionBinding::new(
                     &view_handle,
                     |view: &#view_type, model| {
                         view.global::<#bindings_type>()
