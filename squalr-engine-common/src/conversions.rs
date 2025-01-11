@@ -2,9 +2,9 @@ use std::num::ParseIntError;
 
 pub fn parse_hex_or_int(src: &str) -> Result<u64, std::num::ParseIntError> {
     if src.starts_with("0x") || src.starts_with("0X") {
-        return u64::from_str_radix(&src[2..], 16);
+        u64::from_str_radix(&src[2..], 16)
     } else {
-        return src.parse::<u64>();
+        src.parse::<u64>()
     }
 }
 
@@ -20,7 +20,7 @@ pub fn value_to_metric_size(value: u64) -> String {
     let number = (value as f64) / 1024f64.powi(place as i32);
     let rounded_number = (number * 10.0).round() / 10.0;
 
-    return format!("{:.1}{}", rounded_number, suffix[place]);
+    format!("{:.1}{}", rounded_number, suffix[place])
 }
 
 // Converts an address string to a raw u64 value.
@@ -35,5 +35,5 @@ pub fn address_to_value(address: &str) -> Result<u64, ParseIntError> {
         return Ok(0);
     }
 
-    return u64::from_str_radix(trimmed_address, 16);
+    u64::from_str_radix(trimmed_address, 16)
 }

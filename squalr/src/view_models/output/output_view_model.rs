@@ -13,7 +13,7 @@ impl OutputViewModel {
     pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
         let view = OutputViewModel { view_binding: view_binding };
 
-        return view;
+        view
     }
 }
 

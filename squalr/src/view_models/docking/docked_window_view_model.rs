@@ -36,7 +36,7 @@ impl DockedWindowViewModel {
             }
         });
 
-        return view;
+        view
     }
 
     fn on_minimize() {

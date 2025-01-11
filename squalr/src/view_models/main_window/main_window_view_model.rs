@@ -37,7 +37,7 @@ impl MainWindowViewModel {
             }
         });
 
-        return view;
+        view
     }
 
     pub fn initialize(&self) {

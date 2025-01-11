@@ -14,7 +14,7 @@ impl<T: 'static + ComponentHandle> ViewBinding<T> {
 
     /// Gets the handle to the view being bound.
     pub fn get_view_handle(&self) -> &Arc<Mutex<Weak<T>>> {
-        return &self.view_handle;
+        &self.view_handle
     }
 
     /// Executes a function on the UI thread, while also capturing the window view and this view binding as variables.

@@ -61,7 +61,7 @@ impl DockRootViewModel {
 
         Self::propagate_layout(&view.view_binding, &view.docking_layout);
 
-        return view;
+        view
     }
 
     pub fn initialize(&self) {

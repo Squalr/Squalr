@@ -9,6 +9,6 @@ impl ManualScanViewModel {
     pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
         let view = ManualScanViewModel { _view_binding: view_binding };
 
-        return view;
+        view
     }
 }

@@ -27,7 +27,7 @@ impl SessionManager {
             });
 
             #[allow(static_mut_refs)]
-            return INSTANCE.as_ref().unwrap_unchecked().clone();
+            INSTANCE.as_ref().unwrap_unchecked().clone()
         }
     }
 
@@ -59,6 +59,6 @@ impl SessionManager {
     }
 
     pub fn get_snapshot(&self) -> Arc<RwLock<Snapshot>> {
-        return self.snapshot.clone();
+        self.snapshot.clone()
     }
 }

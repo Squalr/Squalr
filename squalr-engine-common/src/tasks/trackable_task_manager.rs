@@ -24,7 +24,7 @@ impl<T: Send + Sync + 'static> TrackableTaskManager<T> {
                 INSTANCE = Box::into_raw(Box::new(singleton));
             });
 
-            return &*INSTANCE;
+            &*INSTANCE
         }
     }
 
