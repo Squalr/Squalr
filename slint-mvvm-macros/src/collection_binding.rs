@@ -1,4 +1,4 @@
-//! collection_binding.rs - defines `CreateViewModelCollectionInput` and its logic.
+//! collection_binding.rs - defines `CreateViewCollectionBindingInput` and its logic.
 
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -18,7 +18,7 @@ use syn::{
 /// );
 ///
 /// The fields below store each piece of that invocation.
-pub struct CreateViewModelCollectionInput {
+pub struct CreateViewCollectionBindingInput {
     pub view_binding_ident: Ident,
     pub view_type: Path,
     pub bindings_type: Path,
@@ -28,7 +28,7 @@ pub struct CreateViewModelCollectionInput {
     pub comparer_type: Type,
 }
 
-impl Parse for CreateViewModelCollectionInput {
+impl Parse for CreateViewCollectionBindingInput {
     fn parse(input: ParseStream) -> Result<Self> {
         //
         // Example syntax to parse:
@@ -77,7 +77,7 @@ impl Parse for CreateViewModelCollectionInput {
     }
 }
 
-impl CreateViewModelCollectionInput {
+impl CreateViewCollectionBindingInput {
     /// This method returns the generated `TokenStream` that implements
     /// our macro’s expansion.
     pub fn expand(&self) -> TokenStream {
@@ -95,15 +95,19 @@ impl CreateViewModelCollectionInput {
         //
         // 1) Acquire the Weak<MainWindowView> (or default if lock is poisoned).
         // 2) Build the `ViewCollectionBinding::new(...)`.
-
         quote! {
             {
+                // Acquire the Weak<MainWindowView> (or default if lock is poisoned).
                 let view_handle = #view_binding_ident
                     .get_view_handle()
                     .lock()
-                    .map_or_else(|_| slint::Weak::default(), |guard| guard.clone());
+                    .map_or_else(
+                        |_| ::slint::Weak::default(),
+                        |guard| guard.clone()
+                    );
 
-                ViewCollectionBinding::new(
+                // Use the absolute path so the user doesn't have to import it.
+                ::slint_mvvm::view_collection_binding::ViewCollectionBinding::new(
                     &view_handle,
                     |view: &#view_type, model| {
                         view.global::<#bindings_type>()
@@ -113,8 +117,14 @@ impl CreateViewModelCollectionInput {
                         view.global::<#bindings_type>()
                             .#getter_ident()
                     },
-                    |process| #converter_type.convert(&process),
-                    |a, b| #comparer_type.compare(&a, &b),
+                    |source_item| {
+                        use slint_mvvm::view_data_converter::ViewDataConverter;
+                        #converter_type::convert_to_view_data(&source_item)
+                    },
+                    |a, b| {
+                        use slint_mvvm::view_data_comparer::ViewDataComparer;
+                        #comparer_type::compare(a, b)
+                    },
                 )
             }
         }

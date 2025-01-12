@@ -1,7 +1,7 @@
 use crate::MainWindowView;
 use crate::OutputViewModelBindings;
-use crate::mvvm::view_binding::ViewBinding;
 use slint::ComponentHandle;
+use slint_mvvm::view_binding::ViewBinding;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger_observer::LoggerObserver;
 

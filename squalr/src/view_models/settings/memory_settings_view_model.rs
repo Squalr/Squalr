@@ -1,7 +1,7 @@
 use crate::MainWindowView;
 use crate::MemorySettingsViewModelBindings;
-use crate::mvvm::view_binding::ViewBinding;
 use slint::ComponentHandle;
+use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine_memory::memory_settings::MemorySettings;
 

@@ -3,7 +3,6 @@ use crate::DockedWindowViewModelBindings;
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
 use crate::models::docking::docking_layout::DockingLayout;
-use crate::mvvm::view_binding::ViewBinding;
 use crate::view_models::docking::docked_window_view_model::DockedWindowViewModel;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
@@ -13,6 +12,7 @@ use crate::view_models::settings::scan_settings_view_model::ScanSettingsViewMode
 use slint::ComponentHandle;
 use slint::ModelRc;
 use slint::VecModel;
+use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use std::borrow::BorrowMut;
 use std::sync::Arc;

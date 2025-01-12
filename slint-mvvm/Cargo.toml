@@ -1,0 +1,12 @@
+[package]
+name = "slint-mvvm"
+version = "0.1.0"
+authors = ["Zachary Canann"]
+edition = "2021"
+
+[dependencies]
+log = ">=0.4.22"
+slint = { version = ">=1.9.1", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "renderer-femtovg", "std"] }
+
+[build-dependencies]
+

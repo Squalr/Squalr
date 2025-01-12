@@ -1,13 +1,12 @@
 use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
-use crate::mvvm::view_binding::ViewBinding;
-use crate::mvvm::view_collection_binding::ViewCollectionBinding;
-use crate::mvvm::view_data_comparer::ViewDataComparer;
-use crate::mvvm::view_data_converter::ViewDataConverter;
 use crate::view_models::process_selector::process_info_comparer::ProcessInfoComparer;
 use crate::view_models::process_selector::process_info_converter::ProcessInfoConverter;
 use slint::ComponentHandle;
+use slint_mvvm::view_binding::ViewBinding;
+use slint_mvvm::view_collection_binding::ViewCollectionBinding;
+use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::session_manager::SessionManager;
@@ -135,7 +134,7 @@ impl ProcessSelectorViewModel {
                         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
                             main_window_view
                                 .global::<ProcessSelectorViewModelBindings>()
-                                .set_selected_process(ProcessInfoConverter.convert(&process_to_open));
+                                .set_selected_process(ProcessInfoConverter::convert_to_view_data(&process_to_open));
                         });
                     } else {
                         Logger::get_instance().log(LogLevel::Warn, "Failed to open process.", None);

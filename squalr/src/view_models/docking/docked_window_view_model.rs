@@ -1,9 +1,9 @@
 use crate::DockedWindowViewModelBindings;
 use crate::MainWindowView;
 use crate::models::docking::docking_layout::DockingLayout;
-use crate::mvvm::view_binding::ViewBinding;
 use slint::ComponentHandle;
 use slint::SharedString;
+use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use std::sync::Arc;
 use std::sync::Mutex;

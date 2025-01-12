@@ -1,7 +1,7 @@
 use crate::UndockedWindowView;
 use crate::WindowViewModelBindings;
-use crate::mvvm::view_binding::ViewBinding;
 use slint::ComponentHandle;
+use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 
 pub struct UndockedWindowViewModel {

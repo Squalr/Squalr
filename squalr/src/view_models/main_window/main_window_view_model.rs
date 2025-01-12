@@ -1,8 +1,8 @@
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
-use crate::mvvm::view_binding::ViewBinding;
 use crate::view_models::docking::dock_root_view_model::DockRootViewModel;
 use slint::ComponentHandle;
+use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine_common::logging::logger::Logger;
 use std::sync::Arc;

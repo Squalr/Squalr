@@ -1,16 +1,13 @@
 use crate::ProcessViewData;
-use crate::mvvm::view_data_converter::ViewDataConverter;
 use slint::Image;
 use slint::SharedPixelBuffer;
+use slint_mvvm::view_data_converter::ViewDataConverter;
 use squalr_engine_processes::process_info::ProcessInfo;
 
 pub struct ProcessInfoConverter;
 
 impl ViewDataConverter<ProcessInfo, ProcessViewData> for ProcessInfoConverter {
-    fn convert(
-        &self,
-        process_info: &ProcessInfo,
-    ) -> ProcessViewData {
+    fn convert_to_view_data(process_info: &ProcessInfo) -> ProcessViewData {
         let icon = if let Some(icon_data) = &process_info.icon {
             // Create new buffer and copy the data
             let mut icon_buffer = SharedPixelBuffer::new(icon_data.width, icon_data.height);
@@ -31,5 +28,9 @@ impl ViewDataConverter<ProcessInfo, ProcessViewData> for ProcessInfoConverter {
             name: process_info.name.to_string().into(),
             icon,
         }
+    }
+
+    fn convert_from_view_data(_: &ProcessViewData) -> ProcessInfo {
+        panic!("Not implemented!");
     }
 }

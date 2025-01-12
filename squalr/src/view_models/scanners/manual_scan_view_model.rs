@@ -1,5 +1,5 @@
 use crate::MainWindowView;
-use crate::mvvm::view_binding::ViewBinding;
+use slint_mvvm::view_binding::ViewBinding;
 
 pub struct ManualScanViewModel {
     _view_binding: ViewBinding<MainWindowView>,
