@@ -1,6 +1,7 @@
 use crate::DockRootViewModelBindings;
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
+use crate::models::docking::dock_node::DockNode;
 use crate::models::docking::docking_layout::DockingLayout;
 use crate::view_models::docking::dock_panel_converter::DockPanelConverter;
 use crate::view_models::docking::docked_window_view_model::DockedWindowViewModel;
@@ -13,13 +14,12 @@ use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
-use std::borrow::BorrowMut;
 use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 pub struct DockRootViewModel {
     view_binding: ViewBinding<MainWindowView>,
-    _docking_layout: Arc<Mutex<DockingLayout>>,
+    _docking_layout: Arc<RwLock<DockingLayout>>,
     docked_window_view_model: Arc<DockedWindowViewModel>,
     manual_scan_view_model: Arc<ManualScanViewModel>,
     memory_settings_view_model: Arc<MemorySettingsViewModel>,
@@ -30,7 +30,7 @@ pub struct DockRootViewModel {
 
 impl DockRootViewModel {
     pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
-        let docking_layout = Arc::new(Mutex::new(DockingLayout::from_settings()));
+        let docking_layout = Arc::new(RwLock::new(DockingLayout::from_settings()));
 
         let view: DockRootViewModel = DockRootViewModel {
             view_binding: view_binding.clone(),
@@ -46,7 +46,7 @@ impl DockRootViewModel {
         // Initialize the dock root size
         let docking_layout_clone = docking_layout.clone();
         view_binding.execute_immediately(move |main_window_view, _| {
-            if let Ok(mut docking_layout) = docking_layout_clone.lock() {
+            if let Ok(mut docking_layout) = docking_layout_clone.write() {
                 let dock_root_bindings = main_window_view.global::<DockRootViewModelBindings>();
                 docking_layout.set_available_size(
                     dock_root_bindings.get_initial_dock_root_width(),
@@ -164,63 +164,77 @@ impl DockRootViewModel {
 
     fn on_update_dock_root_size(
         view_binding: ViewBinding<MainWindowView>,
-        docking_layout: Arc<Mutex<DockingLayout>>,
+        docking_layout: Arc<RwLock<DockingLayout>>,
         width: f32,
         height: f32,
     ) -> f32 {
-        docking_layout
-            .lock()
-            .unwrap()
-            .borrow_mut()
-            .set_available_size(width, height);
+        if let Ok(mut layout_guard) = docking_layout.write() {
+            layout_guard.set_available_size(width, height);
+        } else {
+            log::error!("Could not acquire docking_layout write lock in on_update_dock_root_size");
+        }
 
-        Self::propagate_layouts(view_binding, docking_layout);
+        Self::propagate_layout(view_binding, docking_layout);
 
-        // Return 0 as part of a UI hack to abuse slint bindings to get very responsive UI resizing.
+        // Return 0 as part of a UI hack to get responsive UI resizing.
         0.0
     }
 
     fn on_update_dock_root_width(
         view_binding: ViewBinding<MainWindowView>,
-        docking_layout: Arc<Mutex<DockingLayout>>,
+        docking_layout: Arc<RwLock<DockingLayout>>,
         width: f32,
     ) {
-        docking_layout
-            .lock()
-            .unwrap()
-            .borrow_mut()
-            .set_available_width(width);
+        if let Ok(mut layout_guard) = docking_layout.write() {
+            layout_guard.set_available_width(width);
+        } else {
+            log::error!("Could not acquire docking_layout write lock in on_update_dock_root_width");
+            return;
+        }
 
-        Self::propagate_layouts(view_binding, docking_layout);
+        Self::propagate_layout(view_binding, docking_layout);
     }
 
     fn on_update_dock_root_height(
         view_binding: ViewBinding<MainWindowView>,
-        docking_layout: Arc<Mutex<DockingLayout>>,
+        docking_layout: Arc<RwLock<DockingLayout>>,
         height: f32,
     ) {
-        docking_layout
-            .lock()
-            .unwrap()
-            .borrow_mut()
-            .set_available_height(height);
+        if let Ok(mut layout_guard) = docking_layout.write() {
+            layout_guard.set_available_height(height);
+        } else {
+            log::error!("Could not acquire docking_layout write lock in on_update_dock_root_height");
+            return;
+        }
 
-        Self::propagate_layouts(view_binding, docking_layout);
+        Self::propagate_layout(view_binding, docking_layout);
     }
 
-    fn propagate_layouts(
+    fn propagate_layout(
         view_binding: ViewBinding<MainWindowView>,
-        docking_layout: Arc<Mutex<DockingLayout>>,
+        docking_layout: Arc<RwLock<DockingLayout>>,
     ) {
         view_binding.execute_immediately(move |main_window_view, _view_binding| {
             let dock_root_bindings = main_window_view.global::<DockRootViewModelBindings>();
             let converter = DockPanelConverter::new(docking_layout.clone());
-            let nodes = docking_layout.lock().unwrap().get_all_nodes();
 
-            for node in nodes {
-                let view_data = converter.convert_to_view_data(&node);
+            // Acquire the read lock once for all operations.
+            let layout_guard = match docking_layout.read() {
+                Ok(guard) => guard,
+                Err(e) => {
+                    log::error!("Failed to acquire read lock on docking_layout: {}", e);
+                    return;
+                }
+            };
 
-                match node.window_identifier.as_str() {
+            let identifiers = layout_guard.get_all_leaves();
+            let default = DockNode::default();
+
+            for identifier in identifiers {
+                let node = layout_guard.get_node_by_id(&identifier).unwrap_or(&default);
+                let view_data = converter.convert_to_view_data(node);
+
+                match identifier.as_str() {
                     "settings" => {
                         dock_root_bindings.set_settings_panel(view_data);
                     }
@@ -240,7 +254,7 @@ impl DockRootViewModel {
                         dock_root_bindings.set_project_explorer_panel(view_data);
                     }
                     _ => {
-                        log::warn!("Unknown window identifier: {}", node.window_identifier);
+                        log::warn!("Unknown window identifier: {}", identifier);
                     }
                 }
             }

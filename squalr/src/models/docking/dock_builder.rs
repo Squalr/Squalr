@@ -1,73 +1,144 @@
+use crate::models::docking::dock_node::DockNode;
 use crate::models::docking::dock_split_direction::DockSplitDirection;
-use crate::models::docking::docked_window_node::DockedWindowNode;
 
-#[derive(Default)]
+#[derive(Debug)]
+pub enum DockBuilderKind {
+    Split {
+        direction: DockSplitDirection,
+        children: Vec<DockBuilder>,
+    },
+    Tab {
+        tabs: Vec<DockBuilder>,
+    },
+    Leaf {
+        window_identifier: String,
+    },
+}
+
+#[derive(Debug)]
 pub struct DockBuilder {
-    id: String,
-    direction: DockSplitDirection,
+    kind: DockBuilderKind,
     is_visible: bool,
     ratio: f32,
-    children: Vec<DockBuilder>,
 }
 
 impl DockBuilder {
-    pub fn new(id: impl Into<String>) -> Self {
+    /// Create a new builder for a Leaf node.
+    pub fn leaf(id: impl Into<String>) -> Self {
         Self {
-            id: id.into(),
-            direction: DockSplitDirection::Horizontal,
+            kind: DockBuilderKind::Leaf { window_identifier: id.into() },
             is_visible: true,
             ratio: 1.0,
-            children: Vec::new(),
         }
     }
 
-    pub fn build(self) -> DockedWindowNode {
-        DockedWindowNode {
-            window_identifier: self.id,
-            direction: self.direction,
-            is_visible: self.is_visible,
-            ratio: self.ratio,
-            children: self.children.into_iter().map(|b| b.build()).collect(),
+    /// Create a new builder for a Split node.
+    pub fn split_node(direction: DockSplitDirection) -> Self {
+        Self {
+            kind: DockBuilderKind::Split {
+                direction,
+                children: Vec::new(),
+            },
+            is_visible: true,
+            ratio: 1.0,
         }
     }
 
-    pub fn direction(
-        mut self,
-        direction: DockSplitDirection,
-    ) -> Self {
-        self.direction = direction;
-        self
-    }
-
-    pub fn is_visible(
-        mut self,
-        is_visible: bool,
-    ) -> Self {
-        self.is_visible = is_visible;
-        self
-    }
-
-    pub fn split(
-        mut self,
-        ratio: f32,
-        builder: DockBuilder,
-    ) -> Self {
-        if self.children.is_empty() {
-            // If this is the first split, the builder becomes the first child
-            self.children.push(builder.ratio(ratio));
-            self.id = format!("{}_container", self.id);
-        } else {
-            // For subsequent splits, just add the new child with its ratio
-            self.children.push(builder.ratio(ratio));
+    /// Create a new builder for a Tab container node.
+    pub fn tab_node() -> Self {
+        Self {
+            kind: DockBuilderKind::Tab { tabs: Vec::new() },
+            is_visible: true,
+            ratio: 1.0,
         }
-        self
     }
 
+    /// Sets the ratio for this node (relevant for siblings).
     pub fn ratio(
         mut self,
         ratio: f32,
     ) -> Self {
         self.ratio = ratio;
         self
+    }
+
+    /// Sets visibility.
+    pub fn visible(
+        mut self,
+        visible: bool,
+    ) -> Self {
+        self.is_visible = visible;
+        self
+    }
+
+    /// Push a child into a Split node.
+    pub fn push_child(
+        mut self,
+        ratio: f32,
+        child: DockBuilder,
+    ) -> Self {
+        match &mut self.kind {
+            DockBuilderKind::Split { children, .. } => {
+                children.push(child.ratio(ratio));
+            }
+            _ => {
+                panic!("push_child() called on a non-Split builder.");
+            }
+        }
+        self
+    }
+
+    /// Push a tab into a Tab container node.
+    pub fn push_tab(
+        mut self,
+        child: DockBuilder,
+    ) -> Self {
+        match &mut self.kind {
+            DockBuilderKind::Tab { tabs, .. } => {
+                tabs.push(child);
+            }
+            _ => {
+                panic!("push_tab() called on a non-Tab builder.");
+            }
+        }
+        self
+    }
+
+    /// Sets (or overrides) the split direction if this is a Split node.
+    pub fn direction(
+        mut self,
+        direction: DockSplitDirection,
+    ) -> Self {
+        match &mut self.kind {
+            DockBuilderKind::Split { direction: dir, .. } => {
+                *dir = direction;
+            }
+            _ => {
+                panic!("direction() called on a non-Split builder.");
+            }
+        }
+        self
+    }
+
+    /// Consume the builder and produce a `DockNode`.
+    pub fn build(self) -> DockNode {
+        match self.kind {
+            DockBuilderKind::Split { direction, children } => DockNode::Split {
+                direction,
+                is_visible: self.is_visible,
+                ratio: self.ratio,
+                children: children.into_iter().map(|b| b.build()).collect(),
+            },
+            DockBuilderKind::Tab { tabs } => DockNode::Tab {
+                is_visible: self.is_visible,
+                ratio: self.ratio,
+                tabs: tabs.into_iter().map(|b| b.build()).collect(),
+            },
+            DockBuilderKind::Leaf { window_identifier } => DockNode::Leaf {
+                window_identifier,
+                is_visible: self.is_visible,
+                ratio: self.ratio,
+            },
+        }
     }
 }

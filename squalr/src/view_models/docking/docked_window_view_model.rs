@@ -6,17 +6,17 @@ use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 pub struct DockedWindowViewModel {
     _view_binding: ViewBinding<MainWindowView>,
-    _docking_layout: Arc<Mutex<DockingLayout>>,
+    _docking_layout: Arc<RwLock<DockingLayout>>,
 }
 
 impl DockedWindowViewModel {
     pub fn new(
         view_binding: ViewBinding<MainWindowView>,
-        docking_layout: Arc<Mutex<DockingLayout>>,
+        docking_layout: Arc<RwLock<DockingLayout>>,
     ) -> Self {
         let view = DockedWindowViewModel {
             _view_binding: view_binding.clone(),

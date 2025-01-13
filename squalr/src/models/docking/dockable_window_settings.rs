@@ -1,4 +1,4 @@
-use crate::models::docking::docked_window_node::DockedWindowNode;
+use crate::models::docking::dock_node::DockNode;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use squalr_engine_common::config::serialized_config_updater;
@@ -9,13 +9,13 @@ use std::sync::{Arc, RwLock};
 
 #[derive(Deserialize, Serialize)]
 pub struct Config {
-    pub dock_root: DockedWindowNode,
+    pub dock_root: DockNode,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            dock_root: DockedWindowNode::default(),
+            dock_root: DockNode::default(),
         }
     }
 }
@@ -77,13 +77,13 @@ impl DockableWindowSettings {
         &self.config
     }
 
-    pub fn get_dock_layout_settings(&self) -> Option<DockedWindowNode> {
+    pub fn get_dock_layout_settings(&self) -> Option<DockNode> {
         Some(self.config.read().unwrap().dock_root.clone())
     }
 
     pub fn set_dock_layout_settings(
         &self,
-        settings: DockedWindowNode,
+        settings: DockNode,
     ) {
         self.config.write().unwrap().dock_root = settings;
         self.save_config();
