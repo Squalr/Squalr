@@ -6,8 +6,27 @@ use squalr_engine_processes::process_info::ProcessInfo;
 
 pub struct ProcessInfoConverter;
 
+impl ProcessInfoConverter {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 impl ViewDataConverter<ProcessInfo, ProcessViewData> for ProcessInfoConverter {
-    fn convert_to_view_data(process_info: &ProcessInfo) -> ProcessViewData {
+    fn convert_collection(
+        &self,
+        process_info_list: &Vec<ProcessInfo>,
+    ) -> Vec<ProcessViewData> {
+        return process_info_list
+            .into_iter()
+            .map(|item| self.convert_to_view_data(item))
+            .collect();
+    }
+
+    fn convert_to_view_data(
+        &self,
+        process_info: &ProcessInfo,
+    ) -> ProcessViewData {
         let icon = if let Some(icon_data) = &process_info.icon {
             // Create new buffer and copy the data
             let mut icon_buffer = SharedPixelBuffer::new(icon_data.width, icon_data.height);
@@ -30,7 +49,10 @@ impl ViewDataConverter<ProcessInfo, ProcessViewData> for ProcessInfoConverter {
         }
     }
 
-    fn convert_from_view_data(_: &ProcessViewData) -> ProcessInfo {
+    fn convert_from_view_data(
+        &self,
+        _: &ProcessViewData,
+    ) -> ProcessInfo {
         panic!("Not implemented!");
     }
 }

@@ -1,6 +1,6 @@
 use crate::models::docking::dock_builder::DockBuilder;
+use crate::models::docking::dock_split_direction::DockSplitDirection;
 use crate::models::docking::dockable_window_settings::DockableWindowSettings;
-use crate::models::docking::docked_window_node::DockSplitDirection;
 use crate::models::docking::docked_window_node::DockedWindowNode;
 
 pub struct DockingLayout {
@@ -95,6 +95,25 @@ impl DockingLayout {
             }
         } else {
             false
+        }
+    }
+
+    pub fn get_all_nodes(&self) -> Vec<DockedWindowNode> {
+        let mut nodes = Vec::new();
+        Self::collect_nodes(&self.root, &mut nodes);
+        nodes
+    }
+
+    fn collect_nodes<'a>(
+        node: &'a DockedWindowNode,
+        nodes: &mut Vec<DockedWindowNode>,
+    ) {
+        // Add current node
+        nodes.push(node.clone());
+
+        // Recursively collect child nodes
+        for child in &node.children {
+            Self::collect_nodes(child, nodes);
         }
     }
 

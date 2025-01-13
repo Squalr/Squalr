@@ -14,7 +14,7 @@ export global WindowViewModelBindings {
     callback play-sound(string);
 }
 
-export struct DockedWindowData {
+export struct DockedWindowViewData {
     identifier: string,
     is-docked: bool,
     is-visible: bool,
@@ -30,19 +30,18 @@ export global DockedWindowViewModelBindings {
     callback maximize();
     callback minimize();
     callback double-clicked();
-    callback drag-left(string, int, int);
-    callback drag-right(string, int, int);
-    callback drag-top(string, int, int);
-    callback drag-bottom(string, int, int);
-    pure callback update_dock_root_width(length);
-    pure callback update_dock_root_height(length);
-    pure callback update_dock_root_size(length, length) -> length;
-    in-out property <DockedWindowData> scan-results-panel;
-    in-out property <DockedWindowData> output-panel;
-    in-out property <DockedWindowData> process-selector-panel;
-    in-out property <DockedWindowData> property-viewer-panel;
-    in-out property <DockedWindowData> project-explorer-panel;
-    in-out property <DockedWindowData> settings-panel;
+    callback drag-left(identifier: string, delta-x: int, delta-y: int);
+    callback drag-right(identifier: string, delta-x: int, delta-y: int);
+    callback drag-top(identifier: string, delta-x: int, delta-y: int);
+    callback drag-bottom(identifier: string, delta-x: int, delta-y: int);
+}
+
+export global DockRootViewModelBindings {
+    pure callback update-dock-root-width(width: length);
+    pure callback update-dock-root-height(height: length);
+    pure callback update-dock-root-size(width: length, height: length) -> length;
+    pure callback get-docked-window-data(identifier: string) -> DockedWindowViewData;
+    in-out property <[DockedWindowViewData]> dock-panels;
 }
 
 export struct ProcessViewData {

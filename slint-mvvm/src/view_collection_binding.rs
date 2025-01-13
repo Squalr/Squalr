@@ -10,8 +10,8 @@ where
     U: Send + 'static,
     V: 'static + ComponentHandle,
 {
-    /// A function that converts your `U` into a `T` recognized by the UI.
-    converter: Arc<dyn Fn(U) -> T + Send + Sync>,
+    /// A function that converts your `U` collection into a `T` collection recognized by the UI.
+    converter: Arc<dyn Fn(&Vec<U>) -> Vec<T> + Send + Sync>,
 
     /// An optional custom comparer for T. If `None`, fall back to `==`.
     /// If provided, should return true if the two T items are "equal" in your sense of equality.
@@ -42,7 +42,7 @@ where
         view_handle: &Weak<V>,
         model_setter: impl Fn(&V, ModelRc<T>) + Send + Sync + 'static,
         model_getter: impl Fn(&V) -> ModelRc<T> + Send + Sync + 'static,
-        converter: impl Fn(U) -> T + Send + Sync + 'static,
+        converter: impl Fn(&Vec<U>) -> Vec<T> + Send + Sync + 'static,
         comparer: impl Fn(&T, &T) -> bool + Send + Sync + 'static,
     ) -> Self {
         ViewCollectionBinding {
@@ -51,6 +51,20 @@ where
             view_handle: Arc::new(Mutex::new(view_handle.clone())),
             model_setter: Arc::new(model_setter),
             model_getter: Arc::new(model_getter),
+        }
+    }
+
+    pub fn get_view_data(&self) -> ModelRc<T> {
+        let view_handle = self.view_handle.clone();
+        let model_getter = self.model_getter.clone();
+
+        let weak_handle = view_handle.lock().unwrap().clone();
+
+        // Schedule a UI update via Slint’s event loop.
+        if let Some(handle) = weak_handle.upgrade() {
+            (model_getter)(&handle)
+        } else {
+            ModelRc::default()
         }
     }
 
@@ -97,7 +111,7 @@ where
                     .expect("The model in the UI is not a VecModel<T>—type mismatch!");
 
                 // Convert the incoming data items into the UI type T.
-                let converted: Vec<T> = source_data.into_iter().map(|item| (converter)(item)).collect();
+                let converted = (converter)(&source_data);
 
                 // In-place update for as many entries that overlap.
                 let mut index = 0;

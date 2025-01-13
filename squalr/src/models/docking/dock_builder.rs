@@ -1,4 +1,4 @@
-use crate::models::docking::docked_window_node::DockSplitDirection;
+use crate::models::docking::dock_split_direction::DockSplitDirection;
 use crate::models::docking::docked_window_node::DockedWindowNode;
 
 #[derive(Default)]

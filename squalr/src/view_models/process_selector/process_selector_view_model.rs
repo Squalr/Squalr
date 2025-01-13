@@ -31,16 +31,16 @@ impl ProcessSelectorViewModel {
         let processes_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
             ProcessSelectorViewModelBindings -> { set_processes, get_processes },
-            ProcessInfoConverter,
-            ProcessInfoComparer,
+            ProcessInfoConverter -> [],
+            ProcessInfoComparer -> [],
         );
 
         // Create a binding that allows us to easily update the view's windowed process list.
         let windowed_processes_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
             ProcessSelectorViewModelBindings -> { set_windowed_processes, get_windowed_processes },
-            ProcessInfoConverter,
-            ProcessInfoComparer,
+            ProcessInfoConverter -> [],
+            ProcessInfoComparer -> [],
         );
 
         let view = ProcessSelectorViewModel {
@@ -134,7 +134,7 @@ impl ProcessSelectorViewModel {
                         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
                             main_window_view
                                 .global::<ProcessSelectorViewModelBindings>()
-                                .set_selected_process(ProcessInfoConverter::convert_to_view_data(&process_to_open));
+                                .set_selected_process(ProcessInfoConverter::new().convert_to_view_data(&process_to_open));
                         });
                     } else {
                         Logger::get_instance().log(LogLevel::Warn, "Failed to open process.", None);
