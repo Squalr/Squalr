@@ -35,6 +35,29 @@ impl<T: 'static + ComponentHandle> ViewBinding<T> {
             log::error!("Failed to upgrade view in event loop: {}", e);
         }
     }
+
+    /// Executes a function immediately. Assumes the caller is on the UI thread.
+    pub fn execute_immediately<F>(
+        &self,
+        f: F,
+    ) where
+        F: FnOnce(&T, ViewBinding<T>) + Send + 'static,
+    {
+        if let Err(e) = self.view_handle.lock() {
+            log::error!("Failed to acquire view handle lock: {}", e);
+            return;
+        }
+
+        let handle = self.view_handle.lock().unwrap();
+        let view_model = self.clone();
+
+        match handle.upgrade() {
+            Some(view) => f(&view, view_model),
+            None => {
+                log::error!("Failed to upgrade view! This may not be a UI thread.");
+            }
+        }
+    }
 }
 
 impl<T: 'static + ComponentHandle> Clone for ViewBinding<T> {

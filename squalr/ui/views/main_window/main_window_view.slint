@@ -21,65 +21,66 @@ export component MainWindowView inherits Window {
     preferred-height: 840px;
     background: transparent;
     no-frame: true;
-    VerticalLayout {
-        title-bar := TitleBarView {
-            title: @tr("Squalr");
-        }
+    HorizontalLayout {
+        VerticalLayout {
+            title-bar := TitleBarView {
+                title: @tr("Squalr");
+            }
 
-        toolbar-menu := ToolbarMenu {
-            menus: [
-                {
-                    header: "File",
-                    items:[
-                        { id: "select-project", text:"Select Project" },
-                        { id: "export-project", text:"Export Project as Table..." },
-                        { id: "exit", text: "Exit Squalr", separator: true }
-                    ]
-                },
-                { header: "Edit", items:[{ id: "settings", text:"Settings" }] },
-                { header: "Layout", items:[{ id: "layout-reset", text:"Reset Layout" }] },
-                {
-                    header: "Windows",
-                    items:[
-                        { id: "process-selector", text:"Process Selector" },
-                        { id: "project-explorer", text:"Project Explorer" },
-                        { id: "property-viewer", text:"Property Viewer" },
-                        { id: "memory-viewer", text:"Memory Viewer" },
-                        { id: "scan-results", text:"Scan Results" },
-                        { id: "pointer-results", text:"Pointer Scan Results" },
-                        { id: "snapshot-manager", text:"Snapshot Manager" },
-                        { id: "dotnet-explorer", text:".NET Explorer" },
-                    ]
-                },
-                { header: "Scans", items:[{ id: "scans", text:"Pointer Scan" }] },
-                {
-                    header: "Debugger",
-                    items:[{ id: "disassembly", text:"Disassembly" }, { id: "code-tracer", text:"Code Tracer" }]
-                },
-            ];
-            onItemClicked(id) => {
-                if id == "exit" {
-                    WindowViewModelBindings.close();
-                } else if id == "select-project" {
-                } else if id == "export-project" {
-                } else if id == "settings" {
-                } else if id == "layout-reset" {
-                } else if id == "process-selector" {
-                } else if id == "project-explorer" {
-                } else if id == "memory-viewer" {
-                } else if id == "scan-results" {
-                } else if id == "pointer-results" {
-                } else if id == "snapshot-manager" {
-                } else if id == "dotnet-explorer" {
+            toolbar-menu := ToolbarMenu {
+                menus: [
+                    {
+                        header: "File",
+                        items:[
+                            { id: "select-project", text:"Select Project" },
+                            { id: "export-project", text:"Export Project as Table..." },
+                            { id: "exit", text: "Exit Squalr", separator: true }
+                        ]
+                    },
+                    { header: "Edit", items:[{ id: "settings", text:"Settings" }] },
+                    { header: "Layout", items:[{ id: "layout-reset", text:"Reset Layout" }] },
+                    {
+                        header: "Windows",
+                        items:[
+                            { id: "process-selector", text:"Process Selector" },
+                            { id: "project-explorer", text:"Project Explorer" },
+                            { id: "property-viewer", text:"Property Viewer" },
+                            { id: "memory-viewer", text:"Memory Viewer" },
+                            { id: "scan-results", text:"Scan Results" },
+                            { id: "pointer-results", text:"Pointer Scan Results" },
+                            { id: "snapshot-manager", text:"Snapshot Manager" },
+                            { id: "dotnet-explorer", text:".NET Explorer" },
+                        ]
+                    },
+                    { header: "Scans", items:[{ id: "scans", text:"Pointer Scan" }] },
+                    {
+                        header: "Debugger",
+                        items:[{ id: "disassembly", text:"Disassembly" }, { id: "code-tracer", text:"Code Tracer" }]
+                    },
+                ];
+                onItemClicked(id) => {
+                    if id == "exit" {
+                        WindowViewModelBindings.close();
+                    } else if id == "select-project" {
+                    } else if id == "export-project" {
+                    } else if id == "settings" {
+                    } else if id == "layout-reset" {
+                    } else if id == "process-selector" {
+                    } else if id == "project-explorer" {
+                    } else if id == "memory-viewer" {
+                    } else if id == "scan-results" {
+                    } else if id == "pointer-results" {
+                    } else if id == "snapshot-manager" {
+                    } else if id == "dotnet-explorer" {
+                    }
                 }
             }
+
+            shortcut-bar := ShortcutBarView { }
+
+            dock-root := DockRoot { }
+
+            footer := FooterView { }
         }
-
-        shortcut-bar := ShortcutBarView { }
-
-        // All content goes within the dock root.
-        dock-root := DockRoot { }
-
-        footer := FooterView { }
     }
 }

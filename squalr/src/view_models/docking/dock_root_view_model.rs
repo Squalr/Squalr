@@ -1,10 +1,7 @@
 use crate::DockRootViewModelBindings;
-use crate::DockedWindowViewData;
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
-use crate::models::docking::docked_window_node::DockedWindowNode;
 use crate::models::docking::docking_layout::DockingLayout;
-use crate::view_models::docking::dock_panel_comparer::DockPanelComparer;
 use crate::view_models::docking::dock_panel_converter::DockPanelConverter;
 use crate::view_models::docking::docked_window_view_model::DockedWindowViewModel;
 use crate::view_models::output::output_view_model::OutputViewModel;
@@ -13,13 +10,9 @@ use crate::view_models::scanners::manual_scan_view_model::ManualScanViewModel;
 use crate::view_models::settings::memory_settings_view_model::MemorySettingsViewModel;
 use crate::view_models::settings::scan_settings_view_model::ScanSettingsViewModel;
 use slint::ComponentHandle;
-use slint::Model;
-use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
-use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
-use slint_mvvm_macros::create_view_model_collection;
 use std::borrow::BorrowMut;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -27,7 +20,6 @@ use std::sync::Mutex;
 pub struct DockRootViewModel {
     view_binding: ViewBinding<MainWindowView>,
     _docking_layout: Arc<Mutex<DockingLayout>>,
-    _dock_panel_collection: ViewCollectionBinding<DockedWindowViewData, DockedWindowNode, MainWindowView>,
     docked_window_view_model: Arc<DockedWindowViewModel>,
     manual_scan_view_model: Arc<ManualScanViewModel>,
     memory_settings_view_model: Arc<MemorySettingsViewModel>,
@@ -38,22 +30,11 @@ pub struct DockRootViewModel {
 
 impl DockRootViewModel {
     pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
-        let docking_layout = Arc::new(Mutex::new(DockingLayout::default()));
-
-        // Create a binding that allows us to easily update the view's process list.
-        let dock_panel_collection = create_view_model_collection!(
-            view_binding -> MainWindowView,
-            DockRootViewModelBindings -> { set_dock_panels, get_dock_panels },
-            DockPanelConverter -> [docking_layout],
-            DockPanelComparer -> [],
-        );
-
-        dock_panel_collection.update_from_source(docking_layout.lock().unwrap().get_all_nodes());
+        let docking_layout = Arc::new(Mutex::new(DockingLayout::from_settings()));
 
         let view: DockRootViewModel = DockRootViewModel {
             view_binding: view_binding.clone(),
             _docking_layout: docking_layout.clone(),
-            _dock_panel_collection: dock_panel_collection.clone(),
             docked_window_view_model: Arc::new(DockedWindowViewModel::new(view_binding.clone(), docking_layout.clone())),
             manual_scan_view_model: Arc::new(ManualScanViewModel::new(view_binding.clone())),
             memory_settings_view_model: Arc::new(MemorySettingsViewModel::new(view_binding.clone())),
@@ -61,6 +42,18 @@ impl DockRootViewModel {
             process_selector_view_model: Arc::new(ProcessSelectorViewModel::new(view_binding.clone())),
             scan_settings_view_model: Arc::new(ScanSettingsViewModel::new(view_binding.clone())),
         };
+
+        // Initialize the dock root size
+        let docking_layout_clone = docking_layout.clone();
+        view_binding.execute_immediately(move |main_window_view, _| {
+            if let Ok(mut docking_layout) = docking_layout_clone.lock() {
+                let dock_root_bindings = main_window_view.global::<DockRootViewModelBindings>();
+                docking_layout.set_available_size(
+                    dock_root_bindings.get_initial_dock_root_width(),
+                    dock_root_bindings.get_initial_dock_root_height(),
+                );
+            }
+        });
 
         create_view_bindings!(view_binding, {
             WindowViewModelBindings => {
@@ -71,31 +64,13 @@ impl DockRootViewModel {
                 on_drag(delta_x: i32, delta_y: i32) -> [view_binding] -> Self::on_drag
             },
             DockRootViewModelBindings => {
-                on_update_dock_root_size(width: f32, height: f32) -> [docking_layout, dock_panel_collection] -> Self::on_update_dock_root_size,
-                on_update_dock_root_width(width: f32) -> [docking_layout, dock_panel_collection] -> Self::on_update_dock_root_width,
-                on_update_dock_root_height(height: f32) -> [docking_layout, dock_panel_collection] -> Self::on_update_dock_root_height,
-                on_get_docked_window_data(identifier: SharedString) -> [docking_layout, dock_panel_collection] -> Self::on_get_docked_window_data
+                on_update_dock_root_size(width: f32, height: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_size,
+                on_update_dock_root_width(width: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_width,
+                on_update_dock_root_height(height: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_height,
             }
         });
 
         view
-    }
-
-    fn on_get_docked_window_data(
-        docking_layout: Arc<Mutex<DockingLayout>>,
-        dock_panel_collection: ViewCollectionBinding<DockedWindowViewData, DockedWindowNode, MainWindowView>,
-        identifier: SharedString,
-    ) -> DockedWindowViewData {
-        let converter = DockPanelConverter::new(docking_layout.clone());
-        let nodes = docking_layout.lock().unwrap().get_all_nodes();
-
-        for node in nodes {
-            if node.window_identifier == *identifier {
-                return converter.convert_to_view_data(&node);
-            }
-        }
-
-        DockedWindowViewData::default()
     }
 
     pub fn initialize(&self) {
@@ -188,8 +163,8 @@ impl DockRootViewModel {
     }
 
     fn on_update_dock_root_size(
+        view_binding: ViewBinding<MainWindowView>,
         docking_layout: Arc<Mutex<DockingLayout>>,
-        dock_panel_collection: ViewCollectionBinding<DockedWindowViewData, DockedWindowNode, MainWindowView>,
         width: f32,
         height: f32,
     ) -> f32 {
@@ -198,13 +173,16 @@ impl DockRootViewModel {
             .unwrap()
             .borrow_mut()
             .set_available_size(width, height);
-        dock_panel_collection.update_from_source(docking_layout.lock().unwrap().get_all_nodes());
+
+        Self::propagate_layouts(view_binding, docking_layout);
+
+        // Return 0 as part of a UI hack to abuse slint bindings to get very responsive UI resizing.
         0.0
     }
 
     fn on_update_dock_root_width(
+        view_binding: ViewBinding<MainWindowView>,
         docking_layout: Arc<Mutex<DockingLayout>>,
-        dock_panel_collection: ViewCollectionBinding<DockedWindowViewData, DockedWindowNode, MainWindowView>,
         width: f32,
     ) {
         docking_layout
@@ -212,12 +190,13 @@ impl DockRootViewModel {
             .unwrap()
             .borrow_mut()
             .set_available_width(width);
-        dock_panel_collection.update_from_source(docking_layout.lock().unwrap().get_all_nodes());
+
+        Self::propagate_layouts(view_binding, docking_layout);
     }
 
     fn on_update_dock_root_height(
+        view_binding: ViewBinding<MainWindowView>,
         docking_layout: Arc<Mutex<DockingLayout>>,
-        dock_panel_collection: ViewCollectionBinding<DockedWindowViewData, DockedWindowNode, MainWindowView>,
         height: f32,
     ) {
         docking_layout
@@ -225,6 +204,46 @@ impl DockRootViewModel {
             .unwrap()
             .borrow_mut()
             .set_available_height(height);
-        dock_panel_collection.update_from_source(docking_layout.lock().unwrap().get_all_nodes());
+
+        Self::propagate_layouts(view_binding, docking_layout);
+    }
+
+    fn propagate_layouts(
+        view_binding: ViewBinding<MainWindowView>,
+        docking_layout: Arc<Mutex<DockingLayout>>,
+    ) {
+        view_binding.execute_immediately(move |main_window_view, _view_binding| {
+            let dock_root_bindings = main_window_view.global::<DockRootViewModelBindings>();
+            let converter = DockPanelConverter::new(docking_layout.clone());
+            let nodes = docking_layout.lock().unwrap().get_all_nodes();
+
+            for node in nodes {
+                let view_data = converter.convert_to_view_data(&node);
+
+                match node.window_identifier.as_str() {
+                    "settings" => {
+                        dock_root_bindings.set_settings_panel(view_data);
+                    }
+                    "scan-results" => {
+                        dock_root_bindings.set_scan_results_panel(view_data);
+                    }
+                    "output" => {
+                        dock_root_bindings.set_output_panel(view_data);
+                    }
+                    "process-selector" => {
+                        dock_root_bindings.set_process_selector_panel(view_data);
+                    }
+                    "property-viewer" => {
+                        dock_root_bindings.set_property_viewer_panel(view_data);
+                    }
+                    "project-explorer" => {
+                        dock_root_bindings.set_project_explorer_panel(view_data);
+                    }
+                    _ => {
+                        log::warn!("Unknown window identifier: {}", node.window_identifier);
+                    }
+                }
+            }
+        });
     }
 }

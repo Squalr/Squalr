@@ -15,52 +15,53 @@ export component DockRoot inherits Rectangle {
     // The function just returns 0, so the x is not actually modified in this process.
     x: DockRootViewModelBindings.update-dock-root-size(root.width, root.height);
     background: Theme.background-primary;
+    init => {
+        // These may no longer be needed.
+        DockRootViewModelBindings.initial-dock-root-width = root.width;
+        DockRootViewModelBindings.initial-dock-root-height = root.height;
+    }
+    // This is much less responsive than the hack solution for updating dock root size, so we'll stick with the hack above.
+    /*
     changed width => {
-        // This is much less responsive than the hack solution for updating dock root size, so we'll stick with the hack above.
         // DockRootViewModelBindings.update-dock-root-width(root.width);
-        update-dock-data();
     }
     changed height => {
-        // This is much less responsive than the hack solution for updating dock root size, so we'll stick with the hack above.
         // DockRootViewModelBindings.update-dock-root-height(root.height)
-        update-dock-data();
-    }
-    function update-dock-data() {
-        settings-panel.docked-window-data = DockRootViewModelBindings.get_docked_window_data("settings");
-        scan-results-panel.docked-window-data = DockRootViewModelBindings.get_docked_window_data("scan-results");
-        output-panel.docked-window-data = DockRootViewModelBindings.get_docked_window_data("output");
-        process-selector-panel.docked-window-data = DockRootViewModelBindings.get_docked_window_data("process-selector");
-        property-viewer-panel.docked-window-data = DockRootViewModelBindings.get_docked_window_data("property-viewer");
-        project-explorer-panel.docked-window-data = DockRootViewModelBindings.get_docked_window_data("project-explorer");
-    }
+    }*/
 
     // 'Settings' window
     settings-panel := DockedWindowView {
+        docked-window-data <=> DockRootViewModelBindings.settings-panel;
         SettingsView { }
     }
 
     // 'ScanResults' window
     scan-results-panel := DockedWindowView {
+        docked-window-data <=> DockRootViewModelBindings.scan-results-panel;
         ScanResultsView { }
     }
 
     // 'Output' window
     output-panel := DockedWindowView {
+        docked-window-data <=> DockRootViewModelBindings.output-panel;
         OutputView { }
     }
 
     // 'ProcessSelector' window
     process-selector-panel := DockedWindowView {
+        docked-window-data <=> DockRootViewModelBindings.process-selector-panel;
         ProcessSelectorView { }
     }
 
     // 'PropertyViewer' window
     property-viewer-panel := DockedWindowView {
+        docked-window-data <=> DockRootViewModelBindings.property-viewer-panel;
         PropertyViewerView { }
     }
 
     // 'ProjectExplorer' window
     project-explorer-panel := DockedWindowView {
+        docked-window-data <=> DockRootViewModelBindings.project-explorer-panel;
         ProjectExplorerView { }
     }
 }

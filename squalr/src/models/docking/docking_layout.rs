@@ -47,6 +47,12 @@ impl DockingLayout {
         )
     }
 
+    pub fn from_settings() -> Self {
+        let docking_layout = Self::default();
+
+        docking_layout
+    }
+
     pub fn from_builder(builder: DockBuilder) -> Self {
         Self {
             root: builder.build(),
