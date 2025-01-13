@@ -2,22 +2,18 @@ import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 
 import { Theme } from "../../theme.slint";
 
-import { WindowViewModelBindings } from "./../../view_model_bindings.slint";
+import { DockRootViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
 import { Button } from "../../components/buttons/button.slint";
 
 export component DockedWindowTitleBarView inherits Rectangle {
-    in property <string> title <=> title.text;
+    in-out property <DockedWindowViewData> docked-window-data;
     background: Theme.background-primary;
     height: 24px;
     title-drag := TouchArea {
-        double-clicked => {
-            if (self.pressed && self.enabled) {
-                WindowViewModelBindings.double-clicked();
-            }
-        }
         moved => {
             if (self.pressed && self.enabled) {
-                WindowViewModelBindings.drag((title-drag.mouse-x - title-drag.pressed-x) / 1px, (title-drag.mouse-y - title-drag.pressed-y) / 1px);
+                // TODO: This is how we would start the process for undocking, or re-docking a window.
+                // DockRootViewModelBindings.drag((title-drag.mouse-x - title-drag.pressed-x) / 1px, (title-drag.mouse-y - title-drag.pressed-y) / 1px);
             }
         }
     }
@@ -32,7 +28,7 @@ export component DockedWindowTitleBarView inherits Rectangle {
             padding-left: 8px;
             padding-right: 0px;
             title := Text {
-                text: "<Docked window title bar>";
+                text: DockRootViewModelBindings.get-tab-text(docked-window-data.identifier);
                 vertical-alignment: center;
                 color: Theme.foreground;
             }
@@ -47,7 +43,7 @@ export component DockedWindowTitleBarView inherits Rectangle {
                 tooltip-text: @tr("Close");
                 click-sound: "";
                 clicked => {
-                    WindowViewModelBindings.close();
+                    DockRootViewModelBindings.hide(docked-window-data.identifier);
                 }
                 Image {
                     width: 16px;

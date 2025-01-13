@@ -67,9 +67,15 @@ impl ProcessSelectorViewModel {
         let processes_collection = self.processes_collection.clone();
 
         thread::spawn(move || {
+            // The process list is incredibly laggy in debug mode, so just hard cap this to 20 entries for now until we solve this.
+            #[cfg(debug_assertions)]
+            let limit = Some(20u64);
+            #[cfg(not(debug_assertions))]
+            let limit = Some(20u64);
+
             // Phase 1: Gradually load the first set of processes.
             loop {
-                let initial_processes = ProcessQuery::get_processes(ProcessSelectorViewModel::get_process_query_options(None, false, None));
+                let initial_processes = ProcessQuery::get_processes(ProcessSelectorViewModel::get_process_query_options(None, false, limit));
                 if initial_processes.is_empty() {
                     thread::sleep(Duration::from_millis(25));
                     continue;
@@ -83,7 +89,7 @@ impl ProcessSelectorViewModel {
 
             // Phase 2: full loop. We should be hitting cache mostly in the UI by now, so it should be fine.
             loop {
-                let processes = ProcessQuery::get_processes(ProcessSelectorViewModel::get_process_query_options(None, false, None));
+                let processes = ProcessQuery::get_processes(ProcessSelectorViewModel::get_process_query_options(None, false, limit));
                 processes_collection.update_from_source(processes);
                 thread::sleep(Duration::from_millis(250));
             }

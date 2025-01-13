@@ -4,7 +4,6 @@ use crate::WindowViewModelBindings;
 use crate::models::docking::dock_node::DockNode;
 use crate::models::docking::docking_layout::DockingLayout;
 use crate::view_models::docking::dock_panel_converter::DockPanelConverter;
-use crate::view_models::docking::docked_window_view_model::DockedWindowViewModel;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
 use crate::view_models::scanners::manual_scan_view_model::ManualScanViewModel;
@@ -21,7 +20,6 @@ use std::sync::RwLock;
 pub struct DockRootViewModel {
     view_binding: ViewBinding<MainWindowView>,
     _docking_layout: Arc<RwLock<DockingLayout>>,
-    docked_window_view_model: Arc<DockedWindowViewModel>,
     manual_scan_view_model: Arc<ManualScanViewModel>,
     memory_settings_view_model: Arc<MemorySettingsViewModel>,
     output_view_model: Arc<OutputViewModel>,
@@ -36,7 +34,6 @@ impl DockRootViewModel {
         let view: DockRootViewModel = DockRootViewModel {
             view_binding: view_binding.clone(),
             _docking_layout: docking_layout.clone(),
-            docked_window_view_model: Arc::new(DockedWindowViewModel::new(view_binding.clone(), docking_layout.clone())),
             manual_scan_view_model: Arc::new(ManualScanViewModel::new(view_binding.clone())),
             memory_settings_view_model: Arc::new(MemorySettingsViewModel::new(view_binding.clone())),
             output_view_model: Arc::new(OutputViewModel::new(view_binding.clone())),
@@ -70,6 +67,11 @@ impl DockRootViewModel {
                 on_update_dock_root_height(height: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_height,
                 on_update_active_tab_id(identifier: SharedString) -> [view_binding, docking_layout] -> Self::on_update_active_tab_id,
                 on_get_tab_text(identifier: SharedString) -> [] -> Self::on_get_tab_text,
+                on_hide(identifier: SharedString) -> [view_binding, docking_layout] -> Self::on_hide,
+                on_drag_left(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_left,
+                on_drag_right(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_right,
+                on_drag_top(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_top,
+                on_drag_bottom(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_bottom,
             }
         });
 
@@ -98,10 +100,6 @@ impl DockRootViewModel {
                 }
             }
         }
-    }
-
-    pub fn get_docked_window_view_model(&self) -> &Arc<DockedWindowViewModel> {
-        &self.docked_window_view_model
     }
 
     pub fn get_manual_scan_view_model(&self) -> &Arc<ManualScanViewModel> {
@@ -236,11 +234,61 @@ impl DockRootViewModel {
         }
     }
 
+    fn on_hide(
+        view_binding: ViewBinding<MainWindowView>,
+        docking_layout: Arc<RwLock<DockingLayout>>,
+        dockable_window_id: SharedString,
+    ) {
+        if let Ok(mut docking_layout) = docking_layout.write() {
+            if let Some(node) = docking_layout.get_node_by_id_mut(&dockable_window_id) {
+                node.set_visible(false);
+            }
+        }
+        Self::propagate_layout(view_binding, docking_layout);
+    }
+
+    fn on_drag_left(
+        _dockable_window_id: SharedString,
+        _delta_x: i32,
+        _delta_y: i32,
+    ) {
+        // TODO: Implement me.
+    }
+
+    fn on_drag_right(
+        _dockable_window_id: SharedString,
+        _delta_x: i32,
+        _delta_y: i32,
+    ) {
+        // TODO: Implement me.
+    }
+
+    fn on_drag_top(
+        _dockable_window_id: SharedString,
+        _delta_x: i32,
+        _delta_y: i32,
+    ) {
+        // TODO: Implement me.
+    }
+
+    fn on_drag_bottom(
+        _dockable_window_id: SharedString,
+        _delta_x: i32,
+        _delta_y: i32,
+    ) {
+        // TODO: Implement me.
+    }
+
     fn propagate_layout(
         view_binding: ViewBinding<MainWindowView>,
         docking_layout: Arc<RwLock<DockingLayout>>,
     ) {
         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
+            // Resolve any potential malformed data before attempting to convert to renderable form.
+            if let Ok(mut docking_layout) = docking_layout.write() {
+                docking_layout.prepare_for_presentation();
+            }
+
             let dock_root_bindings = main_window_view.global::<DockRootViewModelBindings>();
             let converter = DockPanelConverter::new(docking_layout.clone());
 

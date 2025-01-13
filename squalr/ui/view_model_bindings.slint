@@ -26,17 +26,6 @@ export struct DockedWindowViewData {
     active-tab-id: string,
 }
 
-export global DockedWindowViewModelBindings {
-    callback close();
-    callback maximize();
-    callback minimize();
-    callback double-clicked();
-    callback drag-left(identifier: string, delta-x: int, delta-y: int);
-    callback drag-right(identifier: string, delta-x: int, delta-y: int);
-    callback drag-top(identifier: string, delta-x: int, delta-y: int);
-    callback drag-bottom(identifier: string, delta-x: int, delta-y: int);
-}
-
 export global DockRootViewModelBindings {
     in-out property <length> initial-dock-root-width;
     in-out property <length> initial-dock-root-height;
@@ -45,6 +34,11 @@ export global DockRootViewModelBindings {
     pure callback update-dock-root-size(width: length, height: length) -> length;
     pure callback update-active-tab-id(identifier: string);
     pure callback get-tab-text(identifier: string) -> string;
+    callback hide(identifier: string);
+    callback drag-left(identifier: string, delta-x: int, delta-y: int);
+    callback drag-right(identifier: string, delta-x: int, delta-y: int);
+    callback drag-top(identifier: string, delta-x: int, delta-y: int);
+    callback drag-bottom(identifier: string, delta-x: int, delta-y: int);
     in-out property <DockedWindowViewData> scan-results-panel;
     in-out property <DockedWindowViewData> output-panel;
     in-out property <DockedWindowViewData> process-selector-panel;

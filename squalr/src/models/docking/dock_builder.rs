@@ -128,21 +128,19 @@ impl DockBuilder {
     pub fn build(self) -> DockNode {
         match self.kind {
             DockBuilderKind::Split { direction, children } => DockNode::Split {
-                direction,
-                is_visible: self.is_visible,
                 ratio: self.ratio,
+                direction,
                 children: children.into_iter().map(|b| b.build()).collect(),
             },
             DockBuilderKind::Tab { tabs, active_tab_id } => DockNode::Tab {
-                is_visible: self.is_visible,
                 ratio: self.ratio,
                 tabs: tabs.into_iter().map(|b| b.build()).collect(),
                 active_tab_id: active_tab_id,
             },
             DockBuilderKind::Leaf { window_identifier } => DockNode::Leaf {
+                ratio: self.ratio,
                 window_identifier,
                 is_visible: self.is_visible,
-                ratio: self.ratio,
             },
         }
     }

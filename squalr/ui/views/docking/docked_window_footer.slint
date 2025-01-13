@@ -2,10 +2,9 @@ import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 
 import { Theme } from "../../theme.slint";
 
-import { DockedWindowViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
+import { DockRootViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
 import { Button } from "../../components/buttons/button.slint";
 import { BevelButton } from "../../components/buttons/bevel_button.slint";
-import { DockRootViewModelBindings } from "../../view_model_bindings.slint";
 
 export component DockedWindowFooter inherits Rectangle {
     in-out property <DockedWindowViewData> docked-window-data;
@@ -37,7 +36,7 @@ export component DockedWindowFooter inherits Rectangle {
                 Text {
                     horizontal-alignment: left;
                     vertical-alignment: center;
-                    text: tab-id;
+                    text: DockRootViewModelBindings.get-tab-text(tab-id);
                     color: Theme.foreground;
                 }
             }

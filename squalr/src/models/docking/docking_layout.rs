@@ -155,6 +155,20 @@ impl DockingLayout {
         Some(node_ref)
     }
 
+    pub fn get_node_by_id_mut(
+        &mut self,
+        identifier: &str,
+    ) -> Option<&mut DockNode> {
+        let path = match Self::find_path_to_leaf(&self.root, identifier) {
+            Some(path) => path,
+            None => return None,
+        };
+
+        let node_ref = Self::get_node_mut(&mut self.root, &path);
+
+        Some(node_ref)
+    }
+
     pub fn get_all_leaves(&self) -> Vec<String> {
         let mut leaves = Vec::new();
         Self::collect_leaves(&self.root, &mut leaves);
@@ -190,7 +204,7 @@ impl DockingLayout {
         Self::find_window_rect(&self.root, window_id, 0.0, 0.0, self.available_width, self.available_height)
     }
 
-    /// Recursively search for `window_id` in a node, returning `(x, y, w, h)`.
+    /// Recursively search for window_id in a node, returning (x, y, w, h).
     fn find_window_rect(
         node: &DockNode,
         target_id: &str,
@@ -211,15 +225,7 @@ impl DockingLayout {
                 }
                 None
             }
-            DockNode::Split {
-                direction,
-                is_visible,
-                children,
-                ..
-            } => {
-                if !is_visible {
-                    return None;
-                }
+            DockNode::Split { direction, children, .. } => {
                 // Collect only visible children for layout distribution.
                 let visible_children: Vec<&DockNode> = children.iter().filter(|c| c.is_visible()).collect();
 
@@ -262,10 +268,7 @@ impl DockingLayout {
                 }
                 None
             }
-            DockNode::Tab { is_visible, tabs, .. } => {
-                if !is_visible {
-                    return None;
-                }
+            DockNode::Tab { tabs, .. } => {
                 // If a Tab node is visible, only one “page” is typically visible at a time.
                 // But for simplicity, let's just check them all logically:
                 for child in tabs {
@@ -393,6 +396,65 @@ impl DockingLayout {
         }
         current
     }
+
+    /// Clean up the layout so it's ready for presentation. Ensures that, for example,
+    /// if an active tab is hidden, we pick another visible tab to become active.
+    pub fn prepare_for_presentation(&mut self) {
+        Self::prepare_for_presentation_node(&mut self.root);
+    }
+
+    /// Recursively fix up the docking layout's internal structure so that it's valid for display.
+    fn prepare_for_presentation_node(node: &mut DockNode) {
+        match node {
+            // For splits, we simply recurse into each child.
+            DockNode::Split { children, .. } => {
+                for child in children {
+                    Self::prepare_for_presentation_node(child);
+                }
+            }
+
+            // For tab nodes, make sure the active tab is valid; if not, pick another.
+            DockNode::Tab { active_tab_id, tabs, .. } => {
+                // First, recurse down to ensure all tabs are also prepared:
+                for tab_child in tabs.iter_mut() {
+                    Self::prepare_for_presentation_node(tab_child);
+                }
+
+                // Find the currently active tab, if any.
+                let mut active_tab_is_valid = false;
+                if !active_tab_id.is_empty() {
+                    // Check if there's a leaf with the same ID and it’s visible.
+                    if let Some(_) = tabs
+                        .iter()
+                        .position(|child| child.is_leaf_with_id(active_tab_id) && child.is_visible())
+                    {
+                        // The current active tab is valid if found + visible.
+                        active_tab_is_valid = true;
+                    }
+                }
+
+                // If the active tab is invalid/hidden, pick the first visible tab as active (greedy).
+                if !active_tab_is_valid {
+                    if let Some(new_active_identifier) = tabs
+                        .iter()
+                        .filter(|child| child.is_visible())
+                        .find_map(|child| match child {
+                            DockNode::Leaf { window_identifier, .. } => Some(window_identifier.clone()),
+                            _ => None,
+                        })
+                    {
+                        *active_tab_id = new_active_identifier;
+                    } else {
+                        // Otherwise, clear it if no visible leaves remain:
+                        active_tab_id.clear();
+                    }
+                }
+            }
+
+            // Leaf nodes have nothing to fix up here.
+            DockNode::Leaf { .. } => {}
+        }
+    }
 }
 
 /// Helper methods on `DockNode`.
@@ -400,9 +462,21 @@ impl DockNode {
     /// Check if a node is visible.
     pub fn is_visible(&self) -> bool {
         match self {
-            DockNode::Split { is_visible, .. } => *is_visible,
-            DockNode::Tab { is_visible, .. } => *is_visible,
+            DockNode::Split { .. } => true,
+            DockNode::Tab { .. } => true,
             DockNode::Leaf { is_visible, .. } => *is_visible,
+        }
+    }
+
+    /// Set the visibility of a node.
+    pub fn set_visible(
+        &mut self,
+        is_visible_new: bool,
+    ) {
+        match self {
+            DockNode::Split { .. } => log::warn!("Cannot set split ratio on a split container!"),
+            DockNode::Tab { .. } => log::warn!("Cannot set split ratio on a tab node!"),
+            DockNode::Leaf { is_visible, .. } => *is_visible = is_visible_new,
         }
     }
 
