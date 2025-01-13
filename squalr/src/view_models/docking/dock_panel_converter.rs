@@ -1,6 +1,6 @@
 use crate::models::docking::dock_node::DockNode;
 use crate::{DockedWindowViewData, models::docking::docking_layout::DockingLayout};
-use slint::{ModelRc, VecModel};
+use slint::{ModelRc, SharedString, VecModel};
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -36,23 +36,50 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockPanelConverter {
                 is_visible,
                 ratio: _,
             } => {
-                if let Ok(docking_layout) = self.docking_layout.read() {
-                    let dock_bounds = docking_layout
-                        .calculate_window_rect(&window_identifier)
-                        .unwrap_or((0.0, 0.0, 0.0, 0.0));
-
-                    DockedWindowViewData {
-                        identifier: window_identifier.clone().into(),
-                        is_docked: true,
-                        is_visible: *is_visible,
-                        position_x: dock_bounds.0,
-                        position_y: dock_bounds.1,
-                        width: dock_bounds.2,
-                        height: dock_bounds.3,
-                        tabs: ModelRc::new(VecModel::from(vec![])),
-                    }
+                // Compute bounds, as you already do
+                let (x, y, w, h) = if let Ok(docking_layout) = self.docking_layout.read() {
+                    docking_layout
+                        .calculate_window_rect(window_identifier)
+                        .unwrap_or((0.0, 0.0, 0.0, 0.0))
                 } else {
-                    DockedWindowViewData::default()
+                    (0.0, 0.0, 0.0, 0.0)
+                };
+
+                // We gather siblings (including self) if the parent is a Tab node
+                let mut siblings: Vec<SharedString> = Vec::new();
+
+                if let Ok(docking_layout) = self.docking_layout.read() {
+                    // 1) Find the path from root to this leaf
+                    if let Some(path) = DockingLayout::find_path_to_leaf(&docking_layout.root, window_identifier) {
+                        // If there's a parent
+                        if !path.is_empty() {
+                            // parent path = path without the last index
+                            let parent_path = &path[..path.len() - 1];
+
+                            // 2) Get the parent node
+                            let parent_node = DockingLayout::get_node(&docking_layout.root, parent_path);
+
+                            // 3) If parent is a Tab, gather all tab identifiers
+                            if let DockNode::Tab { tabs, .. } = parent_node {
+                                for tab_node in tabs {
+                                    if let DockNode::Leaf { window_identifier: tab_id, .. } = tab_node {
+                                        siblings.push(tab_id.clone().into());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                DockedWindowViewData {
+                    identifier: window_identifier.clone().into(),
+                    is_docked: true,
+                    is_visible: *is_visible,
+                    position_x: x,
+                    position_y: y,
+                    width: w,
+                    height: h,
+                    tabs: ModelRc::new(VecModel::from(siblings)),
                 }
             }
             _ => DockedWindowViewData::default(),

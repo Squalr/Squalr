@@ -45,7 +45,7 @@ impl DockRootViewModel {
 
         // Initialize the dock root size
         let docking_layout_clone = docking_layout.clone();
-        view_binding.execute_immediately(move |main_window_view, _| {
+        view_binding.execute_on_ui_thread(move |main_window_view, _| {
             if let Ok(mut docking_layout) = docking_layout_clone.write() {
                 let dock_root_bindings = main_window_view.global::<DockRootViewModelBindings>();
                 docking_layout.set_available_size(
@@ -214,7 +214,7 @@ impl DockRootViewModel {
         view_binding: ViewBinding<MainWindowView>,
         docking_layout: Arc<RwLock<DockingLayout>>,
     ) {
-        view_binding.execute_immediately(move |main_window_view, _view_binding| {
+        view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
             let dock_root_bindings = main_window_view.global::<DockRootViewModelBindings>();
             let converter = DockPanelConverter::new(docking_layout.clone());
 

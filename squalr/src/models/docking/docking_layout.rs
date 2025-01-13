@@ -103,13 +103,13 @@ impl DockingLayout {
         window_id: &str,
         new_ratio: f32,
     ) -> bool {
-        // Pass 1: find path (immutable)
+        // Pass 1: find path (immutable).
         let path = match Self::find_path_to_leaf(&self.root, window_id) {
             Some(path) => path,
-            None => return false, // Early return on not found
+            None => return false,
         };
 
-        // Pass 2: use path (mutable)
+        // Pass 2: use path (mutable).
         let node_ref = Self::get_node_mut(&mut self.root, &path);
         node_ref.set_ratio(new_ratio);
 
@@ -155,8 +155,6 @@ impl DockingLayout {
         Some(node_ref)
     }
 
-    /// Collect all leaf nodes in the layout. If you want all nodes, you can
-    /// adapt similarly.
     pub fn get_all_leaves(&self) -> Vec<String> {
         let mut leaves = Vec::new();
         Self::collect_leaves(&self.root, &mut leaves);
@@ -222,7 +220,7 @@ impl DockingLayout {
                 if !is_visible {
                     return None;
                 }
-                // Collect only *visible* children for layout distribution
+                // Collect only visible children for layout distribution.
                 let visible_children: Vec<&DockNode> = children.iter().filter(|c| c.is_visible()).collect();
 
                 if visible_children.is_empty() {
@@ -282,7 +280,7 @@ impl DockingLayout {
 
     /// Return a path of indices that leads to the leaf node matching `window_id`.
     /// Example of a path: [2, 0] means: in root.children[2].children[0], or root.tabs[2].tabs[0].
-    fn find_path_to_leaf(
+    pub fn find_path_to_leaf(
         node: &DockNode,
         window_id: &str,
     ) -> Option<Vec<usize>> {
@@ -320,7 +318,7 @@ impl DockingLayout {
 
     /// Traverse the path and return a mutable reference to the node at that path.
     /// If the path is empty, that means we're referring to the node itself.
-    fn get_node_mut<'a>(
+    pub fn get_node_mut<'a>(
         mut node: &'a mut DockNode,
         path: &[usize],
     ) -> &'a mut DockNode {
@@ -342,7 +340,7 @@ impl DockingLayout {
 
     /// Traverse the path and return an immutable reference to the node at that path.
     /// If the path is empty, that means we're referring to the node itself.
-    fn get_node<'a>(
+    pub fn get_node<'a>(
         node: &'a DockNode,
         path: &[usize],
     ) -> &'a DockNode {

@@ -1,7 +1,9 @@
+import { VerticalBox } from "std-widgets.slint";
+
 import { Theme } from "./../../theme.slint";
+
 import { DockedWindowViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
 import { DockedWindowTitleBarView } from "docked_window_title_bar_view.slint";
-import { VerticalBox } from "std-widgets.slint";
 import { DockedWindowFooter } from "docked_window_footer.slint";
 
 export component DockedWindowView inherits Rectangle {
@@ -36,7 +38,9 @@ export component DockedWindowView inherits Rectangle {
                 @children
             }
 
-            DockedWindowFooter { }
+            DockedWindowFooter {
+                docked-window-data <=> root.docked-window-data;
+            }
         }
     }
 

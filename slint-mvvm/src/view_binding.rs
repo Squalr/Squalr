@@ -18,43 +18,33 @@ impl<T: 'static + ComponentHandle> ViewBinding<T> {
     }
 
     /// Executes a function on the UI thread, while also capturing the window view and this view binding as variables.
+    /// If we are already on the UI thread, the callback is executed immediately.
     pub fn execute_on_ui_thread<F>(
         &self,
         f: F,
     ) where
         F: FnOnce(&T, ViewBinding<T>) + Send + 'static,
     {
-        if let Err(e) = self.view_handle.lock() {
-            log::error!("Failed to acquire view handle lock: {}", e);
+        // Attempt to lock the Arc<Mutex<Weak<T>>>.
+        let Ok(handle_guard) = self.view_handle.lock() else {
+            log::error!("Failed to acquire view handle lock");
             return;
-        }
+        };
 
-        let handle = self.view_handle.lock().unwrap();
-        let view_model = self.clone();
-        if let Err(e) = handle.upgrade_in_event_loop(move |view| f(&view, view_model)) {
-            log::error!("Failed to upgrade view in event loop: {}", e);
-        }
-    }
+        let handle = handle_guard;
+        let view_binding = self.clone();
 
-    /// Executes a function immediately. Assumes the caller is on the UI thread.
-    pub fn execute_immediately<F>(
-        &self,
-        f: F,
-    ) where
-        F: FnOnce(&T, ViewBinding<T>) + Send + 'static,
-    {
-        if let Err(e) = self.view_handle.lock() {
-            log::error!("Failed to acquire view handle lock: {}", e);
-            return;
-        }
-
-        let handle = self.view_handle.lock().unwrap();
-        let view_model = self.clone();
-
+        // Try to upgrade immediately (as if we're on the UI thread).
         match handle.upgrade() {
-            Some(view) => f(&view, view_model),
+            Some(view) => {
+                // Success: call immediately
+                f(&view, view_binding);
+            }
             None => {
-                log::error!("Failed to upgrade view! This may not be a UI thread.");
+                // If the immediate upgrade fails, schedule in the event loop
+                if let Err(e) = handle.upgrade_in_event_loop(move |view| f(&view, view_binding)) {
+                    log::error!("Failed to upgrade view in event loop: {}", e);
+                }
             }
         }
     }
