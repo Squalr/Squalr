@@ -22,7 +22,8 @@ export struct DockedWindowViewData {
     position-y: length,
     width: length,
     height: length,
-    tabs: [string],
+    tab-ids: [string],
+    active-tab-id: string,
 }
 
 export global DockedWindowViewModelBindings {
@@ -37,11 +38,13 @@ export global DockedWindowViewModelBindings {
 }
 
 export global DockRootViewModelBindings {
-    in property <length> initial-dock-root-width;
-    in property <length> initial-dock-root-height;
+    in-out property <length> initial-dock-root-width;
+    in-out property <length> initial-dock-root-height;
     pure callback update-dock-root-width(width: length);
     pure callback update-dock-root-height(height: length);
     pure callback update-dock-root-size(width: length, height: length) -> length;
+    pure callback update-active-tab-id(identifier: string);
+    pure callback get-tab-text(identifier: string) -> string;
     in-out property <DockedWindowViewData> scan-results-panel;
     in-out property <DockedWindowViewData> output-panel;
     in-out property <DockedWindowViewData> process-selector-panel;

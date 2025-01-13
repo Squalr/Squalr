@@ -9,6 +9,7 @@ pub enum DockBuilderKind {
     },
     Tab {
         tabs: Vec<DockBuilder>,
+        active_tab_id: String,
     },
     Leaf {
         window_identifier: String,
@@ -45,9 +46,12 @@ impl DockBuilder {
     }
 
     /// Create a new builder for a Tab container node.
-    pub fn tab_node() -> Self {
+    pub fn tab_node(active_tab_id: impl Into<String>) -> Self {
         Self {
-            kind: DockBuilderKind::Tab { tabs: Vec::new() },
+            kind: DockBuilderKind::Tab {
+                tabs: Vec::new(),
+                active_tab_id: active_tab_id.into(),
+            },
             is_visible: true,
             ratio: 1.0,
         }
@@ -129,10 +133,11 @@ impl DockBuilder {
                 ratio: self.ratio,
                 children: children.into_iter().map(|b| b.build()).collect(),
             },
-            DockBuilderKind::Tab { tabs } => DockNode::Tab {
+            DockBuilderKind::Tab { tabs, active_tab_id } => DockNode::Tab {
                 is_visible: self.is_visible,
                 ratio: self.ratio,
                 tabs: tabs.into_iter().map(|b| b.build()).collect(),
+                active_tab_id: active_tab_id,
             },
             DockBuilderKind::Leaf { window_identifier } => DockNode::Leaf {
                 window_identifier,

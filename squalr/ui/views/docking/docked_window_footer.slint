@@ -4,32 +4,41 @@ import { Theme } from "../../theme.slint";
 
 import { DockedWindowViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
 import { Button } from "../../components/buttons/button.slint";
+import { BevelButton } from "../../components/buttons/bevel_button.slint";
+import { DockRootViewModelBindings } from "../../view_model_bindings.slint";
 
 export component DockedWindowFooter inherits Rectangle {
     in-out property <DockedWindowViewData> docked-window-data;
-    visible: docked-window-data.tabs.length > 0;
+    in-out property <string> active-tab-id;
+    visible: docked-window-data.tab-ids.length > 0;
     background: Theme.background-primary;
-    height: docked-window-data.tabs.length > 0 ? 24px : 0px;
+    height: docked-window-data.tab-ids.length > 0 ? 24px : 0px;
     HorizontalLayout {
         padding: 0px;
         HorizontalBox {
             alignment: start;
             padding: 0px;
             spacing: 0px;
-            for tab in docked-window-data.tabs: Button {
+            for tab-id in docked-window-data.tab-ids: BevelButton {
+                width: 128px;
                 height: 24px;
+                background-color: docked-window-data.active-tab-id == tab-id ? Theme.background-control-primary : Theme.background-control-secondary;
+                border-color: Theme.submenu-border;
+                border-width: 1px;
+                border-radius: 0px;
+                border-top-left-radius: 0px;
+                border-top-right-radius: 0px;
+                border-bottom-left-radius: 0px;
+                border-bottom-right-radius: 0px;
                 clicked => {
+                    docked-window-data.active-tab-id = tab-id;
+                    DockRootViewModelBindings.update-active-tab-id(tab-id);
                 }
-                HorizontalLayout {
-                    alignment: start;
-                    padding-left: 8px;
-                    padding-right: 8px;
-                    Text {
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        text: tab;
-                        color: Theme.foreground;
-                    }
+                Text {
+                    horizontal-alignment: left;
+                    vertical-alignment: center;
+                    text: tab-id;
+                    color: Theme.foreground;
                 }
             }
         }

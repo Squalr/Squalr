@@ -15,7 +15,12 @@ pub enum DockNode {
     /// A tab container, holding multiple children in tabs.
     /// Each child is itself a `DockNode`, so we can have either Leaf nodes
     /// or even nested splits in a tab if we want to get fancy.
-    Tab { is_visible: bool, ratio: f32, tabs: Vec<DockNode> },
+    Tab {
+        is_visible: bool,
+        ratio: f32,
+        tabs: Vec<DockNode>,
+        active_tab_id: String,
+    },
     /// A leaf node representing a single panel.
     Leaf { window_identifier: String, is_visible: bool, ratio: f32 },
 }

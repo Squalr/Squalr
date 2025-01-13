@@ -11,6 +11,7 @@ use crate::view_models::scanners::manual_scan_view_model::ManualScanViewModel;
 use crate::view_models::settings::memory_settings_view_model::MemorySettingsViewModel;
 use crate::view_models::settings::scan_settings_view_model::ScanSettingsViewModel;
 use slint::ComponentHandle;
+use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
@@ -67,6 +68,8 @@ impl DockRootViewModel {
                 on_update_dock_root_size(width: f32, height: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_size,
                 on_update_dock_root_width(width: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_width,
                 on_update_dock_root_height(height: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_height,
+                on_update_active_tab_id(identifier: SharedString) -> [view_binding, docking_layout] -> Self::on_update_active_tab_id,
+                on_get_tab_text(identifier: SharedString) -> [] -> Self::on_get_tab_text,
             }
         });
 
@@ -208,6 +211,29 @@ impl DockRootViewModel {
         }
 
         Self::propagate_layout(view_binding, docking_layout);
+    }
+
+    fn on_update_active_tab_id(
+        view_binding: ViewBinding<MainWindowView>,
+        docking_layout: Arc<RwLock<DockingLayout>>,
+        identifier: SharedString,
+    ) {
+        if let Ok(mut docking_layout) = docking_layout.write() {
+            docking_layout.select_tab_by_leaf_id(identifier.as_str());
+        }
+        Self::propagate_layout(view_binding, docking_layout);
+    }
+
+    fn on_get_tab_text(identifier: SharedString) -> SharedString {
+        match identifier.as_str() {
+            "settings" => "Settings".into(),
+            "scan-results" => "Scan Results".into(),
+            "output" => "Output".into(),
+            "process-selector" => "Process Selector".into(),
+            "property-viewer" => "Property Viewer".into(),
+            "project-explorer" => "Project Explorer".into(),
+            _ => identifier,
+        }
     }
 
     fn propagate_layout(

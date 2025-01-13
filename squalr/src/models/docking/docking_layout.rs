@@ -31,7 +31,7 @@ impl DockingLayout {
                             // Build a tab with two leaves: process-selector & project-explorer
                             .push_child(
                                 0.5,
-                                DockBuilder::tab_node()
+                                DockBuilder::tab_node("project-explorer")
                                     .push_tab(DockBuilder::leaf("process-selector"))
                                     .push_tab(DockBuilder::leaf("project-explorer")),
                             )
@@ -275,6 +275,38 @@ impl DockingLayout {
                 }
                 None
             }
+        }
+    }
+
+    /// Select (activate) the tab containing the specified leaf by setting the tab node’s
+    /// `active_tab_id` to the given `leaf_id`. Returns `true` if successful, otherwise `false`.
+    pub fn select_tab_by_leaf_id(
+        &mut self,
+        leaf_id: &str,
+    ) -> bool {
+        // 1) Find path to leaf node.
+        let path = match Self::find_path_to_leaf(&self.root, leaf_id) {
+            Some(path) => path,
+            None => return false,
+        };
+
+        // 2) If the path is empty, then the root *is* the leaf—no parent to set.
+        if path.is_empty() {
+            return false;
+        }
+
+        // 3) Split path into parent path + leaf index.
+        let (parent_path, _) = path.split_at(path.len() - 1);
+
+        // 4) Grab a mutable reference to the parent node.
+        let parent_node = Self::get_node_mut(&mut self.root, parent_path);
+
+        // 5) If the parent node is a Tab, set its active_tab_id and return true.
+        if let DockNode::Tab { active_tab_id, .. } = parent_node {
+            *active_tab_id = leaf_id.to_owned();
+            true
+        } else {
+            false
         }
     }
 
