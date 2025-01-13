@@ -161,30 +161,57 @@ impl DockingLayout {
         width: f32,
         height: f32,
     ) -> Option<(f32, f32, f32, f32)> {
+        // If this node is invisible, skip it entirely (including children).
+        if !node.is_visible {
+            return None;
+        }
+
+        // If this is the target window, return the current rect.
         if node.window_identifier == target_id {
             return Some((x, y, width, height));
         }
 
+        // Collect *only visible* children.
+        let visible_children: Vec<_> = node.children.iter().filter(|child| child.is_visible).collect();
+
+        // If no visible children remain, there is no sub-layout to traverse.
+        if visible_children.is_empty() {
+            return None;
+        }
+
+        // Compute total ratio of visible children so we can re-normalize.
+        let total_ratio: f32 = visible_children.iter().map(|child| child.ratio).sum();
+
         let mut current_offset = 0.0;
-        for child in &node.children {
-            // Calculate child size based on ratio and parent direction
-            let (child_width, child_height) = match node.direction {
-                DockSplitDirection::Horizontal => (width * child.ratio, height),
-                DockSplitDirection::Vertical => (width, height * child.ratio),
+        let visible_children_len = visible_children.len();
+
+        for child in visible_children {
+            // Re-normalize ratio to ensure only visible children share space.
+            let child_ratio = if total_ratio > 0.0 {
+                child.ratio / total_ratio
+            } else {
+                // Fallback to equal distribution if total_ratio == 0.0
+                1.0 / visible_children_len as f32
             };
 
-            // Calculate child position
+            // Calculate child size based on *effective* ratio.
+            let (child_width, child_height) = match node.direction {
+                DockSplitDirection::Horizontal => (width * child_ratio, height),
+                DockSplitDirection::Vertical => (width, height * child_ratio),
+            };
+
+            // Calculate child position.
             let (child_x, child_y) = match node.direction {
                 DockSplitDirection::Horizontal => (x + current_offset, y),
                 DockSplitDirection::Vertical => (x, y + current_offset),
             };
 
-            // Recursively search this child
+            // Recursively search this child.
             if let Some(rect) = Self::find_window_rect(child, target_id, child_x, child_y, child_width, child_height) {
                 return Some(rect);
             }
 
-            // Update offset for next child
+            // Update offset for the next visible child.
             match node.direction {
                 DockSplitDirection::Horizontal => current_offset += child_width,
                 DockSplitDirection::Vertical => current_offset += child_height,

@@ -11,6 +11,7 @@ export component DockedWindowView inherits Rectangle {
     y: root.docked-window-data.position-y;
     width: root.docked-window-data.width;
     height: root.docked-window-data.height;
+    visible: root.docked-window-data.is-visible;
     background: Theme.background-control;
     VerticalLayout {
         x: resize-padding;

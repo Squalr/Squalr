@@ -5,6 +5,7 @@ use crate::models::docking::docked_window_node::DockedWindowNode;
 pub struct DockBuilder {
     id: String,
     direction: DockSplitDirection,
+    is_visible: bool,
     ratio: f32,
     children: Vec<DockBuilder>,
 }
@@ -14,6 +15,7 @@ impl DockBuilder {
         Self {
             id: id.into(),
             direction: DockSplitDirection::Horizontal,
+            is_visible: true,
             ratio: 1.0,
             children: Vec::new(),
         }
@@ -23,6 +25,7 @@ impl DockBuilder {
         DockedWindowNode {
             window_identifier: self.id,
             direction: self.direction,
+            is_visible: self.is_visible,
             ratio: self.ratio,
             children: self.children.into_iter().map(|b| b.build()).collect(),
         }
@@ -33,6 +36,14 @@ impl DockBuilder {
         direction: DockSplitDirection,
     ) -> Self {
         self.direction = direction;
+        self
+    }
+
+    pub fn is_visible(
+        mut self,
+        is_visible: bool,
+    ) -> Self {
+        self.is_visible = is_visible;
         self
     }
 

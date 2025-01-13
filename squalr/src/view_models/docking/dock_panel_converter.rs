@@ -40,7 +40,7 @@ impl ViewDataConverter<DockedWindowNode, DockedWindowViewData> for DockPanelConv
         DockedWindowViewData {
             identifier: docked_window_node.window_identifier.clone().into(),
             is_docked: true,
-            is_visible: true,
+            is_visible: docked_window_node.is_visible,
             position_x: dock_bounds.0,
             position_y: dock_bounds.1,
             width: dock_bounds.2,
