@@ -90,6 +90,11 @@ impl DockingLayout {
             }
             // Each visible tab gets the entire rectangle.
             DockNode::Tab { tabs, .. } => {
+                let visible_children: Vec<&DockNode> = tabs.iter().filter(|c| c.is_visible()).collect();
+                if visible_children.is_empty() {
+                    return;
+                }
+
                 for tab_child in tabs {
                     if tab_child.is_visible() {
                         self.walk_with_layout(tab_child, x, y, w, h, visitor);

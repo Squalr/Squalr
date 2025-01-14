@@ -33,8 +33,14 @@ impl DockNode {
     /// Check if a node is visible.
     pub fn is_visible(&self) -> bool {
         match self {
-            DockNode::Split { .. } => true,
-            DockNode::Tab { .. } => true,
+            DockNode::Split { children, .. } => {
+                // A split node is visible if any of its children is visible.
+                children.iter().any(|child| child.is_visible())
+            }
+            DockNode::Tab { tabs, .. } => {
+                // A tab node is visible if at least one of its tabs is visible.
+                tabs.iter().any(|tab| tab.is_visible())
+            }
             DockNode::Leaf { is_visible, .. } => *is_visible,
         }
     }
