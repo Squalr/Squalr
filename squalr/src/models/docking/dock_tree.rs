@@ -154,37 +154,38 @@ impl DockTree {
         leaf_path: &[usize],
         desired_direction: &DockSplitDirection,
     ) -> Option<Vec<usize>> {
+        // If the leaf_path is empty, that means the leaf *is* the root. No ancestor to find.
         if leaf_path.is_empty() {
-            // The leaf *is* the root => no ancestor.
             return None;
         }
 
-        // Start from the leaf_path and climb upward one level at a time.
-        // We'll build a local "current path" that we keep popping from.
+        // Make a local copy, so we can pop without mutating the original
         let mut current_path = leaf_path.to_vec();
 
-        // We'll loop until we either find a match or run out of parents.
+        // First pop once so we skip the leaf itself
+        current_path.pop();
+
+        // Now climb upward until we find a split with the correct direction
         loop {
-            // Chop off the last index to move up one level.
-            current_path.pop();
-
-            // If we've popped everything off, we've hit the root => no further parent.
-            if current_path.is_empty() {
-                return None; // No matching ancestor found.
-            }
-
-            // Check this ancestor node.
+            // Check the node at current_path (which may now be the root if path is empty).
             if let Some(node) = self.get_node(&current_path) {
                 if let DockNode::Split { direction, .. } = node {
                     if *direction == *desired_direction {
-                        // Found a matching Split ancestor, return its path.
                         return Some(current_path.clone());
                     }
                 }
             } else {
-                // The path is invalid somehow => just bail out.
+                // If we can't retrieve a node, the path is invalid. Bail out.
                 return None;
             }
+
+            // If we have popped all the way up to an empty path
+            // and haven't matched, there's no ancestor of that direction.
+            if current_path.is_empty() {
+                return None;
+            }
+
+            current_path.pop();
         }
     }
 }
