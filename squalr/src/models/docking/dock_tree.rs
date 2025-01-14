@@ -1,3 +1,4 @@
+use crate::models::docking::dock_drag_direction::DockDragDirection;
 use crate::models::docking::dock_node::DockNode;
 use crate::models::docking::dock_split_direction::DockSplitDirection;
 use serde::{Deserialize, Serialize};
@@ -71,8 +72,7 @@ impl DockTree {
         Some(current)
     }
 
-    /// Return an immutable reference to the node at the specified path.
-    /// Returns `None` if the path is invalid.
+    /// Return an immutable reference to the node at the specified path. Returns `None` if the path is invalid.
     pub fn get_node(
         &self,
         path: &[usize],
@@ -142,50 +142,57 @@ impl DockTree {
         leaves
     }
 
-    /// Finds the path of the *first ancestor* that is a `DockNode::Split`
-    /// with a matching `direction`. Returns `None` if not found.
-    ///
-    /// For example:
-    /// - If `desired_direction` is `DockSplitDirection::HorizontalDivider`,
-    ///   we climb upward until we find a `DockNode::Split { direction: Horizontal, .. }`.
-    /// - If we reach the root without finding a match, return `None`.
-    pub fn find_ancestor_split(
+    /// Find the matching ancestor `DockNode::Split` that should be resized when dragging a particular edge of a leaf.
+    pub fn find_ancestor_split_for_drag(
         &self,
         leaf_path: &[usize],
-        desired_direction: &DockSplitDirection,
+        drag_dir: &DockDragDirection,
     ) -> Option<Vec<usize>> {
-        // If the leaf_path is empty, that means the leaf *is* the root. No ancestor to find.
         if leaf_path.is_empty() {
             return None;
         }
 
-        // Make a local copy, so we can pop without mutating the original
-        let mut current_path = leaf_path.to_vec();
+        // We climb up. The last element is the leaf's index. We'll remove it from the path, leaving us the parent's path.
+        let mut path = leaf_path.to_vec();
+        let mut child_index = path.pop().unwrap(); // index in parent's children/tabs.
 
-        // First pop once so we skip the leaf itself
-        current_path.pop();
-
-        // Now climb upward until we find a split with the correct direction
         loop {
-            // Check the node at current_path (which may now be the root if path is empty).
-            if let Some(node) = self.get_node(&current_path) {
-                if let DockNode::Split { direction, .. } = node {
-                    if *direction == *desired_direction {
-                        return Some(current_path.clone());
-                    }
+            // 1) We have the path that points to the parent. Let's see if that node is a Split with the correct orientation.
+            //    - But first, check if we can retrieve it.
+            let candidate_node = self.get_node(&path)?;
+
+            // 2) If candidate_node is a Split, see if it matches the drag direction and if the child_index is on the correct side.
+            if let DockNode::Split { direction, .. } = candidate_node {
+                // If orientation and side match up, we can return it right away.
+                if Self::matches_drag_side(direction, drag_dir, child_index) {
+                    return Some(path.clone());
                 }
-            } else {
-                // If we can't retrieve a node, the path is invalid. Bail out.
-                return None;
             }
 
-            // If we have popped all the way up to an empty path
-            // and haven't matched, there's no ancestor of that direction.
-            if current_path.is_empty() {
+            // 3) If that node wasn't a matching Split, we pop up further.
+            if path.is_empty() {
+                // We’ve reached the root. There's nothing above root, so we can’t climb further.
                 return None;
             }
+            child_index = path.pop().unwrap();
+        }
+    }
 
-            current_path.pop();
+    fn matches_drag_side(
+        direction: &DockSplitDirection,
+        drag_dir: &DockDragDirection,
+        child_index: usize,
+    ) -> bool {
+        match (drag_dir, direction) {
+            // If we're dragging the right edge, it’s the left child in a vertical split.
+            (DockDragDirection::Right, DockSplitDirection::VerticalDivider) => child_index == 0,
+            (DockDragDirection::Left, DockSplitDirection::VerticalDivider) => child_index == 1,
+
+            // If we're dragging the bottom edge, it’s the top child in a horizontal split.
+            (DockDragDirection::Bottom, DockSplitDirection::HorizontalDivider) => child_index == 0,
+            (DockDragDirection::Top, DockSplitDirection::HorizontalDivider) => child_index == 1,
+
+            _ => false,
         }
     }
 }

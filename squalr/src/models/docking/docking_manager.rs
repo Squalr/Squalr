@@ -144,7 +144,6 @@ impl DockingManager {
         delta_x: i32,
         delta_y: i32,
     ) -> bool {
-        // 1) Find the leaf’s path
         let leaf_path = match self.tree.find_leaf_path(leaf_id) {
             Some(path) => path,
             None => return false,
@@ -154,46 +153,40 @@ impl DockingManager {
             return false;
         }
 
-        // 2) Figure out the needed split direction from the drag direction
+        // Figure out the needed split direction from the drag direction (this will be inverse to drag direction).
         let desired_split_direction = match drag_dir {
             DockDragDirection::Left | DockDragDirection::Right => DockSplitDirection::VerticalDivider,
             DockDragDirection::Top | DockDragDirection::Bottom => DockSplitDirection::HorizontalDivider,
         };
 
-        // 3) Climb upward to find the first ancestor matching that direction
-        let ancestor_path = match self
-            .tree
-            .find_ancestor_split(&leaf_path, &desired_split_direction)
-        {
+        // Climb upward to find the first ancestor matching that direction.
+        let ancestor_path = match self.tree.find_ancestor_split_for_drag(&leaf_path, &drag_dir) {
             Some(path) => path,
             None => {
-                // e.g. we never found a vertical/horizontal split up the chain
                 return false;
             }
         };
 
-        // 4) Gather rectangle info *before* mutably borrowing anything
-        //    (to avoid the "cannot borrow as mutable and immutable" problem).
+        // Get the full layout size of the matching ancestor that contains the splitter.
         let ancestor_rect = match self.layout.find_node_rect(&self.tree, &ancestor_path) {
             Some(rect) => rect,
             None => return false,
         };
         let (_ancestor_x, _ancestor_y, ancestor_w, ancestor_h) = ancestor_rect;
 
-        // For convenience, let's also get the *leaf* rect (to figure out old width/height).
+        // Get the target window rect so that we can save off the starting width/height.
         let leaf_rect = match self.layout.find_node_rect(&self.tree, &leaf_path) {
             Some(rect) => rect,
             None => return false,
         };
         let (_child_x, _child_y, child_w, child_h) = leaf_rect;
 
-        // 5) Now do the *mutable* borrowing of that ancestor node
         let ancestor_node = match self.tree.get_node_mut(&ancestor_path) {
             Some(n) => n,
             None => return false,
         };
 
-        // 6) Perform ratio-based resizing on that ancestor’s children
+        // Perform ratio-based resizing.
         if let DockNode::Split {
             direction: split_direction,
             children,
@@ -214,12 +207,12 @@ impl DockingManager {
 
                     // Next, we must figure out: which child in `children` corresponds to the `leaf_id`?
                     // Because `leaf_path` might be a deep path, not necessarily direct child of `ancestor_node`.
-                    // So we search for the child *subtree* containing `leaf_id`.
+                    // So we search for the child subtree containing `leaf_id`.
                     let child_index = children
                         .iter()
                         .enumerate()
-                        .find(|(_, c)| c.contains_leaf_id(leaf_id)) // `contains_leaf_id` is an optional helper
-                        .map(|(i, _)| i);
+                        .find(|(_, node)| node.contains_leaf_id(leaf_id))
+                        .map(|(index, _)| index);
 
                     if let Some(child_index) = child_index {
                         let old_width = child_w;
@@ -227,12 +220,11 @@ impl DockingManager {
                         let new_width = old_width + sign * (delta_x as f32);
                         let new_ratio = (new_width / ancestor_w).clamp(0.0, 1.0);
 
-                        // Set the ratio
                         if let Some(child_node) = children.get_mut(child_index) {
                             child_node.set_ratio(new_ratio);
                         }
 
-                        // If there's exactly two children, set sibling ratio to remainder
+                        // TODO: Suppert N children
                         if children.len() == 2 {
                             let sibling_index = if child_index == 0 { 1 } else { 0 };
                             if let Some(sibling) = children.get_mut(sibling_index) {
@@ -241,7 +233,6 @@ impl DockingManager {
                         }
                         true
                     } else {
-                        // We didn't find which direct child to apply the ratio
                         false
                     }
                 }
@@ -254,8 +245,8 @@ impl DockingManager {
                     let child_index = children
                         .iter()
                         .enumerate()
-                        .find(|(_, c)| c.contains_leaf_id(leaf_id))
-                        .map(|(i, _)| i);
+                        .find(|(_, node)| node.contains_leaf_id(leaf_id))
+                        .map(|(index, _)| index);
 
                     if let Some(child_index) = child_index {
                         let old_height = child_h;
@@ -282,7 +273,6 @@ impl DockingManager {
                 _ => false,
             }
         } else {
-            // The ancestor node we found is not a split? Or direction mismatch.
             false
         }
     }
