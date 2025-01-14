@@ -1,4 +1,4 @@
-use crate::models::docking::dock_node::DockNode;
+use crate::models::docking::layout::dock_node::DockNode;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use squalr_engine_common::config::serialized_config_updater;

@@ -1,8 +1,8 @@
 use crate::DockRootViewModelBindings;
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
-use crate::models::docking::dock_node::DockNode;
-use crate::models::docking::docking_layout::DockingLayout;
+use crate::models::docking::layout::dock_node::DockNode;
+use crate::models::docking::layout::docking_layout::DockingLayout;
 use crate::view_models::docking::dock_panel_converter::DockPanelConverter;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;

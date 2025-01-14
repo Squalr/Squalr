@@ -1,6 +1,6 @@
-use crate::models::docking::dock_builder::DockBuilder;
-use crate::models::docking::dock_node::DockNode;
-use crate::models::docking::dock_split_direction::DockSplitDirection;
+use crate::models::docking::builder::dock_builder::DockBuilder;
+use crate::models::docking::layout::dock_node::DockNode;
+use crate::models::docking::layout::dock_split_direction::DockSplitDirection;
 
 #[derive(Debug)]
 pub struct DockingLayout {

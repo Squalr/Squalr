@@ -1,5 +1,5 @@
-use crate::models::docking::dock_node::DockNode;
-use crate::{DockedWindowViewData, models::docking::docking_layout::DockingLayout};
+use crate::models::docking::layout::dock_node::DockNode;
+use crate::{DockedWindowViewData, models::docking::layout::docking_layout::DockingLayout};
 use slint::{ModelRc, SharedString, VecModel};
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use std::sync::Arc;
