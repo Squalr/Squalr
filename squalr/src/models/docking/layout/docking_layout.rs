@@ -78,12 +78,12 @@ impl DockingLayout {
                     };
 
                     let (cw, ch) = match direction {
-                        DockSplitDirection::Horizontal => (w * child_ratio, h),
-                        DockSplitDirection::Vertical => (w, h * child_ratio),
+                        DockSplitDirection::HorizontalDivider => (w, h * child_ratio),
+                        DockSplitDirection::VerticalDivider => (w * child_ratio, h),
                     };
                     let (cx, cy) = match direction {
-                        DockSplitDirection::Horizontal => (x + offset, y),
-                        DockSplitDirection::Vertical => (x, y + offset),
+                        DockSplitDirection::HorizontalDivider => (x, y + offset),
+                        DockSplitDirection::VerticalDivider => (x + offset, y),
                     };
 
                     // Push this child's index
@@ -93,8 +93,8 @@ impl DockingLayout {
 
                     // Advance offset
                     match direction {
-                        DockSplitDirection::Horizontal => offset += cw,
-                        DockSplitDirection::Vertical => offset += ch,
+                        DockSplitDirection::HorizontalDivider => offset += ch,
+                        DockSplitDirection::VerticalDivider => offset += cw,
                     }
                 }
             }

@@ -140,89 +140,150 @@ impl DockingManager {
     pub fn drag_leaf(
         &mut self,
         leaf_id: &str,
-        direction: DockDragDirection,
+        drag_dir: DockDragDirection,
         delta_x: i32,
         delta_y: i32,
     ) -> bool {
-        // The parent's bounding rectangle is needed to convert pixel deltas to ratio changes.
-        // (This uses the entire root rect — if you actually want the parent's own rect,
-        //  consider path-based logic, but here’s the direct fix requested.)
-        let parent_rect = match self.layout.find_node_rect(&self.tree, &[]) {
-            Some(rect) => rect,
+        // 1) Find the leaf’s path
+        let leaf_path = match self.tree.find_leaf_path(leaf_id) {
+            Some(path) => path,
             None => return false,
         };
-        let (parent_left, parent_top, parent_width, parent_height) = parent_rect;
+        if leaf_path.is_empty() {
+            // Leaf is the root => no parent or ancestor
+            return false;
+        }
 
-        // The child's rectangle
-        let child_rect = match self.find_window_rect(leaf_id) {
-            Some(rect) => rect,
-            None => return false,
+        // 2) Figure out the needed split direction from the drag direction
+        let desired_split_direction = match drag_dir {
+            DockDragDirection::Left | DockDragDirection::Right => DockSplitDirection::VerticalDivider,
+            DockDragDirection::Top | DockDragDirection::Bottom => DockSplitDirection::HorizontalDivider,
         };
-        let (child_left, child_top, child_width, child_height) = child_rect;
 
-        let (parent_node, leaf_index) = match self.tree.get_parent_node_mut(leaf_id) {
-            Some(pair) => pair,
+        // 3) Climb upward to find the first ancestor matching that direction
+        let ancestor_path = match self
+            .tree
+            .find_ancestor_split(&leaf_path, &desired_split_direction)
+        {
+            Some(path) => path,
             None => {
-                // The provided leaf seems not to have a parent!
+                // e.g. we never found a vertical/horizontal split up the chain
                 return false;
             }
         };
 
-        match parent_node {
-            DockNode::Split {
-                direction: split_direction,
-                children,
-                ..
-            } => {
-                match (direction, split_direction) {
-                    // --- If we drag left/right, we want a Horizontal split (children side by side) ---
-                    (DockDragDirection::Left | DockDragDirection::Right, DockSplitDirection::Horizontal) => {
-                        if parent_width <= 1.0 {
-                            return false;
-                        }
-                        let old_width = child_width;
-                        let new_width = old_width + delta_x as f32;
-                        let new_ratio = (new_width / parent_width).clamp(0.0, 1.0);
+        // 4) Gather rectangle info *before* mutably borrowing anything
+        //    (to avoid the "cannot borrow as mutable and immutable" problem).
+        let ancestor_rect = match self.layout.find_node_rect(&self.tree, &ancestor_path) {
+            Some(rect) => rect,
+            None => return false,
+        };
+        let (_ancestor_x, _ancestor_y, ancestor_w, ancestor_h) = ancestor_rect;
 
-                        if let Some(child_node) = children.get_mut(leaf_index) {
-                            child_node.set_ratio(new_ratio);
-                        }
-                        if children.len() == 2 {
-                            let sibling_index = if leaf_index == 0 { 1 } else { 0 };
-                            if let Some(sibling) = children.get_mut(sibling_index) {
-                                sibling.set_ratio((1.0 - new_ratio).clamp(0.0, 1.0));
-                            }
-                        }
-                        true
-                    }
+        // For convenience, let's also get the *leaf* rect (to figure out old width/height).
+        let leaf_rect = match self.layout.find_node_rect(&self.tree, &leaf_path) {
+            Some(rect) => rect,
+            None => return false,
+        };
+        let (_child_x, _child_y, child_w, child_h) = leaf_rect;
 
-                    // --- If we drag top/bottom, we want a Vertical split (children stacked) ---
-                    (DockDragDirection::Top | DockDragDirection::Bottom, DockSplitDirection::Vertical) => {
-                        if parent_height <= 1.0 {
-                            return false;
-                        }
-                        let old_height = child_height;
-                        let new_height = old_height + delta_y as f32;
-                        let new_ratio = (new_height / parent_height).clamp(0.0, 1.0);
+        // 5) Now do the *mutable* borrowing of that ancestor node
+        let ancestor_node = match self.tree.get_node_mut(&ancestor_path) {
+            Some(n) => n,
+            None => return false,
+        };
 
-                        if let Some(child_node) = children.get_mut(leaf_index) {
-                            child_node.set_ratio(new_ratio);
-                        }
-                        if children.len() == 2 {
-                            let sibling_index = if leaf_index == 0 { 1 } else { 0 };
-                            if let Some(sibling) = children.get_mut(sibling_index) {
-                                sibling.set_ratio((1.0 - new_ratio).clamp(0.0, 1.0));
-                            }
-                        }
-                        true
-                    }
-
-                    // Otherwise do nothing (mismatch between drag direction & split direction).
-                    _ => false,
-                }
+        // 6) Perform ratio-based resizing on that ancestor’s children
+        if let DockNode::Split {
+            direction: split_direction,
+            children,
+            ..
+        } = ancestor_node
+        {
+            // Double-check we got the direction we expected
+            if *split_direction != desired_split_direction {
+                return false;
             }
-            // If parent is not a Split, do nothing.
-            _ => false,
+
+            // Now do the ratio math
+            match (drag_dir, split_direction) {
+                (DockDragDirection::Left | DockDragDirection::Right, DockSplitDirection::VerticalDivider) => {
+                    if ancestor_w <= 1.0 {
+                        return false;
+                    }
+
+                    // Next, we must figure out: which child in `children` corresponds to the `leaf_id`?
+                    // Because `leaf_path` might be a deep path, not necessarily direct child of `ancestor_node`.
+                    // So we search for the child *subtree* containing `leaf_id`.
+                    let child_index = children
+                        .iter()
+                        .enumerate()
+                        .find(|(_, c)| c.contains_leaf_id(leaf_id)) // `contains_leaf_id` is an optional helper
+                        .map(|(i, _)| i);
+
+                    if let Some(child_index) = child_index {
+                        let old_width = child_w;
+                        let sign = if child_index == 0 { 1.0 } else { -1.0 };
+                        let new_width = old_width + sign * (delta_x as f32);
+                        let new_ratio = (new_width / ancestor_w).clamp(0.0, 1.0);
+
+                        // Set the ratio
+                        if let Some(child_node) = children.get_mut(child_index) {
+                            child_node.set_ratio(new_ratio);
+                        }
+
+                        // If there's exactly two children, set sibling ratio to remainder
+                        if children.len() == 2 {
+                            let sibling_index = if child_index == 0 { 1 } else { 0 };
+                            if let Some(sibling) = children.get_mut(sibling_index) {
+                                sibling.set_ratio((1.0 - new_ratio).clamp(0.0, 1.0));
+                            }
+                        }
+                        true
+                    } else {
+                        // We didn't find which direct child to apply the ratio
+                        false
+                    }
+                }
+
+                (DockDragDirection::Top | DockDragDirection::Bottom, DockSplitDirection::HorizontalDivider) => {
+                    if ancestor_h <= 1.0 {
+                        return false;
+                    }
+
+                    let child_index = children
+                        .iter()
+                        .enumerate()
+                        .find(|(_, c)| c.contains_leaf_id(leaf_id))
+                        .map(|(i, _)| i);
+
+                    if let Some(child_index) = child_index {
+                        let old_height = child_h;
+                        let sign = if child_index == 0 { 1.0 } else { -1.0 };
+                        let new_height = old_height + sign * (delta_y as f32);
+                        let new_ratio = (new_height / ancestor_h).clamp(0.0, 1.0);
+
+                        if let Some(child_node) = children.get_mut(child_index) {
+                            child_node.set_ratio(new_ratio);
+                        }
+
+                        if children.len() == 2 {
+                            let sibling_index = if child_index == 0 { 1 } else { 0 };
+                            if let Some(sibling) = children.get_mut(sibling_index) {
+                                sibling.set_ratio((1.0 - new_ratio).clamp(0.0, 1.0));
+                            }
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                }
+
+                _ => false,
+            }
+        } else {
+            // The ancestor node we found is not a split? Or direction mismatch.
+            false
         }
     }
 

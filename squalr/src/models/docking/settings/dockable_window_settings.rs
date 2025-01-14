@@ -24,13 +24,13 @@ impl Default for DockSettingsConfig {
 
 impl DockSettingsConfig {
     pub fn get_default_layout() -> DockNode {
-        DockBuilder::split_node(DockSplitDirection::Horizontal)
+        DockBuilder::split_node(DockSplitDirection::VerticalDivider)
             .push_child(
                 0.7,
-                DockBuilder::split_node(DockSplitDirection::Vertical)
+                DockBuilder::split_node(DockSplitDirection::HorizontalDivider)
                     .push_child(
                         0.5,
-                        DockBuilder::split_node(DockSplitDirection::Horizontal)
+                        DockBuilder::split_node(DockSplitDirection::VerticalDivider)
                             // Build a tab with two leaves: process-selector & project-explorer
                             .push_child(
                                 0.5,
@@ -45,7 +45,7 @@ impl DockSettingsConfig {
             )
             .push_child(
                 0.3,
-                DockBuilder::split_node(DockSplitDirection::Vertical)
+                DockBuilder::split_node(DockSplitDirection::HorizontalDivider)
                     .push_child(0.6, DockBuilder::leaf("scan-results"))
                     .push_child(0.4, DockBuilder::leaf("property-viewer")),
             )

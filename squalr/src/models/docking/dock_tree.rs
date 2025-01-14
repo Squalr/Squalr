@@ -146,7 +146,7 @@ impl DockTree {
     /// with a matching `direction`. Returns `None` if not found.
     ///
     /// For example:
-    /// - If `desired_direction` is `DockSplitDirection::Horizontal`,
+    /// - If `desired_direction` is `DockSplitDirection::HorizontalDivider`,
     ///   we climb upward until we find a `DockNode::Split { direction: Horizontal, .. }`.
     /// - If we reach the root without finding a match, return `None`.
     pub fn find_ancestor_split(
