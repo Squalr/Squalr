@@ -1,4 +1,5 @@
 pub mod builder;
+pub mod dock_drag_direction;
 pub mod dock_node;
 pub mod dock_split_direction;
 pub mod dock_tree;

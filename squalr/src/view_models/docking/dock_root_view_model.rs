@@ -1,6 +1,7 @@
 use crate::DockRootViewModelBindings;
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
+use crate::models::docking::dock_drag_direction::DockDragDirection;
 use crate::models::docking::dock_node::DockNode;
 use crate::models::docking::docking_manager::DockingManager;
 use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
@@ -44,7 +45,7 @@ impl DockRootViewModel {
             scan_settings_view_model: Arc::new(ScanSettingsViewModel::new(view_binding.clone())),
         };
 
-        // Initialize the dock root size
+        // Initialize the dock root size.
         let docking_manager_clone = docking_manager.clone();
         view_binding.execute_on_ui_thread(move |main_window_view, _| {
             if let Ok(mut docking_manager) = docking_manager_clone.write() {
@@ -72,10 +73,10 @@ impl DockRootViewModel {
                 on_get_tab_text(identifier: SharedString) -> [] -> Self::on_get_tab_text,
                 on_reset_layout() -> [view_binding, docking_manager] -> Self::on_reset_layout,
                 on_hide(identifier: SharedString) -> [view_binding, docking_manager] -> Self::on_hide,
-                on_drag_left(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_left,
-                on_drag_right(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_right,
-                on_drag_top(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_top,
-                on_drag_bottom(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_bottom,
+                on_drag_left(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [view_binding, docking_manager] -> Self::on_drag_left,
+                on_drag_right(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [view_binding, docking_manager] -> Self::on_drag_right,
+                on_drag_top(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [view_binding, docking_manager] -> Self::on_drag_top,
+                on_drag_bottom(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [view_binding, docking_manager] -> Self::on_drag_bottom,
             }
         });
 
@@ -251,35 +252,51 @@ impl DockRootViewModel {
     }
 
     fn on_drag_left(
-        _dockable_window_id: SharedString,
-        _delta_x: i32,
-        _delta_y: i32,
+        view_binding: ViewBinding<MainWindowView>,
+        docking_manager: Arc<RwLock<DockingManager>>,
+        dockable_window_id: SharedString,
+        delta_x: i32,
+        delta_y: i32,
     ) {
-        // TODO: Implement me.
+        Self::mutate_layout(&view_binding, &docking_manager, false, move |manager| {
+            manager.drag_leaf(dockable_window_id.as_str(), DockDragDirection::Left, delta_x, delta_y);
+        });
     }
 
     fn on_drag_right(
-        _dockable_window_id: SharedString,
-        _delta_x: i32,
-        _delta_y: i32,
+        view_binding: ViewBinding<MainWindowView>,
+        docking_manager: Arc<RwLock<DockingManager>>,
+        dockable_window_id: SharedString,
+        delta_x: i32,
+        delta_y: i32,
     ) {
-        // TODO: Implement me.
+        Self::mutate_layout(&view_binding, &docking_manager, false, move |manager| {
+            manager.drag_leaf(dockable_window_id.as_str(), DockDragDirection::Right, delta_x, delta_y);
+        });
     }
 
     fn on_drag_top(
-        _dockable_window_id: SharedString,
-        _delta_x: i32,
-        _delta_y: i32,
+        view_binding: ViewBinding<MainWindowView>,
+        docking_manager: Arc<RwLock<DockingManager>>,
+        dockable_window_id: SharedString,
+        delta_x: i32,
+        delta_y: i32,
     ) {
-        // TODO: Implement me.
+        Self::mutate_layout(&view_binding, &docking_manager, false, move |manager| {
+            manager.drag_leaf(dockable_window_id.as_str(), DockDragDirection::Top, delta_x, delta_y);
+        });
     }
 
     fn on_drag_bottom(
-        _dockable_window_id: SharedString,
-        _delta_x: i32,
-        _delta_y: i32,
+        view_binding: ViewBinding<MainWindowView>,
+        docking_manager: Arc<RwLock<DockingManager>>,
+        dockable_window_id: SharedString,
+        delta_x: i32,
+        delta_y: i32,
     ) {
-        // TODO: Implement me.
+        Self::mutate_layout(&view_binding, &docking_manager, false, move |manager| {
+            manager.drag_leaf(dockable_window_id.as_str(), DockDragDirection::Bottom, delta_x, delta_y);
+        });
     }
 
     fn mutate_layout<F>(

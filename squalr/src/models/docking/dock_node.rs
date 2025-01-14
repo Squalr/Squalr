@@ -95,6 +95,17 @@ impl DockNode {
         }
     }
 
+    pub fn contains_leaf_id(
+        &self,
+        target_id: &str,
+    ) -> bool {
+        match self {
+            DockNode::Leaf { window_identifier, .. } => window_identifier == target_id,
+            DockNode::Split { children, .. } => children.iter().any(|c| c.contains_leaf_id(target_id)),
+            DockNode::Tab { tabs, .. } => tabs.iter().any(|t| t.contains_leaf_id(target_id)),
+        }
+    }
+
     /// A generic tree walker that visits every node in depth-first order.
     /// `path` is updated with the child indices as we traverse.
     pub fn walk<'a, F>(
@@ -123,9 +134,8 @@ impl DockNode {
                     path.pop();
                 }
             }
-            DockNode::Leaf { .. } => {
-                // No children to recurse
-            }
+            // No children to recurse.
+            DockNode::Leaf { .. } => {}
         }
     }
 }

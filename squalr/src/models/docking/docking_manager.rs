@@ -1,4 +1,6 @@
+use crate::models::docking::dock_drag_direction::DockDragDirection;
 use crate::models::docking::dock_node::DockNode;
+use crate::models::docking::dock_split_direction::DockSplitDirection;
 use crate::models::docking::dock_tree::DockTree;
 use crate::models::docking::layout::docking_layout::DockingLayout;
 use crate::models::docking::tab_manager::TabManager;
@@ -132,6 +134,96 @@ impl DockingManager {
             }
         }
         false
+    }
+
+    /// Drags a leaf node in a given direction by (delta_x, delta_y) in pixels. Returns a bool indicating success.
+    pub fn drag_leaf(
+        &mut self,
+        leaf_id: &str,
+        direction: DockDragDirection,
+        delta_x: i32,
+        delta_y: i32,
+    ) -> bool {
+        // The parent's bounding rectangle is needed to convert pixel deltas to ratio changes.
+        // (This uses the entire root rect — if you actually want the parent's own rect,
+        //  consider path-based logic, but here’s the direct fix requested.)
+        let parent_rect = match self.layout.find_node_rect(&self.tree, &[]) {
+            Some(rect) => rect,
+            None => return false,
+        };
+        let (parent_left, parent_top, parent_width, parent_height) = parent_rect;
+
+        // The child's rectangle
+        let child_rect = match self.find_window_rect(leaf_id) {
+            Some(rect) => rect,
+            None => return false,
+        };
+        let (child_left, child_top, child_width, child_height) = child_rect;
+
+        let (parent_node, leaf_index) = match self.tree.get_parent_node_mut(leaf_id) {
+            Some(pair) => pair,
+            None => {
+                // The provided leaf seems not to have a parent!
+                return false;
+            }
+        };
+
+        match parent_node {
+            DockNode::Split {
+                direction: split_direction,
+                children,
+                ..
+            } => {
+                match (direction, split_direction) {
+                    // --- If we drag left/right, we want a Horizontal split (children side by side) ---
+                    (DockDragDirection::Left | DockDragDirection::Right, DockSplitDirection::Horizontal) => {
+                        if parent_width <= 1.0 {
+                            return false;
+                        }
+                        let old_width = child_width;
+                        let new_width = old_width + delta_x as f32;
+                        let new_ratio = (new_width / parent_width).clamp(0.0, 1.0);
+
+                        if let Some(child_node) = children.get_mut(leaf_index) {
+                            child_node.set_ratio(new_ratio);
+                        }
+                        if children.len() == 2 {
+                            let sibling_index = if leaf_index == 0 { 1 } else { 0 };
+                            if let Some(sibling) = children.get_mut(sibling_index) {
+                                sibling.set_ratio((1.0 - new_ratio).clamp(0.0, 1.0));
+                            }
+                        }
+                        true
+                    }
+
+                    // --- If we drag top/bottom, we want a Vertical split (children stacked) ---
+                    (DockDragDirection::Top | DockDragDirection::Bottom, DockSplitDirection::Vertical) => {
+                        if parent_height <= 1.0 {
+                            return false;
+                        }
+                        let old_height = child_height;
+                        let new_height = old_height + delta_y as f32;
+                        let new_ratio = (new_height / parent_height).clamp(0.0, 1.0);
+
+                        if let Some(child_node) = children.get_mut(leaf_index) {
+                            child_node.set_ratio(new_ratio);
+                        }
+                        if children.len() == 2 {
+                            let sibling_index = if leaf_index == 0 { 1 } else { 0 };
+                            if let Some(sibling) = children.get_mut(sibling_index) {
+                                sibling.set_ratio((1.0 - new_ratio).clamp(0.0, 1.0));
+                            }
+                        }
+                        true
+                    }
+
+                    // Otherwise do nothing (mismatch between drag direction & split direction).
+                    _ => false,
+                }
+            }
+            // If parent is not a Split, do nothing.
+            _ => false,
+        }
     }
 
     pub fn get_siblings_and_active_tab(

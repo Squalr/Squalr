@@ -40,18 +40,20 @@ impl DockingLayout {
     }
 
     /// Compute bounding rectangles for every visible node. The `visitor` receives `(node, (x, y, w, h))`.
-    pub fn walk_with_layout<F>(
+    fn walk_with_layout_and_path<F>(
         &self,
         node: &DockNode,
         x: f32,
         y: f32,
         w: f32,
         h: f32,
+        path: &mut Vec<usize>,
         visitor: &mut F,
     ) where
-        F: FnMut(&DockNode, (f32, f32, f32, f32)),
+        F: FnMut(&DockNode, &[usize], (f32, f32, f32, f32)),
     {
-        visitor(node, (x, y, w, h));
+        // Call the visitor on the current node
+        visitor(node, path, (x, y, w, h));
 
         match node {
             DockNode::Split { direction, children, .. } => {
@@ -64,7 +66,11 @@ impl DockingLayout {
                 let mut offset = 0.0;
                 let child_count = visible_children.len();
 
-                for child in visible_children {
+                for (original_idx, child) in children.iter().enumerate() {
+                    if !child.is_visible() {
+                        continue;
+                    }
+
                     let child_ratio = if total_ratio > 0.0 {
                         child.get_ratio() / total_ratio
                     } else {
@@ -80,48 +86,72 @@ impl DockingLayout {
                         DockSplitDirection::Vertical => (x, y + offset),
                     };
 
-                    self.walk_with_layout(child, cx, cy, cw, ch, visitor);
+                    // Push this child's index
+                    path.push(original_idx);
+                    self.walk_with_layout_and_path(child, cx, cy, cw, ch, path, visitor);
+                    path.pop();
 
+                    // Advance offset
                     match direction {
                         DockSplitDirection::Horizontal => offset += cw,
                         DockSplitDirection::Vertical => offset += ch,
                     }
                 }
             }
-            // Each visible tab gets the entire rectangle.
             DockNode::Tab { tabs, .. } => {
                 let visible_children: Vec<&DockNode> = tabs.iter().filter(|c| c.is_visible()).collect();
                 if visible_children.is_empty() {
                     return;
                 }
 
-                for tab_child in tabs {
-                    if tab_child.is_visible() {
-                        self.walk_with_layout(tab_child, x, y, w, h, visitor);
+                // All visible tabs receive the same (x, y, w, h).
+                for (original_idx, tab_child) in tabs.iter().enumerate() {
+                    if !tab_child.is_visible() {
+                        continue;
                     }
+
+                    path.push(original_idx);
+                    self.walk_with_layout_and_path(tab_child, x, y, w, h, path, visitor);
+                    path.pop();
                 }
             }
+            // No children, just a leaf
             DockNode::Leaf { .. } => {}
         }
     }
 
-    /// Finds the bounding rectangle of the specified leaf ID. Returns `None` if not found or not visible.
+    /// Finds the bounding rectangle of the specified leaf ID. Returns None if not found or not visible.
     pub fn find_window_rect(
         &self,
         tree: &DockTree,
         leaf_id: &str,
     ) -> Option<(f32, f32, f32, f32)> {
+        let path = tree.find_leaf_path(leaf_id)?;
+        self.find_node_rect(tree, &path)
+    }
+
+    /// Find the bounding rectangle of a node at the given path.
+    pub fn find_node_rect(
+        &self,
+        tree: &DockTree,
+        path: &[usize],
+    ) -> Option<(f32, f32, f32, f32)> {
         let mut found = None;
-        self.walk_with_layout(&tree.root, 0.0, 0.0, self.available_width, self.available_height, &mut |node, (x, y, w, h)| {
-            if let DockNode::Leaf {
-                window_identifier, is_visible, ..
-            } = node
-            {
-                if *is_visible && window_identifier == leaf_id {
-                    found = Some((x, y, w, h));
+        let mut path_stack = Vec::new();
+        self.walk_with_layout_and_path(
+            &tree.root,
+            0.0,
+            0.0,
+            self.available_width,
+            self.available_height,
+            &mut path_stack,
+            &mut |_node, current_path, rect| {
+                if current_path == path {
+                    found = Some(rect);
                 }
-            }
-        });
+            },
+        );
+
         found
     }
 }
