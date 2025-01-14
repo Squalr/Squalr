@@ -1,76 +1,19 @@
-use crate::models::docking::layout::dock_node::DockNode;
-use crate::{DockedWindowViewData, models::docking::layout::docking_layout::DockingLayout};
-use slint::{ModelRc, SharedString, VecModel};
+use crate::DockedWindowViewData;
+use crate::models::docking::dock_node::DockNode;
+use crate::models::docking::docking_manager::DockingManager;
+use slint::SharedString;
+use slint::{ModelRc, VecModel};
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use std::sync::Arc;
 use std::sync::RwLock;
 
 pub struct DockPanelConverter {
-    docking_layout: Arc<RwLock<DockingLayout>>,
+    docking_manager: Arc<RwLock<DockingManager>>,
 }
 
 impl DockPanelConverter {
-    pub fn new(docking_layout: Arc<RwLock<DockingLayout>>) -> Self {
-        Self { docking_layout }
-    }
-
-    /// Returns the rectangle of the given panel identifier.
-    fn get_bounds(
-        &self,
-        window_id: &str,
-    ) -> (f32, f32, f32, f32) {
-        let docking_layout = match self.docking_layout.read() {
-            Ok(dl) => dl,
-            Err(_) => {
-                log::error!("Failed to lock docking_layout for reading");
-                return (0.0, 0.0, 0.0, 0.0);
-            }
-        };
-
-        docking_layout
-            .calculate_window_rect(window_id)
-            .unwrap_or((0.0, 0.0, 0.0, 0.0))
-    }
-
-    /// Finds sibling leaves in a parent Tab node (if any) plus the parent's active_tab_id for that leaf.
-    fn get_siblings_and_active_tab(
-        &self,
-        window_id: &str,
-    ) -> (Vec<SharedString>, String) {
-        let docking_layout = match self.docking_layout.read() {
-            Ok(dl) => dl,
-            Err(_) => {
-                log::error!("Failed to lock docking_layout for reading");
-                return (Vec::new(), window_id.to_owned());
-            }
-        };
-
-        // Use the new single-pass method to get node + path
-        if let Some((_leaf, path)) = docking_layout.find_node_by_id(window_id) {
-            // If there's a parent:
-            if !path.is_empty() {
-                let parent_path = &path[..path.len() - 1];
-                let parent_node = DockingLayout::get_node(&docking_layout.root, parent_path);
-
-                // If that parent is a Tab node, gather siblings
-                if let DockNode::Tab { tabs, active_tab_id, .. } = parent_node {
-                    let visible_siblings = tabs
-                        .iter()
-                        .filter_map(|tab_node| match tab_node {
-                            DockNode::Leaf {
-                                window_identifier, is_visible, ..
-                            } if *is_visible => Some(window_identifier.clone().into()),
-                            _ => None,
-                        })
-                        .collect();
-
-                    return (visible_siblings, active_tab_id.clone());
-                }
-            }
-        }
-
-        // Fallback: no parent tab found.
-        (Vec::new(), window_id.to_owned())
+    pub fn new(docking_manager: Arc<RwLock<DockingManager>>) -> Self {
+        Self { docking_manager }
     }
 }
 
@@ -95,14 +38,26 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockPanelConverter {
                 is_visible,
                 ratio: _,
             } => {
-                // Get bounding rectangle.
-                let (x, y, w, h) = self.get_bounds(window_identifier);
+                let manager = match self.docking_manager.read() {
+                    Ok(m) => m,
+                    Err(_) => {
+                        log::error!("Failed to lock DockingManager for reading");
+                        return DockedWindowViewData::default();
+                    }
+                };
 
-                // Gather siblings if in a parent tab.
-                let (siblings, found_active_tab_id) = self.get_siblings_and_active_tab(window_identifier);
+                // Find bounding rectangle.
+                let (x, y, w, h) = manager
+                    .find_window_rect(window_identifier)
+                    .unwrap_or((0.0, 0.0, 0.0, 0.0));
+
+                // Gather siblings if in a parent tab, as well as which of those tabs is active.
+                let (siblings, found_active_tab_id) = manager.get_siblings_and_active_tab(window_identifier);
 
                 // If the active_tab_id is NOT this leaf, we treat it as occluded.
                 let is_occluded = !siblings.is_empty() && found_active_tab_id != *window_identifier;
+
+                let siblings_converted: Vec<SharedString> = siblings.iter().map(|str| SharedString::from(str)).collect();
 
                 DockedWindowViewData {
                     identifier: window_identifier.clone().into(),
@@ -112,7 +67,7 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockPanelConverter {
                     position_y: y,
                     width: w,
                     height: h,
-                    tab_ids: ModelRc::new(VecModel::from(siblings)),
+                    tab_ids: ModelRc::new(VecModel::from(siblings_converted)),
                     active_tab_id: found_active_tab_id.into(),
                 }
             }

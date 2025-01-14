@@ -1,8 +1,8 @@
 use crate::DockRootViewModelBindings;
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
-use crate::models::docking::layout::dock_node::DockNode;
-use crate::models::docking::layout::docking_layout::DockingLayout;
+use crate::models::docking::dock_node::DockNode;
+use crate::models::docking::docking_manager::DockingManager;
 use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
 use crate::view_models::docking::dock_panel_converter::DockPanelConverter;
@@ -21,7 +21,7 @@ use std::sync::RwLock;
 
 pub struct DockRootViewModel {
     view_binding: ViewBinding<MainWindowView>,
-    _docking_layout: Arc<RwLock<DockingLayout>>,
+    _docking_manager: Arc<RwLock<DockingManager>>,
     manual_scan_view_model: Arc<ManualScanViewModel>,
     memory_settings_view_model: Arc<MemorySettingsViewModel>,
     output_view_model: Arc<OutputViewModel>,
@@ -31,12 +31,12 @@ pub struct DockRootViewModel {
 
 impl DockRootViewModel {
     pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
-        let dock_root = DockableWindowSettings::get_instance().get_dock_layout_settings();
-        let docking_layout = Arc::new(RwLock::new(DockingLayout::from_root(dock_root)));
+        let main_dock_root = DockableWindowSettings::get_instance().get_dock_layout_settings();
+        let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));
 
         let view: DockRootViewModel = DockRootViewModel {
             view_binding: view_binding.clone(),
-            _docking_layout: docking_layout.clone(),
+            _docking_manager: docking_manager.clone(),
             manual_scan_view_model: Arc::new(ManualScanViewModel::new(view_binding.clone())),
             memory_settings_view_model: Arc::new(MemorySettingsViewModel::new(view_binding.clone())),
             output_view_model: Arc::new(OutputViewModel::new(view_binding.clone())),
@@ -45,11 +45,11 @@ impl DockRootViewModel {
         };
 
         // Initialize the dock root size
-        let docking_layout_clone = docking_layout.clone();
+        let docking_manager_clone = docking_manager.clone();
         view_binding.execute_on_ui_thread(move |main_window_view, _| {
-            if let Ok(mut docking_layout) = docking_layout_clone.write() {
+            if let Ok(mut docking_manager) = docking_manager_clone.write() {
                 let dock_root_bindings = main_window_view.global::<DockRootViewModelBindings>();
-                docking_layout.set_available_size(
+                docking_manager.get_layout_mut().set_available_size(
                     dock_root_bindings.get_initial_dock_root_width(),
                     dock_root_bindings.get_initial_dock_root_height(),
                 );
@@ -65,13 +65,13 @@ impl DockRootViewModel {
                 on_drag(delta_x: i32, delta_y: i32) -> [view_binding] -> Self::on_drag
             },
             DockRootViewModelBindings => {
-                on_update_dock_root_size(width: f32, height: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_size,
-                on_update_dock_root_width(width: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_width,
-                on_update_dock_root_height(height: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_height,
-                on_update_active_tab_id(identifier: SharedString) -> [view_binding, docking_layout] -> Self::on_update_active_tab_id,
+                on_update_dock_root_size(width: f32, height: f32) -> [view_binding, docking_manager] -> Self::on_update_dock_root_size,
+                on_update_dock_root_width(width: f32) -> [view_binding, docking_manager] -> Self::on_update_dock_root_width,
+                on_update_dock_root_height(height: f32) -> [view_binding, docking_manager] -> Self::on_update_dock_root_height,
+                on_update_active_tab_id(identifier: SharedString) -> [view_binding, docking_manager] -> Self::on_update_active_tab_id,
                 on_get_tab_text(identifier: SharedString) -> [] -> Self::on_get_tab_text,
-                on_reset_layout() -> [view_binding, docking_layout] -> Self::on_reset_layout,
-                on_hide(identifier: SharedString) -> [view_binding, docking_layout] -> Self::on_hide,
+                on_reset_layout() -> [view_binding, docking_manager] -> Self::on_reset_layout,
+                on_hide(identifier: SharedString) -> [view_binding, docking_manager] -> Self::on_hide,
                 on_drag_left(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_left,
                 on_drag_right(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_right,
                 on_drag_top(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_top,
@@ -169,12 +169,14 @@ impl DockRootViewModel {
 
     fn on_update_dock_root_size(
         view_binding: ViewBinding<MainWindowView>,
-        docking_layout: Arc<RwLock<DockingLayout>>,
+        docking_manager: Arc<RwLock<DockingManager>>,
         width: f32,
         height: f32,
     ) -> f32 {
-        Self::mutate_layout(&view_binding, &docking_layout, false, move |docking_layout| {
-            docking_layout.set_available_size(width, height);
+        Self::mutate_layout(&view_binding, &docking_manager, false, move |docking_manager| {
+            docking_manager
+                .get_layout_mut()
+                .set_available_size(width, height);
         });
 
         // Return 0 as part of a UI hack to get responsive UI resizing.
@@ -183,35 +185,35 @@ impl DockRootViewModel {
 
     fn on_update_dock_root_width(
         view_binding: ViewBinding<MainWindowView>,
-        docking_layout: Arc<RwLock<DockingLayout>>,
+        docking_manager: Arc<RwLock<DockingManager>>,
         width: f32,
     ) {
-        Self::mutate_layout(&view_binding, &docking_layout, false, move |docking_layout| {
-            docking_layout.set_available_width(width);
+        Self::mutate_layout(&view_binding, &docking_manager, false, move |docking_manager| {
+            docking_manager.get_layout_mut().set_available_width(width);
         });
 
-        Self::propagate_layout(view_binding, docking_layout);
+        Self::propagate_layout(view_binding, docking_manager);
     }
 
     fn on_update_dock_root_height(
         view_binding: ViewBinding<MainWindowView>,
-        docking_layout: Arc<RwLock<DockingLayout>>,
+        docking_manager: Arc<RwLock<DockingManager>>,
         height: f32,
     ) {
-        Self::mutate_layout(&view_binding, &docking_layout, false, move |docking_layout| {
-            docking_layout.set_available_height(height);
+        Self::mutate_layout(&view_binding, &docking_manager, false, move |docking_manager| {
+            docking_manager.get_layout_mut().set_available_height(height);
         });
 
-        Self::propagate_layout(view_binding, docking_layout);
+        Self::propagate_layout(view_binding, docking_manager);
     }
 
     fn on_update_active_tab_id(
         view_binding: ViewBinding<MainWindowView>,
-        docking_layout: Arc<RwLock<DockingLayout>>,
+        docking_manager: Arc<RwLock<DockingManager>>,
         identifier: SharedString,
     ) {
-        Self::mutate_layout(&view_binding, &docking_layout, true, move |docking_layout| {
-            docking_layout.select_tab_by_leaf_id(identifier.as_str());
+        Self::mutate_layout(&view_binding, &docking_manager, true, move |docking_manager| {
+            docking_manager.select_tab_by_leaf_id(identifier.as_str());
         });
     }
 
@@ -229,20 +231,20 @@ impl DockRootViewModel {
 
     fn on_reset_layout(
         view_binding: ViewBinding<MainWindowView>,
-        docking_layout: Arc<RwLock<DockingLayout>>,
+        docking_manager: Arc<RwLock<DockingManager>>,
     ) {
-        Self::mutate_layout(&view_binding, &docking_layout, true, move |docking_layout| {
-            docking_layout.set_root(&DockSettingsConfig::get_default_layout());
+        Self::mutate_layout(&view_binding, &docking_manager, true, move |docking_manager| {
+            docking_manager.set_root(DockSettingsConfig::get_default_layout());
         });
     }
 
     fn on_hide(
         view_binding: ViewBinding<MainWindowView>,
-        docking_layout: Arc<RwLock<DockingLayout>>,
+        docking_manager: Arc<RwLock<DockingManager>>,
         dockable_window_id: SharedString,
     ) {
-        Self::mutate_layout(&view_binding, &docking_layout, true, move |docking_layout| {
-            if let Some(node) = docking_layout.get_node_by_id_mut(&dockable_window_id) {
+        Self::mutate_layout(&view_binding, &docking_manager, true, move |docking_manager| {
+            if let Some(node) = docking_manager.get_node_by_id_mut(&dockable_window_id) {
                 node.set_visible(false);
             }
         });
@@ -282,16 +284,16 @@ impl DockRootViewModel {
 
     fn mutate_layout<F>(
         view_binding: &ViewBinding<MainWindowView>,
-        docking_layout: &Arc<RwLock<DockingLayout>>,
+        docking_manager: &Arc<RwLock<DockingManager>>,
         save_layout: bool,
         f: F,
     ) where
-        F: FnOnce(&mut DockingLayout),
+        F: FnOnce(&mut DockingManager),
     {
-        let mut layout_guard = match docking_layout.write() {
+        let mut layout_guard = match docking_manager.write() {
             Ok(guard) => guard,
             Err(err) => {
-                log::error!("Could not acquire docking_layout write lock: {err}");
+                log::error!("Could not acquire docking_manager write lock: {err}");
                 return;
             }
         };
@@ -305,27 +307,27 @@ impl DockRootViewModel {
 
         drop(layout_guard);
 
-        Self::propagate_layout(view_binding.clone(), docking_layout.clone());
+        Self::propagate_layout(view_binding.clone(), docking_manager.clone());
     }
 
     fn propagate_layout(
         view_binding: ViewBinding<MainWindowView>,
-        docking_layout: Arc<RwLock<DockingLayout>>,
+        docking_manager: Arc<RwLock<DockingManager>>,
     ) {
         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
             // Resolve any potential malformed data before attempting to convert to renderable form.
-            if let Ok(mut docking_layout) = docking_layout.write() {
-                docking_layout.prepare_for_presentation();
+            if let Ok(mut docking_manager) = docking_manager.write() {
+                docking_manager.prepare_for_presentation();
             }
 
             let dock_root_bindings = main_window_view.global::<DockRootViewModelBindings>();
-            let converter = DockPanelConverter::new(docking_layout.clone());
+            let converter = DockPanelConverter::new(docking_manager.clone());
 
             // Acquire the read lock once for all operations.
-            let layout_guard = match docking_layout.read() {
+            let layout_guard = match docking_manager.read() {
                 Ok(guard) => guard,
                 Err(e) => {
-                    log::error!("Failed to acquire read lock on docking_layout: {}", e);
+                    log::error!("Failed to acquire read lock on docking_manager: {}", e);
                     return;
                 }
             };
