@@ -89,101 +89,69 @@ impl DockNode {
         }
     }
 
-    /// Collect the IDs of all leaf nodes in this sub-tree.
-    pub fn collect_leaves(
-        &self,
-        out: &mut Vec<String>,
-    ) {
-        match self {
-            DockNode::Leaf { window_identifier, .. } => {
-                out.push(window_identifier.clone());
-            }
-            DockNode::Split { children, .. } => {
-                for child in children {
-                    child.collect_leaves(out);
-                }
-            }
-            DockNode::Tab { tabs, .. } => {
-                for tab in tabs {
-                    tab.collect_leaves(out);
-                }
-            }
-        }
-    }
+    pub fn walk<'a, F>(
+        &'a self,
+        path: &mut Vec<usize>,
+        visitor: &mut F,
+    ) where
+        F: FnMut(&'a DockNode, &[usize]),
+    {
+        // Visit the current node.
+        visitor(self, path);
 
-    /// Return a path of indices that leads to the leaf node matching `window_id`.
-    /// Example path: [2, 0] means: in this node's `children[2].children[0]` or `tabs[2].tabs[0]`.
-    /// Returns `None` if not found in this subtree.
-    pub fn find_path_to_leaf(
-        &self,
-        window_id: &str,
-    ) -> Option<Vec<usize>> {
+        // Recurse into children, if any.
         match self {
-            DockNode::Leaf { window_identifier, .. } => {
-                if window_identifier == window_id {
-                    // Found it! Return an empty path meaning "we are the node."
-                    Some(vec![])
-                } else {
-                    None
-                }
-            }
             DockNode::Split { children, .. } => {
                 for (i, child) in children.iter().enumerate() {
-                    if let Some(mut path) = child.find_path_to_leaf(window_id) {
-                        path.insert(0, i);
-                        return Some(path);
-                    }
+                    path.push(i);
+                    child.walk(path, visitor);
+                    path.pop();
                 }
-                None
             }
             DockNode::Tab { tabs, .. } => {
                 for (i, tab) in tabs.iter().enumerate() {
-                    if let Some(mut path) = tab.find_path_to_leaf(window_id) {
-                        path.insert(0, i);
-                        return Some(path);
-                    }
+                    path.push(i);
+                    tab.walk(path, visitor);
+                    path.pop();
                 }
-                None
             }
+            DockNode::Leaf { .. } => {}
         }
     }
 
-    /// Find the bounding rectangle of a child leaf node by ID (if it exists in this sub-tree).
-    /// Returns `(x, y, width, height)`.
-    pub fn find_window_rect(
+    pub fn walk_with_layout<F>(
         &self,
-        target_id: &str,
         x: f32,
         y: f32,
         width: f32,
         height: f32,
-    ) -> Option<(f32, f32, f32, f32)> {
+        visitor: &mut F,
+    ) where
+        F: FnMut(&DockNode, (f32, f32, f32, f32)),
+    {
+        // Call the user's closure, passing the node + bounding rect.
+        visitor(self, (x, y, width, height));
+
+        // Now figure out how to split/allocate that rect to children.
         match self {
-            DockNode::Leaf {
-                window_identifier, is_visible, ..
-            } => {
-                if *is_visible && window_identifier == target_id {
-                    Some((x, y, width, height))
-                } else {
-                    None
-                }
-            }
             DockNode::Split { direction, children, .. } => {
+                // Filter out invisible children.
                 let visible_children: Vec<&DockNode> = children.iter().filter(|c| c.is_visible()).collect();
+
                 if visible_children.is_empty() {
-                    return None;
+                    return;
                 }
 
-                // Sum ratios for normalization
                 let total_ratio: f32 = visible_children.iter().map(|c| c.get_ratio()).sum();
                 let mut offset = 0.0;
-                let visible_len = visible_children.len();
+                let num_children = visible_children.len();
 
                 for child in visible_children {
+                    // Normalize ratio
                     let child_ratio = if total_ratio > 0.0 {
                         child.get_ratio() / total_ratio
                     } else {
-                        1.0 / visible_len as f32
+                        1.0 / num_children as f32
                     };
 
                     let (cw, ch) = match direction {
@@ -197,27 +165,95 @@ impl DockNode {
                     };
 
                     // Recurse
-                    if let Some(rect) = child.find_window_rect(target_id, cx, cy, cw, ch) {
-                        return Some(rect);
-                    }
+                    child.walk_with_layout(cx, cy, cw, ch, visitor);
 
+                    // Accumulate offset
                     match direction {
                         DockSplitDirection::Horizontal => offset += cw,
                         DockSplitDirection::Vertical => offset += ch,
                     }
                 }
-                None
             }
+
             DockNode::Tab { tabs, .. } => {
-                // Typically only one tab is "active" (visible),
-                // but for simplicity, we just check them all.
-                for child in tabs {
-                    if let Some(rect) = child.find_window_rect(target_id, x, y, width, height) {
-                        return Some(rect);
+                // Each tab gets the entire rectangle. If you only want to
+                // “lay out” the active tab, you could check that here.
+                for tab_node in tabs {
+                    if tab_node.is_visible() {
+                        tab_node.walk_with_layout(x, y, width, height, visitor);
                     }
                 }
-                None
+            }
+
+            DockNode::Leaf { .. } => {
+                // Leaves have no children, so nothing further to do.
             }
         }
+    }
+
+    /// Collect the IDs of all leaf nodes in this sub-tree.
+
+    pub fn collect_leaves(
+        &self,
+        out: &mut Vec<String>,
+    ) {
+        let mut path = Vec::new();
+
+        self.walk(&mut path, &mut |node, _current_path| {
+            if let DockNode::Leaf { window_identifier, .. } = node {
+                out.push(window_identifier.clone());
+            }
+        });
+    }
+
+    /// Return a path of indices that leads to the leaf node matching `window_id`.
+    /// Example path: [2, 0] means: in this node's `children[2].children[0]` or `tabs[2].tabs[0]`.
+    /// Returns `None` if not found in this subtree.
+    pub fn find_path_to_leaf(
+        &self,
+        window_id: &str,
+    ) -> Option<Vec<usize>> {
+        // Instead of manual recursion, we can do a single pass with `walk`.
+        let mut path_stack = Vec::new();
+        let mut result = None;
+
+        self.walk(&mut path_stack, &mut |node, current_path| {
+            if let DockNode::Leaf { window_identifier, .. } = node {
+                if window_identifier == window_id {
+                    // Found it! Capture the current path (copy it).
+                    result = Some(current_path.to_vec());
+                }
+            }
+        });
+
+        result
+    }
+
+    /// Find the bounding rectangle of a child leaf node by ID (if it exists in this sub-tree).
+    /// Returns `(x, y, width, height)`.
+    pub fn find_window_rect(
+        &self,
+        target_id: &str,
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+    ) -> Option<(f32, f32, f32, f32)> {
+        let mut found_rect = None;
+
+        // Single pass with `walk_with_layout`.
+        self.walk_with_layout(x, y, width, height, &mut |node, (cx, cy, cw, ch)| {
+            if let DockNode::Leaf {
+                window_identifier, is_visible, ..
+            } = node
+            {
+                if *is_visible && window_identifier == target_id {
+                    // Found it: store rectangle.
+                    found_rect = Some((cx, cy, cw, ch));
+                }
+            }
+        });
+
+        found_rect
     }
 }
