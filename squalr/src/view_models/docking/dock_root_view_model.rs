@@ -173,13 +173,9 @@ impl DockRootViewModel {
         width: f32,
         height: f32,
     ) -> f32 {
-        if let Ok(mut layout_guard) = docking_layout.write() {
-            layout_guard.set_available_size(width, height);
-        } else {
-            log::error!("Could not acquire docking_layout write lock in on_update_dock_root_size");
-        }
-
-        Self::propagate_layout(view_binding, docking_layout);
+        Self::mutate_layout(&view_binding, &docking_layout, false, move |docking_layout| {
+            docking_layout.set_available_size(width, height);
+        });
 
         // Return 0 as part of a UI hack to get responsive UI resizing.
         0.0
@@ -190,12 +186,9 @@ impl DockRootViewModel {
         docking_layout: Arc<RwLock<DockingLayout>>,
         width: f32,
     ) {
-        if let Ok(mut layout_guard) = docking_layout.write() {
-            layout_guard.set_available_width(width);
-        } else {
-            log::error!("Could not acquire docking_layout write lock in on_update_dock_root_width");
-            return;
-        }
+        Self::mutate_layout(&view_binding, &docking_layout, false, move |docking_layout| {
+            docking_layout.set_available_width(width);
+        });
 
         Self::propagate_layout(view_binding, docking_layout);
     }
@@ -205,12 +198,9 @@ impl DockRootViewModel {
         docking_layout: Arc<RwLock<DockingLayout>>,
         height: f32,
     ) {
-        if let Ok(mut layout_guard) = docking_layout.write() {
-            layout_guard.set_available_height(height);
-        } else {
-            log::error!("Could not acquire docking_layout write lock in on_update_dock_root_height");
-            return;
-        }
+        Self::mutate_layout(&view_binding, &docking_layout, false, move |docking_layout| {
+            docking_layout.set_available_height(height);
+        });
 
         Self::propagate_layout(view_binding, docking_layout);
     }
@@ -220,10 +210,9 @@ impl DockRootViewModel {
         docking_layout: Arc<RwLock<DockingLayout>>,
         identifier: SharedString,
     ) {
-        if let Ok(mut docking_layout) = docking_layout.write() {
+        Self::mutate_layout(&view_binding, &docking_layout, true, move |docking_layout| {
             docking_layout.select_tab_by_leaf_id(identifier.as_str());
-        }
-        Self::propagate_layout(view_binding, docking_layout);
+        });
     }
 
     fn on_get_tab_text(identifier: SharedString) -> SharedString {
@@ -242,13 +231,9 @@ impl DockRootViewModel {
         view_binding: ViewBinding<MainWindowView>,
         docking_layout: Arc<RwLock<DockingLayout>>,
     ) {
-        if let Ok(mut docking_layout) = docking_layout.write() {
+        Self::mutate_layout(&view_binding, &docking_layout, true, move |docking_layout| {
             docking_layout.set_root(&DockSettingsConfig::get_default_layout());
-
-            // Save changes.
-            DockableWindowSettings::get_instance().set_dock_layout_settings(docking_layout.get_root());
-        }
-        Self::propagate_layout(view_binding, docking_layout);
+        });
     }
 
     fn on_hide(
@@ -256,16 +241,11 @@ impl DockRootViewModel {
         docking_layout: Arc<RwLock<DockingLayout>>,
         dockable_window_id: SharedString,
     ) {
-        if let Ok(mut docking_layout) = docking_layout.write() {
+        Self::mutate_layout(&view_binding, &docking_layout, true, move |docking_layout| {
             if let Some(node) = docking_layout.get_node_by_id_mut(&dockable_window_id) {
                 node.set_visible(false);
             }
-
-            // Save changes.
-            DockableWindowSettings::get_instance().set_dock_layout_settings(docking_layout.get_root());
-        }
-
-        Self::propagate_layout(view_binding, docking_layout);
+        });
     }
 
     fn on_drag_left(
@@ -298,6 +278,34 @@ impl DockRootViewModel {
         _delta_y: i32,
     ) {
         // TODO: Implement me.
+    }
+
+    fn mutate_layout<F>(
+        view_binding: &ViewBinding<MainWindowView>,
+        docking_layout: &Arc<RwLock<DockingLayout>>,
+        save_layout: bool,
+        f: F,
+    ) where
+        F: FnOnce(&mut DockingLayout),
+    {
+        let mut layout_guard = match docking_layout.write() {
+            Ok(guard) => guard,
+            Err(err) => {
+                log::error!("Could not acquire docking_layout write lock: {err}");
+                return;
+            }
+        };
+
+        f(&mut layout_guard);
+
+        // Optionally save changes.
+        if save_layout {
+            DockableWindowSettings::get_instance().set_dock_layout_settings(layout_guard.get_root());
+        }
+
+        drop(layout_guard);
+
+        Self::propagate_layout(view_binding.clone(), docking_layout.clone());
     }
 
     fn propagate_layout(
