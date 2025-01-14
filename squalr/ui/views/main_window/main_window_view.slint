@@ -1,7 +1,7 @@
 import { HorizontalBox } from "std-widgets.slint";
 
 import { Theme } from "../../theme.slint";
-import { WindowViewModelBindings } from "../../view_model_bindings.slint";
+import { WindowViewModelBindings, DockRootViewModelBindings } from "../../view_model_bindings.slint";
 
 import { FooterView } from "./footer_view.slint";
 import { TitleBarView } from "./title_bar_view.slint";
@@ -65,6 +65,7 @@ export component MainWindowView inherits Window {
                     } else if id == "export-project" {
                     } else if id == "settings" {
                     } else if id == "layout-reset" {
+                        DockRootViewModelBindings.reset-layout();
                     } else if id == "process-selector" {
                     } else if id == "project-explorer" {
                     } else if id == "memory-viewer" {

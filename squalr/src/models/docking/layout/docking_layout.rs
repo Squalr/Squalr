@@ -10,55 +10,13 @@ pub struct DockingLayout {
 }
 
 impl DockingLayout {
-    /// Create a new empty layout.
-    pub fn new() -> Self {
+    /// Create a new layout from a builder directly.
+    pub fn from_root(root: DockNode) -> Self {
         Self {
-            root: DockNode::default(),
+            root: root,
             available_width: 0.0,
             available_height: 0.0,
         }
-    }
-
-    /// The default layout for Squalr.
-    pub fn default() -> Self {
-        let builder = DockBuilder::split_node(DockSplitDirection::Horizontal)
-            .push_child(
-                0.7,
-                DockBuilder::split_node(DockSplitDirection::Vertical)
-                    .push_child(
-                        0.5,
-                        DockBuilder::split_node(DockSplitDirection::Horizontal)
-                            // Build a tab with two leaves: process-selector & project-explorer
-                            .push_child(
-                                0.5,
-                                DockBuilder::tab_node("project-explorer")
-                                    .push_tab(DockBuilder::leaf("process-selector"))
-                                    .push_tab(DockBuilder::leaf("project-explorer")),
-                            )
-                            // And a leaf node for "settings" occupying the other 0.5
-                            .push_child(0.5, DockBuilder::leaf("settings")),
-                    )
-                    .push_child(0.5, DockBuilder::leaf("output")),
-            )
-            .push_child(
-                0.3,
-                DockBuilder::split_node(DockSplitDirection::Vertical)
-                    .push_child(0.6, DockBuilder::leaf("scan-results"))
-                    .push_child(0.4, DockBuilder::leaf("property-viewer")),
-            );
-
-        Self {
-            root: builder.build(),
-            available_width: 0.0,
-            available_height: 0.0,
-        }
-    }
-
-    /// Create a new layout from saved settings.
-    pub fn from_settings() -> Self {
-        let dock_layout = Self::default();
-
-        dock_layout
     }
 
     /// Create a new layout from a builder directly.
@@ -167,6 +125,17 @@ impl DockingLayout {
         let node_ref = Self::get_node_mut(&mut self.root, &path);
 
         Some(node_ref)
+    }
+
+    pub fn get_root(&self) -> &DockNode {
+        &self.root
+    }
+
+    pub fn set_root(
+        &mut self,
+        root: &DockNode,
+    ) {
+        self.root = root.clone();
     }
 
     pub fn get_all_leaves(&self) -> Vec<String> {

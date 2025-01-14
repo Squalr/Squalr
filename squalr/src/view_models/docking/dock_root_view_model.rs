@@ -3,6 +3,8 @@ use crate::MainWindowView;
 use crate::WindowViewModelBindings;
 use crate::models::docking::layout::dock_node::DockNode;
 use crate::models::docking::layout::docking_layout::DockingLayout;
+use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
+use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
 use crate::view_models::docking::dock_panel_converter::DockPanelConverter;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
@@ -29,7 +31,8 @@ pub struct DockRootViewModel {
 
 impl DockRootViewModel {
     pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
-        let docking_layout = Arc::new(RwLock::new(DockingLayout::from_settings()));
+        let dock_root = DockableWindowSettings::get_instance().get_dock_layout_settings();
+        let docking_layout = Arc::new(RwLock::new(DockingLayout::from_root(dock_root)));
 
         let view: DockRootViewModel = DockRootViewModel {
             view_binding: view_binding.clone(),
@@ -67,6 +70,7 @@ impl DockRootViewModel {
                 on_update_dock_root_height(height: f32) -> [view_binding, docking_layout] -> Self::on_update_dock_root_height,
                 on_update_active_tab_id(identifier: SharedString) -> [view_binding, docking_layout] -> Self::on_update_active_tab_id,
                 on_get_tab_text(identifier: SharedString) -> [] -> Self::on_get_tab_text,
+                on_reset_layout() -> [view_binding, docking_layout] -> Self::on_reset_layout,
                 on_hide(identifier: SharedString) -> [view_binding, docking_layout] -> Self::on_hide,
                 on_drag_left(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_left,
                 on_drag_right(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [] -> Self::on_drag_right,
@@ -234,6 +238,19 @@ impl DockRootViewModel {
         }
     }
 
+    fn on_reset_layout(
+        view_binding: ViewBinding<MainWindowView>,
+        docking_layout: Arc<RwLock<DockingLayout>>,
+    ) {
+        if let Ok(mut docking_layout) = docking_layout.write() {
+            docking_layout.set_root(&DockSettingsConfig::get_default_layout());
+
+            // Save changes.
+            DockableWindowSettings::get_instance().set_dock_layout_settings(docking_layout.get_root());
+        }
+        Self::propagate_layout(view_binding, docking_layout);
+    }
+
     fn on_hide(
         view_binding: ViewBinding<MainWindowView>,
         docking_layout: Arc<RwLock<DockingLayout>>,
@@ -243,7 +260,11 @@ impl DockRootViewModel {
             if let Some(node) = docking_layout.get_node_by_id_mut(&dockable_window_id) {
                 node.set_visible(false);
             }
+
+            // Save changes.
+            DockableWindowSettings::get_instance().set_dock_layout_settings(docking_layout.get_root());
         }
+
         Self::propagate_layout(view_binding, docking_layout);
     }
 

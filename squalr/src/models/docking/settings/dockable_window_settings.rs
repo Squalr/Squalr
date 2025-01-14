@@ -1,4 +1,6 @@
+use crate::models::docking::builder::dock_builder::DockBuilder;
 use crate::models::docking::layout::dock_node::DockNode;
+use crate::models::docking::layout::dock_split_direction::DockSplitDirection;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use squalr_engine_common::config::serialized_config_updater;
@@ -8,20 +10,51 @@ use std::sync::Once;
 use std::sync::{Arc, RwLock};
 
 #[derive(Deserialize, Serialize)]
-pub struct Config {
+pub struct DockSettingsConfig {
     pub dock_root: DockNode,
 }
 
-impl Default for Config {
+impl Default for DockSettingsConfig {
     fn default() -> Self {
         Self {
-            dock_root: DockNode::default(),
+            dock_root: Self::get_default_layout(),
         }
     }
 }
 
+impl DockSettingsConfig {
+    pub fn get_default_layout() -> DockNode {
+        DockBuilder::split_node(DockSplitDirection::Horizontal)
+            .push_child(
+                0.7,
+                DockBuilder::split_node(DockSplitDirection::Vertical)
+                    .push_child(
+                        0.5,
+                        DockBuilder::split_node(DockSplitDirection::Horizontal)
+                            // Build a tab with two leaves: process-selector & project-explorer
+                            .push_child(
+                                0.5,
+                                DockBuilder::tab_node("project-explorer")
+                                    .push_tab(DockBuilder::leaf("process-selector"))
+                                    .push_tab(DockBuilder::leaf("project-explorer")),
+                            )
+                            // And a leaf node for "settings" occupying the other 0.5
+                            .push_child(0.5, DockBuilder::leaf("settings")),
+                    )
+                    .push_child(0.5, DockBuilder::leaf("output")),
+            )
+            .push_child(
+                0.3,
+                DockBuilder::split_node(DockSplitDirection::Vertical)
+                    .push_child(0.6, DockBuilder::leaf("scan-results"))
+                    .push_child(0.4, DockBuilder::leaf("property-viewer")),
+            )
+            .build()
+    }
+}
+
 pub struct DockableWindowSettings {
-    config: Arc<RwLock<Config>>,
+    config: Arc<RwLock<DockSettingsConfig>>,
     config_file: PathBuf,
 }
 
@@ -31,10 +64,10 @@ impl DockableWindowSettings {
         let config = if config_file.exists() {
             match fs::read_to_string(&config_file) {
                 Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
-                Err(_) => Config::default(),
+                Err(_) => DockSettingsConfig::default(),
             }
         } else {
-            Config::default()
+            DockSettingsConfig::default()
         };
 
         Self {
@@ -73,19 +106,19 @@ impl DockableWindowSettings {
         }
     }
 
-    pub fn get_full_config(&self) -> &Arc<RwLock<Config>> {
+    pub fn get_full_config(&self) -> &Arc<RwLock<DockSettingsConfig>> {
         &self.config
     }
 
-    pub fn get_dock_layout_settings(&self) -> Option<DockNode> {
-        Some(self.config.read().unwrap().dock_root.clone())
+    pub fn get_dock_layout_settings(&self) -> DockNode {
+        self.config.read().unwrap().dock_root.clone()
     }
 
     pub fn set_dock_layout_settings(
         &self,
-        settings: DockNode,
+        settings: &DockNode,
     ) {
-        self.config.write().unwrap().dock_root = settings;
+        self.config.write().unwrap().dock_root = settings.clone();
         self.save_config();
     }
 

@@ -34,6 +34,7 @@ export global DockRootViewModelBindings {
     pure callback update-dock-root-size(width: length, height: length) -> length;
     pure callback update-active-tab-id(identifier: string);
     pure callback get-tab-text(identifier: string) -> string;
+    callback reset-layout();
     callback hide(identifier: string);
     callback drag-left(identifier: string, delta-x: int, delta-y: int);
     callback drag-right(identifier: string, delta-x: int, delta-y: int);
