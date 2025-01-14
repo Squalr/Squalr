@@ -13,6 +13,65 @@ impl DockPanelConverter {
     pub fn new(docking_layout: Arc<RwLock<DockingLayout>>) -> Self {
         Self { docking_layout }
     }
+
+    /// Returns the rectangle of the given panel identifier.
+    fn get_bounds(
+        &self,
+        window_id: &str,
+    ) -> (f32, f32, f32, f32) {
+        let docking_layout = match self.docking_layout.read() {
+            Ok(dl) => dl,
+            Err(_) => {
+                log::error!("Failed to lock docking_layout for reading");
+                return (0.0, 0.0, 0.0, 0.0);
+            }
+        };
+
+        docking_layout
+            .calculate_window_rect(window_id)
+            .unwrap_or((0.0, 0.0, 0.0, 0.0))
+    }
+
+    /// Finds sibling leaves in a parent Tab node (if any) plus the parent's active_tab_id for that leaf.
+    fn get_siblings_and_active_tab(
+        &self,
+        window_id: &str,
+    ) -> (Vec<SharedString>, String) {
+        let docking_layout = match self.docking_layout.read() {
+            Ok(dl) => dl,
+            Err(_) => {
+                log::error!("Failed to lock docking_layout for reading");
+                return (Vec::new(), window_id.to_owned());
+            }
+        };
+
+        // Use the new single-pass method to get node + path
+        if let Some((_leaf, path)) = docking_layout.find_node_by_id(window_id) {
+            // If there's a parent:
+            if !path.is_empty() {
+                let parent_path = &path[..path.len() - 1];
+                let parent_node = DockingLayout::get_node(&docking_layout.root, parent_path);
+
+                // If that parent is a Tab node, gather siblings
+                if let DockNode::Tab { tabs, active_tab_id, .. } = parent_node {
+                    let visible_siblings = tabs
+                        .iter()
+                        .filter_map(|tab_node| match tab_node {
+                            DockNode::Leaf {
+                                window_identifier, is_visible, ..
+                            } if *is_visible => Some(window_identifier.clone().into()),
+                            _ => None,
+                        })
+                        .collect();
+
+                    return (visible_siblings, active_tab_id.clone());
+                }
+            }
+        }
+
+        // Fallback: no parent tab found.
+        (Vec::new(), window_id.to_owned())
+    }
 }
 
 impl ViewDataConverter<DockNode, DockedWindowViewData> for DockPanelConverter {
@@ -36,51 +95,14 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockPanelConverter {
                 is_visible,
                 ratio: _,
             } => {
-                // Compute bounds, as you already do
-                let (x, y, w, h) = if let Ok(docking_layout) = self.docking_layout.read() {
-                    docking_layout
-                        .calculate_window_rect(window_identifier)
-                        .unwrap_or((0.0, 0.0, 0.0, 0.0))
-                } else {
-                    (0.0, 0.0, 0.0, 0.0)
-                };
+                // Get bounding rectangle.
+                let (x, y, w, h) = self.get_bounds(window_identifier);
 
-                // We gather siblings (including self) if the parent is a Tab node
-                let mut siblings: Vec<SharedString> = Vec::new();
-                let mut found_active_tab_id = window_identifier.clone();
+                // Gather siblings if in a parent tab.
+                let (siblings, found_active_tab_id) = self.get_siblings_and_active_tab(window_identifier);
 
-                if let Ok(docking_layout) = self.docking_layout.read() {
-                    // 1) Find the path from root to this leaf
-                    if let Some(path) = docking_layout.find_path_to_leaf(window_identifier) {
-                        // If there's a parent
-                        if !path.is_empty() {
-                            // parent path = path without the last index
-                            let parent_path = &path[..path.len() - 1];
-
-                            // 2) Get the parent node
-                            let parent_node = DockingLayout::get_node(&docking_layout.root, parent_path);
-
-                            // 3) If parent is a Tab, gather all tab identifiers
-                            if let DockNode::Tab { tabs, active_tab_id, .. } = parent_node {
-                                found_active_tab_id = active_tab_id.clone();
-                                for tab_node in tabs {
-                                    if let DockNode::Leaf {
-                                        window_identifier: tab_id,
-                                        is_visible,
-                                        ..
-                                    } = tab_node
-                                    {
-                                        if *is_visible {
-                                            siblings.push(tab_id.clone().into());
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                let is_occluded = siblings.len() > 0 && found_active_tab_id != *window_identifier;
+                // If the active_tab_id is NOT this leaf, we treat it as occluded.
+                let is_occluded = !siblings.is_empty() && found_active_tab_id != *window_identifier;
 
                 DockedWindowViewData {
                     identifier: window_identifier.clone().into(),
@@ -94,6 +116,8 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockPanelConverter {
                     active_tab_id: found_active_tab_id.into(),
                 }
             }
+
+            // If it's not a Leaf, just return a default.
             _ => DockedWindowViewData::default(),
         }
     }

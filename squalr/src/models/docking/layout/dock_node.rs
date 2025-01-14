@@ -12,7 +12,7 @@ pub enum DockNode {
         children: Vec<DockNode>,
     },
     /// A tab container, holding multiple children in tabs.
-    /// Each child is itself a `DockNode`, so we can have either Leaf nodes
+    /// Each child is itself a DockNode, so we can have either Leaf nodes
     /// or even nested splits in a tab if we want to get fancy.
     Tab {
         /// The ratio that the entire container occupies.
@@ -129,7 +129,7 @@ impl DockNode {
     ) where
         F: FnMut(&DockNode, (f32, f32, f32, f32)),
     {
-        // Call the user's closure, passing the node + bounding rect.
+        // Invoke callback with the bounds of this node.
         visitor(self, (x, y, width, height));
 
         // Now figure out how to split/allocate that rect to children.
@@ -147,7 +147,7 @@ impl DockNode {
                 let num_children = visible_children.len();
 
                 for child in visible_children {
-                    // Normalize ratio
+                    // Normalize ratio.
                     let child_ratio = if total_ratio > 0.0 {
                         child.get_ratio() / total_ratio
                     } else {
@@ -176,23 +176,19 @@ impl DockNode {
             }
 
             DockNode::Tab { tabs, .. } => {
-                // Each tab gets the entire rectangle. If you only want to
-                // “lay out” the active tab, you could check that here.
+                // Each tab gets the entire rectangle.
                 for tab_node in tabs {
                     if tab_node.is_visible() {
                         tab_node.walk_with_layout(x, y, width, height, visitor);
                     }
                 }
             }
-
-            DockNode::Leaf { .. } => {
-                // Leaves have no children, so nothing further to do.
-            }
+            // Leaves have no children, so nothing further to do.
+            DockNode::Leaf { .. } => {}
         }
     }
 
     /// Collect the IDs of all leaf nodes in this sub-tree.
-
     pub fn collect_leaves(
         &self,
         out: &mut Vec<String>,
@@ -206,14 +202,14 @@ impl DockNode {
         });
     }
 
-    /// Return a path of indices that leads to the leaf node matching `window_id`.
-    /// Example path: [2, 0] means: in this node's `children[2].children[0]` or `tabs[2].tabs[0]`.
-    /// Returns `None` if not found in this subtree.
+    /// Return a path of indices that leads to the panel matching the given identifier.
+    /// Example path: [2, 0] means: in this node's children[2].children[0] or tabs[2].tabs[0].
+    /// Returns None if not found in this subtree.
     pub fn find_path_to_leaf(
         &self,
         window_id: &str,
     ) -> Option<Vec<usize>> {
-        // Instead of manual recursion, we can do a single pass with `walk`.
+        // Instead of manual recursion, we can do a single pass with walk.
         let mut path_stack = Vec::new();
         let mut result = None;
 
@@ -230,7 +226,7 @@ impl DockNode {
     }
 
     /// Find the bounding rectangle of a child leaf node by ID (if it exists in this sub-tree).
-    /// Returns `(x, y, width, height)`.
+    /// Returns (x, y, width, height).
     pub fn find_window_rect(
         &self,
         target_id: &str,
@@ -241,7 +237,7 @@ impl DockNode {
     ) -> Option<(f32, f32, f32, f32)> {
         let mut found_rect = None;
 
-        // Single pass with `walk_with_layout`.
+        // Single pass with walk_with_layout.
         self.walk_with_layout(x, y, width, height, &mut |node, (cx, cy, cw, ch)| {
             if let DockNode::Leaf {
                 window_identifier, is_visible, ..

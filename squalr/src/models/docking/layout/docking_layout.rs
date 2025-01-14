@@ -53,77 +53,36 @@ impl DockingLayout {
         self.available_height = height;
     }
 
-    /// Attempt to resize a leaf node or tab node by adjusting its ratio.
-    /// This only works if the node has exactly one sibling (i.e., two total siblings).
-    pub fn resize_window(
+    pub fn find_node_by_id(
+        &self,
+        window_id: &str,
+    ) -> Option<(&DockNode, Vec<usize>)> {
+        let path = self.root.find_path_to_leaf(window_id)?;
+        let node = Self::get_node(&self.root, &path);
+        Some((node, path))
+    }
+
+    pub fn find_node_by_id_mut(
         &mut self,
         window_id: &str,
-        new_ratio: f32,
-    ) -> bool {
-        // Pass 1: find path (immutable).
-        let path = match self.find_path_to_leaf(window_id) {
-            Some(path) => path,
-            None => return false,
-        };
-
-        // Pass 2: use path (mutable).
-        let node_ref = Self::get_node_mut(&mut self.root, &path);
-        node_ref.set_ratio(new_ratio);
-
-        if path.is_empty() {
-            // No parent to adjust (this node is the root).
-            return true;
-        }
-
-        // The parent path is everything except the last index.
-        let (parent_path, leaf_idx_slice) = path.split_at(path.len() - 1);
-        let leaf_index = leaf_idx_slice[0];
-        let parent_ref = Self::get_node_mut(&mut self.root, parent_path);
-
-        match parent_ref {
-            // If parent is a Split with exactly two children, adjust sibling ratio
-            DockNode::Split { children, .. } if children.len() == 2 => {
-                let sibling_idx = if leaf_index == 0 { 1 } else { 0 };
-                children[sibling_idx].set_ratio(1.0 - new_ratio);
-            }
-            // If parent is a Tab with exactly two tabs, adjust sibling ratio
-            DockNode::Tab { tabs, .. } if tabs.len() == 2 => {
-                let sibling_idx = if leaf_index == 0 { 1 } else { 0 };
-                tabs[sibling_idx].set_ratio(1.0 - new_ratio);
-            }
-            // Otherwise, no sibling adjustment
-            _ => {}
-        }
-
-        true
+    ) -> Option<(&mut DockNode, Vec<usize>)> {
+        let path = self.root.find_path_to_leaf(window_id)?;
+        let node = Self::get_node_mut(&mut self.root, &path);
+        Some((node, path))
     }
 
     pub fn get_node_by_id(
         &self,
         identifier: &str,
     ) -> Option<&DockNode> {
-        let path = match self.find_path_to_leaf(identifier) {
-            Some(path) => path,
-            None => return None,
-        };
-
-        let node_ref = &Self::get_node(&self.root, &path);
-
-        Some(node_ref)
+        self.find_node_by_id(identifier).map(|(node, _)| node)
     }
 
     pub fn get_node_by_id_mut(
         &mut self,
         identifier: &str,
     ) -> Option<&mut DockNode> {
-        let path = match self.find_path_to_leaf(identifier) {
-            Some(path) => path,
-            None => return None,
-        };
-
-        let node_ref = Self::get_node_mut(&mut self.root, &path);
-
-        Some(node_ref)
+        self.find_node_by_id_mut(identifier).map(|(node, _)| node)
     }
 
     pub fn get_root(&self) -> &DockNode {
@@ -143,6 +102,48 @@ impl DockingLayout {
         leaves
     }
 
+    /// Attempt to resize a leaf node or tab node by adjusting its ratio.
+    /// This only works if the node has exactly one sibling (i.e., two total siblings).
+    pub fn resize_window(
+        &mut self,
+        window_id: &str,
+        new_ratio: f32,
+    ) -> bool {
+        // Single pass: get the node + path
+        let Some((node_ref, path)) = self.find_node_by_id_mut(window_id) else {
+            return false;
+        };
+
+        // Set our new ratio
+        node_ref.set_ratio(new_ratio);
+
+        // If the path is empty, this node is root => no sibling to adjust.
+        if path.is_empty() {
+            return true;
+        }
+
+        // The parent path is everything except the last index.
+        let (parent_path, leaf_idx_slice) = path.split_at(path.len() - 1);
+        let leaf_index = leaf_idx_slice[0];
+
+        let parent_ref = Self::get_node_mut(&mut self.root, parent_path);
+
+        // If parent is a Split/Tab with exactly two children, adjust sibling ratio:
+        match parent_ref {
+            DockNode::Split { children, .. } if children.len() == 2 => {
+                let sibling_idx = if leaf_index == 0 { 1 } else { 0 };
+                children[sibling_idx].set_ratio(1.0 - new_ratio);
+            }
+            DockNode::Tab { tabs, .. } if tabs.len() == 2 => {
+                let sibling_idx = if leaf_index == 0 { 1 } else { 0 };
+                tabs[sibling_idx].set_ratio(1.0 - new_ratio);
+            }
+            _ => {}
+        }
+
+        true
+    }
+
     /// Find the bounding rectangle of a given node by ID (assuming a Leaf’s `window_identifier`).
     pub fn calculate_window_rect(
         &self,
@@ -158,39 +159,23 @@ impl DockingLayout {
         &mut self,
         leaf_id: &str,
     ) -> bool {
-        // 1) Find path to leaf node.
-        let path = match self.find_path_to_leaf(leaf_id) {
-            Some(path) => path,
-            None => return false,
+        let Some((_leaf_node, path)) = self.find_node_by_id_mut(leaf_id) else {
+            return false;
         };
 
-        // 2) If the path is empty, then the root *is* the leaf—no parent to set.
         if path.is_empty() {
             return false;
         }
 
-        // 3) Split path into parent path + leaf index.
         let (parent_path, _) = path.split_at(path.len() - 1);
-
-        // 4) Grab a mutable reference to the parent node.
         let parent_node = Self::get_node_mut(&mut self.root, parent_path);
 
-        // 5) If the parent node is a Tab, set its active_tab_id and return true.
         if let DockNode::Tab { active_tab_id, .. } = parent_node {
             *active_tab_id = leaf_id.to_owned();
             true
         } else {
             false
         }
-    }
-
-    /// Return a path of indices that leads to the leaf node matching `window_id`.
-    /// Example of a path: [2, 0] means: in root.children[2].children[0], or root.tabs[2].tabs[0].
-    pub fn find_path_to_leaf(
-        &self,
-        window_id: &str,
-    ) -> Option<Vec<usize>> {
-        self.root.find_path_to_leaf(window_id)
     }
 
     /// Traverse the path and return a mutable reference to the node at that path.
@@ -265,7 +250,7 @@ impl DockingLayout {
                 // Find the currently active tab, if any.
                 let mut active_tab_is_valid = false;
                 if !active_tab_id.is_empty() {
-                    // Check if there's a leaf with the same ID and it’s visible.
+                    // Check if there's a leaf with the same ID that is visible.
                     if let Some(_) = tabs
                         .iter()
                         .position(|child| child.is_leaf_with_id(active_tab_id) && child.is_visible())
