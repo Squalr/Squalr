@@ -51,7 +51,7 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockPanelConverter {
 
                 if let Ok(docking_layout) = self.docking_layout.read() {
                     // 1) Find the path from root to this leaf
-                    if let Some(path) = DockingLayout::find_path_to_leaf(&docking_layout.root, window_identifier) {
+                    if let Some(path) = docking_layout.find_path_to_leaf(window_identifier) {
                         // If there's a parent
                         if !path.is_empty() {
                             // parent path = path without the last index
