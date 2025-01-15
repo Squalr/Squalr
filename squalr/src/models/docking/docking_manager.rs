@@ -2,8 +2,8 @@ use crate::models::docking::dock_drag_direction::DockDragDirection;
 use crate::models::docking::dock_node::DockNode;
 use crate::models::docking::dock_split_direction::DockSplitDirection;
 use crate::models::docking::dock_tree::DockTree;
+use crate::models::docking::docking_tab_manager::DockingTabManager;
 use crate::models::docking::layout::docking_layout::DockingLayout;
-use crate::models::docking::tab_manager::TabManager;
 
 pub struct DockingManager {
     pub tree: DockTree,
@@ -31,10 +31,12 @@ impl DockingManager {
         &self.tree.root
     }
 
+    /// Gets the layout handler that computes the bounds and location of each docked window (immutable).
     pub fn get_layout(&self) -> &DockingLayout {
         &self.layout
     }
 
+    /// Gets the layout handler that computes the bounds and location of each docked window (mutable).
     pub fn get_layout_mut(&mut self) -> &mut DockingLayout {
         &mut self.layout
     }
@@ -70,7 +72,7 @@ impl DockingManager {
         self.layout.find_window_rect(&self.tree, leaf_id)
     }
 
-    /// Example: resize a window by adjusting its ratio.
+    /// Resizes a window by adjusting its ratio relative to other windows in the same split.
     pub fn resize_window(
         &mut self,
         leaf_id: &str,
@@ -111,29 +113,6 @@ impl DockingManager {
         }
 
         true
-    }
-
-    /// Activate a leaf in its tab (if parent is a tab).
-    pub fn select_tab_by_leaf_id(
-        &mut self,
-        leaf_id: &str,
-    ) -> bool {
-        let path = match self.tree.find_leaf_path(leaf_id) {
-            Some(path) => path,
-            None => return false,
-        };
-        if path.is_empty() {
-            return false;
-        }
-        let (parent_slice, _) = path.split_at(path.len() - 1);
-
-        if let Some(parent_node) = self.tree.get_node_mut(parent_slice) {
-            if let DockNode::Tab { active_tab_id, .. } = parent_node {
-                *active_tab_id = leaf_id.to_owned();
-                return true;
-            }
-        }
-        false
     }
 
     /// Drags a leaf node in a given direction by (delta_x, delta_y) in pixels. Returns a bool indicating success.
@@ -277,49 +256,24 @@ impl DockingManager {
         }
     }
 
+    /// Activate a window in its tab (if parent is a tab).
+    pub fn select_tab_by_leaf_id(
+        &mut self,
+        leaf_id: &str,
+    ) -> bool {
+        DockingTabManager::select_tab_by_leaf_id(&mut self.tree, leaf_id)
+    }
+
+    /// Given a `leaf_id` and a `DockTree`, this method determines the list of sibling tabs, as well as which one is active.
     pub fn get_siblings_and_active_tab(
         &self,
         leaf_id: &str,
     ) -> (Vec<String>, String) {
-        // Find the path to this leaf.
-        let path = match self.tree.find_leaf_path(leaf_id) {
-            Some(p) => p,
-            None => return (Vec::new(), leaf_id.to_owned()),
-        };
-
-        // If the path is empty, there's no parent => return fallback.
-        if path.is_empty() {
-            return (Vec::new(), leaf_id.to_owned());
-        }
-
-        // Everything except the last index is the parent path.
-        let (parent_path, _) = path.split_at(path.len() - 1);
-
-        // Get the parent node from the tree
-        if let Some(parent_node) = self.tree.get_node(parent_path) {
-            if let DockNode::Tab { tabs, active_tab_id, .. } = parent_node {
-                // Collect all visible siblings in this Tab.
-                let mut siblings = Vec::new();
-                for tab_node in tabs {
-                    if let DockNode::Leaf {
-                        window_identifier, is_visible, ..
-                    } = tab_node
-                    {
-                        if *is_visible {
-                            siblings.push(window_identifier.clone());
-                        }
-                    }
-                }
-                return (siblings, active_tab_id.clone());
-            }
-        }
-
-        // If not found or parent not a Tab, fallback.
-        (Vec::new(), leaf_id.to_owned())
+        DockingTabManager::get_siblings_and_active_tab(&self.tree, leaf_id)
     }
 
     /// Prepare for presentation by fixing up tabs, etc.
     pub fn prepare_for_presentation(&mut self) {
-        TabManager::prepare_for_presentation(&mut self.tree.root);
+        DockingTabManager::run_tab_validation(&mut self.tree.root);
     }
 }
