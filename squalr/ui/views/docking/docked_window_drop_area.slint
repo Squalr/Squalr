@@ -1,0 +1,85 @@
+import { VerticalBox } from "std-widgets.slint";
+
+import { Theme } from "./../../theme.slint";
+
+import { DockRootViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
+
+export component DockedWindowDropArea inherits Rectangle {
+    in-out property <DockedWindowViewData> docked-window-data;
+    in property <length> resize-padding;
+    property <percent> edge-drop-fill-ratio: 25%;
+    x: resize-padding;
+    y: resize-padding;
+    width: root.docked-window-data.width - resize-padding * 2;
+    height: root.docked-window-data.height - resize-padding * 2;
+    // Left split drop area
+    Rectangle {
+        x: 0;
+        y: root.height * edge-drop-fill-ratio;
+        width: root.width * edge-drop-fill-ratio;
+        height: root.height - root.height * edge-drop-fill-ratio * 2;
+        background: Theme.selected-background;
+        border-color: Theme.selected-border;
+        border-width: 2px;
+        TouchArea {
+            moved => {
+            }
+        }
+    }
+    // Right split drop area
+    Rectangle {
+        x: root.width - root.width * edge-drop-fill-ratio;
+        y: root.height * edge-drop-fill-ratio;
+        width: root.width * edge-drop-fill-ratio;
+        height: root.height - root.height * edge-drop-fill-ratio * 2;
+        background: Theme.selected-background;
+        border-color: Theme.selected-border;
+        border-width: 2px;
+        TouchArea {
+            moved => {
+            }
+        }
+    }
+    // Top split drop area
+    Rectangle {
+        x: root.width * edge-drop-fill-ratio;
+        y: 0;
+        width: root.width - root.width * edge-drop-fill-ratio * 2;
+        height: root.height * edge-drop-fill-ratio;
+        background: Theme.selected-background;
+        border-color: Theme.selected-border;
+        border-width: 2px;
+        TouchArea {
+            moved => {
+            }
+        }
+    }
+    // Bottom split drop area
+    Rectangle {
+        x: root.width * edge-drop-fill-ratio;
+        y: root.height - root.height * edge-drop-fill-ratio;
+        width: root.width - root.width * edge-drop-fill-ratio * 2;
+        height: root.height * edge-drop-fill-ratio;
+        background: Theme.selected-background;
+        border-color: Theme.selected-border;
+        border-width: 2px;
+        TouchArea {
+            moved => {
+            }
+        }
+    }
+    // Center tab drop area
+    Rectangle {
+        x: root.width / 2 - root.width * edge-drop-fill-ratio;
+        y: root.height / 2 - root.height * edge-drop-fill-ratio;
+        width: root.width * edge-drop-fill-ratio * 2;
+        height: root.height * edge-drop-fill-ratio * 2;
+        background: Theme.selected-background;
+        border-color: Theme.selected-border;
+        border-width: 2px;
+        TouchArea {
+            moved => {
+            }
+        }
+    }
+}

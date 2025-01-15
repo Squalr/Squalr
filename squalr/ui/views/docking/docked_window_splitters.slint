@@ -1,0 +1,89 @@
+import { VerticalBox } from "std-widgets.slint";
+
+import { Theme } from "./../../theme.slint";
+
+import { DockRootViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
+
+export component DockedWindowSplitters inherits Rectangle {
+    in-out property <DockedWindowViewData> docked-window-data;
+    in property <length> resize-padding;
+    // Left border splitter
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: root.resize-padding;
+        height: root.docked-window-data.height;
+        background: red;
+        TouchArea {
+            mouse-cursor: ns-resize;
+            moved => {
+                if (self.pressed && self.enabled) {
+                    DockRootViewModelBindings.drag-left(
+                        root.docked-window-data.identifier,
+                        (self.mouse-x - self.pressed-x) / 1px,
+                        (self.mouse-y - self.pressed-y) / 1px);
+                }
+            }
+        }
+    }
+
+    // Right border splitter
+    Rectangle {
+        x: root.docked-window-data.width - root.resize-padding;
+        y: 0;
+        width: root.resize-padding;
+        height: root.docked-window-data.height;
+        background: green;
+        TouchArea {
+            mouse-cursor: ew-resize;
+            moved => {
+                if (self.pressed && self.enabled) {
+                    DockRootViewModelBindings.drag-right(
+                        root.docked-window-data.identifier,
+                        (self.mouse-x - self.pressed-x) / 1px,
+                        (self.mouse-y - self.pressed-y) / 1px);
+                }
+            }
+        }
+    }
+
+    // Top border splitter
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: root.docked-window-data.width;
+        height: root.resize-padding;
+        background: blue;
+        TouchArea {
+            mouse-cursor: ns-resize;
+            moved => {
+                if (self.pressed && self.enabled) {
+                    DockRootViewModelBindings.drag-top(
+                        root.docked-window-data.identifier,
+                        (self.mouse-x - self.pressed-x) / 1px,
+                        (self.mouse-y - self.pressed-y) / 1px);
+                }
+            }
+        }
+    }
+
+    // Bottom border splitter
+    Rectangle {
+        x: 0;
+        y: root.docked-window-data.height - root.resize-padding;
+        width: root.docked-window-data.width;
+        height: root.resize-padding;
+        background: yellow;
+        TouchArea {
+            mouse-cursor: ns-resize;
+            moved => {
+                if (self.pressed && self.enabled) {
+                    DockRootViewModelBindings.drag-bottom(
+                        root.docked-window-data.identifier,
+                        (self.mouse-x - self.pressed-x) / 1px,
+                        (self.mouse-y - self.pressed-y) / 1px);
+                }
+            }
+        }
+    }
+}

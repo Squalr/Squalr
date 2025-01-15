@@ -29,6 +29,7 @@ export struct DockedWindowViewData {
 export global DockRootViewModelBindings {
     in-out property <length> initial-dock-root-width;
     in-out property <length> initial-dock-root-height;
+    in-out property <string> active-dragged-window-id;
     pure callback update-dock-root-width(width: length);
     pure callback update-dock-root-height(height: length);
     pure callback update-dock-root-size(width: length, height: length) -> length;
