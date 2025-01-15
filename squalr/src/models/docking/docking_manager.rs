@@ -72,51 +72,8 @@ impl DockingManager {
         self.layout.find_window_rect(&self.tree, leaf_id)
     }
 
-    /// Resizes a window by adjusting its ratio relative to other windows in the same split.
-    pub fn resize_window(
-        &mut self,
-        leaf_id: &str,
-        new_ratio: f32,
-    ) -> bool {
-        let path = match self.tree.find_leaf_path(leaf_id) {
-            Some(path) => path,
-            None => return false,
-        };
-
-        if let Some(node) = self.tree.get_node_mut(&path) {
-            node.set_ratio(new_ratio);
-        } else {
-            return false;
-        }
-
-        // If there's a parent with exactly two children, adjust the sibling.
-        if !path.is_empty() {
-            let (parent_slice, &[leaf_index]) = path.split_at(path.len() - 1) else {
-                return true;
-            };
-
-            if let Some(parent_node) = self.tree.get_node_mut(parent_slice) {
-                match parent_node {
-                    DockNode::Split { children, .. } if children.len() == 2 => {
-                        let sibling_idx = if leaf_index == 0 { 1 } else { 0 };
-                        let sibling_ratio = (1.0 - new_ratio).clamp(0.0, 1.0);
-                        children[sibling_idx].set_ratio(sibling_ratio);
-                    }
-                    DockNode::Tab { tabs, .. } if tabs.len() == 2 => {
-                        let sibling_idx = if leaf_index == 0 { 1 } else { 0 };
-                        let sibling_ratio = (1.0 - new_ratio).clamp(0.0, 1.0);
-                        tabs[sibling_idx].set_ratio(sibling_ratio);
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        true
-    }
-
-    /// Drags a leaf node in a given direction by (delta_x, delta_y) in pixels. Returns a bool indicating success.
-    pub fn drag_leaf(
+    /// Adjusts a docked window in a given direction by (delta_x, delta_y) in pixels. Returns a bool indicating success.
+    pub fn adjust_window_size(
         &mut self,
         leaf_id: &str,
         drag_dir: DockDragDirection,
