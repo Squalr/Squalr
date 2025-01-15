@@ -5,11 +5,13 @@ use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
 use crate::models::docking::hierarchy::dock_tree::DockTree;
 use crate::models::docking::layout::docking_layout::DockingLayout;
 
+/// Handles a `DockTree` and its corresponding layout information.
 pub struct DockingManager {
     pub tree: DockTree,
     pub layout: DockingLayout,
 }
 
+/// Contains various helper functions to manage an underlying docking hierarchy and its layout.
 impl DockingManager {
     pub fn new(root_node: DockNode) -> Self {
         Self {
@@ -72,223 +74,6 @@ impl DockingManager {
         self.layout.find_window_rect(&self.tree, leaf_id)
     }
 
-    /// Adjusts a docked window in a given direction by (delta_x, delta_y) in pixels. Returns a bool indicating success.
-    /// Adjusts a docked window in a given direction by (delta_x, delta_y) in pixels.
-    /// Returns a bool indicating success.
-    pub fn adjust_window_size(
-        &mut self,
-        leaf_id: &str,
-        drag_dir: &DockDragDirection,
-        delta_x: i32,
-        delta_y: i32,
-    ) -> bool {
-        // Find the path to the leaf in the tree.
-        let leaf_path = match self.tree.find_leaf_path(leaf_id) {
-            Some(path) => path,
-            None => return false,
-        };
-        if leaf_path.is_empty() {
-            // Leaf is the root => no parent or ancestor
-            return false;
-        }
-
-        // Determine which kind of split orientation we need.
-        let desired_split_direction = match drag_dir {
-            DockDragDirection::Left | DockDragDirection::Right => DockSplitDirection::VerticalDivider,
-            DockDragDirection::Top | DockDragDirection::Bottom => DockSplitDirection::HorizontalDivider,
-        };
-
-        // Climb upward to find the first ancestor matching that orientation.
-        let ancestor_path = match self.tree.find_ancestor_split_for_drag(&leaf_path, &drag_dir) {
-            Some(path) => path,
-            None => return false,
-        };
-
-        // Get the full layout size of the ancestor node that has the splitter.
-        let ancestor_rect = match self.layout.find_node_rect(&self.tree, &ancestor_path) {
-            Some(rect) => rect,
-            None => return false,
-        };
-        let (_ancestor_x, _ancestor_y, ancestor_w, ancestor_h) = ancestor_rect;
-
-        // Get a mutable reference to the ancestor node.
-        let ancestor_node = match self.tree.get_node_mut(&ancestor_path) {
-            Some(n) => n,
-            None => return false,
-        };
-
-        // Perform ratio-based resizing if it’s a split.
-        if let DockNode::Split {
-            direction: split_direction,
-            children,
-        } = ancestor_node
-        {
-            // Double-check orientation.
-            if *split_direction != desired_split_direction {
-                return false;
-            }
-
-            match (drag_dir, split_direction) {
-                // -----------------------------------
-                // Vertical resizing (drag left/right)
-                // -----------------------------------
-                (DockDragDirection::Left | DockDragDirection::Right, DockSplitDirection::VerticalDivider) => {
-                    if ancestor_w <= 1.0 {
-                        return false;
-                    }
-
-                    // Find which child is the one that contains our leaf_id.
-                    let child_index = children
-                        .iter()
-                        .enumerate()
-                        .find(|(_, child)| child.node.contains_leaf_id(leaf_id))
-                        .map(|(index, _)| index);
-
-                    if let Some(child_index) = child_index {
-                        // Decide which sibling to adjust in the “drag direction.”
-                        let sibling_index = match drag_dir {
-                            // If dragging the right edge of child_index, we grow that child and shrink the next.
-                            DockDragDirection::Right => {
-                                if child_index + 1 < children.len() {
-                                    Some(child_index + 1)
-                                } else {
-                                    None
-                                }
-                            }
-                            // If dragging the left edge, we shrink child_index and grow the previous child.
-                            DockDragDirection::Left => {
-                                if child_index > 0 {
-                                    Some(child_index - 1)
-                                } else {
-                                    None
-                                }
-                            }
-                            _ => None,
-                        };
-
-                        // If we can’t find a sibling in that direction, we do nothing.
-                        if sibling_index.is_none() {
-                            return false;
-                        }
-                        let sibling_index = sibling_index.unwrap();
-
-                        // Current ratios for the two children in question.
-                        let old_child_ratio = children[child_index].ratio;
-                        let old_sibling_ratio = children[sibling_index].ratio;
-                        let sum_of_two = old_child_ratio + old_sibling_ratio;
-
-                        // Convert to pixels for the child being dragged.
-                        let current_child_px = old_child_ratio * ancestor_w;
-
-                        // Determine the sign for the delta_x. If we’re dragging
-                        // to the “right edge”, we might add; if we’re on the left edge, we subtract.
-                        // But you can also just use the raw drag_dir logic:
-                        let drag_sign = match drag_dir {
-                            DockDragDirection::Right => 1.0,
-                            DockDragDirection::Left => -1.0,
-                            _ => 0.0,
-                        };
-
-                        // Compute new child pixel width and clamp it so it stays within [0, sum_of_two * ancestor_w].
-                        let new_child_px = (current_child_px + drag_sign * (delta_x as f32))
-                            .max(0.0)
-                            .min(sum_of_two * ancestor_w);
-
-                        // Convert back to ratio.
-                        let new_child_ratio = new_child_px / ancestor_w;
-                        // Sibling ratio is just the remainder of sum_of_two.
-                        let new_sibling_ratio = sum_of_two - new_child_ratio;
-
-                        children[child_index].ratio = new_child_ratio.clamp(0.0, 1.0);
-                        children[sibling_index].ratio = new_sibling_ratio.clamp(0.0, 1.0);
-                        true
-                    } else {
-                        false
-                    }
-                }
-
-                // -----------------------------------
-                // Horizontal resizing (drag top/bottom)
-                // -----------------------------------
-                (DockDragDirection::Top | DockDragDirection::Bottom, DockSplitDirection::HorizontalDivider) => {
-                    if ancestor_h <= 1.0 {
-                        return false;
-                    }
-
-                    let child_index = children
-                        .iter()
-                        .enumerate()
-                        .find(|(_, child)| child.node.contains_leaf_id(leaf_id))
-                        .map(|(index, _)| index);
-
-                    if let Some(child_index) = child_index {
-                        // Decide the sibling index based on top/bottom edges.
-                        let sibling_index = match drag_dir {
-                            // Dragging the bottom edge => grow that child, shrink next child
-                            DockDragDirection::Bottom => {
-                                if child_index + 1 < children.len() {
-                                    Some(child_index + 1)
-                                } else {
-                                    None
-                                }
-                            }
-                            // Dragging the top edge => shrink that child, grow the previous child
-                            DockDragDirection::Top => {
-                                if child_index > 0 {
-                                    Some(child_index - 1)
-                                } else {
-                                    None
-                                }
-                            }
-                            _ => None,
-                        };
-
-                        if sibling_index.is_none() {
-                            return false;
-                        }
-                        let sibling_index = sibling_index.unwrap();
-
-                        // Current ratios for the two children.
-                        let old_child_ratio = children[child_index].ratio;
-                        let old_sibling_ratio = children[sibling_index].ratio;
-                        let sum_of_two = old_child_ratio + old_sibling_ratio;
-
-                        // Convert child’s ratio to pixel space.
-                        let current_child_px = old_child_ratio * ancestor_h;
-
-                        // Decide sign for delta_y.
-                        let drag_sign = match drag_dir {
-                            DockDragDirection::Bottom => 1.0,
-                            DockDragDirection::Top => -1.0,
-                            _ => 0.0,
-                        };
-
-                        // Compute new pixel height for the child.
-                        let new_child_px = (current_child_px + drag_sign * (delta_y as f32))
-                            .max(0.0)
-                            .min(sum_of_two * ancestor_h);
-
-                        // Convert back to ratio.
-                        let new_child_ratio = new_child_px / ancestor_h;
-                        let new_sibling_ratio = sum_of_two - new_child_ratio;
-
-                        children[child_index].ratio = new_child_ratio.clamp(0.0, 1.0);
-                        children[sibling_index].ratio = new_sibling_ratio.clamp(0.0, 1.0);
-                        true
-                    } else {
-                        false
-                    }
-                }
-
-                // If there’s a mismatch in drag direction vs. split direction, fail.
-                _ => false,
-            }
-        } else {
-            // Ancestor isn’t a split or something else went wrong.
-            false
-        }
-    }
-
     /// Activate a window in its tab (if parent is a tab).
     pub fn select_tab_by_leaf_id(
         &mut self,
@@ -309,5 +94,180 @@ impl DockingManager {
     pub fn prepare_for_presentation(&mut self) {
         self.tree.clean_up_hierarchy();
         DockingTabManager::run_tab_validation(&mut self.tree.root);
+    }
+
+    /// Tries to resize a window by dragging one of its edges in the given direction
+    /// by (delta_x, delta_y) pixels. We climb up the dock hierarchy if the leaf’s
+    /// immediate parent split cannot accommodate the drag.
+    ///
+    /// This approach ensures we don’t simultaneously borrow `self` mutably for both
+    /// the layout lookups and the tree mutations.
+    pub fn adjust_window_size(
+        &mut self,
+        leaf_id: &str,
+        drag_dir: &DockDragDirection,
+        delta_x: i32,
+        delta_y: i32,
+    ) -> bool {
+        // 1) Locate the path to the leaf node we’re resizing.
+        let leaf_path = match self.tree.find_leaf_path(leaf_id) {
+            Some(path) => path,
+            None => return false,
+        };
+
+        // 2) Determine the required orientation (vertical or horizontal).
+        let desired_split_direction = match drag_dir {
+            DockDragDirection::Left | DockDragDirection::Right => DockSplitDirection::VerticalDivider,
+            DockDragDirection::Top | DockDragDirection::Bottom => DockSplitDirection::HorizontalDivider,
+        };
+
+        // 3) Climb up from the leaf to its ancestors.
+        let mut current_path = leaf_path;
+        while !current_path.is_empty() {
+            // The last index is the child index in the parent's children array (or tabs array).
+            let child_index = match current_path.last() {
+                Some(&idx) => idx,
+                None => return false,
+            };
+            // Everything up to (but not including) that last index is the "parent" path.
+            let parent_path = &current_path[..current_path.len() - 1];
+
+            // Find the bounding rectangle from the layout.
+            let bounding_rect_opt = self.layout.find_node_rect(&self.tree, parent_path);
+            let (ancestor_w, ancestor_h) = match bounding_rect_opt {
+                Some((_, _, w, h)) => (w, h),
+                None => {
+                    // We have no layout data for this node => can't do ratio resizing here.
+                    current_path.pop();
+                    continue;
+                }
+            };
+
+            let Some(parent_node) = self.tree.get_node_mut(parent_path) else {
+                return false;
+            };
+
+            // Check if this parent is a Split with the correct orientation.
+            let is_correct_split = match parent_node {
+                DockNode::Split { direction, .. } => *direction == desired_split_direction,
+                _ => false,
+            };
+
+            // If it matches, attempt resizing siblings.
+            if is_correct_split {
+                let resized = Self::try_resize_siblings_in_split(parent_node, child_index, drag_dir, delta_x, delta_y, ancestor_w, ancestor_h);
+                if resized {
+                    return true;
+                }
+            }
+
+            // Resize failed, climb one level up and try again.
+            current_path.pop();
+        }
+
+        // If we reach here, we’ve climbed to the root with no success -- there is no sibling in that direction.
+        false
+    }
+
+    /// A helper that adjusts ratios in a `DockNode::Split` when a user drags
+    /// a particular child’s edge. Returns `true` on success, `false` if no valid sibling
+    /// was found or if it couldn’t resize for some reason.
+    ///
+    /// We make this a static method (or free function) so we do NOT need to borrow `self`
+    /// again (preventing multiple mutable borrows).
+    fn try_resize_siblings_in_split(
+        parent_node: &mut DockNode,
+        child_index: usize,
+        drag_dir: &DockDragDirection,
+        delta_x: i32,
+        delta_y: i32,
+        ancestor_w: f32,
+        ancestor_h: f32,
+    ) -> bool {
+        // Make sure we have a split node
+        let DockNode::Split { direction, children } = parent_node else {
+            return false;
+        };
+
+        // If orientation doesn’t match the drag direction, bail out
+        match (drag_dir, &direction) {
+            (DockDragDirection::Left | DockDragDirection::Right, DockSplitDirection::VerticalDivider) => {}
+            (DockDragDirection::Top | DockDragDirection::Bottom, DockSplitDirection::HorizontalDivider) => {}
+            _ => return false,
+        }
+
+        // Figure out:
+        //  - which dimension to work with (width vs height),
+        //  - which delta to use (delta_x or delta_y),
+        //  - which sign (left/up => -1, right/down => +1),
+        //  - which sibling is affected.
+        //
+        // If any of these conditions fails (e.g. no sibling in that direction),
+        // we return false.
+        let (dimension, delta, sign, sibling_idx) = match drag_dir {
+            // -- Vertical divider (Left/Right drag) --
+            DockDragDirection::Right if *direction == DockSplitDirection::VerticalDivider => {
+                // Check if we have a sibling to the right
+                if child_index + 1 < children.len() {
+                    (ancestor_w, delta_x as f32, 1.0, child_index + 1)
+                } else {
+                    return false;
+                }
+            }
+            DockDragDirection::Left if *direction == DockSplitDirection::VerticalDivider => {
+                // Check if we have a sibling to the left
+                if child_index > 0 {
+                    (ancestor_w, delta_x as f32, -1.0, child_index - 1)
+                } else {
+                    return false;
+                }
+            }
+
+            // -- Horizontal divider (Top/Bottom drag) --
+            DockDragDirection::Bottom if *direction == DockSplitDirection::HorizontalDivider => {
+                if child_index + 1 < children.len() {
+                    (ancestor_h, delta_y as f32, 1.0, child_index + 1)
+                } else {
+                    return false;
+                }
+            }
+            DockDragDirection::Top if *direction == DockSplitDirection::HorizontalDivider => {
+                if child_index > 0 {
+                    (ancestor_h, delta_y as f32, -1.0, child_index - 1)
+                } else {
+                    return false;
+                }
+            }
+
+            // Anything else is unsupported/mismatched
+            _ => return false,
+        };
+
+        // If the dimension is too tiny, we can’t meaningfully resize
+        if dimension <= 1.0 {
+            return false;
+        }
+
+        // Calculate new ratios for the child and its sibling
+        let old_child_ratio = children[child_index].ratio;
+        let old_sibling_ratio = children[sibling_idx].ratio;
+        let sum = old_child_ratio + old_sibling_ratio;
+
+        // Convert the child’s ratio to “pixels”
+        let current_child_px = old_child_ratio * dimension;
+        let new_child_px = (current_child_px + sign * delta)
+            // Don’t let the child shrink below zero or push sibling below zero
+            .max(0.0)
+            .min(sum * dimension);
+
+        // Convert back to ratio
+        let new_child_ratio = new_child_px / dimension;
+        let new_sibling_ratio = sum - new_child_ratio;
+
+        // Write them back, clamped to [0, 1] (just in case)
+        children[child_index].ratio = new_child_ratio.clamp(0.0, 1.0);
+        children[sibling_idx].ratio = new_sibling_ratio.clamp(0.0, 1.0);
+
+        true
     }
 }
