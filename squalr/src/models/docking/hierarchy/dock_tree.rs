@@ -114,7 +114,10 @@ impl DockTree {
         leaves
     }
 
-    /// Find the matching ancestor `DockNode::Split` that should be resized when dragging a particular edge of a leaf.
+    /// Find the matching ancestor `DockNode::Split` that has the correct orientation
+    /// for a particular drag direction (left/right = vertical, top/bottom = horizontal).
+    /// We climb up the tree from the given `leaf_path`, returning the path to the first
+    /// ancestor split that matches.
     pub fn find_ancestor_split_for_drag(
         &self,
         leaf_path: &[usize],
@@ -124,47 +127,78 @@ impl DockTree {
             return None;
         }
 
-        // We climb up. The last element is the leaf's index. We'll remove it from the path, leaving us the parent's path.
+        // We'll climb up. Remove the leaf's index from the path to see its parent path.
         let mut path = leaf_path.to_vec();
-        let mut child_index = path.pop().unwrap(); // index in parent's children/tabs.
+        path.pop(); // remove the leaf's own index
 
-        loop {
-            // We have the path that points to the parent. Let's see if that node is a Split with the correct orientation.
-            //    - But first, check if we can retrieve it.
-            let candidate_node = self.get_node(&path)?;
-
-            // If candidate_node is a Split, see if it matches the drag direction and if the child_index is on the correct side.
-            if let DockNode::Split { direction, .. } = candidate_node {
-                // If orientation and side match up, we can return it right away.
-                if Self::matches_drag_side(direction, drag_dir, child_index) {
-                    return Some(path.clone());
+        // Now climb up the tree, checking each ancestor node
+        while let Some(_) = self.get_node(&path) {
+            if let Some(node) = self.get_node(&path) {
+                if let DockNode::Split { direction, .. } = node {
+                    if Self::has_compatible_orientation(direction, drag_dir) {
+                        return Some(path.clone());
+                    }
                 }
             }
-
-            // If that node wasn't a matching Split, we pop up further.
+            // Move one step higher
             if path.is_empty() {
-                // We’ve reached the root. There's nothing above root, so we can’t climb further.
-                return None;
+                break; // no more parents
             }
-            child_index = path.pop().unwrap();
+            path.pop();
+        }
+
+        None
+    }
+
+    /// Instead of matching child_index == 0/1, just check if the direction is vertical vs horizontal
+    /// and see if it matches the drag direction (left/right vs top/bottom).
+    fn has_compatible_orientation(
+        direction: &DockSplitDirection,
+        drag_dir: &DockDragDirection,
+    ) -> bool {
+        match (direction, drag_dir) {
+            (DockSplitDirection::VerticalDivider, DockDragDirection::Left) | (DockSplitDirection::VerticalDivider, DockDragDirection::Right) => true,
+            (DockSplitDirection::HorizontalDivider, DockDragDirection::Top) | (DockSplitDirection::HorizontalDivider, DockDragDirection::Bottom) => true,
+            _ => false,
         }
     }
 
-    fn matches_drag_side(
-        direction: &DockSplitDirection,
-        drag_dir: &DockDragDirection,
-        child_index: usize,
-    ) -> bool {
-        match (drag_dir, direction) {
-            // If we're dragging the right edge, it’s the left child in a vertical split.
-            (DockDragDirection::Right, DockSplitDirection::VerticalDivider) => child_index == 0,
-            (DockDragDirection::Left, DockSplitDirection::VerticalDivider) => child_index == 1,
+    /// Recursively clean up the docking hierarchy so that:
+    /// - A Split node with only 1 child is replaced by that child.
+    /// - A Tab node with only 1 child is replaced by that child.
+    pub fn clean_up_hierarchy(&mut self) {
+        Self::clean_up_node(&mut self.root);
+    }
 
-            // If we're dragging the bottom edge, it’s the top child in a horizontal split.
-            (DockDragDirection::Bottom, DockSplitDirection::HorizontalDivider) => child_index == 0,
-            (DockDragDirection::Top, DockSplitDirection::HorizontalDivider) => child_index == 1,
+    /// Recursively walk the subtree and remove containers that have only 1 child.
+    pub fn clean_up_node(dock_node: &mut DockNode) {
+        match dock_node {
+            // For Split nodes, clean each child first, then see if there's only one child left.
+            DockNode::Split { children, .. } => {
+                for child in children.iter_mut() {
+                    Self::clean_up_node(&mut child.node);
+                }
+                // If there's exactly one child, replace self with that child.
+                if children.len() == 1 {
+                    let single_child = children.remove(0).node;
+                    *dock_node = single_child;
+                }
+            }
 
-            _ => false,
+            // For Tab nodes, clean each tab first, then see if there's only one tab left.
+            DockNode::Tab { tabs, .. } => {
+                for tab in tabs.iter_mut() {
+                    Self::clean_up_node(tab);
+                }
+                // If there's exactly one tab, replace self with that tab.
+                if tabs.len() == 1 {
+                    let single_tab = tabs.remove(0);
+                    *dock_node = single_tab;
+                }
+            }
+
+            // Leaf nodes have no children to clean up.
+            DockNode::Leaf { .. } => {}
         }
     }
 }

@@ -8,7 +8,7 @@ import { DockedWindowFooter } from "docked_window_footer.slint";
 
 export component DockedWindowView inherits Rectangle {
     in-out property <DockedWindowViewData> docked-window-data;
-    property <length> resize-padding: 2px;
+    property <length> resize-padding: 8px;
     x: root.docked-window-data.position-x;
     y: root.docked-window-data.position-y;
     width: root.docked-window-data.width;

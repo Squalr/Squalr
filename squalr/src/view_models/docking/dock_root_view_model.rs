@@ -259,7 +259,7 @@ impl DockRootViewModel {
         delta_y: i32,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, false, move |manager| {
-            manager.adjust_window_size(dockable_window_id.as_str(), DockDragDirection::Left, delta_x, delta_y);
+            manager.adjust_window_size(dockable_window_id.as_str(), &DockDragDirection::Left, delta_x, delta_y);
         });
     }
 
@@ -271,7 +271,7 @@ impl DockRootViewModel {
         delta_y: i32,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, false, move |manager| {
-            manager.adjust_window_size(dockable_window_id.as_str(), DockDragDirection::Right, delta_x, delta_y);
+            manager.adjust_window_size(dockable_window_id.as_str(), &DockDragDirection::Right, delta_x, delta_y);
         });
     }
 
@@ -283,7 +283,7 @@ impl DockRootViewModel {
         delta_y: i32,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, false, move |manager| {
-            manager.adjust_window_size(dockable_window_id.as_str(), DockDragDirection::Top, delta_x, delta_y);
+            manager.adjust_window_size(dockable_window_id.as_str(), &DockDragDirection::Top, delta_x, delta_y);
         });
     }
 
@@ -295,7 +295,7 @@ impl DockRootViewModel {
         delta_y: i32,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, false, move |manager| {
-            manager.adjust_window_size(dockable_window_id.as_str(), DockDragDirection::Bottom, delta_x, delta_y);
+            manager.adjust_window_size(dockable_window_id.as_str(), &DockDragDirection::Bottom, delta_x, delta_y);
         });
     }
 

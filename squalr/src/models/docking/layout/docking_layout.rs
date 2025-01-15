@@ -3,12 +3,14 @@ use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
 use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
 use crate::models::docking::hierarchy::dock_tree::DockTree;
 
+/// Represents a layout area to be filled by a `DockTree`.
 #[derive(Debug)]
 pub struct DockingLayout {
     pub available_width: f32,
     pub available_height: f32,
 }
 
+/// Implements methods to determine how much space each docked window takes up within the available space.
 impl DockingLayout {
     pub fn new() -> Self {
         Self {
