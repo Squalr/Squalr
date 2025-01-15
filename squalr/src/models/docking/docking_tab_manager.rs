@@ -1,5 +1,5 @@
-use crate::models::docking::dock_node::DockNode;
-use crate::models::docking::dock_tree::DockTree;
+use crate::models::docking::hierarchy::dock_node::DockNode;
+use crate::models::docking::hierarchy::dock_tree::DockTree;
 
 pub struct DockingTabManager;
 
@@ -74,7 +74,7 @@ impl DockingTabManager {
         match node {
             DockNode::Split { children, .. } => {
                 for child in children.iter_mut() {
-                    Self::run_tab_validation(child);
+                    Self::run_tab_validation(&mut child.node);
                 }
             }
             DockNode::Tab { tabs, active_tab_id, .. } => {

@@ -1,6 +1,7 @@
 use crate::models::docking::builder::dock_builder_kind::DockBuilderKind;
-use crate::models::docking::dock_node::DockNode;
-use crate::models::docking::dock_split_direction::DockSplitDirection;
+use crate::models::docking::hierarchy::dock_node::DockNode;
+use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
+use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
 
 #[derive(Debug)]
 pub struct DockBuilder {
@@ -107,17 +108,17 @@ impl DockBuilder {
             DockBuilderKind::Split { direction, children } => {
                 // For a split node, build each child and gather ratios.
                 let mut child_nodes = Vec::with_capacity(children.len());
-                let mut ratios = Vec::with_capacity(children.len());
 
                 for (child_builder, child_ratio) in children {
-                    child_nodes.push(child_builder.build());
-                    ratios.push(child_ratio);
+                    child_nodes.push(DockSplitChild {
+                        node: child_builder.build(),
+                        ratio: child_ratio,
+                    });
                 }
 
                 DockNode::Split {
                     direction,
                     children: child_nodes,
-                    ratios,
                 }
             }
 

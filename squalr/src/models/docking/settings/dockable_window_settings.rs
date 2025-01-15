@@ -1,6 +1,6 @@
 use crate::models::docking::builder::dock_builder::DockBuilder;
-use crate::models::docking::dock_node::DockNode;
-use crate::models::docking::dock_split_direction::DockSplitDirection;
+use crate::models::docking::hierarchy::dock_node::DockNode;
+use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use squalr_engine_common::config::serialized_config_updater;

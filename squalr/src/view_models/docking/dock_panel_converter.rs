@@ -1,6 +1,6 @@
 use crate::DockedWindowViewData;
-use crate::models::docking::dock_node::DockNode;
 use crate::models::docking::docking_manager::DockingManager;
+use crate::models::docking::hierarchy::dock_node::DockNode;
 use slint::SharedString;
 use slint::{ModelRc, VecModel};
 use slint_mvvm::view_data_converter::ViewDataConverter;

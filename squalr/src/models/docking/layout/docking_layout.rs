@@ -1,6 +1,7 @@
-use crate::models::docking::dock_node::DockNode;
-use crate::models::docking::dock_split_direction::DockSplitDirection;
-use crate::models::docking::dock_tree::DockTree;
+use crate::models::docking::hierarchy::dock_node::DockNode;
+use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
+use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
+use crate::models::docking::hierarchy::dock_tree::DockTree;
 
 #[derive(Debug)]
 pub struct DockingLayout {
@@ -39,87 +40,6 @@ impl DockingLayout {
         self.available_height = height;
     }
 
-    /// Compute bounding rectangles for every visible node. The `visitor` receives `(node, (x, y, w, h))`.
-    fn walk_with_layout_and_path<F>(
-        &self,
-        node: &DockNode,
-        x: f32,
-        y: f32,
-        w: f32,
-        h: f32,
-        path: &mut Vec<usize>,
-        visitor: &mut F,
-    ) where
-        F: FnMut(&DockNode, &[usize], (f32, f32, f32, f32)),
-    {
-        // Call the visitor on the current node
-        visitor(node, path, (x, y, w, h));
-
-        match node {
-            DockNode::Split { direction, children, ratios } => {
-                let visible_children: Vec<&DockNode> = children.iter().filter(|child| child.is_visible()).collect();
-                if visible_children.is_empty() {
-                    return;
-                }
-
-                let total_ratio: f32 = ratios.iter().map(|ratio| ratio).sum();
-                let mut offset = 0.0;
-                let child_count = visible_children.len();
-
-                for (child_index, child) in children.iter().enumerate() {
-                    if !child.is_visible() {
-                        continue;
-                    }
-
-                    let child_ratio = if total_ratio > 0.0 {
-                        ratios.get(child_index).unwrap_or(&0.0) / total_ratio
-                    } else {
-                        1.0 / child_count as f32
-                    };
-
-                    let (cw, ch) = match direction {
-                        DockSplitDirection::HorizontalDivider => (w, h * child_ratio),
-                        DockSplitDirection::VerticalDivider => (w * child_ratio, h),
-                    };
-                    let (cx, cy) = match direction {
-                        DockSplitDirection::HorizontalDivider => (x, y + offset),
-                        DockSplitDirection::VerticalDivider => (x + offset, y),
-                    };
-
-                    // Push this child's index
-                    path.push(child_index);
-                    self.walk_with_layout_and_path(child, cx, cy, cw, ch, path, visitor);
-                    path.pop();
-
-                    // Advance offset
-                    match direction {
-                        DockSplitDirection::HorizontalDivider => offset += ch,
-                        DockSplitDirection::VerticalDivider => offset += cw,
-                    }
-                }
-            }
-            DockNode::Tab { tabs, .. } => {
-                let visible_children: Vec<&DockNode> = tabs.iter().filter(|c| c.is_visible()).collect();
-                if visible_children.is_empty() {
-                    return;
-                }
-
-                // All visible tabs receive the same (x, y, w, h).
-                for (original_idx, tab_child) in tabs.iter().enumerate() {
-                    if !tab_child.is_visible() {
-                        continue;
-                    }
-
-                    path.push(original_idx);
-                    self.walk_with_layout_and_path(tab_child, x, y, w, h, path, visitor);
-                    path.pop();
-                }
-            }
-            // No children, just a leaf
-            DockNode::Leaf { .. } => {}
-        }
-    }
-
     /// Finds the bounding rectangle of the specified leaf ID. Returns None if not found or not visible.
     pub fn find_window_rect(
         &self,
@@ -153,5 +73,89 @@ impl DockingLayout {
         );
 
         found
+    }
+
+    /// Compute bounding rectangles for every visible node. The `visitor` receives `(node, (x, y, w, h))`.
+    fn walk_with_layout_and_path<F>(
+        &self,
+        node: &DockNode,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        path: &mut Vec<usize>,
+        visitor: &mut F,
+    ) where
+        F: FnMut(&DockNode, &[usize], (f32, f32, f32, f32)),
+    {
+        // Call the visitor on the current node
+        visitor(node, path, (x, y, w, h));
+
+        match node {
+            DockNode::Split { direction, children } => {
+                let visible_children: Vec<&DockSplitChild> = children
+                    .iter()
+                    .filter(|child| child.node.is_visible())
+                    .collect();
+                if visible_children.is_empty() {
+                    return;
+                }
+
+                let total_ratio: f32 = visible_children.iter().map(|child| child.ratio).sum();
+                let mut offset = 0.0;
+                let child_count = visible_children.len();
+
+                for (child_index, child) in children.iter().enumerate() {
+                    if !child.node.is_visible() {
+                        continue;
+                    }
+
+                    let child_ratio = if total_ratio > 0.0 {
+                        child.ratio / total_ratio
+                    } else {
+                        1.0 / child_count as f32
+                    };
+
+                    let (cw, ch) = match direction {
+                        DockSplitDirection::HorizontalDivider => (w, h * child_ratio),
+                        DockSplitDirection::VerticalDivider => (w * child_ratio, h),
+                    };
+                    let (cx, cy) = match direction {
+                        DockSplitDirection::HorizontalDivider => (x, y + offset),
+                        DockSplitDirection::VerticalDivider => (x + offset, y),
+                    };
+
+                    // Push this child's index
+                    path.push(child_index);
+                    self.walk_with_layout_and_path(&child.node, cx, cy, cw, ch, path, visitor);
+                    path.pop();
+
+                    // Advance offset
+                    match direction {
+                        DockSplitDirection::HorizontalDivider => offset += ch,
+                        DockSplitDirection::VerticalDivider => offset += cw,
+                    }
+                }
+            }
+            DockNode::Tab { tabs, .. } => {
+                let visible_children: Vec<&DockNode> = tabs.iter().filter(|c| c.is_visible()).collect();
+                if visible_children.is_empty() {
+                    return;
+                }
+
+                // All visible tabs receive the same (x, y, w, h).
+                for (original_idx, tab_child) in tabs.iter().enumerate() {
+                    if !tab_child.is_visible() {
+                        continue;
+                    }
+
+                    path.push(original_idx);
+                    self.walk_with_layout_and_path(tab_child, x, y, w, h, path, visitor);
+                    path.pop();
+                }
+            }
+            // No children, just a leaf
+            DockNode::Leaf { .. } => {}
+        }
     }
 }

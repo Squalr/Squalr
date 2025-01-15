@@ -1,8 +1,8 @@
 use crate::models::docking::dock_drag_direction::DockDragDirection;
-use crate::models::docking::dock_node::DockNode;
-use crate::models::docking::dock_split_direction::DockSplitDirection;
-use crate::models::docking::dock_tree::DockTree;
 use crate::models::docking::docking_tab_manager::DockingTabManager;
+use crate::models::docking::hierarchy::dock_node::DockNode;
+use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
+use crate::models::docking::hierarchy::dock_tree::DockTree;
 use crate::models::docking::layout::docking_layout::DockingLayout;
 
 pub struct DockingManager {
@@ -126,7 +126,6 @@ impl DockingManager {
         if let DockNode::Split {
             direction: split_direction,
             children,
-            ratios,
         } = ancestor_node
         {
             // Double-check we got the direction we expected
@@ -147,7 +146,7 @@ impl DockingManager {
                     let child_index = children
                         .iter()
                         .enumerate()
-                        .find(|(_, node)| node.contains_leaf_id(leaf_id))
+                        .find(|(_, child)| child.node.contains_leaf_id(leaf_id))
                         .map(|(index, _)| index);
 
                     if let Some(child_index) = child_index {
@@ -156,12 +155,12 @@ impl DockingManager {
                         let new_width = old_width + sign * (delta_x as f32);
                         let new_ratio = (new_width / ancestor_w).clamp(0.0, 1.0);
 
-                        ratios[child_index] = new_ratio;
+                        children[child_index].ratio = new_ratio;
 
                         // TODO: Suppert N children
                         if children.len() == 2 {
                             let sibling_index = if child_index == 0 { 1 } else { 0 };
-                            ratios[sibling_index] = (1.0 - new_ratio).clamp(0.0, 1.0);
+                            children[sibling_index].ratio = (1.0 - new_ratio).clamp(0.0, 1.0);
                         }
                         true
                     } else {
@@ -177,7 +176,7 @@ impl DockingManager {
                     let child_index = children
                         .iter()
                         .enumerate()
-                        .find(|(_, node)| node.contains_leaf_id(leaf_id))
+                        .find(|(_, child)| child.node.contains_leaf_id(leaf_id))
                         .map(|(index, _)| index);
 
                     if let Some(child_index) = child_index {
@@ -186,11 +185,11 @@ impl DockingManager {
                         let new_height = old_height + sign * (delta_y as f32);
                         let new_ratio = (new_height / ancestor_h).clamp(0.0, 1.0);
 
-                        ratios[child_index] = new_ratio;
+                        children[child_index].ratio = new_ratio;
 
                         if children.len() == 2 {
                             let sibling_index = if child_index == 0 { 1 } else { 0 };
-                            ratios[sibling_index] = (1.0 - new_ratio).clamp(0.0, 1.0);
+                            children[sibling_index].ratio = (1.0 - new_ratio).clamp(0.0, 1.0);
                         }
                         true
                     } else {

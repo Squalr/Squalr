@@ -1,4 +1,5 @@
-use crate::models::docking::dock_split_direction::DockSplitDirection;
+use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
+use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
 use serde::{Deserialize, Serialize};
 
 /// The main enum that models our docking hierarchy.
@@ -6,9 +7,8 @@ use serde::{Deserialize, Serialize};
 pub enum DockNode {
     /// A split node containing sub-children.
     Split {
-        ratios: Vec<f32>,
         direction: DockSplitDirection,
-        children: Vec<DockNode>,
+        children: Vec<DockSplitChild>,
     },
     /// A tab container, holding multiple children in tabs.
     /// Each child is itself a DockNode, so we can have either Leaf nodes
@@ -34,7 +34,7 @@ impl DockNode {
         match self {
             DockNode::Split { children, .. } => {
                 // A split node is visible if any of its children is visible.
-                children.iter().any(|child| child.is_visible())
+                children.iter().any(|child| child.node.is_visible())
             }
             DockNode::Tab { tabs, .. } => {
                 // A tab node is visible if at least one of its tabs is visible.
@@ -79,7 +79,9 @@ impl DockNode {
     ) -> bool {
         match self {
             DockNode::Leaf { window_identifier, .. } => window_identifier == target_id,
-            DockNode::Split { children, .. } => children.iter().any(|c| c.contains_leaf_id(target_id)),
+            DockNode::Split { children, .. } => children
+                .iter()
+                .any(|child| child.node.contains_leaf_id(target_id)),
             DockNode::Tab { tabs, .. } => tabs.iter().any(|t| t.contains_leaf_id(target_id)),
         }
     }
@@ -101,7 +103,7 @@ impl DockNode {
             DockNode::Split { children, .. } => {
                 for (i, child) in children.iter().enumerate() {
                     path.push(i);
-                    child.walk(path, visitor);
+                    child.node.walk(path, visitor);
                     path.pop();
                 }
             }

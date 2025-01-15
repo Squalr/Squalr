@@ -1,6 +1,6 @@
 use crate::models::docking::dock_drag_direction::DockDragDirection;
-use crate::models::docking::dock_node::DockNode;
-use crate::models::docking::dock_split_direction::DockSplitDirection;
+use crate::models::docking::hierarchy::dock_node::DockNode;
+use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
 use serde::{Deserialize, Serialize};
 
 /// A simple tree structure that owns a single root `DockNode` and provides search and update methods.
@@ -54,7 +54,7 @@ impl DockTree {
                     if idx >= children.len() {
                         return None;
                     }
-                    current = &mut children[idx];
+                    current = &mut children[idx].node;
                 }
                 DockNode::Tab { tabs, .. } => {
                     if idx >= tabs.len() {
@@ -83,7 +83,7 @@ impl DockTree {
                     if idx >= children.len() {
                         return None;
                     }
-                    current = &children[idx];
+                    current = &children[idx].node;
                 }
                 DockNode::Tab { tabs, .. } => {
                     if idx >= tabs.len() {
