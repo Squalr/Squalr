@@ -1,26 +1,15 @@
+use crate::models::docking::builder::dock_builder_kind::DockBuilderKind;
 use crate::models::docking::dock_node::DockNode;
 use crate::models::docking::dock_split_direction::DockSplitDirection;
 
 #[derive(Debug)]
-pub enum DockBuilderKind {
-    Split {
-        direction: DockSplitDirection,
-        children: Vec<DockBuilder>,
-    },
-    Tab {
-        tabs: Vec<DockBuilder>,
-        active_tab_id: String,
-    },
-    Leaf {
-        window_identifier: String,
-    },
-}
-
-#[derive(Debug)]
 pub struct DockBuilder {
+    /// Internal variant describing what this node will become.
     kind: DockBuilderKind,
+
+    /// Whether this node (if leaf) is visible or not.
+    /// For splits/tabs, this usually doesn't directly control the node's visibility.
     is_visible: bool,
-    ratio: f32,
 }
 
 impl DockBuilder {
@@ -29,7 +18,6 @@ impl DockBuilder {
         Self {
             kind: DockBuilderKind::Leaf { window_identifier: id.into() },
             is_visible: true,
-            ratio: 1.0,
         }
     }
 
@@ -41,7 +29,6 @@ impl DockBuilder {
                 children: Vec::new(),
             },
             is_visible: true,
-            ratio: 1.0,
         }
     }
 
@@ -53,20 +40,10 @@ impl DockBuilder {
                 active_tab_id: active_tab_id.into(),
             },
             is_visible: true,
-            ratio: 1.0,
         }
     }
 
-    /// Sets the ratio for this node (relevant for siblings).
-    pub fn ratio(
-        mut self,
-        ratio: f32,
-    ) -> Self {
-        self.ratio = ratio;
-        self
-    }
-
-    /// Sets visibility.
+    /// Sets visibility (relevant for leaf nodes).
     pub fn visible(
         mut self,
         visible: bool,
@@ -75,7 +52,7 @@ impl DockBuilder {
         self
     }
 
-    /// Push a child into a Split node.
+    /// Push a child into a Split node. Each child has its own ratio here.
     pub fn push_child(
         mut self,
         ratio: f32,
@@ -83,7 +60,7 @@ impl DockBuilder {
     ) -> Self {
         match &mut self.kind {
             DockBuilderKind::Split { children, .. } => {
-                children.push(child.ratio(ratio));
+                children.push((child, ratio));
             }
             _ => {
                 panic!("push_child() called on a non-Split builder.");
@@ -124,21 +101,38 @@ impl DockBuilder {
         self
     }
 
-    /// Consume the builder and produce a `DockNode`.
+    /// Consume this builder and produce the final `DockNode`.
     pub fn build(self) -> DockNode {
         match self.kind {
-            DockBuilderKind::Split { direction, children } => DockNode::Split {
-                ratio: self.ratio,
-                direction,
-                children: children.into_iter().map(|b| b.build()).collect(),
-            },
-            DockBuilderKind::Tab { tabs, active_tab_id } => DockNode::Tab {
-                ratio: self.ratio,
-                tabs: tabs.into_iter().map(|b| b.build()).collect(),
-                active_tab_id: active_tab_id,
-            },
+            DockBuilderKind::Split { direction, children } => {
+                // For a split node, build each child and gather ratios.
+                let mut child_nodes = Vec::with_capacity(children.len());
+                let mut ratios = Vec::with_capacity(children.len());
+
+                for (child_builder, child_ratio) in children {
+                    child_nodes.push(child_builder.build());
+                    ratios.push(child_ratio);
+                }
+
+                DockNode::Split {
+                    direction,
+                    children: child_nodes,
+                    ratios,
+                }
+            }
+
+            DockBuilderKind::Tab { tabs, active_tab_id } => {
+                // For a tab node, each child has a separate builder,
+                // but the node itself has a single ratio.
+                let child_nodes = tabs.into_iter().map(|b| b.build()).collect();
+
+                DockNode::Tab {
+                    tabs: child_nodes,
+                    active_tab_id,
+                }
+            }
+
             DockBuilderKind::Leaf { window_identifier } => DockNode::Leaf {
-                ratio: self.ratio,
                 window_identifier,
                 is_visible: self.is_visible,
             },

@@ -32,12 +32,7 @@ impl DockSettingsConfig {
                         0.5,
                         DockBuilder::split_node(DockSplitDirection::VerticalDivider)
                             // Build a tab with two leaves: process-selector & project-explorer
-                            .push_child(
-                                0.5,
-                                DockBuilder::tab_node("project-explorer")
-                                    .push_tab(DockBuilder::leaf("process-selector"))
-                                    .push_tab(DockBuilder::leaf("project-explorer")),
-                            )
+                            .push_child(0.5, DockBuilder::tab_node("project-explorer").push_tab(DockBuilder::leaf("process-selector")))
                             // And a leaf node for "settings" occupying the other 0.5
                             .push_child(0.5, DockBuilder::leaf("settings")),
                     )
@@ -47,6 +42,8 @@ impl DockSettingsConfig {
                 0.3,
                 DockBuilder::split_node(DockSplitDirection::HorizontalDivider)
                     .push_child(0.6, DockBuilder::leaf("scan-results"))
+                    /*.push_child(0.6, DockBuilder::leaf("project-explorer"))
+                    .push_child(0.6, DockBuilder::leaf("process-selector")) */
                     .push_child(0.4, DockBuilder::leaf("property-viewer")),
             )
             .build()

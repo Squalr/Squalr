@@ -33,11 +33,7 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockPanelConverter {
         docked_window_node: &DockNode,
     ) -> DockedWindowViewData {
         match docked_window_node {
-            DockNode::Leaf {
-                window_identifier,
-                is_visible,
-                ratio: _,
-            } => {
+            DockNode::Leaf { window_identifier, is_visible } => {
                 let manager = match self.docking_manager.read() {
                     Ok(m) => m,
                     Err(_) => {

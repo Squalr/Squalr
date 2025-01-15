@@ -126,7 +126,7 @@ impl DockingManager {
         if let DockNode::Split {
             direction: split_direction,
             children,
-            ..
+            ratios,
         } = ancestor_node
         {
             // Double-check we got the direction we expected
@@ -156,16 +156,12 @@ impl DockingManager {
                         let new_width = old_width + sign * (delta_x as f32);
                         let new_ratio = (new_width / ancestor_w).clamp(0.0, 1.0);
 
-                        if let Some(child_node) = children.get_mut(child_index) {
-                            child_node.set_ratio(new_ratio);
-                        }
+                        ratios[child_index] = new_ratio;
 
                         // TODO: Suppert N children
                         if children.len() == 2 {
                             let sibling_index = if child_index == 0 { 1 } else { 0 };
-                            if let Some(sibling) = children.get_mut(sibling_index) {
-                                sibling.set_ratio((1.0 - new_ratio).clamp(0.0, 1.0));
-                            }
+                            ratios[sibling_index] = (1.0 - new_ratio).clamp(0.0, 1.0);
                         }
                         true
                     } else {
@@ -190,15 +186,11 @@ impl DockingManager {
                         let new_height = old_height + sign * (delta_y as f32);
                         let new_ratio = (new_height / ancestor_h).clamp(0.0, 1.0);
 
-                        if let Some(child_node) = children.get_mut(child_index) {
-                            child_node.set_ratio(new_ratio);
-                        }
+                        ratios[child_index] = new_ratio;
 
                         if children.len() == 2 {
                             let sibling_index = if child_index == 0 { 1 } else { 0 };
-                            if let Some(sibling) = children.get_mut(sibling_index) {
-                                sibling.set_ratio((1.0 - new_ratio).clamp(0.0, 1.0));
-                            }
+                            ratios[sibling_index] = (1.0 - new_ratio).clamp(0.0, 1.0);
                         }
                         true
                     } else {

@@ -56,23 +56,23 @@ impl DockingLayout {
         visitor(node, path, (x, y, w, h));
 
         match node {
-            DockNode::Split { direction, children, .. } => {
-                let visible_children: Vec<&DockNode> = children.iter().filter(|c| c.is_visible()).collect();
+            DockNode::Split { direction, children, ratios } => {
+                let visible_children: Vec<&DockNode> = children.iter().filter(|child| child.is_visible()).collect();
                 if visible_children.is_empty() {
                     return;
                 }
 
-                let total_ratio: f32 = visible_children.iter().map(|c| c.get_ratio()).sum();
+                let total_ratio: f32 = ratios.iter().map(|ratio| ratio).sum();
                 let mut offset = 0.0;
                 let child_count = visible_children.len();
 
-                for (original_idx, child) in children.iter().enumerate() {
+                for (child_index, child) in children.iter().enumerate() {
                     if !child.is_visible() {
                         continue;
                     }
 
                     let child_ratio = if total_ratio > 0.0 {
-                        child.get_ratio() / total_ratio
+                        ratios.get(child_index).unwrap_or(&0.0) / total_ratio
                     } else {
                         1.0 / child_count as f32
                     };
@@ -87,7 +87,7 @@ impl DockingLayout {
                     };
 
                     // Push this child's index
-                    path.push(original_idx);
+                    path.push(child_index);
                     self.walk_with_layout_and_path(child, cx, cy, cw, ch, path, visitor);
                     path.pop();
 

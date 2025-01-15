@@ -6,23 +6,22 @@ use serde::{Deserialize, Serialize};
 pub enum DockNode {
     /// A split node containing sub-children.
     Split {
-        ratio: f32,
+        ratios: Vec<f32>,
         direction: DockSplitDirection,
         children: Vec<DockNode>,
     },
     /// A tab container, holding multiple children in tabs.
     /// Each child is itself a DockNode, so we can have either Leaf nodes
     /// or even nested splits in a tab if we want to get fancy.
-    Tab { ratio: f32, tabs: Vec<DockNode>, active_tab_id: String },
+    Tab { tabs: Vec<DockNode>, active_tab_id: String },
     /// A leaf node representing a single panel.
-    Leaf { window_identifier: String, is_visible: bool, ratio: f32 },
+    Leaf { window_identifier: String, is_visible: bool },
 }
 
 impl Default for DockNode {
     fn default() -> Self {
         // A default "leaf" node. Your default usage may vary.
         DockNode::Leaf {
-            ratio: 1.0,
             window_identifier: "root".into(),
             is_visible: true,
         }
@@ -60,27 +59,6 @@ impl DockNode {
             DockNode::Leaf { is_visible, .. } => {
                 *is_visible = is_visible_new;
             }
-        }
-    }
-
-    /// Get ratio of a node.
-    pub fn get_ratio(&self) -> f32 {
-        match self {
-            DockNode::Split { ratio, .. } => *ratio,
-            DockNode::Tab { ratio, .. } => *ratio,
-            DockNode::Leaf { ratio, .. } => *ratio,
-        }
-    }
-
-    /// Set ratio of a node.
-    pub fn set_ratio(
-        &mut self,
-        new_ratio: f32,
-    ) {
-        match self {
-            DockNode::Split { ratio, .. } => *ratio = new_ratio,
-            DockNode::Tab { ratio, .. } => *ratio = new_ratio,
-            DockNode::Leaf { ratio, .. } => *ratio = new_ratio,
         }
     }
 
