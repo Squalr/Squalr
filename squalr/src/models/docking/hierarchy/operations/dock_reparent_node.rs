@@ -108,60 +108,61 @@ impl DockTree {
         }
     }
 
-    /// Inserts the `source_node` into the same Tab as `target_path`. If `target_path` points to
-    /// a Leaf, we convert that leaf to a Tab that contains `[existing_leaf, source_node]`.
-    /// If it’s already a Tab, just push the `source_node` there.
+    /// insert_as_tab attempts to insert `source_node` into the same tab as `target_path`.
+    /// - If `target_path` is a Leaf with a *Tab parent*, we insert into that parent Tab.
+    /// - Else, we match on {Tab, Leaf, Split} as before.
     fn insert_as_tab(
         &mut self,
         source_node: DockNode,
         target_path: &[usize],
     ) -> bool {
-        let target_node = match self.get_node_mut(target_path) {
-            Some(n) => n,
-            None => return false,
+        // 1) We do a read-only check to see if target_path is a Leaf with a Tab parent
+        let leaf_parent_is_tab = self.is_leaf_with_tab_parent(target_path);
+
+        if leaf_parent_is_tab {
+            // 2a) If yes, we do a single mutable borrow for the parent Tab
+            //     and push `source_node` into that parent's `tabs`.
+            return self.insert_into_parent_tab(source_node, target_path);
+        }
+
+        // 2b) Otherwise, we do a single mutable borrow for the target node
+        //     and handle it as (Tab -> push, Leaf -> convert, Split -> wrap).
+        let Some(target_node) = self.get_node_mut(target_path) else {
+            return false;
         };
 
         match target_node {
-            // Target is already a Tab node => just push `source_node` in the tabs
             DockNode::Tab { tabs, active_tab_id } => {
-                // Insert at the end (or any index you like)
                 tabs.push(source_node);
-                // Optionally set the active tab to the newly inserted leaf’s ID if that’s desired:
                 if let DockNode::Leaf { window_identifier, .. } = &tabs[tabs.len() - 1] {
                     *active_tab_id = window_identifier.clone();
                 }
                 true
             }
 
-            // Target is a Leaf => convert it into a Tab with `[old_leaf, source_node]`.
             DockNode::Leaf { window_identifier, is_visible } => {
-                let existing_id = window_identifier.clone();
-                let existing_visible = *is_visible;
-                let new_active_id = if let DockNode::Leaf { window_identifier: src_id, .. } = &source_node {
-                    src_id.clone()
+                // Convert Leaf -> Tab containing [old_leaf, source_node]
+                let old_id = window_identifier.clone();
+                let old_vis = *is_visible;
+                let tabs = vec![
+                    DockNode::Leaf {
+                        window_identifier: old_id,
+                        is_visible: old_vis,
+                    },
+                    source_node,
+                ];
+                // Choose the newly added leaf as active
+                let active_tab_id = if let DockNode::Leaf { window_identifier, .. } = &tabs[1] {
+                    window_identifier.clone()
                 } else {
-                    existing_id.clone()
+                    String::new()
                 };
-
-                let new_tab_node = DockNode::Tab {
-                    tabs: vec![
-                        DockNode::Leaf {
-                            window_identifier: existing_id,
-                            is_visible: existing_visible,
-                        },
-                        source_node,
-                    ],
-                    active_tab_id: new_active_id,
-                };
-                // Replace the target leaf with the new tab node
-                *target_node = new_tab_node;
+                *target_node = DockNode::Tab { tabs, active_tab_id };
                 true
             }
 
-            // Target is a Split => we can either treat that as an error or embed a Tab inside it.
-            // For simplicity, we’ll create a new Tab with `[Split, source_node]`.
-            // But that’s unusual UI, so you might prefer to return false or handle differently.
             DockNode::Split { .. } => {
+                // Wrap Split in a Tab (or whatever your existing code does).
                 let old_split = std::mem::replace(target_node, DockNode::default());
                 *target_node = DockNode::Tab {
                     tabs: vec![old_split, source_node],
@@ -169,6 +170,59 @@ impl DockTree {
                 };
                 true
             }
+        }
+    }
+
+    /// Returns true if `target_path` points to a Leaf whose parent is a Tab.
+    fn is_leaf_with_tab_parent(
+        &self,
+        target_path: &[usize],
+    ) -> bool {
+        if target_path.is_empty() {
+            return false;
+        }
+        let Some(target_node) = self.get_node(target_path) else {
+            return false;
+        };
+        // Check that the target is a Leaf
+        if !matches!(target_node, DockNode::Leaf { .. }) {
+            return false;
+        }
+
+        // Check that the parent node exists and is a Tab
+        let parent_slice = &target_path[..target_path.len() - 1];
+        let Some(parent_node) = self.get_node(parent_slice) else {
+            return false;
+        };
+        matches!(parent_node, DockNode::Tab { .. })
+    }
+
+    /// If the target node is a Leaf with a Tab parent, this inserts `source_node`
+    /// into that parent's `tabs`. Returns `true` on success, `false` otherwise.
+    fn insert_into_parent_tab(
+        &mut self,
+        source_node: DockNode,
+        target_path: &[usize],
+    ) -> bool {
+        // parent_slice = everything except the last index
+        let parent_slice = &target_path[..target_path.len() - 1];
+
+        // We do one mutable borrow for the parent node
+        let Some(parent_node) = self.get_node_mut(parent_slice) else {
+            return false;
+        };
+
+        if let DockNode::Tab { tabs, active_tab_id } = parent_node {
+            // Just push source_node into the parent's tabs
+            tabs.push(source_node);
+
+            // Optionally set the newly inserted leaf as active
+            if let DockNode::Leaf { window_identifier, .. } = &tabs[tabs.len() - 1] {
+                *active_tab_id = window_identifier.clone();
+            }
+            true
+        } else {
+            false
         }
     }
 
