@@ -2,7 +2,7 @@ import { VerticalBox } from "std-widgets.slint";
 
 import { Theme } from "./../../theme.slint";
 
-import { DockRootViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
+import { DockRootViewModelBindings, DockedWindowViewData, RedockTarget } from "./../../view_model_bindings.slint";
 
 export component DockedWindowDropArea inherits Rectangle {
     in-out property <DockedWindowViewData> docked-window-data;
@@ -21,10 +21,23 @@ export component DockedWindowDropArea inherits Rectangle {
         background: Theme.selected-background;
         border-color: Theme.selected-border;
         border-width: 2px;
-        TouchArea {
-            moved => {
+        left-touch-area := TouchArea {
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.up && DockRootViewModelBindings.active-dragged-window-id != "") {
+                    DockRootViewModelBindings.try-redock-window(DockRootViewModelBindings.active-dragged-window-id, root.docked-window-data.identifier, RedockTarget.left);
+                    DockRootViewModelBindings.active-dragged-window-id = "";
+                }
             }
         }
+
+        states [
+            _ when !left-touch-area.has-hover: {
+                background: Theme.selected-background;
+            }
+            _ when left-touch-area.has-hover: {
+                background: Theme.selected-background.darker(0.25);
+            }
+        ]
     }
     // Right split drop area
     Rectangle {
@@ -36,7 +49,11 @@ export component DockedWindowDropArea inherits Rectangle {
         border-color: Theme.selected-border;
         border-width: 2px;
         TouchArea {
-            moved => {
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.up && DockRootViewModelBindings.active-dragged-window-id != "") {
+                    DockRootViewModelBindings.try-redock-window(DockRootViewModelBindings.active-dragged-window-id, root.docked-window-data.identifier, RedockTarget.right);
+                    DockRootViewModelBindings.active-dragged-window-id = "";
+                }
             }
         }
     }
@@ -50,7 +67,11 @@ export component DockedWindowDropArea inherits Rectangle {
         border-color: Theme.selected-border;
         border-width: 2px;
         TouchArea {
-            moved => {
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.up && DockRootViewModelBindings.active-dragged-window-id != "") {
+                    DockRootViewModelBindings.try-redock-window(DockRootViewModelBindings.active-dragged-window-id, root.docked-window-data.identifier, RedockTarget.up);
+                    DockRootViewModelBindings.active-dragged-window-id = "";
+                }
             }
         }
     }
@@ -64,7 +85,11 @@ export component DockedWindowDropArea inherits Rectangle {
         border-color: Theme.selected-border;
         border-width: 2px;
         TouchArea {
-            moved => {
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.up && DockRootViewModelBindings.active-dragged-window-id != "") {
+                    DockRootViewModelBindings.try-redock-window(DockRootViewModelBindings.active-dragged-window-id, root.docked-window-data.identifier, RedockTarget.down);
+                    DockRootViewModelBindings.active-dragged-window-id = "";
+                }
             }
         }
     }
@@ -78,7 +103,11 @@ export component DockedWindowDropArea inherits Rectangle {
         border-color: Theme.selected-border;
         border-width: 2px;
         TouchArea {
-            moved => {
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.up && DockRootViewModelBindings.active-dragged-window-id != "") {
+                    DockRootViewModelBindings.try-redock-window(DockRootViewModelBindings.active-dragged-window-id, root.docked-window-data.identifier, RedockTarget.center);
+                    DockRootViewModelBindings.active-dragged-window-id = "";
+                }
             }
         }
     }

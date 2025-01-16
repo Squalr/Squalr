@@ -1,6 +1,6 @@
-use crate::models::docking::dock_drag_direction::DockDragDirection;
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
+use crate::models::docking::layout::dock_drag_direction::DockDragDirection;
 use serde::{Deserialize, Serialize};
 
 /// A simple tree structure that owns a single root `DockNode` and provides search and update methods.
@@ -161,6 +161,48 @@ impl DockTree {
             (DockSplitDirection::HorizontalDivider, DockDragDirection::Top) | (DockSplitDirection::HorizontalDivider, DockDragDirection::Bottom) => true,
             _ => false,
         }
+    }
+
+    /// Given a `leaf_id` and a `DockTree`, this method determines the list of sibling tabs, as well as which one is active.
+    pub fn get_siblings_and_active_tab(
+        &self,
+        leaf_id: &str,
+    ) -> (Vec<String>, String) {
+        // Find the path to this leaf.
+        let path = match self.find_leaf_path(leaf_id) {
+            Some(p) => p,
+            None => return (Vec::new(), leaf_id.to_owned()),
+        };
+
+        // If the path is empty, there's no parent => return fallback.
+        if path.is_empty() {
+            return (Vec::new(), leaf_id.to_owned());
+        }
+
+        // Everything except the last index is the parent path.
+        let (parent_path, _) = path.split_at(path.len() - 1);
+
+        // Get the parent node from the tree.
+        if let Some(parent_node) = self.get_node(parent_path) {
+            if let DockNode::Tab { tabs, active_tab_id, .. } = parent_node {
+                // Collect all visible siblings in this Tab.
+                let mut siblings = Vec::new();
+                for tab_node in tabs {
+                    if let DockNode::Leaf {
+                        window_identifier, is_visible, ..
+                    } = tab_node
+                    {
+                        if *is_visible {
+                            siblings.push(window_identifier.clone());
+                        }
+                    }
+                }
+                return (siblings, active_tab_id.clone());
+            }
+        }
+
+        // Default to returning self if no siblings or parent found.
+        (Vec::new(), leaf_id.to_owned())
     }
 
     /// Recursively clean up the docking hierarchy so that:

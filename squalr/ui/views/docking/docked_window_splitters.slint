@@ -15,7 +15,7 @@ export component DockedWindowSplitters inherits Rectangle {
         height: root.docked-window-data.height;
         background: red;
         TouchArea {
-            mouse-cursor: ns-resize;
+            mouse-cursor: ew-resize;
             moved => {
                 if (self.pressed && self.enabled) {
                     DockRootViewModelBindings.drag-left(

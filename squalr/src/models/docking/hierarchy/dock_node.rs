@@ -73,6 +73,7 @@ impl DockNode {
         }
     }
 
+    /// Determines if this node is the specified id, or is a container of a child with the specified id.
     pub fn contains_leaf_id(
         &self,
         target_id: &str,

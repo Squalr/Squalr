@@ -10,16 +10,14 @@ export component DockedWindowTitleBarView inherits Rectangle {
     background: Theme.background-primary;
     height: 24px;
     title-drag := TouchArea {
+        // enabled: !docked-window-data.is-dragging;
         moved => {
             if (self.pressed && self.enabled) {
+                // Begin dragging this window for a potential redock operation.
                 DockRootViewModelBindings.active-dragged-window-id = docked-window-data.active-tab-id;
-                // TODO: This is how we would start the process for undocking, or re-docking a window.
-                // DockRootViewModelBindings.drag((title-drag.mouse-x - title-drag.pressed-x) / 1px, (title-drag.mouse-y - title-drag.pressed-y) / 1px);
-            }
-        }
-        pointer-event(event) => {
-            if (event.kind == PointerEventKind.up) {
-                DockRootViewModelBindings.active-dragged-window-id = "";
+
+                // Disable ourself to relinquish control over the mouse, allowing hit (and thus drop) detection on other elements.
+                // docked-window-data.is-dragging = true;
             }
         }
     }

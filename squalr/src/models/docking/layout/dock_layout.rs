@@ -5,13 +5,13 @@ use crate::models::docking::hierarchy::dock_tree::DockTree;
 
 /// Represents a layout area to be filled by a `DockTree`.
 #[derive(Debug)]
-pub struct DockingLayout {
+pub struct DockLayout {
     pub available_width: f32,
     pub available_height: f32,
 }
 
 /// Implements methods to determine how much space each docked window takes up within the available space.
-impl DockingLayout {
+impl DockLayout {
     pub fn new() -> Self {
         Self {
             available_width: 0.0,

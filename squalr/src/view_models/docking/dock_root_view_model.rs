@@ -1,9 +1,10 @@
 use crate::DockRootViewModelBindings;
 use crate::MainWindowView;
+use crate::RedockTarget;
 use crate::WindowViewModelBindings;
-use crate::models::docking::dock_drag_direction::DockDragDirection;
 use crate::models::docking::docking_manager::DockingManager;
 use crate::models::docking::hierarchy::dock_node::DockNode;
+use crate::models::docking::layout::dock_drag_direction::DockDragDirection;
 use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
 use crate::view_models::docking::dock_panel_converter::DockPanelConverter;
@@ -71,6 +72,7 @@ impl DockRootViewModel {
                 on_update_dock_root_height(height: f32) -> [view_binding, docking_manager] -> Self::on_update_dock_root_height,
                 on_update_active_tab_id(identifier: SharedString) -> [view_binding, docking_manager] -> Self::on_update_active_tab_id,
                 on_get_tab_text(identifier: SharedString) -> [] -> Self::on_get_tab_text,
+                on_try_redock_window(identifier: SharedString, target_identifier: SharedString, redock_target: RedockTarget) -> [view_binding, docking_manager] -> Self::on_try_redock_window,
                 on_reset_layout() -> [view_binding, docking_manager] -> Self::on_reset_layout,
                 on_hide(identifier: SharedString) -> [view_binding, docking_manager] -> Self::on_hide,
                 on_drag_left(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [view_binding, docking_manager] -> Self::on_drag_left,
@@ -228,6 +230,18 @@ impl DockRootViewModel {
             "project-explorer" => "Project Explorer".into(),
             _ => identifier,
         }
+    }
+
+    fn on_try_redock_window(
+        view_binding: ViewBinding<MainWindowView>,
+        docking_manager: Arc<RwLock<DockingManager>>,
+        identifier: SharedString,
+        target_identifier: SharedString,
+        redock_target: RedockTarget,
+    ) {
+        Self::mutate_layout(&view_binding, &docking_manager, true, move |docking_manager| {
+            docking_manager.set_root(DockSettingsConfig::get_default_layout());
+        });
     }
 
     fn on_reset_layout(

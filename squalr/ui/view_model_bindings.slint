@@ -18,6 +18,7 @@ export struct DockedWindowViewData {
     identifier: string,
     is-docked: bool,
     is-visible: bool,
+    is-dragging: bool,
     position-x: length,
     position-y: length,
     width: length,
@@ -25,6 +26,8 @@ export struct DockedWindowViewData {
     tab-ids: [string],
     active-tab-id: string,
 }
+
+export enum RedockTarget { left, right, up, down, center }
 
 export global DockRootViewModelBindings {
     in-out property <length> initial-dock-root-width;
@@ -35,6 +38,7 @@ export global DockRootViewModelBindings {
     pure callback update-dock-root-size(width: length, height: length) -> length;
     pure callback update-active-tab-id(identifier: string);
     pure callback get-tab-text(identifier: string) -> string;
+    callback try-redock-window(identifier: string, target-identifier: string, redock-target: RedockTarget);
     callback reset-layout();
     callback hide(identifier: string);
     callback drag-left(identifier: string, delta-x: int, delta-y: int);
