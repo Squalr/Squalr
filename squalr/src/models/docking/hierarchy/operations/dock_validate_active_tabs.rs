@@ -4,21 +4,21 @@ use crate::models::docking::hierarchy::dock_tree::DockTree;
 /// Validates and corrects any mistakes in tab logic.
 impl DockTree {
     /// A top-level method that ensures each tab node has a valid active tab.
-    pub fn run_tab_validation(&mut self) {
-        Self::run_tab_validation_internal(&mut self.root);
+    pub fn run_active_tab_validation(&mut self) {
+        Self::run_active_tab_validation_internal(&mut self.root);
     }
 
-    fn run_tab_validation_internal(node: &mut DockNode) {
+    fn run_active_tab_validation_internal(node: &mut DockNode) {
         match node {
             DockNode::Split { children, .. } => {
                 for child in children.iter_mut() {
-                    Self::run_tab_validation_internal(&mut child.node);
+                    Self::run_active_tab_validation_internal(&mut child.node);
                 }
             }
             DockNode::Tab { tabs, active_tab_id, .. } => {
                 // Recurse into each tab child first
                 for child in tabs.iter_mut() {
-                    Self::run_tab_validation_internal(child);
+                    Self::run_active_tab_validation_internal(child);
                 }
 
                 // If active_tab_id is invalid or hidden, pick a new active tab.

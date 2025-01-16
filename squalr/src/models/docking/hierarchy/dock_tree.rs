@@ -1,6 +1,4 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
-use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
 use serde::{Deserialize, Serialize};
 
 /// A simple tree structure that owns a single root `DockNode` and provides search and update methods.
@@ -114,57 +112,6 @@ impl DockTree {
         leaves
     }
 
-    /// Find the matching ancestor `DockNode::Split` that has the correct orientation
-    /// for a particular drag direction (left/right = vertical, top/bottom = horizontal).
-    /// We climb up the tree from the given `leaf_path`, returning the path to the first
-    /// ancestor split that matches.
-    pub fn find_ancestor_split_for_drag(
-        &self,
-        leaf_path: &[usize],
-        drag_dir: &DockSplitterDragDirection,
-    ) -> Option<Vec<usize>> {
-        if leaf_path.is_empty() {
-            return None;
-        }
-
-        // We'll climb up. Remove the leaf's index from the path to see its parent path.
-        let mut path = leaf_path.to_vec();
-        path.pop(); // remove the leaf's own index
-
-        // Now climb up the tree, checking each ancestor node
-        while let Some(_) = self.get_node(&path) {
-            if let Some(node) = self.get_node(&path) {
-                if let DockNode::Split { direction, .. } = node {
-                    if Self::has_compatible_orientation(direction, drag_dir) {
-                        return Some(path.clone());
-                    }
-                }
-            }
-            // Move one step higher
-            if path.is_empty() {
-                break; // no more parents
-            }
-            path.pop();
-        }
-
-        None
-    }
-
-    /// Instead of matching child_index == 0/1, just check if the direction is vertical vs horizontal
-    /// and see if it matches the drag direction (left/right vs top/bottom).
-    fn has_compatible_orientation(
-        direction: &DockSplitDirection,
-        drag_dir: &DockSplitterDragDirection,
-    ) -> bool {
-        match (direction, drag_dir) {
-            (DockSplitDirection::VerticalDivider, DockSplitterDragDirection::Left)
-            | (DockSplitDirection::VerticalDivider, DockSplitterDragDirection::Right) => true,
-            (DockSplitDirection::HorizontalDivider, DockSplitterDragDirection::Top)
-            | (DockSplitDirection::HorizontalDivider, DockSplitterDragDirection::Bottom) => true,
-            _ => false,
-        }
-    }
-
     /// Given a `leaf_id` and a `DockTree`, this method determines the list of sibling tabs, as well as which one is active.
     pub fn get_siblings_and_active_tab(
         &self,
@@ -205,44 +152,5 @@ impl DockTree {
 
         // Default to returning self if no siblings or parent found.
         (Vec::new(), leaf_id.to_owned())
-    }
-
-    /// Recursively clean up the docking hierarchy so that:
-    /// - A Split node with only 1 child is replaced by that child.
-    /// - A Tab node with only 1 child is replaced by that child.
-    pub fn clean_up_hierarchy(&mut self) {
-        Self::clean_up_node(&mut self.root);
-    }
-
-    /// Recursively walk the subtree and remove containers that have only 1 child.
-    pub fn clean_up_node(dock_node: &mut DockNode) {
-        match dock_node {
-            // For Split nodes, clean each child first, then see if there's only one child left.
-            DockNode::Split { children, .. } => {
-                for child in children.iter_mut() {
-                    Self::clean_up_node(&mut child.node);
-                }
-                // If there's exactly one child, replace self with that child.
-                if children.len() == 1 {
-                    let single_child = children.remove(0).node;
-                    *dock_node = single_child;
-                }
-            }
-
-            // For Tab nodes, clean each tab first, then see if there's only one tab left.
-            DockNode::Tab { tabs, .. } => {
-                for tab in tabs.iter_mut() {
-                    Self::clean_up_node(tab);
-                }
-                // If there's exactly one tab, replace self with that tab.
-                if tabs.len() == 1 {
-                    let single_tab = tabs.remove(0);
-                    *dock_node = single_tab;
-                }
-            }
-
-            // Leaf nodes have no children to clean up.
-            DockNode::Leaf { .. } => {}
-        }
     }
 }

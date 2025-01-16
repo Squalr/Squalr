@@ -92,7 +92,7 @@ impl DockingManager {
     /// Prepare for presentation by fixing up invalid state.
     pub fn prepare_for_presentation(&mut self) {
         self.tree.clean_up_hierarchy();
-        self.tree.run_tab_validation();
+        self.tree.run_active_tab_validation();
     }
 
     /// Tries to resize a window by dragging one of its edges in the given direction
