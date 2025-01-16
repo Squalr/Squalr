@@ -1,7 +1,8 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
+use crate::models::docking::hierarchy::dock_reparent_direction::DockReparentDirection;
 use crate::models::docking::hierarchy::dock_tree::DockTree;
-use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::models::docking::layout::dock_layout::DockLayout;
+use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
 
 /// Handles a `DockTree` and its corresponding layout information.
 pub struct DockingManager {
@@ -109,5 +110,14 @@ impl DockingManager {
     ) -> bool {
         self.layout
             .adjust_window_size(&mut self.tree, leaf_id, drag_dir, delta_x, delta_y)
+    }
+
+    pub fn reparent_leaf(
+        &mut self,
+        source_id: &str,
+        target_id: &str,
+        direction: DockReparentDirection,
+    ) -> bool {
+        self.tree.reparent_leaf(source_id, target_id, direction)
     }
 }

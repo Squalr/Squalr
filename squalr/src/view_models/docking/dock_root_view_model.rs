@@ -8,6 +8,7 @@ use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDr
 use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
 use crate::view_models::docking::dock_panel_converter::DockPanelConverter;
+use crate::view_models::docking::dock_target_converter::DocktargetConverter;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
 use crate::view_models::scanners::manual_scan_view_model::ManualScanViewModel;
@@ -240,7 +241,11 @@ impl DockRootViewModel {
         redock_target: RedockTarget,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, true, move |docking_manager| {
-            docking_manager.set_root(DockSettingsConfig::get_default_layout());
+            docking_manager.reparent_leaf(
+                &identifier,
+                &target_identifier,
+                DocktargetConverter::new().convert_from_view_data(&redock_target),
+            );
         });
     }
 
