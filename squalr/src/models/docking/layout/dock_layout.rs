@@ -80,7 +80,7 @@ impl DockLayout {
         found
     }
 
-    /// Compute bounding rectangles for every visible node. The `visitor` receives `(node, (x, y, w, h))`.
+    /// Compute bounding rectangles for every visible node. The `visitor` receives `(node, path, (x, y, w, h))`.
     fn walk_with_layout_and_path<F>(
         &self,
         node: &DockNode,

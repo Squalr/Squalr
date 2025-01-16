@@ -1,8 +1,8 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_reparent_direction::DockReparentDirection;
 use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
 use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
 use crate::models::docking::hierarchy::dock_tree::DockTree;
+use crate::models::docking::hierarchy::operations::dock_reparent_direction::DockReparentDirection;
 
 /// Validates and corrects any mistakes in tab logic.
 impl DockTree {

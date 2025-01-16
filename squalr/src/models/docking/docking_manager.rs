@@ -1,6 +1,6 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_reparent_direction::DockReparentDirection;
 use crate::models::docking::hierarchy::dock_tree::DockTree;
+use crate::models::docking::hierarchy::operations::dock_reparent_direction::DockReparentDirection;
 use crate::models::docking::layout::dock_layout::DockLayout;
 use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
 
@@ -91,7 +91,7 @@ impl DockingManager {
 
     /// Prepare for presentation by fixing up invalid state.
     pub fn prepare_for_presentation(&mut self) {
-        self.tree.clean_up_hierarchy();
+        self.tree.remove_invalid_containers();
         self.tree.run_active_tab_validation();
     }
 
