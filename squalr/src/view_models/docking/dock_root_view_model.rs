@@ -4,7 +4,7 @@ use crate::RedockTarget;
 use crate::WindowViewModelBindings;
 use crate::models::docking::docking_manager::DockingManager;
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::layout::dock_drag_direction::DockDragDirection;
+use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
 use crate::view_models::docking::dock_panel_converter::DockPanelConverter;
@@ -273,7 +273,7 @@ impl DockRootViewModel {
         delta_y: i32,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, false, move |manager| {
-            manager.adjust_window_size(dockable_window_id.as_str(), &DockDragDirection::Left, delta_x, delta_y);
+            manager.adjust_window_size(dockable_window_id.as_str(), &DockSplitterDragDirection::Left, delta_x, delta_y);
         });
     }
 
@@ -285,7 +285,7 @@ impl DockRootViewModel {
         delta_y: i32,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, false, move |manager| {
-            manager.adjust_window_size(dockable_window_id.as_str(), &DockDragDirection::Right, delta_x, delta_y);
+            manager.adjust_window_size(dockable_window_id.as_str(), &DockSplitterDragDirection::Right, delta_x, delta_y);
         });
     }
 
@@ -297,7 +297,7 @@ impl DockRootViewModel {
         delta_y: i32,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, false, move |manager| {
-            manager.adjust_window_size(dockable_window_id.as_str(), &DockDragDirection::Top, delta_x, delta_y);
+            manager.adjust_window_size(dockable_window_id.as_str(), &DockSplitterDragDirection::Top, delta_x, delta_y);
         });
     }
 
@@ -309,7 +309,7 @@ impl DockRootViewModel {
         delta_y: i32,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, false, move |manager| {
-            manager.adjust_window_size(dockable_window_id.as_str(), &DockDragDirection::Bottom, delta_x, delta_y);
+            manager.adjust_window_size(dockable_window_id.as_str(), &DockSplitterDragDirection::Bottom, delta_x, delta_y);
         });
     }
 

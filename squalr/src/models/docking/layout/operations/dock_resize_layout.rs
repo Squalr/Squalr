@@ -1,8 +1,8 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
 use crate::models::docking::hierarchy::dock_tree::DockTree;
-use crate::models::docking::layout::dock_drag_direction::DockDragDirection;
 use crate::models::docking::layout::dock_layout::DockLayout;
+use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
 
 impl DockLayout {
     /// Tries to resize a window by dragging one of its edges in the given direction
@@ -15,7 +15,7 @@ impl DockLayout {
         &mut self,
         tree: &mut DockTree,
         leaf_id: &str,
-        drag_dir: &DockDragDirection,
+        drag_dir: &DockSplitterDragDirection,
         delta_x: i32,
         delta_y: i32,
     ) -> bool {
@@ -27,8 +27,8 @@ impl DockLayout {
 
         // 2) Determine the required orientation (vertical or horizontal).
         let desired_split_direction = match drag_dir {
-            DockDragDirection::Left | DockDragDirection::Right => DockSplitDirection::VerticalDivider,
-            DockDragDirection::Top | DockDragDirection::Bottom => DockSplitDirection::HorizontalDivider,
+            DockSplitterDragDirection::Left | DockSplitterDragDirection::Right => DockSplitDirection::VerticalDivider,
+            DockSplitterDragDirection::Top | DockSplitterDragDirection::Bottom => DockSplitDirection::HorizontalDivider,
         };
 
         // 3) Climb up from the leaf to its ancestors.
@@ -90,7 +90,7 @@ impl DockLayout {
     fn try_resize_siblings_in_split(
         parent_node: &mut DockNode,
         child_index: usize,
-        drag_dir: &DockDragDirection,
+        drag_dir: &DockSplitterDragDirection,
         delta_x: i32,
         delta_y: i32,
         ancestor_w: f32,
@@ -103,8 +103,8 @@ impl DockLayout {
 
         // If orientation doesn’t match the drag direction, bail out
         match (drag_dir, &direction) {
-            (DockDragDirection::Left | DockDragDirection::Right, DockSplitDirection::VerticalDivider) => {}
-            (DockDragDirection::Top | DockDragDirection::Bottom, DockSplitDirection::HorizontalDivider) => {}
+            (DockSplitterDragDirection::Left | DockSplitterDragDirection::Right, DockSplitDirection::VerticalDivider) => {}
+            (DockSplitterDragDirection::Top | DockSplitterDragDirection::Bottom, DockSplitDirection::HorizontalDivider) => {}
             _ => return false,
         }
 
@@ -118,7 +118,7 @@ impl DockLayout {
         // we return false.
         let (dimension, delta, sign, sibling_idx) = match drag_dir {
             // -- Vertical divider (Left/Right drag) --
-            DockDragDirection::Right if *direction == DockSplitDirection::VerticalDivider => {
+            DockSplitterDragDirection::Right if *direction == DockSplitDirection::VerticalDivider => {
                 // Check if we have a sibling to the right
                 if child_index + 1 < children.len() {
                     (ancestor_w, delta_x as f32, 1.0, child_index + 1)
@@ -126,7 +126,7 @@ impl DockLayout {
                     return false;
                 }
             }
-            DockDragDirection::Left if *direction == DockSplitDirection::VerticalDivider => {
+            DockSplitterDragDirection::Left if *direction == DockSplitDirection::VerticalDivider => {
                 // Check if we have a sibling to the left
                 if child_index > 0 {
                     (ancestor_w, delta_x as f32, -1.0, child_index - 1)
@@ -136,14 +136,14 @@ impl DockLayout {
             }
 
             // -- Horizontal divider (Top/Bottom drag) --
-            DockDragDirection::Bottom if *direction == DockSplitDirection::HorizontalDivider => {
+            DockSplitterDragDirection::Bottom if *direction == DockSplitDirection::HorizontalDivider => {
                 if child_index + 1 < children.len() {
                     (ancestor_h, delta_y as f32, 1.0, child_index + 1)
                 } else {
                     return false;
                 }
             }
-            DockDragDirection::Top if *direction == DockSplitDirection::HorizontalDivider => {
+            DockSplitterDragDirection::Top if *direction == DockSplitDirection::HorizontalDivider => {
                 if child_index > 0 {
                     (ancestor_h, delta_y as f32, -1.0, child_index - 1)
                 } else {

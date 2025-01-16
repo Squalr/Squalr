@@ -1,6 +1,6 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::dock_tree::DockTree;
-use crate::models::docking::layout::dock_drag_direction::DockDragDirection;
+use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::models::docking::layout::dock_layout::DockLayout;
 
 /// Handles a `DockTree` and its corresponding layout information.
@@ -103,7 +103,7 @@ impl DockingManager {
     pub fn adjust_window_size(
         &mut self,
         leaf_id: &str,
-        drag_dir: &DockDragDirection,
+        drag_dir: &DockSplitterDragDirection,
         delta_x: i32,
         delta_y: i32,
     ) -> bool {

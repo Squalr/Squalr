@@ -1,6 +1,6 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
-use crate::models::docking::layout::dock_drag_direction::DockDragDirection;
+use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
 use serde::{Deserialize, Serialize};
 
 /// A simple tree structure that owns a single root `DockNode` and provides search and update methods.
@@ -121,7 +121,7 @@ impl DockTree {
     pub fn find_ancestor_split_for_drag(
         &self,
         leaf_path: &[usize],
-        drag_dir: &DockDragDirection,
+        drag_dir: &DockSplitterDragDirection,
     ) -> Option<Vec<usize>> {
         if leaf_path.is_empty() {
             return None;
@@ -154,11 +154,13 @@ impl DockTree {
     /// and see if it matches the drag direction (left/right vs top/bottom).
     fn has_compatible_orientation(
         direction: &DockSplitDirection,
-        drag_dir: &DockDragDirection,
+        drag_dir: &DockSplitterDragDirection,
     ) -> bool {
         match (direction, drag_dir) {
-            (DockSplitDirection::VerticalDivider, DockDragDirection::Left) | (DockSplitDirection::VerticalDivider, DockDragDirection::Right) => true,
-            (DockSplitDirection::HorizontalDivider, DockDragDirection::Top) | (DockSplitDirection::HorizontalDivider, DockDragDirection::Bottom) => true,
+            (DockSplitDirection::VerticalDivider, DockSplitterDragDirection::Left)
+            | (DockSplitDirection::VerticalDivider, DockSplitterDragDirection::Right) => true,
+            (DockSplitDirection::HorizontalDivider, DockSplitterDragDirection::Top)
+            | (DockSplitDirection::HorizontalDivider, DockSplitterDragDirection::Bottom) => true,
             _ => false,
         }
     }

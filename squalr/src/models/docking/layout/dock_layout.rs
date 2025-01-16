@@ -19,6 +19,7 @@ impl DockLayout {
         }
     }
 
+    /// Sets the available width and height that this dock layout fills.
     pub fn set_available_size(
         &mut self,
         width: f32,
@@ -28,6 +29,7 @@ impl DockLayout {
         self.available_height = height;
     }
 
+    /// Sets the available width that this dock layout fills.
     pub fn set_available_width(
         &mut self,
         width: f32,
@@ -35,6 +37,7 @@ impl DockLayout {
         self.available_width = width;
     }
 
+    /// Sets the available height that this dock layout fills.
     pub fn set_available_height(
         &mut self,
         height: f32,
