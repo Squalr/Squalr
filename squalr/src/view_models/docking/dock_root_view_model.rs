@@ -52,7 +52,7 @@ impl DockRootViewModel {
         view_binding.execute_on_ui_thread(move |main_window_view, _| {
             if let Ok(mut docking_manager) = docking_manager_clone.write() {
                 let dock_root_bindings = main_window_view.global::<DockRootViewModelBindings>();
-                docking_manager.get_layout_mut().set_available_size(
+                docking_manager.get_main_window_layout_mut().set_available_size(
                     dock_root_bindings.get_initial_dock_root_width(),
                     dock_root_bindings.get_initial_dock_root_height(),
                 );
@@ -179,7 +179,7 @@ impl DockRootViewModel {
     ) -> f32 {
         Self::mutate_layout(&view_binding, &docking_manager, false, move |docking_manager| {
             docking_manager
-                .get_layout_mut()
+                .get_main_window_layout_mut()
                 .set_available_size(width, height);
         });
 
@@ -193,7 +193,9 @@ impl DockRootViewModel {
         width: f32,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, false, move |docking_manager| {
-            docking_manager.get_layout_mut().set_available_width(width);
+            docking_manager
+                .get_main_window_layout_mut()
+                .set_available_width(width);
         });
 
         Self::propagate_layout(view_binding, docking_manager);
@@ -205,7 +207,9 @@ impl DockRootViewModel {
         height: f32,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, false, move |docking_manager| {
-            docking_manager.get_layout_mut().set_available_height(height);
+            docking_manager
+                .get_main_window_layout_mut()
+                .set_available_height(height);
         });
 
         Self::propagate_layout(view_binding, docking_manager);

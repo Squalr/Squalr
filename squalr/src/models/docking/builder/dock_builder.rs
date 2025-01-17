@@ -3,6 +3,7 @@ use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_split_child::DockSplitChild;
 use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
 
+/// Allows for the building of a tree of `DockNodes` that contain tabs, splits, and windows to be rendered.
 #[derive(Debug)]
 pub struct DockBuilder {
     /// Internal variant describing what this node will become.

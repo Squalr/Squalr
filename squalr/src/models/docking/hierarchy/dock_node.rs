@@ -5,14 +5,12 @@ use serde::{Deserialize, Serialize};
 /// The main enum that models our docking hierarchy.
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum DockNode {
-    /// A split node containing sub-children.
+    /// A split container, holding multiple children side-by-side vertically or horizontally.
     Split {
         direction: DockSplitDirection,
         children: Vec<DockSplitChild>,
     },
     /// A tab container, holding multiple children in tabs.
-    /// Each child is itself a DockNode, so we can have either Window nodes
-    /// or even nested splits in a tab if we want to get fancy.
     Tab { tabs: Vec<DockNode>, active_tab_id: String },
     /// A window node representing a single window.
     Window { window_identifier: String, is_visible: bool },
