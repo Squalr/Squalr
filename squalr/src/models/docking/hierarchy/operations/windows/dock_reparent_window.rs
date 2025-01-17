@@ -37,7 +37,7 @@ impl DockNode {
             None => return false,
         };
 
-        // 3) Delegate to subroutines based on direction.
+        // Delegate to subroutines based on direction.
         match direction {
             DockReparentDirection::Tab => self.reparent_as_tab(source_node, &target_path),
             DockReparentDirection::Left | DockReparentDirection::Right | DockReparentDirection::Top | DockReparentDirection::Bottom => {

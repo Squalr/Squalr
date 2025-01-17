@@ -6,7 +6,7 @@ impl DockNode {
         &mut self,
         window_path: &[usize],
     ) -> Option<DockNode> {
-        // We expect window_path not to be empty
+        // We expect window_path not to be empty.
         let (child_index, parent_slice) = window_path.split_last()?;
         let child_index = *child_index;
 
