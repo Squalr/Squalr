@@ -3,8 +3,9 @@ import { VerticalBox } from "std-widgets.slint";
 import { Theme } from "./../../theme.slint";
 
 import { DockRootViewModelBindings, DockedWindowViewData, RedockTarget } from "./../../view_model_bindings.slint";
+import { DockFocusCatcher } from "dock_focus_catcher.slint";
 
-export component DockedWindowDropArea inherits Rectangle {
+export component DockedWindowDropAreas inherits Rectangle {
     in-out property <DockedWindowViewData> docked-window-data;
     in property <length> resize-padding;
     property <percent> edge-drop-fill-ratio: 25%;
@@ -12,6 +13,7 @@ export component DockedWindowDropArea inherits Rectangle {
     y: resize-padding;
     width: root.docked-window-data.width - resize-padding * 2;
     height: root.docked-window-data.height - resize-padding * 2;
+    DockFocusCatcher { }
     // Left split drop area
     Rectangle {
         x: 0;
@@ -26,6 +28,7 @@ export component DockedWindowDropArea inherits Rectangle {
                 if (event.kind == PointerEventKind.up && DockRootViewModelBindings.active-dragged-window-id != "") {
                     DockRootViewModelBindings.try-redock-window(DockRootViewModelBindings.active-dragged-window-id, root.docked-window-data.identifier, RedockTarget.left);
                     DockRootViewModelBindings.active-dragged-window-id = "";
+                    DockRootViewModelBindings.is-dragging-window = false;
                 }
             }
         }
@@ -48,14 +51,24 @@ export component DockedWindowDropArea inherits Rectangle {
         background: Theme.selected-background;
         border-color: Theme.selected-border;
         border-width: 2px;
-        TouchArea {
+        right-touch-area := TouchArea {
             pointer-event(event) => {
                 if (event.kind == PointerEventKind.up && DockRootViewModelBindings.active-dragged-window-id != "") {
                     DockRootViewModelBindings.try-redock-window(DockRootViewModelBindings.active-dragged-window-id, root.docked-window-data.identifier, RedockTarget.right);
                     DockRootViewModelBindings.active-dragged-window-id = "";
+                    DockRootViewModelBindings.is-dragging-window = false;
                 }
             }
         }
+
+        states [
+            _ when !right-touch-area.has-hover: {
+                background: Theme.selected-background;
+            }
+            _ when right-touch-area.has-hover: {
+                background: Theme.selected-background.darker(0.25);
+            }
+        ]
     }
     // Top split drop area
     Rectangle {
@@ -66,14 +79,24 @@ export component DockedWindowDropArea inherits Rectangle {
         background: Theme.selected-background;
         border-color: Theme.selected-border;
         border-width: 2px;
-        TouchArea {
+        top-touch-area := TouchArea {
             pointer-event(event) => {
                 if (event.kind == PointerEventKind.up && DockRootViewModelBindings.active-dragged-window-id != "") {
                     DockRootViewModelBindings.try-redock-window(DockRootViewModelBindings.active-dragged-window-id, root.docked-window-data.identifier, RedockTarget.up);
                     DockRootViewModelBindings.active-dragged-window-id = "";
+                    DockRootViewModelBindings.is-dragging-window = false;
                 }
             }
         }
+
+        states [
+            _ when !top-touch-area.has-hover: {
+                background: Theme.selected-background;
+            }
+            _ when top-touch-area.has-hover: {
+                background: Theme.selected-background.darker(0.25);
+            }
+        ]
     }
     // Bottom split drop area
     Rectangle {
@@ -84,14 +107,24 @@ export component DockedWindowDropArea inherits Rectangle {
         background: Theme.selected-background;
         border-color: Theme.selected-border;
         border-width: 2px;
-        TouchArea {
+        bottom-touch-area := TouchArea {
             pointer-event(event) => {
                 if (event.kind == PointerEventKind.up && DockRootViewModelBindings.active-dragged-window-id != "") {
                     DockRootViewModelBindings.try-redock-window(DockRootViewModelBindings.active-dragged-window-id, root.docked-window-data.identifier, RedockTarget.down);
                     DockRootViewModelBindings.active-dragged-window-id = "";
+                    DockRootViewModelBindings.is-dragging-window = false;
                 }
             }
         }
+
+        states [
+            _ when !bottom-touch-area.has-hover: {
+                background: Theme.selected-background;
+            }
+            _ when bottom-touch-area.has-hover: {
+                background: Theme.selected-background.darker(0.25);
+            }
+        ]
     }
     // Center tab drop area
     Rectangle {
@@ -102,7 +135,7 @@ export component DockedWindowDropArea inherits Rectangle {
         background: Theme.selected-background;
         border-color: Theme.selected-border;
         border-width: 2px;
-        TouchArea {
+        center-touch-area := TouchArea {
             pointer-event(event) => {
                 if (event.kind == PointerEventKind.up && DockRootViewModelBindings.active-dragged-window-id != "") {
                     DockRootViewModelBindings.try-redock-window(DockRootViewModelBindings.active-dragged-window-id, root.docked-window-data.identifier, RedockTarget.center);
@@ -110,5 +143,14 @@ export component DockedWindowDropArea inherits Rectangle {
                 }
             }
         }
+
+        states [
+            _ when !center-touch-area.has-hover: {
+                background: Theme.selected-background;
+            }
+            _ when center-touch-area.has-hover: {
+                background: Theme.selected-background.darker(0.25);
+            }
+        ]
     }
 }

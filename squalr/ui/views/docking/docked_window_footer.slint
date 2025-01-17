@@ -28,6 +28,7 @@ export component DockedWindowFooter inherits Rectangle {
                 border-top-right-radius: 0px;
                 border-bottom-left-radius: 0px;
                 border-bottom-right-radius: 0px;
+                enabled: !DockRootViewModelBindings.is-dragging-window;
                 clicked => {
                     docked-window-data.active-tab-id = tab-id;
                     DockRootViewModelBindings.update-active-tab-id(tab-id);
@@ -38,7 +39,7 @@ export component DockedWindowFooter inherits Rectangle {
                         DockRootViewModelBindings.active-dragged-window-id = tab-id;
         
                         // Disable ourself to relinquish control over the mouse, allowing hit (and thus drop) detection on other elements.
-                        // docked-window-data.is-dragging = true;
+                        DockRootViewModelBindings.is-dragging-window = true;
                     }
                 }
                 Text {
