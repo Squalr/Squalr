@@ -12,14 +12,13 @@ impl DockLayout {
     /// the layout lookups and the tree mutations.
     pub fn adjust_window_size(
         &mut self,
-        root_node: &mut DockNode,
         window_id: &str,
         drag_dir: &DockSplitterDragDirection,
         delta_x: i32,
         delta_y: i32,
     ) -> bool {
         // 1) Locate the path to the window node we’re resizing.
-        let window_path = match root_node.find_path_to_window_id(window_id) {
+        let window_path = match self.get_root().find_path_to_window_id(window_id) {
             Some(path) => path,
             None => return false,
         };
@@ -42,7 +41,7 @@ impl DockLayout {
             let parent_path = &current_path[..current_path.len() - 1];
 
             // Find the bounding rectangle from the layout.
-            let bounding_rect_opt = self.find_node_rect(&root_node, parent_path);
+            let bounding_rect_opt = self.find_node_rect(&self.get_root(), parent_path);
             let (ancestor_w, ancestor_h) = match bounding_rect_opt {
                 Some((_, _, w, h)) => (w, h),
                 None => {
@@ -52,7 +51,7 @@ impl DockLayout {
                 }
             };
 
-            let Some(parent_node) = root_node.get_node_from_path_mut(parent_path) else {
+            let Some(parent_node) = self.get_root_mut().get_node_from_path_mut(parent_path) else {
                 return false;
             };
 
