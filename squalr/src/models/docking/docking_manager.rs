@@ -87,14 +87,23 @@ impl DockingManager {
         root.select_tab_by_window_id(window_id)
     }
 
-    /// Given a `window_id` and a `DockTree`, this method determines the list of sibling tabs, as well as which one is active.
-    pub fn get_siblings_and_active_tab(
+    /// Given a `window_id`, this method determines which sibling tab is active, if any.
+    pub fn get_active_tab(
         &self,
         window_id: &str,
-    ) -> (Vec<String>, String) {
+    ) -> String {
+        self.main_window_layout.get_root().get_active_tab(window_id)
+    }
+
+    /// Given a `window_id`, this method determines the list of sibling tabs.
+    pub fn get_sibling_tab_ids(
+        &self,
+        window_id: &str,
+        only_visible: bool,
+    ) -> Vec<String> {
         self.main_window_layout
             .get_root()
-            .get_siblings_and_active_tab(window_id)
+            .get_sibling_tab_ids(window_id, only_visible)
     }
 
     /// Prepare for presentation by fixing up invalid state.

@@ -59,6 +59,10 @@ export component DockedWindowView inherits Rectangle {
     drop-area := DockedWindowDropAreas {
         docked-window-data <=> root.docked-window-data;
         resize-padding <=> root.resize-padding;
-        visible: DockRootViewModelBindings.active-dragged-window-id != "" && DockRootViewModelBindings.active-dragged-window-id != root.docked-window-data.active-tab-id && DockRootViewModelBindings.active-dragged-window-id != root.docked-window-data.identifier;
+        // Visible if:
+        // - We are dragging something AND
+        //   - We are not the same window being dragged UNLESS we are part of a tab group
+        //     (as we could be dropping onto ourself to move the window from a tab to a split).
+        visible: DockRootViewModelBindings.active-dragged-window-id != "" && (DockRootViewModelBindings.active-dragged-window-id != root.docked-window-data.identifier || root.docked-window-data.active-tab-id != "");
     }
 }

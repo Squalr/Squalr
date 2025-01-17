@@ -15,9 +15,10 @@ impl DockNode {
                 }
             }
             DockNode::Tab { tabs, active_tab_id, .. } => {
-                // Recurse into each tab child first
-                for child in tabs.iter_mut() {
-                    Self::run_active_tab_validation_internal(child);
+                // Tabs with 1 child are not supported. Clear the active tab id.
+                // Additionally, there is no need to recurse, as nested tabs are not supported.
+                if tabs.len() == 1 {
+                    active_tab_id.clear();
                 }
 
                 // If active_tab_id is invalid or hidden, pick a new active tab.

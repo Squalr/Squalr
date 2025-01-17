@@ -1,8 +1,8 @@
 use crate::DockedWindowViewData;
 use crate::models::docking::docking_manager::DockingManager;
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use slint::SharedString;
 use slint::{ModelRc, VecModel};
+use slint_mvvm::converters::shared_string_converter::SharedStringConverter;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -48,22 +48,21 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockWindowConverter {
                     .unwrap_or((0.0, 0.0, 0.0, 0.0));
 
                 // Gather siblings if in a parent tab, as well as which of those tabs is active.
-                let (siblings, found_active_tab_id) = manager.get_siblings_and_active_tab(window_identifier);
+                let siblings = manager.get_sibling_tab_ids(window_identifier, true);
+                let found_active_tab_id = manager.get_active_tab(window_identifier);
 
-                // If the active_tab_id is NOT this window, we treat it as occluded.
-                let is_occluded = !siblings.is_empty() && found_active_tab_id != *window_identifier;
-
-                let siblings_converted: Vec<SharedString> = siblings.iter().map(|str| SharedString::from(str)).collect();
+                // If the active_tab_id is NOT this window, we treat it as a hidden tab.
+                let is_hidden_tab = !siblings.is_empty() && found_active_tab_id != *window_identifier;
 
                 DockedWindowViewData {
                     identifier: window_identifier.clone().into(),
                     is_docked: true,
-                    is_visible: *is_visible && !is_occluded,
+                    is_visible: *is_visible && !is_hidden_tab,
                     position_x: x,
                     position_y: y,
                     width: w,
                     height: h,
-                    tab_ids: ModelRc::new(VecModel::from(siblings_converted)),
+                    tab_ids: ModelRc::new(VecModel::from(SharedStringConverter::new().convert_collection(&siblings))),
                     active_tab_id: found_active_tab_id.into(),
                 }
             }

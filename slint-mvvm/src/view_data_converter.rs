@@ -2,7 +2,7 @@
 pub trait ViewDataConverter<From, To> {
     fn convert_collection(
         &self,
-        word_pairs: &Vec<From>,
+        from: &Vec<From>,
     ) -> Vec<To>;
     fn convert_to_view_data(
         &self,

@@ -10,13 +10,14 @@ impl DockNode {
     /// Recursively walk the subtree and remove tabs that have only 1 child.
     fn remove_invalid_tabs_internal(dock_node: &mut DockNode) {
         match dock_node {
-            DockNode::Split { .. } => {}
-            // Clean each tab first, then see if there's only one tab left.
-            DockNode::Tab { tabs, .. } => {
-                for tab in tabs.iter_mut() {
-                    Self::remove_invalid_tabs_internal(tab);
+            DockNode::Split { children, .. } => {
+                for child in children.iter_mut() {
+                    Self::remove_invalid_tabs_internal(&mut child.node);
                 }
-                // If there's exactly one tab, replace self with that tab.
+            }
+            DockNode::Tab { tabs, .. } => {
+                // Tabs with 1 child are not supported. Remove the tab container.
+                // Recursion is not necessary, as tab containers cannot have tab containers as descendents.
                 if tabs.len() == 1 {
                     let single_tab = tabs.remove(0);
                     *dock_node = single_tab;
