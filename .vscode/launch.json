@@ -103,7 +103,7 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release-with-debug executable 'squalr'",
+            "name": "Release (with debug info) executable 'squalr'",
             "cargo": {
                 "args": [
                     "build",
@@ -121,6 +121,28 @@
             "env": {
                 "RUSTFLAGS": "-g"
             }
-        }
-    ]
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'squalr-android'",
+            "cargo": {
+                "args": [
+                    "ndk",
+                    "--platform",
+                    "21",
+                    "--target",
+                    "aarch64-linux-android",
+                    "build",
+                    "--package=squalr-android"
+                ],
+                "filter": {
+                    "name": "squalr-android",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+    ],
 }

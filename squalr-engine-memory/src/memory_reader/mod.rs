@@ -2,6 +2,9 @@ pub mod memory_reader_trait;
 
 use std::sync::Once;
 
+#[cfg(any(target_os = "android"))]
+mod android;
+
 #[cfg(any(target_os = "linux"))]
 mod linux;
 
@@ -10,6 +13,9 @@ mod macos;
 
 #[cfg(target_os = "windows")]
 mod windows;
+
+#[cfg(target_os = "android")]
+pub use crate::memory_reader::android::android_memory_reader::AndroidMemoryReader as MemoryReaderImpl;
 
 #[cfg(target_os = "linux")]
 pub use crate::memory_reader::linux::linux_memory_reader::LinuxMemoryReader as MemoryReaderImpl;

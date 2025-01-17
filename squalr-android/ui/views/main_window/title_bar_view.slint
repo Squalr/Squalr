@@ -1,0 +1,107 @@
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+
+import { Theme } from "../../theme.slint";
+import { WindowViewModelBindings } from "../../view_model_bindings.slint";
+
+import { Button } from "../../components/buttons/button.slint";
+import { DockFocusCatcher } from "../docking/drag_and_drop/dock_focus_catcher.slint";
+
+export component TitleBarView inherits Rectangle {
+    in property <string> title <=> title.text;
+    in property <length> bottom-padding: 4px;
+    height: 28px + root.bottom-padding;
+    Rectangle {
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        background: Theme.background-primary;
+        title-drag := TouchArea {
+            double-clicked => {
+                if (self.pressed && self.enabled) {
+                    WindowViewModelBindings.double-clicked();
+                }
+            }
+            moved => {
+                if (self.pressed && self.enabled) {
+                    WindowViewModelBindings.drag((title-drag.mouse-x - title-drag.pressed-x) / 1px, (title-drag.mouse-y - title-drag.pressed-y) / 1px);
+                }
+            }
+        }
+
+        HorizontalLayout {
+            // Title
+            HorizontalBox {
+                alignment: start;
+                padding-left: 4px;
+                padding-right: 0px;
+                padding-top: 0px;
+                padding-bottom: root.bottom-padding;
+                spacing: 4px;
+                app_icon := Image {
+                    source: @image-url("../../images/app/app_icon.png");
+                    width: 24px;
+                }
+
+                title := Text {
+                    vertical-alignment: center;
+                    color: Theme.foreground;
+                }
+            }
+
+           // Minimize/maximize/close
+           HorizontalBox {
+                alignment: end;
+                padding: 0px;
+                spacing: 0px;
+                minimize-button := Button {
+                    width: 36px;
+                    tooltip-text: @tr("Minimize");
+                    click-sound: "";
+                    clicked => {
+                        WindowViewModelBindings.minimize();
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        source: @image-url("../../images/app/minimize.png");
+                    }
+                }
+
+                maximize-button := Button {
+                    width: 36px;
+                    tooltip-text: @tr("Maximize");
+                    click-sound: "";
+                    clicked => {
+                        WindowViewModelBindings.maximize();
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        source: @image-url("../../images/app/maximize.png");
+                    }
+                }
+
+                close-button := Button {
+                    width: 36px;
+                    tooltip-text: @tr("Close");
+                    click-sound: "";
+                    clicked => {
+                        WindowViewModelBindings.close();
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        source: @image-url("../../images/app/close.png");
+                    }
+                }
+            }
+        }
+    }
+
+    DockFocusCatcher { }
+}

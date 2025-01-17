@@ -1,0 +1,91 @@
+import { HorizontalBox } from "std-widgets.slint";
+
+import { Theme } from "../../theme.slint";
+
+import { FocusTouchArea } from "../focus_touch_area.slint";
+import { StateLayer } from "../state_layer.slint";
+import { Tooltip } from "../tooltips/tooltip.slint";
+import { WindowViewModelBindings } from "../../view_model_bindings.slint";
+
+export component Button {
+    in property <bool> enabled: true;
+    in property <length> border-radius: 4px;
+    in property <length> border-bottom-left-radius: 0px;
+    in property <length> border-bottom-right-radius: 0px;
+    in property <length> border-top-left-radius: 0px;
+    in property <length> border-top-right-radius: 0px;
+    in property <length> border-width: 0px;
+    in property <brush> hover-color: Theme.hover-tint;
+    in property <brush> pressed-color: Theme.pressed-tint;
+    in property <brush> border-color: Theme.background-control-primary-dark;
+    in property <brush> border-color-focused: Theme.background-control-primary-dark;
+    in property <string> tooltip-text;
+    in property <MouseCursor> mouse-cursor: pointer;
+    in property <string> click-sound: "click_1.mp3";
+    out property <bool> has-hover: touch-area.has-hover;
+    out property <bool> is-pressed: touch-area.is-pressed;
+    callback clicked(length, length);
+    callback moved();
+    callback mouse-entered();
+    callback mouse-exited();
+    forward-focus: touch-area;
+    touch-area := FocusTouchArea {
+        enabled <=> root.enabled;
+        mouse-cursor: root.mouse-cursor;
+        width: 100%;
+        height: 100%;
+        clicked(x, y) => {
+            if (root.enabled) {
+                WindowViewModelBindings.play-sound(click-sound);
+                root.clicked(x,y);
+            }
+        }
+        moved => {
+            if (root.enabled) {
+                root.moved();
+            }
+        }
+        mouse-entered() => {
+            if (root.enabled) {
+                root.mouse-entered();
+            }
+        }
+        mouse-exited() => {
+            if (root.enabled) {
+                root.mouse-exited();
+            }
+        }
+    }
+
+    state-layer := StateLayer {
+        enabled <=> root.enabled;
+        border-width <=> root.border-width;
+        border-radius <=> root.border-radius;
+        border-bottom-left-radius <=> root.border-bottom-left-radius;
+        border-bottom-right-radius <=> root.border-bottom-right-radius;
+        border-top-left-radius <=> root.border-top-left-radius;
+        border-top-right-radius <=> root.border-top-right-radius;
+        hover-color <=> root.hover-color;
+        pressed-color <=> root.pressed-color;
+        border-color <=> root.border-color;
+        border-color-focused <=> root.border-color-focused;
+        width: 100%;
+        height: 100%;
+        pressed: touch-area.is-pressed || touch-area.enter-pressed;
+        has-focus: touch-area.has-focus;
+        has-hover: touch-area.has-hover;
+    }
+
+    @children
+
+    // TODO
+    // if tooltip-text != "" {
+        //  tooltip.show();
+    // }
+
+    tooltip := Tooltip {
+        x: root.x;
+        y: root.y + root.height;
+        text: root.tooltip-text;
+    }
+}

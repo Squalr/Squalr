@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 log = ">=0.4.22"
-slint = { version = ">=1.9.1", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "renderer-femtovg", "std"] }
+slint = { version = ">=1.9.1", default-features = false, features = ["accessibility", "compat-1-2", "std"] }
 
 [build-dependencies]
 

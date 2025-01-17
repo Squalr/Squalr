@@ -9,9 +9,11 @@ members = [
     "squalr-engine-projects",
     "squalr-engine-scanning",
     "squalr-engine-scripting",
+    "squalr-android",
     "squalr-cli",
     "squalr",
 ]
+resolver = "3"
 
 [profile.release-with-debug]
 inherits = "release"

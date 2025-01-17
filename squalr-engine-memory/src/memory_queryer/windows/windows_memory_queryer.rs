@@ -10,7 +10,7 @@ use squalr_engine_processes::process_info::Bitness;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
 use windows_sys::Win32::Foundation::HMODULE;
 use windows_sys::Win32::System::Memory::{
-    VirtualQueryEx, MEMORY_BASIC_INFORMATION64, PAGE_EXECUTE, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE, PAGE_EXECUTE_WRITECOPY, PAGE_READWRITE, PAGE_WRITECOPY,
+    MEMORY_BASIC_INFORMATION64, PAGE_EXECUTE, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE, PAGE_EXECUTE_WRITECOPY, PAGE_READWRITE, PAGE_WRITECOPY, VirtualQueryEx,
 };
 use windows_sys::Win32::System::ProcessStatus::{K32EnumProcessModulesEx, K32GetModuleFileNameExA, K32GetModuleInformation, LIST_MODULES_ALL, MODULEINFO};
 
@@ -39,7 +39,7 @@ impl WindowsMemoryQueryer {
             flags |= PAGE_WRITECOPY | PAGE_EXECUTE_WRITECOPY;
         }
 
-        return flags;
+        flags
     }
 }
 
@@ -160,7 +160,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
             regions.push(NormalizedRegion::new(mbi.BaseAddress as u64, mbi.RegionSize as u64));
         }
 
-        return regions;
+        regions
     }
 
     fn get_all_virtual_pages(
@@ -207,11 +207,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         &self,
         process_info: &OpenedProcessInfo,
     ) -> u64 {
-        if process_info.bitness == Bitness::Bit32 {
-            return u32::MAX as u64;
-        }
-
-        return u64::MAX;
+        if process_info.bitness == Bitness::Bit32 { u32::MAX as u64 } else { u64::MAX }
     }
 
     fn get_min_usermode_address(
@@ -219,7 +215,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         _: &OpenedProcessInfo,
     ) -> u64 {
         // In windows, anything below this is not addressable by a normal program.
-        return 0x10000;
+        0x10000
     }
 
     fn get_max_usermode_address(
@@ -229,11 +225,11 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         if process_info.bitness == Bitness::Bit32 {
             // For 32-bit applications, the usermode memory is generally the first 2GB of process RAM.
             // TODO: Large Address Aware support? This is incredibly rare, but would be more correct to support.
-            return 0x7FFF_FFFF;
+            0x7FFF_FFFF
+        } else {
+            // In windows, the max usermode address is arbitrarily set to this value for x64.
+            0x7FFF_FFFF_FFFF
         }
-
-        // In windows, the max usermode address is arbitrarily set to this value for x64.
-        return 0x7FFF_FFFF_FFFF;
     }
 
     fn get_modules(
@@ -298,7 +294,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
             ));
         }
 
-        return modules;
+        modules
     }
 
     fn address_to_module(
@@ -317,7 +313,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         }
 
         *module_name = String::new();
-        return address;
+        address
     }
 
     fn resolve_module(
@@ -333,6 +329,6 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
             }
         }
 
-        return 0;
+        0
     }
 }

@@ -4,6 +4,9 @@ pub mod memory_queryer_trait;
 pub mod memory_type_enum;
 pub mod region_bounds_handling;
 
+#[cfg(any(target_os = "android"))]
+mod android;
+
 #[cfg(any(target_os = "linux"))]
 mod linux;
 
@@ -12,6 +15,9 @@ mod macos;
 
 #[cfg(target_os = "windows")]
 mod windows;
+
+#[cfg(target_os = "android")]
+pub use crate::memory_queryer::android::android_memory_queryer::AndroidMemoryQueryer as MemoryQueryerImpl;
 
 #[cfg(target_os = "linux")]
 pub use crate::memory_queryer::linux::linux_memory_queryer::LinuxMemoryQueryer as MemoryQueryerImpl;

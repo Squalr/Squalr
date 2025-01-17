@@ -1,0 +1,10 @@
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+
+import { Theme } from "./../../theme.slint";
+
+import { Button } from "../../components/buttons/button.slint";
+
+export component ContextMenuItem inherits Button {
+    in property <bool> selected;
+    in property <bool> has-focus;
+}

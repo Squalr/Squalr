@@ -1,0 +1,18 @@
+import { Theme } from "../../../theme.slint";
+
+import { DockRootViewModelBindings } from "../../../view_model_bindings.slint";
+
+export component DockFocusCatcher inherits Rectangle {
+    // Use a non-transparent first color to debug the focus catcher.
+    background: DockRootViewModelBindings.active-dragged-window-id != "" ? Theme.transparent : Theme.transparent;
+    TouchArea {
+        mouse-cursor: MouseCursor.grabbing;
+        enabled: DockRootViewModelBindings.active-dragged-window-id != "";
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.up) {
+                DockRootViewModelBindings.active-dragged-window-id = "";
+                DockRootViewModelBindings.is-dragging-window = false;
+            }
+        }
+    }
+}

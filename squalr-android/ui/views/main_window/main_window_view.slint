@@ -1,0 +1,87 @@
+import { HorizontalBox } from "std-widgets.slint";
+
+import { Theme } from "../../theme.slint";
+import { WindowViewModelBindings, DockRootViewModelBindings } from "../../view_model_bindings.slint";
+
+import { FooterView } from "./footer_view.slint";
+import { TitleBarView } from "./title_bar_view.slint";
+import { ShortcutBarView } from "./shortcut_bar_view.slint";
+
+import { DockRoot } from "./../docking/dock_root.slint";
+import { HSeparator } from "./../../components/separator.slint";
+import { ToolbarMenu } from "./../../components/toolbar_menu/toolbar_menu.slint";
+
+export component MainWindowView inherits Window {
+    title: @tr("Squalr");
+    default-font-family: "Segoe UI";
+    default-font-size: Theme.font-size-p;
+    default-font-weight: Theme.font-weight;
+    preferred-width: 1280px;
+    resize-border-width: 4px;
+    preferred-height: 840px;
+    background: transparent;
+    no-frame: true;
+    HorizontalLayout {
+        VerticalLayout {
+            title-bar := TitleBarView {
+                title: @tr("Squalr");
+            }
+
+            toolbar-menu := ToolbarMenu {
+                menus: [
+                    {
+                        header: "File",
+                        items:[
+                            { id: "select-project", text:"Select Project" },
+                            { id: "export-project", text:"Export Project as Table..." },
+                            { id: "exit", text: "Exit Squalr", separator: true }
+                        ]
+                    },
+                    { header: "Edit", items:[{ id: "settings", text:"Settings" }] },
+                    { header: "Layout", items:[{ id: "layout-reset", text:"Reset Layout" }] },
+                    {
+                        header: "Windows",
+                        items:[
+                            { id: "process-selector", text:"Process Selector" },
+                            { id: "project-explorer", text:"Project Explorer" },
+                            { id: "property-viewer", text:"Property Viewer" },
+                            { id: "memory-viewer", text:"Memory Viewer" },
+                            { id: "scan-results", text:"Scan Results" },
+                            { id: "pointer-results", text:"Pointer Scan Results" },
+                            { id: "snapshot-manager", text:"Snapshot Manager" },
+                            { id: "dotnet-explorer", text:".NET Explorer" },
+                        ]
+                    },
+                    { header: "Scans", items:[{ id: "scans", text:"Pointer Scan" }] },
+                    {
+                        header: "Debugger",
+                        items:[{ id: "disassembly", text:"Disassembly" }, { id: "code-tracer", text:"Code Tracer" }]
+                    },
+                ];
+                onItemClicked(id) => {
+                    if id == "exit" {
+                        WindowViewModelBindings.close();
+                    } else if id == "select-project" {
+                    } else if id == "export-project" {
+                    } else if id == "settings" {
+                    } else if id == "layout-reset" {
+                        DockRootViewModelBindings.reset-layout();
+                    } else if id == "process-selector" {
+                    } else if id == "project-explorer" {
+                    } else if id == "memory-viewer" {
+                    } else if id == "scan-results" {
+                    } else if id == "pointer-results" {
+                    } else if id == "snapshot-manager" {
+                    } else if id == "dotnet-explorer" {
+                    }
+                }
+            }
+
+            shortcut-bar := ShortcutBarView { }
+
+            dock-root := DockRoot { }
+
+            footer := FooterView { }
+        }
+    }
+}

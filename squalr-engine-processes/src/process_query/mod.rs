@@ -1,5 +1,8 @@
 pub mod process_queryer;
 
+#[cfg(any(target_os = "android"))]
+mod android;
+
 #[cfg(any(target_os = "linux"))]
 mod linux;
 

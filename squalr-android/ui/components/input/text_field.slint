@@ -1,0 +1,70 @@
+import { Theme } from "./../../theme.slint";
+
+import { FocusTouchArea } from "./../focus_touch_area.slint";
+import { StateLayer } from "./../state_layer.slint";
+import { LineEdit } from "std-widgets.slint";
+
+export component TextField {
+    in property <string> default-text;
+    in property <string> preview-text;
+    in property <length> text-padding-top: 4px;
+    in property <length> text-padding-bottom: 4px;
+    in property <length> text-padding-left: 8px;
+    in property <length> text-padding-right: 8px;
+    in property <TextHorizontalAlignment> text-horizontal-alignment: left;
+    in property <TextVerticalAlignment> text-vertical-alignment: center;
+    in property <color> background: Theme.background-primary;
+    in property <color> foreground: Theme.foreground;
+    in property <color> foreground-preview: Theme.foreground-preview;
+    in property <color> border-color: Theme.submenu-border;
+    forward-focus: touch-area;
+    touch-area := FocusTouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => {
+            line-edit.focus();
+        }
+    }
+
+    state-layer := StateLayer {
+        width: 100%;
+        height: 100%;
+        pressed: touch-area.is-pressed || touch-area.enter-pressed;
+        has-focus: touch-area.has-focus;
+        has-hover: touch-area.has-hover;
+    }
+
+    Rectangle {
+        background: root.background;
+        border-color: root.border-color;
+        border-radius: 2px;
+        border-width: 1px;
+        content-layer := HorizontalLayout {
+            padding-top: root.text-padding-top;
+            padding-bottom: root.text-padding-bottom;
+            padding-left: root.text-padding-left;
+            padding-right: root.text-padding-right;
+            line-edit := TextInput {
+                text: root.default-text;
+                horizontal-alignment: root.text-horizontal-alignment;
+                vertical-alignment: root.text-vertical-alignment;
+                color: root.foreground;
+                single-line: true;
+            }
+        }
+    }
+
+    // Optional preview text to prompt the user with an input hint.
+    preview-layer := HorizontalLayout {
+        padding-top: root.text-padding-top;
+        padding-bottom: root.text-padding-bottom;
+        padding-left: root.text-padding-left;
+        padding-right: root.text-padding-right;
+        preview-text-display := Text {
+            text: root.preview-text;
+            horizontal-alignment: root.text-horizontal-alignment;
+            vertical-alignment: root.text-vertical-alignment;
+            color: root.foreground-preview;
+        }
+    }
+}

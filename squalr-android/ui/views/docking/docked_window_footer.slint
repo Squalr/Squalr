@@ -1,0 +1,54 @@
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+
+import { Theme } from "../../theme.slint";
+
+import { DockRootViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
+import { Button } from "../../components/buttons/button.slint";
+import { BevelButton } from "../../components/buttons/bevel_button.slint";
+
+export component DockedWindowFooter inherits Rectangle {
+    in-out property <DockedWindowViewData> docked-window-data;
+    visible: docked-window-data.tab-ids.length > 0;
+    background: Theme.background-primary;
+    height: docked-window-data.tab-ids.length > 0 ? 24px : 0px;
+    HorizontalLayout {
+        padding: 0px;
+        HorizontalBox {
+            alignment: start;
+            padding: 0px;
+            spacing: 0px;
+            for tab-id in docked-window-data.tab-ids: BevelButton {
+                width: 128px;
+                height: 24px;
+                background-color: docked-window-data.active-tab-id == tab-id ? Theme.background-control-primary : Theme.background-control-secondary;
+                border-color: Theme.submenu-border;
+                border-width: 1px;
+                border-radius: 0px;
+                border-top-left-radius: 0px;
+                border-top-right-radius: 0px;
+                border-bottom-left-radius: 0px;
+                border-bottom-right-radius: 0px;
+                enabled: !DockRootViewModelBindings.is-dragging-window;
+                clicked => {
+                    docked-window-data.active-tab-id = tab-id;
+                    DockRootViewModelBindings.update-active-tab-id(tab-id);
+                }
+                moved => {
+                    if (self.is-pressed && self.enabled) {
+                        // Begin dragging this window for a potential redock operation.
+                        DockRootViewModelBindings.active-dragged-window-id = tab-id;
+        
+                        // Disable ourself to relinquish control over the mouse, allowing hit (and thus drop) detection on other elements.
+                        DockRootViewModelBindings.is-dragging-window = true;
+                    }
+                }
+                Text {
+                    horizontal-alignment: left;
+                    vertical-alignment: center;
+                    text: DockRootViewModelBindings.get-tab-text(tab-id);
+                    color: Theme.foreground;
+                }
+            }
+        }
+    }
+}

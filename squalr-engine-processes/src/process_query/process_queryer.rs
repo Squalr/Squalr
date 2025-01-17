@@ -31,6 +31,9 @@ pub struct ProcessQueryOptions {
     pub limit: Option<u64>,
 }
 
+#[cfg(any(target_os = "android"))]
+use crate::process_query::android::android_process_query::AndroidProcessQuery as ProcessQueryImpl;
+
 #[cfg(any(target_os = "linux"))]
 use crate::process_query::linux::linux_process_query::LinuxProcessQuery as ProcessQueryImpl;
 

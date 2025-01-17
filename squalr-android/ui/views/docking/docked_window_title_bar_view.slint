@@ -1,0 +1,62 @@
+import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
+
+import { Theme } from "../../theme.slint";
+
+import { DockRootViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
+import { Button } from "../../components/buttons/button.slint";
+
+export component DockedWindowTitleBarView inherits Rectangle {
+    in-out property <DockedWindowViewData> docked-window-data;
+    background: docked-window-data.identifier == DockRootViewModelBindings.active-dragged-window-id ? Theme.selected-border : Theme.background-primary;
+    height: 24px;
+    title-drag := TouchArea {
+        enabled: !DockRootViewModelBindings.is-dragging-window;
+        moved => {
+            if (self.pressed && self.enabled) {
+                // Begin dragging this window for a potential redock operation.
+                DockRootViewModelBindings.active-dragged-window-id = docked-window-data.identifier;
+
+                // Disable ourself to relinquish control over the mouse, allowing hit (and thus drop) detection on other elements.
+                DockRootViewModelBindings.is-dragging-window = true;
+            }
+        }
+    }
+
+    HorizontalLayout {
+        padding: 0px;
+        // Title
+        VerticalLayout {
+            alignment: center;
+            padding-top: 0px;
+            padding-bottom: 0px;
+            padding-left: 8px;
+            padding-right: 0px;
+            title := Text {
+                text: DockRootViewModelBindings.get-tab-text(docked-window-data.identifier);
+                vertical-alignment: center;
+                color: Theme.foreground;
+            }
+        }
+
+        HorizontalBox {
+            alignment: end;
+            padding: 0px;
+            spacing: 0px;
+            close-button := Button {
+                width: 36px;
+                tooltip-text: @tr("Close");
+                click-sound: "";
+                clicked => {
+                    DockRootViewModelBindings.hide(docked-window-data.identifier);
+                }
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    source: @image-url("../../images/app/close.png");
+                }
+            }
+        }
+    }
+}

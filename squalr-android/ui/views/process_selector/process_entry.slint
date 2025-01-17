@@ -1,0 +1,32 @@
+import { HorizontalBox, VerticalBox, Palette, GridBox } from "std-widgets.slint";
+
+import { Theme } from "../../theme.slint";
+import { ProcessSelectorViewModelBindings, ProcessViewData } from "../../view_model_bindings.slint";
+
+import { ContextMenu } from "../../components/context_menu/context_menu.slint";
+import { Button } from "../../components/buttons/button.slint";
+
+export component ProcessEntry inherits Button {
+    in property <ProcessViewData> process_view_data;
+    clicked => {
+        ProcessSelectorViewModelBindings.select-process(root.process_view_data);
+    }
+    HorizontalLayout {
+        HorizontalBox {
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                source: process_view_data.icon;
+            }
+
+            Text {
+                color: Theme.foreground;
+                horizontal-alignment: left;
+                vertical-alignment: center;
+                text: process_view_data.name;
+            }
+        }
+    }
+}

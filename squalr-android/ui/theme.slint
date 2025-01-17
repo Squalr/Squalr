@@ -1,0 +1,51 @@
+export global Theme {
+    in-out property <brush> border-blue: #007ACC;
+    in-out property <brush> background-primary: #333333;
+    in-out property <brush> background-panel: #272727;
+    in-out property <brush> background-control: #444444;
+    in-out property <brush> foreground: #ffffff;
+    in-out property <brush> foreground-preview: #afafaf;
+    in-out property <brush> submenu-border: #7f7f7f;
+    in-out property <brush> selected-background: #26A0DA3D;
+    in-out property <brush> selected-border: #26A0DAFF;
+    in-out property <brush> transparent: #00000000;
+    
+    // Background colors primarily used for controls (ie buttons).
+    in-out property <brush> background-control-primary: #1e5492;
+    in-out property <brush> background-control-primary-dark: #061e3e;
+    in-out property <brush> background-control-secondary: #434e51;
+    in-out property <brush> background-control-secondary-dark: #1f2526;
+    in-out property <brush> background-control-success: #14a44d;
+    in-out property <brush> background-control-success-dark: #0e7236;
+    in-out property <brush> background-control-danger: #dc4c64;
+    in-out property <brush> background-control-danger-dark: #ae3c4f;
+    in-out property <brush> background-control-warning: #e4a11b;
+    in-out property <brush> background-control-warning-dark: #b07d15;
+    in-out property <brush> background-control-info: #32c4e6;
+    in-out property <brush> background-control-info-dark: #0b2d5d;
+    in-out property <brush> background-control-light: #fbfbfb;
+    in-out property <brush> background-control-border: #201c1c;
+    
+    // Font
+    in-out property <int> font-weight: 525;
+    in-out property <length> font-size-window-title: 11pt;
+    in-out property <length> font-size-s: 9pt;
+    in-out property <length> font-size-p: 11pt;
+    in-out property <length> font-size-h1: 32pt;
+    in-out property <length> font-size-h2: 24pt;
+    in-out property <length> font-size-h3: 20pt;
+    in-out property <length> font-size-h4: 17pt;
+    in-out property <length> font-size-h5: 15pt;
+    
+    // Focus
+    in-out property <brush> focused-background: #15506CFF;
+    in-out property <brush> focused-border: #26A0DAFF;
+    in-out property <brush> hover-tint: #FFFFFF10;
+    in-out property <brush> pressed-tint: #00000020;
+}
+
+export global AnimationSettings {
+    out property <duration> color-duration: 50ms;
+    out property <duration> move-duration: 50ms;
+    out property <easing> move-easing: cubic-bezier(0.3, 0.0, 0.8, 0.15);
+}
