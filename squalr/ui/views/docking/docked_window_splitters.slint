@@ -13,7 +13,7 @@ export component DockedWindowSplitters inherits Rectangle {
         y: 0;
         width: root.resize-padding;
         height: root.docked-window-data.height;
-        background: red;
+        background: Theme.background-control;
         TouchArea {
             mouse-cursor: ew-resize;
             moved => {
@@ -33,7 +33,7 @@ export component DockedWindowSplitters inherits Rectangle {
         y: 0;
         width: root.resize-padding;
         height: root.docked-window-data.height;
-        background: green;
+        background: Theme.background-control;
         TouchArea {
             mouse-cursor: ew-resize;
             moved => {
@@ -53,7 +53,7 @@ export component DockedWindowSplitters inherits Rectangle {
         y: 0;
         width: root.docked-window-data.width;
         height: root.resize-padding;
-        background: blue;
+        background: Theme.background-control;
         TouchArea {
             mouse-cursor: ns-resize;
             moved => {
@@ -73,7 +73,7 @@ export component DockedWindowSplitters inherits Rectangle {
         y: root.docked-window-data.height - root.resize-padding;
         width: root.docked-window-data.width;
         height: root.resize-padding;
-        background: yellow;
+        background: Theme.background-control;
         TouchArea {
             mouse-cursor: ns-resize;
             moved => {

@@ -7,7 +7,7 @@ import { Button } from "../../components/buttons/button.slint";
 
 export component DockedWindowTitleBarView inherits Rectangle {
     in-out property <DockedWindowViewData> docked-window-data;
-    background: Theme.background-primary;
+    background: docked-window-data.identifier == DockRootViewModelBindings.active-dragged-window-id ? Theme.selected-border : Theme.background-primary;
     height: 24px;
     title-drag := TouchArea {
         enabled: !DockRootViewModelBindings.is-dragging-window;

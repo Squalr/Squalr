@@ -37,6 +37,13 @@ impl DockNode {
             None => return false,
         };
 
+        // Our target path may have been invalidated by the removal process, ie shifting split indicies.
+        // Attempt to find the new one, and if it does not exist (ie if dropping onto ourself), keep our old path (ie container path).
+        let target_path = match self.find_path_to_window_id(target_window_id) {
+            Some(path) => path,
+            None => target_path,
+        };
+
         // Delegate to subroutines based on direction.
         match direction {
             DockReparentDirection::Tab => self.reparent_as_tab(source_node, &target_path),

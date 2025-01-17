@@ -11,13 +11,19 @@ import { DockFocusCatcher } from "drag_and_drop/dock_focus_catcher.slint";
 
 export component DockedWindowView inherits Rectangle {
     in-out property <DockedWindowViewData> docked-window-data;
-    property <length> resize-padding: 8px;
+    property <length> resize-padding: 2px;
     x: root.docked-window-data.position-x;
     y: root.docked-window-data.position-y;
     width: root.docked-window-data.width;
     height: root.docked-window-data.height;
     visible: root.docked-window-data.is-visible;
-    background: Theme.background-control;
+    function is-being-dragged() -> bool {
+        return docked-window-data.identifier == DockRootViewModelBindings.active-dragged-window-id;
+    }
+    function is-drop-area-visible() -> bool {
+        return DockRootViewModelBindings.active-dragged-window-id != "" //
+            && (DockRootViewModelBindings.active-dragged-window-id != root.docked-window-data.identifier || root.docked-window-data.active-tab-id != "");
+    }
     VerticalLayout {
         x: resize-padding;
         y: resize-padding;
@@ -34,14 +40,14 @@ export component DockedWindowView inherits Rectangle {
 
             // Main content area
             Rectangle {
-                background: Theme.background-panel;
+                background: root.is-being-dragged() && !root.is-drop-area-visible() ? Theme.selected-background : Theme.background-panel;
                 border-color: Theme.submenu-border;
                 border-radius: 2px;
                 border-width: 1px;
                 @children
             }
 
-            DockedWindowFooter {
+            footer := DockedWindowFooter {
                 docked-window-data <=> root.docked-window-data;
             }
         }
@@ -59,10 +65,11 @@ export component DockedWindowView inherits Rectangle {
     drop-area := DockedWindowDropAreas {
         docked-window-data <=> root.docked-window-data;
         resize-padding <=> root.resize-padding;
+        footer-padding: footer.height;
         // Visible if:
         // - We are dragging something AND
         //   - We are not the same window being dragged UNLESS we are part of a tab group
         //     (as we could be dropping onto ourself to move the window from a tab to a split).
-        visible: DockRootViewModelBindings.active-dragged-window-id != "" && (DockRootViewModelBindings.active-dragged-window-id != root.docked-window-data.identifier || root.docked-window-data.active-tab-id != "");
+        visible: root.is-drop-area-visible();
     }
 }

@@ -51,11 +51,24 @@ impl DockNode {
                     };
 
                     if insert_at <= children.len() {
+                        let n = children.len();
+
+                        // Scale existing children down so there's room for the new child
+                        let scale_factor = n as f32 / (n as f32 + 1.0);
+                        for child in children.iter_mut() {
+                            child.ratio *= scale_factor;
+                        }
+
+                        // Give the new child the remaining 1/(n+1) share
+                        let new_child_ratio = 1.0 / (n as f32 + 1.0);
                         children.insert(insert_at, DockSplitChild {
                             node: source_node,
-                            ratio: 0.0, // recalc below
+                            ratio: new_child_ratio,
                         });
-                        Self::recalculate_split_ratios(children);
+
+                        // The values should be normalized, but just guarantee it in case.
+                        Self::normalize_split_ratios(children);
+
                         return true;
                     }
                     return false;

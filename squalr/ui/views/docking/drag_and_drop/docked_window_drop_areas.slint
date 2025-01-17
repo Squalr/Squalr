@@ -7,11 +7,12 @@ import { DockRootViewModelBindings, DockedWindowViewData, RedockTarget } from ".
 export component DockedWindowDropAreas inherits Rectangle {
     in-out property <DockedWindowViewData> docked-window-data;
     in property <length> resize-padding;
+    in property <length> footer-padding;
     property <percent> edge-drop-fill-ratio: 25%;
     x: resize-padding;
     y: resize-padding;
     width: root.docked-window-data.width - resize-padding * 2;
-    height: root.docked-window-data.height - resize-padding * 2;
+    height: root.docked-window-data.height - resize-padding * 2 - footer-padding;
     // Left split drop area
     Rectangle {
         x: 0;
