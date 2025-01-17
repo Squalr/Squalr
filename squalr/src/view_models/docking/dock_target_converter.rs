@@ -1,5 +1,5 @@
 use crate::RedockTarget;
-use crate::models::docking::hierarchy::operations::dock_reparent_direction::DockReparentDirection;
+use crate::models::docking::hierarchy::dock_reparent_direction::DockReparentDirection;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 
 pub struct DocktargetConverter {}

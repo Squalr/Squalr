@@ -30,7 +30,7 @@ impl DockNode {
                     }
                 }
             }
-            DockNode::Leaf { .. } => {}
+            DockNode::Window { .. } => {}
         }
     }
 
@@ -44,7 +44,7 @@ impl DockNode {
         }
         // Check if there's a visible leaf with the same ID
         tabs.iter().any(|child| match child {
-            DockNode::Leaf {
+            DockNode::Window {
                 window_identifier, is_visible, ..
             } => window_identifier == active_tab_id && *is_visible,
             _ => false,
@@ -55,7 +55,7 @@ impl DockNode {
     fn pick_first_visible_window_id(tabs: &[DockNode]) -> Option<String> {
         for child in tabs {
             match child {
-                DockNode::Leaf {
+                DockNode::Window {
                     window_identifier, is_visible, ..
                 } if *is_visible => {
                     return Some(window_identifier.clone());

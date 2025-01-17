@@ -37,7 +37,7 @@ impl DockNode {
             }
 
             // Leaf nodes have no children to clean up.
-            DockNode::Leaf { .. } => {}
+            DockNode::Window { .. } => {}
         }
     }
 }

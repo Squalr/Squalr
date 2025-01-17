@@ -1,5 +1,5 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::operations::dock_reparent_direction::DockReparentDirection;
+use crate::models::docking::hierarchy::dock_reparent_direction::DockReparentDirection;
 use crate::models::docking::layout::dock_layout::DockLayout;
 use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
 

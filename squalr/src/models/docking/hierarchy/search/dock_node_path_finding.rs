@@ -10,7 +10,7 @@ impl DockNode {
         let mut result = None;
 
         self.walk(&mut path_stack, &mut |node, current_path| {
-            if let DockNode::Leaf { window_identifier, .. } = node {
+            if let DockNode::Window { window_identifier, .. } = node {
                 if window_identifier == window_id {
                     result = Some(current_path.to_vec());
                 }

@@ -133,7 +133,7 @@ impl DockBuilder {
                 }
             }
 
-            DockBuilderKind::Leaf { window_identifier } => DockNode::Leaf {
+            DockBuilderKind::Leaf { window_identifier } => DockNode::Window {
                 window_identifier,
                 is_visible: self.is_visible,
             },

@@ -159,7 +159,7 @@ impl DockLayout {
                 }
             }
             // No children, just a leaf
-            DockNode::Leaf { .. } => {}
+            DockNode::Window { .. } => {}
         }
     }
 }

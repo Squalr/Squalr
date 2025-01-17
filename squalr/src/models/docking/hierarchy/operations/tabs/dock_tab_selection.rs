@@ -49,7 +49,7 @@ impl DockNode {
                 // Collect all visible siblings in this Tab.
                 let mut siblings = Vec::new();
                 for tab_node in tabs {
-                    if let DockNode::Leaf {
+                    if let DockNode::Window {
                         window_identifier, is_visible, ..
                     } = tab_node
                     {

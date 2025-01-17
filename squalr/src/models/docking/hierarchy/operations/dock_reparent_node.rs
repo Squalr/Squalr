@@ -1,7 +1,7 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
+use crate::models::docking::hierarchy::dock_reparent_direction::DockReparentDirection;
 use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
 use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
-use crate::models::docking::hierarchy::operations::dock_reparent_direction::DockReparentDirection;
 
 impl DockNode {
     /// High-level entry point to re-parent (move) a leaf node `source_id`
@@ -83,7 +83,7 @@ impl DockNode {
                     None
                 }
             }
-            DockNode::Leaf { .. } => {
+            DockNode::Window { .. } => {
                 // This is a weird edge: The parent itself is a Leaf?
                 // Potentially means leaf_path pointed to the root.
                 // We “replace” the entire root with a default.
@@ -126,7 +126,7 @@ impl DockNode {
                 }
                 true
             }
-            DockNode::Leaf { .. } => {
+            DockNode::Window { .. } => {
                 // Convert Leaf -> Tab with 2 children
                 let new_tab = Self::convert_leaf_to_tab(std::mem::take(target_node), source_node);
                 *target_node = new_tab;
@@ -148,7 +148,7 @@ impl DockNode {
             return false;
         }
         let child_node = self.get_node_from_path(target_path);
-        if !matches!(child_node, Some(DockNode::Leaf { .. })) {
+        if !matches!(child_node, Some(DockNode::Window { .. })) {
             return false;
         }
         let parent_slice = &target_path[..target_path.len() - 1];

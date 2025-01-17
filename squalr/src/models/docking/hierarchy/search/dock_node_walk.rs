@@ -30,7 +30,7 @@ impl DockNode {
                 }
             }
             // No children to recurse.
-            DockNode::Leaf { .. } => {}
+            DockNode::Window { .. } => {}
         }
     }
 }
