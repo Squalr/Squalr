@@ -19,7 +19,9 @@ export component BevelButton {
     in property <length> bevel-height: 0px;
     in property <string> click-sound;
     in property <MouseCursor> mouse-cursor: pointer;
-    callback clicked;
+    callback clicked();
+    callback moved();
+    out property <bool> is-pressed: button.is-pressed;
     button-bottom := Rectangle {
         background <=> bevel-color;
         border-color <=> border-color;
@@ -57,6 +59,9 @@ export component BevelButton {
             height: 100%;
             clicked => {
                 root.clicked();
+            }
+            moved => {
+                root.moved();
             }
             @children
         }

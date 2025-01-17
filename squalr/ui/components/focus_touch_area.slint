@@ -7,6 +7,7 @@ export component FocusTouchArea {
     out property <bool> enter-pressed;
     out property <bool> has-hover-exited: false;
     callback clicked(length, length);
+    callback moved();
     callback mouse-entered();
     callback mouse-exited();
     forward-focus: focus-scope;
@@ -51,6 +52,11 @@ export component FocusTouchArea {
         clicked => {
             if root.enabled {
                 root.clicked(touch-area.mouse-x, touch-area.mouse-y);
+            }
+        }
+        moved => {
+            if root.enabled {
+                root.moved();
             }
         }
     }

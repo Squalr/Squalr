@@ -80,6 +80,30 @@ impl DockTree {
         Some(current)
     }
 
+    /// Retrieve a mutable reference to a child node of a split or tab by index.
+    pub fn get_mut_child<'a>(
+        parent_node: &'a mut DockNode,
+        child_index: usize,
+    ) -> Option<&'a mut DockNode> {
+        match parent_node {
+            DockNode::Split { children, .. } => {
+                if child_index < children.len() {
+                    Some(&mut children[child_index].node)
+                } else {
+                    None
+                }
+            }
+            DockNode::Tab { tabs, .. } => {
+                if child_index < tabs.len() {
+                    Some(&mut tabs[child_index])
+                } else {
+                    None
+                }
+            }
+            DockNode::Leaf { .. } => None,
+        }
+    }
+
     /// Find the path (series of child indices) to a leaf node by ID. Returns `None` if not found.
     pub fn find_leaf_path(
         &self,

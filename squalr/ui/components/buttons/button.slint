@@ -23,7 +23,9 @@ export component Button {
     in property <MouseCursor> mouse-cursor: pointer;
     in property <string> click-sound: "click_1.mp3";
     out property <bool> has-hover: touch-area.has-hover;
+    out property <bool> is-pressed: touch-area.is-pressed;
     callback clicked(length, length);
+    callback moved();
     callback mouse-entered();
     callback mouse-exited();
     forward-focus: touch-area;
@@ -36,6 +38,11 @@ export component Button {
             if (root.enabled) {
                 WindowViewModelBindings.play-sound(click-sound);
                 root.clicked(x,y);
+            }
+        }
+        moved => {
+            if (root.enabled) {
+                root.moved();
             }
         }
         mouse-entered() => {

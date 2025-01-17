@@ -62,6 +62,13 @@ impl DockNode {
         }
     }
 
+    pub fn leaf_id(&self) -> Option<String> {
+        match self {
+            DockNode::Leaf { window_identifier, .. } => Some(window_identifier.clone()),
+            _ => None,
+        }
+    }
+
     /// Check if this node is a leaf with a specific ID.
     pub fn is_leaf_with_id(
         &self,
@@ -84,39 +91,6 @@ impl DockNode {
                 .iter()
                 .any(|child| child.node.contains_leaf_id(target_id)),
             DockNode::Tab { tabs, .. } => tabs.iter().any(|t| t.contains_leaf_id(target_id)),
-        }
-    }
-
-    /// A generic tree walker that visits every node in depth-first order.
-    /// `path` is updated with the child indices as we traverse.
-    pub fn walk<'a, F>(
-        &'a self,
-        path: &mut Vec<usize>,
-        visitor: &mut F,
-    ) where
-        F: FnMut(&'a DockNode, &[usize]),
-    {
-        // Visit the current node
-        visitor(self, path);
-
-        // Recurse into children, if any
-        match self {
-            DockNode::Split { children, .. } => {
-                for (i, child) in children.iter().enumerate() {
-                    path.push(i);
-                    child.node.walk(path, visitor);
-                    path.pop();
-                }
-            }
-            DockNode::Tab { tabs, .. } => {
-                for (i, tab) in tabs.iter().enumerate() {
-                    path.push(i);
-                    tab.walk(path, visitor);
-                    path.pop();
-                }
-            }
-            // No children to recurse.
-            DockNode::Leaf { .. } => {}
         }
     }
 }
