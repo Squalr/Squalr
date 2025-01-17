@@ -7,8 +7,8 @@ use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
-use crate::view_models::docking::dock_panel_converter::DockPanelConverter;
 use crate::view_models::docking::dock_target_converter::DocktargetConverter;
+use crate::view_models::docking::dock_window_converter::DockWindowConverter;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
 use crate::view_models::scanners::manual_scan_view_model::ManualScanViewModel;
@@ -217,7 +217,7 @@ impl DockRootViewModel {
         identifier: SharedString,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, true, move |docking_manager| {
-            docking_manager.select_tab_by_leaf_id(identifier.as_str());
+            docking_manager.select_tab_by_window_id(identifier.as_str());
         });
     }
 
@@ -357,7 +357,7 @@ impl DockRootViewModel {
             }
 
             let dock_root_bindings = main_window_view.global::<DockRootViewModelBindings>();
-            let converter = DockPanelConverter::new(docking_manager.clone());
+            let converter = DockWindowConverter::new(docking_manager.clone());
 
             // Acquire the read lock once for all operations.
             let layout_guard = match docking_manager.read() {
@@ -377,22 +377,22 @@ impl DockRootViewModel {
 
                 match identifier.as_str() {
                     "settings" => {
-                        dock_root_bindings.set_settings_panel(view_data);
+                        dock_root_bindings.set_settings_window(view_data);
                     }
                     "scan-results" => {
-                        dock_root_bindings.set_scan_results_panel(view_data);
+                        dock_root_bindings.set_scan_results_window(view_data);
                     }
                     "output" => {
-                        dock_root_bindings.set_output_panel(view_data);
+                        dock_root_bindings.set_output_window(view_data);
                     }
                     "process-selector" => {
-                        dock_root_bindings.set_process_selector_panel(view_data);
+                        dock_root_bindings.set_process_selector_window(view_data);
                     }
                     "property-viewer" => {
-                        dock_root_bindings.set_property_viewer_panel(view_data);
+                        dock_root_bindings.set_property_viewer_window(view_data);
                     }
                     "project-explorer" => {
-                        dock_root_bindings.set_project_explorer_panel(view_data);
+                        dock_root_bindings.set_project_explorer_window(view_data);
                     }
                     _ => {
                         log::warn!("Unknown window identifier: {}", identifier);

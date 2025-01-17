@@ -45,12 +45,12 @@ export global DockRootViewModelBindings {
     callback drag-right(identifier: string, delta-x: int, delta-y: int);
     callback drag-top(identifier: string, delta-x: int, delta-y: int);
     callback drag-bottom(identifier: string, delta-x: int, delta-y: int);
-    in-out property <DockedWindowViewData> scan-results-panel;
-    in-out property <DockedWindowViewData> output-panel;
-    in-out property <DockedWindowViewData> process-selector-panel;
-    in-out property <DockedWindowViewData> property-viewer-panel;
-    in-out property <DockedWindowViewData> project-explorer-panel;
-    in-out property <DockedWindowViewData> settings-panel;
+    in-out property <DockedWindowViewData> scan-results-window;
+    in-out property <DockedWindowViewData> output-window;
+    in-out property <DockedWindowViewData> process-selector-window;
+    in-out property <DockedWindowViewData> property-viewer-window;
+    in-out property <DockedWindowViewData> project-explorer-window;
+    in-out property <DockedWindowViewData> settings-window;
 }
 
 export struct ProcessViewData {

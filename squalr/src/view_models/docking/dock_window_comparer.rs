@@ -1,15 +1,15 @@
 use crate::DockedWindowViewData;
 use slint_mvvm::view_data_comparer::ViewDataComparer;
 
-pub struct DockPanelComparer;
+pub struct DockWindowComparer;
 
-impl DockPanelComparer {
+impl DockWindowComparer {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl ViewDataComparer<DockedWindowViewData> for DockPanelComparer {
+impl ViewDataComparer<DockedWindowViewData> for DockWindowComparer {
     fn compare(
         &self,
         a: &DockedWindowViewData,

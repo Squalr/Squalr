@@ -2,7 +2,6 @@
 #![windows_subsystem = "windows"]
 
 pub mod cli_log_listener;
-pub mod docking;
 pub mod models;
 pub mod view_models;
 
@@ -22,7 +21,7 @@ pub fn main() {
         std::env::set_var("SLINT_BACKEND", "winit-software");
     }
 
-    // Create and show the main window, which in turn will instantiate all other windows and panels.
+    // Create and show the main window, which in turn will instantiate all dockable windows.
     let main_window_view = MainWindowViewModel::new();
 
     Logger::get_instance().log(LogLevel::Info, "Squalr started", None);

@@ -1,23 +1,63 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
 
 impl DockNode {
-    /// Find the path (series of child indices) to a leaf node by ID. Returns `None` if not found.
-    pub fn find_path_to_window_id(
-        &self,
-        leaf_id: &str,
-    ) -> Option<Vec<usize>> {
-        let mut path_stack = Vec::new();
-        let mut result = None;
-
-        self.walk(&mut path_stack, &mut |node, current_path| {
-            if let DockNode::Leaf { window_identifier, .. } = node {
-                if window_identifier == leaf_id {
-                    result = Some(current_path.to_vec());
+    /// Return a mutable reference to the node at the specified path.
+    /// Returns `None` if the path is invalid or tries to go beyond a leaf.
+    pub fn get_node_from_path_mut(
+        &mut self,
+        path: &[usize],
+    ) -> Option<&mut DockNode> {
+        let mut current = self;
+        for &idx in path {
+            match current {
+                DockNode::Split { children, .. } => {
+                    if idx >= children.len() {
+                        return None;
+                    }
+                    current = &mut children[idx].node;
+                }
+                DockNode::Tab { tabs, .. } => {
+                    if idx >= tabs.len() {
+                        return None;
+                    }
+                    current = &mut tabs[idx];
+                }
+                DockNode::Leaf { .. } => {
+                    // The path goes deeper than a leaf => invalid
+                    return None;
                 }
             }
-        });
+        }
+        Some(current)
+    }
 
-        result
+    /// Return an immutable reference to the node at the specified path. Returns `None` if the path is invalid.
+    pub fn get_node_from_path(
+        &self,
+        path: &[usize],
+    ) -> Option<&DockNode> {
+        let mut current = self;
+        for &idx in path {
+            match current {
+                DockNode::Split { children, .. } => {
+                    if idx >= children.len() {
+                        return None;
+                    }
+                    current = &children[idx].node;
+                }
+                DockNode::Tab { tabs, .. } => {
+                    if idx >= tabs.len() {
+                        return None;
+                    }
+                    current = &tabs[idx];
+                }
+                DockNode::Leaf { .. } => {
+                    // The path goes deeper than a leaf => invalid
+                    return None;
+                }
+            }
+        }
+        Some(current)
     }
 
     /// Collect the identifiers of all leaf nodes in the entire tree.

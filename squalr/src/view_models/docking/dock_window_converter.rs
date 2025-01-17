@@ -7,17 +7,17 @@ use slint_mvvm::view_data_converter::ViewDataConverter;
 use std::sync::Arc;
 use std::sync::RwLock;
 
-pub struct DockPanelConverter {
+pub struct DockWindowConverter {
     docking_manager: Arc<RwLock<DockingManager>>,
 }
 
-impl DockPanelConverter {
+impl DockWindowConverter {
     pub fn new(docking_manager: Arc<RwLock<DockingManager>>) -> Self {
         Self { docking_manager }
     }
 }
 
-impl ViewDataConverter<DockNode, DockedWindowViewData> for DockPanelConverter {
+impl ViewDataConverter<DockNode, DockedWindowViewData> for DockWindowConverter {
     fn convert_collection(
         &self,
         docked_window_nodes: &Vec<DockNode>,

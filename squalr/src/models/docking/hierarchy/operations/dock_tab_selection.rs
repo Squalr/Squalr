@@ -2,11 +2,11 @@ use crate::models::docking::hierarchy::dock_node::DockNode;
 
 impl DockNode {
     /// Activate a window in its tab (if parent is a tab).
-    pub fn select_tab_by_leaf_id(
+    pub fn select_tab_by_window_id(
         &mut self,
-        leaf_id: &str,
+        window_id: &str,
     ) -> bool {
-        let path = match self.find_path_to_window_id(leaf_id) {
+        let path = match self.find_path_to_window_id(window_id) {
             Some(path) => path,
             None => return false,
         };
@@ -17,27 +17,27 @@ impl DockNode {
 
         if let Some(parent_node) = self.get_node_from_path_mut(parent_slice) {
             if let DockNode::Tab { active_tab_id, .. } = parent_node {
-                *active_tab_id = leaf_id.to_owned();
+                *active_tab_id = window_id.to_owned();
                 return true;
             }
         }
         false
     }
 
-    /// Given a `leaf_id` and a `DockTree`, this method determines the list of sibling tabs, as well as which one is active.
+    /// Given a `window_id` and a `DockTree`, this method determines the list of sibling tabs, as well as which one is active.
     pub fn get_siblings_and_active_tab(
         &self,
-        leaf_id: &str,
+        window_id: &str,
     ) -> (Vec<String>, String) {
         // Find the path to this leaf.
-        let path = match self.find_path_to_window_id(leaf_id) {
+        let path = match self.find_path_to_window_id(window_id) {
             Some(p) => p,
-            None => return (Vec::new(), leaf_id.to_owned()),
+            None => return (Vec::new(), window_id.to_owned()),
         };
 
         // If the path is empty, there's no parent => return fallback.
         if path.is_empty() {
-            return (Vec::new(), leaf_id.to_owned());
+            return (Vec::new(), window_id.to_owned());
         }
 
         // Everything except the last index is the parent path.
@@ -63,6 +63,6 @@ impl DockNode {
         }
 
         // Default to returning self if no siblings or parent found.
-        (Vec::new(), leaf_id.to_owned())
+        (Vec::new(), window_id.to_owned())
     }
 }

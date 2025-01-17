@@ -48,9 +48,9 @@ impl DockLayout {
     pub fn find_window_rect(
         &self,
         node: &DockNode,
-        leaf_id: &str,
+        window_id: &str,
     ) -> Option<(f32, f32, f32, f32)> {
-        let path = node.find_path_to_window_id(leaf_id)?;
+        let path = node.find_path_to_window_id(window_id)?;
         self.find_node_rect(node, &path)
     }
 

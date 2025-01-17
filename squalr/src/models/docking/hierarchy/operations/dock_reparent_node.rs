@@ -121,8 +121,8 @@ impl DockNode {
             DockNode::Tab { tabs, active_tab_id } => {
                 // Just push the new node into the existing tab.
                 tabs.push(source_node);
-                if let Some(last_leaf_id) = tabs.last().and_then(|node| node.get_leaf_id()) {
-                    *active_tab_id = last_leaf_id;
+                if let Some(last_window_id) = tabs.last().and_then(|node| node.get_window_id()) {
+                    *active_tab_id = last_window_id;
                 }
                 true
             }
@@ -171,8 +171,8 @@ impl DockNode {
 
         if let DockNode::Tab { tabs, active_tab_id } = parent_node {
             tabs.push(source_node);
-            if let Some(last_leaf_id) = tabs.last().and_then(|node| node.get_leaf_id()) {
-                *active_tab_id = last_leaf_id;
+            if let Some(last_window_id) = tabs.last().and_then(|node| node.get_window_id()) {
+                *active_tab_id = last_window_id;
             }
             true
         } else {
@@ -186,11 +186,11 @@ impl DockNode {
         other: DockNode,
     ) -> DockNode {
         // We assume `leaf` is actually a Leaf. If not, be defensive.
-        let leaf_id = leaf.get_leaf_id().unwrap_or_default();
-        let other_id = other.get_leaf_id().unwrap_or_default();
+        let window_id = leaf.get_window_id().unwrap_or_default();
+        let other_id = other.get_window_id().unwrap_or_default();
         DockNode::Tab {
             tabs: vec![leaf, other],
-            active_tab_id: other_id.is_empty().then(|| leaf_id).unwrap_or(other_id),
+            active_tab_id: other_id.is_empty().then(|| window_id).unwrap_or(other_id),
         }
     }
 
@@ -252,7 +252,7 @@ impl DockNode {
         }
 
         // Otherwise, we replace the child node with a new Split node that has the old child + the new source
-        if let Some(target_child) = Self::get_mut_child(parent_node, child_index) {
+        if let Some(target_child) = self.get_node_from_path_mut(&target_path) {
             let old_target = std::mem::replace(target_child, DockNode::default());
             let (first, second) = match direction {
                 DockReparentDirection::Left | DockReparentDirection::Top => (source_node, old_target),

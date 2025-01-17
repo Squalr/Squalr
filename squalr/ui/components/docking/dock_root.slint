@@ -24,38 +24,38 @@ export component DockRoot inherits Rectangle {
     }
 
     // 'Settings' window
-    settings-panel := DockedWindowView {
-        docked-window-data <=> DockRootViewModelBindings.settings-panel;
+    settings-window := DockedWindowView {
+        docked-window-data <=> DockRootViewModelBindings.settings-window;
         SettingsView { }
     }
 
     // 'ScanResults' window
-    scan-results-panel := DockedWindowView {
-        docked-window-data <=> DockRootViewModelBindings.scan-results-panel;
+    scan-results-window := DockedWindowView {
+        docked-window-data <=> DockRootViewModelBindings.scan-results-window;
         ScanResultsView { }
     }
 
     // 'Output' window
-    output-panel := DockedWindowView {
-        docked-window-data <=> DockRootViewModelBindings.output-panel;
+    output-window := DockedWindowView {
+        docked-window-data <=> DockRootViewModelBindings.output-window;
         OutputView { }
     }
 
     // 'ProcessSelector' window
-    process-selector-panel := DockedWindowView {
-        docked-window-data <=> DockRootViewModelBindings.process-selector-panel;
+    process-selector-window := DockedWindowView {
+        docked-window-data <=> DockRootViewModelBindings.process-selector-window;
         ProcessSelectorView { }
     }
 
     // 'PropertyViewer' window
-    property-viewer-panel := DockedWindowView {
-        docked-window-data <=> DockRootViewModelBindings.property-viewer-panel;
+    property-viewer-window := DockedWindowView {
+        docked-window-data <=> DockRootViewModelBindings.property-viewer-window;
         PropertyViewerView { }
     }
 
     // 'ProjectExplorer' window
-    project-explorer-panel := DockedWindowView {
-        docked-window-data <=> DockRootViewModelBindings.project-explorer-panel;
+    project-explorer-window := DockedWindowView {
+        docked-window-data <=> DockRootViewModelBindings.project-explorer-window;
         ProjectExplorerView { }
     }
 }

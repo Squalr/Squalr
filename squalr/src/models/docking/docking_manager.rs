@@ -67,25 +67,25 @@ impl DockingManager {
     /// Find the bounding rectangle for a particular leaf.
     pub fn find_window_rect(
         &self,
-        leaf_id: &str,
+        window_id: &str,
     ) -> Option<(f32, f32, f32, f32)> {
-        self.layout.find_window_rect(&self.root_node, leaf_id)
+        self.layout.find_window_rect(&self.root_node, window_id)
     }
 
     /// Activate a window in its tab (if parent is a tab).
-    pub fn select_tab_by_leaf_id(
+    pub fn select_tab_by_window_id(
         &mut self,
-        leaf_id: &str,
+        window_id: &str,
     ) -> bool {
-        self.root_node.select_tab_by_leaf_id(leaf_id)
+        self.root_node.select_tab_by_window_id(window_id)
     }
 
-    /// Given a `leaf_id` and a `DockTree`, this method determines the list of sibling tabs, as well as which one is active.
+    /// Given a `window_id` and a `DockTree`, this method determines the list of sibling tabs, as well as which one is active.
     pub fn get_siblings_and_active_tab(
         &self,
-        leaf_id: &str,
+        window_id: &str,
     ) -> (Vec<String>, String) {
-        self.root_node.get_siblings_and_active_tab(leaf_id)
+        self.root_node.get_siblings_and_active_tab(window_id)
     }
 
     /// Prepare for presentation by fixing up invalid state.
@@ -102,13 +102,13 @@ impl DockingManager {
     /// the layout lookups and the root_node mutations.
     pub fn adjust_window_size(
         &mut self,
-        leaf_id: &str,
+        window_id: &str,
         drag_dir: &DockSplitterDragDirection,
         delta_x: i32,
         delta_y: i32,
     ) -> bool {
         self.layout
-            .adjust_window_size(&mut self.root_node, leaf_id, drag_dir, delta_x, delta_y)
+            .adjust_window_size(&mut self.root_node, window_id, drag_dir, delta_x, delta_y)
     }
 
     pub fn reparent_leaf(

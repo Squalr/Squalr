@@ -14,7 +14,7 @@ pub enum DockNode {
     /// Each child is itself a DockNode, so we can have either Leaf nodes
     /// or even nested splits in a tab if we want to get fancy.
     Tab { tabs: Vec<DockNode>, active_tab_id: String },
-    /// A leaf node representing a single panel.
+    /// A leaf node representing a single window.
     Leaf { window_identifier: String, is_visible: bool },
 }
 
@@ -62,7 +62,7 @@ impl DockNode {
         }
     }
 
-    pub fn get_leaf_id(&self) -> Option<String> {
+    pub fn get_window_id(&self) -> Option<String> {
         match self {
             DockNode::Leaf { window_identifier, .. } => Some(window_identifier.clone()),
             _ => None,
@@ -81,7 +81,7 @@ impl DockNode {
     }
 
     /// Determines if this node is the specified id, or is a container of a child with the specified id.
-    pub fn contains_leaf_id(
+    pub fn contains_window_id(
         &self,
         target_id: &str,
     ) -> bool {
@@ -89,91 +89,8 @@ impl DockNode {
             DockNode::Leaf { window_identifier, .. } => window_identifier == target_id,
             DockNode::Split { children, .. } => children
                 .iter()
-                .any(|child| child.node.contains_leaf_id(target_id)),
-            DockNode::Tab { tabs, .. } => tabs.iter().any(|t| t.contains_leaf_id(target_id)),
-        }
-    }
-
-    /// Return a mutable reference to the node at the specified path.
-    /// Returns `None` if the path is invalid or tries to go beyond a leaf.
-    pub fn get_node_from_path_mut(
-        &mut self,
-        path: &[usize],
-    ) -> Option<&mut DockNode> {
-        let mut current = self;
-        for &idx in path {
-            match current {
-                DockNode::Split { children, .. } => {
-                    if idx >= children.len() {
-                        return None;
-                    }
-                    current = &mut children[idx].node;
-                }
-                DockNode::Tab { tabs, .. } => {
-                    if idx >= tabs.len() {
-                        return None;
-                    }
-                    current = &mut tabs[idx];
-                }
-                DockNode::Leaf { .. } => {
-                    // The path goes deeper than a leaf => invalid
-                    return None;
-                }
-            }
-        }
-        Some(current)
-    }
-
-    /// Return an immutable reference to the node at the specified path. Returns `None` if the path is invalid.
-    pub fn get_node_from_path(
-        &self,
-        path: &[usize],
-    ) -> Option<&DockNode> {
-        let mut current = self;
-        for &idx in path {
-            match current {
-                DockNode::Split { children, .. } => {
-                    if idx >= children.len() {
-                        return None;
-                    }
-                    current = &children[idx].node;
-                }
-                DockNode::Tab { tabs, .. } => {
-                    if idx >= tabs.len() {
-                        return None;
-                    }
-                    current = &tabs[idx];
-                }
-                DockNode::Leaf { .. } => {
-                    // The path goes deeper than a leaf => invalid
-                    return None;
-                }
-            }
-        }
-        Some(current)
-    }
-
-    /// Retrieve a mutable reference to a child node of a split or tab by index.
-    pub fn get_mut_child<'a>(
-        parent_node: &'a mut DockNode,
-        child_index: usize,
-    ) -> Option<&'a mut DockNode> {
-        match parent_node {
-            DockNode::Split { children, .. } => {
-                if child_index < children.len() {
-                    Some(&mut children[child_index].node)
-                } else {
-                    None
-                }
-            }
-            DockNode::Tab { tabs, .. } => {
-                if child_index < tabs.len() {
-                    Some(&mut tabs[child_index])
-                } else {
-                    None
-                }
-            }
-            DockNode::Leaf { .. } => None,
+                .any(|child| child.node.contains_window_id(target_id)),
+            DockNode::Tab { tabs, .. } => tabs.iter().any(|t| t.contains_window_id(target_id)),
         }
     }
 }

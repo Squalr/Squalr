@@ -13,13 +13,13 @@ impl DockLayout {
     pub fn adjust_window_size(
         &mut self,
         root_node: &mut DockNode,
-        leaf_id: &str,
+        window_id: &str,
         drag_dir: &DockSplitterDragDirection,
         delta_x: i32,
         delta_y: i32,
     ) -> bool {
         // 1) Locate the path to the leaf node we’re resizing.
-        let leaf_path = match root_node.find_path_to_window_id(leaf_id) {
+        let leaf_path = match root_node.find_path_to_window_id(window_id) {
             Some(path) => path,
             None => return false,
         };

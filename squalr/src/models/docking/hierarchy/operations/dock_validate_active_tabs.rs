@@ -22,7 +22,7 @@ impl DockNode {
 
                 // If active_tab_id is invalid or hidden, pick a new active tab.
                 if !Self::is_current_active_tab_valid(tabs, active_tab_id) {
-                    let new_id = Self::pick_first_visible_leaf_id(tabs);
+                    let new_id = Self::pick_first_visible_window_id(tabs);
                     if let Some(new_active_id) = new_id {
                         *active_tab_id = new_active_id;
                     } else {
@@ -52,7 +52,7 @@ impl DockNode {
     }
 
     /// Pick the first visible leaf's ID from the tab list, if any.
-    fn pick_first_visible_leaf_id(tabs: &[DockNode]) -> Option<String> {
+    fn pick_first_visible_window_id(tabs: &[DockNode]) -> Option<String> {
         for child in tabs {
             match child {
                 DockNode::Leaf {
