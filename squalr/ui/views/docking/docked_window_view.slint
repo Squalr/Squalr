@@ -5,8 +5,9 @@ import { Theme } from "./../../theme.slint";
 import { DockRootViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
 import { DockedWindowTitleBarView } from "docked_window_title_bar_view.slint";
 import { DockedWindowFooter } from "docked_window_footer.slint";
-import { DockedWindowDropAreas } from "docked_window_drop_areas.slint";
+import { DockedWindowDropAreas } from "drag_and_drop/docked_window_drop_areas.slint";
 import { DockedWindowSplitters } from "docked_window_splitters.slint";
+import { DockFocusCatcher } from "drag_and_drop/dock_focus_catcher.slint";
 
 export component DockedWindowView inherits Rectangle {
     in-out property <DockedWindowViewData> docked-window-data;
@@ -46,16 +47,18 @@ export component DockedWindowView inherits Rectangle {
         }
     }
 
+    // Splitters
+    splitters := DockedWindowSplitters {
+        docked-window-data <=> root.docked-window-data;
+        resize-padding <=> root.resize-padding;
+    }
+
+    DockFocusCatcher { }
+
     // Drop Area
     drop-area := DockedWindowDropAreas {
         docked-window-data <=> root.docked-window-data;
         resize-padding <=> root.resize-padding;
         visible: DockRootViewModelBindings.active-dragged-window-id != "" && DockRootViewModelBindings.active-dragged-window-id != root.docked-window-data.active-tab-id && DockRootViewModelBindings.active-dragged-window-id != root.docked-window-data.identifier;
-    }
-
-    // Splitters
-    splitters := DockedWindowSplitters {
-        docked-window-data <=> root.docked-window-data;
-        resize-padding <=> root.resize-padding;
     }
 }

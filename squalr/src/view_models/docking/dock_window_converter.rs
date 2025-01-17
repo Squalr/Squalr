@@ -58,7 +58,6 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockWindowConverter {
                 DockedWindowViewData {
                     identifier: window_identifier.clone().into(),
                     is_docked: true,
-                    is_dragging: false,
                     is_visible: *is_visible && !is_occluded,
                     position_x: x,
                     position_y: y,

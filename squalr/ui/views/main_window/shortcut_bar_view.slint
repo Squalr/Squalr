@@ -8,6 +8,7 @@ import { TextField } from "../../components/input/text_field.slint";
 import { ProcessQuickSelector } from "../process_selector/process_quick_selector.slint";
 import { DataTypeSelector } from "../../controls/data_type_selector.slint";
 import { ScanConstraintTypeSelector } from "../../controls/scan_constraint_selector.slint";
+import { DockFocusCatcher } from "../docking/drag_and_drop/dock_focus_catcher.slint";
 
 export component ShortcutBarView inherits Rectangle {
     in property <length> bottom-padding: 4px;
@@ -118,4 +119,6 @@ export component ShortcutBarView inherits Rectangle {
             }
         }
     }
+
+    DockFocusCatcher { }
 }

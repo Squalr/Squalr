@@ -4,6 +4,7 @@ import { Theme } from "../../theme.slint";
 import { WindowViewModelBindings } from "../../view_model_bindings.slint";
 
 import { Button } from "../../components/buttons/button.slint";
+import { DockFocusCatcher } from "../docking/drag_and_drop/dock_focus_catcher.slint";
 
 export component TitleBarView inherits Rectangle {
     in property <string> title <=> title.text;
@@ -101,4 +102,6 @@ export component TitleBarView inherits Rectangle {
             }
         }
     }
+
+    DockFocusCatcher { }
 }
