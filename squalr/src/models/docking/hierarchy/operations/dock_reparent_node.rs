@@ -54,46 +54,6 @@ impl DockNode {
     }
 
     // ------------------------------------------------------------------------
-    //  REMOVING A LEAF
-    // ------------------------------------------------------------------------
-
-    /// Removes a window by path and returns the removed `DockNode`.
-    fn remove_window_by_path(
-        &mut self,
-        window_path: &[usize],
-    ) -> Option<DockNode> {
-        // We expect window_path not to be empty
-        let (child_index, parent_slice) = window_path.split_last()?;
-        let child_index = *child_index;
-
-        let parent_node = self.get_node_from_path_mut(parent_slice)?;
-        match parent_node {
-            DockNode::Split { children, .. } => {
-                if child_index < children.len() {
-                    let removed = children.remove(child_index);
-                    Some(removed.node)
-                } else {
-                    None
-                }
-            }
-            DockNode::Tab { tabs, .. } => {
-                if child_index < tabs.len() {
-                    Some(tabs.remove(child_index))
-                } else {
-                    None
-                }
-            }
-            DockNode::Window { .. } => {
-                // This is a weird edge: The parent itself is a Window?
-                // Potentially means window_path pointed to the root.
-                // We “replace” the entire root with a default.
-                let old_root = std::mem::replace(parent_node, DockNode::default());
-                Some(old_root)
-            }
-        }
-    }
-
-    // ------------------------------------------------------------------------
     //  RE-PARENT AS TAB
     // ------------------------------------------------------------------------
 
@@ -155,28 +115,6 @@ impl DockNode {
         match self.get_node_from_path(parent_slice) {
             Some(DockNode::Tab { .. }) => true,
             _ => false,
-        }
-    }
-
-    /// Insert `source_node` into the Tab parent of the window at `target_path`.
-    fn insert_into_tab_parent(
-        &mut self,
-        source_node: DockNode,
-        target_path: &[usize],
-    ) -> bool {
-        let parent_slice = &target_path[..target_path.len() - 1];
-        let Some(parent_node) = self.get_node_from_path_mut(parent_slice) else {
-            return false;
-        };
-
-        if let DockNode::Tab { tabs, active_tab_id } = parent_node {
-            tabs.push(source_node);
-            if let Some(last_window_id) = tabs.last().and_then(|node| node.get_window_id()) {
-                *active_tab_id = last_window_id;
-            }
-            true
-        } else {
-            false
         }
     }
 
@@ -294,31 +232,6 @@ impl DockNode {
             // Not in a tab; return as-is
             Some(target_path.to_vec())
         }
-    }
-
-    /// Inserts `source_node` into an existing Split's `children` at the correct position,
-    /// (either before or after `child_index`).
-    fn insert_into_existing_split(
-        children: &mut Vec<DockSplitChild>,
-        source_node: DockNode,
-        child_index: usize,
-        direction: DockReparentDirection,
-    ) -> bool {
-        let insert_at = match direction {
-            DockReparentDirection::Left | DockReparentDirection::Top => child_index,
-            DockReparentDirection::Right | DockReparentDirection::Bottom => child_index + 1,
-            DockReparentDirection::Tab => unreachable!(),
-        };
-        if insert_at > children.len() {
-            return false;
-        }
-
-        children.insert(insert_at, DockSplitChild {
-            node: source_node,
-            ratio: 0.0, // Will recalc below
-        });
-        Self::recalculate_split_ratios(children);
-        true
     }
 
     /// If the “target” is actually the root, we replace the entire root with a new split.
