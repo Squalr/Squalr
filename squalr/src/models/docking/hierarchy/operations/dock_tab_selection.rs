@@ -1,13 +1,12 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_tree::DockTree;
 
-impl DockTree {
+impl DockNode {
     /// Activate a window in its tab (if parent is a tab).
     pub fn select_tab_by_leaf_id(
         &mut self,
         leaf_id: &str,
     ) -> bool {
-        let path = match self.find_leaf_path(leaf_id) {
+        let path = match self.find_path_to_window_id(leaf_id) {
             Some(path) => path,
             None => return false,
         };
@@ -16,7 +15,7 @@ impl DockTree {
         }
         let (parent_slice, _) = path.split_at(path.len() - 1);
 
-        if let Some(parent_node) = self.get_node_mut(parent_slice) {
+        if let Some(parent_node) = self.get_node_from_path_mut(parent_slice) {
             if let DockNode::Tab { active_tab_id, .. } = parent_node {
                 *active_tab_id = leaf_id.to_owned();
                 return true;
@@ -31,7 +30,7 @@ impl DockTree {
         leaf_id: &str,
     ) -> (Vec<String>, String) {
         // Find the path to this leaf.
-        let path = match self.find_leaf_path(leaf_id) {
+        let path = match self.find_path_to_window_id(leaf_id) {
             Some(p) => p,
             None => return (Vec::new(), leaf_id.to_owned()),
         };
@@ -45,7 +44,7 @@ impl DockTree {
         let (parent_path, _) = path.split_at(path.len() - 1);
 
         // Get the parent node from the tree.
-        if let Some(parent_node) = self.get_node(parent_path) {
+        if let Some(parent_node) = self.get_node_from_path(parent_path) {
             if let DockNode::Tab { tabs, active_tab_id, .. } = parent_node {
                 // Collect all visible siblings in this Tab.
                 let mut siblings = Vec::new();

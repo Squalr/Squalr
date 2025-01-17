@@ -1,11 +1,10 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_tree::DockTree;
 
 /// Validates and corrects any mistakes in tab logic.
-impl DockTree {
+impl DockNode {
     /// A top-level method that ensures each tab node has a valid active tab.
     pub fn run_active_tab_validation(&mut self) {
-        Self::run_active_tab_validation_internal(&mut self.root);
+        Self::run_active_tab_validation_internal(self);
     }
 
     fn run_active_tab_validation_internal(node: &mut DockNode) {

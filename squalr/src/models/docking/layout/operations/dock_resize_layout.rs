@@ -1,6 +1,5 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
-use crate::models::docking::hierarchy::dock_tree::DockTree;
 use crate::models::docking::layout::dock_layout::DockLayout;
 use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
 
@@ -13,14 +12,14 @@ impl DockLayout {
     /// the layout lookups and the tree mutations.
     pub fn adjust_window_size(
         &mut self,
-        tree: &mut DockTree,
+        root_node: &mut DockNode,
         leaf_id: &str,
         drag_dir: &DockSplitterDragDirection,
         delta_x: i32,
         delta_y: i32,
     ) -> bool {
         // 1) Locate the path to the leaf node we’re resizing.
-        let leaf_path = match tree.find_leaf_path(leaf_id) {
+        let leaf_path = match root_node.find_path_to_window_id(leaf_id) {
             Some(path) => path,
             None => return false,
         };
@@ -43,7 +42,7 @@ impl DockLayout {
             let parent_path = &current_path[..current_path.len() - 1];
 
             // Find the bounding rectangle from the layout.
-            let bounding_rect_opt = self.find_node_rect(&tree, parent_path);
+            let bounding_rect_opt = self.find_node_rect(&root_node, parent_path);
             let (ancestor_w, ancestor_h) = match bounding_rect_opt {
                 Some((_, _, w, h)) => (w, h),
                 None => {
@@ -53,7 +52,7 @@ impl DockLayout {
                 }
             };
 
-            let Some(parent_node) = tree.get_node_mut(parent_path) else {
+            let Some(parent_node) = root_node.get_node_from_path_mut(parent_path) else {
                 return false;
             };
 

@@ -1,10 +1,9 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
 use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
-use crate::models::docking::hierarchy::dock_tree::DockTree;
 use crate::models::docking::hierarchy::operations::dock_reparent_direction::DockReparentDirection;
 
-impl DockTree {
+impl DockNode {
     /// High-level entry point to re-parent (move) a leaf node `source_id`
     /// relative to a leaf node `target_id` in `direction`.
     ///
@@ -17,11 +16,11 @@ impl DockTree {
         direction: DockReparentDirection,
     ) -> bool {
         // Find both source + target.
-        let source_path = match self.find_leaf_path(source_id) {
+        let source_path = match self.find_path_to_window_id(source_id) {
             Some(path) => path,
             None => return false,
         };
-        let target_path = match self.find_leaf_path(target_id) {
+        let target_path = match self.find_path_to_window_id(target_id) {
             Some(path) => path,
             None => return false,
         };
@@ -37,7 +36,7 @@ impl DockTree {
         };
 
         // Re-fetch the target path in case it changed.
-        let new_target_path = match self.find_leaf_path(target_id) {
+        let new_target_path = match self.find_path_to_window_id(target_id) {
             Some(path) => path,
             None => {
                 // If target somehow disappeared, bail (Optionally re-insert source in old place, or just discard).
@@ -67,7 +66,7 @@ impl DockTree {
         let (child_index, parent_slice) = leaf_path.split_last()?;
         let child_index = *child_index;
 
-        let parent_node = self.get_node_mut(parent_slice)?;
+        let parent_node = self.get_node_from_path_mut(parent_slice)?;
         match parent_node {
             DockNode::Split { children, .. } => {
                 if child_index < children.len() {
@@ -114,7 +113,7 @@ impl DockTree {
         }
 
         // Otherwise, we get the actual target node.
-        let Some(target_node) = self.get_node_mut(target_path) else {
+        let Some(target_node) = self.get_node_from_path_mut(target_path) else {
             return false;
         };
 
@@ -122,7 +121,7 @@ impl DockTree {
             DockNode::Tab { tabs, active_tab_id } => {
                 // Just push the new node into the existing tab.
                 tabs.push(source_node);
-                if let Some(last_leaf_id) = tabs.last().and_then(|n| n.leaf_id()) {
+                if let Some(last_leaf_id) = tabs.last().and_then(|node| node.get_leaf_id()) {
                     *active_tab_id = last_leaf_id;
                 }
                 true
@@ -148,12 +147,12 @@ impl DockTree {
         if target_path.is_empty() {
             return false;
         }
-        let child_node = self.get_node(target_path);
+        let child_node = self.get_node_from_path(target_path);
         if !matches!(child_node, Some(DockNode::Leaf { .. })) {
             return false;
         }
         let parent_slice = &target_path[..target_path.len() - 1];
-        match self.get_node(parent_slice) {
+        match self.get_node_from_path(parent_slice) {
             Some(DockNode::Tab { .. }) => true,
             _ => false,
         }
@@ -166,13 +165,13 @@ impl DockTree {
         target_path: &[usize],
     ) -> bool {
         let parent_slice = &target_path[..target_path.len() - 1];
-        let Some(parent_node) = self.get_node_mut(parent_slice) else {
+        let Some(parent_node) = self.get_node_from_path_mut(parent_slice) else {
             return false;
         };
 
         if let DockNode::Tab { tabs, active_tab_id } = parent_node {
             tabs.push(source_node);
-            if let Some(last_leaf_id) = tabs.last().and_then(|n| n.leaf_id()) {
+            if let Some(last_leaf_id) = tabs.last().and_then(|node| node.get_leaf_id()) {
                 *active_tab_id = last_leaf_id;
             }
             true
@@ -187,8 +186,8 @@ impl DockTree {
         other: DockNode,
     ) -> DockNode {
         // We assume `leaf` is actually a Leaf. If not, be defensive.
-        let leaf_id = leaf.leaf_id().unwrap_or_default();
-        let other_id = other.leaf_id().unwrap_or_default();
+        let leaf_id = leaf.get_leaf_id().unwrap_or_default();
+        let other_id = other.get_leaf_id().unwrap_or_default();
         DockNode::Tab {
             tabs: vec![leaf, other],
             active_tab_id: other_id.is_empty().then(|| leaf_id).unwrap_or(other_id),
@@ -236,7 +235,7 @@ impl DockTree {
             Some((ci, ps)) => (*ci, ps),
             None => return false,
         };
-        let Some(parent_node) = self.get_node_mut(parent_slice) else {
+        let Some(parent_node) = self.get_node_from_path_mut(parent_slice) else {
             // If we can’t find the parent for some reason, try wrapping root
             return self.wrap_root_in_new_split(source_node, direction, split_dir);
         };
@@ -287,7 +286,7 @@ impl DockTree {
         let parent_slice = &target_path[..target_path.len() - 1];
 
         // Check if the parent is a Tab
-        if let Some(DockNode::Tab { .. }) = self.get_node(parent_slice) {
+        if let Some(DockNode::Tab { .. }) = self.get_node_from_path(parent_slice) {
             // Then we want to “treat” the entire tab node as the target
             // So we just return the parent_slice as the new path
             Some(parent_slice.to_vec())
@@ -330,13 +329,12 @@ impl DockTree {
         split_dir: DockSplitDirection,
     ) -> bool {
         // Save old root
-        let old_root = std::mem::replace(&mut self.root, DockNode::default());
         let (first, second) = match direction {
-            DockReparentDirection::Left | DockReparentDirection::Top => (source_node, old_root),
-            DockReparentDirection::Right | DockReparentDirection::Bottom => (old_root, source_node),
+            DockReparentDirection::Left | DockReparentDirection::Top => (source_node, self.clone()),
+            DockReparentDirection::Right | DockReparentDirection::Bottom => (self.clone(), source_node),
             DockReparentDirection::Tab => unreachable!(),
         };
-        self.root = DockNode::Split {
+        *self = DockNode::Split {
             direction: split_dir,
             children: vec![DockSplitChild { node: first, ratio: 0.5 }, DockSplitChild {
                 node: second,

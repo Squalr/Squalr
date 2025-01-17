@@ -1,13 +1,12 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_tree::DockTree;
 
 /// Validates and corrects any mistakes in tab logic.
-impl DockTree {
+impl DockNode {
     /// Recursively clean up the docking hierarchy so that:
     /// - A Split node with only 1 child is replaced by that child.
     /// - A Tab node with only 1 child is replaced by that child.
     pub fn remove_invalid_containers(&mut self) {
-        Self::remove_invalid_containers_internal(&mut self.root);
+        Self::remove_invalid_containers_internal(self);
     }
 
     /// Recursively walk the subtree and remove containers that have only 1 child.

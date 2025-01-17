@@ -1,7 +1,6 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
 use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
-use crate::models::docking::hierarchy::dock_tree::DockTree;
 
 /// Represents a layout area to be filled by a `DockTree`.
 #[derive(Debug)]
@@ -48,23 +47,23 @@ impl DockLayout {
     /// Finds the bounding rectangle of the specified leaf ID. Returns None if not found or not visible.
     pub fn find_window_rect(
         &self,
-        tree: &DockTree,
+        node: &DockNode,
         leaf_id: &str,
     ) -> Option<(f32, f32, f32, f32)> {
-        let path = tree.find_leaf_path(leaf_id)?;
-        self.find_node_rect(tree, &path)
+        let path = node.find_path_to_window_id(leaf_id)?;
+        self.find_node_rect(node, &path)
     }
 
     /// Find the bounding rectangle of a node at the given path.
     pub fn find_node_rect(
         &self,
-        tree: &DockTree,
+        node: &DockNode,
         path: &[usize],
     ) -> Option<(f32, f32, f32, f32)> {
         let mut found = None;
         let mut path_stack = Vec::new();
         self.walk_with_layout_and_path(
-            &tree.root,
+            &node,
             0.0,
             0.0,
             self.available_width,

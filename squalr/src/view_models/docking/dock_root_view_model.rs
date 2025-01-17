@@ -368,7 +368,7 @@ impl DockRootViewModel {
                 }
             };
 
-            let identifiers = layout_guard.get_all_leaves();
+            let identifiers = layout_guard.get_all_child_window_ids();
             let default = DockNode::default();
 
             for identifier in identifiers {
