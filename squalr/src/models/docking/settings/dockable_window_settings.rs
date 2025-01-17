@@ -35,19 +35,19 @@ impl DockSettingsConfig {
                             .push_child(
                                 0.5,
                                 DockBuilder::tab_node("project-explorer")
-                                    .push_tab(DockBuilder::leaf("process-selector"))
-                                    .push_tab(DockBuilder::leaf("project-explorer")),
+                                    .push_tab(DockBuilder::window("process-selector"))
+                                    .push_tab(DockBuilder::window("project-explorer")),
                             )
-                            // And a leaf node for "settings" occupying the other 0.5
-                            .push_child(0.5, DockBuilder::leaf("settings")),
+                            // And a window node for "settings" occupying the other 0.5
+                            .push_child(0.5, DockBuilder::window("settings")),
                     )
-                    .push_child(0.5, DockBuilder::leaf("output")),
+                    .push_child(0.5, DockBuilder::window("output")),
             )
             .push_child(
                 0.3,
                 DockBuilder::split_node(DockSplitDirection::HorizontalDivider)
-                    .push_child(0.6, DockBuilder::leaf("scan-results"))
-                    .push_child(0.4, DockBuilder::leaf("property-viewer")),
+                    .push_child(0.6, DockBuilder::window("scan-results"))
+                    .push_child(0.4, DockBuilder::window("property-viewer")),
             )
             .build()
     }

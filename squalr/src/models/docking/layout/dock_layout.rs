@@ -44,7 +44,7 @@ impl DockLayout {
         self.available_height = height;
     }
 
-    /// Finds the bounding rectangle of the specified leaf ID. Returns None if not found or not visible.
+    /// Finds the bounding rectangle of the specified window ID. Returns None if not found or not visible.
     pub fn find_window_rect(
         &self,
         node: &DockNode,
@@ -158,7 +158,7 @@ impl DockLayout {
                     path.pop();
                 }
             }
-            // No children, just a leaf
+            // No children, just a window
             DockNode::Window { .. } => {}
         }
     }

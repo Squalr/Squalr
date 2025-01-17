@@ -11,7 +11,7 @@ pub enum DockBuilderKind {
         tabs: Vec<DockBuilder>,
         active_tab_id: String,
     },
-    Leaf {
+    Window {
         window_identifier: String,
     },
 }

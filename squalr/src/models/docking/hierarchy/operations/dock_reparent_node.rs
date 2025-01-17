@@ -4,12 +4,12 @@ use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
 use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
 
 impl DockNode {
-    /// High-level entry point to re-parent (move) a leaf node `source_id`
-    /// relative to a leaf node `target_id` in `direction`.
+    /// High-level entry point to re-parent (move) a window node `source_id`
+    /// relative to a window node `target_id` in `direction`.
     ///
     /// Returns `true` if successful, or `false` if something went wrong
     /// (e.g. source/target not found, re-parent onto itself, etc.).
-    pub fn reparent_leaf(
+    pub fn reparent_window(
         &mut self,
         source_id: &str,
         target_id: &str,
@@ -30,7 +30,7 @@ impl DockNode {
         }
 
         // Remove the source node from the tree.
-        let source_node = match self.remove_leaf_by_path(&source_path) {
+        let source_node = match self.remove_window_by_path(&source_path) {
             Some(node) => node,
             None => return false,
         };
@@ -57,13 +57,13 @@ impl DockNode {
     //  REMOVING A LEAF
     // ------------------------------------------------------------------------
 
-    /// Removes a leaf by path and returns the removed `DockNode`.
-    fn remove_leaf_by_path(
+    /// Removes a window by path and returns the removed `DockNode`.
+    fn remove_window_by_path(
         &mut self,
-        leaf_path: &[usize],
+        window_path: &[usize],
     ) -> Option<DockNode> {
-        // We expect leaf_path not to be empty
-        let (child_index, parent_slice) = leaf_path.split_last()?;
+        // We expect window_path not to be empty
+        let (child_index, parent_slice) = window_path.split_last()?;
         let child_index = *child_index;
 
         let parent_node = self.get_node_from_path_mut(parent_slice)?;
@@ -84,8 +84,8 @@ impl DockNode {
                 }
             }
             DockNode::Window { .. } => {
-                // This is a weird edge: The parent itself is a Leaf?
-                // Potentially means leaf_path pointed to the root.
+                // This is a weird edge: The parent itself is a Window?
+                // Potentially means window_path pointed to the root.
                 // We “replace” the entire root with a default.
                 let old_root = std::mem::replace(parent_node, DockNode::default());
                 Some(old_root)
@@ -99,7 +99,7 @@ impl DockNode {
 
     /// Reparents `source_node` into the same tab group as `target_path`.
     /// If the target’s parent is a Tab, we just insert into that Tab’s list.
-    /// Otherwise, if the target itself is a Leaf, we convert that Leaf into a Tab.
+    /// Otherwise, if the target itself is a Window, we convert that Window into a Tab.
     /// If the target is a Split, we wrap it in a Tab (but remember, no splits in tabs).
     /// Returns `true` on success.
     fn reparent_as_tab(
@@ -107,8 +107,8 @@ impl DockNode {
         source_node: DockNode,
         target_path: &[usize],
     ) -> bool {
-        // If the target is a Leaf with a parent Tab, just insert.
-        if self.is_leaf_with_tab_parent(target_path) {
+        // If the target is a Window with a parent Tab, just insert.
+        if self.is_window_with_tab_parent(target_path) {
             return self.insert_into_tab_parent(source_node, target_path);
         }
 
@@ -127,8 +127,8 @@ impl DockNode {
                 true
             }
             DockNode::Window { .. } => {
-                // Convert Leaf -> Tab with 2 children
-                let new_tab = Self::convert_leaf_to_tab(std::mem::take(target_node), source_node);
+                // Convert Window -> Tab with 2 children
+                let new_tab = Self::convert_window_to_tab(std::mem::take(target_node), source_node);
                 *target_node = new_tab;
                 true
             }
@@ -139,8 +139,8 @@ impl DockNode {
         }
     }
 
-    /// Helper: check if `target_path` is a Leaf with a parent Tab node.
-    fn is_leaf_with_tab_parent(
+    /// Helper: check if `target_path` is a Window with a parent Tab node.
+    fn is_window_with_tab_parent(
         &self,
         target_path: &[usize],
     ) -> bool {
@@ -158,7 +158,7 @@ impl DockNode {
         }
     }
 
-    /// Insert `source_node` into the Tab parent of the leaf at `target_path`.
+    /// Insert `source_node` into the Tab parent of the window at `target_path`.
     fn insert_into_tab_parent(
         &mut self,
         source_node: DockNode,
@@ -180,16 +180,16 @@ impl DockNode {
         }
     }
 
-    /// Helper: Convert a single Leaf node + an extra node into a Tab node with both children.
-    fn convert_leaf_to_tab(
-        leaf: DockNode,
+    /// Helper: Convert a single Window node + an extra node into a Tab node with both children.
+    fn convert_window_to_tab(
+        window: DockNode,
         other: DockNode,
     ) -> DockNode {
-        // We assume `leaf` is actually a Leaf. If not, be defensive.
-        let window_id = leaf.get_window_id().unwrap_or_default();
+        // We assume `window` is actually a Window. If not, be defensive.
+        let window_id = window.get_window_id().unwrap_or_default();
         let other_id = other.get_window_id().unwrap_or_default();
         DockNode::Tab {
-            tabs: vec![leaf, other],
+            tabs: vec![window, other],
             active_tab_id: other_id.is_empty().then(|| window_id).unwrap_or(other_id),
         }
     }

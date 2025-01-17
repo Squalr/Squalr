@@ -22,7 +22,7 @@ impl DockNode {
                     current = &tabs[idx];
                 }
                 DockNode::Window { .. } => {
-                    // The path goes deeper than a leaf => invalid
+                    // The path goes deeper than a window => invalid
                     return None;
                 }
             }
@@ -31,7 +31,7 @@ impl DockNode {
     }
 
     /// Return a mutable reference to the node at the specified path.
-    /// Returns `None` if the path is invalid or tries to go beyond a leaf.
+    /// Returns `None` if the path is invalid or tries to go beyond a window.
     pub fn get_node_from_path_mut(
         &mut self,
         path: &[usize],
@@ -52,7 +52,7 @@ impl DockNode {
                     current = &mut tabs[idx];
                 }
                 DockNode::Window { .. } => {
-                    // The path goes deeper than a leaf => invalid
+                    // The path goes deeper than a window => invalid
                     return None;
                 }
             }
@@ -60,7 +60,7 @@ impl DockNode {
         Some(current)
     }
 
-    /// Walk and collect the identifiers of all leaf nodes in the entire tree.
+    /// Walk and collect the identifiers of all window nodes in the entire tree.
     pub fn get_all_child_window_ids(&self) -> Vec<String> {
         let mut leaves = Vec::new();
         let mut path_stack = Vec::new();

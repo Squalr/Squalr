@@ -241,7 +241,7 @@ impl DockRootViewModel {
         redock_target: RedockTarget,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, true, move |docking_manager| {
-            docking_manager.reparent_leaf(
+            docking_manager.reparent_window(
                 &identifier,
                 &target_identifier,
                 DocktargetConverter::new().convert_from_view_data(&redock_target),

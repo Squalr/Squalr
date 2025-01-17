@@ -1,7 +1,7 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
 
 impl DockNode {
-    /// Find the path (series of child indices) to a leaf node by ID. Returns `None` if not found.
+    /// Find the path (series of child indices) to a window node by ID. Returns `None` if not found.
     pub fn find_path_to_window_id(
         &self,
         window_id: &str,

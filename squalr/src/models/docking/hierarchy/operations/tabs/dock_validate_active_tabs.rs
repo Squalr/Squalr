@@ -42,7 +42,7 @@ impl DockNode {
         if active_tab_id.is_empty() {
             return false;
         }
-        // Check if there's a visible leaf with the same ID
+        // Check if there's a visible window with the same ID
         tabs.iter().any(|child| match child {
             DockNode::Window {
                 window_identifier, is_visible, ..
@@ -51,7 +51,7 @@ impl DockNode {
         })
     }
 
-    /// Pick the first visible leaf's ID from the tab list, if any.
+    /// Pick the first visible window's ID from the tab list, if any.
     fn pick_first_visible_window_id(tabs: &[DockNode]) -> Option<String> {
         for child in tabs {
             match child {

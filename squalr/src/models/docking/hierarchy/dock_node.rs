@@ -11,16 +11,16 @@ pub enum DockNode {
         children: Vec<DockSplitChild>,
     },
     /// A tab container, holding multiple children in tabs.
-    /// Each child is itself a DockNode, so we can have either Leaf nodes
+    /// Each child is itself a DockNode, so we can have either Window nodes
     /// or even nested splits in a tab if we want to get fancy.
     Tab { tabs: Vec<DockNode>, active_tab_id: String },
-    /// A leaf node representing a single window.
+    /// A window node representing a single window.
     Window { window_identifier: String, is_visible: bool },
 }
 
 impl Default for DockNode {
     fn default() -> Self {
-        // A default "leaf" node. Your default usage may vary.
+        // A default "window" node. Your default usage may vary.
         DockNode::Window {
             window_identifier: "root".into(),
             is_visible: true,

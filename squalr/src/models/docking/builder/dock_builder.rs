@@ -8,16 +8,16 @@ pub struct DockBuilder {
     /// Internal variant describing what this node will become.
     kind: DockBuilderKind,
 
-    /// Whether this node (if leaf) is visible or not.
+    /// Whether this node (if window) is visible or not.
     /// For splits/tabs, this usually doesn't directly control the node's visibility.
     is_visible: bool,
 }
 
 impl DockBuilder {
-    /// Create a new builder for a Leaf node.
-    pub fn leaf(id: impl Into<String>) -> Self {
+    /// Create a new builder for a Window node.
+    pub fn window(id: impl Into<String>) -> Self {
         Self {
-            kind: DockBuilderKind::Leaf { window_identifier: id.into() },
+            kind: DockBuilderKind::Window { window_identifier: id.into() },
             is_visible: true,
         }
     }
@@ -44,7 +44,7 @@ impl DockBuilder {
         }
     }
 
-    /// Sets visibility (relevant for leaf nodes).
+    /// Sets visibility (relevant for window nodes).
     pub fn visible(
         mut self,
         visible: bool,
@@ -133,7 +133,7 @@ impl DockBuilder {
                 }
             }
 
-            DockBuilderKind::Leaf { window_identifier } => DockNode::Window {
+            DockBuilderKind::Window { window_identifier } => DockNode::Window {
                 window_identifier,
                 is_visible: self.is_visible,
             },

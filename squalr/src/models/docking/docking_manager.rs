@@ -59,12 +59,12 @@ impl DockingManager {
         self.root_node.get_node_from_path_mut(&path)
     }
 
-    /// Collect all leaf IDs from the root_node.
+    /// Collect all window IDs from the root_node.
     pub fn get_all_child_window_ids(&self) -> Vec<String> {
         self.root_node.get_all_child_window_ids()
     }
 
-    /// Find the bounding rectangle for a particular leaf.
+    /// Find the bounding rectangle for a particular window.
     pub fn find_window_rect(
         &self,
         window_id: &str,
@@ -90,12 +90,13 @@ impl DockingManager {
 
     /// Prepare for presentation by fixing up invalid state.
     pub fn prepare_for_presentation(&mut self) {
-        self.root_node.remove_invalid_containers();
+        self.root_node.remove_invalid_splits();
+        self.root_node.remove_invalid_tabs();
         self.root_node.run_active_tab_validation();
     }
 
     /// Tries to resize a window by dragging one of its edges in the given direction
-    /// by (delta_x, delta_y) pixels. We climb up the dock hierarchy if the leaf’s
+    /// by (delta_x, delta_y) pixels. We climb up the dock hierarchy if the window’s
     /// immediate parent split cannot accommodate the drag.
     ///
     /// This approach ensures we don’t simultaneously borrow `self` mutably for both
@@ -111,12 +112,12 @@ impl DockingManager {
             .adjust_window_size(&mut self.root_node, window_id, drag_dir, delta_x, delta_y)
     }
 
-    pub fn reparent_leaf(
+    pub fn reparent_window(
         &mut self,
         source_id: &str,
         target_id: &str,
         direction: DockReparentDirection,
     ) -> bool {
-        self.root_node.reparent_leaf(source_id, target_id, direction)
+        self.root_node.reparent_window(source_id, target_id, direction)
     }
 }

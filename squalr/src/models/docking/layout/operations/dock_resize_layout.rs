@@ -5,7 +5,7 @@ use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDr
 
 impl DockLayout {
     /// Tries to resize a window by dragging one of its edges in the given direction
-    /// by (delta_x, delta_y) pixels. We climb up the dock hierarchy if the leaf’s
+    /// by (delta_x, delta_y) pixels. We climb up the dock hierarchy if the window’s
     /// immediate parent split cannot accommodate the drag.
     ///
     /// This approach ensures we don’t simultaneously borrow `self` mutably for both
@@ -18,8 +18,8 @@ impl DockLayout {
         delta_x: i32,
         delta_y: i32,
     ) -> bool {
-        // 1) Locate the path to the leaf node we’re resizing.
-        let leaf_path = match root_node.find_path_to_window_id(window_id) {
+        // 1) Locate the path to the window node we’re resizing.
+        let window_path = match root_node.find_path_to_window_id(window_id) {
             Some(path) => path,
             None => return false,
         };
@@ -30,8 +30,8 @@ impl DockLayout {
             DockSplitterDragDirection::Top | DockSplitterDragDirection::Bottom => DockSplitDirection::HorizontalDivider,
         };
 
-        // 3) Climb up from the leaf to its ancestors.
-        let mut current_path = leaf_path;
+        // 3) Climb up from the window to its ancestors.
+        let mut current_path = window_path;
         while !current_path.is_empty() {
             // The last index is the child index in the parent's children array (or tabs array).
             let child_index = match current_path.last() {

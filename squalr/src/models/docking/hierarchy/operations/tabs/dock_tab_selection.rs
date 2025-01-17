@@ -29,7 +29,7 @@ impl DockNode {
         &self,
         window_id: &str,
     ) -> (Vec<String>, String) {
-        // Find the path to this leaf.
+        // Find the path to this window.
         let path = match self.find_path_to_window_id(window_id) {
             Some(p) => p,
             None => return (Vec::new(), window_id.to_owned()),

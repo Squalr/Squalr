@@ -50,7 +50,7 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockWindowConverter {
                 // Gather siblings if in a parent tab, as well as which of those tabs is active.
                 let (siblings, found_active_tab_id) = manager.get_siblings_and_active_tab(window_identifier);
 
-                // If the active_tab_id is NOT this leaf, we treat it as occluded.
+                // If the active_tab_id is NOT this window, we treat it as occluded.
                 let is_occluded = !siblings.is_empty() && found_active_tab_id != *window_identifier;
 
                 let siblings_converted: Vec<SharedString> = siblings.iter().map(|str| SharedString::from(str)).collect();
@@ -69,7 +69,7 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockWindowConverter {
                 }
             }
 
-            // If it's not a Leaf, just return a default.
+            // If it's not a Window, just return a default.
             _ => DockedWindowViewData::default(),
         }
     }
