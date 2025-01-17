@@ -1,5 +1,5 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
+use crate::models::docking::hierarchy::types::dock_split_child::DockSplitChild;
 
 impl DockNode {
     /// Normalize the ratios in the children so they sum to 1.

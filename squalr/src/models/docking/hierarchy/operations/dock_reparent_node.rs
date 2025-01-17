@@ -1,7 +1,7 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_reparent_direction::DockReparentDirection;
-use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
-use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
+use crate::models::docking::hierarchy::types::dock_reparent_direction::DockReparentDirection;
+use crate::models::docking::hierarchy::types::dock_split_child::DockSplitChild;
+use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
 
 impl DockNode {
     /// High-level entry point to re-parent (move) a window node `source_id`

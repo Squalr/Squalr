@@ -1,7 +1,7 @@
+use crate::models::docking::hierarchy::dock_layout::DockLayout;
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
-use crate::models::docking::layout::dock_layout::DockLayout;
-use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
+use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
+use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
 
 impl DockLayout {
     /// Tries to resize a window by dragging one of its edges in the given direction
@@ -77,9 +77,7 @@ impl DockLayout {
         // If we reach here, we’ve climbed to the root with no success -- there is no sibling in that direction.
         false
     }
-}
 
-impl DockLayout {
     /// A helper that adjusts ratios in a `DockNode::Split` when a user drags
     /// a particular child’s edge. Returns `true` on success, `false` if no valid sibling
     /// was found or if it couldn’t resize for some reason.

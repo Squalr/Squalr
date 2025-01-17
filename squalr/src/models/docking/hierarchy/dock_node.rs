@@ -1,5 +1,5 @@
-use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
-use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
+use crate::models::docking::hierarchy::types::dock_split_child::DockSplitChild;
+use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
 use serde::{Deserialize, Serialize};
 
 /// The main enum that models our docking hierarchy.

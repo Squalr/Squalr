@@ -1,6 +1,6 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_reparent_direction::DockReparentDirection;
-use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
+use crate::models::docking::hierarchy::types::dock_reparent_direction::DockReparentDirection;
+use crate::models::docking::hierarchy::types::dock_split_child::DockSplitChild;
 
 impl DockNode {
     /// Inserts `source_node` into an existing Split's `children` at the correct position,

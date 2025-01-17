@@ -4,7 +4,7 @@ use crate::RedockTarget;
 use crate::WindowViewModelBindings;
 use crate::models::docking::docking_manager::DockingManager;
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
+use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
 use crate::view_models::docking::dock_target_converter::DocktargetConverter;

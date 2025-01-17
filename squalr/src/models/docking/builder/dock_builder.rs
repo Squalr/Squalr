@@ -1,7 +1,7 @@
 use crate::models::docking::builder::dock_builder_kind::DockBuilderKind;
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
-use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
+use crate::models::docking::hierarchy::types::dock_split_child::DockSplitChild;
+use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
 
 #[derive(Debug)]
 pub struct DockBuilder {

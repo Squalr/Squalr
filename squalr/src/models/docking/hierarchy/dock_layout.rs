@@ -1,6 +1,6 @@
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_split_child::DockSplitChild;
-use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
+use crate::models::docking::hierarchy::types::dock_split_child::DockSplitChild;
+use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
 
 /// Represents a layout area to be filled by a `DockTree`.
 #[derive(Debug)]

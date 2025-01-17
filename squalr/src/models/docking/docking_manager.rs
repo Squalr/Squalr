@@ -1,7 +1,7 @@
+use crate::models::docking::hierarchy::dock_layout::DockLayout;
 use crate::models::docking::hierarchy::dock_node::DockNode;
-use crate::models::docking::hierarchy::dock_reparent_direction::DockReparentDirection;
-use crate::models::docking::layout::dock_layout::DockLayout;
-use crate::models::docking::layout::dock_splitter_drag_direction::DockSplitterDragDirection;
+use crate::models::docking::hierarchy::types::dock_reparent_direction::DockReparentDirection;
+use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
 
 /// Handles a `DockNode` and its corresponding layout information.
 pub struct DockingManager {

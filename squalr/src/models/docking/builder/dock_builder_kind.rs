@@ -1,5 +1,5 @@
 use crate::models::docking::builder::dock_builder::DockBuilder;
-use crate::models::docking::hierarchy::dock_split_direction::DockSplitDirection;
+use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
 
 #[derive(Debug)]
 pub enum DockBuilderKind {
