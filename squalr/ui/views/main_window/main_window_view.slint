@@ -10,6 +10,7 @@ import { ShortcutBarView } from "./shortcut_bar_view.slint";
 import { DockRoot } from "./../docking/dock_root.slint";
 import { HSeparator } from "./../../components/separator.slint";
 import { ToolbarMenu } from "./../../components/toolbar_menu/toolbar_menu.slint";
+import { ToolbarMenuCheckState } from "./../../components/toolbar_menu/toolbar_menu_item.slint";
 
 export component MainWindowView inherits Window {
     title: @tr("Squalr");
@@ -28,28 +29,73 @@ export component MainWindowView inherits Window {
             }
 
             toolbar-menu := ToolbarMenu {
+                property <string> process-selector-id: "process-selector";
+                property <string> project-explorer-id: "project-explorer";
+                property <string> property-viewer-id: "property-viewer";
+                property <string> memory-viewer-id: "memory-viewer";
+                property <string> scan-results-id: "scan-results";
+                property <string> settings-id: "settings";
+                property <string> pointer-results-id: "pointer-results";
+                property <string> snapshot-manager-id: "snapshot-manager";
+                property <string> dotnet-explorer-id: "dotnet-explorer";
                 menus: [
                     {
                         header: "File",
                         items:[
                             { id: "select-project", text:"Select Project" },
                             { id: "export-project", text:"Export Project as Table..." },
-                            { id: "exit", text: "Exit Squalr", separator: true }
+                            { id: "exit", text: "Exit Squalr", has-separator: true }
                         ]
                     },
-                    { header: "Edit", items:[{ id: "settings", text:"Settings" }] },
                     { header: "Layout", items:[{ id: "layout-reset", text:"Reset Layout" }] },
                     {
                         header: "Windows",
                         items:[
-                            { id: "process-selector", text:"Process Selector" },
-                            { id: "project-explorer", text:"Project Explorer" },
-                            { id: "property-viewer", text:"Property Viewer" },
-                            { id: "memory-viewer", text:"Memory Viewer" },
-                            { id: "scan-results", text:"Scan Results" },
-                            { id: "pointer-results", text:"Pointer Scan Results" },
-                            { id: "snapshot-manager", text:"Snapshot Manager" },
-                            { id: "dotnet-explorer", text:".NET Explorer" },
+                            {
+                                id: process-selector-id,
+                                text:"Process Selector",
+                                check-state: DockRootViewModelBindings.is-window-visible(process-selector-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                            },
+                            {
+                                id: project-explorer-id,
+                                text:"Project Explorer",
+                                check-state: DockRootViewModelBindings.is-window-visible(project-explorer-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                            },
+                            {
+                                id: property-viewer-id,
+                                text:"Property Viewer",
+                                check-state: DockRootViewModelBindings.is-window-visible(property-viewer-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                            },
+                            {
+                                id: memory-viewer-id,
+                                text:"Memory Viewer",
+                                check-state: DockRootViewModelBindings.is-window-visible(memory-viewer-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                            },
+                            {
+                                id: scan-results-id,
+                                text:"Scan Results",
+                                check-state: DockRootViewModelBindings.is-window-visible(scan-results-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                            },
+                            {
+                                id: settings-id,
+                                text:"Settings",
+                                check-state: DockRootViewModelBindings.is-window-visible(settings-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                            },
+                            {
+                                id: pointer-results-id,
+                                text:"Pointer Scan Results",
+                                check-state: DockRootViewModelBindings.is-window-visible(pointer-results-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                            },
+                            {
+                                id: snapshot-manager-id,
+                                text:"Snapshot Manager",
+                                check-state: DockRootViewModelBindings.is-window-visible(snapshot-manager-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                            },
+                            {
+                                id: dotnet-explorer-id,
+                                text:".NET Explorer",
+                                check-state: DockRootViewModelBindings.is-window-visible(dotnet-explorer-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                            },
                         ]
                     },
                     { header: "Scans", items:[{ id: "scans", text:"Pointer Scan" }] },
@@ -63,16 +109,26 @@ export component MainWindowView inherits Window {
                         WindowViewModelBindings.close();
                     } else if id == "select-project" {
                     } else if id == "export-project" {
-                    } else if id == "settings" {
                     } else if id == "layout-reset" {
                         DockRootViewModelBindings.reset-layout();
-                    } else if id == "process-selector" {
-                    } else if id == "project-explorer" {
-                    } else if id == "memory-viewer" {
-                    } else if id == "scan-results" {
-                    } else if id == "pointer-results" {
-                    } else if id == "snapshot-manager" {
-                    } else if id == "dotnet-explorer" {
+                    } else if id == process-selector-id {
+                        DockRootViewModelBindings.toggle-visibility(process-selector-id);
+                    } else if id == project-explorer-id {
+                        DockRootViewModelBindings.toggle-visibility(project-explorer-id);
+                    } else if id == property-viewer-id {
+                        DockRootViewModelBindings.toggle-visibility(property-viewer-id);
+                    } else if id == memory-viewer-id {
+                        DockRootViewModelBindings.toggle-visibility(memory-viewer-id);
+                    } else if id == scan-results-id {
+                        DockRootViewModelBindings.toggle-visibility(scan-results-id);
+                    } else if id == settings-id {
+                        DockRootViewModelBindings.toggle-visibility(settings-id);
+                    } else if id == pointer-results-id {
+                        DockRootViewModelBindings.toggle-visibility(pointer-results-id);
+                    } else if id == snapshot-manager-id {
+                        DockRootViewModelBindings.toggle-visibility(snapshot-manager-id);
+                    } else if id == dotnet-explorer-id {
+                        DockRootViewModelBindings.toggle-visibility(dotnet-explorer-id);
                     }
                 }
             }

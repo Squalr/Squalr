@@ -73,9 +73,12 @@ impl DockRootViewModel {
                 on_update_dock_root_height(height: f32) -> [view_binding, docking_manager] -> Self::on_update_dock_root_height,
                 on_update_active_tab_id(identifier: SharedString) -> [view_binding, docking_manager] -> Self::on_update_active_tab_id,
                 on_get_tab_text(identifier: SharedString) -> [] -> Self::on_get_tab_text,
+                on_is_window_visible(identifier: SharedString) -> [docking_manager] -> Self::on_is_window_visible,
                 on_try_redock_window(identifier: SharedString, target_identifier: SharedString, redock_target: RedockTarget) -> [view_binding, docking_manager] -> Self::on_try_redock_window,
                 on_reset_layout() -> [view_binding, docking_manager] -> Self::on_reset_layout,
+                on_show(identifier: SharedString) -> [view_binding, docking_manager] -> Self::on_show,
                 on_hide(identifier: SharedString) -> [view_binding, docking_manager] -> Self::on_hide,
+                on_toggle_visibility(identifier: SharedString) -> [view_binding, docking_manager] -> Self::on_toggle_visibility,
                 on_drag_left(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [view_binding, docking_manager] -> Self::on_drag_left,
                 on_drag_right(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [view_binding, docking_manager] -> Self::on_drag_right,
                 on_drag_top(dockable_window_id: SharedString, delta_x: i32, delta_y: i32) -> [view_binding, docking_manager] -> Self::on_drag_top,
@@ -237,6 +240,19 @@ impl DockRootViewModel {
         }
     }
 
+    fn on_is_window_visible(
+        docking_manager: Arc<RwLock<DockingManager>>,
+        dockable_window_id: SharedString,
+    ) -> bool {
+        if let Ok(docking_manager) = docking_manager.read() {
+            if let Some(node) = docking_manager.get_node_by_id(&dockable_window_id) {
+                return node.is_visible();
+            }
+        }
+
+        false
+    }
+
     fn on_try_redock_window(
         view_binding: ViewBinding<MainWindowView>,
         docking_manager: Arc<RwLock<DockingManager>>,
@@ -262,6 +278,18 @@ impl DockRootViewModel {
         });
     }
 
+    fn on_show(
+        view_binding: ViewBinding<MainWindowView>,
+        docking_manager: Arc<RwLock<DockingManager>>,
+        dockable_window_id: SharedString,
+    ) {
+        Self::mutate_layout(&view_binding, &docking_manager, true, move |docking_manager| {
+            if let Some(node) = docking_manager.get_node_by_id_mut(&dockable_window_id) {
+                node.set_visible(true);
+            }
+        });
+    }
+
     fn on_hide(
         view_binding: ViewBinding<MainWindowView>,
         docking_manager: Arc<RwLock<DockingManager>>,
@@ -270,6 +298,18 @@ impl DockRootViewModel {
         Self::mutate_layout(&view_binding, &docking_manager, true, move |docking_manager| {
             if let Some(node) = docking_manager.get_node_by_id_mut(&dockable_window_id) {
                 node.set_visible(false);
+            }
+        });
+    }
+
+    fn on_toggle_visibility(
+        view_binding: ViewBinding<MainWindowView>,
+        docking_manager: Arc<RwLock<DockingManager>>,
+        dockable_window_id: SharedString,
+    ) {
+        Self::mutate_layout(&view_binding, &docking_manager, true, move |docking_manager| {
+            if let Some(node) = docking_manager.get_node_by_id_mut(&dockable_window_id) {
+                node.set_visible(!node.is_visible());
             }
         });
     }

@@ -2,6 +2,7 @@ pub mod memory_protection_enum;
 pub mod memory_queryer;
 pub mod memory_queryer_trait;
 pub mod memory_type_enum;
+pub mod page_retrieval_mode;
 pub mod region_bounds_handling;
 
 #[cfg(any(target_os = "android"))]

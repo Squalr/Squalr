@@ -38,9 +38,12 @@ export global DockRootViewModelBindings {
     pure callback update-dock-root-size(width: length, height: length) -> length;
     pure callback update-active-tab-id(identifier: string);
     pure callback get-tab-text(identifier: string) -> string;
+    pure callback is-window-visible(identifier: string) -> bool;
     callback try-redock-window(identifier: string, target-identifier: string, redock-target: RedockTarget);
     callback reset-layout();
+    callback show(identifier: string);
     callback hide(identifier: string);
+    callback toggle-visibility(identifier: string);
     callback drag-left(identifier: string, delta-x: int, delta-y: int);
     callback drag-right(identifier: string, delta-x: int, delta-y: int);
     callback drag-top(identifier: string, delta-x: int, delta-y: int);

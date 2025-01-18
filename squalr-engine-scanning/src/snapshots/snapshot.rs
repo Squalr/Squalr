@@ -10,7 +10,7 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
-use squalr_engine_memory::memory_queryer::memory_queryer::PageRetrievalMode;
+use squalr_engine_memory::memory_queryer::page_retrieval_mode::PageRetrievalMode;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
 
 #[derive(Debug)]

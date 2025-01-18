@@ -1,15 +1,23 @@
 import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 
-import { Theme } from "./../../theme.slint";
+import { Theme } from "../../theme.slint";
 
-import { ContextMenu } from "./../context_menu/context_menu.slint";
-import { Button } from "./../../components/buttons/button.slint";
-import { HSeparator } from "./../separator.slint";
+import { ContextMenu } from "../context_menu/context_menu.slint";
+import { Button } from "../buttons/button.slint";
+import { TextCheckbox } from "../checkboxes/text_checkbox.slint";
+import { HSeparator } from "../separator.slint";
+
+export enum ToolbarMenuCheckState {
+    none,
+    checked,
+    unchecked,
+}
 
 export struct ToolbarMenuItemData {
     id: string,
     text: string,
-    separator: bool,
+    has-separator: bool,
+    check-state: ToolbarMenuCheckState,
 }
 
 export component ToolbarMenuItem inherits HorizontalLayout {
@@ -40,11 +48,13 @@ export component ToolbarMenuItem inherits HorizontalLayout {
             padding: 0px;
             spacing: 0px;
             for item in items: VerticalLayout {
-                if(item.separator): VerticalBox {
+                VerticalBox {
                     padding: 0px;
-                    padding-top: 4px;
-                    spacing: 4px;
-                    HSeparator { }
+                    padding-top: item.has-separator ? 4px : 0px;
+                    spacing: item.has-separator ? 4px : 0px;
+                    HSeparator {
+                        is-collapsed: !item.has-separator;
+                    }
 
                     Button {
                         height: 24px;
@@ -55,29 +65,26 @@ export component ToolbarMenuItem inherits HorizontalLayout {
                             alignment: start;
                             padding-left: 8px;
                             padding-right: 8px;
-                            Text {
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                                text: item.text;
-                                color: Theme.foreground;
+                            VerticalLayout {
+                                alignment: center;
+                                if(item.check-state == ToolbarMenuCheckState.none): Text {
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    text: item.text;
+                                    color: Theme.foreground;
+                                }
                             }
-                        }
-                    }
-                }
-                if(!item.separator): Button {
-                    height: 24px;
-                    clicked => {
-                        root.onItemClicked(item.id);
-                    }
-                    HorizontalLayout {
-                        alignment: start;
-                        padding-left: 8px;
-                        padding-right: 8px;
-                        Text {
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                            text: item.text;
-                            color: Theme.foreground;
+
+                            VerticalLayout {
+                                alignment: center;
+                                if(item.check-state != ToolbarMenuCheckState.none): TextCheckbox {
+                                    text: item.text;
+                                    is-checked: item.check-state == ToolbarMenuCheckState.checked;
+                                    check-changed => {
+                                        root.onItemClicked(item.id);
+                                    }
+                                }
+                            }
                         }
                     }
                 }

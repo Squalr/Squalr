@@ -1,22 +1,13 @@
+use crate::memory_queryer::MemoryQueryerImpl;
 use crate::memory_queryer::memory_protection_enum::MemoryProtectionEnum;
 use crate::memory_queryer::memory_type_enum::MemoryTypeEnum;
+use crate::memory_queryer::page_retrieval_mode::PageRetrievalMode;
 use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
-use crate::memory_queryer::MemoryQueryerImpl;
 use crate::normalized_region::NormalizedRegion;
 use crate::{memory_queryer::memory_queryer_trait::IMemoryQueryer, memory_settings::MemorySettings};
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::{collections::HashSet, sync::Once};
-
-bitflags::bitflags! {
-    #[derive(PartialEq, Eq)]
-    pub struct PageRetrievalMode: u32 {
-        const FROM_SETTINGS         = 1 << 0;
-        const FROM_USER_MODE_MEMORY = 1 << 1;
-        const FROM_NON_MODULES      = 1 << 2;
-        const FROM_MODULES          = 1 << 3;
-    }
-}
 
 pub struct MemoryQueryer;
 
