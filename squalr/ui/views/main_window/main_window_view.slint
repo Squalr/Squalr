@@ -29,15 +29,6 @@ export component MainWindowView inherits Window {
             }
 
             toolbar-menu := ToolbarMenu {
-                property <string> process-selector-id: "process-selector";
-                property <string> project-explorer-id: "project-explorer";
-                property <string> property-viewer-id: "property-viewer";
-                property <string> memory-viewer-id: "memory-viewer";
-                property <string> scan-results-id: "scan-results";
-                property <string> settings-id: "settings";
-                property <string> pointer-results-id: "pointer-results";
-                property <string> snapshot-manager-id: "snapshot-manager";
-                property <string> dotnet-explorer-id: "dotnet-explorer";
                 menus: [
                     {
                         header: "File",
@@ -52,49 +43,49 @@ export component MainWindowView inherits Window {
                         header: "Windows",
                         items:[
                             {
-                                id: process-selector-id,
+                                id: DockRootViewModelBindings.process-selector-window.identifier,
                                 text:"Process Selector",
-                                check-state: DockRootViewModelBindings.is-window-visible(process-selector-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                                check-state: DockRootViewModelBindings.process-selector-window.is-visible ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
                             },
                             {
-                                id: project-explorer-id,
+                                id: DockRootViewModelBindings.project-explorer-window.identifier,
                                 text:"Project Explorer",
-                                check-state: DockRootViewModelBindings.is-window-visible(project-explorer-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                                check-state: DockRootViewModelBindings.project-explorer-window.is-visible ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
                             },
                             {
-                                id: property-viewer-id,
+                                id: DockRootViewModelBindings.property-viewer-window.identifier,
                                 text:"Property Viewer",
-                                check-state: DockRootViewModelBindings.is-window-visible(property-viewer-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                                check-state: DockRootViewModelBindings.property-viewer-window.is-visible ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
                             },
                             {
-                                id: memory-viewer-id,
+                                id: DockRootViewModelBindings.memory-viewer-window.identifier,
                                 text:"Memory Viewer",
-                                check-state: DockRootViewModelBindings.is-window-visible(memory-viewer-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                                check-state: ToolbarMenuCheckState.unchecked
                             },
                             {
-                                id: scan-results-id,
-                                text:"Scan Results",
-                                check-state: DockRootViewModelBindings.is-window-visible(scan-results-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                                id: DockRootViewModelBindings.output-window.identifier,
+                                text:"Output",
+                                check-state: DockRootViewModelBindings.output-window.is-visible ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
                             },
                             {
-                                id: settings-id,
-                                text:"Settings",
-                                check-state: DockRootViewModelBindings.is-window-visible(settings-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
-                            },
-                            {
-                                id: pointer-results-id,
+                                id: DockRootViewModelBindings.pointer-scan-results-window.identifier,
                                 text:"Pointer Scan Results",
-                                check-state: DockRootViewModelBindings.is-window-visible(pointer-results-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                                check-state: ToolbarMenuCheckState.unchecked
                             },
                             {
-                                id: snapshot-manager-id,
+                                id: DockRootViewModelBindings.scan-results-window.identifier,
+                                text:"Scan Results",
+                                check-state: DockRootViewModelBindings.scan-results-window.is-visible ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                            },
+                            {
+                                id: DockRootViewModelBindings.settings-window.identifier,
+                                text:"Settings",
+                                check-state: DockRootViewModelBindings.settings-window.is-visible ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                            },
+                            {
+                                id: DockRootViewModelBindings.snapshot-manager-window.identifier,
                                 text:"Snapshot Manager",
-                                check-state: DockRootViewModelBindings.is-window-visible(snapshot-manager-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
-                            },
-                            {
-                                id: dotnet-explorer-id,
-                                text:".NET Explorer",
-                                check-state: DockRootViewModelBindings.is-window-visible(dotnet-explorer-id) ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                                check-state: ToolbarMenuCheckState.unchecked
                             },
                         ]
                     },
@@ -111,24 +102,24 @@ export component MainWindowView inherits Window {
                     } else if id == "export-project" {
                     } else if id == "layout-reset" {
                         DockRootViewModelBindings.reset-layout();
-                    } else if id == process-selector-id {
-                        DockRootViewModelBindings.toggle-visibility(process-selector-id);
-                    } else if id == project-explorer-id {
-                        DockRootViewModelBindings.toggle-visibility(project-explorer-id);
-                    } else if id == property-viewer-id {
-                        DockRootViewModelBindings.toggle-visibility(property-viewer-id);
-                    } else if id == memory-viewer-id {
-                        DockRootViewModelBindings.toggle-visibility(memory-viewer-id);
-                    } else if id == scan-results-id {
-                        DockRootViewModelBindings.toggle-visibility(scan-results-id);
-                    } else if id == settings-id {
-                        DockRootViewModelBindings.toggle-visibility(settings-id);
-                    } else if id == pointer-results-id {
-                        DockRootViewModelBindings.toggle-visibility(pointer-results-id);
-                    } else if id == snapshot-manager-id {
-                        DockRootViewModelBindings.toggle-visibility(snapshot-manager-id);
-                    } else if id == dotnet-explorer-id {
-                        DockRootViewModelBindings.toggle-visibility(dotnet-explorer-id);
+                    } else if id == DockRootViewModelBindings.process-selector-window.identifier {
+                        DockRootViewModelBindings.toggle-visibility(DockRootViewModelBindings.process-selector-window.identifier);
+                    } else if id == DockRootViewModelBindings.project-explorer-window.identifier {
+                        DockRootViewModelBindings.toggle-visibility(DockRootViewModelBindings.project-explorer-window.identifier);
+                    } else if id == DockRootViewModelBindings.property-viewer-window.identifier {
+                        DockRootViewModelBindings.toggle-visibility(DockRootViewModelBindings.property-viewer-window.identifier);
+                    } else if id == DockRootViewModelBindings.memory-viewer-window.identifier {
+                        DockRootViewModelBindings.toggle-visibility(DockRootViewModelBindings.memory-viewer-window.identifier);
+                    } else if id == DockRootViewModelBindings.output-window.identifier {
+                        DockRootViewModelBindings.toggle-visibility(DockRootViewModelBindings.output-window.identifier);
+                    } else if id == DockRootViewModelBindings.pointer-scan-results-window.identifier {
+                        DockRootViewModelBindings.toggle-visibility(DockRootViewModelBindings.pointer-scan-results-window.identifier);
+                    } else if id == DockRootViewModelBindings.scan-results-window.identifier {
+                        DockRootViewModelBindings.toggle-visibility(DockRootViewModelBindings.scan-results-window.identifier);
+                    } else if id == DockRootViewModelBindings.settings-window.identifier {
+                        DockRootViewModelBindings.toggle-visibility(DockRootViewModelBindings.settings-window.identifier);
+                    } else if id == DockRootViewModelBindings.snapshot-manager-window.identifier {
+                        DockRootViewModelBindings.toggle-visibility(DockRootViewModelBindings.snapshot-manager-window.identifier);
                     }
                 }
             }

@@ -16,7 +16,7 @@ export component DockedWindowView inherits Rectangle {
     y: root.docked-window-data.position-y;
     width: root.docked-window-data.width;
     height: root.docked-window-data.height;
-    visible: root.docked-window-data.is-visible;
+    visible: root.docked-window-data.is-visible && (docked-window-data.tab-ids.length <= 1 || docked-window-data.active-tab-id == docked-window-data.identifier);
     function is-being-dragged() -> bool {
         return docked-window-data.identifier == DockRootViewModelBindings.active-dragged-window-id;
     }

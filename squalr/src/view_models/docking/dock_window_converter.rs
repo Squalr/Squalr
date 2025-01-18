@@ -51,13 +51,10 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockWindowConverter {
                 let siblings = manager.get_sibling_tab_ids(window_identifier, true);
                 let found_active_tab_id = manager.get_active_tab(window_identifier);
 
-                // If the active_tab_id is NOT this window, we treat it as a hidden tab.
-                let is_hidden_tab = !siblings.is_empty() && found_active_tab_id != *window_identifier;
-
                 DockedWindowViewData {
                     identifier: window_identifier.clone().into(),
                     is_docked: true,
-                    is_visible: *is_visible && !is_hidden_tab,
+                    is_visible: *is_visible,
                     position_x: x,
                     position_y: y,
                     width: w,

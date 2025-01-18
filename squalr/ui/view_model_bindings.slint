@@ -33,6 +33,15 @@ export global DockRootViewModelBindings {
     in-out property <length> initial-dock-root-height;
     in-out property <string> active-dragged-window-id;
     in-out property <bool> is-dragging-window;
+    in-out property <DockedWindowViewData> memory-viewer-window;
+    in-out property <DockedWindowViewData> output-window;
+    in-out property <DockedWindowViewData> pointer-scan-results-window;
+    in-out property <DockedWindowViewData> process-selector-window;
+    in-out property <DockedWindowViewData> property-viewer-window;
+    in-out property <DockedWindowViewData> project-explorer-window;
+    in-out property <DockedWindowViewData> scan-results-window;
+    in-out property <DockedWindowViewData> snapshot-manager-window;
+    in-out property <DockedWindowViewData> settings-window;
     pure callback update-dock-root-width(width: length);
     pure callback update-dock-root-height(height: length);
     pure callback update-dock-root-size(width: length, height: length) -> length;
@@ -48,12 +57,6 @@ export global DockRootViewModelBindings {
     callback drag-right(identifier: string, delta-x: int, delta-y: int);
     callback drag-top(identifier: string, delta-x: int, delta-y: int);
     callback drag-bottom(identifier: string, delta-x: int, delta-y: int);
-    in-out property <DockedWindowViewData> scan-results-window;
-    in-out property <DockedWindowViewData> output-window;
-    in-out property <DockedWindowViewData> process-selector-window;
-    in-out property <DockedWindowViewData> property-viewer-window;
-    in-out property <DockedWindowViewData> project-explorer-window;
-    in-out property <DockedWindowViewData> settings-window;
 }
 
 export struct ProcessViewData {
