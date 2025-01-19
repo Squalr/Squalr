@@ -1244,15 +1244,14 @@ dependencies = [
 
 [[package]]
 name = "exr"
-version = "1.72.0"
+version = "1.73.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "887d93f60543e9a9362ef8a21beedd0a833c5d9610e18c67abe15a5963dcb1a4"
+checksum = "f83197f59927b46c04a183a619b7c29df34e63e63c7869320862268c0ef687e0"
 dependencies = [
  "bit_field",
- "flume",
  "half",
  "lebe",
- "miniz_oxide 0.7.4",
+ "miniz_oxide 0.8.0",
  "rayon-core",
  "smallvec",
  "zune-inflate",
@@ -1310,15 +1309,6 @@ name = "float-cmp"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
-
-[[package]]
-name = "flume"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55ac459de2512911e4b674ce33cf20befaba382d05b62b008afc1c8b57cbf181"
-dependencies = [
- "spin",
-]
 
 [[package]]
 name = "foldhash"
@@ -1728,9 +1718,9 @@ dependencies = [
 
 [[package]]
 name = "i-slint-backend-android-activity"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46535c4f337f04e94d4918dfc2557f4a225c0d60c5d597dcc303651dfd2ceaf1"
+checksum = "6975ca7c7d2ee96887c27e08aa4abd724c3ee6b7f44502b22389c699ec1dcd41"
 dependencies = [
  "android-activity 0.5.2",
  "android-activity 0.6.0",
@@ -1743,9 +1733,9 @@ dependencies = [
 
 [[package]]
 name = "i-slint-backend-linuxkms"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2205814bb3595d50142989dc23d4c2fd679f77d2111d3ae77e72da0b320c6bb6"
+checksum = "07313f9ccdb4aeae3ad1151252010f73fc69227bb49b942a8b54d17045511f69"
 dependencies = [
  "bytemuck",
  "calloop 0.14.2",
@@ -1760,9 +1750,9 @@ dependencies = [
 
 [[package]]
 name = "i-slint-backend-selector"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13cddb850ff15d5878ffed582333b1052c2f34ef5fa8c96374556212d3dfb6f0"
+checksum = "c0fddbdc93945bf53133d81672b0941d6faa08871f2cce0aea8c10c0bdb9f270"
 dependencies = [
  "cfg-if",
  "i-slint-backend-linuxkms",
@@ -1774,9 +1764,9 @@ dependencies = [
 
 [[package]]
 name = "i-slint-backend-winit"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43733630d6572f12212538d1e07457344f0649f64f0fd5d2508e1067fe907520"
+checksum = "4820ff87c95cea7a857f51e13b3491f0022a2a84c124b55e391212f1126bbe95"
 dependencies = [
  "accesskit",
  "accesskit_winit",
@@ -1803,6 +1793,7 @@ dependencies = [
  "scoped-tls-hkt",
  "scopeguard",
  "softbuffer",
+ "vtable",
  "wasm-bindgen",
  "web-sys",
  "winit",
@@ -1810,9 +1801,9 @@ dependencies = [
 
 [[package]]
 name = "i-slint-common"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9c8f37e2d962b87cebc290f1d14ad86602a1feec10bea545353b817a832dc66"
+checksum = "ed17428b2512e02b47fb374afa390e183ece31dcab195a1d6336a064a5e241f7"
 dependencies = [
  "cfg-if",
  "derive_more",
@@ -1823,9 +1814,9 @@ dependencies = [
 
 [[package]]
 name = "i-slint-compiler"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b10773b4a1ef9cc0432274311f0788a4dbb0f45d5e0c726ca39755127e04a482"
+checksum = "e9eb838e86650652ff6d2aa6f05469fc4d6382539700ca340b4e206b13a04666"
 dependencies = [
  "by_address",
  "codemap",
@@ -1848,15 +1839,14 @@ dependencies = [
  "rowan",
  "smol_str 0.3.2",
  "strum",
- "thiserror",
  "url",
 ]
 
 [[package]]
 name = "i-slint-core"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7be38ffa35b2fad74712d563e7ffec655988ae215e3a6cfa35d603fb6115b79"
+checksum = "78e779ce58e0fe3977c028e2460e4aaecd65d32bc579d728e89ed3d2d5114e55"
 dependencies = [
  "auto_enums",
  "bitflags 2.6.0",
@@ -1902,9 +1892,9 @@ dependencies = [
 
 [[package]]
 name = "i-slint-core-macros"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f83e6bd30e51baa7adb1c1e04111ac71713ce032ce16c36e62a334f8c45b734e"
+checksum = "0ec8e1d457e06e12a5fd23a5e841c994b2ce48cecdaee872c008239380189b15"
 dependencies = [
  "quote",
  "serde_json",
@@ -1913,9 +1903,9 @@ dependencies = [
 
 [[package]]
 name = "i-slint-renderer-skia"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36dcdbc1ca419b670e94e957a23b137739db5c7b0508c39b740e199db0eea2bb"
+checksum = "d8a3c8e632e7ea37b37872533f4504663e1e814de2d7d918f4f833dec69e6279"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -3255,9 +3245,9 @@ dependencies = [
 
 [[package]]
 name = "rowan"
-version = "0.15.16"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a542b0253fa46e632d27a1dc5cf7b930de4df8659dc6e720b647fc72147ae3d"
+checksum = "417a3a9f582e349834051b8a10c8d71ca88da4211e4093528e36b9845f6b5f21"
 dependencies = [
  "countme",
  "hashbrown 0.14.5",
@@ -3571,9 +3561,9 @@ dependencies = [
 
 [[package]]
 name = "slint"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7fa686cfc5a16a737a6867fbff09d5d41133fc6502bf0f2be786684e9991e8b"
+checksum = "efa626dc7a30a6685e00a5aae5b3c3927a36fae133313127b4e6eeb4cbb01f89"
 dependencies = [
  "const-field-offset",
  "i-slint-backend-android-activity",
@@ -3589,22 +3579,22 @@ dependencies = [
 
 [[package]]
 name = "slint-build"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59b27768c67dff5081261fba5b2a3fa0609912dfbf8a73020c60e2b6028445bc"
+checksum = "5622b9842b52881c1f60b2c97dae0865867f403ca0037b086bdaeec7e90e5ae2"
 dependencies = [
+ "derive_more",
  "i-slint-compiler",
  "i-slint-core-macros",
  "spin_on",
- "thiserror",
  "toml_edit 0.22.20",
 ]
 
 [[package]]
 name = "slint-macros"
-version = "1.9.1"
+version = "1.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57966e7358ec95d69ce94ea9dab9231efcc4714fe725d3ed8c27cb8e98c792bc"
+checksum = "cec1ff842824b5b236d6728bc3d5ca75737470dba646bb7600e3996f6ef95f9c"
 dependencies = [
  "i-slint-compiler",
  "proc-macro2",
@@ -3732,15 +3722,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spin"
-version = "0.9.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
-dependencies = [
- "lock_api",
-]
-
-[[package]]
 name = "spin_on"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3759,7 +3740,6 @@ dependencies = [
  "serde",
  "serde_json",
  "slint",
- "slint-build",
  "slint-mvvm",
  "slint-mvvm-macros",
  "squalr-engine",
@@ -3771,6 +3751,7 @@ dependencies = [
  "squalr-engine-projects",
  "squalr-engine-scanning",
  "squalr-engine-scripting",
+ "squalr-gui",
  "structopt",
  "sysinfo 0.31.2",
  "winresource",
@@ -3786,7 +3767,6 @@ dependencies = [
  "serde",
  "serde_json",
  "slint",
- "slint-build",
  "slint-mvvm",
  "slint-mvvm-macros",
  "squalr-engine",
@@ -3798,6 +3778,7 @@ dependencies = [
  "squalr-engine-projects",
  "squalr-engine-scanning",
  "squalr-engine-scripting",
+ "squalr-gui",
  "structopt",
  "sysinfo 0.31.2",
  "winresource",
@@ -3932,6 +3913,32 @@ dependencies = [
  "squalr-engine-memory",
  "squalr-engine-processes",
  "squalr-engine-scanning",
+]
+
+[[package]]
+name = "squalr-gui"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "log",
+ "rayon",
+ "serde",
+ "serde_json",
+ "slint",
+ "slint-build",
+ "slint-mvvm",
+ "slint-mvvm-macros",
+ "squalr-engine",
+ "squalr-engine-architecture",
+ "squalr-engine-common",
+ "squalr-engine-debuggers",
+ "squalr-engine-memory",
+ "squalr-engine-processes",
+ "squalr-engine-projects",
+ "squalr-engine-scanning",
+ "squalr-engine-scripting",
+ "structopt",
+ "sysinfo 0.31.2",
 ]
 
 [[package]]

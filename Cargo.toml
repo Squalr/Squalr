@@ -9,6 +9,7 @@ members = [
     "squalr-engine-projects",
     "squalr-engine-scanning",
     "squalr-engine-scripting",
+    "squalr-gui",
     "squalr-android",
     "squalr-cli",
     "squalr",

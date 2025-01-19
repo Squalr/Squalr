@@ -17,15 +17,15 @@ squalr-engine-processes = { path = "../squalr-engine-processes" }
 squalr-engine-projects = { path = "../squalr-engine-projects" }
 squalr-engine-scanning = { path = "../squalr-engine-scanning" }
 squalr-engine-scripting = { path = "../squalr-engine-scripting" }
+squalr-gui = { path = "../squalr-gui" }
 futures = ">=0.3"
 log = ">=0.4.22"
 rayon = ">=1.10.0"
 serde = { version = ">=1.0.0", features = ["derive"] }
 serde_json = ">=1.0.0"
-slint = { version = ">=1.9.1", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "renderer-software", "std"] }
+slint = { version = ">=1.9.2", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "renderer-software", "std"] }
 structopt = ">=0.3"
 sysinfo = ">=0.30"
 
 [build-dependencies]
-slint-build = { version = ">=1.7.2" }
 winresource = ">=0.1.17"
