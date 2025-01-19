@@ -48,7 +48,12 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockWindowConverter {
                     .unwrap_or((0.0, 0.0, 0.0, 0.0));
 
                 // Gather siblings if in a parent tab, as well as which of those tabs is active.
-                let siblings = manager.get_sibling_tab_ids(window_identifier, true);
+                // If there is only 1 sibling (ie 1 active tab), then just treat this as no siblings to prevent tab creation.
+                let siblings = {
+                    let visible_siblings = manager.get_sibling_tab_ids(window_identifier, true);
+                    if visible_siblings.len() == 1 { vec![] } else { visible_siblings }
+                };
+
                 let found_active_tab_id = manager.get_active_tab(window_identifier);
 
                 DockedWindowViewData {
