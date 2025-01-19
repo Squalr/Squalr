@@ -24,21 +24,20 @@ impl Default for DockSettingsConfig {
 
 impl DockSettingsConfig {
     pub fn get_default_layout() -> DockNode {
-        DockBuilder::split_node(DockSplitDirection::VerticalDivider)
+        #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+        let default_layout = DockBuilder::split_node(DockSplitDirection::VerticalDivider)
             .push_child(
                 0.7,
                 DockBuilder::split_node(DockSplitDirection::HorizontalDivider)
                     .push_child(
                         0.5,
                         DockBuilder::split_node(DockSplitDirection::VerticalDivider)
-                            // Build a tab with two leaves: process-selector & project-explorer
                             .push_child(
                                 0.5,
                                 DockBuilder::tab_node("project-explorer")
                                     .push_tab(DockBuilder::window("process-selector"))
                                     .push_tab(DockBuilder::window("project-explorer")),
                             )
-                            // And a window node for "settings" occupying the other 0.5
                             .push_child(0.5, DockBuilder::window("settings")),
                     )
                     .push_child(0.5, DockBuilder::window("output")),
@@ -49,7 +48,27 @@ impl DockSettingsConfig {
                     .push_child(0.6, DockBuilder::window("scan-results"))
                     .push_child(0.4, DockBuilder::window("property-viewer")),
             )
-            .build()
+            .build();
+
+        #[cfg(target_os = "android")]
+        let default_layout = DockBuilder::split_node(DockSplitDirection::HorizontalDivider)
+            .push_child(
+                0.55,
+                DockBuilder::split_node(DockSplitDirection::VerticalDivider)
+                    .push_child(
+                        0.5,
+                        DockBuilder::tab_node("project-explorer")
+                            .push_tab(DockBuilder::window("process-selector").visible(false))
+                            .push_tab(DockBuilder::window("project-explorer"))
+                            .push_tab(DockBuilder::window("settings").visible(false)),
+                    )
+                    .push_child(0.5, DockBuilder::tab_node("scan-results").push_tab(DockBuilder::window("scan-results"))),
+            )
+            .push_child(0.25, DockBuilder::window("property-viewer"))
+            .push_child(0.2, DockBuilder::window("output"))
+            .build();
+
+        default_layout
     }
 }
 

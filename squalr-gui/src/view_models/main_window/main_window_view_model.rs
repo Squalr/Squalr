@@ -37,6 +37,8 @@ impl MainWindowViewModel {
             }
         });
 
+        view.show();
+
         view
     }
 

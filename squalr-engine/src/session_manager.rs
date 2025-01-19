@@ -1,3 +1,4 @@
+use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::{process_info::OpenedProcessInfo, process_query::process_queryer::ProcessQuery};
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
@@ -32,6 +33,8 @@ impl SessionManager {
     }
 
     pub fn initialize(&self) {
+        Logger::get_instance().log(LogLevel::Info, "Squalr started", None);
+        vectors::log_vector_architecture();
         if let Err(err) = ProcessQuery::start_monitoring() {
             Logger::get_instance().log(LogLevel::Error, &format!("Failed to monitor system processes: {}", err), None);
         }

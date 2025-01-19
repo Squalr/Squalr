@@ -3809,6 +3809,7 @@ dependencies = [
 name = "squalr-engine"
 version = "0.1.0"
 dependencies = [
+ "squalr-engine-architecture",
  "squalr-engine-common",
  "squalr-engine-memory",
  "squalr-engine-processes",

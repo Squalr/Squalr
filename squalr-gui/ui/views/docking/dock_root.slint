@@ -10,12 +10,13 @@ import { SettingsView } from "../../views/settings/settings_view.slint";
 import { DockRootViewModelBindings } from "./../../view_model_bindings.slint";
 
 export component DockRoot inherits Rectangle {
-    // This binding is a hack to force Slint to send the width and height to Rust in a single update frame.
-    // This allows for Slint and Rust to reach an agreement as to what the available width and height for the dock space is.
-    // The function just returns 0, so the x is not actually modified in this process.
-    // This could also be done by hooking into changed() properties for width and height, but these would be on a 1 frame delay.
-    // And actually it's even worse, because the changed event does not fire until the window is done dragging, so its bad UX.
-    x: DockRootViewModelBindings.update-dock-root-size(root.width, root.height);
+    // TODO: These fail to fire until the window is done being dragged. It would be nice if we had real time.
+    changed width => {
+        DockRootViewModelBindings.update-dock-root-width(root.width);
+    }
+    changed height => {
+        DockRootViewModelBindings.update-dock-root-height(root.height);
+    }
     background: Theme.background-primary;
     init => {
         // These may no longer be needed.

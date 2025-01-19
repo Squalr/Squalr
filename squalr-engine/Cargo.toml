@@ -6,6 +6,7 @@ edition = "2024"
 # build = "build.rs"
 
 [dependencies]
+squalr-engine-architecture = { path = "../squalr-engine-architecture" }
 squalr-engine-common = { path = "../squalr-engine-common" }
 squalr-engine-memory = { path = "../squalr-engine-memory" }
 squalr-engine-processes = { path = "../squalr-engine-processes" }

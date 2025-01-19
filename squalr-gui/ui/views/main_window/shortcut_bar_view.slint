@@ -11,111 +11,137 @@ import { ScanConstraintTypeSelector } from "../../controls/scan_constraint_selec
 import { DockFocusCatcher } from "../docking/drag_and_drop/dock_focus_catcher.slint";
 
 export component ShortcutBarView inherits Rectangle {
-    in property <length> bottom-padding: 4px;
-    height: 24px + root.bottom-padding;
-    Rectangle {
-        background: Theme.background-primary;
-        HorizontalLayout {
-            // Shortcut
-            HorizontalBox {
-                alignment: start;
-                padding-left: 4px;
-                padding-right: 0px;
-                padding-top: 0px;
-                padding-bottom: root.bottom-padding;
-                spacing: 4px;
-                select-process-button := Button {
-                    width: 36px;
-                    tooltip-text: @tr("Select Process");
-                    click-sound: "";
-                    clicked => {
-                        WindowViewModelBindings.minimize();
-                    }
-                    Image {
-                        width: 16px;
-                        height: 16px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        source: @image-url("../../images/select_process.png");
-                    }
-                }
+    property <length> bar-height: 28px;
+    property <length> bar-spacing: 4px;
+    property <length> bottom-padding: 4px;
+    property <length> flow-break-point: 800px;
+    height: (root.width < flow-break-point ? bar-height * 2 + bar-spacing : bar-height) + root.bottom-padding;
+    background: Theme.background-primary;
+    // Shortcut
+    top-bar := HorizontalBox {
+        x: 0px;
+        y: 0px;
+        alignment: start;
+        height: bar-height;
+        padding-left: 4px;
+        padding-right: 0px;
+        padding-top: 0px;
+        spacing: 4px;
+        select-process-button := Button {
+            height: bar-height;
+            width: 36px;
+            tooltip-text: @tr("Select Process");
+            click-sound: "";
+            clicked => {
+                WindowViewModelBindings.minimize();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                source: @image-url("../../images/select_process.png");
+            }
+        }
 
-                open-project-button := Button {
-                    width: 36px;
-                    tooltip-text: @tr("Open Project");
-                    click-sound: "";
-                    clicked => {
-                        WindowViewModelBindings.minimize();
-                    }
-                    Image {
-                        width: 16px;
-                        height: 16px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        source: @image-url("../../images/file_system/open_folder.png");
-                    }
-                }
+        open-project-button := Button {
+            height: bar-height;
+            width: 36px;
+            tooltip-text: @tr("Open Project");
+            click-sound: "";
+            clicked => {
+                WindowViewModelBindings.minimize();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                source: @image-url("../../images/file_system/open_folder.png");
+            }
+        }
 
-                process-quick-selector := ProcessQuickSelector { }
+        process-quick-selector := ProcessQuickSelector {
+            height: bar-height;
+        }
 
-                data-type-selector := DataTypeSelector { }
+        data-type-selector := DataTypeSelector {
+            height: bar-height;
+        }
 
-                new-scan-button := Button {
-                    width: 36px;
-                    tooltip-text: @tr("New Scan");
-                    click-sound: "";
-                    clicked => {
-                        WindowViewModelBindings.minimize();
-                    }
-                    Image {
-                        width: 16px;
-                        height: 16px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        source: @image-url("../../images/scans/scan_new.png");
-                    }
-                }
+        end-marker := Rectangle { }
+    }
 
-                collect-values-button := Button {
-                    width: 36px;
-                    tooltip-text: @tr("Collect Values");
-                    click-sound: "";
-                    clicked => {
-                        WindowViewModelBindings.minimize();
-                    }
-                    Image {
-                        width: 16px;
-                        height: 16px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        source: @image-url("../../images/scans/scan_collect_values.png");
-                    }
-                }
+    // Second bar (wrappable)
+    bottom-bar := HorizontalBox {
+        x: root.width < flow-break-point ? 0px : end-marker.x;
+        y: root.width < flow-break-point ? bar-height + bar-spacing : 0px;
+        alignment: start;
+        height: bar-height;
+        padding-left: 4px;
+        padding-right: 0px;
+        padding-top: 0px;
+        spacing: 4px;
+        new-scan-button := Button {
+            height: bar-height;
+            width: 36px;
+            tooltip-text: @tr("New Scan");
+            click-sound: "";
+            clicked => {
+                WindowViewModelBindings.minimize();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                source: @image-url("../../images/scans/scan_new.png");
+            }
+        }
 
-                scan-constraint-selector := ScanConstraintTypeSelector { }
+        collect-values-button := Button {
+            height: bar-height;
+            width: 36px;
+            tooltip-text: @tr("Collect Values");
+            click-sound: "";
+            clicked => {
+                WindowViewModelBindings.minimize();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                source: @image-url("../../images/scans/scan_collect_values.png");
+            }
+        }
 
-                scan-value := TextField {
-                    text-padding-top: 0px;
-                    text-padding-bottom: 0px;
-                    width: 192px;
-                    preview-text: "Enter a scan value...";
-                }
+        scan-constraint-selector := ScanConstraintTypeSelector {
+            height: bar-height;
+        }
 
-                start-scan-button := Button {
-                    width: 36px;
-                    tooltip-text: @tr("Start Scan");
-                    click-sound: "";
-                    clicked => {
-                        WindowViewModelBindings.minimize();
-                    }
-                    Image {
-                        width: 16px;
-                        height: 16px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        source: @image-url("../../images/navigation/right_arrow.png");
-                    }
-                }
+        scan-value := TextField {
+            height: bar-height;
+            text-padding-top: 0px;
+            text-padding-bottom: 0px;
+            width: 192px;
+            preview-text: "Enter a scan value...";
+        }
+
+        start-scan-button := Button {
+            height: bar-height;
+            width: 36px;
+            tooltip-text: @tr("Start Scan");
+            click-sound: "";
+            clicked => {
+                WindowViewModelBindings.minimize();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                source: @image-url("../../images/navigation/right_arrow.png");
             }
         }
     }
