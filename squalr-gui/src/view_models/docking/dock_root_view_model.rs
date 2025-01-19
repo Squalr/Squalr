@@ -287,6 +287,9 @@ impl DockRootViewModel {
             if let Some(node) = docking_manager.get_node_by_id_mut(&dockable_window_id) {
                 node.set_visible(true);
             }
+            docking_manager
+                .get_root_mut()
+                .select_tab_by_window_id(&dockable_window_id);
         });
     }
 
@@ -310,6 +313,12 @@ impl DockRootViewModel {
         Self::mutate_layout(&view_binding, &docking_manager, true, move |docking_manager| {
             if let Some(node) = docking_manager.get_node_by_id_mut(&dockable_window_id) {
                 node.set_visible(!node.is_visible());
+
+                if node.is_visible() {
+                    docking_manager
+                        .get_root_mut()
+                        .select_tab_by_window_id(&dockable_window_id);
+                }
             }
         });
     }

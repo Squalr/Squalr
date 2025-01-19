@@ -1,7 +1,6 @@
 import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
 
 import { Theme } from "../../theme.slint";
-import { WindowViewModelBindings } from "../../view_model_bindings.slint";
 
 import { Button } from "../../components/buttons/button.slint";
 import { TextField } from "../../components/input/text_field.slint";
@@ -9,6 +8,8 @@ import { ProcessQuickSelector } from "../process_selector/process_quick_selector
 import { DataTypeSelector } from "../../controls/data_type_selector.slint";
 import { ScanConstraintTypeSelector } from "../../controls/scan_constraint_selector.slint";
 import { DockFocusCatcher } from "../docking/drag_and_drop/dock_focus_catcher.slint";
+import { HexDecBox } from "../../components/hex_dec_box.slint";
+import { DockRootViewModelBindings, ValueCollectorViewModelBindings, ManualScanViewModelBindings } from "../../view_model_bindings.slint";
 
 export component ShortcutBarView inherits Rectangle {
     property <length> bar-height: 28px;
@@ -33,7 +34,7 @@ export component ShortcutBarView inherits Rectangle {
             tooltip-text: @tr("Select Process");
             click-sound: "";
             clicked => {
-                WindowViewModelBindings.minimize();
+                DockRootViewModelBindings.toggle-visibility(DockRootViewModelBindings.process-selector-window.identifier);
             }
             Image {
                 width: 16px;
@@ -50,7 +51,7 @@ export component ShortcutBarView inherits Rectangle {
             tooltip-text: @tr("Open Project");
             click-sound: "";
             clicked => {
-                WindowViewModelBindings.minimize();
+                // WindowViewModelBindings.minimize();
             }
             Image {
                 width: 16px;
@@ -88,7 +89,7 @@ export component ShortcutBarView inherits Rectangle {
             tooltip-text: @tr("New Scan");
             click-sound: "";
             clicked => {
-                WindowViewModelBindings.minimize();
+                ManualScanViewModelBindings.new_scan();
             }
             Image {
                 width: 16px;
@@ -105,7 +106,7 @@ export component ShortcutBarView inherits Rectangle {
             tooltip-text: @tr("Collect Values");
             click-sound: "";
             clicked => {
-                WindowViewModelBindings.minimize();
+                ValueCollectorViewModelBindings.collect_values();
             }
             Image {
                 width: 16px;
@@ -120,12 +121,12 @@ export component ShortcutBarView inherits Rectangle {
             height: bar-height;
         }
 
-        scan-value := TextField {
+        scan-value := HexDecBox {
             height: bar-height;
             text-padding-top: 0px;
             text-padding-bottom: 0px;
             width: 192px;
-            preview-text: "Enter a scan value...";
+            preview-text: @tr("Enter a scan value...");
         }
 
         start-scan-button := Button {
@@ -134,7 +135,7 @@ export component ShortcutBarView inherits Rectangle {
             tooltip-text: @tr("Start Scan");
             click-sound: "";
             clicked => {
-                WindowViewModelBindings.minimize();
+                ManualScanViewModelBindings.start_scan();
             }
             Image {
                 width: 16px;

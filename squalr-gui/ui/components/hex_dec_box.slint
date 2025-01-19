@@ -1,11 +1,11 @@
 import { LineEdit } from "std-widgets.slint";
 
-import { Theme } from "./../../theme.slint";
+import { Theme } from "../theme.slint";
 
-import { FocusTouchArea } from "./../focus_touch_area.slint";
-import { StateLayer } from "./../state_layer.slint";
+import { FocusTouchArea } from "focus_touch_area.slint";
+import { StateLayer } from "state_layer.slint";
 
-export component TextField {
+export component HexDecBox {
     in property <string> default-text;
     in property <string> preview-text;
     in property <length> text-padding-top: 4px;

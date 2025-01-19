@@ -29,6 +29,11 @@ impl DockingManager {
         &self.main_window_layout.get_root()
     }
 
+    /// Get the root node of the docking main_window_layout (mutable).
+    pub fn get_root_mut(&mut self) -> &mut DockNode {
+        self.main_window_layout.get_root_mut()
+    }
+
     /// Gets the layout handler that computes the bounds and location of each docked window (immutable).
     pub fn get_main_window_layout(&self) -> &DockLayout {
         &self.main_window_layout

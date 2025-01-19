@@ -79,9 +79,55 @@ export global OutputViewModelBindings {
     in-out property <string> output-text;
 }
 
-export global ScanViewModelBindings {
+export enum DataTypeView {
+    i8,
+    u8,
+    i16,
+    i16be,
+    u16,
+    u16be,
+    i32,
+    i32be,
+    u32,
+    u32be,
+    i64,
+    i64be,
+    u64,
+    u64be,
+    f32,
+    f32be,
+    f64,
+    f64be,
+    aob,
+    str,
+}
+
+export enum ScanConstraintTypeView {
+    changed,
+    unchanged,
+    increased,
+    decreased,
+    equal,
+    not_equal,
+    increased_by,
+    decreased_by,
+    greater_than,
+    greater_than_or_equal_to,
+    less_than,
+    less_than_or_equal_to,
+}
+
+export global ValueCollectorViewModelBindings {
+    callback collect_values();
+}
+
+export global ManualScanViewModelBindings {
+    in-out property <DataTypeView> active_data_type: i32;
+    in-out property <ScanConstraintTypeView> active_scan_type: equal;
     callback new_scan();
-    callback set_scan_constraint(int);
+    callback start_scan();
+    callback collect_values();
+    callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
 }
 
 export global MemorySettingsViewModelBindings {

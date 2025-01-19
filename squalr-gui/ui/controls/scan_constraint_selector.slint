@@ -5,12 +5,41 @@ import { Theme } from "./../theme.slint";
 import { ContextMenu } from "./../components/context_menu/context_menu.slint";
 import { Button } from "../components/buttons/button.slint";
 import { ScanConstraintButton } from "./scan_constraint_button.slint";
+import { ManualScanViewModelBindings, ScanConstraintTypeView } from "../view_model_bindings.slint";
 
 export component ScanConstraintTypeSelector inherits Rectangle {
     background: Theme.background-control;
     border-color: Theme.submenu-border;
     border-width: 1px;
     width: 36px;
+    function scan_constraint_type_source(scan_constraint_type_view: ScanConstraintTypeView) -> image {
+        if (scan_constraint_type_view == ScanConstraintTypeView.changed) {
+            return @image-url("./../images/scans/scan_changed.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.unchanged) {
+            return @image-url("./../images/scans/scan_unchanged.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.increased) {
+            return @image-url("./../images/scans/scan_increased.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.decreased) {
+            return @image-url("./../images/scans/scan_decreased.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.equal) {
+            return @image-url("./../images/scans/scan_equal.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.not-equal) {
+            return @image-url("./../images/scans/scan_not_equal.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.increased_by) {
+            return @image-url("./../images/scans/scan_increased_by_x.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.decreased-by) {
+            return @image-url("./../images/scans/scan_decreased_by_x.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.greater-than) {
+            return @image-url("./../images/scans/scan_greater_than.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.greater-than-or-equal-to) {
+            return @image-url("./../images/scans/scan_greater_than_or_equal.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.less-than) {
+            return @image-url("./../images/scans/scan_less_than.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.less-than-or-equal-to) {
+            return @image-url("./../images/scans/scan_less_than_or_equal.png");
+        }
+        return @image-url("./../images/scans/scan_equal.png");
+    }
     select-scan-constraint-button := Button {
         width: 100%;
         height: 100%;
@@ -24,7 +53,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
             height: 16px;
             horizontal-alignment: center;
             vertical-alignment: center;
-            source: @image-url("./../images/scans/scan_equal.png");
+            source: root.scan_constraint_type_source(ManualScanViewModelBindings.active_scan_type);
         }
     }
 
@@ -35,72 +64,108 @@ export component ScanConstraintTypeSelector inherits Rectangle {
             text: @tr("Changed");
             icon: @image-url("./../images/scans/scan_changed.png");
             tooltip-text: "Scan for values that have changed since the previous scan.";
+            clicked => {
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.changed;
+            }
         }
 
         constraint-unchanged := ScanConstraintButton {
             text: @tr("Unchanged");
             icon: @image-url("./../images/scans/scan_unchanged.png");
             tooltip-text: "Scan for values that have not changed since the previous scan.";
+            clicked => {
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.unchanged;
+            }
         }
 
         constraint-increased := ScanConstraintButton {
             text: @tr("Increased");
             icon: @image-url("./../images/scans/scan_increased.png");
             tooltip-text: "Scan for values that have increased since the previous scan.";
+            clicked => {
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.increased;
+            }
         }
 
         constraint-decreased := ScanConstraintButton {
             text: @tr("Decreased");
             icon: @image-url("./../images/scans/scan_decreased.png");
             tooltip-text: "Scan for values that have decreased since the previous scan.";
+            clicked => {
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.decreased;
+            }
         }
 
         constraint-equal := ScanConstraintButton {
             text: @tr("Equal");
             icon: @image-url("./../images/scans/scan_equal.png");
             tooltip-text: "Scan for values that are equal to the entered value.";
+            clicked => {
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.equal;
+            }
         }
 
         constraint-not-equal := ScanConstraintButton {
             text: @tr("Equal");
             icon: @image-url("./../images/scans/scan_not_equal.png");
             tooltip-text: "Scan for values that are not equal to the entered value.";
+            clicked => {
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.not-equal;
+            }
         }
 
         constraint-increased-by-x := ScanConstraintButton {
             text: @tr("Increased by");
             icon: @image-url("./../images/scans/scan_increased_by_x.png");
             tooltip-text: "Scan for values that have increased by the entered value.";
+            clicked => {
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.increased_by;
+            }
         }
 
         constraint-decreased-by-x := ScanConstraintButton {
             text: @tr("Decreased by");
             icon: @image-url("./../images/scans/scan_decreased_by_x.png");
             tooltip-text: "Scan for values that have decreased by the entered value.";
+            clicked => {
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.decreased_by;
+            }
         }
 
         constraint-greater-than := ScanConstraintButton {
             text: @tr("Greater Than");
             icon: @image-url("./../images/scans/scan_greater_than.png");
             tooltip-text: "Scan for values that are greater than the entered value.";
+            clicked => {
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.greater-than;
+            }
         }
 
         constraint-greater-than-or-equal := ScanConstraintButton {
             text: @tr("Greater Than or Equal to");
             icon: @image-url("./../images/scans/scan_greater_than_or_equal.png");
             tooltip-text: "Scan for values that are greater than or equal to the entered value.";
+            clicked => {
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.greater-than-or-equal-to;
+            }
         }
 
         constraint-less-than := ScanConstraintButton {
             text: @tr("Less Than");
             icon: @image-url("./../images/scans/scan_less_than.png");
             tooltip-text: "Scan for values that are less than the entered value.";
+            clicked => {
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.less-than;
+            }
         }
 
         constraint-less-than-or-equal := ScanConstraintButton {
             text: @tr("Less Than or Equal to");
             icon: @image-url("./../images/scans/scan_less_than_or_equal.png");
             tooltip-text: "Scan for values that are less than or equal to the entered value.";
+            clicked => {
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.less-than-or-equal-to;
+            }
         }
     }
 }
