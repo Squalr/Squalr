@@ -1,5 +1,3 @@
-use std::thread;
-
 use crate::DataTypeView;
 use crate::MainWindowView;
 use crate::ManualScanViewModelBindings;
@@ -13,6 +11,7 @@ use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::endian::Endian;
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
+use std::thread;
 
 pub struct ManualScanViewModel {
     _view_binding: ViewBinding<MainWindowView>,
@@ -31,7 +30,7 @@ impl ManualScanViewModel {
                 on_set_scan_constraint(scan_constraint: ScanConstraintTypeView) -> [view_binding] -> Self::on_set_scan_constraint,
             },
             ValueCollectorViewModelBindings => {
-                on_collect_values() -> [view_binding] -> Self::on_collect_values,
+                on_collect_values() -> [] -> Self::on_collect_values,
             },
         });
 
@@ -40,6 +39,7 @@ impl ManualScanViewModel {
 
     fn on_new_scan(view_binding: ViewBinding<MainWindowView>) {
         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
+            // TODO: Push this into a converter perhaps, although gets tricky with args
             let scan_filter_parameters = vec![match main_window_view
                 .global::<ManualScanViewModelBindings>()
                 .get_active_data_type()
@@ -62,8 +62,8 @@ impl ManualScanViewModel {
                 DataTypeView::F32be => ScanFilterParameters::new_with_value(None, DataType::F32(Endian::Big)),
                 DataTypeView::F64 => ScanFilterParameters::new_with_value(None, DataType::F64(Endian::Little)),
                 DataTypeView::F64be => ScanFilterParameters::new_with_value(None, DataType::F64(Endian::Big)),
-                DataTypeView::Aob => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)),
-                DataTypeView::Str => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)),
+                DataTypeView::Aob => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)), // TODO
+                DataTypeView::Str => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)), // TODO
             }];
 
             thread::spawn(move || {
@@ -88,7 +88,7 @@ impl ManualScanViewModel {
         //
     }
 
-    fn on_collect_values(view_binding: ViewBinding<MainWindowView>) {
+    fn on_collect_values() {
         let session_manager_lock = SessionManager::get_instance();
         let process_info = {
             let session_manager = session_manager_lock.read().unwrap();

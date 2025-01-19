@@ -36,7 +36,7 @@ impl HybridScanner {
 
         thread::spawn(move || {
             Self::scan_task(
-                process_info,
+                &process_info,
                 snapshot,
                 &scan_parameters_clone,
                 task_clone.clone(),
@@ -51,7 +51,7 @@ impl HybridScanner {
     }
 
     fn scan_task(
-        process_info: OpenedProcessInfo,
+        process_info: &OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         scan_parameters: &ScanParameters,
         task: Arc<TrackableTask<()>>,
@@ -80,7 +80,7 @@ impl HybridScanner {
             }
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages.
-            let _ = snapshot_region.read_all_memory(process_info.handle);
+            let _ = snapshot_region.read_all_memory(&process_info);
 
             if !snapshot_region.can_compare_using_parameters(scan_parameters) {
                 processed_region_count.fetch_add(1, Ordering::SeqCst);

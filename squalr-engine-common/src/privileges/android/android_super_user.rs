@@ -6,15 +6,22 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Once, RwLock};
 
 pub struct AndroidSuperUser {
-    pub child: Option<AndroidSuperUserProcess>,
+    /// Shell used for line-based commands (execute_command).
+    pub child_text: Option<AndroidSuperUserProcess>,
+
+    /// Shell used for binary reads (read_memory_chunk).
+    pub child_binary: Option<AndroidSuperUserProcess>,
 }
 
 impl AndroidSuperUser {
-    /// Construct a new `AndroidSuperUser`, possibly with no child if spawn failed.
+    /// Private constructor that spawns both shells.
     fn new() -> Self {
-        Self::spawn_su()
+        let child_text = Self::spawn_su_text();
+        let child_binary = Self::spawn_su_binary();
+        Self { child_text, child_binary }
     }
 
+    /// Singleton accessor
     pub fn get_instance() -> Arc<RwLock<AndroidSuperUser>> {
         static mut INSTANCE: Option<Arc<RwLock<AndroidSuperUser>>> = None;
         static INIT: Once = Once::new();
@@ -30,17 +37,15 @@ impl AndroidSuperUser {
         }
     }
 
-    /// Attempt to spawn `su`. If **any** step fails, `child` is `None`.
-    /// If successful, wraps everything in `AndroidSuperUserProcess`.
-    fn spawn_su() -> Self {
-        let child_opt = match Command::new("su")
+    /// Spawns an `su` shell for text commands (with `COMMAND_DONE` markers).
+    fn spawn_su_text() -> Option<AndroidSuperUserProcess> {
+        match Command::new("su")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            // .stderr(Stdio::piped()) // Uncomment if you need stderr
+            // .stderr(Stdio::piped()) // if needed
             .spawn()
         {
             Ok(mut child_proc) => {
-                // Try to take stdin and stdout
                 let child_stdin = child_proc.stdin.take().map(BufWriter::new);
                 let child_stdout = child_proc.stdout.take().map(BufReader::new);
 
@@ -51,81 +56,114 @@ impl AndroidSuperUser {
                         child_stdout: stdout,
                     })
                 } else {
-                    // If either is None, log the error
-                    Logger::get_instance().log(LogLevel::Error, "Failed to open stdin or stdout for `su`.", None);
+                    Logger::get_instance().log(LogLevel::Error, "Failed to open stdin/stdout for `su` (text).", None);
                     None
                 }
             }
             Err(e) => {
-                // Log the spawn failure
-                Logger::get_instance().log(LogLevel::Error, "Failed to spawn `su` command.", Some(e.to_string().as_str()));
+                Logger::get_instance().log(LogLevel::Error, "Failed to spawn `su` (text).", Some(&e.to_string()));
                 None
             }
-        };
-
-        Self { child: child_opt }
+        }
     }
 
-    /// Execute a command via the running `su` process, if it exists.
+    /// Spawns an `su` shell for *binary* reads (no line-based “COMMAND_DONE” usage).
+    fn spawn_su_binary() -> Option<AndroidSuperUserProcess> {
+        match Command::new("su")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+        {
+            Ok(mut child_proc) => {
+                let child_stdin = child_proc.stdin.take().map(BufWriter::new);
+                let child_stdout = child_proc.stdout.take().map(BufReader::new);
+
+                if let (Some(stdin), Some(stdout)) = (child_stdin, child_stdout) {
+                    Some(AndroidSuperUserProcess {
+                        child_process: child_proc,
+                        child_stdin: stdin,
+                        child_stdout: stdout,
+                    })
+                } else {
+                    Logger::get_instance().log(LogLevel::Error, "Failed to open stdin/stdout for `su` (binary).", None);
+                    None
+                }
+            }
+            Err(e) => {
+                Logger::get_instance().log(LogLevel::Error, "Failed to spawn `su` (binary).", Some(&e.to_string()));
+                None
+            }
+        }
+    }
+
+    /// Execute a **text command** in the text-based shell.
+    /// Uses `"COMMAND_DONE"` sentinel line to mark completion.
     pub fn execute_command(
         &mut self,
         command: &str,
     ) -> std::io::Result<Vec<String>> {
-        // Make sure we actually have a running process
-        let child = match self.child.as_mut() {
-            Some(child) => child,
-            None => {
-                Logger::get_instance().log(LogLevel::Error, "No `su` process running; cannot execute command.", None);
-                return Err(std::io::Error::new(std::io::ErrorKind::NotConnected, "No su process running"));
-            }
-        };
+        // Ensure the shell is alive
+        self.ensure_text_shell_alive()?;
 
-        // Send the command
-        writeln!(child.child_stdin, "{}", command)?;
-        writeln!(child.child_stdin, "echo COMMAND_DONE")?;
-        child.child_stdin.flush()?;
+        let child_text = self
+            .child_text
+            .as_mut()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotConnected, "Text shell not available"))?;
 
-        // Now read lines until we see COMMAND_DONE
+        // Write the command
+        writeln!(child_text.child_stdin, "{}", command)?;
+        // Write our sentinel
+        writeln!(child_text.child_stdin, "echo COMMAND_DONE")?;
+        child_text.child_stdin.flush()?;
+
+        // Read lines until we see the sentinel
         let mut output_lines = Vec::new();
         loop {
             let mut buf = String::new();
-            let bytes_read = child.child_stdout.read_line(&mut buf)?;
+            let bytes_read = child_text.child_stdout.read_line(&mut buf)?;
             if bytes_read == 0 {
-                // `su` closed, or something went wrong
+                // EOF => shell is gone
                 break;
             }
             if buf.trim() == "COMMAND_DONE" {
-                // We’ve reached the marker line, so stop reading
                 break;
             }
             output_lines.push(buf);
         }
-
         Ok(output_lines)
     }
 
-    /// Check if `su` is still alive, returning false if we have no child.
-    pub fn is_alive(&mut self) -> bool {
-        match self.child.as_mut() {
-            Some(child_proc) => match child_proc.child_process.try_wait() {
-                // None => child is still running
-                Ok(None) => true,
-                // Some(status) => child has exited
-                Ok(Some(_status)) => false,
-                // Error checking => treat as dead
-                Err(_) => false,
-            },
-            None => false,
-        }
-    }
-
-    /// If `su` is dead or wasn't started, re-spawn it.
-    pub fn ensure_alive(&mut self) -> std::io::Result<()> {
-        if !self.is_alive() {
-            Logger::get_instance().log(LogLevel::Error, "Re-spawning `su` (previous instance dead).", None);
-            let new_self = Self::spawn_su();
-            self.child = new_self.child;
+    /// Check if the text shell is alive, else re-spawn it.
+    pub fn ensure_text_shell_alive(&mut self) -> std::io::Result<()> {
+        if !Self::is_child_alive(self.child_text.as_mut()) {
+            Logger::get_instance().log(LogLevel::Error, "Re-spawning text shell (previous instance dead).", None);
+            self.child_text = Self::spawn_su_text();
         }
         Ok(())
+    }
+
+    /// Check if the binary shell is alive, else re-spawn it.
+    pub fn ensure_binary_shell_alive(&mut self) -> std::io::Result<()> {
+        if !Self::is_child_alive(self.child_binary.as_mut()) {
+            Logger::get_instance().log(LogLevel::Error, "Re-spawning binary shell (previous instance dead).", None);
+            self.child_binary = Self::spawn_su_binary();
+        }
+        Ok(())
+    }
+
+    /// Generic function to check if a given child is still alive.
+    fn is_child_alive(child_opt: Option<&mut AndroidSuperUserProcess>) -> bool {
+        if let Some(child) = child_opt {
+            match child.child_process.try_wait() {
+                // `Ok(None)` => still running
+                Ok(None) => true,
+                // `Ok(Some(_status))` => exited
+                Ok(Some(_)) => false,
+                // Error => treat as dead
+                Err(_) => false,
+            }
+        } else {
+            false
+        }
     }
 }

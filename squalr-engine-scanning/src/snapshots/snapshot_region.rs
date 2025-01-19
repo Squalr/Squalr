@@ -4,9 +4,10 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use dashmap::DashMap;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::values::data_type::DataType;
-use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::memory_reader::MemoryReader;
+use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
+use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -42,7 +43,7 @@ impl SnapshotRegion {
 
     pub fn read_all_memory(
         &mut self,
-        process_handle: u64,
+        process_info: &OpenedProcessInfo,
     ) -> Result<(), String> {
         self.resize_to_filters();
 
@@ -56,7 +57,7 @@ impl SnapshotRegion {
 
         if self.page_boundaries.is_empty() {
             // If this snapshot is part of a standalone memory page, just read the regions as normal.
-            MemoryReader::get_instance().read_bytes(process_handle, self.get_base_address(), &mut self.current_values);
+            MemoryReader::get_instance().read_bytes(&process_info, self.get_base_address(), &mut self.current_values);
         } else {
             // Otherwise, this snapshot is a merging of two or more OS regions, and special care is taken to separate the read calls.
             // This prevents any issues where 1 page deallocates.
@@ -70,7 +71,7 @@ impl SnapshotRegion {
                 let read_size = (next_boundary_address - boundary_address) as usize;
                 let offset = (boundary_address - self.get_base_address()) as usize;
                 let current_values_slice = &mut self.current_values[offset..offset + read_size];
-                MemoryReader::get_instance().read_bytes(process_handle, boundary_address, current_values_slice);
+                MemoryReader::get_instance().read_bytes(&process_info, boundary_address, current_values_slice);
             }
         }
 
@@ -79,7 +80,7 @@ impl SnapshotRegion {
 
     pub fn read_all_memory_parallel(
         &mut self,
-        process_handle: u64,
+        process_info: &OpenedProcessInfo,
     ) -> Result<(), String> {
         self.resize_to_filters();
 
@@ -87,7 +88,7 @@ impl SnapshotRegion {
         let chunk_size = 1024 * 1024 * 4; // 4MB
 
         if region_size <= chunk_size {
-            return self.read_all_memory(process_handle);
+            return self.read_all_memory(&process_info);
         }
 
         std::mem::swap(&mut self.current_values, &mut self.previous_values);
@@ -103,7 +104,7 @@ impl SnapshotRegion {
 
             chunks.par_iter_mut().enumerate().for_each(|(index, chunk)| {
                 let offset = index * chunk_size;
-                MemoryReader::get_instance().read_bytes(process_handle, base_address + offset as u64, chunk);
+                MemoryReader::get_instance().read_bytes(process_info, base_address + offset as u64, chunk);
             });
         } else {
             for (boundary_index, &boundary_address) in self.page_boundaries.iter().enumerate() {
@@ -118,7 +119,7 @@ impl SnapshotRegion {
                 let current_values_slice = &mut self.current_values[offset..offset + read_size];
 
                 if read_size <= chunk_size {
-                    MemoryReader::get_instance().read_bytes(process_handle, boundary_address, current_values_slice);
+                    MemoryReader::get_instance().read_bytes(process_info, boundary_address, current_values_slice);
                 } else {
                     // Parallel processing if the chunk size exceeds the defined optimal chunk size
                     let mut chunks: Vec<_> = current_values_slice.chunks_mut(chunk_size).collect();
@@ -126,7 +127,7 @@ impl SnapshotRegion {
 
                     chunks.par_iter_mut().enumerate().for_each(|(index, chunk)| {
                         let offset = index * chunk_size;
-                        MemoryReader::get_instance().read_bytes(process_handle, base_address + offset as u64, chunk);
+                        MemoryReader::get_instance().read_bytes(process_info, base_address + offset as u64, chunk);
                     });
                 }
             }

@@ -1,5 +1,6 @@
 use crate::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
+use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::ffi::c_void;
 use std::mem;
 use windows_sys::Win32::Foundation::GetLastError;
@@ -43,13 +44,13 @@ impl WindowsMemoryReaderNt {
 impl IMemoryReader for WindowsMemoryReaderNt {
     fn read(
         &self,
-        process_handle: u64,
+        process_info: &OpenedProcessInfo,
         address: u64,
         dynamic_struct: &mut DynamicStruct,
     ) -> bool {
         let mut buffer = vec![0u8; dynamic_struct.get_size_in_bytes() as usize];
 
-        let success = self.read_bytes(process_handle, address, &mut buffer);
+        let success = self.read_bytes(process_info, address, &mut buffer);
         if success {
             dynamic_struct.copy_from_bytes(&buffer);
         }
@@ -59,7 +60,7 @@ impl IMemoryReader for WindowsMemoryReaderNt {
 
     fn read_bytes(
         &self,
-        process_handle: u64,
+        process_info: &OpenedProcessInfo,
         address: u64,
         values: &mut [u8],
     ) -> bool {
@@ -68,7 +69,7 @@ impl IMemoryReader for WindowsMemoryReaderNt {
             let mut bytes_read = 0;
 
             let result = (self.nt_read_virtual_memory)(
-                process_handle as isize,
+                process_info.handle as isize,
                 address as *const c_void,
                 values.as_mut_ptr() as *mut c_void,
                 size,

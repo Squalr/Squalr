@@ -7,9 +7,9 @@ use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Instant;
 
 pub struct ValueCollector;
@@ -54,7 +54,7 @@ impl ValueCollector {
         cancellation_token: Arc<AtomicBool>,
     ) {
         if with_logging {
-            Logger::get_instance().log(LogLevel::Info, "Reading values from memory...", None);
+            Logger::get_instance().log(LogLevel::Info, &format!("Reading values from memory (process {})...", process_info.pid), None);
         }
 
         let data_types_and_alignments = {
@@ -73,7 +73,7 @@ impl ValueCollector {
             }
 
             // Attempt to read new (or initial) memory values. Ignore failures, as these are generally just deallocated pages.
-            let _ = snapshot_region.read_all_memory(process_info.handle);
+            let _ = snapshot_region.read_all_memory(&process_info);
 
             let region_scan_results_map = snapshot_region.get_region_scan_results();
 

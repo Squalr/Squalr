@@ -16,7 +16,7 @@ impl WindowsMemoryReader {
 impl IMemoryReader for WindowsMemoryReader {
     fn read(
         &self,
-        process_handle: u64,
+        process_info: &OpenedProcessInfo,
         address: u64,
         dynamic_struct: &mut DynamicStruct,
     ) -> bool {
@@ -26,7 +26,7 @@ impl IMemoryReader for WindowsMemoryReader {
             let mut bytes_read = 0;
 
             let result = ReadProcessMemory(
-                process_handle as *mut c_void,
+                process_info.handle as *mut c_void,
                 address as *const c_void,
                 buffer.as_mut_ptr() as *mut c_void,
                 size,
@@ -41,7 +41,7 @@ impl IMemoryReader for WindowsMemoryReader {
 
     fn read_bytes(
         &self,
-        process_handle: u64,
+        process_info: &OpenedProcessInfo,
         address: u64,
         values: &mut [u8],
     ) -> bool {
@@ -50,7 +50,7 @@ impl IMemoryReader for WindowsMemoryReader {
             let mut bytes_read = 0;
 
             let result = ReadProcessMemory(
-                process_handle as *mut c_void,
+                process_info.handle as *mut c_void,
                 address as *const c_void,
                 values.as_mut_ptr() as *mut c_void,
                 size,
