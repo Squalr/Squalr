@@ -1,5 +1,5 @@
 use crate::command_handlers::process::process_command::ProcessCommand;
-use squalr_engine::session_manager::SessionManager;
+use crate::session_manager::SessionManager;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;

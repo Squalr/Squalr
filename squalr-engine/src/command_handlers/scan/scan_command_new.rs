@@ -1,5 +1,5 @@
 use crate::command_handlers::scan::ScanCommand;
-use squalr_engine::session_manager::SessionManager;
+use crate::session_manager::SessionManager;
 use squalr_engine_common::values::{data_type::DataType, endian::Endian};
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 

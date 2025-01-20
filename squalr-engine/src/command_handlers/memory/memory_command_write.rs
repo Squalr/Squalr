@@ -1,10 +1,10 @@
 use crate::command_handlers::memory::memory_command::MemoryCommand;
-use squalr_engine::session_manager::SessionManager;
+use crate::session_manager::SessionManager;
 use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
 use squalr_engine_memory::memory_writer::MemoryWriter;
+use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
 
 pub fn handle_memory_write(cmd: &mut MemoryCommand) {
     if let MemoryCommand::Write { address, value } = cmd {

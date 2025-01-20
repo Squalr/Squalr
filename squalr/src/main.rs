@@ -14,7 +14,7 @@ pub fn main() {
     }
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
-    let main_window_view = MainWindowViewModel::new();
+    let _main_window_view = MainWindowViewModel::new();
 
     if let Ok(session_manager) = SessionManager::get_instance().read() {
         session_manager.initialize();

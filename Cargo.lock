@@ -3734,11 +3734,6 @@ dependencies = [
 name = "squalr"
 version = "0.1.0"
 dependencies = [
- "futures",
- "log",
- "rayon",
- "serde",
- "serde_json",
  "slint",
  "slint-mvvm",
  "slint-mvvm-macros",
@@ -3752,8 +3747,6 @@ dependencies = [
  "squalr-engine-scanning",
  "squalr-engine-scripting",
  "squalr-gui",
- "structopt",
- "sysinfo 0.31.2",
  "winresource",
 ]
 
@@ -3793,16 +3786,8 @@ dependencies = [
  "serde_json",
  "shlex",
  "squalr-engine",
- "squalr-engine-architecture",
  "squalr-engine-common",
- "squalr-engine-debuggers",
- "squalr-engine-memory",
- "squalr-engine-processes",
- "squalr-engine-projects",
- "squalr-engine-scanning",
- "squalr-engine-scripting",
  "structopt",
- "sysinfo 0.31.2",
 ]
 
 [[package]]
@@ -3811,9 +3796,13 @@ version = "0.1.0"
 dependencies = [
  "squalr-engine-architecture",
  "squalr-engine-common",
+ "squalr-engine-debuggers",
  "squalr-engine-memory",
  "squalr-engine-processes",
  "squalr-engine-scanning",
+ "squalr-engine-scripting",
+ "structopt",
+ "sysinfo 0.31.2",
 ]
 
 [[package]]
@@ -3839,7 +3828,6 @@ dependencies = [
 name = "squalr-engine-debuggers"
 version = "0.1.0"
 dependencies = [
- "squalr-engine",
  "squalr-engine-architecture",
  "squalr-engine-common",
  "squalr-engine-memory",

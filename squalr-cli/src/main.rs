@@ -1,13 +1,8 @@
-mod cli;
-use cli::Cli;
 mod cli_log_listener;
-mod command;
-mod command_handlers;
 
 use cli_log_listener::CliLogListener;
-use command_handlers::handle_commands;
 use shlex;
-use squalr_engine_architecture::vectors::vectors;
+use squalr_engine::{cli::Cli, command_handlers::handle_commands, session_manager::SessionManager};
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use std::io::{self, Write};
@@ -18,8 +13,12 @@ fn main() {
     let cli_log_listener = CliLogListener::new();
 
     Logger::get_instance().subscribe(cli_log_listener);
-    Logger::get_instance().log(LogLevel::Info, "Squalr started", None);
-    vectors::log_vector_architecture();
+
+    if let Ok(session_manager) = SessionManager::get_instance().read() {
+        session_manager.initialize();
+    } else {
+        Logger::get_instance().log(LogLevel::Error, "Fatal error initializing session manager.", None);
+    }
 
     let mut stdout = io::stdout();
     let stdin = io::stdin();
@@ -48,7 +47,7 @@ fn main() {
         }
 
         // Little bit of a hack, but our command system seems to require the first command to be typed twice so just insert it.
-        // We could structopt(flatten), our commands to avoid this, but then this creates even stranger command conflict issues.
+        // We could structopt(flatten) our commands to avoid this, but then this creates even stranger command conflict issues.
         args.insert(0, args[0].clone());
 
         let mut cli = match Cli::from_iter_safe(&args) {
