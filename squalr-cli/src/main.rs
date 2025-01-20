@@ -1,63 +1,18 @@
-mod cli_log_listener;
+mod logging;
+mod runtime;
 
-use cli_log_listener::CliLogListener;
-use shlex;
-use squalr_engine::{cli::Cli, command_handlers::handle_commands, session_manager::SessionManager};
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
-use std::io::{self, Write};
-use structopt::StructOpt;
+use crate::runtime::runtime::Runtime;
+use std::io;
 
-fn main() {
-    // Initialize cli log listener to route log output to command line
-    let cli_log_listener = CliLogListener::new();
+fn main() -> io::Result<()> {
+    let args: Vec<String> = std::env::args().collect();
 
-    Logger::get_instance().subscribe(cli_log_listener);
+    // Create a runtime, which will either be an interactive cli or an ipc shell controlled by a parent process based on args.
+    let mut runtime = Runtime::new(args);
 
-    if let Ok(session_manager) = SessionManager::get_instance().read() {
-        session_manager.initialize();
-    } else {
-        Logger::get_instance().log(LogLevel::Error, "Fatal error initializing session manager.", None);
-    }
+    // Run the cli or ipc loop.
+    let result = runtime.run();
 
-    let mut stdout = io::stdout();
-    let stdin = io::stdin();
-
-    loop {
-        stdout.flush().unwrap();
-
-        let mut input = String::new();
-        stdin.read_line(&mut input).unwrap();
-        let input = input.trim();
-
-        if input.eq_ignore_ascii_case("exit") || input.eq_ignore_ascii_case("close") || input.eq_ignore_ascii_case("quit") {
-            break;
-        }
-
-        let mut args = match shlex::split(input) {
-            Some(args) => args,
-            None => {
-                Logger::get_instance().log(LogLevel::Error, "Error parsing input", None);
-                continue;
-            }
-        };
-
-        if args.is_empty() {
-            continue;
-        }
-
-        // Little bit of a hack, but our command system seems to require the first command to be typed twice so just insert it.
-        // We could structopt(flatten) our commands to avoid this, but then this creates even stranger command conflict issues.
-        args.insert(0, args[0].clone());
-
-        let mut cli = match Cli::from_iter_safe(&args) {
-            Ok(cli) => cli,
-            Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("{}", e), None);
-                continue;
-            }
-        };
-
-        handle_commands(&mut cli.command);
-    }
+    runtime.shutdown();
+    result
 }

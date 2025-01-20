@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::results::scan_result::ScanResult;
 use crate::results::snapshot_scan_results::SnapshotScanResults;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
@@ -12,6 +10,7 @@ use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::page_retrieval_mode::PageRetrievalMode;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct Snapshot {
