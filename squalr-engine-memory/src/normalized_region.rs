@@ -5,7 +5,6 @@ use std::ops::Add;
 
 /// Defines a generic range of addresses, with no extra information.
 /// This is the base type for many more specialized regions.
-#[derive(Debug)]
 pub struct NormalizedRegion {
     base_address: u64,
     region_size: u64,

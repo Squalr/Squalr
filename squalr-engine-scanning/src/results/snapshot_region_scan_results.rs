@@ -10,7 +10,6 @@ use squalr_engine_memory::memory_alignment::MemoryAlignment;
 /// one giant list would cost too much scan time, so it's better to keep it as a list of lists.
 pub type SnapshotFilterCollection = Vec<Vec<SnapshotRegionFilter>>;
 
-#[derive(Debug)]
 pub struct SnapshotRegionScanResults {
     // These should be combined into a single data structure
     scan_result_lookup_table: ScanResultsIndexMap,

@@ -10,6 +10,7 @@ pub struct IpcRuntimeMode {
     running: bool,
 }
 
+/// Implements an inter-process communication runtime mode that listens for remote commands to control the engine.
 impl IpcRuntimeMode {
     pub fn new() -> Self {
         let (tx, rx) = channel();

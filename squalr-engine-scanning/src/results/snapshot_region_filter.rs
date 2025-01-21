@@ -4,7 +4,6 @@ use std::cmp::max;
 
 /// Defines a range of filtered memory within a snapshot region. These filters are created by
 /// scans to narrow down on the desired addresses.
-#[derive(Debug)]
 pub struct SnapshotRegionFilter {
     filter_range: NormalizedRegion,
 }

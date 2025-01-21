@@ -12,7 +12,6 @@ use squalr_engine_memory::memory_queryer::page_retrieval_mode::PageRetrievalMode
 use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::sync::Arc;
 
-#[derive(Debug)]
 pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,
     scan_results_by_data_type: Arc<DashMap<DataType, SnapshotScanResults>>,

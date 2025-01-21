@@ -11,6 +11,7 @@ pub struct CliRuntimeMode {
     stdout: io::Stdout,
 }
 
+/// Implements a command line runtime mode that listens for text input commands to control the engine.
 impl CliRuntimeMode {
     pub fn new() -> Self {
         Self { stdout: io::stdout() }

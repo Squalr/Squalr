@@ -10,7 +10,6 @@ use squalr_engine_memory::normalized_region::NormalizedRegion;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::sync::Arc;
 
-#[derive(Debug)]
 pub struct SnapshotRegion {
     normalized_region: NormalizedRegion,
     current_values: Vec<u8>,
