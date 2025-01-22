@@ -1,4 +1,4 @@
-use crate::command_handlers::scan::ScanCommand;
+use crate::commands::command_handlers::scan::ScanCommand;
 use crate::squalr_engine::SqualrEngine;
 use squalr_engine_common::values::{data_type::DataType, endian::Endian};
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;

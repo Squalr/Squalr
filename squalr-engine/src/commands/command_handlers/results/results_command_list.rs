@@ -1,4 +1,4 @@
-use crate::command_handlers::results::results_command::ResultsCommand;
+use crate::commands::command_handlers::results::results_command::ResultsCommand;
 use crate::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;

@@ -1,4 +1,4 @@
-use crate::command_handlers::memory::memory_command::MemoryCommand;
+use crate::commands::command_handlers::memory::memory_command::MemoryCommand;
 use crate::squalr_engine::SqualrEngine;
 use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 use squalr_engine_common::logging::log_level::LogLevel;

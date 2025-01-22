@@ -1,19 +1,34 @@
-use crate::command_handlers::memory;
-use crate::command_handlers::process;
-use crate::command_handlers::project;
-use crate::command_handlers::results;
-use crate::command_handlers::scan;
-use crate::command_handlers::settings;
-use crate::engine_command::EngineCommand;
+use crate::commands::command_handlers::memory;
+use crate::commands::command_handlers::process;
+use crate::commands::command_handlers::project;
+use crate::commands::command_handlers::results;
+use crate::commands::command_handlers::scan;
+use crate::commands::command_handlers::settings;
+use crate::commands::engine_command::EngineCommand;
 use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::{process_info::OpenedProcessInfo, process_query::process_queryer::ProcessQuery};
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
+use std::io;
+use std::process::Child;
+use std::process::Command;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Once, RwLock};
+use std::thread;
 
 pub struct SqualrEngine {
+    /// The process to which Squalr is attached.
     opened_process: RwLock<Option<OpenedProcessInfo>>,
+
+    /// The current snapshot of process memory, which may contain previous and current scan results.
     snapshot: Arc<RwLock<Snapshot>>,
+
+    /// Whether Squalr is in inter-process communication mode. This is necessary on platforms like Android,
+    /// where the GUI app is unprivileged, and needs to spawn a root access client to do the heavy lifting.
+    ipc_mode: AtomicBool,
+
+    /// The (optional) spawned child process with elevated privileges.
+    ipc_server: Arc<RwLock<Option<Child>>>,
 }
 
 impl SqualrEngine {
@@ -21,6 +36,8 @@ impl SqualrEngine {
         SqualrEngine {
             opened_process: RwLock::new(None),
             snapshot: Arc::new(RwLock::new(Snapshot::new(vec![]))),
+            ipc_mode: AtomicBool::new(false),
+            ipc_server: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -39,10 +56,31 @@ impl SqualrEngine {
     }
 
     pub fn initialize(ipc_mode: bool) {
+        Self::get_instance()
+            .ipc_mode
+            .store(ipc_mode, std::sync::atomic::Ordering::Relaxed);
+
         Logger::get_instance().log(LogLevel::Info, "Squalr started", None);
         vectors::log_vector_architecture();
+
         if let Err(err) = ProcessQuery::start_monitoring() {
             Logger::get_instance().log(LogLevel::Error, &format!("Failed to monitor system processes: {}", err), None);
+        }
+
+        if ipc_mode {
+            Logger::get_instance().log(LogLevel::Info, &"Spawning squalr-cli privileged shell...", None);
+
+            thread::spawn(|| match Self::spawn_squalr_cli_as_root() {
+                Ok(child) => {
+                    Logger::get_instance().log(LogLevel::Info, &"Spawned squalr-cli as root.", None);
+                    if let Ok(mut ipc_server) = SqualrEngine::get_instance().ipc_server.write() {
+                        *ipc_server = Some(child);
+                    }
+                }
+                Err(err) => {
+                    Logger::get_instance().log(LogLevel::Info, &format!("Failed to spawn squalr-cli as root: {}", err), None);
+                }
+            });
         }
     }
 
@@ -89,5 +127,25 @@ impl SqualrEngine {
     pub fn get_snapshot() -> Arc<RwLock<Snapshot>> {
         let instance = Self::get_instance();
         instance.snapshot.clone()
+    }
+
+    #[cfg(target_os = "android")]
+    fn spawn_squalr_cli_as_root() -> io::Result<Child> {
+        Command::new("su")
+            .arg("-c")
+            .arg("squalr-cli --ipc-mode")
+            .spawn()
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    fn spawn_squalr_cli_as_root() -> io::Result<Child> {
+        Command::new("sudo").arg("squalr-cli").arg("--ipc-mode").spawn()
+    }
+
+    #[cfg(windows)]
+    fn spawn_squalr_cli_as_root() -> io::Result<Child> {
+        // No actual privilege escallation for windows -- this feature is not supposed to be used on windows at all.
+        // So, just spawn it normally for the rare occasion that we are testing this feature on windows.
+        Command::new("squalr-cli").arg("--ipc-mode").spawn()
     }
 }

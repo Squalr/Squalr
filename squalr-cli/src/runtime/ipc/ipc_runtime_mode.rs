@@ -1,3 +1,8 @@
+use squalr_engine::commands::command_handlers::memory::MemoryCommand;
+use squalr_engine::commands::engine_command::EngineCommand;
+use squalr_engine::squalr_engine::SqualrEngine;
+use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
+
 use crate::runtime::runtime_mode::RuntimeMode;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::{Receiver, Sender};
@@ -5,7 +10,7 @@ use std::thread;
 
 pub struct IpcRuntimeMode {
     receiver: Receiver<String>,
-    _sender: Sender<String>, // Kept for future use
+    _sender: Sender<String>,
     running: bool,
 }
 
@@ -26,9 +31,13 @@ impl RuntimeMode for IpcRuntimeMode {
         while self.running {
             match self.receiver.try_recv() {
                 Ok(command) => {
-                    // Handle IPC command
-                    println!("Received IPC command: {}", command);
-                    // TODO: Implement actual IPC command handling
+                    // TODO: Get the command from IPC channel
+                    let mut command = EngineCommand::Memory(MemoryCommand::Read {
+                        address: 0,
+                        value: DynamicStruct::new(),
+                    });
+
+                    SqualrEngine::dispatch_command(&mut command);
                 }
                 Err(_) => {
                     thread::sleep(std::time::Duration::from_millis(100));

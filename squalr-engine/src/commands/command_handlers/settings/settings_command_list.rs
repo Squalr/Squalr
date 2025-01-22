@@ -1,4 +1,4 @@
-use crate::command_handlers::settings::settings_command::SettingsCommand;
+use crate::commands::command_handlers::settings::settings_command::SettingsCommand;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_memory::memory_settings::MemorySettings;
 use squalr_engine_scanning::scan_settings::ScanSettings;
