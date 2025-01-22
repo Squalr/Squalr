@@ -1,10 +1,11 @@
 use crate::dynamic_struct::field_value::FieldValue;
 use crate::dynamic_struct::to_bytes::ToBytes;
 use crate::values::data_value::DataValue;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DynamicStruct {
     fields: HashMap<String, FieldValue>,
 }

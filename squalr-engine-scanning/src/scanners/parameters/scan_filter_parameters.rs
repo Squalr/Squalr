@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::fmt;
@@ -6,7 +7,7 @@ use std::str::FromStr;
 
 /// Defines a set of parameters for scan filters, which can be considered as "windows" into a snapshot that
 /// are used to aggregate scan results for a given data type and alignment.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanFilterParameters {
     alignment: Option<MemoryAlignment>,
     data_type: DataType,

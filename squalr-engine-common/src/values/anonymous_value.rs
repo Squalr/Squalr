@@ -1,8 +1,9 @@
 use crate::values::data_type::DataType;
 use crate::values::data_value::DataValue;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AnonymousValue {
     value_str: String,
 }

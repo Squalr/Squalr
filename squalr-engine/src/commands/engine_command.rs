@@ -4,9 +4,10 @@ use crate::commands::command_handlers::project::ProjectCommand;
 use crate::commands::command_handlers::results::results_command::ResultsCommand;
 use crate::commands::command_handlers::scan::ScanCommand;
 use crate::commands::command_handlers::settings::SettingsCommand;
+use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
+#[derive(StructOpt, Debug, Serialize, Deserialize)]
 pub enum EngineCommand {
     #[structopt(alias = "mem", alias = "m")]
     Memory(MemoryCommand),

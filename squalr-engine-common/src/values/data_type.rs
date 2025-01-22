@@ -1,9 +1,10 @@
 use crate::values::data_value::DataValue;
 use crate::values::endian::Endian;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum DataType {
     U8(),
     U16(Endian),

@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use squalr_engine_common::values::data_type::DataType;
 use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
+#[derive(StructOpt, Debug, Serialize, Deserialize)]
 pub enum ResultsCommand {
     /// Collect values and scan in the same parallel thread pool.
     List {

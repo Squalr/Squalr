@@ -13,6 +13,9 @@ squalr-engine-memory = { path = "../squalr-engine-memory" }
 squalr-engine-processes = { path = "../squalr-engine-processes" }
 squalr-engine-scanning = { path = "../squalr-engine-scanning" }
 squalr-engine-scripting = { path = "../squalr-engine-scripting" }
+bincode = ">=1.3.3"
+interprocess = ">=2.2.2"
+serde = ">=1.0.217"
 structopt = ">=0.3"
 sysinfo = ">=0.30"
 

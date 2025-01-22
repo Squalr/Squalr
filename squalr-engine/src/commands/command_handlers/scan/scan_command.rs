@@ -1,9 +1,10 @@
+use serde::{Deserialize, Serialize};
 use squalr_engine_common::values::anonymous_value::AnonymousValue;
 use squalr_engine_scanning::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
+#[derive(StructOpt, Debug, Serialize, Deserialize)]
 pub enum ScanCommand {
     /// Collect values for the current scan if one exist, otherwise collect initial values.
     Collect,

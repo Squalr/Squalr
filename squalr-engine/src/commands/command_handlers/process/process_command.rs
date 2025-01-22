@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
+#[derive(StructOpt, Debug, Serialize, Deserialize)]
 pub enum ProcessCommand {
     Open {
         #[structopt(short = "p", long)]
