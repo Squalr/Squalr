@@ -1,18 +1,20 @@
 mod logging;
 mod runtime;
 
+use crate::logging::cli_log_listener::CliLogListener;
 use crate::runtime::runtime::Runtime;
-use std::io;
+use squalr_engine::squalr_engine::SqualrEngine;
+use squalr_engine_common::logging::logger::Logger;
 
-fn main() -> io::Result<()> {
-    let args: Vec<String> = std::env::args().collect();
+fn main() {
+    // Hook into engine logging for the cli to display.
+    let cli_log_listener = CliLogListener::new();
+    Logger::get_instance().subscribe(cli_log_listener);
 
-    // Create a runtime, which will either be an interactive cli or an ipc shell controlled by a parent process based on args.
-    let mut runtime = Runtime::new(args);
+    SqualrEngine::initialize(false);
 
-    // Run the cli or ipc loop.
-    let result = runtime.run();
+    let mut runtime = Runtime::new(std::env::args().collect());
 
+    runtime.run_loop();
     runtime.shutdown();
-    result
 }

@@ -6,7 +6,7 @@ use crate::ValueCollectorViewModelBindings;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
-use squalr_engine::session_manager::SessionManager;
+use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::endian::Endian;
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
@@ -67,15 +67,8 @@ impl ManualScanViewModel {
             }];
 
             thread::spawn(move || {
-                let session_manager_lock = SessionManager::get_instance();
-                let process_info = {
-                    let session_manager = session_manager_lock.read().unwrap();
-                    session_manager.get_opened_process().cloned()
-                };
-
-                if let Some(process_info) = process_info {
-                    let session_manager = session_manager_lock.write().unwrap();
-                    let snapshot = session_manager.get_snapshot();
+                if let Some(process_info) = SqualrEngine::get_opened_process() {
+                    let snapshot = SqualrEngine::get_snapshot();
                     let mut snapshot = snapshot.write().unwrap();
 
                     snapshot.new_scan(&process_info, scan_filter_parameters);
@@ -89,15 +82,8 @@ impl ManualScanViewModel {
     }
 
     fn on_collect_values() {
-        let session_manager_lock = SessionManager::get_instance();
-        let process_info = {
-            let session_manager = session_manager_lock.read().unwrap();
-            session_manager.get_opened_process().cloned()
-        };
-
-        if let Some(process_info) = process_info {
-            let session_manager = session_manager_lock.write().unwrap();
-            let snapshot = session_manager.get_snapshot();
+        if let Some(process_info) = SqualrEngine::get_opened_process() {
+            let snapshot = SqualrEngine::get_snapshot();
             let _task = ValueCollector::collect_values(process_info.clone(), snapshot, None, true);
         }
     }

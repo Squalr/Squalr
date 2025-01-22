@@ -1,5 +1,5 @@
 use crate::command_handlers::scan::ScanCommand;
-use crate::session_manager::SessionManager;
+use crate::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_scanning::scanners::hybrid_scanner::HybridScanner;
@@ -8,15 +8,8 @@ use std::thread;
 
 pub fn handle_hybrid_scan_command(cmd: &mut ScanCommand) {
     if let ScanCommand::Hybrid { scan_value, compare_type } = cmd {
-        let session_manager_lock = SessionManager::get_instance();
-        let process_info = {
-            let session_manager = session_manager_lock.read().unwrap();
-            session_manager.get_opened_process().cloned()
-        };
-
-        if let Some(process_info) = process_info {
-            let session_manager = session_manager_lock.write().unwrap();
-            let snapshot = session_manager.get_snapshot();
+        if let Some(process_info) = SqualrEngine::get_opened_process() {
+            let snapshot = SqualrEngine::get_snapshot();
             let scan_parameters = ScanParameters::new_with_value(compare_type.to_owned(), scan_value.to_owned());
 
             // Perform the hybrid scan which simultaneously collects and scans memory.

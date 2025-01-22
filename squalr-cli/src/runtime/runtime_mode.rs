@@ -1,6 +1,4 @@
-use std::io;
-
 pub trait RuntimeMode {
-    fn run(&mut self) -> io::Result<()>;
+    fn run_loop(&mut self);
     fn shutdown(&mut self);
 }

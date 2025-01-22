@@ -1,5 +1,4 @@
 use crate::runtime::runtime_mode::RuntimeMode;
-use std::io;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
@@ -23,7 +22,7 @@ impl IpcRuntimeMode {
 }
 
 impl RuntimeMode for IpcRuntimeMode {
-    fn run(&mut self) -> io::Result<()> {
+    fn run_loop(&mut self) {
         while self.running {
             match self.receiver.try_recv() {
                 Ok(command) => {
@@ -36,7 +35,6 @@ impl RuntimeMode for IpcRuntimeMode {
                 }
             }
         }
-        Ok(())
     }
 
     fn shutdown(&mut self) {

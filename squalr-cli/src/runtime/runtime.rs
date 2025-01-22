@@ -1,11 +1,6 @@
-use crate::logging::cli_log_listener::CliLogListener;
 use crate::runtime::cli::cli_runtime_mode::CliRuntimeMode;
 use crate::runtime::ipc::ipc_runtime_mode::IpcRuntimeMode;
 use crate::runtime::runtime_mode::RuntimeMode;
-use squalr_engine::session_manager::SessionManager;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
-use std::io;
 
 pub struct Runtime {
     mode: Box<dyn RuntimeMode>,
@@ -22,20 +17,8 @@ impl Runtime {
         Self { mode }
     }
 
-    pub fn run(&mut self) -> io::Result<()> {
-        // Hook into engine logging for the cli to display.
-        let cli_log_listener = CliLogListener::new();
-        Logger::get_instance().subscribe(cli_log_listener);
-
-        // Initialize session manager.
-        if let Ok(session_manager) = SessionManager::get_instance().read() {
-            session_manager.initialize();
-        } else {
-            Logger::get_instance().log(LogLevel::Error, "Fatal error initializing session manager.", None);
-            return Ok(());
-        }
-
-        self.mode.run()
+    pub fn run_loop(&mut self) {
+        self.mode.run_loop()
     }
 
     pub fn shutdown(&mut self) {

@@ -7,7 +7,7 @@ use crate::command_handlers::settings::SettingsCommand;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
-pub enum Command {
+pub enum EngineCommand {
     #[structopt(alias = "mem", alias = "m")]
     Memory(MemoryCommand),
 

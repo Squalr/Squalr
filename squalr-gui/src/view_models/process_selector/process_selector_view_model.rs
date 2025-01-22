@@ -9,7 +9,7 @@ use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
-use squalr_engine::session_manager::SessionManager;
+use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_info::ProcessInfo;
@@ -133,18 +133,14 @@ impl ProcessSelectorViewModel {
         if let Some(process_to_open) = processes.first() {
             match ProcessQuery::open_process(process_to_open) {
                 Ok(opened_process) => {
-                    if let Ok(mut session_manager) = SessionManager::get_instance().write() {
-                        session_manager.set_opened_process(opened_process);
+                    SqualrEngine::set_opened_process(opened_process);
 
-                        let process_to_open = process_to_open.clone();
-                        view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
-                            main_window_view
-                                .global::<ProcessSelectorViewModelBindings>()
-                                .set_selected_process(ProcessInfoConverter::new().convert_to_view_data(&process_to_open));
-                        });
-                    } else {
-                        Logger::get_instance().log(LogLevel::Warn, "Failed to open process.", None);
-                    }
+                    let process_to_open = process_to_open.clone();
+                    view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
+                        main_window_view
+                            .global::<ProcessSelectorViewModelBindings>()
+                            .set_selected_process(ProcessInfoConverter::new().convert_to_view_data(&process_to_open));
+                    });
                 }
                 Err(err) => {
                     Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", process_to_open.pid, err), None);

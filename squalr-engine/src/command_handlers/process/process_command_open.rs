@@ -1,5 +1,5 @@
 use crate::command_handlers::process::process_command::ProcessCommand;
-use crate::session_manager::SessionManager;
+use crate::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
@@ -7,9 +7,6 @@ use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions
 use sysinfo::Pid;
 
 pub fn handle_process_open(cmd: &mut ProcessCommand) {
-    let session_manager_lock = SessionManager::get_instance();
-    let mut session_manager = session_manager_lock.write().unwrap();
-
     if let ProcessCommand::Open { pid, search_name, match_case } = cmd {
         if pid.is_none() && search_name.is_none() {
             Logger::get_instance().log(LogLevel::Error, "Error: Neither PID nor search name provided. Cannot open process.", None);
@@ -32,7 +29,7 @@ pub fn handle_process_open(cmd: &mut ProcessCommand) {
         if let Some(process_info) = processes.first() {
             match ProcessQuery::open_process(&process_info) {
                 Ok(opened_process_info) => {
-                    session_manager.set_opened_process(opened_process_info.clone());
+                    SqualrEngine::set_opened_process(opened_process_info);
                 }
                 Err(err) => {
                     Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", process_info.pid, err), None);

@@ -1,6 +1,6 @@
 use crate::runtime::runtime_mode::RuntimeMode;
-use squalr_engine::cli::Cli;
-use squalr_engine::command_handlers::handle_commands;
+use squalr_engine::engine_command::EngineCommand;
+use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use std::io;
@@ -25,50 +25,55 @@ impl CliRuntimeMode {
             return false;
         }
 
-        let mut command = match shlex::split(input) {
-            Some(command) => command,
+        let mut cli_command = match shlex::split(input) {
+            Some(cli_command) => cli_command,
             None => {
                 Logger::get_instance().log(LogLevel::Error, "Error parsing input", None);
                 return true;
             }
         };
 
-        if command.is_empty() {
+        if cli_command.is_empty() {
             return true;
         }
 
         // Little bit of a hack, but our command system seems to require the first command to be typed twice so just insert it.
         // We could structopt(flatten) our commands to avoid this, but then this creates even stranger command conflict issues.
-        command.insert(0, command[0].clone());
+        cli_command.insert(0, cli_command[0].clone());
 
-        let mut cli = match Cli::from_iter_safe(&command) {
-            Ok(cli) => cli,
+        let mut engine_command = match EngineCommand::from_iter_safe(&cli_command) {
+            Ok(engine_command) => engine_command,
             Err(e) => {
                 Logger::get_instance().log(LogLevel::Error, &format!("{}", e), None);
                 return true;
             }
         };
 
-        handle_commands(&mut cli.command);
+        SqualrEngine::dispatch_command(&mut engine_command);
         true
     }
 }
 
 impl RuntimeMode for CliRuntimeMode {
-    fn run(&mut self) -> io::Result<()> {
+    fn run_loop(&mut self) {
         let stdin = io::stdin();
 
         loop {
-            self.stdout.flush()?;
+            if let Err(err) = self.stdout.flush() {
+                Logger::get_instance().log(LogLevel::Error, &format!("Error flushing stdout {}", err), None);
+                break;
+            }
 
             let mut input = String::new();
-            stdin.read_line(&mut input)?;
+            if let Err(err) = stdin.read_line(&mut input) {
+                Logger::get_instance().log(LogLevel::Error, &format!("Error reading input {}", err), None);
+                break;
+            }
 
             if !self.handle_input(input.trim()) {
                 break;
             }
         }
-        Ok(())
     }
 
     fn shutdown(&mut self) {}
