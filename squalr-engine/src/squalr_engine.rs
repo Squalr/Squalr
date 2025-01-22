@@ -25,8 +25,8 @@ pub struct SqualrEngine {
 impl SqualrEngine {
     fn new(ipc_mode: bool) -> Self {
         let command_dispatcher = match ipc_mode {
-            true => CommandDispatcherType::Standard(StandardCommandDispatcher::new()),
-            false => CommandDispatcherType::InterProcess(InterProcessCommandDispatcher::new()),
+            true => CommandDispatcherType::InterProcess(InterProcessCommandDispatcher::new()),
+            false => CommandDispatcherType::Standard(StandardCommandDispatcher::new()),
         };
 
         SqualrEngine {
