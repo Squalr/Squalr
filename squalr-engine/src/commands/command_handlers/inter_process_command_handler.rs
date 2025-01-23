@@ -38,9 +38,16 @@ impl InterProcessCommandHandler {
             }
 
             loop {
-                if let Ok(mut engine_command) = InterProcessCommandPipe::ipc_listen_command(&ipc_connection) {
-                    Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
-                    CommandHandler::handle_command(&mut engine_command)
+                match InterProcessCommandPipe::ipc_receive(&ipc_connection) {
+                    Ok(mut engine_command) => {
+                        Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
+                        CommandHandler::handle_command(&mut engine_command);
+                    }
+                    Err(err) => {
+                        // If we get an error here that indicates the socket is closed, and the parent process is closed. Shutdown this worker/child process too.
+                        Logger::get_instance().log(LogLevel::Error, &format!("Parent connection lost: {}. Shutting down.", err), None);
+                        std::process::exit(1);
+                    }
                 }
 
                 thread::sleep(Duration::from_millis(1));

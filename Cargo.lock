@@ -3883,6 +3883,7 @@ dependencies = [
  "once_cell",
  "rayon",
  "regex",
+ "serde",
  "squalr-engine-common",
  "sysinfo 0.31.2",
  "windows-sys 0.59.0",

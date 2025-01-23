@@ -74,7 +74,7 @@ impl ManualScanViewModel {
                 },
             };
 
-            SqualrEngine::dispatch_command(scan_command);
+            SqualrEngine::dispatch_command_async(scan_command);
         });
     }
 

@@ -9,6 +9,8 @@ use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
+use squalr_engine::commands::command_handlers::process::ProcessCommand;
+use squalr_engine::commands::engine_command::EngineCommand;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -101,6 +103,16 @@ impl ProcessSelectorViewModel {
         require_windowed: bool,
         limit: Option<u64>,
     ) -> ProcessQueryOptions {
+        /*
+        let list_processes_command = EngineCommand::Process {
+            0: ProcessCommand::List {
+                require_windowed: false,
+                search_name: None,
+                match_case: false,
+                limit: Some(1),
+            },
+        };
+         */
         ProcessQueryOptions {
             required_pid: required_pid,
             search_name: None,
@@ -127,14 +139,33 @@ impl ProcessSelectorViewModel {
         view_binding: ViewBinding<MainWindowView>,
         process_entry: ProcessViewData,
     ) {
+        let open_process_command = EngineCommand::Process {
+            0: ProcessCommand::Open {
+                pid: Some(process_entry.process_id as u32),
+                search_name: None,
+                match_case: false,
+            },
+        };
+
+        SqualrEngine::dispatch_command(open_process_command);
+
+        /*
         let process_query_options = Self::get_process_query_options(Some(Pid::from_u32(process_entry.process_id as u32)), true, Some(1));
         let processes = ProcessQuery::get_processes(process_query_options);
 
         if let Some(process_to_open) = processes.first() {
+            let open_process_command = EngineCommand::Process {
+                0: ProcessCommand::Open {
+                    pid: Some(process_to_open.pid),
+                    search_name: None,
+                    match_case: false,
+                },
+            };
+
+            SqualrEngine::dispatch_command(open_process_command);
+
             match ProcessQuery::open_process(process_to_open) {
                 Ok(opened_process) => {
-                    SqualrEngine::set_opened_process(opened_process);
-
                     let process_to_open = process_to_open.clone();
                     view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
                         main_window_view
@@ -146,6 +177,6 @@ impl ProcessSelectorViewModel {
                     Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", process_to_open.pid, err), None);
                 }
             }
-        }
+        }*/
     }
 }

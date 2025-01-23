@@ -81,10 +81,10 @@ impl SqualrEngine {
     }
 
     pub fn initialize(engine_mode: EngineMode) {
-        Self::create_instance(engine_mode);
-
         Logger::get_instance().log(LogLevel::Info, "Squalr started", None);
         vectors::log_vector_architecture();
+
+        Self::create_instance(engine_mode);
 
         if let Err(err) = ProcessQuery::start_monitoring() {
             Logger::get_instance().log(LogLevel::Error, &format!("Failed to monitor system processes: {}", err), None);
@@ -92,6 +92,13 @@ impl SqualrEngine {
     }
 
     pub fn dispatch_command(command: EngineCommand) {
+        let mut command = command.clone();
+        if let Ok(dispatcher) = Self::get_instance().command_dispatcher.lock() {
+            dispatcher.dispatch_command(&mut command);
+        }
+    }
+
+    pub fn dispatch_command_async(command: EngineCommand) {
         let mut command = command.clone();
         std::thread::spawn(move || {
             if let Ok(dispatcher) = Self::get_instance().command_dispatcher.lock() {

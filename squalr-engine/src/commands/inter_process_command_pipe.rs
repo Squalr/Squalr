@@ -1,10 +1,11 @@
-use crate::commands::engine_command::EngineCommand;
 use interprocess::local_socket::ListenerOptions;
 use interprocess::local_socket::ToFsName;
 use interprocess::local_socket::prelude::LocalSocketStream;
 use interprocess::local_socket::traits::ListenerExt;
 use interprocess::local_socket::traits::Stream;
 use interprocess::os::windows::local_socket::NamedPipe;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use std::fs;
@@ -83,20 +84,23 @@ impl InterProcessCommandPipe {
         Err(io::Error::new(io::ErrorKind::Other, "Failed to create IPC connection!"))
     }
 
-    pub fn ipc_send_command(
+    /// Sends a value of generic type `T` (which must implement `Serialize`) over the IPC connection.
+    /// Returns the serialized bytes on success.
+    pub fn ipc_send<T: Serialize>(
         ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>,
-        command: &mut EngineCommand,
+        value: &T,
     ) -> io::Result<Vec<u8>> {
-        Logger::get_instance().log(LogLevel::Info, "Sending IPC command...", None);
-        let encoded: Vec<u8> = bincode::serialize(&command).unwrap();
+        // Serialize the data
+        let encoded = bincode::serialize(value).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Serialize error: {}", e)))?;
 
-        if let Ok(connection) = ipc_connection.read() {
-            if let Some(mut stream) = connection.as_ref() {
-                // Write message length first (as u32)
+        // Acquire read lock on the connection
+        if let Ok(connection_guard) = ipc_connection.read() {
+            if let Some(mut stream) = connection_guard.as_ref() {
+                // First send length as u32 in little-endian
                 let len = encoded.len() as u32;
                 stream.write_all(&len.to_le_bytes())?;
 
-                // Write the actual message
+                // Then send the actual data
                 stream.write_all(&encoded)?;
                 stream.flush()?;
 
@@ -109,29 +113,25 @@ impl InterProcessCommandPipe {
         }
     }
 
-    pub fn ipc_listen_command(ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>) -> io::Result<EngineCommand> {
-        if let Ok(connection) = ipc_connection.read() {
-            if let Some(mut stream) = connection.as_ref() {
-                // Read response length
+    /// Receives a value of generic type `T` (which must implement `DeserializeOwned`) from the IPC connection.
+    pub fn ipc_receive<T: DeserializeOwned>(ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>) -> io::Result<T> {
+        // Acquire read lock on the connection
+        if let Ok(connection_guard) = ipc_connection.read() {
+            if let Some(mut stream) = connection_guard.as_ref() {
+                // Read the length first (4 bytes)
                 let mut len_buf = [0u8; 4];
                 stream.read_exact(&mut len_buf)?;
                 let response_len = u32::from_le_bytes(len_buf);
 
-                // Read response
-                let mut response = vec![0u8; response_len as usize];
-                stream.read_exact(&mut response)?;
+                // Read the exact number of bytes specified by `response_len`
+                let mut response_data = vec![0u8; response_len as usize];
+                stream.read_exact(&mut response_data)?;
 
-                Logger::get_instance().log(LogLevel::Info, "Deserializing IPC command...", None);
+                // Deserialize the data into T
+                let value =
+                    bincode::deserialize::<T>(&response_data).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Deserialize error: {}", e)))?;
 
-                match bincode::deserialize::<EngineCommand>(&response) {
-                    Ok(engine_command) => {
-                        return Ok(engine_command);
-                    }
-                    Err(err) => {
-                        Logger::get_instance().log(LogLevel::Info, &format!("Error deserializing IPC command: {}", err), None);
-                        return Err(io::Error::new(io::ErrorKind::Other, format!("{}", err)));
-                    }
-                }
+                Ok(value)
             } else {
                 Err(io::Error::new(io::ErrorKind::NotConnected, "No IPC connection established"))
             }

@@ -19,10 +19,6 @@ fn main() {
     let cli_log_listener = CliLogListener::new();
     Logger::get_instance().subscribe(cli_log_listener);
 
-    for arg in args {
-        Logger::get_instance().log(squalr_engine_common::logging::log_level::LogLevel::Info, &arg, None);
-    }
-
     // Start Squalr engine.
     SqualrEngine::initialize(engine_mode);
 

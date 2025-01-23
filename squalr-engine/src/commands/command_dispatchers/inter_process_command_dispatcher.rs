@@ -63,7 +63,7 @@ impl InterProcessCommandDispatcher {
         &self,
         command: &mut EngineCommand,
     ) {
-        if let Err(err) = InterProcessCommandPipe::ipc_send_command(&self.ipc_connection, command) {
+        if let Err(err) = InterProcessCommandPipe::ipc_send(&self.ipc_connection, command) {
             Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC command: {}", err), None);
         }
     }

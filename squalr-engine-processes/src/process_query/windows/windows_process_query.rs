@@ -61,7 +61,12 @@ impl WindowsProcessQuery {
         icon: Option<ProcessIcon>,
     ) {
         if let Ok(mut cache) = PROCESS_CACHE.write() {
-            cache.insert(pid, ProcessInfo { pid, name, is_windowed, icon });
+            cache.insert(pid, ProcessInfo {
+                pid: pid.as_u32(),
+                name,
+                is_windowed,
+                icon,
+            });
         }
     }
 
@@ -76,12 +81,12 @@ impl WindowsProcessQuery {
 impl ProcessQueryer for WindowsProcessQuery {
     fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
         unsafe {
-            let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.pid.as_u32());
+            let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.pid);
             if handle == std::ptr::null_mut() {
                 Err("Failed to open process".to_string())
             } else {
                 let opened_process_info = OpenedProcessInfo {
-                    pid: process_info.pid,
+                    pid: process_info.get_pid(),
                     name: process_info.name.clone(),
                     bitness: Self::get_process_bitness(&handle),
                     handle: handle as u64,
@@ -135,7 +140,7 @@ impl ProcessQueryer for WindowsProcessQuery {
                 } else {
                     // Create new ProcessInfo and cache it
                     let new_info = ProcessInfo {
-                        pid: *pid,
+                        pid: pid.as_u32(),
                         name: process.name().to_string_lossy().into_owned(),
                         is_windowed: Self::is_process_windowed(pid),
                         icon: if options.fetch_icons { Self::get_icon(pid) } else { None },
@@ -160,7 +165,7 @@ impl ProcessQueryer for WindowsProcessQuery {
                 }
 
                 if let Some(required_pid) = options.required_pid {
-                    matches &= process_info.pid == required_pid;
+                    matches &= process_info.pid == required_pid.as_u32();
                 }
 
                 matches.then_some(process_info)
