@@ -4,7 +4,7 @@ use squalr_engine_scanning::scanners::parameters::scan_compare_type::ScanCompare
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use structopt::StructOpt;
 
-#[derive(StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub enum ScanCommand {
     /// Collect values for the current scan if one exist, otherwise collect initial values.
     Collect,

@@ -6,12 +6,13 @@ use crate::ValueCollectorViewModelBindings;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
+use squalr_engine::commands::command_handlers::scan::ScanCommand;
+use squalr_engine::commands::engine_command::EngineCommand;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::endian::Endian;
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
-use std::thread;
 
 pub struct ManualScanViewModel {
     _view_binding: ViewBinding<MainWindowView>,
@@ -66,14 +67,14 @@ impl ManualScanViewModel {
                 DataTypeView::Str => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)), // TODO
             }];
 
-            thread::spawn(move || {
-                if let Some(process_info) = SqualrEngine::get_opened_process() {
-                    let snapshot = SqualrEngine::get_snapshot();
-                    let mut snapshot = snapshot.write().unwrap();
+            let scan_command = EngineCommand::Scan {
+                0: ScanCommand::New {
+                    scan_filter_parameters: scan_filter_parameters,
+                    scan_all_primitives: false,
+                },
+            };
 
-                    snapshot.new_scan(&process_info, scan_filter_parameters);
-                }
-            });
+            SqualrEngine::dispatch_command(scan_command);
         });
     }
 

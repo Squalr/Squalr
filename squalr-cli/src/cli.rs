@@ -1,4 +1,3 @@
-use crate::runtime::runtime_mode::RuntimeMode;
 use squalr_engine::commands::engine_command::EngineCommand;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -7,20 +6,33 @@ use std::io;
 use std::io::Write;
 use structopt::StructOpt;
 
-pub struct CliRuntimeMode {
-    stdout: io::Stdout,
-}
+pub struct Cli {}
 
-/// Implements a command line runtime mode that listens for text input commands to control the engine.
-impl CliRuntimeMode {
-    pub fn new() -> Self {
-        Self { stdout: io::stdout() }
+/// Implements a command line listener polls for text input commands to control the engine.
+impl Cli {
+    pub fn run_loop() {
+        let stdin = io::stdin();
+        let mut stdout = io::stdout();
+
+        loop {
+            if let Err(err) = stdout.flush() {
+                Logger::get_instance().log(LogLevel::Error, &format!("Error flushing stdout {}", err), None);
+                break;
+            }
+
+            let mut input = String::new();
+            if let Err(err) = stdin.read_line(&mut input) {
+                Logger::get_instance().log(LogLevel::Error, &format!("Error reading input {}", err), None);
+                break;
+            }
+
+            if !Self::handle_input(input.trim()) {
+                break;
+            }
+        }
     }
 
-    fn handle_input(
-        &self,
-        input: &str,
-    ) -> bool {
+    fn handle_input(input: &str) -> bool {
         if input.eq_ignore_ascii_case("exit") || input.eq_ignore_ascii_case("close") || input.eq_ignore_ascii_case("quit") {
             return false;
         }
@@ -52,29 +64,4 @@ impl CliRuntimeMode {
         SqualrEngine::dispatch_command(&mut engine_command);
         true
     }
-}
-
-impl RuntimeMode for CliRuntimeMode {
-    fn run_loop(&mut self) {
-        let stdin = io::stdin();
-
-        loop {
-            if let Err(err) = self.stdout.flush() {
-                Logger::get_instance().log(LogLevel::Error, &format!("Error flushing stdout {}", err), None);
-                break;
-            }
-
-            let mut input = String::new();
-            if let Err(err) = stdin.read_line(&mut input) {
-                Logger::get_instance().log(LogLevel::Error, &format!("Error reading input {}", err), None);
-                break;
-            }
-
-            if !self.handle_input(input.trim()) {
-                break;
-            }
-        }
-    }
-
-    fn shutdown(&mut self) {}
 }

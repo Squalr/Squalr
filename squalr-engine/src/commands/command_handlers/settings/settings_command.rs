@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
-#[derive(StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub enum SettingsCommand {
     List {
         #[structopt(short = "s", long)]

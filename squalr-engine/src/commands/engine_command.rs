@@ -7,7 +7,7 @@ use crate::commands::command_handlers::settings::SettingsCommand;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
-#[derive(StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub enum EngineCommand {
     #[structopt(alias = "mem", alias = "m")]
     Memory(MemoryCommand),

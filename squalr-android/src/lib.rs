@@ -1,3 +1,4 @@
+use squalr_engine::squalr_engine::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -10,7 +11,7 @@ fn android_main(app: slint::android::AndroidApp) {
     // Create and show the main window, which in turn will instantiate all dockable windows.
     let _main_window_view = MainWindowViewModel::new();
 
-    SqualrEngine::initialize(true);
+    SqualrEngine::initialize(EngineMode::Client);
 
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {
