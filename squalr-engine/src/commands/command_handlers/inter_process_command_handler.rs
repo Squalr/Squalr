@@ -23,22 +23,23 @@ impl InterProcessCommandHandler {
     }
 
     pub fn initialize(&self) {
-        match InterProcessCommandPipe::create_connection() {
-            Ok(stream) => {
-                if let Ok(mut ipc_connection) = self.ipc_connection.write() {
-                    *ipc_connection = Some(stream);
-                }
-            }
-            Err(err) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("{}", err), None);
-            }
-        }
-
         let ipc_connection = self.ipc_connection.clone();
 
         thread::spawn(move || {
+            match InterProcessCommandPipe::create_worker() {
+                Ok(stream) => {
+                    if let Ok(mut ipc_connection) = ipc_connection.write() {
+                        *ipc_connection = Some(stream);
+                    }
+                }
+                Err(err) => {
+                    Logger::get_instance().log(LogLevel::Error, &format!("{}", err), None);
+                }
+            }
+
             loop {
                 if let Ok(mut engine_command) = InterProcessCommandPipe::ipc_listen_command(&ipc_connection) {
+                    Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
                     CommandHandler::handle_command(&mut engine_command)
                 }
 

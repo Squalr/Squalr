@@ -46,7 +46,7 @@ impl InterProcessCommandDispatcher {
                 }
             }
 
-            match InterProcessCommandPipe::create_connection() {
+            match InterProcessCommandPipe::create_manager() {
                 Ok(stream) => {
                     if let Ok(mut ipc_connection) = ipc_connection.write() {
                         *ipc_connection = Some(stream);
