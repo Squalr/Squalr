@@ -1,15 +1,12 @@
 use crate::commands::command_dispatchers::command_dispatcher::{CommandDispatcher, CommandDispatcherType};
 use crate::commands::command_dispatchers::inter_process_command_dispatcher::InterProcessCommandDispatcher;
-use crate::commands::command_dispatchers::standard_command_dispatcher::StandardCommandDispatcher;
 use crate::commands::command_handlers::command_handler::CommandHandlerType;
 use crate::commands::command_handlers::inter_process_command_handler::InterProcessCommandHandler;
-use crate::commands::command_handlers::standard_command_handler::StandardCommandHandler;
 use crate::commands::engine_command::EngineCommand;
 use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::{process_info::OpenedProcessInfo, process_query::process_queryer::ProcessQuery};
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
-use std::os::windows::thread;
 use std::sync::Mutex;
 use std::sync::{Arc, Once, RwLock};
 
@@ -39,21 +36,21 @@ pub struct SqualrEngine {
     /// Handles sending commands to the engine.
     command_dispatcher: Arc<Mutex<CommandDispatcherType>>,
 
-    /// Handles receiving commands from the engine and performing the task.
-    command_handler: Arc<Mutex<CommandHandlerType>>,
+    /// Handles receiving commands from the engine.
+    _command_handler: Arc<Mutex<CommandHandlerType>>,
 }
 
 impl SqualrEngine {
     fn new(engine_mode: EngineMode) -> Self {
         let command_dispatcher = match engine_mode {
-            EngineMode::Standalone => CommandDispatcherType::Standard(StandardCommandDispatcher::new()),
+            EngineMode::Standalone => CommandDispatcherType::Standard(),
             EngineMode::Client => CommandDispatcherType::InterProcess(InterProcessCommandDispatcher::new()),
-            EngineMode::Server => CommandDispatcherType::Standard(StandardCommandDispatcher::new()),
+            EngineMode::Server => CommandDispatcherType::Standard(),
         };
 
         let command_handler = match engine_mode {
-            EngineMode::Standalone => CommandHandlerType::Standard(StandardCommandHandler::new()),
-            EngineMode::Client => CommandHandlerType::Standard(StandardCommandHandler::new()),
+            EngineMode::Standalone => CommandHandlerType::Standard(),
+            EngineMode::Client => CommandHandlerType::Standard(),
             EngineMode::Server => CommandHandlerType::InterProcess(InterProcessCommandHandler::new()),
         };
 
@@ -61,7 +58,7 @@ impl SqualrEngine {
             opened_process: RwLock::new(None),
             snapshot: Arc::new(RwLock::new(Snapshot::new(vec![]))),
             command_dispatcher: Arc::new(Mutex::new(command_dispatcher)),
-            command_handler: Arc::new(Mutex::new(command_handler)),
+            _command_handler: Arc::new(Mutex::new(command_handler)),
         }
     }
 

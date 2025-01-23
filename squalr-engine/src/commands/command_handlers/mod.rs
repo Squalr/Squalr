@@ -6,4 +6,3 @@ pub mod project;
 pub mod results;
 pub mod scan;
 pub mod settings;
-pub mod standard_command_handler;

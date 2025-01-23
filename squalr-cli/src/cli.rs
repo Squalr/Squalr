@@ -53,7 +53,7 @@ impl Cli {
         // We could structopt(flatten) our commands to avoid this, but then this creates even stranger command conflict issues.
         cli_command.insert(0, cli_command[0].clone());
 
-        let mut engine_command = match EngineCommand::from_iter_safe(&cli_command) {
+        let engine_command = match EngineCommand::from_iter_safe(&cli_command) {
             Ok(engine_command) => engine_command,
             Err(e) => {
                 Logger::get_instance().log(LogLevel::Error, &format!("{}", e), None);
@@ -61,7 +61,7 @@ impl Cli {
             }
         };
 
-        SqualrEngine::dispatch_command(&mut engine_command);
+        SqualrEngine::dispatch_command(engine_command);
         true
     }
 }

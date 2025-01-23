@@ -9,7 +9,7 @@ use squalr_engine_common::logging::logger::Logger;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let engine_mode = if args.contains(&"--ipc".to_string()) {
+    let engine_mode = if args.contains(&"--ipc-mode".to_string()) {
         EngineMode::Server
     } else {
         EngineMode::Standalone
@@ -18,6 +18,10 @@ fn main() {
     // Hook into engine logging for the cli to display.
     let cli_log_listener = CliLogListener::new();
     Logger::get_instance().subscribe(cli_log_listener);
+
+    for arg in args {
+        Logger::get_instance().log(squalr_engine_common::logging::log_level::LogLevel::Info, &arg, None);
+    }
 
     // Start Squalr engine.
     SqualrEngine::initialize(engine_mode);

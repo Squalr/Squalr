@@ -1,5 +1,5 @@
 use crate::commands::command_dispatchers::inter_process_command_dispatcher::InterProcessCommandDispatcher;
-use crate::commands::command_dispatchers::standard_command_dispatcher::StandardCommandDispatcher;
+use crate::commands::command_handlers::command_handler::CommandHandler;
 use crate::commands::engine_command::EngineCommand;
 
 pub trait CommandDispatcher {
@@ -10,7 +10,7 @@ pub trait CommandDispatcher {
 }
 
 pub enum CommandDispatcherType {
-    Standard(StandardCommandDispatcher),
+    Standard(),
     InterProcess(InterProcessCommandDispatcher),
 }
 
@@ -20,7 +20,8 @@ impl CommandDispatcher for CommandDispatcherType {
         command: &mut EngineCommand,
     ) {
         match self {
-            Self::Standard(dispatcher) => dispatcher.dispatch_command(command),
+            // The standard dispatcher just immediately handles the command.
+            Self::Standard() => CommandHandler::handle_command(command),
             Self::InterProcess(dispatcher) => dispatcher.dispatch_command(command),
         }
     }
