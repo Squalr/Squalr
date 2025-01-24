@@ -48,7 +48,12 @@ impl AndroidProcessQuery {
         icon: Option<ProcessIcon>,
     ) {
         if let Ok(mut cache) = PROCESS_CACHE.write() {
-            cache.insert(pid, ProcessInfo { pid, name, is_windowed, icon });
+            cache.insert(pid, ProcessInfo {
+                pid: pid.as_u32(),
+                name,
+                is_windowed,
+                icon,
+            });
         }
     }
 
@@ -187,7 +192,7 @@ impl ProcessQueryer for AndroidProcessQuery {
 
                     // Construct the ProcessInfo
                     let process_info = ProcessInfo {
-                        pid,
+                        pid: pid_num as u32,
                         name,
                         is_windowed,
                         icon: None,
@@ -204,7 +209,7 @@ impl ProcessQueryer for AndroidProcessQuery {
                     }
 
                     if let Some(required_pid) = options.required_pid {
-                        matches &= process_info.pid == required_pid;
+                        matches &= process_info.pid == required_pid.as_u32();
                     }
 
                     if options.require_windowed {

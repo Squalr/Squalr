@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 slint-mvvm = { path = "../slint-mvvm" }
 slint-mvvm-macros = { path = "../slint-mvvm-macros" }
+squalr-cli = { path = "../squalr-cli" }
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-architecture = { path = "../squalr-engine-architecture" }
 squalr-engine-common = { path = "../squalr-engine-common" }

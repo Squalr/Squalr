@@ -86,7 +86,7 @@ impl ProcessQueryer for WindowsProcessQuery {
                 Err("Failed to open process".to_string())
             } else {
                 let opened_process_info = OpenedProcessInfo {
-                    pid: process_info.get_pid(),
+                    pid: process_info.pid,
                     name: process_info.name.clone(),
                     bitness: Self::get_process_bitness(&handle),
                     handle: handle as u64,

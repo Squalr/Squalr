@@ -1,0 +1,24 @@
+// .vscode/tasks.json
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build squalr-cli (Android)",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "ndk",
+                "--platform",
+                "21",
+                "--target",
+                "aarch64-linux-android",
+                "build",
+                "--bin",
+                "squalr-cli"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+    ]
+}

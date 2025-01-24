@@ -1,9 +1,9 @@
 use interprocess::local_socket::ListenerOptions;
+use interprocess::local_socket::Name;
 use interprocess::local_socket::ToFsName;
 use interprocess::local_socket::prelude::LocalSocketStream;
 use interprocess::local_socket::traits::ListenerExt;
 use interprocess::local_socket::traits::Stream;
-use interprocess::os::windows::local_socket::NamedPipe;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -17,6 +17,11 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread;
 
+#[cfg(not(windows))]
+use interprocess::local_socket::GenericFilePath as NamedPipeType;
+#[cfg(windows)]
+use interprocess::os::windows::local_socket::NamedPipe as NamedPipeType;
+
 const IPC_SOCKET_PATH: &str = if cfg!(windows) { "\\\\.\\pipe\\squalr-ipc" } else { "/tmp/squalr-ipc.sock" };
 
 pub struct InterProcessCommandPipe {}
@@ -25,7 +30,7 @@ impl InterProcessCommandPipe {
     /// Creates a single manager connection: effectively "binds" to the socket
     /// (or named pipe on Windows), listens, and accepts exactly one incoming connection.
     pub fn create_manager() -> io::Result<LocalSocketStream> {
-        // On Unix-like systems, remove any leftover socket file to avoid "address in use" errors.
+        // On Unix-like systems, remove any leftover socket file
         if cfg!(not(windows)) {
             let path = Path::new(IPC_SOCKET_PATH);
             if path.exists() {
@@ -33,17 +38,14 @@ impl InterProcessCommandPipe {
             }
         }
 
-        // Convert the path to the correct representation (NamedPipe on Windows or filesystem path on Unix).
-        let name = IPC_SOCKET_PATH.to_fs_name::<NamedPipe>()?;
+        let name: Name<'_> = IPC_SOCKET_PATH.to_fs_name::<NamedPipeType>()?;
 
-        // Create the listener (server) by using ListenerOptions.
-        // The older `LocalSocketListener::bind(...)` function does not exist in new versions.
-        let listener = ListenerOptions::new().name(name).create_sync()?; // creates a synchronous listener
+        // Create the listener using ListenerOptions
+        let listener = ListenerOptions::new().name(name).create_sync()?;
 
         Logger::get_instance().log(LogLevel::Info, &format!("Manager: listening on {}", IPC_SOCKET_PATH), None);
 
-        // Accept one connection. The `incoming()` method returns an iterator over incoming connections.
-        // We'll simply grab the first one (or return an error if none arrives).
+        // Accept one connection
         let stream = match listener.incoming().next() {
             Some(Ok(conn)) => conn,
             Some(Err(e)) => return Err(e),
@@ -56,10 +58,10 @@ impl InterProcessCommandPipe {
     }
 
     pub fn create_worker() -> io::Result<LocalSocketStream> {
-        // Attempt to connect to the new child process in a loop, rather than sleeping once.
         const MAX_RETRIES: u32 = 256;
         let retry_delay = std::time::Duration::from_millis(100);
-        let name = IPC_SOCKET_PATH.to_fs_name::<NamedPipe>().unwrap();
+
+        let name: Name<'_> = IPC_SOCKET_PATH.to_fs_name::<NamedPipeType>()?;
 
         for attempt in 1..=MAX_RETRIES {
             thread::sleep(retry_delay);

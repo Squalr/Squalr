@@ -125,7 +125,8 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'squalr-android'",
+            "name": "Debug squalr-android",
+            "preLaunchTask": "Build squalr-cli (Android)",
             "cargo": {
                 "args": [
                     "ndk",
@@ -134,12 +135,9 @@
                     "--target",
                     "aarch64-linux-android",
                     "build",
-                    "--package=squalr-android"
-                ],
-                "filter": {
-                    "name": "squalr-android",
-                    "kind": "lib"
-                }
+                    "--bin",
+                    "squalr-cli"
+                ]
             },
             "args": [],
             "cwd": "${workspaceFolder}"

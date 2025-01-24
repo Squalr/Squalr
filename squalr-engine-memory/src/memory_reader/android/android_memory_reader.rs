@@ -23,7 +23,7 @@ impl AndroidMemoryReader {
     ) -> std::io::Result<Vec<u8>> {
         Logger::get_instance().log(
             LogLevel::Info,
-            &format!("Reading memory (1) from {}: {}, len {}", process_info.pid.as_u32(), address, len),
+            &format!("Reading memory (1) from {}: {}, len {}", process_info.pid, address, len),
             None,
         );
         // 1) Acquire the global AndroidSuperUser instance
@@ -44,7 +44,7 @@ impl AndroidMemoryReader {
         // 4) Build the dd command
         let dd_command = format!(
             "dd if=/proc/{pid}/mem bs=1 skip={address} count={len} 2>&1",
-            pid = process_info.pid.as_u32(),
+            pid = process_info.pid,
             address = address,
             len = len
         );
@@ -58,7 +58,7 @@ impl AndroidMemoryReader {
 
         Logger::get_instance().log(
             LogLevel::Info,
-            &format!("Awaiting response (2) from {}: {}, len {}", process_info.pid.as_u32(), address, len),
+            &format!("Awaiting response (2) from {}: {}, len {}", process_info.pid, address, len),
             None,
         );
 

@@ -24,7 +24,7 @@ pub struct ProcessInfo {
 
 #[derive(Clone, Debug)]
 pub struct OpenedProcessInfo {
-    pub pid: Pid,
+    pub pid: u32,
     pub name: String,
     pub handle: u64,
     pub bitness: Bitness,
@@ -32,6 +32,12 @@ pub struct OpenedProcessInfo {
 }
 
 impl ProcessInfo {
+    pub fn get_pid(&self) -> Pid {
+        Pid::from_u32(self.pid)
+    }
+}
+
+impl OpenedProcessInfo {
     pub fn get_pid(&self) -> Pid {
         Pid::from_u32(self.pid)
     }

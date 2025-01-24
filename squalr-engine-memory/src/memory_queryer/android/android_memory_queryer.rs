@@ -221,7 +221,7 @@ impl IMemoryQueryer for AndroidMemoryQueryer {
         end_address: u64,
         region_bounds_handling: RegionBoundsHandling,
     ) -> Vec<NormalizedRegion> {
-        let pid_i32 = process_info.pid.as_u32() as i32;
+        let pid_i32 = process_info.pid as i32;
 
         let regions_result = Self::parse_proc_maps(pid_i32);
         let Ok(regions) = regions_result else {
@@ -277,7 +277,7 @@ impl IMemoryQueryer for AndroidMemoryQueryer {
         // If you need to check, parse maps again or cache them in a real-world scenario.
         // Then find the region containing 'address' and see if it has WRITE.
         // For demonstration, this is a naive re-parse each call:
-        if let Ok(regions) = Self::parse_proc_maps(process_info.pid.as_u32() as i32) {
+        if let Ok(regions) = Self::parse_proc_maps(process_info.pid as i32) {
             for reg in regions {
                 if address >= reg.start && address < reg.end {
                     let protection = Self::to_memory_protection(&reg.perms);
@@ -317,7 +317,7 @@ impl IMemoryQueryer for AndroidMemoryQueryer {
         &self,
         process_info: &OpenedProcessInfo,
     ) -> Vec<NormalizedModule> {
-        let pid_i32 = process_info.pid.as_u32() as i32;
+        let pid_i32 = process_info.pid as i32;
         let regions_result = Self::parse_proc_maps(pid_i32);
         let Ok(regions) = regions_result else {
             return vec![];
