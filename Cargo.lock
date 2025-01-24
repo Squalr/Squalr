@@ -3787,7 +3787,6 @@ dependencies = [
  "slint",
  "slint-mvvm",
  "slint-mvvm-macros",
- "squalr-cli",
  "squalr-engine",
  "squalr-engine-architecture",
  "squalr-engine-common",

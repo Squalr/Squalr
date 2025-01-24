@@ -4,18 +4,15 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_common::privileges::android::android_super_user::AndroidSuperUser;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use sysinfo::{Pid, System};
 
-static SESSION_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"mSession=Session\{\w+\s+(\d+):u0a\d+}").unwrap());
 /// Caches the overall process info so we don’t reconstruct everything every time
 static PROCESS_CACHE: Lazy<RwLock<HashMap<Pid, ProcessInfo>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
-/// A single global cache for windowed PIDs, plus the time we last fetched them.
-/// This replaces per-PID TTL caching.  
+/// A single global cache for “windowed PIDs,” plus the time we last fetched them.
 static WINDOW_INFO_CACHE: Lazy<RwLock<WindowInfoCache>> = Lazy::new(|| {
     RwLock::new(WindowInfoCache {
         last_fetch: Instant::now()
@@ -25,7 +22,7 @@ static WINDOW_INFO_CACHE: Lazy<RwLock<WindowInfoCache>> = Lazy::new(|| {
     })
 });
 
-/// We only refresh the window info once per this TTL.
+/// We only refresh the “window info” once per this TTL.
 const WINDOW_INFO_TTL: Duration = Duration::from_secs(10);
 
 /// Holds the “which PIDs are windowed?” snapshot + when we last fetched it
@@ -65,6 +62,10 @@ impl AndroidProcessQuery {
     }
 
     /// Refresh the global window info cache if older than `WINDOW_INFO_TTL`.
+    ///
+    /// In this version, we have removed `dumpsys` calls. If you need to truly detect
+    /// "windowed" processes on Android, you'll need an alternative approach that
+    /// doesn't rely on shelling out. For now, this is effectively a no-op.
     fn refresh_windowed_pids_if_needed() {
         let mut cache = WINDOW_INFO_CACHE.write().unwrap();
 
@@ -73,47 +74,19 @@ impl AndroidProcessQuery {
             return;
         }
 
-        // Acquire su and execute dumpsys
-        let android_su = AndroidSuperUser::get_instance();
-        let mut su = match android_su.write() {
-            Ok(su_guard) => su_guard,
-            Err(e) => {
-                // handle lock error
-                return;
-            }
-        };
+        // Because we don't use `dumpsys` now, we have no direct way to detect
+        // windowed processes. We'll clear or leave empty:
+        cache.windowed_pids.clear();
 
-        let output = match su.execute_command("dumpsys window windows") {
-            Ok(out) => out,
-            Err(e) => {
-                // handle dumpsys error
-                return;
-            }
-        };
+        // If needed, you could parse other `/proc` data or system stats to infer
+        // which processes have UI presence.
 
-        // We'll parse the entire output
-        let mut new_windowed_pids = HashSet::new();
-        let mut current_pid: Option<Pid> = None;
-
-        for line in output {
-            if line.starts_with("Window #") {
-                // Start of a new window block => reset current_pid
-                current_pid = None;
-            }
-
-            // Grab PID from `mSession=Session{someHex somePID:u0aSomething}`
-            if let Some(cap) = SESSION_REGEX.captures(&line) {
-                if let Ok(parsed_pid) = cap[1].parse::<u32>() {
-                    new_windowed_pids.insert(Pid::from_u32(parsed_pid));
-                }
-            }
-        }
-
-        cache.windowed_pids = new_windowed_pids;
         cache.last_fetch = Instant::now();
     }
 
     /// Check if a given PID is in our globally cached “windowed” set.
+    /// Right now, this will always return `false` unless you add logic to
+    /// populate `windowed_pids`.
     fn is_process_windowed_impl(process_id: &Pid) -> bool {
         let cache = WINDOW_INFO_CACHE.read().unwrap();
         cache.windowed_pids.contains(process_id)
@@ -137,103 +110,77 @@ impl ProcessQueryer for AndroidProcessQuery {
         Ok(())
     }
 
-    /// Get a list of processes by running `ps -A`. We ignore icons for Android here.
+    /// Get a list of processes by scanning `/proc` via the `sysinfo` crate.
+    /// We also attempt to update the windowed-pid cache, though for now it
+    /// is effectively a no-op without `dumpsys`.
     fn get_processes(
         options: ProcessQueryOptions,
         system: Arc<RwLock<System>>,
     ) -> Vec<ProcessInfo> {
-        // Before we parse lines, refresh the “windowed” set once (at most) if needed.
+        // Refresh cached “windowed” set once (at most) if needed
         Self::refresh_windowed_pids_if_needed();
 
-        let android_su = AndroidSuperUser::get_instance();
+        // Refresh process list from /proc
+        let mut sys = system.write().unwrap();
 
-        let mut su = match android_su.write() {
-            Ok(su_guard) => su_guard,
-            Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, "Failed to acquire write lock on AndroidSuperUser.", Some(&e.to_string()));
-                return Vec::new();
-            }
-        };
+        let mut results = Vec::new();
 
-        // Attempt to run `ps -A`
-        let lines = match su.execute_command("ps -A") {
-            Ok(output) => output,
-            Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, "Failed to execute `ps -A` via `su`.", Some(&e.to_string()));
-                return Vec::new();
-            }
-        };
+        for (pid, proc_) in sys.processes() {
+            let pid_u32 = pid.as_u32();
+            let name = proc_.name().to_owned();
+            let is_windowed = Self::is_process_windowed_impl(pid);
 
-        // The first line in many shells is a header. Skip it if we have at least 2 lines.
-        let without_header = if lines.len() > 1 {
-            &lines[1..]
-        } else {
-            // If only 1 line, it’s not standard. But let's avoid panic.
-            &lines[..]
-        };
+            // Construct a candidate ProcessInfo
+            let process_info = ProcessInfo {
+                pid: pid_u32,
+                name: name.to_string_lossy().to_string(),
+                is_windowed,
+                icon: None,
+            };
 
-        let processes: Vec<ProcessInfo> = without_header
-            .iter()
-            .filter_map(|line| {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                // For typical Android `ps -A` output: parts[1] = PID, parts[8] = process name
-                if parts.len() >= 9 {
-                    let pid_num: i32 = match parts[1].parse() {
-                        Ok(val) => val,
-                        Err(e) => {
-                            Logger::get_instance().log(LogLevel::Error, "Failed to parse PID in `ps -A` output line.", Some(&e.to_string()));
-                            return None;
-                        }
-                    };
-
-                    let name = parts[8].to_string();
-                    let pid = Pid::from_u32(pid_num as u32);
-                    let is_windowed = Self::is_process_windowed_impl(&pid);
-
-                    // Construct the ProcessInfo
-                    let process_info = ProcessInfo {
-                        pid: pid_num as u32,
-                        name,
-                        is_windowed,
-                        icon: None,
-                    };
-
-                    // Apply filters from `ProcessQueryOptions`
-                    let mut matches = true;
-                    if let Some(ref term) = options.search_name {
-                        if options.match_case {
-                            matches &= process_info.name.contains(term);
-                        } else {
-                            matches &= process_info.name.to_lowercase().contains(&term.to_lowercase());
-                        }
-                    }
-
-                    if let Some(required_pid) = options.required_pid {
-                        matches &= process_info.pid == required_pid.as_u32();
-                    }
-
-                    if options.require_windowed {
-                        matches &= process_info.is_windowed;
-                    }
-
-                    matches.then_some(process_info)
+            // Apply filters from `ProcessQueryOptions`
+            let mut matches = true;
+            if let Some(ref term) = options.search_name {
+                if options.match_case {
+                    matches &= process_info.name.contains(term);
                 } else {
-                    None
+                    matches &= process_info.name.to_lowercase().contains(&term.to_lowercase());
                 }
-            })
-            .take(options.limit.unwrap_or(usize::MAX as u64) as usize)
-            .collect();
+            }
 
-        processes
+            if let Some(required_pid) = options.required_pid {
+                matches &= process_info.pid == required_pid.as_u32();
+            }
+
+            if options.require_windowed {
+                matches &= process_info.is_windowed;
+            }
+
+            if matches {
+                results.push(process_info);
+            }
+
+            // Respect the limit if specified
+            if let Some(limit) = options.limit {
+                if results.len() >= limit as usize {
+                    break;
+                }
+            }
+        }
+
+        results
     }
 
+    /// In this implementation, we don't have a good way to detect "windowed" from /proc,
+    /// so we simply consult our `WINDOW_INFO_CACHE`—which is effectively empty
+    /// unless you implement your own logic for populating it.
     fn is_process_windowed(process_id: &Pid) -> bool {
         Self::refresh_windowed_pids_if_needed();
         Self::is_process_windowed_impl(process_id)
     }
 
+    /// Icons not (yet) supported on Android via /proc, so return `None`.
     fn get_icon(_process_id: &Pid) -> Option<ProcessIcon> {
-        // Icons not (yet) supported on Android
         None
     }
 }

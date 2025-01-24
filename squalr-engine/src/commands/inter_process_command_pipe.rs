@@ -22,26 +22,39 @@ use interprocess::local_socket::GenericFilePath as NamedPipeType;
 #[cfg(windows)]
 use interprocess::os::windows::local_socket::NamedPipe as NamedPipeType;
 
-const IPC_SOCKET_PATH: &str = if cfg!(windows) { "\\\\.\\pipe\\squalr-ipc" } else { "/tmp/squalr-ipc.sock" };
+const IPC_SOCKET_PATH: &str = if cfg!(windows) {
+    "\\\\.\\pipe\\squalr-ipc"
+} else {
+    "/data/data/rust.squalr_android/files/squalr-ipc.sock"
+};
 
 pub struct InterProcessCommandPipe {}
 
 impl InterProcessCommandPipe {
     /// Creates a single manager connection: effectively "binds" to the socket
     /// (or named pipe on Windows), listens, and accepts exactly one incoming connection.
-    pub fn create_manager() -> io::Result<LocalSocketStream> {
+    pub fn create_server() -> io::Result<LocalSocketStream> {
         // On Unix-like systems, remove any leftover socket file
         if cfg!(not(windows)) {
-            let path = Path::new(IPC_SOCKET_PATH);
-            if path.exists() {
-                fs::remove_file(path)?;
+            if Path::new(IPC_SOCKET_PATH).exists() {
+                fs::remove_file(IPC_SOCKET_PATH)?;
             }
         }
 
         let name: Name<'_> = IPC_SOCKET_PATH.to_fs_name::<NamedPipeType>()?;
 
+        Logger::get_instance().log(LogLevel::Info, "Creating listener...", None);
+
         // Create the listener using ListenerOptions
         let listener = ListenerOptions::new().name(name).create_sync()?;
+
+        /*
+        use std::os::unix::fs::PermissionsExt;
+        let metadata = fs::metadata(IPC_SOCKET_PATH)?;
+        let mut permissions = metadata.permissions();
+        permissions.set_mode(0o777);
+        fs::set_permissions(IPC_SOCKET_PATH, permissions)?;
+        */
 
         Logger::get_instance().log(LogLevel::Info, &format!("Manager: listening on {}", IPC_SOCKET_PATH), None);
 
@@ -57,7 +70,7 @@ impl InterProcessCommandPipe {
         Ok(stream)
     }
 
-    pub fn create_worker() -> io::Result<LocalSocketStream> {
+    pub fn create_client() -> io::Result<LocalSocketStream> {
         const MAX_RETRIES: u32 = 256;
         let retry_delay = std::time::Duration::from_millis(100);
 

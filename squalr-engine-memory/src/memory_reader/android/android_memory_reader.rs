@@ -2,9 +2,9 @@ use crate::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_common::privileges::android::android_super_user::AndroidSuperUser;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
-use std::io::{Read, Write};
+use std::fs::OpenOptions;
+use std::io::{Read, Seek, SeekFrom};
 
 pub struct AndroidMemoryReader;
 
@@ -13,71 +13,41 @@ impl AndroidMemoryReader {
         AndroidMemoryReader
     }
 
-    /// Core helper that uses `dd if=/proc/<pid>/mem` to read `len` bytes
-    /// from `address` in target process memory, via the *binary shell*.
-    fn read_memory_chunk(
+    fn read_bytes_internal(
         &self,
         process_info: &OpenedProcessInfo,
         address: u64,
         len: usize,
     ) -> std::io::Result<Vec<u8>> {
-        Logger::get_instance().log(
-            LogLevel::Info,
-            &format!("Reading memory (1) from {}: {}, len {}", process_info.pid, address, len),
-            None,
-        );
-        // 1) Acquire the global AndroidSuperUser instance
-        let su_instance = AndroidSuperUser::get_instance();
-        let mut su = su_instance
-            .write()
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Failed to lock AndroidSuperUser"))?;
+        // Construct the path to the process's mem file
+        let mem_path = format!("/proc/{}/mem", process_info.pid);
 
-        // 2) Ensure the binary shell is alive; re-spawn if needed
-        su.ensure_binary_shell_alive()?;
+        // Open the file in read-only mode
+        let mut file = OpenOptions::new().read(true).open(&mem_path)?;
 
-        // 3) Get a mutable reference to the binary shell process
-        let child_bin = su
-            .child_binary
-            .as_mut()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotConnected, "No binary shell (child_binary) available"))?;
+        // Seek to the desired offset
+        file.seek(SeekFrom::Start(address))?;
 
-        // 4) Build the dd command
-        let dd_command = format!(
-            "dd if=/proc/{pid}/mem bs=1 skip={address} count={len} 2>&1",
-            pid = process_info.pid,
-            address = address,
-            len = len
-        );
-
-        // 5) Send the command to the shell's stdin
-        writeln!(child_bin.child_stdin, "{}", dd_command)?;
-        child_bin.child_stdin.flush()?;
-
-        // 6) Read exactly `len` bytes from the shell's stdout
-        let stdout_handle = child_bin.child_stdout.get_mut();
-
-        Logger::get_instance().log(
-            LogLevel::Info,
-            &format!("Awaiting response (2) from {}: {}, len {}", process_info.pid, address, len),
-            None,
-        );
-
+        // Read data into our buffer; handle partial reads if needed
         let mut buf = vec![0u8; len];
-        let mut total_read = 0;
-        while total_read < len {
-            let read_count = stdout_handle.read(&mut buf[total_read..])?;
-            if read_count == 0 {
-                return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "EOF while reading memory via dd"));
+        let mut bytes_read = 0;
+        while bytes_read < len {
+            match file.read(&mut buf[bytes_read..])? {
+                0 => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        format!("EOF while reading process memory at address {:#x} in {}", address, mem_path),
+                    ));
+                }
+                n => bytes_read += n,
             }
-            total_read += read_count;
         }
-
         Ok(buf)
     }
 }
 
 impl IMemoryReader for AndroidMemoryReader {
-    /// Reads into a `DynamicStruct` by calling `read_memory_chunk(...)`.
+    /// Reads into a `DynamicStruct` by calling `read_bytes_internal(...)`.
     fn read(
         &self,
         process_info: &OpenedProcessInfo,
@@ -86,7 +56,7 @@ impl IMemoryReader for AndroidMemoryReader {
     ) -> bool {
         let size = dynamic_struct.get_size_in_bytes() as usize;
 
-        match self.read_memory_chunk(process_info, address, size) {
+        match self.read_bytes_internal(process_info, address, size) {
             Ok(bytes) => {
                 dynamic_struct.copy_from_bytes(&bytes);
                 true
@@ -95,7 +65,7 @@ impl IMemoryReader for AndroidMemoryReader {
         }
     }
 
-    /// Reads into a raw byte slice by calling `read_memory_chunk(...)`.
+    /// Reads into a raw byte slice by calling `read_bytes_internal(...)`.
     fn read_bytes(
         &self,
         process_info: &OpenedProcessInfo,
@@ -104,7 +74,7 @@ impl IMemoryReader for AndroidMemoryReader {
     ) -> bool {
         let size = values.len();
 
-        match self.read_memory_chunk(process_info, address, size) {
+        match self.read_bytes_internal(process_info, address, size) {
             Ok(bytes) => {
                 values.copy_from_slice(&bytes);
                 true

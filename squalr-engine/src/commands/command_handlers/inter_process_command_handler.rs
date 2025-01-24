@@ -26,7 +26,7 @@ impl InterProcessCommandHandler {
         let ipc_connection = self.ipc_connection.clone();
 
         thread::spawn(move || {
-            match InterProcessCommandPipe::create_worker() {
+            match InterProcessCommandPipe::create_server() {
                 Ok(stream) => {
                     if let Ok(mut ipc_connection) = ipc_connection.write() {
                         *ipc_connection = Some(stream);

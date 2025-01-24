@@ -6,9 +6,10 @@ use crate::normalized_module::NormalizedModule;
 use crate::normalized_region::NormalizedRegion;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_common::privileges::android::android_super_user::AndroidSuperUser;
 use squalr_engine_processes::process_info::Bitness;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 
 pub struct AndroidMemoryQueryer;
 
@@ -28,35 +29,23 @@ impl AndroidMemoryQueryer {
         AndroidMemoryQueryer
     }
 
-    /// Reads `/proc/<pid>/maps` *via the super user shell* and returns a `Vec` of parsed `ProcMapRegion`.
+    /// Reads `/proc/<pid>/maps` directly from the filesystem and parses each line.
     fn parse_proc_maps(pid: i32) -> std::io::Result<Vec<ProcMapRegion>> {
-        // Acquire the SU shell.
-        let android_su = AndroidSuperUser::get_instance();
-        let mut su = match android_su.write() {
-            Ok(su_guard) => su_guard,
-            Err(e) => {
-                // Convert a PoisonError to an io::Error so we can keep the same Result signature
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to acquire write lock on AndroidSuperUser: {}", e),
-                ));
-            }
-        };
-
-        // We'll cat /proc/<pid>/maps through the SU shell.
-        let command = format!("cat /proc/{}/maps", pid);
-        let output_lines = su
-            .execute_command(&command)
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+        // Instead of using “cat /proc/<pid>/maps” via su, read the file directly:
+        let path = format!("/proc/{}/maps", pid);
+        let file = File::open(&path)?;
+        let reader = BufReader::new(file);
 
         let mut regions = Vec::new();
 
-        for line in output_lines {
-            // Example line format:
-            //    00400000-00452000 r-xp 00000000 fc:01 1234   /system/bin/app_process32
+        // Each line in `/proc/<pid>/maps` typically looks like:
+        // 00400000-00452000 r-xp 00000000 fc:01 1234   /system/bin/app_process32
+        for line_result in reader.lines() {
+            let line = line_result?;
             let parts: Vec<&str> = line.split_whitespace().collect();
+
+            // We expect at least: address-range, perms, offset, dev, inode, [pathname...]
             if parts.len() < 5 {
-                // At minimum we expect: address range, perms, offset, dev, inode, [pathname]
                 continue;
             }
 
@@ -65,9 +54,10 @@ impl AndroidMemoryQueryer {
             let offset_part = parts[2];
             let dev_part = parts[3];
             let inode_part = parts[4];
+            // If there's more, join the rest as the pathname
             let pathname_part = if parts.len() > 5 { parts[5..].join(" ") } else { "".to_string() };
 
-            // Parse start/end
+            // Parse address range
             let mut range_split = range_part.split('-');
             let start_str = range_split.next().unwrap_or("0");
             let end_str = range_split.next().unwrap_or("0");
