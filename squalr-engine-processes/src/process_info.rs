@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sysinfo::Pid;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Bitness {
     Bit32,
     Bit64,
@@ -22,7 +22,7 @@ pub struct ProcessInfo {
     pub icon: Option<ProcessIcon>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OpenedProcessInfo {
     pub pid: u32,
     pub name: String,

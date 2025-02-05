@@ -11,15 +11,20 @@ use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::commands::command_handlers::process::ProcessCommand;
 use squalr_engine::commands::engine_command::EngineCommand;
+use squalr_engine::events::engine_event::EngineEvent;
+use squalr_engine::events::engine_event::EngineEvent::ProcessOpened;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_info::ProcessInfo;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
+use std::sync::mpmc;
 use std::thread;
 use std::time::Duration;
 use sysinfo::Pid;
+
+use super::opened_process_info_converter::OpenedProcessInfoConverter;
 
 pub struct ProcessSelectorViewModel {
     _view_binding: ViewBinding<MainWindowView>,
@@ -56,13 +61,36 @@ impl ProcessSelectorViewModel {
             ProcessSelectorViewModelBindings => {
                 on_refresh_full_process_list() -> [processes_collection] -> Self::on_refresh_full_process_list
                 on_refresh_windowed_process_list() -> [windowed_processes_collection] -> Self::on_refresh_windowed_process_list
-                on_select_process(process_entry: ProcessViewData) -> [view_binding] -> Self::on_select_process
+                on_select_process(process_entry: ProcessViewData) -> [] -> Self::on_select_process
             }
         });
 
+        view.listen_for_process_change(SqualrEngine::get_event_receiver(), view_binding.clone());
         view.start_refresh_process_lists_task();
 
         view
+    }
+
+    fn listen_for_process_change(
+        &self,
+        event_receiver: mpmc::Receiver<EngineEvent>,
+        view_binding: ViewBinding<MainWindowView>,
+    ) {
+        thread::spawn(move || {
+            loop {
+                if let Ok(event) = event_receiver.recv() {
+                    match event {
+                        ProcessOpened(opened_process_info) => {
+                            view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
+                                main_window_view
+                                    .global::<ProcessSelectorViewModelBindings>()
+                                    .set_selected_process(OpenedProcessInfoConverter::new().convert_to_view_data(&opened_process_info));
+                            });
+                        }
+                    }
+                }
+            }
+        });
     }
 
     fn start_refresh_process_lists_task(&self) {
@@ -135,10 +163,7 @@ impl ProcessSelectorViewModel {
         windowed_process_info_converter.update_from_source(processes);
     }
 
-    fn on_select_process(
-        view_binding: ViewBinding<MainWindowView>,
-        process_entry: ProcessViewData,
-    ) {
+    fn on_select_process(process_entry: ProcessViewData) {
         let open_process_command = EngineCommand::Process {
             0: ProcessCommand::Open {
                 pid: Some(process_entry.process_id as u32),
@@ -148,35 +173,5 @@ impl ProcessSelectorViewModel {
         };
 
         SqualrEngine::dispatch_command(open_process_command);
-
-        /*
-        let process_query_options = Self::get_process_query_options(Some(Pid::from_u32(process_entry.process_id as u32)), true, Some(1));
-        let processes = ProcessQuery::get_processes(process_query_options);
-
-        if let Some(process_to_open) = processes.first() {
-            let open_process_command = EngineCommand::Process {
-                0: ProcessCommand::Open {
-                    pid: Some(process_to_open.pid),
-                    search_name: None,
-                    match_case: false,
-                },
-            };
-
-            SqualrEngine::dispatch_command(open_process_command);
-
-            match ProcessQuery::open_process(process_to_open) {
-                Ok(opened_process) => {
-                    let process_to_open = process_to_open.clone();
-                    view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
-                        main_window_view
-                            .global::<ProcessSelectorViewModelBindings>()
-                            .set_selected_process(ProcessInfoConverter::new().convert_to_view_data(&process_to_open));
-                    });
-                }
-                Err(err) => {
-                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", process_to_open.pid, err), None);
-                }
-            }
-        }*/
     }
 }
