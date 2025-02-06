@@ -1,8 +1,8 @@
 use crate::command_handlers::command_handler::CommandHandlerType;
 use crate::events::engine_event::EngineEvent;
-use crate::requests::command_dispatcher::CommandDispatcher;
-use crate::requests::command_dispatcher::CommandDispatcherType;
-use crate::requests::engine_command::EngineCommand;
+use crate::commands::command_dispatcher::CommandDispatcher;
+use crate::commands::command_dispatcher::CommandDispatcherType;
+use crate::commands::engine_command::EngineCommand;
 use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;

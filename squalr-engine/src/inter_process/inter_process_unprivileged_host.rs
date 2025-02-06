@@ -1,5 +1,5 @@
+use crate::commands::engine_command::EngineCommand;
 use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
-use crate::requests::engine_command::EngineCommand;
 use interprocess::local_socket::prelude::LocalSocketStream;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;

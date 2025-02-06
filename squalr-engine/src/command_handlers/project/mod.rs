@@ -1,5 +1,4 @@
-pub mod project_command;
-pub use project_command::ProjectCommand;
+use crate::commands::project::project_command::ProjectCommand;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 

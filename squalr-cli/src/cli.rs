@@ -1,4 +1,4 @@
-use squalr_engine::requests::engine_command::EngineCommand;
+use squalr_engine::commands::engine_command::EngineCommand;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;

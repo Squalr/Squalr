@@ -4,7 +4,7 @@ use crate::command_handlers::project;
 use crate::command_handlers::results;
 use crate::command_handlers::scan;
 use crate::command_handlers::settings;
-use crate::requests::engine_command::EngineCommand;
+use crate::commands::engine_command::EngineCommand;
 
 pub enum CommandHandlerType {
     Standalone(),

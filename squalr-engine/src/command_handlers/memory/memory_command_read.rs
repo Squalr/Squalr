@@ -1,4 +1,4 @@
-use crate::command_handlers::memory::memory_command::MemoryCommand;
+use crate::commands::memory::memory_command::MemoryCommand;
 use crate::squalr_session::SqualrSession;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;

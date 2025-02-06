@@ -1,6 +1,6 @@
 use crate::command_handlers::command_handler::CommandHandler;
+use crate::commands::engine_command::EngineCommand;
 use crate::inter_process::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
-use crate::requests::engine_command::EngineCommand;
 
 pub trait CommandDispatcher {
     fn dispatch_command(
