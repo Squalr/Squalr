@@ -1,20 +1,36 @@
-use crate::commands::command_handlers::command_handler::CommandHandler;
-use crate::commands::inter_process_command_pipe::InterProcessCommandPipe;
+use crate::command_handlers::command_handler::CommandHandler;
+use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
 use interprocess::local_socket::prelude::LocalSocketStream;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use std::sync::Arc;
+use std::sync::Once;
 use std::sync::RwLock;
 use std::thread;
 use std::time::Duration;
 
-pub struct InterProcessCommandHandler {
+pub struct InterProcessPrivilegedShell {
     ipc_connection: Arc<RwLock<Option<LocalSocketStream>>>,
 }
 
-impl InterProcessCommandHandler {
-    pub fn new() -> InterProcessCommandHandler {
-        let instance = InterProcessCommandHandler {
+impl InterProcessPrivilegedShell {
+    pub fn get_instance() -> &'static InterProcessPrivilegedShell {
+        static mut INSTANCE: Option<InterProcessPrivilegedShell> = None;
+        static INIT: Once = Once::new();
+
+        unsafe {
+            INIT.call_once(|| {
+                let instance = InterProcessPrivilegedShell::new();
+                INSTANCE = Some(instance);
+            });
+
+            #[allow(static_mut_refs)]
+            INSTANCE.as_ref().unwrap_unchecked()
+        }
+    }
+
+    fn new() -> InterProcessPrivilegedShell {
+        let instance = InterProcessPrivilegedShell {
             ipc_connection: Arc::new(RwLock::new(None)),
         };
 
@@ -26,7 +42,7 @@ impl InterProcessCommandHandler {
         let ipc_connection = self.ipc_connection.clone();
 
         thread::spawn(move || {
-            match InterProcessCommandPipe::create_server() {
+            match InterProcessCommandPipe::create_inter_process_pipe() {
                 Ok(stream) => {
                     if let Ok(mut ipc_connection) = ipc_connection.write() {
                         *ipc_connection = Some(stream);

@@ -1,15 +1,13 @@
-use crate::commands::command_dispatchers::command_dispatcher::{CommandDispatcher, CommandDispatcherType};
-use crate::commands::command_dispatchers::inter_process_command_dispatcher::InterProcessCommandDispatcher;
-use crate::commands::command_handlers::command_handler::CommandHandlerType;
-use crate::commands::command_handlers::inter_process_command_handler::InterProcessCommandHandler;
-use crate::commands::engine_command::EngineCommand;
+use crate::command_handlers::command_handler::CommandHandlerType;
 use crate::events::engine_event::EngineEvent;
+use crate::requests::command_dispatcher::CommandDispatcher;
+use crate::requests::command_dispatcher::CommandDispatcherType;
+use crate::requests::engine_command::EngineCommand;
 use squalr_engine_architecture::vectors::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
-use squalr_engine_processes::{process_info::OpenedProcessInfo, process_query::process_queryer::ProcessQuery};
-use squalr_engine_scanning::snapshots::snapshot::Snapshot;
+use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use std::sync::mpsc::SendError;
-use std::sync::{Arc, Once, RwLock};
+use std::sync::{Arc, Once};
 use std::sync::{Mutex, mpmc};
 
 static mut INSTANCE: Option<SqualrEngine> = None;
@@ -28,13 +26,8 @@ pub enum EngineMode {
     Server,
 }
 
+/// Orchestrates commands and responses to and from the engine. This is leveraged by the GUI, CLI, etc.
 pub struct SqualrEngine {
-    /// The process to which Squalr is attached.
-    opened_process: RwLock<Option<OpenedProcessInfo>>,
-
-    /// The current snapshot of process memory, which may contain previous and current scan results.
-    snapshot: Arc<RwLock<Snapshot>>,
-
     /// Handles sending commands to the engine.
     command_dispatcher: Arc<Mutex<CommandDispatcherType>>,
 
@@ -51,22 +44,20 @@ pub struct SqualrEngine {
 impl SqualrEngine {
     fn new(engine_mode: EngineMode) -> Self {
         let command_dispatcher = match engine_mode {
-            EngineMode::Standalone => CommandDispatcherType::Standard(),
-            EngineMode::Client => CommandDispatcherType::InterProcess(InterProcessCommandDispatcher::new()),
-            EngineMode::Server => CommandDispatcherType::Standard(),
+            EngineMode::Standalone => CommandDispatcherType::Standalone(),
+            EngineMode::Client => CommandDispatcherType::InterProcess(),
+            EngineMode::Server => CommandDispatcherType::Standalone(),
         };
 
         let command_handler = match engine_mode {
-            EngineMode::Standalone => CommandHandlerType::Standard(),
-            EngineMode::Client => CommandHandlerType::Standard(),
-            EngineMode::Server => CommandHandlerType::InterProcess(InterProcessCommandHandler::new()),
+            EngineMode::Standalone => CommandHandlerType::Standalone(),
+            EngineMode::Client => CommandHandlerType::Standalone(),
+            EngineMode::Server => CommandHandlerType::InterProcess(),
         };
 
         let (event_sender, event_receiver) = mpmc::channel();
 
         SqualrEngine {
-            opened_process: RwLock::new(None),
-            snapshot: Arc::new(RwLock::new(Snapshot::new(vec![]))),
             command_dispatcher: Arc::new(Mutex::new(command_dispatcher)),
             _command_handler: Arc::new(Mutex::new(command_handler)),
             event_sender: event_sender,
@@ -119,52 +110,11 @@ impl SqualrEngine {
         });
     }
 
-    pub fn get_event_receiver() -> mpmc::Receiver<EngineEvent> {
+    pub fn get_engine_event_receiver() -> mpmc::Receiver<EngineEvent> {
         SqualrEngine::get_instance().event_receiver.clone()
     }
 
-    fn emit_event(
-        &self,
-        event: EngineEvent,
-    ) -> Result<(), SendError<EngineEvent>> {
-        self.event_sender.send(event)
-    }
-
-    pub fn set_opened_process(process_info: OpenedProcessInfo) {
-        let instance = Self::get_instance();
-        if let Ok(mut process) = instance.opened_process.write() {
-            Logger::get_instance().log(
-                LogLevel::Info,
-                &format!("Opened process: {}, pid: {}", process_info.name, process_info.pid),
-                None,
-            );
-            *process = Some(process_info.clone());
-
-            if let Err(err) = SqualrEngine::get_instance().emit_event(EngineEvent::ProcessOpened(process_info)) {
-                Logger::get_instance().log(LogLevel::Error, &format!("Error sending opened process event: {}", err), None);
-            }
-        }
-    }
-
-    pub fn clear_opened_process() {
-        let instance = Self::get_instance();
-        if let Ok(mut process) = instance.opened_process.write() {
-            *process = None;
-            Logger::get_instance().log(LogLevel::Info, "Process closed", None);
-        }
-    }
-
-    pub fn get_opened_process() -> Option<OpenedProcessInfo> {
-        let instance = Self::get_instance();
-        instance
-            .opened_process
-            .read()
-            .ok()
-            .and_then(|guard| guard.clone())
-    }
-
-    pub fn get_snapshot() -> Arc<RwLock<Snapshot>> {
-        let instance = Self::get_instance();
-        instance.snapshot.clone()
+    pub fn broadcast_engine_event(event: EngineEvent) -> Result<(), SendError<EngineEvent>> {
+        SqualrEngine::get_instance().event_sender.send(event)
     }
 }

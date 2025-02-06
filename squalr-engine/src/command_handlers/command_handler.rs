@@ -1,15 +1,14 @@
-use crate::commands::command_handlers::inter_process_command_handler::InterProcessCommandHandler;
-use crate::commands::command_handlers::memory;
-use crate::commands::command_handlers::process;
-use crate::commands::command_handlers::project;
-use crate::commands::command_handlers::results;
-use crate::commands::command_handlers::scan;
-use crate::commands::command_handlers::settings;
-use crate::commands::engine_command::EngineCommand;
+use crate::command_handlers::memory;
+use crate::command_handlers::process;
+use crate::command_handlers::project;
+use crate::command_handlers::results;
+use crate::command_handlers::scan;
+use crate::command_handlers::settings;
+use crate::requests::engine_command::EngineCommand;
 
 pub enum CommandHandlerType {
-    Standard(),
-    InterProcess(InterProcessCommandHandler),
+    Standalone(),
+    InterProcess(),
 }
 
 pub struct CommandHandler {}

@@ -38,7 +38,7 @@ pub struct InterProcessCommandPipe {}
 impl InterProcessCommandPipe {
     /// Creates a single manager connection: effectively "binds" to the socket
     /// (or named pipe on Windows), listens, and accepts exactly one incoming connection.
-    pub fn create_server() -> io::Result<LocalSocketStream> {
+    pub fn create_inter_process_pipe() -> io::Result<LocalSocketStream> {
         // On Unix-like non-Android systems, remove any leftover socket file
         #[cfg(all(not(windows), not(target_os = "android")))]
         {
@@ -71,7 +71,7 @@ impl InterProcessCommandPipe {
         Ok(stream)
     }
 
-    pub fn create_client() -> io::Result<LocalSocketStream> {
+    pub fn bind_to_inter_process_pipe() -> io::Result<LocalSocketStream> {
         const MAX_RETRIES: u32 = 256;
         let retry_delay = std::time::Duration::from_millis(100);
 

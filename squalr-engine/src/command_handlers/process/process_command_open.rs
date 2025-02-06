@@ -1,5 +1,5 @@
-use crate::commands::command_handlers::process::process_command::ProcessCommand;
-use crate::squalr_engine::SqualrEngine;
+use crate::command_handlers::process::process_command::ProcessCommand;
+use crate::squalr_session::SqualrSession;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
@@ -29,7 +29,7 @@ pub fn handle_process_open(cmd: &mut ProcessCommand) {
         if let Some(process_info) = processes.first() {
             match ProcessQuery::open_process(&process_info) {
                 Ok(opened_process_info) => {
-                    SqualrEngine::set_opened_process(opened_process_info);
+                    SqualrSession::set_opened_process(opened_process_info);
                 }
                 Err(err) => {
                     Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", process_info.pid, err), None);

@@ -1,9 +1,9 @@
-use crate::commands::command_handlers::memory::MemoryCommand;
-use crate::commands::command_handlers::process::ProcessCommand;
-use crate::commands::command_handlers::project::ProjectCommand;
-use crate::commands::command_handlers::results::results_command::ResultsCommand;
-use crate::commands::command_handlers::scan::ScanCommand;
-use crate::commands::command_handlers::settings::SettingsCommand;
+use crate::command_handlers::memory::MemoryCommand;
+use crate::command_handlers::process::ProcessCommand;
+use crate::command_handlers::project::ProjectCommand;
+use crate::command_handlers::results::results_command::ResultsCommand;
+use crate::command_handlers::scan::ScanCommand;
+use crate::command_handlers::settings::SettingsCommand;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 

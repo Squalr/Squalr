@@ -6,9 +6,10 @@ use crate::ValueCollectorViewModelBindings;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
-use squalr_engine::commands::command_handlers::scan::ScanCommand;
-use squalr_engine::commands::engine_command::EngineCommand;
+use squalr_engine::command_handlers::scan::ScanCommand;
+use squalr_engine::requests::engine_command::EngineCommand;
 use squalr_engine::squalr_engine::SqualrEngine;
+use squalr_engine::squalr_session::SqualrSession;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::endian::Endian;
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
@@ -83,8 +84,8 @@ impl ManualScanViewModel {
     }
 
     fn on_collect_values() {
-        if let Some(process_info) = SqualrEngine::get_opened_process() {
-            let snapshot = SqualrEngine::get_snapshot();
+        if let Some(process_info) = SqualrSession::get_opened_process() {
+            let snapshot = SqualrSession::get_snapshot();
             let _task = ValueCollector::collect_values(process_info.clone(), snapshot, None, true);
         }
     }

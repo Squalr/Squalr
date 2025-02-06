@@ -1,5 +1,5 @@
-use crate::commands::command_handlers::scan::ScanCommand;
-use crate::squalr_engine::SqualrEngine;
+use crate::command_handlers::scan::ScanCommand;
+use crate::squalr_session::SqualrSession;
 use squalr_engine_common::values::{data_type::DataType, endian::Endian};
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 
@@ -26,8 +26,8 @@ pub fn handle_new_scan_command(cmd: &mut ScanCommand) {
             ];
         }
 
-        if let Some(process_info) = SqualrEngine::get_opened_process() {
-            let snapshot = SqualrEngine::get_snapshot();
+        if let Some(process_info) = SqualrSession::get_opened_process() {
+            let snapshot = SqualrSession::get_snapshot();
             let mut snapshot = snapshot.write().unwrap();
 
             snapshot.new_scan(&process_info, scan_filter_parameters);

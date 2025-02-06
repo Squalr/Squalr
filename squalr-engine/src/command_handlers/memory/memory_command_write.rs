@@ -1,5 +1,5 @@
-use crate::commands::command_handlers::memory::memory_command::MemoryCommand;
-use crate::squalr_engine::SqualrEngine;
+use crate::command_handlers::memory::memory_command::MemoryCommand;
+use crate::squalr_session::SqualrSession;
 use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -8,7 +8,7 @@ use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
 
 pub fn handle_memory_write(cmd: &mut MemoryCommand) {
     if let MemoryCommand::Write { address, value } = cmd {
-        if let Some(process_info) = SqualrEngine::get_opened_process() {
+        if let Some(process_info) = SqualrSession::get_opened_process() {
             // Log the memory write operation
             Logger::get_instance().log(LogLevel::Info, &format!("Writing value {:?} to address {}", value, address), None);
 

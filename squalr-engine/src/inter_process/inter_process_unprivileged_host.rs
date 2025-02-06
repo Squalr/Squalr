@@ -1,22 +1,38 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::inter_process_command_pipe::InterProcessCommandPipe;
+use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
+use crate::requests::engine_command::EngineCommand;
 use interprocess::local_socket::prelude::LocalSocketStream;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use std::io;
 use std::process::Child;
 use std::process::Command;
+use std::sync::Once;
 use std::sync::{Arc, RwLock};
 use std::thread;
 
-pub struct InterProcessCommandDispatcher {
+pub struct InterProcessUnprivilegedHost {
     ipc_server: Arc<RwLock<Option<Child>>>,
     ipc_connection: Arc<RwLock<Option<LocalSocketStream>>>,
 }
 
-impl InterProcessCommandDispatcher {
-    pub fn new() -> InterProcessCommandDispatcher {
-        let instance = InterProcessCommandDispatcher {
+impl InterProcessUnprivilegedHost {
+    pub fn get_instance() -> &'static InterProcessUnprivilegedHost {
+        static mut INSTANCE: Option<InterProcessUnprivilegedHost> = None;
+        static INIT: Once = Once::new();
+
+        unsafe {
+            INIT.call_once(|| {
+                let instance = InterProcessUnprivilegedHost::new();
+                INSTANCE = Some(instance);
+            });
+
+            #[allow(static_mut_refs)]
+            INSTANCE.as_ref().unwrap_unchecked()
+        }
+    }
+
+    fn new() -> InterProcessUnprivilegedHost {
+        let instance = InterProcessUnprivilegedHost {
             ipc_server: Arc::new(RwLock::new(None)),
             ipc_connection: Arc::new(RwLock::new(None)),
         };
@@ -41,7 +57,7 @@ impl InterProcessCommandDispatcher {
                         *server = Some(child);
                     }
 
-                    match InterProcessCommandPipe::create_client() {
+                    match InterProcessCommandPipe::bind_to_inter_process_pipe() {
                         Ok(stream) => {
                             if let Ok(mut ipc_connection) = ipc_connection.write() {
                                 *ipc_connection = Some(stream);

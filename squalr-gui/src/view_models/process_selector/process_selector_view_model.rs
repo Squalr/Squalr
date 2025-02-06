@@ -9,10 +9,10 @@ use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
-use squalr_engine::commands::command_handlers::process::ProcessCommand;
-use squalr_engine::commands::engine_command::EngineCommand;
+use squalr_engine::command_handlers::process::ProcessCommand;
 use squalr_engine::events::engine_event::EngineEvent;
 use squalr_engine::events::engine_event::EngineEvent::ProcessOpened;
+use squalr_engine::requests::engine_command::EngineCommand;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -65,7 +65,7 @@ impl ProcessSelectorViewModel {
             }
         });
 
-        view.listen_for_process_change(SqualrEngine::get_event_receiver(), view_binding.clone());
+        view.listen_for_process_change(SqualrEngine::get_engine_event_receiver(), view_binding.clone());
         view.start_refresh_process_lists_task();
 
         view
