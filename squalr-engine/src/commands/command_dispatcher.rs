@@ -1,27 +1,24 @@
 use crate::command_handlers::command_handler::CommandHandler;
 use crate::commands::engine_command::EngineCommand;
+use crate::inter_process::dispatcher_type::DispatcherType;
 use crate::inter_process::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
 
-pub trait CommandDispatcher {
-    fn dispatch_command(
-        &self,
-        command: EngineCommand,
-    );
+pub struct CommandDispatcher {
+    dispatcher_type: DispatcherType,
 }
 
-pub enum CommandDispatcherType {
-    Standalone(),
-    InterProcess(),
-}
+impl CommandDispatcher {
+    pub fn new(dispatcher_type: DispatcherType) -> Self {
+        Self { dispatcher_type }
+    }
 
-impl CommandDispatcher for CommandDispatcherType {
-    fn dispatch_command(
+    pub fn dispatch_command(
         &self,
         command: EngineCommand,
     ) {
-        match self {
-            Self::Standalone() => CommandHandler::handle_command(command),
-            Self::InterProcess() => InterProcessUnprivilegedHost::get_instance().dispatch_command(command),
+        match self.dispatcher_type {
+            DispatcherType::Standalone => CommandHandler::handle_command(command),
+            DispatcherType::InterProcess => InterProcessUnprivilegedHost::get_instance().dispatch_command(command),
         }
     }
 }

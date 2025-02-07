@@ -1,6 +1,8 @@
 use crate::command_handlers::command_handler::CommandHandler;
+use crate::events::engine_event::EngineEvent;
 use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
-use crate::inter_process::inter_process_privileged_shell::InterProcessDataIngress::Command;
+use crate::inter_process::inter_process_data_egress::InterProcessDataEgress;
+use crate::inter_process::inter_process_data_ingress::InterProcessDataIngress::Command;
 use crate::responses::engine_response::EngineResponse;
 use interprocess::local_socket::prelude::LocalSocketStream;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -10,9 +12,6 @@ use std::sync::Once;
 use std::sync::RwLock;
 use std::thread;
 use std::time::Duration;
-
-use super::inter_process_data_egress::InterProcessDataEgress;
-use super::inter_process_data_ingress::InterProcessDataIngress;
 
 pub struct InterProcessPrivilegedShell {
     ipc_connection: Arc<RwLock<Option<LocalSocketStream>>>,
@@ -80,6 +79,17 @@ impl InterProcessPrivilegedShell {
         });
     }
 
+    pub fn dispatch_event(
+        &self,
+        event: EngineEvent,
+    ) {
+        let egress = InterProcessDataEgress::Event(event);
+
+        if let Err(err) = InterProcessCommandPipe::ipc_send_to_host(&self.ipc_connection, egress) {
+            Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC event: {}", err), None);
+        }
+    }
+
     pub fn dispatch_response(
         &self,
         response: EngineResponse,
@@ -87,7 +97,7 @@ impl InterProcessPrivilegedShell {
         let egress = InterProcessDataEgress::Response(response);
 
         if let Err(err) = InterProcessCommandPipe::ipc_send_to_host(&self.ipc_connection, egress) {
-            Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC command: {}", err), None);
+            Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC response: {}", err), None);
         }
     }
 }

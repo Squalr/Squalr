@@ -1,5 +1,6 @@
 use crate::commands::engine_command::EngineCommand;
 use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
+use crate::inter_process::inter_process_data_ingress::InterProcessDataIngress;
 use interprocess::local_socket::prelude::LocalSocketStream;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -9,8 +10,6 @@ use std::process::Command;
 use std::sync::Once;
 use std::sync::{Arc, RwLock};
 use std::thread;
-
-use super::inter_process_data_ingress::InterProcessDataIngress;
 
 pub struct InterProcessUnprivilegedHost {
     ipc_server: Arc<RwLock<Option<Child>>>,
