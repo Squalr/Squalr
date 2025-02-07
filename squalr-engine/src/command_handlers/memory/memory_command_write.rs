@@ -6,7 +6,7 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_memory::memory_writer::MemoryWriter;
 use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
 
-pub fn handle_memory_write(cmd: &mut MemoryCommand) {
+pub fn handle_memory_write(cmd: MemoryCommand) {
     if let MemoryCommand::Write { address, value } = cmd {
         if let Some(process_info) = SqualrSession::get_opened_process() {
             // Log the memory write operation
@@ -16,7 +16,7 @@ pub fn handle_memory_write(cmd: &mut MemoryCommand) {
             let value_bytes = value.to_bytes();
 
             // Perform the memory write operation
-            MemoryWriter::get_instance().write_bytes(process_info.handle, *address, &value_bytes);
+            MemoryWriter::get_instance().write_bytes(process_info.handle, address, &value_bytes);
         } else {
             Logger::get_instance().log(LogLevel::Info, "No process is opened to write to.", None);
         }

@@ -9,7 +9,7 @@ use crate::command_handlers::scan::scan_command_new::handle_new_scan_command;
 use crate::command_handlers::scan::scan_command_value_collector::handle_value_collector_command;
 use crate::commands::scan::scan_command::ScanCommand;
 
-pub fn handle_scan_command(cmd: &mut ScanCommand) {
+pub fn handle_scan_command(cmd: ScanCommand) {
     match cmd {
         ScanCommand::Collect => handle_value_collector_command(cmd),
         ScanCommand::Hybrid { .. } => handle_hybrid_scan_command(cmd),

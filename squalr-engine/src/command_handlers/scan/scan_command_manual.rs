@@ -7,7 +7,7 @@ use squalr_engine_scanning::scanners::parameters::scan_parameters::ScanParameter
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use std::thread;
 
-pub fn handle_manual_scan_command(cmd: &mut ScanCommand) {
+pub fn handle_manual_scan_command(cmd: ScanCommand) {
     if let ScanCommand::Manual { scan_value, compare_type } = cmd {
         if let Some(process_info) = SqualrSession::get_opened_process() {
             let snapshot = SqualrSession::get_snapshot();

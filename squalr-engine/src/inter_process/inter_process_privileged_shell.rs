@@ -1,5 +1,7 @@
 use crate::command_handlers::command_handler::CommandHandler;
 use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
+use crate::inter_process::inter_process_privileged_shell::InterProcessDataIngress::Command;
+use crate::responses::engine_response::EngineResponse;
 use interprocess::local_socket::prelude::LocalSocketStream;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -8,6 +10,9 @@ use std::sync::Once;
 use std::sync::RwLock;
 use std::thread;
 use std::time::Duration;
+
+use super::inter_process_data_egress::InterProcessDataEgress;
+use super::inter_process_data_ingress::InterProcessDataIngress;
 
 pub struct InterProcessPrivilegedShell {
     ipc_connection: Arc<RwLock<Option<LocalSocketStream>>>,
@@ -54,10 +59,14 @@ impl InterProcessPrivilegedShell {
             }
 
             loop {
-                match InterProcessCommandPipe::ipc_receive(&ipc_connection) {
-                    Ok(mut engine_command) => {
+                match InterProcessCommandPipe::ipc_receive_from_host(&ipc_connection) {
+                    Ok(data_ingress) => {
                         Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
-                        CommandHandler::handle_command(&mut engine_command);
+                        match data_ingress {
+                            Command(engine_command) => {
+                                CommandHandler::handle_command(engine_command);
+                            }
+                        }
                     }
                     Err(err) => {
                         // If we get an error here that indicates the socket is closed, and the parent process is closed. Shutdown this worker/child process too.
@@ -69,5 +78,16 @@ impl InterProcessPrivilegedShell {
                 thread::sleep(Duration::from_millis(1));
             }
         });
+    }
+
+    pub fn dispatch_response(
+        &self,
+        response: EngineResponse,
+    ) {
+        let egress = InterProcessDataEgress::Response(response);
+
+        if let Err(err) = InterProcessCommandPipe::ipc_send_to_host(&self.ipc_connection, egress) {
+            Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC command: {}", err), None);
+        }
     }
 }

@@ -10,7 +10,7 @@ use squalr_engine_common::logging::logger::Logger;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let engine_mode = if args.contains(&"--ipc-mode".to_string()) {
-        EngineMode::Server
+        EngineMode::PrivilegedShell
     } else {
         EngineMode::Standalone
     };

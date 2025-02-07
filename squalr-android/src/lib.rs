@@ -19,7 +19,7 @@ fn android_main(app: slint::android::AndroidApp) {
         return;
     }
 
-    SqualrEngine::initialize(EngineMode::Client);
+    SqualrEngine::initialize(EngineMode::UnprivilegedHost);
 
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {

@@ -5,7 +5,7 @@ use crate::inter_process::inter_process_unprivileged_host::InterProcessUnprivile
 pub trait CommandDispatcher {
     fn dispatch_command(
         &self,
-        command: &mut EngineCommand,
+        command: EngineCommand,
     );
 }
 
@@ -17,7 +17,7 @@ pub enum CommandDispatcherType {
 impl CommandDispatcher for CommandDispatcherType {
     fn dispatch_command(
         &self,
-        command: &mut EngineCommand,
+        command: EngineCommand,
     ) {
         match self {
             Self::Standalone() => CommandHandler::handle_command(command),

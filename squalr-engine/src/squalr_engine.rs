@@ -1,9 +1,9 @@
-use crate::command_handlers::command_handler::CommandHandlerType;
-use crate::events::engine_event::EngineEvent;
 use crate::commands::command_dispatcher::CommandDispatcher;
 use crate::commands::command_dispatcher::CommandDispatcherType;
 use crate::commands::engine_command::EngineCommand;
-use squalr_engine_architecture::vectors::vectors;
+use crate::events::engine_event::EngineEvent;
+use crate::responses::response_dispatcher::ResponseDispatcherType;
+use squalr_engine_architecture::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use std::sync::mpsc::SendError;
@@ -18,21 +18,21 @@ pub enum EngineMode {
     /// Standalone mode grants full functionality.
     Standalone,
 
-    /// Client mode defers heavy lifting to the server, and only sends and recieves commands.
-    Client,
+    /// In Unprivileged Host mode, we only send and receive engine commands from the privileged shell.
+    UnprivilegedHost,
 
-    /// Server mode waits for commands from the client, does privileged work (scanning, debugging, etc),
-    /// and sends responses to client.
-    Server,
+    /// The privileged shell does heavy lifting (scanning, debugging, etc) and sends responses to the host.
+    /// This is necessary on some platforms like Android, where the main process may be unprivileged.
+    PrivilegedShell,
 }
 
-/// Orchestrates commands and responses to and from the engine. This is leveraged by the GUI, CLI, etc.
+/// Orchestrates commands and responses to and from the engine.
 pub struct SqualrEngine {
     /// Handles sending commands to the engine.
     command_dispatcher: Arc<Mutex<CommandDispatcherType>>,
 
-    /// Handles receiving commands from the engine.
-    _command_handler: Arc<Mutex<CommandHandlerType>>,
+    /// Handles sending responses from the engine to the GUI/CLI/etc.
+    response_dispatcher: Arc<Mutex<ResponseDispatcherType>>,
 
     /// Handles broadcasting events from the engine.
     event_sender: mpmc::Sender<EngineEvent>,
@@ -43,23 +43,25 @@ pub struct SqualrEngine {
 
 impl SqualrEngine {
     fn new(engine_mode: EngineMode) -> Self {
+        // Unprivileged host sends commands via IPC, other modes self-handle.
         let command_dispatcher = match engine_mode {
             EngineMode::Standalone => CommandDispatcherType::Standalone(),
-            EngineMode::Client => CommandDispatcherType::InterProcess(),
-            EngineMode::Server => CommandDispatcherType::Standalone(),
+            EngineMode::PrivilegedShell => CommandDispatcherType::Standalone(),
+            EngineMode::UnprivilegedHost => CommandDispatcherType::InterProcess(),
         };
 
-        let command_handler = match engine_mode {
-            EngineMode::Standalone => CommandHandlerType::Standalone(),
-            EngineMode::Client => CommandHandlerType::Standalone(),
-            EngineMode::Server => CommandHandlerType::InterProcess(),
+        // Privileged shell sends responses via IPC, other modes self-handle.
+        let response_dispatcher = match engine_mode {
+            EngineMode::Standalone => ResponseDispatcherType::Standalone(),
+            EngineMode::PrivilegedShell => ResponseDispatcherType::Standalone(),
+            EngineMode::UnprivilegedHost => ResponseDispatcherType::InterProcess(),
         };
 
         let (event_sender, event_receiver) = mpmc::channel();
 
         SqualrEngine {
             command_dispatcher: Arc::new(Mutex::new(command_dispatcher)),
-            _command_handler: Arc::new(Mutex::new(command_handler)),
+            response_dispatcher: Arc::new(Mutex::new(response_dispatcher)),
             event_sender: event_sender,
             event_receiver: event_receiver,
         }
@@ -95,17 +97,16 @@ impl SqualrEngine {
     }
 
     pub fn dispatch_command(command: EngineCommand) {
-        let mut command = command.clone();
         if let Ok(dispatcher) = Self::get_instance().command_dispatcher.lock() {
-            dispatcher.dispatch_command(&mut command);
+            dispatcher.dispatch_command(command);
         }
     }
 
     pub fn dispatch_command_async(command: EngineCommand) {
-        let mut command = command.clone();
+        let command = command.clone();
         std::thread::spawn(move || {
             if let Ok(dispatcher) = Self::get_instance().command_dispatcher.lock() {
-                dispatcher.dispatch_command(&mut command);
+                dispatcher.dispatch_command(command);
             }
         });
     }

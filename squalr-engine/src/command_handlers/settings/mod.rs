@@ -5,7 +5,7 @@ use crate::command_handlers::settings::settings_command_list::handle_settings_li
 use crate::command_handlers::settings::settings_command_set::handle_settings_set;
 use crate::commands::settings::settings_command::SettingsCommand;
 
-pub fn handle_settings_command(cmd: &mut SettingsCommand) {
+pub fn handle_settings_command(cmd: SettingsCommand) {
     match cmd {
         SettingsCommand::Set { .. } => handle_settings_set(cmd),
         SettingsCommand::List { .. } => handle_settings_list(cmd),

@@ -10,6 +10,8 @@ use std::sync::Once;
 use std::sync::{Arc, RwLock};
 use std::thread;
 
+use super::inter_process_data_ingress::InterProcessDataIngress;
+
 pub struct InterProcessUnprivilegedHost {
     ipc_server: Arc<RwLock<Option<Child>>>,
     ipc_connection: Arc<RwLock<Option<LocalSocketStream>>>,
@@ -77,9 +79,11 @@ impl InterProcessUnprivilegedHost {
 
     pub fn dispatch_command(
         &self,
-        command: &mut EngineCommand,
+        command: EngineCommand,
     ) {
-        if let Err(err) = InterProcessCommandPipe::ipc_send(&self.ipc_connection, command) {
+        let ingress = InterProcessDataIngress::Command(command);
+
+        if let Err(err) = InterProcessCommandPipe::ipc_send_to_shell(&self.ipc_connection, ingress) {
             Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC command: {}", err), None);
         }
     }

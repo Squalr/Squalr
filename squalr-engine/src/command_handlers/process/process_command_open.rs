@@ -6,7 +6,7 @@ use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
 use sysinfo::Pid;
 
-pub fn handle_process_open(cmd: &mut ProcessCommand) {
+pub fn handle_process_open(cmd: ProcessCommand) {
     if let ProcessCommand::Open { pid, search_name, match_case } = cmd {
         if pid.is_none() && search_name.is_none() {
             Logger::get_instance().log(LogLevel::Error, "Error: Neither PID nor search name provided. Cannot open process.", None);
@@ -19,7 +19,7 @@ pub fn handle_process_open(cmd: &mut ProcessCommand) {
             search_name: search_name.clone(),
             required_pid: pid.map(Pid::from_u32),
             require_windowed: false,
-            match_case: *match_case,
+            match_case: match_case,
             fetch_icons: false,
             limit: Some(1),
         };

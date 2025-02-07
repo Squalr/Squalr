@@ -3,7 +3,7 @@ use crate::squalr_session::SqualrSession;
 use squalr_engine_common::values::{data_type::DataType, endian::Endian};
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 
-pub fn handle_new_scan_command(cmd: &mut ScanCommand) {
+pub fn handle_new_scan_command(cmd: ScanCommand) {
     if let ScanCommand::New {
         scan_filter_parameters,
         scan_all_primitives,
@@ -11,7 +11,7 @@ pub fn handle_new_scan_command(cmd: &mut ScanCommand) {
     {
         let mut scan_filter_parameters = scan_filter_parameters.clone();
 
-        if *scan_all_primitives {
+        if scan_all_primitives {
             scan_filter_parameters = vec![
                 ScanFilterParameters::new_with_value(None, DataType::U8()),
                 ScanFilterParameters::new_with_value(None, DataType::U16(Endian::Little)),

@@ -26,6 +26,9 @@ use interprocess::local_socket::GenericNamespaced as NamedPipeType;
 #[cfg(windows)]
 use interprocess::os::windows::local_socket::NamedPipe as NamedPipeType;
 
+use super::inter_process_data_egress::InterProcessDataEgress;
+use super::inter_process_data_ingress::InterProcessDataIngress;
+
 #[cfg(windows)]
 const IPC_SOCKET_PATH: &str = "\\\\.\\pipe\\squalr-ipc";
 #[cfg(all(not(windows), not(target_os = "android")))]
@@ -103,14 +106,36 @@ impl InterProcessCommandPipe {
         Err(io::Error::new(io::ErrorKind::Other, "Failed to create IPC connection!"))
     }
 
+    pub fn ipc_send_to_shell(
+        ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>,
+        value: InterProcessDataIngress,
+    ) -> io::Result<Vec<u8>> {
+        Self::ipc_send(ipc_connection, value)
+    }
+
+    pub fn ipc_send_to_host(
+        ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>,
+        value: InterProcessDataEgress,
+    ) -> io::Result<Vec<u8>> {
+        Self::ipc_send(ipc_connection, value)
+    }
+
+    pub fn ipc_receive_from_shell(ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>) -> io::Result<InterProcessDataEgress> {
+        Self::ipc_receive(ipc_connection)
+    }
+
+    pub fn ipc_receive_from_host(ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>) -> io::Result<InterProcessDataIngress> {
+        Self::ipc_receive(ipc_connection)
+    }
+
     /// Sends a value of generic type `T` (which must implement `Serialize`) over the IPC connection.
     /// Returns the serialized bytes on success.
-    pub fn ipc_send<T: Serialize>(
+    fn ipc_send<T: Serialize>(
         ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>,
-        value: &T,
+        value: T,
     ) -> io::Result<Vec<u8>> {
         // Serialize the data
-        let encoded = bincode::serialize(value).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Serialize error: {}", e)))?;
+        let encoded = bincode::serialize(&value).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Serialize error: {}", e)))?;
 
         // Acquire read lock on the connection
         if let Ok(connection_guard) = ipc_connection.read() {
@@ -133,7 +158,7 @@ impl InterProcessCommandPipe {
     }
 
     /// Receives a value of generic type `T` (which must implement `DeserializeOwned`) from the IPC connection.
-    pub fn ipc_receive<T: DeserializeOwned>(ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>) -> io::Result<T> {
+    fn ipc_receive<T: DeserializeOwned>(ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>) -> io::Result<T> {
         // Acquire read lock on the connection
         if let Ok(connection_guard) = ipc_connection.read() {
             if let Some(mut stream) = connection_guard.as_ref() {

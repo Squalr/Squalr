@@ -6,7 +6,7 @@ use squalr_engine_scanning::scanners::hybrid_scanner::HybridScanner;
 use squalr_engine_scanning::scanners::parameters::scan_parameters::ScanParameters;
 use std::thread;
 
-pub fn handle_hybrid_scan_command(cmd: &mut ScanCommand) {
+pub fn handle_hybrid_scan_command(cmd: ScanCommand) {
     if let ScanCommand::Hybrid { scan_value, compare_type } = cmd {
         if let Some(process_info) = SqualrSession::get_opened_process() {
             let snapshot = SqualrSession::get_snapshot();

@@ -17,7 +17,8 @@ pub fn main() {
     // Create and show the main window, which in turn will instantiate all dockable windows.
     let _main_window_view = MainWindowViewModel::new();
 
-    SqualrEngine::initialize(EngineMode::Client);
+    // TEMP! Revert to standalone later.
+    SqualrEngine::initialize(EngineMode::UnprivilegedHost);
 
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {

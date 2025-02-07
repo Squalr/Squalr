@@ -4,12 +4,12 @@ use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_scanning::scan_settings::ScanSettings;
 
-pub fn handle_results_list(cmd: &mut ResultsCommand) {
+pub fn handle_results_list(cmd: ResultsCommand) {
     // Irrefutable pattern, so no `let =` as is present in most other command handlers.
     let ResultsCommand::List { page, data_type } = cmd;
     {
         let results_page_size = ScanSettings::get_instance().get_results_page_size() as u64;
-        let initial_index = *page * results_page_size;
+        let initial_index = page * results_page_size;
         let end_index = initial_index + results_page_size;
         let snapshot_lock = SqualrSession::get_snapshot();
         let snapshot = snapshot_lock.read().unwrap();

@@ -4,7 +4,7 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
 
-pub fn handle_process_list(cmd: &mut ProcessCommand) {
+pub fn handle_process_list(cmd: ProcessCommand) {
     if let ProcessCommand::List {
         require_windowed,
         search_name,
@@ -24,10 +24,10 @@ pub fn handle_process_list(cmd: &mut ProcessCommand) {
         let options = ProcessQueryOptions {
             search_name: search_name.as_ref().cloned(),
             required_pid: None,
-            require_windowed: *require_windowed,
-            match_case: *match_case,
+            require_windowed: require_windowed,
+            match_case: match_case,
             fetch_icons: false,
-            limit: *limit,
+            limit: limit,
         };
 
         let processes = ProcessQuery::get_processes(options);

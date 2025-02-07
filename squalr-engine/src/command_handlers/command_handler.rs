@@ -14,7 +14,7 @@ pub enum CommandHandlerType {
 pub struct CommandHandler {}
 
 impl CommandHandler {
-    pub fn handle_command(command: &mut EngineCommand) {
+    pub fn handle_command(command: EngineCommand) {
         match command {
             EngineCommand::Memory(cmd) => memory::handle_memory_command(cmd),
             EngineCommand::Process(cmd) => process::handle_process_command(cmd),

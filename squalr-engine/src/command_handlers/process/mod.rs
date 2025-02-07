@@ -7,7 +7,7 @@ use crate::command_handlers::process::process_command_list::handle_process_list;
 use crate::command_handlers::process::process_command_open::handle_process_open;
 use crate::commands::process::process_command::ProcessCommand;
 
-pub fn handle_process_command(cmd: &mut ProcessCommand) {
+pub fn handle_process_command(cmd: ProcessCommand) {
     match cmd {
         ProcessCommand::Open { .. } => {
             handle_process_open(cmd);
