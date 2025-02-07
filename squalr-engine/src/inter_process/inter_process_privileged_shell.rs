@@ -38,7 +38,6 @@ impl InterProcessPrivilegedShell {
             ipc_connection: Arc::new(RwLock::new(None)),
         };
 
-        instance.initialize();
         instance
     }
 

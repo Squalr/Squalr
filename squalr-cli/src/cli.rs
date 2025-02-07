@@ -61,7 +61,9 @@ impl Cli {
             }
         };
 
-        SqualrEngine::dispatch_command(engine_command);
+        SqualrEngine::dispatch_command(engine_command, |engine_command| {
+            // TODO
+        });
         true
     }
 }

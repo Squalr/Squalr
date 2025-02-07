@@ -3,6 +3,8 @@ use crate::commands::engine_command::EngineCommand;
 use crate::events::engine_event::EngineEvent;
 use crate::events::event_dispatcher::EventDispatcher;
 use crate::inter_process::dispatcher_type::DispatcherType;
+use crate::inter_process::inter_process_privileged_shell::InterProcessPrivilegedShell;
+use crate::inter_process::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
 use crate::responses::engine_response::EngineResponse;
 use crate::responses::response_dispatcher::ResponseDispatcher;
 use squalr_engine_architecture::vectors;
@@ -16,15 +18,16 @@ static mut INSTANCE: Option<SqualrEngine> = None;
 static INIT: Once = Once::new();
 
 /// Defines the mode of operation for Squalr's engine.
+#[derive(Clone, Copy, PartialEq)]
 pub enum EngineMode {
-    /// Standalone mode grants full functionality.
+    /// Standalone mode grants full functionality. This is the most common mode.
     Standalone,
 
     /// In Unprivileged Host mode, we only send and receive engine commands from the privileged shell.
+    /// This is necessary on some platforms like Android, where the main process may be unprivileged.
     UnprivilegedHost,
 
     /// The privileged shell does heavy lifting (scanning, debugging, etc) and sends responses to the host.
-    /// This is necessary on some platforms like Android, where the main process may be unprivileged.
     PrivilegedShell,
 }
 
@@ -48,18 +51,32 @@ pub struct SqualrEngine {
 
 impl SqualrEngine {
     fn new(engine_mode: EngineMode) -> Self {
-        // Standalone engine is self-handling, but when in host or shell mode, data is sent via IPC.
-        let dispatcher_type = match engine_mode {
+        // Standalone engine is self-handling.
+        // Unprivileged host sends data via ipc.
+        // Privileged shell returns data via ipc.
+        let ingress_dispatcher_type = match engine_mode {
             EngineMode::Standalone => DispatcherType::Standalone,
-            EngineMode::UnprivilegedHost | EngineMode::PrivilegedShell => DispatcherType::InterProcess,
+            EngineMode::UnprivilegedHost => DispatcherType::InterProcess,
+            EngineMode::PrivilegedShell => DispatcherType::None,
         };
+        let egress_dispatcher_type = match engine_mode {
+            EngineMode::Standalone => DispatcherType::Standalone,
+            EngineMode::UnprivilegedHost => DispatcherType::None,
+            EngineMode::PrivilegedShell => DispatcherType::InterProcess,
+        };
+
+        if engine_mode == EngineMode::UnprivilegedHost {
+            InterProcessUnprivilegedHost::get_instance().initialize();
+        } else if engine_mode == EngineMode::PrivilegedShell {
+            InterProcessPrivilegedShell::get_instance().initialize();
+        }
 
         let (event_sender, event_receiver) = mpmc::channel();
 
         SqualrEngine {
-            command_dispatcher: Arc::new(Mutex::new(CommandDispatcher::new(dispatcher_type))),
-            event_dispatcher: Arc::new(Mutex::new(EventDispatcher::new(dispatcher_type))),
-            response_dispatcher: Arc::new(Mutex::new(ResponseDispatcher::new(dispatcher_type))),
+            command_dispatcher: Arc::new(Mutex::new(CommandDispatcher::new(ingress_dispatcher_type))),
+            event_dispatcher: Arc::new(Mutex::new(EventDispatcher::new(egress_dispatcher_type))),
+            response_dispatcher: Arc::new(Mutex::new(ResponseDispatcher::new(egress_dispatcher_type))),
             event_sender: event_sender,
             event_receiver: event_receiver,
         }
@@ -94,15 +111,25 @@ impl SqualrEngine {
         }
     }
 
-    pub fn dispatch_command(command: EngineCommand) {
+    pub fn dispatch_command(
+        command: EngineCommand,
+        callback: fn(EngineResponse),
+    ) {
         if let Ok(dispatcher) = Self::get_instance().command_dispatcher.lock() {
-            dispatcher.dispatch_command(command);
+            let command_to_dispatch = dispatcher.prepare_dispatch(command);
+
+            // TODO: Await result by UUID, invoke callback
+
+            command_to_dispatch.execute();
         }
     }
 
-    pub fn dispatch_command_async(command: EngineCommand) {
+    pub fn dispatch_command_async(
+        command: EngineCommand,
+        callback: fn(EngineResponse),
+    ) {
         std::thread::spawn(move || {
-            Self::dispatch_command(command);
+            Self::dispatch_command(command, callback);
         });
     }
 

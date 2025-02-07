@@ -2,4 +2,5 @@
 pub enum DispatcherType {
     Standalone,
     InterProcess,
+    None,
 }

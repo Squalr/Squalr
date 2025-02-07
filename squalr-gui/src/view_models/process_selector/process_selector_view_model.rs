@@ -13,6 +13,8 @@ use squalr_engine::commands::engine_command::EngineCommand;
 use squalr_engine::commands::process::process_command::ProcessCommand;
 use squalr_engine::events::engine_event::EngineEvent;
 use squalr_engine::events::engine_event::EngineEvent::ProcessOpened;
+use squalr_engine::responses::engine_response::EngineResponse;
+use squalr_engine::responses::process::process_response::ProcessResponse;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -152,15 +154,57 @@ impl ProcessSelectorViewModel {
     }
 
     fn on_refresh_full_process_list(process_info_converter: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
-        let process_query_options = Self::get_process_query_options(None, false, None);
-        let processes = ProcessQuery::get_processes(process_query_options);
-        process_info_converter.update_from_source(processes);
+        let list_all_processes_command = EngineCommand::Process {
+            0: ProcessCommand::List {
+                require_windowed: false,
+                search_name: None,
+                match_case: false,
+                limit: None,
+            },
+        };
+
+        SqualrEngine::dispatch_command(list_all_processes_command, |engine_response| {
+            match engine_response {
+                EngineResponse::Process(process_response) => {
+                    match process_response {
+                        ProcessResponse::List { processes } => {
+                            //
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        });
+
+        // process_info_converter.update_from_source(processes);
     }
 
     fn on_refresh_windowed_process_list(windowed_process_info_converter: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
-        let process_query_options = Self::get_process_query_options(None, true, None);
-        let processes = ProcessQuery::get_processes(process_query_options);
-        windowed_process_info_converter.update_from_source(processes);
+        let list_windowed_processes_command = EngineCommand::Process {
+            0: ProcessCommand::List {
+                require_windowed: false,
+                search_name: None,
+                match_case: false,
+                limit: None,
+            },
+        };
+
+        SqualrEngine::dispatch_command(list_windowed_processes_command, |engine_response| {
+            match engine_response {
+                EngineResponse::Process(process_response) => {
+                    match process_response {
+                        ProcessResponse::List { processes } => {
+                            //
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        });
+
+        // windowed_process_info_converter.update_from_source(processes);
     }
 
     fn on_select_process(process_entry: ProcessViewData) {
@@ -172,6 +216,6 @@ impl ProcessSelectorViewModel {
             },
         };
 
-        SqualrEngine::dispatch_command(open_process_command);
+        SqualrEngine::dispatch_command(open_process_command, |_| {});
     }
 }

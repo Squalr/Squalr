@@ -19,6 +19,7 @@ impl EventDispatcher {
         match self.dispatcher_type {
             DispatcherType::Standalone => EventHandler::handle_event(event),
             DispatcherType::InterProcess => InterProcessPrivilegedShell::get_instance().dispatch_event(event),
+            DispatcherType::None => panic!("Event should not be dispatched from an privileged shell."),
         }
     }
 }

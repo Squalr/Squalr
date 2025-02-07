@@ -19,6 +19,7 @@ impl ResponseDispatcher {
         match self.dispatcher_type {
             DispatcherType::Standalone => ResponseHandler::handle_response(response),
             DispatcherType::InterProcess => InterProcessPrivilegedShell::get_instance().dispatch_response(response),
+            DispatcherType::None => panic!("Response should not be dispatched from an unprivileged host."),
         }
     }
 }

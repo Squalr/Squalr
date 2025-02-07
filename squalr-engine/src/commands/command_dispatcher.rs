@@ -1,7 +1,8 @@
-use crate::command_handlers::command_handler::CommandHandler;
+use crate::commands::dispatched_command::DispatchedCommand;
 use crate::commands::engine_command::EngineCommand;
 use crate::inter_process::dispatcher_type::DispatcherType;
-use crate::inter_process::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
+use crate::responses::engine_response::EngineResponse;
+use uuid::Uuid;
 
 pub struct CommandDispatcher {
     dispatcher_type: DispatcherType,
@@ -12,13 +13,10 @@ impl CommandDispatcher {
         Self { dispatcher_type }
     }
 
-    pub fn dispatch_command(
+    pub fn prepare_dispatch(
         &self,
         command: EngineCommand,
-    ) {
-        match self.dispatcher_type {
-            DispatcherType::Standalone => CommandHandler::handle_command(command),
-            DispatcherType::InterProcess => InterProcessUnprivilegedHost::get_instance().dispatch_command(command),
-        }
+    ) -> DispatchedCommand {
+        DispatchedCommand::new(Uuid::new_v4(), command, self.dispatcher_type)
     }
 }

@@ -38,11 +38,10 @@ impl InterProcessUnprivilegedHost {
             ipc_connection: Arc::new(RwLock::new(None)),
         };
 
-        instance.initialize();
         instance
     }
 
-    fn initialize(&self) {
+    pub fn initialize(&self) {
         Logger::get_instance().log(LogLevel::Info, "Spawning squalr-cli privileged shell...", None);
 
         let ipc_server = self.ipc_server.clone();

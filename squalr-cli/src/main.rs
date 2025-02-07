@@ -5,6 +5,7 @@ use crate::logging::cli_log_listener::CliLogListener;
 use cli::Cli;
 use squalr_engine::squalr_engine::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
+use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 
 fn main() {
@@ -21,6 +22,10 @@ fn main() {
 
     // Start Squalr engine.
     SqualrEngine::initialize(engine_mode);
+
+    if engine_mode == EngineMode::PrivilegedShell {
+        Logger::get_instance().log(LogLevel::Info, "Spawning CLI as a privileged IPC shell.", None);
+    }
 
     // Listen for user input.
     Cli::run_loop();
