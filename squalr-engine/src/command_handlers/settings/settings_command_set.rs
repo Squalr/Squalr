@@ -2,8 +2,12 @@ use crate::commands::settings::settings_command::SettingsCommand;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_memory::memory_settings::MemorySettings;
 use squalr_engine_scanning::scan_settings::ScanSettings;
+use uuid::Uuid;
 
-pub fn handle_settings_set(cmd: SettingsCommand) {
+pub fn handle_settings_set(
+    cmd: SettingsCommand,
+    uuid: Uuid,
+) {
     if let SettingsCommand::Set { setting_command } = cmd {
         // Parse the setting command
         let (domain_and_setting, new_value) = match setting_command.split_once('=') {

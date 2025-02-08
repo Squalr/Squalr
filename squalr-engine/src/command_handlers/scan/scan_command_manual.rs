@@ -6,8 +6,12 @@ use squalr_engine_scanning::scanners::manual_scanner::ManualScanner;
 use squalr_engine_scanning::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use std::thread;
+use uuid::Uuid;
 
-pub fn handle_manual_scan_command(cmd: ScanCommand) {
+pub fn handle_manual_scan_command(
+    cmd: ScanCommand,
+    uuid: Uuid,
+) {
     if let ScanCommand::Manual { scan_value, compare_type } = cmd {
         if let Some(process_info) = SqualrSession::get_opened_process() {
             let snapshot = SqualrSession::get_snapshot();

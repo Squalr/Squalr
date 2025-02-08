@@ -5,8 +5,12 @@ use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_memory::memory_writer::MemoryWriter;
 use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
+use uuid::Uuid;
 
-pub fn handle_memory_write(cmd: MemoryCommand) {
+pub fn handle_memory_write(
+    cmd: MemoryCommand,
+    uuid: Uuid,
+) {
     if let MemoryCommand::Write { address, value } = cmd {
         if let Some(process_info) = SqualrSession::get_opened_process() {
             // Log the memory write operation

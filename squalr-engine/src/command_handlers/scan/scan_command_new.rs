@@ -2,8 +2,12 @@ use crate::command_handlers::scan::ScanCommand;
 use crate::squalr_session::SqualrSession;
 use squalr_engine_common::values::{data_type::DataType, endian::Endian};
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
+use uuid::Uuid;
 
-pub fn handle_new_scan_command(cmd: ScanCommand) {
+pub fn handle_new_scan_command(
+    cmd: ScanCommand,
+    uuid: Uuid,
+) {
     if let ScanCommand::New {
         scan_filter_parameters,
         scan_all_primitives,

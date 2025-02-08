@@ -1,7 +1,6 @@
 use crate::commands::dispatched_command::DispatchedCommand;
 use crate::commands::engine_command::EngineCommand;
 use crate::inter_process::dispatcher_type::DispatcherType;
-use crate::responses::engine_response::EngineResponse;
 use uuid::Uuid;
 
 pub struct CommandDispatcher {

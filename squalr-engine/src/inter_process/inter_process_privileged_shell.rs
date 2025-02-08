@@ -12,6 +12,7 @@ use std::sync::Once;
 use std::sync::RwLock;
 use std::thread;
 use std::time::Duration;
+use uuid::Uuid;
 
 pub struct InterProcessPrivilegedShell {
     ipc_connection: Arc<RwLock<Option<LocalSocketStream>>>,
@@ -42,27 +43,55 @@ impl InterProcessPrivilegedShell {
     }
 
     pub fn initialize(&self) {
+        match InterProcessCommandPipe::create_inter_process_pipe() {
+            Ok(stream) => {
+                if let Ok(mut ipc_connection) = self.ipc_connection.write() {
+                    *ipc_connection = Some(stream);
+                }
+            }
+            Err(err) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("{}", err), None);
+            }
+        }
+
+        self.listen_for_host_events();
+    }
+
+    pub fn dispatch_event(
+        &self,
+        event: EngineEvent,
+        uuid: Uuid,
+    ) {
+        let egress = InterProcessDataEgress::Event(event);
+
+        if let Err(err) = InterProcessCommandPipe::ipc_send_to_host(&self.ipc_connection, egress, uuid) {
+            Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC event: {}", err), None);
+        }
+    }
+
+    pub fn dispatch_response(
+        &self,
+        response: EngineResponse,
+        uuid: Uuid,
+    ) {
+        let egress = InterProcessDataEgress::Response(response);
+
+        if let Err(err) = InterProcessCommandPipe::ipc_send_to_host(&self.ipc_connection, egress, uuid) {
+            Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC response: {}", err), None);
+        }
+    }
+
+    fn listen_for_host_events(&self) {
         let ipc_connection = self.ipc_connection.clone();
 
         thread::spawn(move || {
-            match InterProcessCommandPipe::create_inter_process_pipe() {
-                Ok(stream) => {
-                    if let Ok(mut ipc_connection) = ipc_connection.write() {
-                        *ipc_connection = Some(stream);
-                    }
-                }
-                Err(err) => {
-                    Logger::get_instance().log(LogLevel::Error, &format!("{}", err), None);
-                }
-            }
-
             loop {
                 match InterProcessCommandPipe::ipc_receive_from_host(&ipc_connection) {
-                    Ok(data_ingress) => {
+                    Ok((data_ingress, uuid)) => {
                         Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
                         match data_ingress {
                             Command(engine_command) => {
-                                CommandHandler::handle_command(engine_command);
+                                CommandHandler::handle_command(engine_command, uuid);
                             }
                         }
                     }
@@ -76,27 +105,5 @@ impl InterProcessPrivilegedShell {
                 thread::sleep(Duration::from_millis(1));
             }
         });
-    }
-
-    pub fn dispatch_event(
-        &self,
-        event: EngineEvent,
-    ) {
-        let egress = InterProcessDataEgress::Event(event);
-
-        if let Err(err) = InterProcessCommandPipe::ipc_send_to_host(&self.ipc_connection, egress) {
-            Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC event: {}", err), None);
-        }
-    }
-
-    pub fn dispatch_response(
-        &self,
-        response: EngineResponse,
-    ) {
-        let egress = InterProcessDataEgress::Response(response);
-
-        if let Err(err) = InterProcessCommandPipe::ipc_send_to_host(&self.ipc_connection, egress) {
-            Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC response: {}", err), None);
-        }
     }
 }

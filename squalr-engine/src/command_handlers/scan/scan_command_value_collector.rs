@@ -4,8 +4,12 @@ use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use std::thread;
+use uuid::Uuid;
 
-pub fn handle_value_collector_command(cmd: ScanCommand) {
+pub fn handle_value_collector_command(
+    cmd: ScanCommand,
+    uuid: Uuid,
+) {
     if let ScanCommand::Collect = cmd {
         if let Some(process_info) = SqualrSession::get_opened_process() {
             let snapshot = SqualrSession::get_snapshot();

@@ -4,8 +4,12 @@ use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
+use uuid::Uuid;
 
-pub fn handle_memory_read(cmd: MemoryCommand) {
+pub fn handle_memory_read(
+    cmd: MemoryCommand,
+    uuid: Uuid,
+) {
     if let MemoryCommand::Read { address, value } = cmd {
         if let Some(process_info) = SqualrSession::get_opened_process() {
             Logger::get_instance().log(LogLevel::Info, &format!("Reading value from address {}", address), None);

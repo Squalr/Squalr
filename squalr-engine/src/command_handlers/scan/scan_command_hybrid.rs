@@ -5,8 +5,12 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_scanning::scanners::hybrid_scanner::HybridScanner;
 use squalr_engine_scanning::scanners::parameters::scan_parameters::ScanParameters;
 use std::thread;
+use uuid::Uuid;
 
-pub fn handle_hybrid_scan_command(cmd: ScanCommand) {
+pub fn handle_hybrid_scan_command(
+    cmd: ScanCommand,
+    uuid: Uuid,
+) {
     if let ScanCommand::Hybrid { scan_value, compare_type } = cmd {
         if let Some(process_info) = SqualrSession::get_opened_process() {
             let snapshot = SqualrSession::get_snapshot();

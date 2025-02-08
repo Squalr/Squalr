@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 use crate::events::engine_event::EngineEvent;
 
 pub enum EventHandlerType {
@@ -8,7 +10,10 @@ pub enum EventHandlerType {
 pub struct EventHandler {}
 
 impl EventHandler {
-    pub fn handle_event(event: EngineEvent) {
+    pub fn handle_event(
+        event: EngineEvent,
+        uuid: Uuid,
+    ) {
         //
     }
 }

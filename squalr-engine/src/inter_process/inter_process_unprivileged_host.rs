@@ -1,6 +1,10 @@
 use crate::commands::engine_command::EngineCommand;
+use crate::event_handlers::event_handler::EventHandler;
 use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
+use crate::inter_process::inter_process_data_egress::InterProcessDataEgress::Event;
+use crate::inter_process::inter_process_data_egress::InterProcessDataEgress::Response;
 use crate::inter_process::inter_process_data_ingress::InterProcessDataIngress;
+use crate::response_handlers::response_handler::ResponseHandler;
 use interprocess::local_socket::prelude::LocalSocketStream;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -10,6 +14,8 @@ use std::process::Command;
 use std::sync::Once;
 use std::sync::{Arc, RwLock};
 use std::thread;
+use std::time::Duration;
+use uuid::Uuid;
 
 pub struct InterProcessUnprivilegedHost {
     ipc_server: Arc<RwLock<Option<Child>>>,
@@ -59,8 +65,10 @@ impl InterProcessUnprivilegedHost {
 
                     match InterProcessCommandPipe::bind_to_inter_process_pipe() {
                         Ok(stream) => {
-                            if let Ok(mut ipc_connection) = ipc_connection.write() {
-                                *ipc_connection = Some(stream);
+                            if let Ok(mut ipc_connection_ref) = ipc_connection.write() {
+                                *ipc_connection_ref = Some(stream);
+
+                                Self::listen_for_shell_events(ipc_connection.clone());
                             }
                         }
                         Err(err) => {
@@ -78,12 +86,40 @@ impl InterProcessUnprivilegedHost {
     pub fn dispatch_command(
         &self,
         command: EngineCommand,
+        uuid: Uuid,
     ) {
         let ingress = InterProcessDataIngress::Command(command);
 
-        if let Err(err) = InterProcessCommandPipe::ipc_send_to_shell(&self.ipc_connection, ingress) {
+        if let Err(err) = InterProcessCommandPipe::ipc_send_to_shell(&self.ipc_connection, ingress, uuid) {
             Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC command: {}", err), None);
         }
+    }
+
+    fn listen_for_shell_events(ipc_connection: Arc<RwLock<Option<LocalSocketStream>>>) {
+        thread::spawn(move || {
+            loop {
+                match InterProcessCommandPipe::ipc_receive_from_shell(&ipc_connection) {
+                    Ok((data_egress, uuid)) => {
+                        Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
+                        match data_egress {
+                            Event(engine_event) => {
+                                EventHandler::handle_event(engine_event, uuid);
+                            }
+                            Response(engine_response) => {
+                                ResponseHandler::handle_response(engine_response, uuid);
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        // If we get an error here that indicates the socket is closed, and the parent process is closed. Shutdown this worker/child process too.
+                        Logger::get_instance().log(LogLevel::Error, &format!("Parent connection lost: {}. Shutting down.", err), None);
+                        std::process::exit(1);
+                    }
+                }
+
+                thread::sleep(Duration::from_millis(1));
+            }
+        });
     }
 
     #[cfg(any(target_os = "android"))]

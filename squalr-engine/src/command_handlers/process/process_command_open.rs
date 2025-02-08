@@ -5,8 +5,12 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
 use sysinfo::Pid;
+use uuid::Uuid;
 
-pub fn handle_process_open(cmd: ProcessCommand) {
+pub fn handle_process_open(
+    cmd: ProcessCommand,
+    uuid: Uuid,
+) {
     if let ProcessCommand::Open { pid, search_name, match_case } = cmd {
         if pid.is_none() && search_name.is_none() {
             Logger::get_instance().log(LogLevel::Error, "Error: Neither PID nor search name provided. Cannot open process.", None);

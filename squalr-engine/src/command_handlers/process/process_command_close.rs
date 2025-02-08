@@ -3,8 +3,12 @@ use crate::squalr_session::SqualrSession;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
+use uuid::Uuid;
 
-pub fn handle_process_close(cmd: ProcessCommand) {
+pub fn handle_process_close(
+    cmd: ProcessCommand,
+    uuid: Uuid,
+) {
     if let ProcessCommand::Close {} = cmd {
         if let Some(process_info) = SqualrSession::get_opened_process() {
             Logger::get_instance().log(

@@ -10,9 +10,11 @@ use crate::responses::response_dispatcher::ResponseDispatcher;
 use squalr_engine_architecture::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
+use std::collections::HashMap;
 use std::sync::mpsc::SendError;
 use std::sync::{Arc, Once};
 use std::sync::{Mutex, mpmc};
+use uuid::Uuid;
 
 static mut INSTANCE: Option<SqualrEngine> = None;
 static INIT: Once = Once::new();
@@ -47,6 +49,9 @@ pub struct SqualrEngine {
 
     /// Clonable receiver for receiving events from the engine.
     event_receiver: mpmc::Receiver<EngineEvent>,
+
+    /// A map of outgoing requests that are awaiting an engine response.
+    request_handles: Arc<Mutex<HashMap<Uuid, fn(EngineResponse)>>>,
 }
 
 impl SqualrEngine {
@@ -79,6 +84,7 @@ impl SqualrEngine {
             response_dispatcher: Arc::new(Mutex::new(ResponseDispatcher::new(egress_dispatcher_type))),
             event_sender: event_sender,
             event_receiver: event_receiver,
+            request_handles: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -118,7 +124,9 @@ impl SqualrEngine {
         if let Ok(dispatcher) = Self::get_instance().command_dispatcher.lock() {
             let command_to_dispatch = dispatcher.prepare_dispatch(command);
 
-            // TODO: Await result by UUID, invoke callback
+            if let Ok(mut request_handles) = Self::get_instance().request_handles.lock() {
+                request_handles.insert(command_to_dispatch.get_id(), callback);
+            }
 
             command_to_dispatch.execute();
         }
@@ -135,7 +143,7 @@ impl SqualrEngine {
 
     pub fn dispatch_event(event: EngineEvent) {
         if let Ok(dispatcher) = Self::get_instance().event_dispatcher.lock() {
-            dispatcher.dispatch_event(event);
+            dispatcher.dispatch_event(event, Uuid::new_v4());
         }
     }
 
@@ -153,15 +161,28 @@ impl SqualrEngine {
         SqualrEngine::get_instance().event_sender.send(event)
     }
 
-    pub fn dispatch_response(response: EngineResponse) {
+    pub fn dispatch_response(
+        response: EngineResponse,
+        uuid: Uuid,
+    ) {
         if let Ok(dispatcher) = Self::get_instance().response_dispatcher.lock() {
-            dispatcher.dispatch_response(response);
+            dispatcher.dispatch_response(response, uuid);
         }
     }
 
-    pub fn dispatch_response_async(response: EngineResponse) {
+    pub fn dispatch_response_async(
+        response: EngineResponse,
+        uuid: Uuid,
+    ) {
         std::thread::spawn(move || {
-            Self::dispatch_response(response);
+            Self::dispatch_response(response, uuid);
         });
+    }
+
+    pub fn handle_response(
+        response: EngineResponse,
+        uuid: Uuid,
+    ) {
+        //
     }
 }

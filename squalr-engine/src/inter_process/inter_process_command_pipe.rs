@@ -13,6 +13,7 @@ use std::io::Write;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread;
+use uuid::Uuid;
 
 #[cfg(not(target_os = "android"))]
 use interprocess::local_socket::ToFsName;
@@ -109,22 +110,24 @@ impl InterProcessCommandPipe {
     pub fn ipc_send_to_shell(
         ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>,
         value: InterProcessDataIngress,
+        uuid: Uuid,
     ) -> io::Result<Vec<u8>> {
-        Self::ipc_send(ipc_connection, value)
+        Self::ipc_send(ipc_connection, value, uuid)
     }
 
     pub fn ipc_send_to_host(
         ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>,
         value: InterProcessDataEgress,
+        uuid: Uuid,
     ) -> io::Result<Vec<u8>> {
-        Self::ipc_send(ipc_connection, value)
+        Self::ipc_send(ipc_connection, value, uuid)
     }
 
-    pub fn ipc_receive_from_shell(ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>) -> io::Result<InterProcessDataEgress> {
+    pub fn ipc_receive_from_shell(ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>) -> io::Result<(InterProcessDataEgress, Uuid)> {
         Self::ipc_receive(ipc_connection)
     }
 
-    pub fn ipc_receive_from_host(ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>) -> io::Result<InterProcessDataIngress> {
+    pub fn ipc_receive_from_host(ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>) -> io::Result<(InterProcessDataIngress, Uuid)> {
         Self::ipc_receive(ipc_connection)
     }
 
@@ -133,22 +136,28 @@ impl InterProcessCommandPipe {
     fn ipc_send<T: Serialize>(
         ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>,
         value: T,
+        uuid: Uuid,
     ) -> io::Result<Vec<u8>> {
-        // Serialize the data
-        let encoded = bincode::serialize(&value).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Serialize error: {}", e)))?;
+        // Serialize the data.
+        let serialized_data = bincode::serialize(&value).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Serialize error: {}", e)))?;
 
-        // Acquire read lock on the connection
+        // Acquire read lock on the connection.
         if let Ok(connection_guard) = ipc_connection.read() {
             if let Some(mut stream) = connection_guard.as_ref() {
-                // First send length as u32 in little-endian
-                let len = encoded.len() as u32;
+                let uuid_bytes = uuid.as_bytes();
+                let len = (uuid_bytes.len() + serialized_data.len()) as u32;
+
+                // First send length as u32 in little-endian.
                 stream.write_all(&len.to_le_bytes())?;
 
-                // Then send the actual data
-                stream.write_all(&encoded)?;
+                // Next send identifier as uuid bytes.
+                stream.write_all(uuid_bytes)?;
+
+                // Then send the actual data.
+                stream.write_all(&serialized_data)?;
                 stream.flush()?;
 
-                Ok(encoded)
+                Ok(serialized_data)
             } else {
                 Err(io::Error::new(io::ErrorKind::NotConnected, "No IPC connection established"))
             }
@@ -158,24 +167,30 @@ impl InterProcessCommandPipe {
     }
 
     /// Receives a value of generic type `T` (which must implement `DeserializeOwned`) from the IPC connection.
-    fn ipc_receive<T: DeserializeOwned>(ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>) -> io::Result<T> {
+    fn ipc_receive<T: DeserializeOwned>(ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>) -> io::Result<(T, Uuid)> {
         // Acquire read lock on the connection
         if let Ok(connection_guard) = ipc_connection.read() {
             if let Some(mut stream) = connection_guard.as_ref() {
-                // Read the length first (4 bytes)
+                // First read the length (4 bytes).
                 let mut len_buf = [0u8; 4];
                 stream.read_exact(&mut len_buf)?;
-                let response_len = u32::from_le_bytes(len_buf);
+                let total_len = u32::from_le_bytes(len_buf);
 
-                // Read the exact number of bytes specified by `response_len`
-                let mut response_data = vec![0u8; response_len as usize];
-                stream.read_exact(&mut response_data)?;
+                // Next read the uuid (16 bytes).
+                let mut uuid_buf = [0u8; 16];
+                stream.read_exact(&mut uuid_buf)?;
+                let uuid = Uuid::from_bytes(uuid_buf);
+
+                // Finally read the remaining data (total_len - 16 bytes for UUID).
+                let data_len = total_len as usize - 16;
+                let mut data_buf = vec![0u8; data_len];
+                stream.read_exact(&mut data_buf)?;
 
                 // Deserialize the data into T
                 let value =
-                    bincode::deserialize::<T>(&response_data).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Deserialize error: {}", e)))?;
+                    bincode::deserialize::<T>(&data_buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Deserialize error: {}", e)))?;
 
-                Ok(value)
+                Ok((value, uuid))
             } else {
                 Err(io::Error::new(io::ErrorKind::NotConnected, "No IPC connection established"))
             }

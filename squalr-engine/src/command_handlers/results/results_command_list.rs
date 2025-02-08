@@ -3,8 +3,12 @@ use crate::squalr_session::SqualrSession;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_scanning::scan_settings::ScanSettings;
+use uuid::Uuid;
 
-pub fn handle_results_list(cmd: ResultsCommand) {
+pub fn handle_results_list(
+    cmd: ResultsCommand,
+    uuid: Uuid,
+) {
     // Irrefutable pattern, so no `let =` as is present in most other command handlers.
     let ResultsCommand::List { page, data_type } = cmd;
     {

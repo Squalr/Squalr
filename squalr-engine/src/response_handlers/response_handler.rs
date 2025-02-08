@@ -1,4 +1,5 @@
-use crate::responses::engine_response::EngineResponse;
+use crate::{responses::engine_response::EngineResponse, squalr_engine::SqualrEngine};
+use uuid::Uuid;
 
 pub enum ResponseHandlerType {
     Standalone(),
@@ -8,7 +9,10 @@ pub enum ResponseHandlerType {
 pub struct ResponseHandler {}
 
 impl ResponseHandler {
-    pub fn handle_response(response: EngineResponse) {
-        //
+    pub fn handle_response(
+        response: EngineResponse,
+        uuid: Uuid,
+    ) {
+        SqualrEngine::handle_response(response, uuid);
     }
 }
