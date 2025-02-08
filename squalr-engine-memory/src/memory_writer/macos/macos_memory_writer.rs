@@ -25,9 +25,9 @@ impl IMemoryWriter for MacosMemoryWriter {
         process_handle: u64,
         address: u64,
         value: &dyn ToBytes,
-    ) {
+    ) -> bool {
         let bytes = value.to_bytes();
-        Self::write_memory(process_handle, address, &bytes);
+        Self::write_memory(process_handle, address, &bytes)
     }
 
     fn write_bytes(
@@ -35,7 +35,7 @@ impl IMemoryWriter for MacosMemoryWriter {
         process_handle: u64,
         address: u64,
         values: &[u8],
-    ) {
-        Self::write_memory(process_handle, address, values);
+    ) -> bool {
+        Self::write_memory(process_handle, address, values)
     }
 }

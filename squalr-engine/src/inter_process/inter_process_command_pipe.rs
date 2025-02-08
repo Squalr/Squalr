@@ -111,7 +111,7 @@ impl InterProcessCommandPipe {
         ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>,
         value: InterProcessDataIngress,
         uuid: Uuid,
-    ) -> io::Result<Vec<u8>> {
+    ) -> io::Result<()> {
         Self::ipc_send(ipc_connection, value, uuid)
     }
 
@@ -119,7 +119,7 @@ impl InterProcessCommandPipe {
         ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>,
         value: InterProcessDataEgress,
         uuid: Uuid,
-    ) -> io::Result<Vec<u8>> {
+    ) -> io::Result<()> {
         Self::ipc_send(ipc_connection, value, uuid)
     }
 
@@ -137,12 +137,12 @@ impl InterProcessCommandPipe {
         ipc_connection: &Arc<RwLock<Option<LocalSocketStream>>>,
         value: T,
         uuid: Uuid,
-    ) -> io::Result<Vec<u8>> {
+    ) -> io::Result<()> {
         // Serialize the data.
         let serialized_data = bincode::serialize(&value).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Serialize error: {}", e)))?;
 
         // Acquire read lock on the connection.
-        if let Ok(connection_guard) = ipc_connection.read() {
+        if let Ok(connection_guard) = ipc_connection.write() {
             if let Some(mut stream) = connection_guard.as_ref() {
                 let uuid_bytes = uuid.as_bytes();
                 let len = (uuid_bytes.len() + serialized_data.len()) as u32;
@@ -157,7 +157,7 @@ impl InterProcessCommandPipe {
                 stream.write_all(&serialized_data)?;
                 stream.flush()?;
 
-                Ok(serialized_data)
+                Ok(())
             } else {
                 Err(io::Error::new(io::ErrorKind::NotConnected, "No IPC connection established"))
             }

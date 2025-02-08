@@ -6,6 +6,8 @@ use std::io;
 use std::io::Write;
 use structopt::StructOpt;
 
+use crate::response_handlers::handle_engine_response;
+
 pub struct Cli {}
 
 /// Implements a command line listener polls for text input commands to control the engine.
@@ -62,7 +64,7 @@ impl Cli {
         };
 
         SqualrEngine::dispatch_command(engine_command, |engine_command| {
-            // TODO
+            handle_engine_response(engine_command);
         });
         true
     }

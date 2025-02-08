@@ -1,6 +1,7 @@
 use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
+use crate::view_models::process_selector::opened_process_info_converter::OpenedProcessInfoConverter;
 use crate::view_models::process_selector::process_info_comparer::ProcessInfoComparer;
 use crate::view_models::process_selector::process_info_converter::ProcessInfoConverter;
 use slint::ComponentHandle;
@@ -16,28 +17,20 @@ use squalr_engine::events::engine_event::EngineEvent::ProcessOpened;
 use squalr_engine::responses::engine_response::EngineResponse;
 use squalr_engine::responses::process::process_response::ProcessResponse;
 use squalr_engine::squalr_engine::SqualrEngine;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_info::ProcessInfo;
-use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
-use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
 use std::sync::mpmc;
 use std::thread;
-use std::time::Duration;
-use sysinfo::Pid;
-
-use super::opened_process_info_converter::OpenedProcessInfoConverter;
 
 pub struct ProcessSelectorViewModel {
     _view_binding: ViewBinding<MainWindowView>,
-    processes_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
-    _windowed_processes_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
+    full_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
+    _windowed_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
 }
 
 impl ProcessSelectorViewModel {
     pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
         // Create a binding that allows us to easily update the view's process list.
-        let processes_collection = create_view_model_collection!(
+        let full_process_list_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
             ProcessSelectorViewModelBindings -> { set_processes, get_processes },
             ProcessInfoConverter -> [],
@@ -45,7 +38,7 @@ impl ProcessSelectorViewModel {
         );
 
         // Create a binding that allows us to easily update the view's windowed process list.
-        let windowed_processes_collection = create_view_model_collection!(
+        let windowed_process_list_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
             ProcessSelectorViewModelBindings -> { set_windowed_processes, get_windowed_processes },
             ProcessInfoConverter -> [],
@@ -54,21 +47,20 @@ impl ProcessSelectorViewModel {
 
         let view = ProcessSelectorViewModel {
             _view_binding: view_binding.clone(),
-            processes_collection: processes_collection.clone(),
-            _windowed_processes_collection: windowed_processes_collection.clone(),
+            full_process_list_collection: full_process_list_collection.clone(),
+            _windowed_process_list_collection: windowed_process_list_collection.clone(),
         };
 
         // Route all view bindings to Rust.
         create_view_bindings!(view_binding, {
             ProcessSelectorViewModelBindings => {
-                on_refresh_full_process_list() -> [processes_collection] -> Self::on_refresh_full_process_list
-                on_refresh_windowed_process_list() -> [windowed_processes_collection] -> Self::on_refresh_windowed_process_list
+                on_refresh_full_process_list() -> [full_process_list_collection] -> Self::on_refresh_full_process_list
+                on_refresh_windowed_process_list() -> [windowed_process_list_collection] -> Self::on_refresh_windowed_process_list
                 on_select_process(process_entry: ProcessViewData) -> [] -> Self::on_select_process
             }
         });
 
         view.listen_for_process_change(SqualrEngine::get_engine_event_receiver(), view_binding.clone());
-        view.start_refresh_process_lists_task();
 
         view
     }
@@ -95,8 +87,10 @@ impl ProcessSelectorViewModel {
         });
     }
 
+    // TODO: This can't live in the GUI project. This needs to be a command, or auto handled.
+    /*
     fn start_refresh_process_lists_task(&self) {
-        let processes_collection = self.processes_collection.clone();
+        let full_process_list_collection = self.full_process_list_collection.clone();
 
         thread::spawn(move || {
             // The process list is incredibly laggy in debug mode, so just hard cap this to 20 entries for now until we solve this.
@@ -113,7 +107,7 @@ impl ProcessSelectorViewModel {
                     continue;
                 }
                 for index in 1..=initial_processes.len() {
-                    processes_collection.update_from_source(initial_processes[..index].to_vec());
+                    full_process_list_collection.update_from_source(initial_processes[..index].to_vec());
                     thread::sleep(Duration::from_millis(5));
                 }
                 break;
@@ -122,7 +116,7 @@ impl ProcessSelectorViewModel {
             // Phase 2: full loop. We should be hitting cache mostly in the UI by now, so it should be fine.
             loop {
                 let processes = ProcessQuery::get_processes(ProcessSelectorViewModel::get_process_query_options(None, false, limit));
-                processes_collection.update_from_source(processes);
+                full_process_list_collection.update_from_source(processes);
                 thread::sleep(Duration::from_millis(250));
             }
         });
@@ -151,9 +145,9 @@ impl ProcessSelectorViewModel {
             fetch_icons: true,
             limit: limit,
         }
-    }
+    } */
 
-    fn on_refresh_full_process_list(process_info_converter: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
+    fn on_refresh_full_process_list(full_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
         let list_all_processes_command = EngineCommand::Process {
             0: ProcessCommand::List {
                 require_windowed: false,
@@ -163,48 +157,36 @@ impl ProcessSelectorViewModel {
             },
         };
 
-        SqualrEngine::dispatch_command(list_all_processes_command, |engine_response| {
-            match engine_response {
-                EngineResponse::Process(process_response) => {
-                    match process_response {
-                        ProcessResponse::List { processes } => {
-                            //
-                        }
-                        _ => {}
-                    }
+        SqualrEngine::dispatch_command(list_all_processes_command, move |engine_response| match engine_response {
+            EngineResponse::Process(process_response) => match process_response {
+                ProcessResponse::List { processes } => {
+                    full_process_list_collection.update_from_source(processes);
                 }
                 _ => {}
-            }
+            },
+            _ => {}
         });
-
-        // process_info_converter.update_from_source(processes);
     }
 
-    fn on_refresh_windowed_process_list(windowed_process_info_converter: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
+    fn on_refresh_windowed_process_list(windowed_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
         let list_windowed_processes_command = EngineCommand::Process {
             0: ProcessCommand::List {
-                require_windowed: false,
+                require_windowed: true,
                 search_name: None,
                 match_case: false,
                 limit: None,
             },
         };
 
-        SqualrEngine::dispatch_command(list_windowed_processes_command, |engine_response| {
-            match engine_response {
-                EngineResponse::Process(process_response) => {
-                    match process_response {
-                        ProcessResponse::List { processes } => {
-                            //
-                        }
-                        _ => {}
-                    }
+        SqualrEngine::dispatch_command(list_windowed_processes_command, move |engine_response| match engine_response {
+            EngineResponse::Process(process_response) => match process_response {
+                ProcessResponse::List { processes } => {
+                    windowed_process_list_collection.update_from_source(processes);
                 }
                 _ => {}
-            }
+            },
+            _ => {}
         });
-
-        // windowed_process_info_converter.update_from_source(processes);
     }
 
     fn on_select_process(process_entry: ProcessViewData) {

@@ -6,11 +6,11 @@ pub trait IMemoryWriter {
         process_handle: u64,
         address: u64,
         value: &dyn ToBytes,
-    );
+    ) -> bool;
     fn write_bytes(
         &self,
         process_handle: u64,
         address: u64,
         values: &[u8],
-    );
+    ) -> bool;
 }

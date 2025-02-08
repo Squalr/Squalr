@@ -3,7 +3,7 @@ use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 use std::os::raw::c_void;
 use std::ptr::null_mut;
 use windows_sys::Win32::System::Diagnostics::Debug::WriteProcessMemory;
-use windows_sys::Win32::System::Memory::{VirtualProtectEx, PAGE_READWRITE};
+use windows_sys::Win32::System::Memory::{PAGE_READWRITE, VirtualProtectEx};
 
 pub struct WindowsMemoryWriter;
 
@@ -53,9 +53,9 @@ impl IMemoryWriter for WindowsMemoryWriter {
         process_handle: u64,
         address: u64,
         value: &dyn ToBytes,
-    ) {
+    ) -> bool {
         let bytes = value.to_bytes();
-        Self::write_memory(process_handle, address, &bytes);
+        Self::write_memory(process_handle, address, &bytes)
     }
 
     fn write_bytes(
@@ -63,7 +63,7 @@ impl IMemoryWriter for WindowsMemoryWriter {
         process_handle: u64,
         address: u64,
         values: &[u8],
-    ) {
-        Self::write_memory(process_handle, address, values);
+    ) -> bool {
+        Self::write_memory(process_handle, address, values)
     }
 }

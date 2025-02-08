@@ -1,5 +1,6 @@
 mod cli;
 mod logging;
+mod response_handlers;
 
 use crate::logging::cli_log_listener::CliLogListener;
 use cli::Cli;

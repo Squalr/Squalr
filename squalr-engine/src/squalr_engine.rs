@@ -51,7 +51,7 @@ pub struct SqualrEngine {
     event_receiver: mpmc::Receiver<EngineEvent>,
 
     /// A map of outgoing requests that are awaiting an engine response.
-    request_handles: Arc<Mutex<HashMap<Uuid, fn(EngineResponse)>>>,
+    request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn Fn(EngineResponse) + Send + Sync>>>>,
 }
 
 impl SqualrEngine {
@@ -117,25 +117,29 @@ impl SqualrEngine {
         }
     }
 
-    pub fn dispatch_command(
+    pub fn dispatch_command<F>(
         command: EngineCommand,
-        callback: fn(EngineResponse),
-    ) {
+        callback: F,
+    ) where
+        F: Fn(EngineResponse) + Send + Sync + 'static,
+    {
         if let Ok(dispatcher) = Self::get_instance().command_dispatcher.lock() {
             let command_to_dispatch = dispatcher.prepare_dispatch(command);
 
             if let Ok(mut request_handles) = Self::get_instance().request_handles.lock() {
-                request_handles.insert(command_to_dispatch.get_id(), callback);
+                request_handles.insert(command_to_dispatch.get_id(), Box::new(callback));
             }
 
             command_to_dispatch.execute();
         }
     }
 
-    pub fn dispatch_command_async(
+    pub fn dispatch_command_async<F>(
         command: EngineCommand,
-        callback: fn(EngineResponse),
-    ) {
+        callback: F,
+    ) where
+        F: Fn(EngineResponse) + Send + Sync + 'static,
+    {
         std::thread::spawn(move || {
             Self::dispatch_command(command, callback);
         });
@@ -183,6 +187,12 @@ impl SqualrEngine {
         response: EngineResponse,
         uuid: Uuid,
     ) {
-        //
+        if let Ok(mut request_handles) = Self::get_instance().request_handles.lock() {
+            if let Some(callback) = request_handles.get(&uuid) {
+                callback(response);
+            }
+
+            request_handles.remove(&uuid);
+        }
     }
 }

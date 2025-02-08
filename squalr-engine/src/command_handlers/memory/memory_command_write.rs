@@ -1,4 +1,7 @@
 use crate::commands::memory::memory_command::MemoryCommand;
+use crate::responses::engine_response::EngineResponse;
+use crate::responses::memory::memory_response::MemoryResponse;
+use crate::squalr_engine::SqualrEngine;
 use crate::squalr_session::SqualrSession;
 use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -20,7 +23,10 @@ pub fn handle_memory_write(
             let value_bytes = value.to_bytes();
 
             // Perform the memory write operation
-            MemoryWriter::get_instance().write_bytes(process_info.handle, address, &value_bytes);
+            let success = MemoryWriter::get_instance().write_bytes(process_info.handle, address, &value_bytes);
+            let response = EngineResponse::Memory(MemoryResponse::Write { success: success });
+
+            SqualrEngine::dispatch_response(response, uuid);
         } else {
             Logger::get_instance().log(LogLevel::Info, "No process is opened to write to.", None);
         }

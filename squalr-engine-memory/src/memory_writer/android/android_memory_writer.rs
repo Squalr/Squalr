@@ -25,7 +25,7 @@ impl IMemoryWriter for AndroidMemoryWriter {
         process_handle: u64,
         address: u64,
         value: &dyn ToBytes,
-    ) {
+    ) -> bool {
         let bytes = value.to_bytes();
         Self::write_memory(process_handle, address, &bytes);
     }
@@ -35,7 +35,7 @@ impl IMemoryWriter for AndroidMemoryWriter {
         process_handle: u64,
         address: u64,
         values: &[u8],
-    ) {
+    ) -> bool {
         Self::write_memory(process_handle, address, values);
     }
 }

@@ -1,4 +1,7 @@
 use crate::commands::process::process_command::ProcessCommand;
+use crate::responses::engine_response::EngineResponse;
+use crate::responses::process::process_response::ProcessResponse;
+use crate::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
@@ -35,9 +38,8 @@ pub fn handle_process_list(
         };
 
         let processes = ProcessQuery::get_processes(options);
+        let response = EngineResponse::Process(ProcessResponse::List { processes: processes });
 
-        for process_info in processes {
-            Logger::get_instance().log(LogLevel::Info, &format!("PID: {}, Name: {}", process_info.pid, process_info.name), None);
-        }
+        SqualrEngine::dispatch_response(response, uuid);
     }
 }
