@@ -1,21 +1,20 @@
 use crate::command_handlers::command_handler::CommandHandler;
 use crate::events::engine_event::EngineEvent;
 use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
+use crate::inter_process::inter_process_connection::InterProcessConnection;
 use crate::inter_process::inter_process_data_egress::InterProcessDataEgress;
 use crate::inter_process::inter_process_data_ingress::InterProcessDataIngress::Command;
 use crate::responses::engine_response::EngineResponse;
-use interprocess::local_socket::prelude::LocalSocketStream;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
-use std::sync::Arc;
-use std::sync::Once;
-use std::sync::RwLock;
+use std::sync::{Arc, Once, RwLock};
 use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
 
 pub struct InterProcessPrivilegedShell {
-    ipc_connection: Arc<RwLock<Option<LocalSocketStream>>>,
+    ipc_connection_ingress: Arc<RwLock<InterProcessConnection>>,
+    ipc_connection_egress: Arc<RwLock<InterProcessConnection>>,
 }
 
 impl InterProcessPrivilegedShell {
@@ -36,17 +35,33 @@ impl InterProcessPrivilegedShell {
 
     fn new() -> InterProcessPrivilegedShell {
         let instance = InterProcessPrivilegedShell {
-            ipc_connection: Arc::new(RwLock::new(None)),
+            ipc_connection_ingress: Arc::new(RwLock::new(InterProcessConnection::new())),
+            ipc_connection_egress: Arc::new(RwLock::new(InterProcessConnection::new())),
         };
 
         instance
     }
 
     pub fn initialize(&self) {
-        match InterProcessCommandPipe::create_inter_process_pipe() {
+        match InterProcessCommandPipe::create_inter_process_pipe(true) {
             Ok(stream) => {
-                if let Ok(mut ipc_connection) = self.ipc_connection.write() {
-                    *ipc_connection = Some(stream);
+                if let Ok(mut connection) = self.ipc_connection_ingress.write() {
+                    connection.set_socket_stream(stream);
+                } else {
+                    Logger::get_instance().log(LogLevel::Error, "Failed to acquire write lock on IPC connection.", None);
+                }
+            }
+            Err(err) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("{}", err), None);
+            }
+        }
+
+        match InterProcessCommandPipe::create_inter_process_pipe(false) {
+            Ok(stream) => {
+                if let Ok(mut connection) = self.ipc_connection_egress.write() {
+                    connection.set_socket_stream(stream);
+                } else {
+                    Logger::get_instance().log(LogLevel::Error, "Failed to acquire write lock on IPC connection.", None);
                 }
             }
             Err(err) => {
@@ -64,7 +79,7 @@ impl InterProcessPrivilegedShell {
     ) {
         let egress = InterProcessDataEgress::Event(event);
 
-        if let Err(err) = InterProcessCommandPipe::ipc_send_to_host(&self.ipc_connection, egress, uuid) {
+        if let Err(err) = InterProcessCommandPipe::ipc_send_to_host(&self.ipc_connection_egress, egress, uuid) {
             Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC event: {}", err), None);
         }
     }
@@ -76,17 +91,17 @@ impl InterProcessPrivilegedShell {
     ) {
         let egress = InterProcessDataEgress::Response(response);
 
-        if let Err(err) = InterProcessCommandPipe::ipc_send_to_host(&self.ipc_connection, egress, uuid) {
+        if let Err(err) = InterProcessCommandPipe::ipc_send_to_host(&self.ipc_connection_egress, egress, uuid) {
             Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC response: {}", err), None);
         }
     }
 
     fn listen_for_host_events(&self) {
-        let ipc_connection = self.ipc_connection.clone();
+        let ipc_connection_ingress = self.ipc_connection_ingress.clone();
 
         thread::spawn(move || {
             loop {
-                match InterProcessCommandPipe::ipc_receive_from_host(&ipc_connection) {
+                match InterProcessCommandPipe::ipc_receive_from_host(&ipc_connection_ingress) {
                     Ok((data_ingress, uuid)) => {
                         Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
                         match data_ingress {

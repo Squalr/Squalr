@@ -15,7 +15,7 @@ pub fn main() {
     }
 
     // TEMP! Revert to standalone later.
-    SqualrEngine::initialize(EngineMode::Standalone);
+    SqualrEngine::initialize(EngineMode::UnprivilegedHost);
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
     let _main_window_view = MainWindowViewModel::new();

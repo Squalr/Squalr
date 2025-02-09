@@ -23,7 +23,7 @@ use std::thread;
 
 pub struct ProcessSelectorViewModel {
     _view_binding: ViewBinding<MainWindowView>,
-    full_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
+    _full_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
     _windowed_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
 }
 
@@ -47,7 +47,7 @@ impl ProcessSelectorViewModel {
 
         let view = ProcessSelectorViewModel {
             _view_binding: view_binding.clone(),
-            full_process_list_collection: full_process_list_collection.clone(),
+            _full_process_list_collection: full_process_list_collection.clone(),
             _windowed_process_list_collection: windowed_process_list_collection.clone(),
         };
 
@@ -154,6 +154,7 @@ impl ProcessSelectorViewModel {
                 search_name: None,
                 match_case: false,
                 limit: None,
+                fetch_icons: true,
             },
         };
 
@@ -175,6 +176,7 @@ impl ProcessSelectorViewModel {
                 search_name: None,
                 match_case: false,
                 limit: None,
+                fetch_icons: true,
             },
         };
 

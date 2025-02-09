@@ -20,6 +20,8 @@ pub enum ProcessCommand {
         match_case: bool,
         #[structopt(short = "l", long)]
         limit: Option<u64>,
+        #[structopt(short = "i", long)]
+        fetch_icons: bool,
     },
     Close,
 }

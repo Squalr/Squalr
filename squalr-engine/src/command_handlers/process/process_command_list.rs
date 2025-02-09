@@ -17,6 +17,7 @@ pub fn handle_process_list(
         search_name,
         match_case,
         limit,
+        fetch_icons,
     } = cmd
     {
         Logger::get_instance().log(
@@ -33,7 +34,7 @@ pub fn handle_process_list(
             required_pid: None,
             require_windowed: require_windowed,
             match_case: match_case,
-            fetch_icons: false,
+            fetch_icons: fetch_icons,
             limit: limit,
         };
 
