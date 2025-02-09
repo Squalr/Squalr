@@ -1,6 +1,5 @@
 #![feature(mpmc_channel)]
 
-pub mod command_handlers;
 pub mod commands;
 pub mod event_handlers;
 pub mod events;

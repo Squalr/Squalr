@@ -1,4 +1,4 @@
-use crate::command_handlers::command_handler::CommandHandler;
+use crate::commands::command_handler::CommandHandler;
 use crate::commands::engine_command::EngineCommand;
 use crate::inter_process::dispatcher_type::DispatcherType;
 use crate::inter_process::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
@@ -23,7 +23,7 @@ impl DispatchedCommand {
         let uuid = self.get_id();
 
         match self.dispatcher_type {
-            DispatcherType::Standalone => CommandHandler::handle_command(self.command, uuid),
+            DispatcherType::Standalone => self.command.handle(uuid),
             DispatcherType::InterProcess => InterProcessUnprivilegedHost::get_instance().dispatch_command(self.command, uuid),
             DispatcherType::None => panic!("Command should not be dispatched from a privileged shell."),
         }

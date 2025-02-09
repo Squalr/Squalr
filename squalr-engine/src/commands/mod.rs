@@ -1,4 +1,5 @@
 pub mod command_dispatcher;
+pub mod command_handler;
 pub mod dispatched_command;
 pub mod engine_command;
 pub mod memory;

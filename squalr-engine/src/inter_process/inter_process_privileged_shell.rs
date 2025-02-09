@@ -1,4 +1,4 @@
-use crate::command_handlers::command_handler::CommandHandler;
+use crate::commands::command_handler::CommandHandler;
 use crate::events::engine_event::EngineEvent;
 use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
 use crate::inter_process::inter_process_connection::InterProcessConnection;
@@ -106,7 +106,7 @@ impl InterProcessPrivilegedShell {
                         Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
                         match data_ingress {
                             Command(engine_command) => {
-                                CommandHandler::handle_command(engine_command, uuid);
+                                engine_command.handle(uuid);
                             }
                         }
                     }

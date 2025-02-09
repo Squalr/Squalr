@@ -1,3 +1,6 @@
+use crate::inter_process::inter_process_connection::InterProcessConnection;
+use crate::inter_process::inter_process_data_egress::InterProcessDataEgress;
+use crate::inter_process::inter_process_data_ingress::InterProcessDataIngress;
 use interprocess::local_socket::ListenerOptions;
 use interprocess::local_socket::Name;
 use interprocess::local_socket::prelude::LocalSocketStream;
@@ -26,10 +29,6 @@ use interprocess::local_socket::GenericFilePath as NamedPipeType;
 use interprocess::local_socket::GenericNamespaced as NamedPipeType;
 #[cfg(windows)]
 use interprocess::os::windows::local_socket::NamedPipe as NamedPipeType;
-
-use super::inter_process_connection::InterProcessConnection;
-use super::inter_process_data_egress::InterProcessDataEgress;
-use super::inter_process_data_ingress::InterProcessDataIngress;
 
 #[cfg(windows)]
 const IPC_SOCKET_PATH_INGRESS: &str = "\\\\.\\pipe\\squalr-ipc-ingress";
@@ -185,17 +184,17 @@ impl InterProcessCommandPipe {
         if let Ok(connection_guard) = ipc_connection.read() {
             if let Some(mut stream) = connection_guard.socket_stream.as_ref() {
                 // First read the length (4 bytes).
-                let mut len_buf = [0u8; 4];
+                let mut len_buf = [0u8; size_of::<u32>()];
                 stream.read_exact(&mut len_buf)?;
                 let total_len = u32::from_le_bytes(len_buf);
 
                 // Next read the uuid (16 bytes).
-                let mut uuid_buf = [0u8; 16];
+                let mut uuid_buf = [0u8; size_of::<Uuid>()];
                 stream.read_exact(&mut uuid_buf)?;
                 let uuid = Uuid::from_bytes(uuid_buf);
 
-                // Finally read the remaining data (total_len - 16 bytes for UUID).
-                let data_len = total_len as usize - 16;
+                // Finally read the remaining data (total_len - uuid size).
+                let data_len = total_len as usize - size_of::<Uuid>();
                 let mut data_buf = vec![0u8; data_len];
                 stream.read_exact(&mut data_buf)?;
 
