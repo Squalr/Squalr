@@ -161,8 +161,10 @@ impl SqualrEngine {
         SqualrEngine::get_instance().event_receiver.clone()
     }
 
-    pub fn broadcast_engine_event(event: EngineEvent) -> Result<(), SendError<EngineEvent>> {
-        SqualrEngine::get_instance().event_sender.send(event)
+    pub fn broadcast_engine_event(event: EngineEvent) {
+        if let Err(err) = SqualrEngine::get_instance().event_sender.send(event) {
+            Logger::get_instance().log(LogLevel::Error, &format!("Failed to broadcast event: {}", err), None);
+        }
     }
 
     pub fn dispatch_response(

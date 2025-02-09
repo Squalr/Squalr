@@ -14,6 +14,7 @@ use squalr_engine::commands::engine_command::EngineCommand;
 use squalr_engine::commands::process::process_command::ProcessCommand;
 use squalr_engine::events::engine_event::EngineEvent;
 use squalr_engine::events::engine_event::EngineEvent::ProcessOpened;
+use squalr_engine::events::process::process_event::ProcessEvent;
 use squalr_engine::responses::engine_response::EngineResponse;
 use squalr_engine::responses::process::process_response::ProcessResponse;
 use squalr_engine::squalr_engine::SqualrEngine;
@@ -74,13 +75,15 @@ impl ProcessSelectorViewModel {
             loop {
                 if let Ok(event) = event_receiver.recv() {
                     match event {
-                        ProcessOpened(opened_process_info) => {
-                            view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
-                                main_window_view
-                                    .global::<ProcessSelectorViewModelBindings>()
-                                    .set_selected_process(OpenedProcessInfoConverter::new().convert_to_view_data(&opened_process_info));
-                            });
-                        }
+                        ProcessOpened(process_event) => match process_event {
+                            ProcessEvent::Open { process_info } => {
+                                view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
+                                    main_window_view
+                                        .global::<ProcessSelectorViewModelBindings>()
+                                        .set_selected_process(OpenedProcessInfoConverter::new().convert_to_view_data(&process_info));
+                                });
+                            }
+                        },
                     }
                 }
             }

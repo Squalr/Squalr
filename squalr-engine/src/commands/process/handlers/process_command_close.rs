@@ -7,7 +7,7 @@ use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use uuid::Uuid;
 
-pub fn handle_process_close(uuid: Uuid) {
+pub fn handle_process_command_close(uuid: Uuid) {
     if let Some(process_info) = SqualrSession::get_opened_process() {
         Logger::get_instance().log(
             LogLevel::Info,

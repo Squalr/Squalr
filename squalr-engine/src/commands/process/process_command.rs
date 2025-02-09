@@ -1,7 +1,7 @@
 use crate::commands::command_handler::CommandHandler;
-use crate::commands::process::handlers::process_command_close::handle_process_close;
-use crate::commands::process::handlers::process_command_list::handle_process_list;
-use crate::commands::process::handlers::process_command_open::handle_process_open;
+use crate::commands::process::handlers::process_command_close::handle_process_command_close;
+use crate::commands::process::handlers::process_command_list::handle_process_command_list;
+use crate::commands::process::handlers::process_command_open::handle_process_command_open;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use uuid::Uuid;
@@ -38,7 +38,7 @@ impl CommandHandler for ProcessCommand {
     ) {
         match self {
             ProcessCommand::Open { pid, search_name, match_case } => {
-                handle_process_open(*pid, search_name, *match_case, uuid);
+                handle_process_command_open(*pid, search_name, *match_case, uuid);
             }
             ProcessCommand::List {
                 require_windowed,
@@ -47,10 +47,10 @@ impl CommandHandler for ProcessCommand {
                 limit,
                 fetch_icons,
             } => {
-                handle_process_list(*require_windowed, search_name, *match_case, *limit, *fetch_icons, uuid);
+                handle_process_command_list(*require_windowed, search_name, *match_case, *limit, *fetch_icons, uuid);
             }
             ProcessCommand::Close {} => {
-                handle_process_close(uuid);
+                handle_process_command_close(uuid);
             }
         }
     }

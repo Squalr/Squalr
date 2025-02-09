@@ -7,7 +7,7 @@ use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
 use uuid::Uuid;
 
-pub fn handle_process_list(
+pub fn handle_process_command_list(
     require_windowed: bool,
     search_name: &Option<String>,
     match_case: bool,

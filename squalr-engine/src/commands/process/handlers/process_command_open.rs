@@ -9,7 +9,7 @@ use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions
 use sysinfo::Pid;
 use uuid::Uuid;
 
-pub fn handle_process_open(
+pub fn handle_process_command_open(
     pid: Option<u32>,
     search_name: &Option<String>,
     match_case: bool,
@@ -38,7 +38,7 @@ pub fn handle_process_open(
             Ok(opened_process_info) => {
                 SqualrSession::set_opened_process(opened_process_info.clone());
 
-                let response = EngineResponse::Process(ProcessResponse::Close {
+                let response = EngineResponse::Process(ProcessResponse::Open {
                     process_info: opened_process_info,
                 });
 

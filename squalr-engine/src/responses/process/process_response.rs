@@ -5,5 +5,5 @@ use squalr_engine_processes::process_info::{OpenedProcessInfo, ProcessInfo};
 pub enum ProcessResponse {
     List { processes: Vec<ProcessInfo> },
     Close { process_info: OpenedProcessInfo },
-    Open { process_info: ProcessInfo },
+    Open { process_info: OpenedProcessInfo },
 }

@@ -1,4 +1,4 @@
-use crate::events::engine_event::EngineEvent;
+use crate::events::{engine_event::EngineEvent, process::process_event::ProcessEvent};
 use crate::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::process_info::OpenedProcessInfo;
@@ -45,9 +45,7 @@ impl SqualrSession {
             );
             *process = Some(process_info.clone());
 
-            if let Err(err) = SqualrEngine::broadcast_engine_event(EngineEvent::ProcessOpened(process_info)) {
-                Logger::get_instance().log(LogLevel::Error, &format!("Error sending opened process event: {}", err), None);
-            }
+            SqualrEngine::dispatch_event(EngineEvent::ProcessOpened(ProcessEvent::Open { process_info: process_info }));
         }
     }
 
