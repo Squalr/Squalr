@@ -4,18 +4,18 @@ use crate::squalr_engine::SqualrEngine;
 use crate::squalr_session::SqualrSession;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
-use squalr_engine_processes::process_query::process_queryer::ProcessQueryOptions;
 use sysinfo::Pid;
 use uuid::Uuid;
 
 pub fn handle_process_command_open(
-    pid: Option<u32>,
+    process_id: Option<u32>,
     search_name: &Option<String>,
     match_case: bool,
     uuid: Uuid,
 ) {
-    if pid.is_none() && search_name.is_none() {
+    if process_id.is_none() && search_name.is_none() {
         Logger::get_instance().log(LogLevel::Error, "Error: Neither PID nor search name provided. Cannot open process.", None);
         return;
     }
@@ -24,7 +24,7 @@ pub fn handle_process_command_open(
 
     let options = ProcessQueryOptions {
         search_name: search_name.clone(),
-        required_pid: pid.map(Pid::from_u32),
+        required_process_id: process_id.map(Pid::from_u32),
         require_windowed: false,
         match_case: match_case,
         fetch_icons: false,
@@ -45,7 +45,7 @@ pub fn handle_process_command_open(
                 SqualrEngine::dispatch_response(response, uuid);
             }
             Err(err) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", process_info.pid, err), None);
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", process_info.process_id, err), None);
             }
         }
     } else {

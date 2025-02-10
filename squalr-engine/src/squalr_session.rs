@@ -40,7 +40,7 @@ impl SqualrSession {
         if let Ok(mut process) = SqualrSession::get_instance().opened_process.write() {
             Logger::get_instance().log(
                 LogLevel::Info,
-                &format!("Opened process: {}, pid: {}", process_info.name, process_info.pid),
+                &format!("Opened process: {}, pid: {}", process_info.name, process_info.process_id),
                 None,
             );
             *process = Some(process_info.clone());

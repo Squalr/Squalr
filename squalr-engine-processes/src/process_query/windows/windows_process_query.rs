@@ -1,6 +1,6 @@
 use crate::process_info::ProcessIcon;
 use crate::process_info::{Bitness, OpenedProcessInfo, ProcessInfo};
-use crate::process_query::process_queryer::ProcessQueryOptions;
+use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
 use crate::process_query::windows::windows_icon_handle::{DcHandle, IconHandle};
 use once_cell::sync::Lazy;
@@ -55,14 +55,14 @@ impl WindowsProcessQuery {
     }
 
     fn update_cache(
-        pid: Pid,
+        process_id: Pid,
         name: String,
         is_windowed: bool,
         icon: Option<ProcessIcon>,
     ) {
         if let Ok(mut cache) = PROCESS_CACHE.write() {
-            cache.insert(pid, ProcessInfo {
-                pid: pid.as_u32(),
+            cache.insert(process_id, ProcessInfo {
+                process_id: process_id.as_u32(),
                 name,
                 is_windowed,
                 icon,
@@ -70,23 +70,23 @@ impl WindowsProcessQuery {
         }
     }
 
-    fn get_from_cache(pid: &Pid) -> Option<ProcessInfo> {
+    fn get_from_cache(process_id: &Pid) -> Option<ProcessInfo> {
         PROCESS_CACHE
             .read()
             .ok()
-            .and_then(|cache| cache.get(pid).cloned())
+            .and_then(|cache| cache.get(process_id).cloned())
     }
 }
 
 impl ProcessQueryer for WindowsProcessQuery {
     fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
         unsafe {
-            let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.pid);
+            let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.process_id);
             if handle == std::ptr::null_mut() {
                 Err("Failed to open process".to_string())
             } else {
                 let opened_process_info = OpenedProcessInfo {
-                    pid: process_info.pid,
+                    process_id: process_info.process_id,
                     name: process_info.name.clone(),
                     bitness: Self::get_process_bitness(&handle),
                     handle: handle as u64,
@@ -124,15 +124,15 @@ impl ProcessQueryer for WindowsProcessQuery {
         let filtered_processes: Vec<ProcessInfo> = system_guard
             .processes()
             .iter()
-            .filter_map(|(pid, process)| {
+            .filter_map(|(process_id, process)| {
                 // Try to get from cache first
-                let process_info = if let Some(cached_info) = Self::get_from_cache(pid) {
+                let process_info = if let Some(cached_info) = Self::get_from_cache(process_id) {
                     // If icons are required but not in cache, update the icon
                     if options.fetch_icons && cached_info.icon.is_none() {
                         let mut updated_info = cached_info.clone();
-                        updated_info.icon = Self::get_icon(pid);
+                        updated_info.icon = Self::get_icon(process_id);
                         // Update cache with new icon
-                        Self::update_cache(*pid, updated_info.name.clone(), updated_info.is_windowed, updated_info.icon.clone());
+                        Self::update_cache(*process_id, updated_info.name.clone(), updated_info.is_windowed, updated_info.icon.clone());
                         updated_info
                     } else {
                         cached_info
@@ -140,12 +140,12 @@ impl ProcessQueryer for WindowsProcessQuery {
                 } else {
                     // Create new ProcessInfo and cache it
                     let new_info = ProcessInfo {
-                        pid: pid.as_u32(),
+                        process_id: process_id.as_u32(),
                         name: process.name().to_string_lossy().into_owned(),
-                        is_windowed: Self::is_process_windowed(pid),
-                        icon: if options.fetch_icons { Self::get_icon(pid) } else { None },
+                        is_windowed: Self::is_process_windowed(process_id),
+                        icon: if options.fetch_icons { Self::get_icon(process_id) } else { None },
                     };
-                    Self::update_cache(*pid, new_info.name.clone(), new_info.is_windowed, new_info.icon.clone());
+                    Self::update_cache(*process_id, new_info.name.clone(), new_info.is_windowed, new_info.icon.clone());
                     new_info
                 };
 
@@ -164,8 +164,8 @@ impl ProcessQueryer for WindowsProcessQuery {
                     }
                 }
 
-                if let Some(required_pid) = options.required_pid {
-                    matches &= process_info.pid == required_pid.as_u32();
+                if let Some(required_process_id) = options.required_process_id {
+                    matches &= process_info.process_id == required_process_id.as_u32();
                 }
 
                 matches.then_some(process_info)
@@ -178,7 +178,7 @@ impl ProcessQueryer for WindowsProcessQuery {
 
     fn is_process_windowed(process_id: &Pid) -> bool {
         struct WindowFinder {
-            pid: u32,
+            process_id: u32,
             found: AtomicBool,
         }
 
@@ -190,7 +190,7 @@ impl ProcessQueryer for WindowsProcessQuery {
             let mut process_id: u32 = 0;
             unsafe { GetWindowThreadProcessId(hwnd, &mut process_id) };
 
-            if process_id == finder.pid {
+            if process_id == finder.process_id {
                 // Only count the window if visible.
                 if unsafe { IsWindowVisible(hwnd) } == BOOL::from(true) {
                     finder.found.store(true, Ordering::SeqCst);
@@ -207,7 +207,7 @@ impl ProcessQueryer for WindowsProcessQuery {
         }
 
         let finder = WindowFinder {
-            pid: process_id.as_u32(),
+            process_id: process_id.as_u32(),
             found: AtomicBool::new(false),
         };
 

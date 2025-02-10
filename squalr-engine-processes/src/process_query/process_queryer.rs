@@ -2,6 +2,7 @@ use crate::process_info::OpenedProcessInfo;
 use crate::process_info::ProcessIcon;
 use crate::process_info::ProcessInfo;
 use crate::process_monitor::ProcessMonitor;
+use crate::process_query::process_query_options::ProcessQueryOptions;
 use once_cell::sync::Lazy;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -20,15 +21,6 @@ pub(crate) trait ProcessQueryer {
     ) -> Vec<ProcessInfo>;
     fn is_process_windowed(process_id: &Pid) -> bool;
     fn get_icon(process_id: &Pid) -> Option<ProcessIcon>;
-}
-
-pub struct ProcessQueryOptions {
-    pub required_pid: Option<Pid>,
-    pub search_name: Option<String>,
-    pub require_windowed: bool,
-    pub match_case: bool,
-    pub fetch_icons: bool,
-    pub limit: Option<u64>,
 }
 
 #[cfg(any(target_os = "android"))]

@@ -16,7 +16,7 @@ pub struct ProcessIcon {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProcessInfo {
-    pub pid: u32,
+    pub process_id: u32,
     pub name: String,
     pub is_windowed: bool,
     pub icon: Option<ProcessIcon>,
@@ -24,7 +24,7 @@ pub struct ProcessInfo {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OpenedProcessInfo {
-    pub pid: u32,
+    pub process_id: u32,
     pub name: String,
     pub handle: u64,
     pub bitness: Bitness,
@@ -32,13 +32,13 @@ pub struct OpenedProcessInfo {
 }
 
 impl ProcessInfo {
-    pub fn get_pid(&self) -> Pid {
-        Pid::from_u32(self.pid)
+    pub fn get_process_id(&self) -> Pid {
+        Pid::from_u32(self.process_id)
     }
 }
 
 impl OpenedProcessInfo {
-    pub fn get_pid(&self) -> Pid {
-        Pid::from_u32(self.pid)
+    pub fn get_process_id(&self) -> Pid {
+        Pid::from_u32(self.process_id)
     }
 }

@@ -1,18 +1,70 @@
 use crate::process_info::{Bitness, OpenedProcessInfo, ProcessIcon, ProcessInfo};
-use crate::process_query::process_queryer::{ProcessQueryOptions, ProcessQueryer};
-use jni::objects::JList;
+use crate::process_query::process_query_options::ProcessQueryOptions;
+use crate::process_query::process_queryer::ProcessQueryer;
+use once_cell::sync::Lazy;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
-use squalr_engine_common::system::android_globals::AndroidGlobals;
+use std::collections::HashSet;
+use std::fs;
 use std::sync::{Arc, RwLock};
 use sysinfo::{Pid, System};
 
+/// Minimum UID for user-installed apps.
+const MIN_USER_UID: u32 = 10000;
+
 pub struct AndroidProcessQuery {}
 
+impl AndroidProcessQuery {
+    /// Checks if a process belongs to a user app (UID ≥ 10000).
+    fn is_user_app(process_id: u32) -> bool {
+        let status_path = format!("/proc/{}/status", process_id);
+        if let Ok(status) = fs::read_to_string(status_path) {
+            for line in status.lines() {
+                if line.starts_with("Uid:") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() > 1 {
+                        if let Ok(uid) = parts[1].parse::<u32>() {
+                            return uid >= MIN_USER_UID;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// Finds the PIDs of `zygote` and `zygote64` for parent checking.
+    fn find_zygote_process_ids() -> HashSet<u32> {
+        let mut zygote_process_ids = HashSet::new();
+        if let Ok(entries) = fs::read_dir("/proc") {
+            for entry in entries.flatten() {
+                if let Ok(process_id_str) = entry.file_name().into_string() {
+                    if process_id_str.chars().all(|c| c.is_digit(10)) {
+                        let cmd_path = format!("/proc/{}/cmdline", process_id_str);
+                        if let Ok(cmd) = fs::read_to_string(cmd_path) {
+                            let cmd_trimmed = cmd.trim_end_matches('\0');
+                            if cmd_trimmed == "zygote" || cmd_trimmed == "zygote64" {
+                                if let Ok(pid) = process_id_str.parse::<u32>() {
+                                    zygote_process_ids.insert(pid);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        zygote_process_ids
+    }
+}
+
+static WINDOWED_PROCESSES: Lazy<RwLock<HashSet<u32>>> = Lazy::new(|| RwLock::new(HashSet::new()));
+
 impl ProcessQueryer for AndroidProcessQuery {
+    // Android has no concept of opening a process -- do nothing, return 0 for handle.
     fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
         Ok(OpenedProcessInfo {
-            pid: process_info.pid,
+            process_id: process_info.process_id,
             name: process_info.name.clone(),
             handle: 0,
             bitness: Bitness::Bit64,
@@ -20,6 +72,7 @@ impl ProcessQueryer for AndroidProcessQuery {
         })
     }
 
+    // Android has no concept of closing a process -- do nothing.
     fn close_process(_handle: u64) -> Result<(), String> {
         Ok(())
     }
@@ -37,14 +90,42 @@ impl ProcessQueryer for AndroidProcessQuery {
             }
         };
 
+        let mut windowed_process_ids = HashSet::new();
+        let zygote_process_ids = Self::find_zygote_process_ids();
+
+        for (process_id, process) in system_guard.processes() {
+            let parent_process_id = process
+                .parent()
+                .map(|parent_process_id| parent_process_id.as_u32())
+                .unwrap_or(0);
+            let is_zygote_spawned_process = zygote_process_ids.contains(&parent_process_id);
+            let is_user_app = Self::is_user_app(process_id.as_u32());
+
+            if is_zygote_spawned_process && is_user_app {
+                windowed_process_ids.insert(process_id.as_u32());
+            }
+        }
+
+        // Persist the windowed process list so that it can be used in `is_process_windowed()`.
+        {
+            let mut windowed_process_guard = match WINDOWED_PROCESSES.write() {
+                Ok(guard) => guard,
+                Err(err) => {
+                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire windowed processes write lock: {}", err), None);
+                    return Vec::new();
+                }
+            };
+            *windowed_process_guard = windowed_process_ids;
+        }
+
         let mut results = Vec::new();
 
-        for (pid, proc_) in system_guard.processes() {
-            let pid_u32 = pid.as_u32();
-            let name = proc_.name().to_string_lossy().to_string();
-            let is_windowed = Self::is_process_windowed(pid);
+        for (process_id, process) in system_guard.processes() {
+            let process_id_u32 = process_id.as_u32();
+            let name = process.name().to_string_lossy().to_string();
+            let is_windowed = Self::is_process_windowed(process_id);
             let process_info = ProcessInfo {
-                pid: pid_u32,
+                process_id: process_id_u32,
                 name,
                 is_windowed,
                 icon: None,
@@ -59,8 +140,8 @@ impl ProcessQueryer for AndroidProcessQuery {
                 }
             }
 
-            if let Some(required_pid) = options.required_pid {
-                matches &= process_info.pid == required_pid.as_u32();
+            if let Some(required_process_id) = options.required_process_id {
+                matches &= process_info.process_id == required_process_id.as_u32();
             }
 
             if options.require_windowed {
@@ -82,122 +163,9 @@ impl ProcessQueryer for AndroidProcessQuery {
     }
 
     fn is_process_windowed(process_id: &Pid) -> bool {
-        Logger::get_instance().log(LogLevel::Info, &format!("Checking pid[1]: {:?}", process_id), None);
-
-        let mut env = match AndroidGlobals::get_instance().get_env() {
-            Ok(env) => env,
-            Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to get JNI environment: {}", e), None);
-                return false;
-            }
-        };
-        Logger::get_instance().log(LogLevel::Info, &format!("Checking pid[2]: {:?}", process_id), None);
-
-        // Get ActivityManager class
-        let activity_manager_class = match env.find_class("android/app/ActivityManager") {
-            Ok(class) => class,
-            Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to find ActivityManager class: {}", e), None);
-                return false;
-            }
-        };
-        Logger::get_instance().log(LogLevel::Info, &format!("Checking pid[3]: {:?}", process_id), None);
-
-        // Get running app processes
-        let running_apps = match env.call_static_method(activity_manager_class, "getRunningAppProcesses", "()Ljava/util/List;", &[]) {
-            Ok(result) => match result.l() {
-                Ok(obj) => obj,
-                Err(e) => {
-                    Logger::get_instance().log(
-                        LogLevel::Error,
-                        &format!("Failed to convert ActivityManager.getRunningAppProcesses result to JObject: {}", e),
-                        None,
-                    );
-                    return false;
-                }
-            },
-            Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to call ActivityManager.getRunningAppProcesses: {}", e), None);
-                return false;
-            }
-        };
-        Logger::get_instance().log(LogLevel::Info, &format!("Checking pid[4]: {:?}", process_id), None);
-
-        // Convert to JList for easier iteration
-        let process_list = match JList::from_env(&mut env, &running_apps) {
-            Ok(list) => list,
-            Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to create JList from running apps: {}", e), None);
-                return false;
-            }
-        };
-        Logger::get_instance().log(LogLevel::Info, &format!("Checking pid[5]: {:?}", process_id), None);
-
-        let size = match process_list.size(&mut env) {
-            Ok(s) => s,
-            Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to get JList size: {}", e), None);
-                return false;
-            }
-        };
-        Logger::get_instance().log(LogLevel::Info, &format!("Checking pid[6]: {:?}", process_id), None);
-
-        for i in 0..size {
-            let process_info = match process_list.get(&mut env, i) {
-                Ok(info) => match info {
-                    Some(obj) => obj,
-                    None => {
-                        Logger::get_instance().log(LogLevel::Error, &format!("Process info at index {} is null", i), None);
-                        continue;
-                    }
-                },
-                Err(e) => {
-                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to get process info at index {}: {}", i, e), None);
-                    continue;
-                }
-            };
-
-            // Get the process ID
-            let pid = match env.get_field(&process_info, "pid", "I") {
-                Ok(field) => match field.i() {
-                    Ok(val) => val as u32,
-                    Err(e) => {
-                        Logger::get_instance().log(LogLevel::Error, &format!("Failed to convert pid field to integer: {}", e), None);
-                        continue;
-                    }
-                },
-                Err(e) => {
-                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to get pid field: {}", e), None);
-                    continue;
-                }
-            };
-
-            // Check if this is our target process
-            if pid == process_id.as_u32() {
-                // Get importance level
-                let importance = match env.get_field(&process_info, "importance", "I") {
-                    Ok(field) => match field.i() {
-                        Ok(val) => val,
-                        Err(e) => {
-                            Logger::get_instance().log(LogLevel::Error, &format!("Failed to convert importance field to integer: {}", e), None);
-                            continue;
-                        }
-                    },
-                    Err(e) => {
-                        Logger::get_instance().log(LogLevel::Error, &format!("Failed to get importance field: {}", e), None);
-                        continue;
-                    }
-                };
-
-                Logger::get_instance().log(LogLevel::Error, &format!("Result: {}", importance <= 200), None);
-                // Check if process is a foreground app or visible app
-                // IMPORTANCE_FOREGROUND = 100
-                // IMPORTANCE_VISIBLE = 200
-                return importance <= 200;
-            }
-        }
-
-        false
+        WINDOWED_PROCESSES
+            .read()
+            .map_or(false, |set| set.contains(&process_id.as_u32()))
     }
 
     fn get_icon(_process_id: &Pid) -> Option<ProcessIcon> {

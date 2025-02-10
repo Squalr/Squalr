@@ -20,7 +20,7 @@ impl AndroidMemoryReader {
         len: usize,
     ) -> std::io::Result<Vec<u8>> {
         // Construct the path to the process's mem file
-        let mem_path = format!("/proc/{}/mem", process_info.pid);
+        let mem_path = format!("/proc/{}/mem", process_info.process_id);
 
         // Open the file in read-only mode
         let mut file = OpenOptions::new().read(true).open(&mem_path)?;

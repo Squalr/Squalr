@@ -54,7 +54,11 @@ impl ValueCollector {
         cancellation_token: Arc<AtomicBool>,
     ) {
         if with_logging {
-            Logger::get_instance().log(LogLevel::Info, &format!("Reading values from memory (process {})...", process_info.pid), None);
+            Logger::get_instance().log(
+                LogLevel::Info,
+                &format!("Reading values from memory (process {})...", process_info.process_id),
+                None,
+            );
         }
 
         let data_types_and_alignments = {

@@ -42,8 +42,8 @@ impl ViewDataConverter<OpenedProcessInfo, ProcessViewData> for OpenedProcessInfo
         };
 
         ProcessViewData {
-            process_id_str: process_info.pid.to_string().into(),
-            process_id: process_info.pid as i32,
+            process_id_str: process_info.process_id.to_string().into(),
+            process_id: process_info.process_id as i32,
             name: process_info.name.to_string().into(),
             icon,
         }

@@ -21,7 +21,6 @@ squalr-engine-projects = { path = "../squalr-engine-projects" }
 squalr-engine-scanning = { path = "../squalr-engine-scanning" }
 squalr-engine-scripting = { path = "../squalr-engine-scripting" }
 squalr-gui = { path = "../squalr-gui" }
-jni = ">=0.21.1"
 futures = ">=0.3"
 log = ">=0.4.22"
 rayon = ">=1.10.0"

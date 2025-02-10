@@ -13,7 +13,7 @@ use std::io::{BufRead, BufReader};
 
 pub struct AndroidMemoryQueryer;
 
-/// Helper struct to hold a single line of `/proc/<pid>/maps` data
+/// Helper struct to hold a single line of `/proc/<process_id>/maps` data
 struct ProcMapRegion {
     start: u64,
     end: u64,
@@ -29,16 +29,16 @@ impl AndroidMemoryQueryer {
         AndroidMemoryQueryer
     }
 
-    /// Reads `/proc/<pid>/maps` directly from the filesystem and parses each line.
-    fn parse_proc_maps(pid: i32) -> std::io::Result<Vec<ProcMapRegion>> {
-        // Instead of using “cat /proc/<pid>/maps” via su, read the file directly:
-        let path = format!("/proc/{}/maps", pid);
+    /// Reads `/proc/<process_id>/maps` directly from the filesystem and parses each line.
+    fn parse_proc_maps(process_id: i32) -> std::io::Result<Vec<ProcMapRegion>> {
+        // Instead of using “cat /proc/<process_id>/maps” via su, read the file directly:
+        let path = format!("/proc/{}/maps", process_id);
         let file = File::open(&path)?;
         let reader = BufReader::new(file);
 
         let mut regions = Vec::new();
 
-        // Each line in `/proc/<pid>/maps` typically looks like:
+        // Each line in `/proc/<process_id>/maps` typically looks like:
         // 00400000-00452000 r-xp 00000000 fc:01 1234   /system/bin/app_process32
         for line_result in reader.lines() {
             let line = line_result?;
@@ -83,7 +83,7 @@ impl AndroidMemoryQueryer {
         Ok(regions)
     }
 
-    /// Convert the 4-character perms (e.g. "r-xp") from /proc/<pid>/maps into `MemoryProtectionEnum`.
+    /// Convert the 4-character perms (e.g. "r-xp") from /proc/<process_id>/maps into `MemoryProtectionEnum`.
     fn to_memory_protection(perms: &str) -> MemoryProtectionEnum {
         let mut prot = MemoryProtectionEnum::empty();
 
@@ -211,9 +211,9 @@ impl IMemoryQueryer for AndroidMemoryQueryer {
         end_address: u64,
         region_bounds_handling: RegionBoundsHandling,
     ) -> Vec<NormalizedRegion> {
-        let pid_i32 = process_info.pid as i32;
+        let process_id_i32 = process_info.process_id as i32;
 
-        let regions_result = Self::parse_proc_maps(pid_i32);
+        let regions_result = Self::parse_proc_maps(process_id_i32);
         let Ok(regions) = regions_result else {
             Logger::get_instance().log(LogLevel::Info, "Failed to query memory regions via SU shell.", None);
             return vec![];
@@ -267,7 +267,7 @@ impl IMemoryQueryer for AndroidMemoryQueryer {
         // If you need to check, parse maps again or cache them in a real-world scenario.
         // Then find the region containing 'address' and see if it has WRITE.
         // For demonstration, this is a naive re-parse each call:
-        if let Ok(regions) = Self::parse_proc_maps(process_info.pid as i32) {
+        if let Ok(regions) = Self::parse_proc_maps(process_info.process_id as i32) {
             for reg in regions {
                 if address >= reg.start && address < reg.end {
                     let protection = Self::to_memory_protection(&reg.perms);
@@ -307,8 +307,8 @@ impl IMemoryQueryer for AndroidMemoryQueryer {
         &self,
         process_info: &OpenedProcessInfo,
     ) -> Vec<NormalizedModule> {
-        let pid_i32 = process_info.pid as i32;
-        let regions_result = Self::parse_proc_maps(pid_i32);
+        let process_id_i32 = process_info.process_id as i32;
+        let regions_result = Self::parse_proc_maps(process_id_i32);
         let Ok(regions) = regions_result else {
             return vec![];
         };

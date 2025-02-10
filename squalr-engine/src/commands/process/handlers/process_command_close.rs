@@ -11,7 +11,7 @@ pub fn handle_process_command_close(uuid: Uuid) {
     if let Some(process_info) = SqualrSession::get_opened_process() {
         Logger::get_instance().log(
             LogLevel::Info,
-            &format!("Closing process {} with handle {}", process_info.pid, process_info.handle),
+            &format!("Closing process {} with handle {}", process_info.process_id, process_info.handle),
             None,
         );
 

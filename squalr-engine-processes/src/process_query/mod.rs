@@ -1,3 +1,4 @@
+pub mod process_query_options;
 pub mod process_queryer;
 
 #[cfg(any(target_os = "android"))]
