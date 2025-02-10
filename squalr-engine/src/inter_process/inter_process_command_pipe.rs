@@ -107,8 +107,8 @@ impl InterProcessCommandPipe {
                     Logger::get_instance().log(
                         LogLevel::Info,
                         &format!(
-                            "Squalr privileged local server connection failed, attempt {}/{}. Error: {}. Retrying...",
-                            attempt, MAX_RETRIES, e
+                            "Squalr privileged local server connection failed, attempt {}/{}. Ingress: {} Error: {}. Retrying...",
+                            attempt, MAX_RETRIES, is_ingress, e
                         ),
                         None,
                     );

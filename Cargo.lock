@@ -3792,6 +3792,7 @@ name = "squalr-android"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "jni",
  "log",
  "rayon",
  "serde",
@@ -3859,6 +3860,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "hex",
+ "jni",
  "rayon",
  "serde",
  "serde_json",
@@ -3893,6 +3895,7 @@ dependencies = [
 name = "squalr-engine-processes"
 version = "0.1.0"
 dependencies = [
+ "jni",
  "once_cell",
  "rayon",
  "regex",

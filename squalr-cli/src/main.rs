@@ -25,7 +25,7 @@ fn main() {
     SqualrEngine::initialize(engine_mode);
 
     if engine_mode == EngineMode::PrivilegedShell {
-        Logger::get_instance().log(LogLevel::Info, "Spawning CLI as a privileged IPC shell.", None);
+        Logger::get_instance().log(LogLevel::Info, "CLI running as a privileged IPC shell.", None);
     }
 
     // Listen for user input.

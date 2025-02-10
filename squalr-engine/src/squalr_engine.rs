@@ -11,7 +11,6 @@ use squalr_engine_architecture::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use std::collections::HashMap;
-use std::sync::mpsc::SendError;
 use std::sync::{Arc, Once};
 use std::sync::{Mutex, mpmc};
 use uuid::Uuid;
@@ -99,7 +98,9 @@ impl SqualrEngine {
     fn get_instance() -> &'static SqualrEngine {
         unsafe {
             // If create_instance() has never been called before, default to standalone.
-            Self::create_instance(EngineMode::Standalone);
+            if !INIT.is_completed() {
+                panic!("Attempted to use engine before it was initialized");
+            }
 
             #[allow(static_mut_refs)]
             INSTANCE.as_ref().unwrap()
@@ -157,16 +158,6 @@ impl SqualrEngine {
         });
     }
 
-    pub fn get_engine_event_receiver() -> mpmc::Receiver<EngineEvent> {
-        SqualrEngine::get_instance().event_receiver.clone()
-    }
-
-    pub fn broadcast_engine_event(event: EngineEvent) {
-        if let Err(err) = SqualrEngine::get_instance().event_sender.send(event) {
-            Logger::get_instance().log(LogLevel::Error, &format!("Failed to broadcast event: {}", err), None);
-        }
-    }
-
     pub fn dispatch_response(
         response: EngineResponse,
         uuid: Uuid,
@@ -195,6 +186,16 @@ impl SqualrEngine {
             }
 
             request_handles.remove(&uuid);
+        }
+    }
+
+    pub fn get_engine_event_receiver() -> mpmc::Receiver<EngineEvent> {
+        SqualrEngine::get_instance().event_receiver.clone()
+    }
+
+    pub fn broadcast_engine_event(event: EngineEvent) {
+        if let Err(err) = SqualrEngine::get_instance().event_sender.send(event) {
+            Logger::get_instance().log(LogLevel::Error, &format!("Failed to broadcast event: {}", err), None);
         }
     }
 }

@@ -1,145 +1,56 @@
 use crate::process_info::{Bitness, OpenedProcessInfo, ProcessIcon, ProcessInfo};
 use crate::process_query::process_queryer::{ProcessQueryOptions, ProcessQueryer};
-use once_cell::sync::Lazy;
-use regex::Regex;
+use jni::objects::JList;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
-use std::collections::{HashMap, HashSet};
+use squalr_engine_common::system::android_globals::AndroidGlobals;
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
 use sysinfo::{Pid, System};
-
-/// Caches the overall process info so we don’t reconstruct everything every time
-static PROCESS_CACHE: Lazy<RwLock<HashMap<Pid, ProcessInfo>>> = Lazy::new(|| RwLock::new(HashMap::new()));
-
-/// A single global cache for “windowed PIDs,” plus the time we last fetched them.
-static WINDOW_INFO_CACHE: Lazy<RwLock<WindowInfoCache>> = Lazy::new(|| {
-    RwLock::new(WindowInfoCache {
-        last_fetch: Instant::now()
-            .checked_sub(Duration::from_secs(20)) // Force an immediate refresh on first use
-            .unwrap_or_else(Instant::now),
-        windowed_pids: HashSet::new(),
-    })
-});
-
-/// We only refresh the “window info” once per this TTL.
-const WINDOW_INFO_TTL: Duration = Duration::from_secs(10);
-
-/// Holds the “which PIDs are windowed?” snapshot + when we last fetched it
-struct WindowInfoCache {
-    last_fetch: Instant,
-    windowed_pids: HashSet<Pid>,
-}
 
 pub struct AndroidProcessQuery {}
 
-impl AndroidProcessQuery {
-    pub fn new() -> Self {
-        AndroidProcessQuery {}
-    }
-
-    fn update_cache(
-        pid: Pid,
-        name: String,
-        is_windowed: bool,
-        icon: Option<ProcessIcon>,
-    ) {
-        if let Ok(mut cache) = PROCESS_CACHE.write() {
-            cache.insert(pid, ProcessInfo {
-                pid: pid.as_u32(),
-                name,
-                is_windowed,
-                icon,
-            });
-        }
-    }
-
-    fn get_from_cache(pid: &Pid) -> Option<ProcessInfo> {
-        PROCESS_CACHE
-            .read()
-            .ok()
-            .and_then(|cache| cache.get(pid).cloned())
-    }
-
-    /// Refresh the global window info cache if older than `WINDOW_INFO_TTL`.
-    ///
-    /// In this version, we have removed `dumpsys` calls. If you need to truly detect
-    /// "windowed" processes on Android, you'll need an alternative approach that
-    /// doesn't rely on shelling out. For now, this is effectively a no-op.
-    fn refresh_windowed_pids_if_needed() {
-        let mut cache = WINDOW_INFO_CACHE.write().unwrap();
-
-        // Skip if it's still fresh
-        if cache.last_fetch.elapsed() < WINDOW_INFO_TTL {
-            return;
-        }
-
-        // Because we don't use `dumpsys` now, we have no direct way to detect
-        // windowed processes. We'll clear or leave empty:
-        cache.windowed_pids.clear();
-
-        // If needed, you could parse other `/proc` data or system stats to infer
-        // which processes have UI presence.
-
-        cache.last_fetch = Instant::now();
-    }
-
-    /// Check if a given PID is in our globally cached “windowed” set.
-    /// Right now, this will always return `false` unless you add logic to
-    /// populate `windowed_pids`.
-    fn is_process_windowed_impl(process_id: &Pid) -> bool {
-        let cache = WINDOW_INFO_CACHE.read().unwrap();
-        cache.windowed_pids.contains(process_id)
-    }
-}
-
 impl ProcessQueryer for AndroidProcessQuery {
-    /// "Open" a process on Android. No real handle concept, so just return a dummy handle (0).
     fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
         Ok(OpenedProcessInfo {
             pid: process_info.pid,
             name: process_info.name.clone(),
             handle: 0,
             bitness: Bitness::Bit64,
-            icon: None,
+            icon: process_info.icon.clone(),
         })
     }
 
-    /// "Close" a process on Android. Again, no real handle, so do nothing.
     fn close_process(_handle: u64) -> Result<(), String> {
         Ok(())
     }
 
-    /// Get a list of processes by scanning `/proc` via the `sysinfo` crate.
-    /// We also attempt to update the windowed-pid cache, though for now it
-    /// is effectively a no-op without `dumpsys`.
     fn get_processes(
         options: ProcessQueryOptions,
         system: Arc<RwLock<System>>,
     ) -> Vec<ProcessInfo> {
-        // Refresh cached “windowed” set once (at most) if needed
-        Self::refresh_windowed_pids_if_needed();
-
-        // Refresh process list from /proc
-        let mut sys = system.write().unwrap();
+        Logger::get_instance().log(LogLevel::Info, "Fetching processes...", None);
+        let system_guard = match system.read() {
+            Ok(guard) => guard,
+            Err(e) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire system read lock: {}", e), None);
+                return Vec::new();
+            }
+        };
 
         let mut results = Vec::new();
 
-        for (pid, proc_) in sys.processes() {
+        for (pid, proc_) in system_guard.processes() {
             let pid_u32 = pid.as_u32();
-            let name = proc_.name().to_owned();
-            let is_windowed = Self::is_process_windowed_impl(pid);
-
-            // Construct a candidate ProcessInfo
+            let name = proc_.name().to_string_lossy().to_string();
+            let is_windowed = Self::is_process_windowed(pid);
             let process_info = ProcessInfo {
                 pid: pid_u32,
-                name: name.to_string_lossy().to_string(),
+                name,
                 is_windowed,
                 icon: None,
             };
-
-            // Apply filters from `ProcessQueryOptions`
             let mut matches = true;
+
             if let Some(ref term) = options.search_name {
                 if options.match_case {
                     matches &= process_info.name.contains(term);
@@ -160,7 +71,6 @@ impl ProcessQueryer for AndroidProcessQuery {
                 results.push(process_info);
             }
 
-            // Respect the limit if specified
             if let Some(limit) = options.limit {
                 if results.len() >= limit as usize {
                     break;
@@ -171,15 +81,125 @@ impl ProcessQueryer for AndroidProcessQuery {
         results
     }
 
-    /// In this implementation, we don't have a good way to detect "windowed" from /proc,
-    /// so we simply consult our `WINDOW_INFO_CACHE`—which is effectively empty
-    /// unless you implement your own logic for populating it.
     fn is_process_windowed(process_id: &Pid) -> bool {
-        Self::refresh_windowed_pids_if_needed();
-        Self::is_process_windowed_impl(process_id)
+        Logger::get_instance().log(LogLevel::Info, &format!("Checking pid[1]: {:?}", process_id), None);
+
+        let mut env = match AndroidGlobals::get_instance().get_env() {
+            Ok(env) => env,
+            Err(e) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to get JNI environment: {}", e), None);
+                return false;
+            }
+        };
+        Logger::get_instance().log(LogLevel::Info, &format!("Checking pid[2]: {:?}", process_id), None);
+
+        // Get ActivityManager class
+        let activity_manager_class = match env.find_class("android/app/ActivityManager") {
+            Ok(class) => class,
+            Err(e) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to find ActivityManager class: {}", e), None);
+                return false;
+            }
+        };
+        Logger::get_instance().log(LogLevel::Info, &format!("Checking pid[3]: {:?}", process_id), None);
+
+        // Get running app processes
+        let running_apps = match env.call_static_method(activity_manager_class, "getRunningAppProcesses", "()Ljava/util/List;", &[]) {
+            Ok(result) => match result.l() {
+                Ok(obj) => obj,
+                Err(e) => {
+                    Logger::get_instance().log(
+                        LogLevel::Error,
+                        &format!("Failed to convert ActivityManager.getRunningAppProcesses result to JObject: {}", e),
+                        None,
+                    );
+                    return false;
+                }
+            },
+            Err(e) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to call ActivityManager.getRunningAppProcesses: {}", e), None);
+                return false;
+            }
+        };
+        Logger::get_instance().log(LogLevel::Info, &format!("Checking pid[4]: {:?}", process_id), None);
+
+        // Convert to JList for easier iteration
+        let process_list = match JList::from_env(&mut env, &running_apps) {
+            Ok(list) => list,
+            Err(e) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to create JList from running apps: {}", e), None);
+                return false;
+            }
+        };
+        Logger::get_instance().log(LogLevel::Info, &format!("Checking pid[5]: {:?}", process_id), None);
+
+        let size = match process_list.size(&mut env) {
+            Ok(s) => s,
+            Err(e) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to get JList size: {}", e), None);
+                return false;
+            }
+        };
+        Logger::get_instance().log(LogLevel::Info, &format!("Checking pid[6]: {:?}", process_id), None);
+
+        for i in 0..size {
+            let process_info = match process_list.get(&mut env, i) {
+                Ok(info) => match info {
+                    Some(obj) => obj,
+                    None => {
+                        Logger::get_instance().log(LogLevel::Error, &format!("Process info at index {} is null", i), None);
+                        continue;
+                    }
+                },
+                Err(e) => {
+                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to get process info at index {}: {}", i, e), None);
+                    continue;
+                }
+            };
+
+            // Get the process ID
+            let pid = match env.get_field(&process_info, "pid", "I") {
+                Ok(field) => match field.i() {
+                    Ok(val) => val as u32,
+                    Err(e) => {
+                        Logger::get_instance().log(LogLevel::Error, &format!("Failed to convert pid field to integer: {}", e), None);
+                        continue;
+                    }
+                },
+                Err(e) => {
+                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to get pid field: {}", e), None);
+                    continue;
+                }
+            };
+
+            // Check if this is our target process
+            if pid == process_id.as_u32() {
+                // Get importance level
+                let importance = match env.get_field(&process_info, "importance", "I") {
+                    Ok(field) => match field.i() {
+                        Ok(val) => val,
+                        Err(e) => {
+                            Logger::get_instance().log(LogLevel::Error, &format!("Failed to convert importance field to integer: {}", e), None);
+                            continue;
+                        }
+                    },
+                    Err(e) => {
+                        Logger::get_instance().log(LogLevel::Error, &format!("Failed to get importance field: {}", e), None);
+                        continue;
+                    }
+                };
+
+                Logger::get_instance().log(LogLevel::Error, &format!("Result: {}", importance <= 200), None);
+                // Check if process is a foreground app or visible app
+                // IMPORTANCE_FOREGROUND = 100
+                // IMPORTANCE_VISIBLE = 200
+                return importance <= 200;
+            }
+        }
+
+        false
     }
 
-    /// Icons not (yet) supported on Android via /proc, so return `None`.
     fn get_icon(_process_id: &Pid) -> Option<ProcessIcon> {
         None
     }

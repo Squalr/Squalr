@@ -4,7 +4,6 @@ use crate::inter_process::inter_process_connection::InterProcessConnection;
 use crate::inter_process::inter_process_data_egress::InterProcessDataEgress::Event;
 use crate::inter_process::inter_process_data_egress::InterProcessDataEgress::Response;
 use crate::inter_process::inter_process_data_ingress::InterProcessDataIngress;
-use crate::response_handlers::response_handler::ResponseHandler;
 use crate::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -57,23 +56,10 @@ impl InterProcessUnprivilegedHost {
         let ipc_connection_egress = self.ipc_connection_egress.clone();
 
         thread::spawn(move || {
-            match Self::spawn_squalr_cli_as_root() {
-                Ok(child) => {
-                    Logger::get_instance().log(LogLevel::Info, "Spawned squalr-cli as root.", None);
-
-                    // Update the server handle
-                    if let Ok(mut server) = privileged_shell_process.write() {
-                        *server = Some(child);
-                    }
-
-                    Self::bind_to_inter_process_pipe(ipc_connection_ingress, true);
-                    Self::bind_to_inter_process_pipe(ipc_connection_egress.clone(), false);
-                    Self::listen_for_shell_events(ipc_connection_egress);
-                }
-                Err(err) => {
-                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to spawn squalr-cli as root: {}", err), None);
-                }
-            }
+            // Self::spawn_privileged_cli(privileged_shell_process);
+            Self::bind_to_inter_process_pipe(ipc_connection_ingress, true);
+            Self::bind_to_inter_process_pipe(ipc_connection_egress.clone(), false);
+            Self::listen_for_shell_events(ipc_connection_egress);
         });
     }
 
@@ -86,6 +72,22 @@ impl InterProcessUnprivilegedHost {
 
         if let Err(err) = InterProcessCommandPipe::ipc_send_to_shell(&self.ipc_connection_ingress, ingress, uuid) {
             Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC command: {}", err), None);
+        }
+    }
+
+    fn spawn_privileged_cli(privileged_shell_process: Arc<RwLock<Option<Child>>>) {
+        match Self::spawn_squalr_cli_as_root() {
+            Ok(child) => {
+                Logger::get_instance().log(LogLevel::Info, "Spawned squalr-cli as root.", None);
+
+                // Update the server handle
+                if let Ok(mut server) = privileged_shell_process.write() {
+                    *server = Some(child);
+                }
+            }
+            Err(err) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to spawn squalr-cli as root: {}", err), None);
+            }
         }
     }
 
@@ -118,7 +120,7 @@ impl InterProcessUnprivilegedHost {
                                 SqualrEngine::broadcast_engine_event(engine_event);
                             }
                             Response(engine_response) => {
-                                ResponseHandler::handle_response(engine_response, uuid);
+                                SqualrEngine::handle_response(engine_response, uuid);
                             }
                         }
                     }
@@ -140,7 +142,8 @@ impl InterProcessUnprivilegedHost {
 
         let child = Command::new("su")
             .arg("-c")
-            .arg("/data/data/rust.squalr_android/files/squalr-cli --ipc-mode")
+            .arg("/data/data/rust.squalr_android/files/squalr-cli")
+            .arg("--ipc-mode")
             .spawn()?;
 
         Ok(child)

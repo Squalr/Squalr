@@ -1,7 +1,10 @@
+use jni::JavaVM;
+use jni::objects::JObject;
 use squalr_engine::squalr_engine::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_common::system::android_globals::AndroidGlobals;
 use squalr_gui::view_models::main_window::main_window_view_model::MainWindowViewModel;
 
 // On a rooted device, the unprivileged GUI must spawn a privileged CLI app, so it is bundled into the GUI.
@@ -9,10 +12,21 @@ static SQUALR_CLI: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/../../../sq
 
 #[unsafe(no_mangle)]
 fn android_main(app: slint::android::AndroidApp) {
-    slint::android::init(app).unwrap();
+    if let Err(err) = slint::android::init(app.clone()) {
+        Logger::get_instance().log(LogLevel::Error, "Failed to initialize Slint Android.", Some(&err.to_string()));
+        return;
+    }
 
-    // Create and show the main window, which in turn will instantiate all dockable windows.
-    let _main_window_view = MainWindowViewModel::new();
+    let java_vm_ptr = app.vm_as_ptr();
+    let java_vm = match unsafe { JavaVM::from_raw(java_vm_ptr.cast()) } {
+        Ok(vm) => vm,
+        Err(err) => {
+            Logger::get_instance().log(LogLevel::Error, "Failed to create JavaVM from raw pointer.", Some(&err.to_string()));
+            return;
+        }
+    };
+
+    AndroidGlobals::init(java_vm);
 
     if let Err(err) = unpack_cli() {
         Logger::get_instance().log(LogLevel::Error, "Fatal error unpacking privileged cli.", Some(err.to_string().as_str()));
@@ -20,6 +34,9 @@ fn android_main(app: slint::android::AndroidApp) {
     }
 
     SqualrEngine::initialize(EngineMode::UnprivilegedHost);
+
+    // Create and show the main window, which in turn will instantiate all dockable windows.
+    let _main_window_view = MainWindowViewModel::new();
 
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {
