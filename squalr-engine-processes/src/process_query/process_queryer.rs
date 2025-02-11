@@ -1,26 +1,13 @@
 use crate::process_info::OpenedProcessInfo;
-use crate::process_info::ProcessIcon;
 use crate::process_info::ProcessInfo;
-use crate::process_monitor::ProcessMonitor;
 use crate::process_query::process_query_options::ProcessQueryOptions;
-use once_cell::sync::Lazy;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::RwLock;
-use sysinfo::Pid;
-use sysinfo::System;
 
 pub(crate) trait ProcessQueryer {
+    fn start_monitoring() -> Result<(), String>;
+    fn stop_monitoring() -> Result<(), String>;
     fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String>;
     fn close_process(handle: u64) -> Result<(), String>;
-    fn get_processes(
-        options: ProcessQueryOptions,
-        system: Arc<RwLock<System>>,
-    ) -> Vec<ProcessInfo>;
-    fn is_process_windowed(process_id: &Pid) -> bool;
-    fn get_icon(process_id: &Pid) -> Option<ProcessIcon>;
+    fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo>;
 }
 
 #[cfg(any(target_os = "android"))]
@@ -37,27 +24,13 @@ use crate::process_query::windows::windows_process_query::WindowsProcessQuery as
 
 pub struct ProcessQuery;
 
-pub(crate) static PROCESS_MONITOR: Lazy<Mutex<ProcessMonitor>> = Lazy::new(|| Mutex::new(ProcessMonitor::new()));
-
 impl ProcessQuery {
     pub fn start_monitoring() -> Result<(), String> {
-        let mut monitor = PROCESS_MONITOR
-            .lock()
-            .map_err(|e| format!("Failed to acquire process monitor lock: {}", e))?;
-
-        monitor.start_monitoring();
-
-        Ok(())
+        ProcessQueryImpl::start_monitoring()
     }
 
     pub fn stop_monitoring() -> Result<(), String> {
-        let mut monitor = PROCESS_MONITOR
-            .lock()
-            .map_err(|e| format!("Failed to acquire process monitor lock: {}", e))?;
-
-        monitor.stop_monitoring();
-
-        Ok(())
+        ProcessQueryImpl::stop_monitoring()
     }
 
     pub fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
@@ -69,11 +42,6 @@ impl ProcessQuery {
     }
 
     pub fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
-        if let Ok(monitor) = PROCESS_MONITOR.lock() {
-            ProcessQueryImpl::get_processes(options, monitor.get_system())
-        } else {
-            Logger::get_instance().log(LogLevel::Error, "Error fetching processes: Failed to acquire process monitor lock.", None);
-            vec![]
-        }
+        ProcessQueryImpl::get_processes(options)
     }
 }

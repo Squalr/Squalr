@@ -1,16 +1,30 @@
 use crate::process_info::{Bitness, OpenedProcessInfo, ProcessIcon, ProcessInfo};
+use crate::process_query::android::android_process_monitor::AndroidProcessMonitor;
 use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
+use image::ImageReader;
 use once_cell::sync::Lazy;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
-use std::collections::HashSet;
 use std::fs;
-use std::sync::{Arc, RwLock};
-use sysinfo::{Pid, System};
+use std::fs::File;
+use std::io::Cursor;
+use std::io::Read;
+use std::path::Path;
+use std::sync::RwLock;
+use zip::ZipArchive;
+
+pub(crate) static PROCESS_MONITOR: Lazy<RwLock<AndroidProcessMonitor>> = Lazy::new(|| RwLock::new(AndroidProcessMonitor::new()));
 
 /// Minimum UID for user-installed apps.
 const MIN_USER_UID: u32 = 10000;
+const ICON_PATHS: [&str; 5] = [
+    "res/mipmap-mdpi-v4/ic_launcher.png",
+    "res/mipmap-hdpi-v4/ic_launcher.png",
+    "res/mipmap-xhdpi-v4/ic_launcher.png",
+    "res/mipmap-mdpi/ic_launcher.png",
+    "res/mipmap-hdpi/ic_launcher.png",
+];
 
 pub struct AndroidProcessQuery {}
 
@@ -30,23 +44,53 @@ impl AndroidProcessQuery {
                 }
             }
         }
+
         false
     }
 
-    /// Finds the PIDs of `zygote` and `zygote64` for parent checking.
-    fn find_zygote_process_ids() -> HashSet<u32> {
-        let mut zygote_process_ids = HashSet::new();
-        if let Ok(entries) = fs::read_dir("/proc") {
+    /// Searches for the APK path under `/data/app/` for a given package name.
+    /// Handles obfuscated directories (Android 11+).
+    pub fn find_apk_path(package_name: &str) -> Option<String> {
+        let data_app_path = Path::new("/data/app/");
+
+        if !data_app_path.exists() {
+            return None;
+        }
+
+        // Iterate over top-level directories in `/data/app/`
+        if let Ok(entries) = fs::read_dir(data_app_path) {
             for entry in entries.flatten() {
-                if let Ok(process_id_str) = entry.file_name().into_string() {
-                    if process_id_str.chars().all(|c| c.is_digit(10)) {
-                        let cmd_path = format!("/proc/{}/cmdline", process_id_str);
-                        if let Ok(cmd) = fs::read_to_string(cmd_path) {
-                            let cmd_trimmed = cmd.trim_end_matches('\0');
-                            if cmd_trimmed == "zygote" || cmd_trimmed == "zygote64" {
-                                if let Ok(pid) = process_id_str.parse::<u32>() {
-                                    zygote_process_ids.insert(pid);
-                                }
+                let entry_path = entry.path();
+
+                // If it's a directory, search inside it
+                if entry_path.is_dir() {
+                    if let Some(apk_path) = Self::search_package_dir(&entry_path, package_name) {
+                        return Some(apk_path);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Recursively searches a given directory for a matching package name subdirectory and base.apk.
+    fn search_package_dir(
+        parent_dir: &Path,
+        package_name: &str,
+    ) -> Option<String> {
+        if let Ok(entries) = fs::read_dir(parent_dir) {
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+
+                // Check if this is a package directory (com.example.app-XYZ)
+                if entry_path.is_dir() {
+                    if let Some(dir_name) = entry_path.file_name().and_then(|n| n.to_str()) {
+                        if dir_name.starts_with(package_name) {
+                            let apk_path = entry_path.join("base.apk");
+
+                            if apk_path.exists() {
+                                return Some(apk_path.to_string_lossy().to_string());
                             }
                         }
                     }
@@ -54,13 +98,58 @@ impl AndroidProcessQuery {
             }
         }
 
-        zygote_process_ids
+        None
+    }
+
+    fn get_icon_from_apk(apk_path: &str) -> Option<ProcessIcon> {
+        let file = File::open(apk_path).ok()?;
+        let mut archive = ZipArchive::new(file).ok()?;
+
+        for icon_path in ICON_PATHS {
+            if let Ok(mut icon_file) = archive.by_name(icon_path) {
+                let mut icon_data = Vec::new();
+                if icon_file.read_to_end(&mut icon_data).is_ok() {
+                    let reader = ImageReader::new(Cursor::new(icon_data))
+                        .with_guessed_format()
+                        .ok()?;
+
+                    if let Ok(img) = reader.decode() {
+                        let rgba_img = img.to_rgba8();
+                        let (width, height) = rgba_img.dimensions();
+                        let bytes_rgba = rgba_img.into_raw();
+
+                        return Some(ProcessIcon { bytes_rgba, width, height });
+                    }
+                }
+            }
+        }
+
+        None
     }
 }
 
-static WINDOWED_PROCESSES: Lazy<RwLock<HashSet<u32>>> = Lazy::new(|| RwLock::new(HashSet::new()));
-
 impl ProcessQueryer for AndroidProcessQuery {
+    fn start_monitoring() -> Result<(), String> {
+        let mut monitor = PROCESS_MONITOR
+            .write()
+            .map_err(|err| format!("Failed to acquire process monitor lock: {}", err))?;
+
+        Logger::get_instance().log(LogLevel::Error, "Monitoring system processes...", None);
+        monitor.start_monitoring();
+
+        Ok(())
+    }
+
+    fn stop_monitoring() -> Result<(), String> {
+        let mut monitor = PROCESS_MONITOR
+            .write()
+            .map_err(|err| format!("Failed to acquire process monitor lock: {}", err))?;
+
+        monitor.stop_monitoring();
+
+        Ok(())
+    }
+
     // Android has no concept of opening a process -- do nothing, return 0 for handle.
     fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
         Ok(OpenedProcessInfo {
@@ -77,58 +166,57 @@ impl ProcessQueryer for AndroidProcessQuery {
         Ok(())
     }
 
-    fn get_processes(
-        options: ProcessQueryOptions,
-        system: Arc<RwLock<System>>,
-    ) -> Vec<ProcessInfo> {
-        Logger::get_instance().log(LogLevel::Info, "Fetching processes...", None);
-        let system_guard = match system.read() {
+    fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
+        let process_monitor_guard = match PROCESS_MONITOR.read() {
             Ok(guard) => guard,
-            Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire system read lock: {}", e), None);
+            Err(err) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire process monitor lock: {}", err), None);
                 return Vec::new();
             }
         };
 
-        let mut windowed_process_ids = HashSet::new();
-        let zygote_process_ids = Self::find_zygote_process_ids();
+        let all_processes_lock = process_monitor_guard.get_all_processes();
+        let zygote_processes_lock = process_monitor_guard.get_zygote_processes();
 
-        for (process_id, process) in system_guard.processes() {
-            let parent_process_id = process
-                .parent()
-                .map(|parent_process_id| parent_process_id.as_u32())
-                .unwrap_or(0);
-            let is_zygote_spawned_process = zygote_process_ids.contains(&parent_process_id);
-            let is_user_app = Self::is_user_app(process_id.as_u32());
-
-            if is_zygote_spawned_process && is_user_app {
-                windowed_process_ids.insert(process_id.as_u32());
+        let all_processes_guard = match all_processes_lock.read() {
+            Ok(guard) => guard,
+            Err(err) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire process read lock: {}", err), None);
+                return Vec::new();
             }
-        }
+        };
 
-        // Persist the windowed process list so that it can be used in `is_process_windowed()`.
-        {
-            let mut windowed_process_guard = match WINDOWED_PROCESSES.write() {
-                Ok(guard) => guard,
-                Err(err) => {
-                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire windowed processes write lock: {}", err), None);
-                    return Vec::new();
-                }
-            };
-            *windowed_process_guard = windowed_process_ids;
-        }
+        let zygote_processes_guard = match zygote_processes_lock.read() {
+            Ok(guard) => guard,
+            Err(err) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire zygote process read lock: {}", err), None);
+                return Vec::new();
+            }
+        };
 
+        let all_processes = all_processes_guard.clone();
+        let zygote_processes = zygote_processes_guard.clone();
         let mut results = Vec::new();
 
-        for (process_id, process) in system_guard.processes() {
-            let process_id_u32 = process_id.as_u32();
-            let name = process.name().to_string_lossy().to_string();
-            let is_windowed = Self::is_process_windowed(process_id);
+        for android_process_info in all_processes.values() {
+            let apk_path = Self::find_apk_path(&android_process_info.package_name);
+            let is_windowed = apk_path.is_some()
+                && zygote_processes.contains_key(&android_process_info.parent_process_id)
+                && Self::is_user_app(android_process_info.process_id);
+
+            Logger::get_instance().log(LogLevel::Info, &format!("APK: {:?}", apk_path), None);
+
+            let icon = if let Some(apk_path) = apk_path {
+                Self::get_icon_from_apk(&apk_path)
+            } else {
+                None
+            };
+
             let process_info = ProcessInfo {
-                process_id: process_id_u32,
-                name,
+                process_id: android_process_info.process_id,
+                name: android_process_info.package_name.clone(),
                 is_windowed,
-                icon: None,
+                icon: icon,
             };
             let mut matches = true;
 
@@ -160,15 +248,5 @@ impl ProcessQueryer for AndroidProcessQuery {
         }
 
         results
-    }
-
-    fn is_process_windowed(process_id: &Pid) -> bool {
-        WINDOWED_PROCESSES
-            .read()
-            .map_or(false, |set| set.contains(&process_id.as_u32()))
-    }
-
-    fn get_icon(_process_id: &Pid) -> Option<ProcessIcon> {
-        None
     }
 }

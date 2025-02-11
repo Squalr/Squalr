@@ -4,13 +4,13 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 
-pub struct ProcessMonitor {
+pub struct WindowsProcessMonitor {
     stop_signal: Arc<AtomicBool>,
     monitor_thread: Option<JoinHandle<()>>,
     system: Arc<RwLock<System>>,
 }
 
-impl ProcessMonitor {
+impl WindowsProcessMonitor {
     pub fn new() -> Self {
         Self {
             stop_signal: Arc::new(AtomicBool::new(false)),
@@ -62,7 +62,7 @@ impl ProcessMonitor {
     }
 }
 
-impl Drop for ProcessMonitor {
+impl Drop for WindowsProcessMonitor {
     fn drop(&mut self) {
         self.stop_monitoring();
     }

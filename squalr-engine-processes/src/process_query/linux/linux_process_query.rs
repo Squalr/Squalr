@@ -13,6 +13,14 @@ impl LinuxProcessQuery {
     pub fn new() -> Self {
         LinuxProcessQuery { system: System::new_all() }
     }
+
+    fn is_process_windowed(process_id: &Pid) -> bool {
+        false
+    }
+
+    fn get_icon(process_id: &Pid) -> Option<ProcessIcon> {
+        None
+    }
 }
 
 impl ProcessQueryer for LinuxProcessQuery {
@@ -29,13 +37,5 @@ impl ProcessQueryer for LinuxProcessQuery {
         system: Arc<RwLock<System>>,
     ) -> Vec<ProcessInfo> {
         vec![]
-    }
-
-    fn is_process_windowed(process_id: &Pid) -> bool {
-        false
-    }
-
-    fn get_icon(process_id: &Pid) -> Option<ProcessIcon> {
-        None
     }
 }

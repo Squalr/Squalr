@@ -113,8 +113,13 @@ impl SqualrEngine {
 
         Self::create_instance(engine_mode);
 
-        if let Err(err) = ProcessQuery::start_monitoring() {
-            Logger::get_instance().log(LogLevel::Error, &format!("Failed to monitor system processes: {}", err), None);
+        match engine_mode {
+            EngineMode::Standalone | EngineMode::PrivilegedShell => {
+                if let Err(err) = ProcessQuery::start_monitoring() {
+                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to monitor system processes: {}", err), None);
+                }
+            }
+            EngineMode::UnprivilegedHost => {}
         }
     }
 

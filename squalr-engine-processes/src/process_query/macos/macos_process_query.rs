@@ -13,6 +13,14 @@ impl MacosProcessQuery {
     pub fn new() -> Self {
         MacosProcessQuery { system: System::new_all() }
     }
+
+    fn is_process_windowed(process_id: &Pid) -> bool {
+        false
+    }
+
+    fn get_icon(process_id: &Pid) -> Option<ProcessIcon> {
+        None
+    }
 }
 
 impl ProcessQueryer for MacosProcessQuery {
@@ -29,13 +37,5 @@ impl ProcessQueryer for MacosProcessQuery {
         system: Arc<RwLock<System>>,
     ) -> Vec<ProcessInfo> {
         vec![]
-    }
-
-    fn is_process_windowed(process_id: &Pid) -> bool {
-        false
-    }
-
-    fn get_icon(process_id: &Pid) -> Option<ProcessIcon> {
-        None
     }
 }
