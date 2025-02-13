@@ -6,6 +6,8 @@ use crate::inter_process::dispatcher_type::DispatcherType;
 use crate::inter_process::inter_process_privileged_shell::InterProcessPrivilegedShell;
 use crate::inter_process::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
 use crate::responses::engine_response::EngineResponse;
+use crate::responses::engine_response::ExtractArgs;
+use crate::responses::engine_response::TypedEngineResponse;
 use crate::responses::response_dispatcher::ResponseDispatcher;
 use squalr_engine_architecture::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
@@ -121,6 +123,29 @@ impl SqualrEngine {
             }
             EngineMode::UnprivilegedHost => {}
         }
+    }
+
+    pub fn dispatch_command_with_response<R, F>(
+        command: EngineCommand,
+        callback: F,
+    ) where
+        R: TypedEngineResponse + ExtractArgs + Send + Sync + 'static,
+        F: FnOnce(R::Args) + Send + Sync + 'static,
+    {
+        let callback = Arc::new(Mutex::new(Some(callback)));
+
+        Self::dispatch_command(command, {
+            let callback = Arc::clone(&callback);
+            move |engine_response| {
+                if let Ok(typed_response) = R::from_response(engine_response) {
+                    if let Ok(mut cb) = callback.lock() {
+                        if let Some(callback) = cb.take() {
+                            callback(typed_response.extract_args());
+                        }
+                    }
+                }
+            }
+        });
     }
 
     pub fn dispatch_command<F>(

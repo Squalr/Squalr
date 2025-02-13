@@ -15,7 +15,8 @@ use squalr_engine::commands::process::process_command::ProcessCommand;
 use squalr_engine::events::engine_event::EngineEvent;
 use squalr_engine::events::engine_event::EngineEvent::ProcessOpened;
 use squalr_engine::events::process::process_event::ProcessEvent;
-use squalr_engine::responses::engine_response::EngineResponse;
+use squalr_engine::responses::process::process_response::ProcessListResponse;
+use squalr_engine::responses::process::process_response::ProcessOpenResponse;
 use squalr_engine::responses::process::process_response::ProcessResponse;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_processes::process_info::ProcessInfo;
@@ -161,14 +162,8 @@ impl ProcessSelectorViewModel {
             },
         };
 
-        SqualrEngine::dispatch_command(list_all_processes_command, move |engine_response| match engine_response {
-            EngineResponse::Process(process_response) => match process_response {
-                ProcessResponse::List { processes } => {
-                    full_process_list_collection.update_from_source(processes);
-                }
-                _ => {}
-            },
-            _ => {}
+        SqualrEngine::dispatch_command_with_response::<ProcessListResponse, _>(list_all_processes_command, move |processes| {
+            full_process_list_collection.update_from_source(processes);
         });
     }
 
@@ -183,14 +178,8 @@ impl ProcessSelectorViewModel {
             },
         };
 
-        SqualrEngine::dispatch_command(list_windowed_processes_command, move |engine_response| match engine_response {
-            EngineResponse::Process(process_response) => match process_response {
-                ProcessResponse::List { processes } => {
-                    windowed_process_list_collection.update_from_source(processes);
-                }
-                _ => {}
-            },
-            _ => {}
+        SqualrEngine::dispatch_command_with_response::<ProcessListResponse, _>(list_windowed_processes_command, move |processes| {
+            windowed_process_list_collection.update_from_source(processes);
         });
     }
 
@@ -203,6 +192,6 @@ impl ProcessSelectorViewModel {
             },
         };
 
-        SqualrEngine::dispatch_command(open_process_command, |_| {});
+        SqualrEngine::dispatch_command_with_response::<ProcessOpenResponse, _>(open_process_command, |_| {});
     }
 }
