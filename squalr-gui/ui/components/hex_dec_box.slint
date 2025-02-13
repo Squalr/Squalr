@@ -18,6 +18,9 @@ export component HexDecBox {
     in property <color> foreground: Theme.foreground;
     in property <color> foreground-preview: Theme.foreground-preview;
     in property <color> border-color: Theme.submenu-border;
+    public pure function get_value_text() -> string {
+        return line-edit.text;
+    }
     forward-focus: touch-area;
     touch-area := FocusTouchArea {
         width: 100%;

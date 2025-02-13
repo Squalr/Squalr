@@ -14,8 +14,7 @@ pub fn main() {
         std::env::set_var("SLINT_BACKEND", "winit-software");
     }
 
-    // TEMP! Revert to standalone later.
-    SqualrEngine::initialize(EngineMode::UnprivilegedHost);
+    SqualrEngine::initialize(EngineMode::Standalone);
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
     let _main_window_view = MainWindowViewModel::new();

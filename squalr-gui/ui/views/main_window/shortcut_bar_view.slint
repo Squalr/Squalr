@@ -66,30 +66,13 @@ export component ShortcutBarView inherits Rectangle {
             height: bar-height;
         }
 
-        data-type-selector := DataTypeSelector {
-            height: bar-height;
-        }
-
-        end-marker := Rectangle { }
-    }
-
-    // Second bar (wrappable)
-    bottom-bar := HorizontalBox {
-        x: root.width < flow-break-point ? 0px : end-marker.x;
-        y: root.width < flow-break-point ? bar-height + bar-spacing : 0px;
-        alignment: start;
-        height: bar-height;
-        padding-left: 4px;
-        padding-right: 0px;
-        padding-top: 0px;
-        spacing: 4px;
         new-scan-button := Button {
             height: bar-height;
             width: 36px;
             tooltip-text: @tr("New Scan");
             click-sound: "";
             clicked => {
-                ManualScanViewModelBindings.new_scan();
+                ManualScanViewModelBindings.new_scan(ManualScanViewModelBindings.active_data_type);
             }
             Image {
                 width: 16px;
@@ -117,6 +100,19 @@ export component ShortcutBarView inherits Rectangle {
             }
         }
 
+        end-marker := Rectangle { }
+    }
+
+    // Second bar (wrappable)
+    bottom-bar := HorizontalBox {
+        x: root.width < flow-break-point ? 0px : end-marker.x;
+        y: root.width < flow-break-point ? bar-height + bar-spacing : 0px;
+        alignment: start;
+        height: bar-height;
+        padding-left: 4px;
+        padding-right: 0px;
+        padding-top: 0px;
+        spacing: 4px;
         scan-constraint-selector := ScanConstraintTypeSelector {
             height: bar-height;
         }
@@ -129,13 +125,17 @@ export component ShortcutBarView inherits Rectangle {
             preview-text: @tr("Enter a scan value...");
         }
 
+        data-type-selector := DataTypeSelector {
+            height: bar-height;
+        }
+
         start-scan-button := Button {
             height: bar-height;
             width: 36px;
             tooltip-text: @tr("Start Scan");
             click-sound: "";
             clicked => {
-                ManualScanViewModelBindings.start_scan();
+                ManualScanViewModelBindings.start_scan(ManualScanViewModelBindings.active_scan_type, scan-value.get_value_text());
             }
             Image {
                 width: 16px;

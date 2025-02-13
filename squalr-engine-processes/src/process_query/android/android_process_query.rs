@@ -4,10 +4,13 @@ use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
 use image::ImageReader;
 use once_cell::sync::Lazy;
+use regex::bytes::Regex;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
+use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
+use std::io::BufReader;
 use std::io::Cursor;
 use std::io::Read;
 use std::path::Path;
@@ -15,6 +18,7 @@ use std::sync::RwLock;
 use zip::ZipArchive;
 
 pub(crate) static PROCESS_MONITOR: Lazy<RwLock<AndroidProcessMonitor>> = Lazy::new(|| RwLock::new(AndroidProcessMonitor::new()));
+static PACKAGE_CACHE: Lazy<RwLock<HashMap<String, String>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
 /// Minimum UID for user-installed apps.
 const MIN_USER_UID: u32 = 10000;
@@ -48,57 +52,82 @@ impl AndroidProcessQuery {
         false
     }
 
-    /// Searches for the APK path under `/data/app/` for a given package name.
-    /// Handles obfuscated directories (Android 11+).
-    pub fn find_apk_path(package_name: &str) -> Option<String> {
-        let data_app_path = Path::new("/data/app/");
+    /// Parses `/data/system/packages.xml` (ABX Binary XML) and extracts package → APK path mapping.
+    /// This is done with a greedy binary regex solution, to avoid the need to write a complex binary XML parser.
+    fn parse_packages_xml() {
+        // Early exit if we have already parsed the xml file.
+        {
+            let package_map_cache = match PACKAGE_CACHE.read() {
+                Ok(cache) => cache,
+                Err(_) => {
+                    Logger::get_instance().log(LogLevel::Error, "Failed to acquire PACKAGE_CACHE read lock.", None);
+                    return;
+                }
+            };
 
-        if !data_app_path.exists() {
-            return None;
+            if !package_map_cache.is_empty() {
+                return;
+            }
         }
 
-        // Iterate over top-level directories in `/data/app/`
-        if let Ok(entries) = fs::read_dir(data_app_path) {
-            for entry in entries.flatten() {
-                let entry_path = entry.path();
+        let mut package_map_cache = match PACKAGE_CACHE.write() {
+            Ok(cache) => cache,
+            Err(_) => {
+                Logger::get_instance().log(LogLevel::Error, "Failed to acquire PACKAGE_CACHE write lock.", None);
+                return;
+            }
+        };
 
-                // If it's a directory, search inside it
-                if entry_path.is_dir() {
-                    if let Some(apk_path) = Self::search_package_dir(&entry_path, package_name) {
-                        return Some(apk_path);
-                    }
+        Logger::get_instance().log(LogLevel::Info, "Scanning packages.xml...", None);
+        let file = match File::open("/data/system/packages.xml") {
+            Ok(f) => f,
+            Err(err) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Error opening packages.xml: {}", err), None);
+                return;
+            }
+        };
+
+        let mut buffer = Vec::new();
+        if let Err(err) = BufReader::new(file).read_to_end(&mut buffer) {
+            Logger::get_instance().log(LogLevel::Error, &format!("Error reading packages.xml: {}", err), None);
+            return;
+        }
+
+        let re = match Regex::new(r"/data/app(?:/[^/]+)?/(?P<package_name>[a-zA-Z0-9_.]+)-[^/]+/") {
+            Ok(regex) => regex,
+            Err(err) => {
+                Logger::get_instance().log(LogLevel::Error, &format!("Failed to compile regex: {}", err), None);
+                return;
+            }
+        };
+
+        for cap in re.captures_iter(&buffer) {
+            if let Some(path) = cap.get(0) {
+                if let Some(package_name) = cap.name("package_name") {
+                    let package_name = String::from_utf8_lossy(package_name.as_bytes()).to_string();
+                    let path = String::from_utf8_lossy(path.as_bytes()).to_string();
+
+                    package_map_cache.insert(package_name, path);
                 }
             }
         }
 
-        None
+        Logger::get_instance().log(LogLevel::Info, &format!("Found {} packages.", package_map_cache.len()), None);
     }
 
-    /// Recursively searches a given directory for a matching package name subdirectory and base.apk.
-    fn search_package_dir(
-        parent_dir: &Path,
-        package_name: &str,
-    ) -> Option<String> {
-        if let Ok(entries) = fs::read_dir(parent_dir) {
-            for entry in entries.flatten() {
-                let entry_path = entry.path();
-
-                // Check if this is a package directory (com.example.app-XYZ)
-                if entry_path.is_dir() {
-                    if let Some(dir_name) = entry_path.file_name().and_then(|n| n.to_str()) {
-                        if dir_name.starts_with(package_name) {
-                            let apk_path = entry_path.join("base.apk");
-
-                            if apk_path.exists() {
-                                return Some(apk_path.to_string_lossy().to_string());
-                            }
-                        }
-                    }
+    fn get_apk_path(package_name: &str) -> Option<String> {
+        Self::parse_packages_xml();
+        PACKAGE_CACHE
+            .read()
+            .unwrap()
+            .get(package_name)
+            .cloned()
+            .map(|mut path| {
+                if Path::new(&path).is_dir() {
+                    path.push_str("/base.apk");
                 }
-            }
-        }
-
-        None
+                path
+            })
     }
 
     fn get_icon_from_apk(apk_path: &str) -> Option<ProcessIcon> {
@@ -199,12 +228,10 @@ impl ProcessQueryer for AndroidProcessQuery {
         let mut results = Vec::new();
 
         for android_process_info in all_processes.values() {
-            let apk_path = Self::find_apk_path(&android_process_info.package_name);
+            let apk_path = Self::get_apk_path(&android_process_info.package_name);
             let is_windowed = apk_path.is_some()
                 && zygote_processes.contains_key(&android_process_info.parent_process_id)
                 && Self::is_user_app(android_process_info.process_id);
-
-            Logger::get_instance().log(LogLevel::Info, &format!("APK: {:?}", apk_path), None);
 
             let icon = if let Some(apk_path) = apk_path {
                 Self::get_icon_from_apk(&apk_path)

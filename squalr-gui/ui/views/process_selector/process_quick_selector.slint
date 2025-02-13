@@ -14,7 +14,7 @@ export component ProcessQuickSelector inherits Rectangle {
     width: 192px;
     dropdown-button := Button {
         width: 100%;
-        height: 100%;
+        height: 24px;
         clicked => {
             ProcessSelectorViewModelBindings.refresh-windowed-process-list();
             context-menu.show();
@@ -63,14 +63,15 @@ export component ProcessQuickSelector inherits Rectangle {
     }
 
     context-menu := ContextMenu {
+        close-policy: close-on-click-outside;
         x: dropdown-button.x;
         y: dropdown-button.y + dropdown-button.height;
+        min-height: 512px;
         Rectangle {
             background: Theme.background-control;
             border-color: Theme.submenu-border;
             border-width: 1px;
-            width: 256px;
-            min-height: 512px;
+            width: 312px;
             ScrollView {
                 padding: 0px;
                 VerticalBox {
@@ -78,6 +79,9 @@ export component ProcessQuickSelector inherits Rectangle {
                     spacing: 0px;
                     for process-entry in ProcessSelectorViewModelBindings.windowed-processes: ProcessEntry {
                         process_view_data: process-entry;
+                        on-click => {
+                            context-menu.close();
+                        }
                     }
                 }
             }
