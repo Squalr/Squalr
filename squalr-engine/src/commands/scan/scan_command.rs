@@ -1,39 +1,33 @@
 use crate::commands::command_handler::CommandHandler;
-use crate::commands::scan::handlers::scan_command_hybrid::handle_hybrid_scan_command;
-use crate::commands::scan::handlers::scan_command_manual::handle_manual_scan_command;
-use crate::commands::scan::handlers::scan_command_new::handle_new_scan_command;
-use crate::commands::scan::handlers::scan_command_value_collector::handle_value_collector_command;
+use crate::commands::scan::requests::scan_hybrid_request::ScanHybridRequest;
+use crate::commands::scan::requests::scan_manual_request::ScanManualRequest;
+use crate::commands::scan::requests::scan_new_request::ScanNewRequest;
+use crate::commands::scan::requests::scan_value_collector_request::ScanValueCollectorRequest;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::values::anonymous_value::AnonymousValue;
-use squalr_engine_scanning::scanners::parameters::scan_compare_type::ScanCompareType;
-use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use structopt::StructOpt;
 use uuid::Uuid;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub enum ScanCommand {
     /// Collect values for the current scan if one exist, otherwise collect initial values.
-    Collect,
+    CollectValues {
+        #[structopt(flatten)]
+        scan_value_collector_request: ScanValueCollectorRequest,
+    },
     /// Collect values and scan in the same parallel thread pool.
     Hybrid {
-        #[structopt(short = "v", long)]
-        scan_value: Option<AnonymousValue>,
-        #[structopt(short = "c", long)]
-        compare_type: ScanCompareType,
+        #[structopt(flatten)]
+        scan_hybrid_request: ScanHybridRequest,
     },
     /// Starts a new scan with the provided data types / alignments
     New {
-        #[structopt(short = "d", long, use_delimiter = true)]
-        scan_filter_parameters: Vec<ScanFilterParameters>,
-        #[structopt(short = "a", long)]
-        scan_all_primitives: bool,
+        #[structopt(flatten)]
+        scan_new_request: ScanNewRequest,
     },
     /// Standard scan that operates on existing collected values.
     Manual {
-        #[structopt(short = "v", long)]
-        scan_value: Option<AnonymousValue>,
-        #[structopt(short = "c", long)]
-        compare_type: ScanCompareType,
+        #[structopt(flatten)]
+        scan_manual_request: ScanManualRequest,
     },
 }
 
@@ -43,20 +37,17 @@ impl CommandHandler for ScanCommand {
         uuid: Uuid,
     ) {
         match self {
-            ScanCommand::Collect {} => {
-                handle_value_collector_command(uuid);
+            ScanCommand::CollectValues { scan_value_collector_request } => {
+                scan_value_collector_request.handle(uuid);
             }
-            ScanCommand::Hybrid { scan_value, compare_type } => {
-                handle_hybrid_scan_command(scan_value, compare_type, uuid);
+            ScanCommand::Hybrid { scan_hybrid_request } => {
+                scan_hybrid_request.handle(uuid);
             }
-            ScanCommand::New {
-                scan_filter_parameters,
-                scan_all_primitives,
-            } => {
-                handle_new_scan_command(scan_filter_parameters, *scan_all_primitives, uuid);
+            ScanCommand::New { scan_new_request } => {
+                scan_new_request.handle(uuid);
             }
-            ScanCommand::Manual { scan_value, compare_type } => {
-                handle_manual_scan_command(scan_value, compare_type, uuid);
+            ScanCommand::Manual { scan_manual_request } => {
+                scan_manual_request.handle(uuid);
             }
         }
     }

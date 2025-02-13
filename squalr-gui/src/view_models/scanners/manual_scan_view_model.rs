@@ -9,8 +9,8 @@ use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
-use squalr_engine::commands::engine_command::EngineCommand;
-use squalr_engine::commands::scan::scan_command::ScanCommand;
+use squalr_engine::commands::scan::requests::scan_hybrid_request::ScanHybridRequest;
+use squalr_engine::commands::scan::requests::scan_new_request::ScanNewRequest;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine::squalr_session::SqualrSession;
 use squalr_engine_common::values::anonymous_value::AnonymousValue;
@@ -67,16 +67,15 @@ impl ManualScanViewModel {
             DataTypeView::Str => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)), // TODO
         }];
 
-        let scan_command = EngineCommand::Scan {
-            0: ScanCommand::New {
-                scan_filter_parameters: scan_filter_parameters,
-                scan_all_primitives: false,
-            },
+        let scan_new_request = ScanNewRequest {
+            scan_filter_parameters: scan_filter_parameters,
+            scan_all_primitives: false,
         };
 
-        SqualrEngine::dispatch_command_async(scan_command, |engine_response| {
+        /*
+        SqualrEngine::dispatch_command_async(scan_new_request, |engine_response| {
             //
-        });
+        }); */
     }
 
     fn on_start_scan(
@@ -84,16 +83,16 @@ impl ManualScanViewModel {
         scan_value: SharedString,
     ) {
         let scan_value = AnonymousValue::new(&scan_value.to_string());
-        let scan_command = EngineCommand::Scan {
-            0: ScanCommand::Hybrid {
-                scan_value: Some(scan_value),
-                compare_type: ScanConstraintConverter::new().convert_from_view_data(&scan_constraint),
-            },
+        let scan_hybrid_request = ScanHybridRequest {
+            scan_value: Some(scan_value),
+            compare_type: ScanConstraintConverter::new().convert_from_view_data(&scan_constraint),
         };
 
-        SqualrEngine::dispatch_command_async(scan_command, |engine_response| {
+        /*
+        SqualrEngine::dispatch_command_async(scan_hybrid_request, |engine_response| {
             //
         });
+        */
     }
 
     fn on_collect_values() {

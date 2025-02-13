@@ -1,7 +1,6 @@
 use crate::commands::command_handler::CommandHandler;
-use crate::commands::results::handlers::results_command_list::handle_results_list;
+use crate::commands::results::requests::results_list_request::ResultsListRequest;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::values::data_type::DataType;
 use structopt::StructOpt;
 use uuid::Uuid;
 
@@ -9,11 +8,8 @@ use uuid::Uuid;
 pub enum ResultsCommand {
     /// Collect values and scan in the same parallel thread pool.
     List {
-        #[structopt(short = "p", long)]
-        page: u64,
-
-        #[structopt(short = "d", long)]
-        data_type: DataType,
+        #[structopt(flatten)]
+        results_list_request: ResultsListRequest,
     },
 }
 
@@ -23,8 +19,8 @@ impl CommandHandler for ResultsCommand {
         uuid: Uuid,
     ) {
         match self {
-            ResultsCommand::List { page, data_type } => {
-                handle_results_list(*page, data_type, uuid);
+            ResultsCommand::List { results_list_request } => {
+                results_list_request.handle(uuid);
             }
         }
     }

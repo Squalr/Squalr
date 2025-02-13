@@ -12,6 +12,8 @@ use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::commands::engine_command::EngineCommand;
 use squalr_engine::commands::process::process_command::ProcessCommand;
+use squalr_engine::commands::process::requests::process_list_request::ProcessListRequest;
+use squalr_engine::commands::process::requests::process_open_request::ProcessOpenRequest;
 use squalr_engine::events::engine_event::EngineEvent;
 use squalr_engine::events::engine_event::EngineEvent::ProcessOpened;
 use squalr_engine::events::process::process_event::ProcessEvent;
@@ -152,46 +154,44 @@ impl ProcessSelectorViewModel {
     } */
 
     fn on_refresh_full_process_list(full_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
-        let list_all_processes_command = EngineCommand::Process {
-            0: ProcessCommand::List {
-                require_windowed: false,
-                search_name: None,
-                match_case: false,
-                limit: None,
-                fetch_icons: true,
-            },
+        let list_all_processes_request = ProcessListRequest {
+            require_windowed: false,
+            search_name: None,
+            match_case: false,
+            limit: None,
+            fetch_icons: true,
         };
 
-        SqualrEngine::dispatch_command_with_response::<ProcessListResponse, _>(list_all_processes_command, move |processes| {
+        /*
+        SqualrEngine::dispatch_command_with_response::<ProcessListResponse, _>(list_all_processes_request, move |processes| {
             full_process_list_collection.update_from_source(processes);
-        });
+        });*/
     }
 
     fn on_refresh_windowed_process_list(windowed_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
-        let list_windowed_processes_command = EngineCommand::Process {
-            0: ProcessCommand::List {
-                require_windowed: true,
-                search_name: None,
-                match_case: false,
-                limit: None,
-                fetch_icons: true,
-            },
+        let list_windowed_processes_request = ProcessListRequest {
+            require_windowed: true,
+            search_name: None,
+            match_case: false,
+            limit: None,
+            fetch_icons: true,
         };
 
-        SqualrEngine::dispatch_command_with_response::<ProcessListResponse, _>(list_windowed_processes_command, move |processes| {
+        /*
+        SqualrEngine::dispatch_command_with_response::<ProcessListResponse, _>(list_windowed_processes_request, move |processes| {
             windowed_process_list_collection.update_from_source(processes);
-        });
+        });*/
     }
 
     fn on_select_process(process_entry: ProcessViewData) {
-        let open_process_command = EngineCommand::Process {
-            0: ProcessCommand::Open {
-                pid: Some(process_entry.process_id as u32),
-                search_name: None,
-                match_case: false,
-            },
+        let open_process_command = ProcessOpenRequest {
+            process_id: Some(process_entry.process_id as u32),
+            search_name: None,
+            match_case: false,
         };
 
+        /*
         SqualrEngine::dispatch_command_with_response::<ProcessOpenResponse, _>(open_process_command, |_| {});
+        */
     }
 }

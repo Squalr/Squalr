@@ -1,5 +1,5 @@
 use crate::commands::command_handler::CommandHandler;
-use crate::commands::project::handlers::project_command_list::handle_project_list;
+use crate::commands::project::requests::project_list_request::ProjectListRequest;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use uuid::Uuid;
@@ -7,8 +7,10 @@ use uuid::Uuid;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub enum ProjectCommand {
     /// List all projects
-    List,
-    // Add other project commands here
+    List {
+        #[structopt(flatten)]
+        project_list_request: ProjectListRequest,
+    },
 }
 
 impl CommandHandler for ProjectCommand {
@@ -17,8 +19,8 @@ impl CommandHandler for ProjectCommand {
         uuid: Uuid,
     ) {
         match self {
-            ProjectCommand::List {} => {
-                handle_project_list(uuid);
+            ProjectCommand::List { project_list_request } => {
+                project_list_request.handle(uuid);
             }
         }
     }

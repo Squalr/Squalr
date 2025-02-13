@@ -19,3 +19,12 @@ impl CommandDispatcher {
         DispatchedCommand::new(Uuid::new_v4(), command, self.dispatcher_type)
     }
 }
+
+/*
+pub trait CommandDispatcher {
+    fn dispatch(
+        &self,
+        uuid: Uuid,
+    );
+}
+ */
