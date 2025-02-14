@@ -6,8 +6,6 @@ use crate::inter_process::dispatcher_type::DispatcherType;
 use crate::inter_process::inter_process_privileged_shell::InterProcessPrivilegedShell;
 use crate::inter_process::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
 use crate::responses::engine_response::EngineResponse;
-use crate::responses::engine_response::ExtractArgs;
-use crate::responses::engine_response::TypedEngineResponse;
 use crate::responses::response_dispatcher::ResponseDispatcher;
 use squalr_engine_architecture::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
@@ -52,7 +50,7 @@ pub struct SqualrEngine {
     event_receiver: mpmc::Receiver<EngineEvent>,
 
     /// A map of outgoing requests that are awaiting an engine response.
-    request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn Fn(EngineResponse) + Send + Sync>>>>,
+    request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(EngineResponse) + Send + Sync>>>>,
 }
 
 impl SqualrEngine {
@@ -125,34 +123,11 @@ impl SqualrEngine {
         }
     }
 
-    pub fn dispatch_command_with_response<R, F>(
-        command: EngineCommand,
-        callback: F,
-    ) where
-        R: TypedEngineResponse + ExtractArgs + Send + Sync + 'static,
-        F: FnOnce(R::Args) + Send + Sync + 'static,
-    {
-        let callback = Arc::new(Mutex::new(Some(callback)));
-
-        Self::dispatch_command(command, {
-            let callback = Arc::clone(&callback);
-            move |engine_response| {
-                if let Ok(typed_response) = R::from_response(engine_response) {
-                    if let Ok(mut cb) = callback.lock() {
-                        if let Some(callback) = cb.take() {
-                            callback(typed_response.extract_args());
-                        }
-                    }
-                }
-            }
-        });
-    }
-
     pub fn dispatch_command<F>(
         command: EngineCommand,
         callback: F,
     ) where
-        F: Fn(EngineResponse) + Send + Sync + 'static,
+        F: FnOnce(EngineResponse) + Send + Sync + 'static,
     {
         if let Ok(dispatcher) = Self::get_instance().command_dispatcher.lock() {
             let command_to_dispatch = dispatcher.prepare_dispatch(command);
@@ -211,11 +186,9 @@ impl SqualrEngine {
         uuid: Uuid,
     ) {
         if let Ok(mut request_handles) = Self::get_instance().request_handles.lock() {
-            if let Some(callback) = request_handles.get(&uuid) {
+            if let Some(callback) = request_handles.remove(&uuid) {
                 callback(response);
             }
-
-            request_handles.remove(&uuid);
         }
     }
 

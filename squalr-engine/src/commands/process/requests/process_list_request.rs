@@ -1,6 +1,10 @@
 use crate::commands::command_handler::CommandHandler;
+use crate::commands::engine_command::EngineCommand;
+use crate::commands::process::process_command::ProcessCommand;
+use crate::commands::request_sender::RequestSender;
 use crate::responses::engine_response::EngineResponse;
 use crate::responses::process::process_response::ProcessResponse;
+use crate::responses::process::responses::process_list_response::ProcessListResponse;
 use crate::squalr_engine::SqualrEngine;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -51,5 +55,30 @@ impl CommandHandler for ProcessListRequest {
         let response = EngineResponse::Process(ProcessResponse::List { processes: processes });
 
         SqualrEngine::dispatch_response(response, uuid);
+    }
+}
+
+impl RequestSender for ProcessListRequest {
+    type ResponseType = ProcessListResponse;
+
+    fn send<F>(
+        &self,
+        callback: F,
+    ) where
+        F: FnOnce(Self::ResponseType) + Send + Sync + 'static,
+    {
+        SqualrEngine::dispatch_command(self.to_command(), move |engine_response| match engine_response {
+            EngineResponse::Process(process_response) => match process_response {
+                ProcessResponse::List { processes } => callback(Self::ResponseType { processes }),
+                _ => {}
+            },
+            _ => {}
+        });
+    }
+
+    fn to_command(&self) -> EngineCommand {
+        EngineCommand::Process(ProcessCommand::List {
+            process_list_request: self.clone(),
+        })
     }
 }
