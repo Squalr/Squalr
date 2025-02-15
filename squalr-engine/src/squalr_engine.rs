@@ -1,12 +1,12 @@
 use crate::commands::command_dispatcher::CommandDispatcher;
 use crate::commands::engine_command::EngineCommand;
+use crate::commands::engine_response::EngineResponse;
+use crate::commands::response_dispatcher::ResponseDispatcher;
 use crate::events::engine_event::EngineEvent;
 use crate::events::event_dispatcher::EventDispatcher;
 use crate::inter_process::dispatcher_type::DispatcherType;
 use crate::inter_process::inter_process_privileged_shell::InterProcessPrivilegedShell;
 use crate::inter_process::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
-use crate::responses::engine_response::EngineResponse;
-use crate::responses::response_dispatcher::ResponseDispatcher;
 use squalr_engine_architecture::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;

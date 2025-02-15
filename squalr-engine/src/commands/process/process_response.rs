@@ -1,6 +1,6 @@
-use crate::responses::process::responses::process_close_response::ProcessCloseResponse;
-use crate::responses::process::responses::process_list_response::ProcessListResponse;
-use crate::responses::process::responses::process_open_response::ProcessOpenResponse;
+use crate::commands::process::responses::process_close_response::ProcessCloseResponse;
+use crate::commands::process::responses::process_list_response::ProcessListResponse;
+use crate::commands::process::responses::process_open_response::ProcessOpenResponse;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

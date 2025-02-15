@@ -1,6 +1,6 @@
-use crate::responses::memory::memory_response::MemoryResponse;
-use crate::responses::process::process_response::ProcessResponse;
-use crate::responses::scan::scan_response::ScanResponse;
+use crate::commands::memory::responses::memory_response::MemoryResponse;
+use crate::commands::process::process_response::ProcessResponse;
+use crate::commands::scan::scan_response::ScanResponse;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

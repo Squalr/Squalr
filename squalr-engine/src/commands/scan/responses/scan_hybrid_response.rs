@@ -1,6 +1,6 @@
-use crate::responses::engine_response::EngineResponse;
-use crate::responses::engine_response::TypedEngineResponse;
-use crate::responses::scan::scan_response::ScanResponse;
+use crate::commands::engine_response::EngineResponse;
+use crate::commands::engine_response::TypedEngineResponse;
+use crate::commands::scan::scan_response::ScanResponse;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

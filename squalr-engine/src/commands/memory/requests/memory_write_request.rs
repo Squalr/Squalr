@@ -1,6 +1,6 @@
 use crate::commands::command_handler::CommandHandler;
-use crate::responses::engine_response::EngineResponse;
-use crate::responses::memory::memory_response::MemoryResponse;
+use crate::commands::engine_response::EngineResponse;
+use crate::commands::memory::responses::memory_response::MemoryResponse;
 use crate::squalr_engine::SqualrEngine;
 use crate::squalr_session::SqualrSession;
 use serde::{Deserialize, Serialize};

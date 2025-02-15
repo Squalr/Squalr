@@ -1,5 +1,5 @@
-use crate::responses::engine_response::EngineResponse;
-use crate::responses::engine_response::TypedEngineResponse;
+use crate::commands::engine_response::EngineResponse;
+use crate::commands::engine_response::TypedEngineResponse;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
 

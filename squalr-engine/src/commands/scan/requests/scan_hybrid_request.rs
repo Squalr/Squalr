@@ -1,10 +1,10 @@
 use crate::commands::command_handler::CommandHandler;
 use crate::commands::engine_command::EngineCommand;
+use crate::commands::engine_response::EngineResponse;
 use crate::commands::request_sender::RequestSender;
+use crate::commands::scan::responses::scan_hybrid_response::ScanHybridResponse;
 use crate::commands::scan::scan_command::ScanCommand;
-use crate::responses::engine_response::EngineResponse;
-use crate::responses::scan::responses::scan_hybrid_response::ScanHybridResponse;
-use crate::responses::scan::scan_response::ScanResponse;
+use crate::commands::scan::scan_response::ScanResponse;
 use crate::squalr_engine::SqualrEngine;
 use crate::squalr_session::SqualrSession;
 use serde::{Deserialize, Serialize};

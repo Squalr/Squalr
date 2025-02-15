@@ -1,6 +1,7 @@
 use crate::commands::engine_command::EngineCommand;
-use crate::responses::engine_response::{EngineResponse, TypedEngineResponse};
-use crate::responses::process::process_response::ProcessResponse;
+use crate::commands::engine_response::EngineResponse;
+use crate::commands::engine_response::TypedEngineResponse;
+use crate::commands::process::process_response::ProcessResponse;
 use crate::squalr_engine::SqualrEngine;
 use serde::Serialize;
 use serde::de::DeserializeOwned;

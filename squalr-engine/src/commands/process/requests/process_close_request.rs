@@ -1,10 +1,10 @@
 use crate::commands::command_handler::CommandHandler;
 use crate::commands::engine_command::EngineCommand;
+use crate::commands::engine_response::EngineResponse;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_request::ProcessRequest;
-use crate::responses::engine_response::EngineResponse;
-use crate::responses::process::process_response::ProcessResponse;
-use crate::responses::process::responses::process_close_response::ProcessCloseResponse;
+use crate::commands::process::process_response::ProcessResponse;
+use crate::commands::process::responses::process_close_response::ProcessCloseResponse;
 use crate::squalr_engine::SqualrEngine;
 use crate::squalr_session::SqualrSession;
 use serde::{Deserialize, Serialize};

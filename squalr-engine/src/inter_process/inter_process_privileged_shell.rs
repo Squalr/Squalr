@@ -1,10 +1,10 @@
 use crate::commands::command_handler::CommandHandler;
+use crate::commands::engine_response::EngineResponse;
 use crate::events::engine_event::EngineEvent;
 use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
 use crate::inter_process::inter_process_connection::InterProcessConnection;
 use crate::inter_process::inter_process_data_egress::InterProcessDataEgress;
 use crate::inter_process::inter_process_data_ingress::InterProcessDataIngress::Command;
-use crate::responses::engine_response::EngineResponse;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use std::sync::{Arc, Once, RwLock};

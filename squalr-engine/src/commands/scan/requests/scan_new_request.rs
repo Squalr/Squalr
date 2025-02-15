@@ -1,9 +1,8 @@
+use crate::commands::engine_response::EngineResponse;
+use crate::commands::scan::responses::scan_new_response::ScanNewResponse;
+use crate::commands::scan::scan_response::ScanResponse;
 use crate::{
     commands::{command_handler::CommandHandler, engine_command::EngineCommand, request_sender::RequestSender, scan::scan_command::ScanCommand},
-    responses::{
-        engine_response::EngineResponse,
-        scan::{responses::scan_new_response::ScanNewResponse, scan_response::ScanResponse},
-    },
     squalr_engine::SqualrEngine,
     squalr_session::SqualrSession,
 };
