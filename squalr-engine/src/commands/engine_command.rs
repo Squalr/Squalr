@@ -1,4 +1,3 @@
-use crate::commands::command_handler::CommandHandler;
 use crate::commands::memory::memory_command::MemoryCommand;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::project::project_command::ProjectCommand;
@@ -30,30 +29,10 @@ pub enum EngineCommand {
     Settings(SettingsCommand),
 }
 
-impl CommandHandler for EngineCommand {
-    fn handle(
+impl EngineCommand {
+    pub fn execute(
         &self,
         uuid: Uuid,
     ) {
-        match self {
-            EngineCommand::Memory(command) => {
-                command.handle(uuid);
-            }
-            EngineCommand::Process(command) => {
-                command.handle(uuid);
-            }
-            EngineCommand::Project(command) => {
-                command.handle(uuid);
-            }
-            EngineCommand::Results(command) => {
-                command.handle(uuid);
-            }
-            EngineCommand::Scan(command) => {
-                command.handle(uuid);
-            }
-            EngineCommand::Settings(command) => {
-                command.handle(uuid);
-            }
-        }
     }
 }

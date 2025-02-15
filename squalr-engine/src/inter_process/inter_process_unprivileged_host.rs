@@ -1,7 +1,6 @@
 use crate::commands::engine_command::EngineCommand;
 use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
 use crate::inter_process::inter_process_connection::InterProcessConnection;
-use crate::inter_process::inter_process_data_egress::InterProcessDataEgress::Event;
 use crate::inter_process::inter_process_data_egress::InterProcessDataEgress::Response;
 use crate::inter_process::inter_process_data_ingress::InterProcessDataIngress;
 use crate::squalr_engine::SqualrEngine;
@@ -116,9 +115,6 @@ impl InterProcessUnprivilegedHost {
                     Ok((data_egress, uuid)) => {
                         Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
                         match data_egress {
-                            Event(engine_event) => {
-                                SqualrEngine::broadcast_engine_event(engine_event);
-                            }
                             Response(engine_response) => {
                                 SqualrEngine::handle_response(engine_response, uuid);
                             }

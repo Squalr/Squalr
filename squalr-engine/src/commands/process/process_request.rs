@@ -9,7 +9,9 @@ use serde::de::DeserializeOwned;
 pub trait ProcessRequest: Clone + Serialize + DeserializeOwned {
     type ResponseType: TypedEngineResponse + Into<ProcessResponse>;
 
-    fn to_command(&self) -> EngineCommand;
+    fn execute(&self) -> Self::ResponseType;
+
+    fn to_engine_command(&self) -> EngineCommand;
 
     fn send<F>(
         &self,
@@ -17,11 +19,11 @@ pub trait ProcessRequest: Clone + Serialize + DeserializeOwned {
     ) where
         F: FnOnce(Self::ResponseType) + Send + Sync + 'static,
     {
-        let command = self.clone().to_command();
+        let command = self.clone().to_engine_command();
 
         SqualrEngine::dispatch_command(command, move |engine_response| {
             if let EngineResponse::Process(process_response) = engine_response {
-                if let Ok(response) = Self::ResponseType::from_response(EngineResponse::Process(process_response)) {
+                if let Ok(response) = Self::ResponseType::from_engine_response(EngineResponse::Process(process_response)) {
                     callback(response);
                 }
             }

@@ -1,5 +1,3 @@
-use crate::events::{engine_event::EngineEvent, process::process_event::ProcessEvent};
-use crate::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::process_info::OpenedProcessInfo;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
@@ -44,8 +42,6 @@ impl SqualrSession {
                 None,
             );
             *process = Some(process_info.clone());
-
-            SqualrEngine::dispatch_event(EngineEvent::ProcessOpened(ProcessEvent::Open { process_info: process_info }));
         }
     }
 

@@ -1,6 +1,4 @@
-use crate::commands::command_handler::CommandHandler;
 use crate::commands::engine_response::EngineResponse;
-use crate::events::engine_event::EngineEvent;
 use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
 use crate::inter_process::inter_process_connection::InterProcessConnection;
 use crate::inter_process::inter_process_data_egress::InterProcessDataEgress;
@@ -69,19 +67,7 @@ impl InterProcessPrivilegedShell {
             }
         }
 
-        self.listen_for_host_events();
-    }
-
-    pub fn dispatch_event(
-        &self,
-        event: EngineEvent,
-        uuid: Uuid,
-    ) {
-        let egress = InterProcessDataEgress::Event(event);
-
-        if let Err(err) = InterProcessCommandPipe::ipc_send_to_host(&self.ipc_connection_egress, egress, uuid) {
-            Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC event: {}", err), None);
-        }
+        self.listen_for_host_requests();
     }
 
     pub fn dispatch_response(
@@ -96,7 +82,7 @@ impl InterProcessPrivilegedShell {
         }
     }
 
-    fn listen_for_host_events(&self) {
+    fn listen_for_host_requests(&self) {
         let ipc_connection_ingress = self.ipc_connection_ingress.clone();
 
         thread::spawn(move || {
@@ -106,7 +92,7 @@ impl InterProcessPrivilegedShell {
                         Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
                         match data_ingress {
                             Command(engine_command) => {
-                                engine_command.handle(uuid);
+                                engine_command.execute(uuid);
                             }
                         }
                     }

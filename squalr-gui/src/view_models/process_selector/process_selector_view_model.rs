@@ -1,7 +1,6 @@
 use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
-use crate::view_models::process_selector::opened_process_info_converter::OpenedProcessInfoConverter;
 use crate::view_models::process_selector::process_info_comparer::ProcessInfoComparer;
 use crate::view_models::process_selector::process_info_converter::ProcessInfoConverter;
 use slint::ComponentHandle;
@@ -10,16 +9,10 @@ use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
+use squalr_engine::commands::process::list::process_list_request::ProcessListRequest;
+use squalr_engine::commands::process::open::process_open_request::ProcessOpenRequest;
 use squalr_engine::commands::process::process_request::ProcessRequest;
-use squalr_engine::commands::process::requests::process_list_request::ProcessListRequest;
-use squalr_engine::commands::process::requests::process_open_request::ProcessOpenRequest;
-use squalr_engine::events::engine_event::EngineEvent;
-use squalr_engine::events::engine_event::EngineEvent::ProcessOpened;
-use squalr_engine::events::process::process_event::ProcessEvent;
-use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_processes::process_info::ProcessInfo;
-use std::sync::mpmc;
-use std::thread;
 
 pub struct ProcessSelectorViewModel {
     _view_binding: ViewBinding<MainWindowView>,
@@ -60,33 +53,15 @@ impl ProcessSelectorViewModel {
             }
         });
 
-        view.listen_for_process_change(SqualrEngine::get_engine_event_receiver(), view_binding.clone());
+        view.listen_for_process_change(view_binding.clone());
 
         view
     }
 
     fn listen_for_process_change(
         &self,
-        event_receiver: mpmc::Receiver<EngineEvent>,
         view_binding: ViewBinding<MainWindowView>,
     ) {
-        thread::spawn(move || {
-            loop {
-                if let Ok(event) = event_receiver.recv() {
-                    match event {
-                        ProcessOpened(process_event) => match process_event {
-                            ProcessEvent::Open { process_info } => {
-                                view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
-                                    main_window_view
-                                        .global::<ProcessSelectorViewModelBindings>()
-                                        .set_selected_process(OpenedProcessInfoConverter::new().convert_to_view_data(&process_info));
-                                });
-                            }
-                        },
-                    }
-                }
-            }
-        });
     }
 
     fn on_refresh_full_process_list(full_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {

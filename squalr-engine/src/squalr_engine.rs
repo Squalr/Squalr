@@ -2,8 +2,6 @@ use crate::commands::command_dispatcher::CommandDispatcher;
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::engine_response::EngineResponse;
 use crate::commands::response_dispatcher::ResponseDispatcher;
-use crate::events::engine_event::EngineEvent;
-use crate::events::event_dispatcher::EventDispatcher;
 use crate::inter_process::dispatcher_type::DispatcherType;
 use crate::inter_process::inter_process_privileged_shell::InterProcessPrivilegedShell;
 use crate::inter_process::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
@@ -11,8 +9,8 @@ use squalr_engine_architecture::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use std::collections::HashMap;
+use std::sync::Mutex;
 use std::sync::{Arc, Once};
-use std::sync::{Mutex, mpmc};
 use uuid::Uuid;
 
 static mut INSTANCE: Option<SqualrEngine> = None;
@@ -37,17 +35,8 @@ pub struct SqualrEngine {
     /// Handles sending commands to the engine.
     command_dispatcher: Arc<Mutex<CommandDispatcher>>,
 
-    /// Handles sending events from the engine to the GUI/CLI/etc.
-    event_dispatcher: Arc<Mutex<EventDispatcher>>,
-
     /// Handles sending responses from the engine to the GUI/CLI/etc.
     response_dispatcher: Arc<Mutex<ResponseDispatcher>>,
-
-    /// Handles broadcasting events from the engine.
-    event_sender: mpmc::Sender<EngineEvent>,
-
-    /// Clonable receiver for receiving events from the engine.
-    event_receiver: mpmc::Receiver<EngineEvent>,
 
     /// A map of outgoing requests that are awaiting an engine response.
     request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(EngineResponse) + Send + Sync>>>>,
@@ -75,14 +64,9 @@ impl SqualrEngine {
             InterProcessPrivilegedShell::get_instance().initialize();
         }
 
-        let (event_sender, event_receiver) = mpmc::channel();
-
         SqualrEngine {
             command_dispatcher: Arc::new(Mutex::new(CommandDispatcher::new(ingress_dispatcher_type))),
-            event_dispatcher: Arc::new(Mutex::new(EventDispatcher::new(egress_dispatcher_type))),
             response_dispatcher: Arc::new(Mutex::new(ResponseDispatcher::new(egress_dispatcher_type))),
-            event_sender: event_sender,
-            event_receiver: event_receiver,
             request_handles: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -151,18 +135,6 @@ impl SqualrEngine {
         });
     }
 
-    pub fn dispatch_event(event: EngineEvent) {
-        if let Ok(dispatcher) = Self::get_instance().event_dispatcher.lock() {
-            dispatcher.dispatch_event(event, Uuid::new_v4());
-        }
-    }
-
-    pub fn dispatch_event_async(event: EngineEvent) {
-        std::thread::spawn(move || {
-            Self::dispatch_event(event);
-        });
-    }
-
     pub fn dispatch_response(
         response: EngineResponse,
         uuid: Uuid,
@@ -189,16 +161,6 @@ impl SqualrEngine {
             if let Some(callback) = request_handles.remove(&uuid) {
                 callback(response);
             }
-        }
-    }
-
-    pub fn get_engine_event_receiver() -> mpmc::Receiver<EngineEvent> {
-        SqualrEngine::get_instance().event_receiver.clone()
-    }
-
-    pub fn broadcast_engine_event(event: EngineEvent) {
-        if let Err(err) = SqualrEngine::get_instance().event_sender.send(event) {
-            Logger::get_instance().log(LogLevel::Error, &format!("Failed to broadcast event: {}", err), None);
         }
     }
 }
