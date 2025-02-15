@@ -1,8 +1,5 @@
-use crate::commands::command_dispatcher::CommandDispatcher;
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::engine_response::EngineResponse;
-use crate::commands::response_dispatcher::ResponseDispatcher;
-use crate::inter_process::dispatcher_type::DispatcherType;
 use crate::inter_process::inter_process_privileged_shell::InterProcessPrivilegedShell;
 use crate::inter_process::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
 use squalr_engine_architecture::vectors;
@@ -32,11 +29,11 @@ pub enum EngineMode {
 
 /// Orchestrates commands and responses to and from the engine.
 pub struct SqualrEngine {
-    /// Handles sending commands to the engine.
-    command_dispatcher: Arc<Mutex<CommandDispatcher>>,
-
-    /// Handles sending responses from the engine to the GUI/CLI/etc.
-    response_dispatcher: Arc<Mutex<ResponseDispatcher>>,
+    /// Defines the mode in which the engine is running.
+    /// - Standalone engine is self-handling.
+    /// - Unprivileged host sends data via ipc.
+    /// - Privileged shell returns data via ipc.
+    engine_mode: EngineMode,
 
     /// A map of outgoing requests that are awaiting an engine response.
     request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(EngineResponse) + Send + Sync>>>>,
@@ -44,20 +41,6 @@ pub struct SqualrEngine {
 
 impl SqualrEngine {
     fn new(engine_mode: EngineMode) -> Self {
-        // Standalone engine is self-handling.
-        // Unprivileged host sends data via ipc.
-        // Privileged shell returns data via ipc.
-        let ingress_dispatcher_type = match engine_mode {
-            EngineMode::Standalone => DispatcherType::Standalone,
-            EngineMode::UnprivilegedHost => DispatcherType::InterProcess,
-            EngineMode::PrivilegedShell => DispatcherType::None,
-        };
-        let egress_dispatcher_type = match engine_mode {
-            EngineMode::Standalone => DispatcherType::Standalone,
-            EngineMode::UnprivilegedHost => DispatcherType::None,
-            EngineMode::PrivilegedShell => DispatcherType::InterProcess,
-        };
-
         if engine_mode == EngineMode::UnprivilegedHost {
             InterProcessUnprivilegedHost::get_instance().initialize();
         } else if engine_mode == EngineMode::PrivilegedShell {
@@ -65,8 +48,7 @@ impl SqualrEngine {
         }
 
         SqualrEngine {
-            command_dispatcher: Arc::new(Mutex::new(CommandDispatcher::new(ingress_dispatcher_type))),
-            response_dispatcher: Arc::new(Mutex::new(ResponseDispatcher::new(egress_dispatcher_type))),
+            engine_mode,
             request_handles: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -113,14 +95,18 @@ impl SqualrEngine {
     ) where
         F: FnOnce(EngineResponse) + Send + Sync + 'static,
     {
-        if let Ok(dispatcher) = Self::get_instance().command_dispatcher.lock() {
-            let command_to_dispatch = dispatcher.prepare_dispatch(command);
+        let engine_mode = Self::get_instance().engine_mode;
 
+        if engine_mode == EngineMode::Standalone {
+            // For a standalone engine (the common case), we just immediately execute the command with a callback.
+            callback(command.execute());
+        } else {
+            // For an inter-process engine (ie for Android), we dispatch the command to the priviliged root shell.
+            let ipc_uuid = Uuid::new_v4();
             if let Ok(mut request_handles) = Self::get_instance().request_handles.lock() {
-                request_handles.insert(command_to_dispatch.get_id(), Box::new(callback));
+                request_handles.insert(ipc_uuid, Box::new(callback));
+                InterProcessUnprivilegedHost::get_instance().dispatch_command(command, ipc_uuid);
             }
-
-            command_to_dispatch.execute();
         }
     }
 
@@ -139,8 +125,14 @@ impl SqualrEngine {
         response: EngineResponse,
         uuid: Uuid,
     ) {
-        if let Ok(dispatcher) = Self::get_instance().response_dispatcher.lock() {
-            dispatcher.dispatch_response(response, uuid);
+        let engine_mode = Self::get_instance().engine_mode;
+
+        if engine_mode == EngineMode::Standalone {
+            // For a standalone engine (the common case), we just immediately handle the response.
+            SqualrEngine::handle_response(response, uuid);
+        } else {
+            // For an inter-process engine (ie for Android), we dispatch the response back to the unprivileged host for handling.
+            InterProcessPrivilegedShell::get_instance().dispatch_response(response, uuid)
         }
     }
 

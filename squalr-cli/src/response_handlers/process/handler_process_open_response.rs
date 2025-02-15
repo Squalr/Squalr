@@ -6,10 +6,14 @@ pub fn handle_process_open_response(process_response: ProcessResponse) {
     if let ProcessResponse::Open { process_open_response } = process_response {
         let process_info = process_open_response.opened_process_info;
 
-        Logger::get_instance().log(
-            LogLevel::Info,
-            &format!("Opened process_id: {}, Name: {}", process_info.process_id, process_info.name),
-            None,
-        );
+        if let Some(process_info) = process_info {
+            Logger::get_instance().log(
+                LogLevel::Info,
+                &format!("Opened process_id: {}, Name: {}", process_info.process_id, process_info.name),
+                None,
+            );
+        } else {
+            Logger::get_instance().log(LogLevel::Info, "Failed to opened process", None);
+        }
     }
 }

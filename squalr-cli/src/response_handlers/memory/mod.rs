@@ -3,11 +3,11 @@ pub mod handler_memory_write_response;
 
 use crate::response_handlers::memory::handler_memory_read_response::handle_memory_read_response;
 use crate::response_handlers::memory::handler_memory_write_response::handle_memory_response_write;
-use squalr_engine::commands::memory::responses::memory_response::MemoryResponse;
+use squalr_engine::commands::memory::memory_response::MemoryResponse;
 
 pub fn handle_memory_response(cmd: MemoryResponse) {
     match cmd {
-        MemoryResponse::Read { .. } => handle_memory_read_response(cmd),
-        MemoryResponse::Write { .. } => handle_memory_response_write(cmd),
+        MemoryResponse::Read { memory_read_response } => handle_memory_read_response(memory_read_response),
+        MemoryResponse::Write { memory_write_response } => handle_memory_response_write(memory_write_response),
     }
 }
