@@ -1,12 +1,11 @@
-use crate::responses::engine_response::EngineResponse;
-use crate::responses::engine_response::ExtractArgs;
-use crate::responses::engine_response::TypedEngineResponse;
+use crate::responses::process::responses::process_close_response::ProcessCloseResponse;
+use crate::responses::process::responses::process_list_response::ProcessListResponse;
+use crate::responses::process::responses::process_open_response::ProcessOpenResponse;
 use serde::{Deserialize, Serialize};
-use squalr_engine_processes::process_info::{OpenedProcessInfo, ProcessInfo};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ProcessResponse {
-    List { processes: Vec<ProcessInfo> },
-    Close { process_info: OpenedProcessInfo },
-    Open { process_info: OpenedProcessInfo },
+    List { process_list_response: ProcessListResponse },
+    Close { process_close_response: ProcessCloseResponse },
+    Open { process_open_response: ProcessOpenResponse },
 }

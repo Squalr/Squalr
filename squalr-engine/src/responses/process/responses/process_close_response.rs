@@ -11,8 +11,8 @@ pub struct ProcessCloseResponse {
 
 impl TypedEngineResponse for ProcessCloseResponse {
     fn from_response(response: EngineResponse) -> Result<Self, EngineResponse> {
-        if let EngineResponse::Process(ProcessResponse::Close { process_info }) = response {
-            Ok(Self { process_info })
+        if let EngineResponse::Process(ProcessResponse::Close { process_close_response }) = response {
+            Ok(process_close_response)
         } else {
             Err(response)
         }

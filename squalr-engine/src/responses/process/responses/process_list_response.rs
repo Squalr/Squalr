@@ -11,8 +11,8 @@ pub struct ProcessListResponse {
 
 impl TypedEngineResponse for ProcessListResponse {
     fn from_response(response: EngineResponse) -> Result<Self, EngineResponse> {
-        if let EngineResponse::Process(ProcessResponse::List { processes }) = response {
-            Ok(Self { processes })
+        if let EngineResponse::Process(ProcessResponse::List { process_list_response }) = response {
+            Ok(process_list_response)
         } else {
             Err(response)
         }

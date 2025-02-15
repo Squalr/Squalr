@@ -1,4 +1,11 @@
 use crate::commands::command_handler::CommandHandler;
+use crate::commands::engine_command::EngineCommand;
+use crate::commands::request_sender::RequestSender;
+use crate::commands::scan::scan_command::ScanCommand;
+use crate::responses::engine_response::EngineResponse;
+use crate::responses::scan::responses::scan_hybrid_response::ScanHybridResponse;
+use crate::responses::scan::scan_response::ScanResponse;
+use crate::squalr_engine::SqualrEngine;
 use crate::squalr_session::SqualrSession;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -44,5 +51,30 @@ impl CommandHandler for ScanHybridRequest {
         } else {
             Logger::get_instance().log(LogLevel::Info, "No opened process", None);
         }
+    }
+}
+
+impl RequestSender for ScanHybridRequest {
+    type ResponseType = ScanHybridResponse;
+
+    fn send<F>(
+        &self,
+        callback: F,
+    ) where
+        F: FnOnce(Self::ResponseType) + Send + Sync + 'static,
+    {
+        SqualrEngine::dispatch_command(self.to_command(), move |engine_response| match engine_response {
+            EngineResponse::Scan(scan_response) => match scan_response {
+                ScanResponse::Hybrid { scan_hybrid_response } => callback(scan_hybrid_response),
+                _ => {}
+            },
+            _ => {}
+        });
+    }
+
+    fn to_command(&self) -> EngineCommand {
+        EngineCommand::Scan(ScanCommand::Hybrid {
+            scan_hybrid_request: self.clone(),
+        })
     }
 }

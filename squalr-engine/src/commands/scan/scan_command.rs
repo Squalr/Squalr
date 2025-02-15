@@ -1,8 +1,8 @@
 use crate::commands::command_handler::CommandHandler;
+use crate::commands::scan::requests::scan_collect_values_request::ScanCollectValuesRequest;
 use crate::commands::scan::requests::scan_hybrid_request::ScanHybridRequest;
 use crate::commands::scan::requests::scan_manual_request::ScanManualRequest;
 use crate::commands::scan::requests::scan_new_request::ScanNewRequest;
-use crate::commands::scan::requests::scan_value_collector_request::ScanValueCollectorRequest;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use uuid::Uuid;
@@ -12,7 +12,7 @@ pub enum ScanCommand {
     /// Collect values for the current scan if one exist, otherwise collect initial values.
     CollectValues {
         #[structopt(flatten)]
-        scan_value_collector_request: ScanValueCollectorRequest,
+        scan_value_collector_request: ScanCollectValuesRequest,
     },
     /// Collect values and scan in the same parallel thread pool.
     Hybrid {

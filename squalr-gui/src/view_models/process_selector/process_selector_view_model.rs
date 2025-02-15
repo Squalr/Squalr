@@ -10,9 +10,9 @@ use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
+use squalr_engine::commands::process::process_request::ProcessRequest;
 use squalr_engine::commands::process::requests::process_list_request::ProcessListRequest;
 use squalr_engine::commands::process::requests::process_open_request::ProcessOpenRequest;
-use squalr_engine::commands::request_sender::RequestSender;
 use squalr_engine::events::engine_event::EngineEvent;
 use squalr_engine::events::engine_event::EngineEvent::ProcessOpened;
 use squalr_engine::events::process::process_event::ProcessEvent;
@@ -98,8 +98,6 @@ impl ProcessSelectorViewModel {
             fetch_icons: true,
         };
 
-        let full_process_list_collection = full_process_list_collection.clone();
-
         list_all_processes_request.send(move |process_list_response| {
             full_process_list_collection.update_from_source(process_list_response.processes);
         });
@@ -113,8 +111,6 @@ impl ProcessSelectorViewModel {
             limit: None,
             fetch_icons: true,
         };
-
-        let windowed_process_list_collection = windowed_process_list_collection.clone();
 
         list_windowed_processes_request.send(move |process_list_response| {
             windowed_process_list_collection.update_from_source(process_list_response.processes);

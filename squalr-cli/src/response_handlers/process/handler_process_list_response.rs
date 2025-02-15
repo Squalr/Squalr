@@ -2,8 +2,10 @@ use squalr_engine::responses::process::process_response::ProcessResponse;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 
-pub fn handle_process_response_list(process_response: ProcessResponse) {
-    if let ProcessResponse::List { processes } = process_response {
+pub fn handle_process_list_response(process_response: ProcessResponse) {
+    if let ProcessResponse::List { process_list_response } = process_response {
+        let processes = process_list_response.processes;
+
         for process_info in processes {
             Logger::get_instance().log(
                 LogLevel::Info,

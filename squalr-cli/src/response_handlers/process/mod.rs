@@ -1,16 +1,16 @@
-pub mod process_response_close;
-pub mod process_response_list;
-pub mod process_response_open;
+pub mod handler_process_close_response;
+pub mod handler_process_list_response;
+pub mod handler_process_open_response;
 
-use process_response_close::handle_process_response_close;
-use process_response_list::handle_process_response_list;
-use process_response_open::handle_process_response_open;
+use handler_process_close_response::handle_process_close_response;
+use handler_process_list_response::handle_process_list_response;
+use handler_process_open_response::handle_process_open_response;
 use squalr_engine::responses::process::process_response::ProcessResponse;
 
 pub fn handle_process_response(response: ProcessResponse) {
     match response {
-        ProcessResponse::List { .. } => handle_process_response_list(response),
-        ProcessResponse::Close { .. } => handle_process_response_close(response),
-        ProcessResponse::Open { .. } => handle_process_response_open(response),
+        ProcessResponse::List { .. } => handle_process_list_response(response),
+        ProcessResponse::Close { .. } => handle_process_close_response(response),
+        ProcessResponse::Open { .. } => handle_process_open_response(response),
     }
 }

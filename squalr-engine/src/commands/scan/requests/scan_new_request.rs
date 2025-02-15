@@ -1,4 +1,12 @@
-use crate::{commands::command_handler::CommandHandler, squalr_session::SqualrSession};
+use crate::{
+    commands::{command_handler::CommandHandler, engine_command::EngineCommand, request_sender::RequestSender, scan::scan_command::ScanCommand},
+    responses::{
+        engine_response::EngineResponse,
+        scan::{responses::scan_new_response::ScanNewResponse, scan_response::ScanResponse},
+    },
+    squalr_engine::SqualrEngine,
+    squalr_session::SqualrSession,
+};
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::values::{data_type::DataType, endian::Endian};
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
@@ -41,5 +49,30 @@ impl CommandHandler for ScanNewRequest {
 
             snapshot.new_scan(&process_info, scan_filter_parameters);
         }
+    }
+}
+
+impl RequestSender for ScanNewRequest {
+    type ResponseType = ScanNewResponse;
+
+    fn send<F>(
+        &self,
+        callback: F,
+    ) where
+        F: FnOnce(Self::ResponseType) + Send + Sync + 'static,
+    {
+        SqualrEngine::dispatch_command(self.to_command(), move |engine_response| match engine_response {
+            EngineResponse::Scan(process_response) => match process_response {
+                ScanResponse::New { scan_new_response } => callback(scan_new_response),
+                _ => {}
+            },
+            _ => {}
+        });
+    }
+
+    fn to_command(&self) -> EngineCommand {
+        EngineCommand::Scan(ScanCommand::New {
+            scan_new_request: self.clone(),
+        })
     }
 }

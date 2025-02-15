@@ -9,9 +9,9 @@ use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
+use squalr_engine::commands::request_sender::RequestSender;
 use squalr_engine::commands::scan::requests::scan_hybrid_request::ScanHybridRequest;
 use squalr_engine::commands::scan::requests::scan_new_request::ScanNewRequest;
-use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine::squalr_session::SqualrSession;
 use squalr_engine_common::values::anonymous_value::AnonymousValue;
 use squalr_engine_common::values::data_type::DataType;
@@ -72,10 +72,7 @@ impl ManualScanViewModel {
             scan_all_primitives: false,
         };
 
-        /*
-        SqualrEngine::dispatch_command_async(scan_new_request, |engine_response| {
-            //
-        }); */
+        scan_new_request.send(|scan_new_response| {});
     }
 
     fn on_start_scan(
@@ -88,11 +85,7 @@ impl ManualScanViewModel {
             compare_type: ScanConstraintConverter::new().convert_from_view_data(&scan_constraint),
         };
 
-        /*
-        SqualrEngine::dispatch_command_async(scan_hybrid_request, |engine_response| {
-            //
-        });
-        */
+        scan_hybrid_request.send(|scan_new_response| {});
     }
 
     fn on_collect_values() {

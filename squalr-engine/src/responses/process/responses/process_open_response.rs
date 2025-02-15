@@ -6,13 +6,13 @@ use squalr_engine_processes::process_info::OpenedProcessInfo;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProcessOpenResponse {
-    pub process_info: OpenedProcessInfo,
+    pub opened_process_info: OpenedProcessInfo,
 }
 
 impl TypedEngineResponse for ProcessOpenResponse {
     fn from_response(response: EngineResponse) -> Result<Self, EngineResponse> {
-        if let EngineResponse::Process(ProcessResponse::Open { process_info }) = response {
-            Ok(Self { process_info })
+        if let EngineResponse::Process(ProcessResponse::Open { process_open_response }) = response {
+            Ok(process_open_response)
         } else {
             Err(response)
         }

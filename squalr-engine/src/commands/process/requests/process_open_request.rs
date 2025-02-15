@@ -1,7 +1,7 @@
 use crate::commands::command_handler::CommandHandler;
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::process::process_command::ProcessCommand;
-use crate::commands::request_sender::RequestSender;
+use crate::commands::process::process_request::ProcessRequest;
 use crate::responses::engine_response::EngineResponse;
 use crate::responses::process::process_response::ProcessResponse;
 use crate::responses::process::responses::process_open_response::ProcessOpenResponse;
@@ -55,7 +55,9 @@ impl CommandHandler for ProcessOpenRequest {
                     SqualrSession::set_opened_process(opened_process_info.clone());
 
                     let response = EngineResponse::Process(ProcessResponse::Open {
-                        process_info: opened_process_info,
+                        process_open_response: ProcessOpenResponse {
+                            opened_process_info: opened_process_info,
+                        },
                     });
 
                     SqualrEngine::dispatch_response(response, uuid);
@@ -70,23 +72,16 @@ impl CommandHandler for ProcessOpenRequest {
     }
 }
 
-impl RequestSender for ProcessOpenRequest {
-    type ResponseType = ProcessOpenResponse;
-
-    fn send<F>(
-        &self,
-        callback: F,
-    ) where
-        F: FnOnce(Self::ResponseType) + Send + Sync + 'static,
-    {
-        SqualrEngine::dispatch_command(self.to_command(), move |engine_response| match engine_response {
-            EngineResponse::Process(process_response) => match process_response {
-                ProcessResponse::Open { process_info } => callback(Self::ResponseType { process_info }),
-                _ => {}
-            },
-            _ => {}
-        });
+impl From<ProcessOpenResponse> for ProcessResponse {
+    fn from(process_open_response: ProcessOpenResponse) -> Self {
+        ProcessResponse::Open {
+            process_open_response: process_open_response,
+        }
     }
+}
+
+impl ProcessRequest for ProcessOpenRequest {
+    type ResponseType = ProcessOpenResponse;
 
     fn to_command(&self) -> EngineCommand {
         EngineCommand::Process(ProcessCommand::Open {

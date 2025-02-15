@@ -1,7 +1,7 @@
 use crate::commands::command_handler::CommandHandler;
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::process::process_command::ProcessCommand;
-use crate::commands::request_sender::RequestSender;
+use crate::commands::process::process_request::ProcessRequest;
 use crate::responses::engine_response::EngineResponse;
 use crate::responses::process::process_response::ProcessResponse;
 use crate::responses::process::responses::process_close_response::ProcessCloseResponse;
@@ -33,7 +33,9 @@ impl CommandHandler for ProcessCloseRequest {
                 Ok(_) => {
                     SqualrSession::clear_opened_process();
 
-                    let response = EngineResponse::Process(ProcessResponse::Close { process_info: process_info });
+                    let response = EngineResponse::Process(ProcessResponse::Close {
+                        process_close_response: ProcessCloseResponse { process_info: process_info },
+                    });
 
                     SqualrEngine::dispatch_response(response, uuid);
                 }
@@ -47,23 +49,16 @@ impl CommandHandler for ProcessCloseRequest {
     }
 }
 
-impl RequestSender for ProcessCloseRequest {
-    type ResponseType = ProcessCloseResponse;
-
-    fn send<F>(
-        &self,
-        callback: F,
-    ) where
-        F: FnOnce(Self::ResponseType) + Send + Sync + 'static,
-    {
-        SqualrEngine::dispatch_command(self.to_command(), move |engine_response| match engine_response {
-            EngineResponse::Process(process_response) => match process_response {
-                ProcessResponse::Close { process_info } => callback(Self::ResponseType { process_info }),
-                _ => {}
-            },
-            _ => {}
-        });
+impl From<ProcessCloseResponse> for ProcessResponse {
+    fn from(process_close_response: ProcessCloseResponse) -> Self {
+        ProcessResponse::Close {
+            process_close_response: process_close_response,
+        }
     }
+}
+
+impl ProcessRequest for ProcessCloseRequest {
+    type ResponseType = ProcessCloseResponse;
 
     fn to_command(&self) -> EngineCommand {
         EngineCommand::Process(ProcessCommand::Close {
