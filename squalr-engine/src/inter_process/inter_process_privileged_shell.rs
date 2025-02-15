@@ -3,6 +3,7 @@ use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
 use crate::inter_process::inter_process_connection::InterProcessConnection;
 use crate::inter_process::inter_process_data_egress::InterProcessDataEgress;
 use crate::inter_process::inter_process_data_ingress::InterProcessDataIngress::Command;
+use crate::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use std::sync::{Arc, Once, RwLock};
@@ -92,7 +93,9 @@ impl InterProcessPrivilegedShell {
                         Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
                         match data_ingress {
                             Command(engine_command) => {
-                                engine_command.execute(uuid);
+                                let engine_response = engine_command.execute();
+
+                                SqualrEngine::dispatch_response(engine_response, uuid);
                             }
                         }
                     }

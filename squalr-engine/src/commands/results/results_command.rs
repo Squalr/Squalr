@@ -1,4 +1,6 @@
-use crate::commands::results::list::results_list_request::ResultsListRequest;
+use crate::commands::engine_response::TypedEngineResponse;
+use crate::commands::results::results_request::ResultsRequest;
+use crate::commands::{engine_response::EngineResponse, results::list::results_list_request::ResultsListRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -9,4 +11,12 @@ pub enum ResultsCommand {
         #[structopt(flatten)]
         results_list_request: ResultsListRequest,
     },
+}
+
+impl ResultsCommand {
+    pub fn execute(&self) -> EngineResponse {
+        match self {
+            ResultsCommand::List { results_list_request } => results_list_request.execute().to_engine_response(),
+        }
+    }
 }

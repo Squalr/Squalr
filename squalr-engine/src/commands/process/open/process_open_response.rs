@@ -10,6 +10,12 @@ pub struct ProcessOpenResponse {
 }
 
 impl TypedEngineResponse for ProcessOpenResponse {
+    fn to_engine_response(&self) -> EngineResponse {
+        EngineResponse::Process(ProcessResponse::Open {
+            process_open_response: self.clone(),
+        })
+    }
+
     fn from_engine_response(response: EngineResponse) -> Result<Self, EngineResponse> {
         if let EngineResponse::Process(ProcessResponse::Open { process_open_response }) = response {
             Ok(process_open_response)

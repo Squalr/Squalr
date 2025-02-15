@@ -1,5 +1,7 @@
-use crate::commands::settings::list::settings_list_request::SettingsListRequest;
+use crate::commands::engine_response::TypedEngineResponse;
 use crate::commands::settings::set::settings_set_request::SettingsSetRequest;
+use crate::commands::settings::settings_request::SettingsRequest;
+use crate::commands::{engine_response::EngineResponse, settings::list::settings_list_request::SettingsListRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -13,4 +15,13 @@ pub enum SettingsCommand {
         #[structopt(flatten)]
         settings_set_request: SettingsSetRequest,
     },
+}
+
+impl SettingsCommand {
+    pub fn execute(&self) -> EngineResponse {
+        match self {
+            SettingsCommand::List { settings_list_request } => settings_list_request.execute().to_engine_response(),
+            SettingsCommand::Set { settings_set_request } => settings_set_request.execute().to_engine_response(),
+        }
+    }
 }

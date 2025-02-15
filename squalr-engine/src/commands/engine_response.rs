@@ -17,11 +17,6 @@ pub enum EngineResponse {
 }
 
 pub trait TypedEngineResponse: Sized {
+    fn to_engine_response(&self) -> EngineResponse;
     fn from_engine_response(response: EngineResponse) -> Result<Self, EngineResponse>;
-}
-
-pub trait ExtractArgs {
-    type Args: Send;
-
-    fn extract_args(self) -> Self::Args;
 }

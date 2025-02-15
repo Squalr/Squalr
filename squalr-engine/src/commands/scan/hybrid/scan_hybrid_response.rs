@@ -7,6 +7,12 @@ use serde::{Deserialize, Serialize};
 pub struct ScanHybridResponse {}
 
 impl TypedEngineResponse for ScanHybridResponse {
+    fn to_engine_response(&self) -> EngineResponse {
+        EngineResponse::Scan(ScanResponse::Hybrid {
+            scan_hybrid_response: self.clone(),
+        })
+    }
+
     fn from_engine_response(response: EngineResponse) -> Result<Self, EngineResponse> {
         if let EngineResponse::Scan(ScanResponse::Hybrid { scan_hybrid_response }) = response {
             Ok(scan_hybrid_response)

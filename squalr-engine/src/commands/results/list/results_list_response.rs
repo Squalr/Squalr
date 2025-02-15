@@ -7,6 +7,12 @@ use serde::{Deserialize, Serialize};
 pub struct ResultsListResponse {}
 
 impl TypedEngineResponse for ResultsListResponse {
+    fn to_engine_response(&self) -> EngineResponse {
+        EngineResponse::Results(ResultsResponse::List {
+            results_list_response: self.clone(),
+        })
+    }
+
     fn from_engine_response(response: EngineResponse) -> Result<Self, EngineResponse> {
         if let EngineResponse::Results(ResultsResponse::List { results_list_response }) = response {
             Ok(results_list_response)

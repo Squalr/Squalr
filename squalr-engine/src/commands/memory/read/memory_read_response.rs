@@ -12,6 +12,12 @@ pub struct MemoryReadResponse {
 }
 
 impl TypedEngineResponse for MemoryReadResponse {
+    fn to_engine_response(&self) -> EngineResponse {
+        EngineResponse::Memory(MemoryResponse::Read {
+            memory_read_response: self.clone(),
+        })
+    }
+
     fn from_engine_response(response: EngineResponse) -> Result<Self, EngineResponse> {
         if let EngineResponse::Memory(MemoryResponse::Read { memory_read_response }) = response {
             Ok(memory_read_response)

@@ -9,6 +9,12 @@ pub struct MemoryWriteResponse {
 }
 
 impl TypedEngineResponse for MemoryWriteResponse {
+    fn to_engine_response(&self) -> EngineResponse {
+        EngineResponse::Memory(MemoryResponse::Write {
+            memory_write_response: self.clone(),
+        })
+    }
+
     fn from_engine_response(response: EngineResponse) -> Result<Self, EngineResponse> {
         if let EngineResponse::Memory(MemoryResponse::Write { memory_write_response }) = response {
             Ok(memory_write_response)

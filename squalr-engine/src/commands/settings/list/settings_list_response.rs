@@ -7,6 +7,12 @@ use serde::{Deserialize, Serialize};
 pub struct SettingsListResponse {}
 
 impl TypedEngineResponse for SettingsListResponse {
+    fn to_engine_response(&self) -> EngineResponse {
+        EngineResponse::Settings(SettingsResponse::List {
+            settings_list_response: self.clone(),
+        })
+    }
+
     fn from_engine_response(response: EngineResponse) -> Result<Self, EngineResponse> {
         if let EngineResponse::Settings(SettingsResponse::List { settings_list_response }) = response {
             Ok(settings_list_response)

@@ -21,11 +21,12 @@ impl DispatchedCommand {
     pub fn execute(self) {
         let uuid = self.get_id();
 
+        /*
         match self.dispatcher_type {
-            DispatcherType::Standalone => self.command.execute(uuid),
+            DispatcherType::Standalone => self.command.execute(),
             DispatcherType::InterProcess => InterProcessUnprivilegedHost::get_instance().dispatch_command(self.command, uuid),
             DispatcherType::None => panic!("Command should not be dispatched from a privileged shell."),
-        }
+        } */
     }
 
     pub fn get_id(&self) -> Uuid {
