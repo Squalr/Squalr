@@ -1,4 +1,3 @@
-use crate::command_dispatchers::command_dispatcher::CommandDispatcher;
 use crate::command_dispatchers::inter_process::inter_process_pipe_bidirectional::InterProcessPipeBidirectional;
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::engine_response::EngineResponse;
@@ -54,12 +53,12 @@ impl InterProcessPrivilegedShell {
 
     pub fn dispatch_response(
         &self,
-        response: EngineResponse,
+        engine_response: EngineResponse,
         request_id: Uuid,
     ) {
         if let Ok(ipc_connection) = self.ipc_connection.read() {
             if let Some(ipc_connection) = ipc_connection.as_ref() {
-                if let Err(err) = ipc_connection.send(response, request_id) {
+                if let Err(err) = ipc_connection.send(engine_response, request_id) {
                     Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC response: {}", err), None);
                 }
             }
@@ -75,9 +74,9 @@ impl InterProcessPrivilegedShell {
                     if let Some(ipc_connection) = ipc_connection.as_ref() {
                         match ipc_connection.receive::<EngineCommand>() {
                             Ok((engine_command, request_id)) => {
-                                Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
+                                Logger::get_instance().log(LogLevel::Info, "Dispatching IPC response...", None);
                                 let engine_response = engine_command.execute();
-                                CommandDispatcher::dispatch_response(engine_response, request_id);
+                                InterProcessPrivilegedShell::get_instance().dispatch_response(engine_response, request_id);
                             }
                             Err(err) => {
                                 Logger::get_instance().log(LogLevel::Error, &format!("Parent connection lost: {}. Shutting down.", err), None);

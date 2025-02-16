@@ -1,10 +1,9 @@
-use squalr_engine_common::values::data_type::DataType;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
-
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::comparers::scalar::scanner_scalar_comparer::ScannerScalarComparer;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
+use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::sync::Once;
 
 pub struct ScannerScalarEncoder {}

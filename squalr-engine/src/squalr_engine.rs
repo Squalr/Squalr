@@ -10,6 +10,12 @@ static INIT: Once = Once::new();
 
 /// Orchestrates commands and responses to and from the engine.
 pub struct SqualrEngine {
+    /// Defines the mode in which the engine is running.
+    /// - Standalone engine is self-handling. This is the most common way Squalr is used.
+    /// - Unprivileged host sends data via ipc. Used on platforms like Android.
+    /// - Privileged shell returns data via ipc. Used on platforms like Android.
+    engine_mode: EngineMode,
+
     /// The process to which Squalr is attached.
     opened_process: RwLock<Option<OpenedProcessInfo>>,
 
@@ -19,8 +25,11 @@ pub struct SqualrEngine {
 
 impl SqualrEngine {
     fn new(engine_mode: EngineMode) -> Self {
-        CommandDispatcher::create_instance(engine_mode);
+        // Initialize the command dispatcher, which handles routing and executing all engine commands.
+        CommandDispatcher::initialize(engine_mode);
+
         SqualrEngine {
+            engine_mode,
             opened_process: RwLock::new(None),
             snapshot: Arc::new(RwLock::new(Snapshot::new(vec![]))),
         }
@@ -60,6 +69,10 @@ impl SqualrEngine {
             }
             EngineMode::UnprivilegedHost => {}
         }
+    }
+
+    pub fn get_engine_mode() -> EngineMode {
+        Self::get_instance().engine_mode
     }
 
     pub fn set_opened_process(process_info: OpenedProcessInfo) {

@@ -22,8 +22,8 @@ pub trait SettingsRequest: Clone + Serialize + DeserializeOwned {
         let command = self.clone().to_engine_command();
 
         CommandDispatcher::dispatch_command(command, move |engine_response| {
-            if let EngineResponse::Settings(process_response) = engine_response {
-                if let Ok(response) = Self::ResponseType::from_engine_response(EngineResponse::Settings(process_response)) {
+            if let EngineResponse::Settings(settings_response) = engine_response {
+                if let Ok(response) = Self::ResponseType::from_engine_response(EngineResponse::Settings(settings_response)) {
                     callback(response);
                 }
             }

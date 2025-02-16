@@ -22,8 +22,8 @@ pub trait ResultsRequest: Clone + Serialize + DeserializeOwned {
         let command = self.clone().to_engine_command();
 
         CommandDispatcher::dispatch_command(command, move |engine_response| {
-            if let EngineResponse::Results(process_response) = engine_response {
-                if let Ok(response) = Self::ResponseType::from_engine_response(EngineResponse::Results(process_response)) {
+            if let EngineResponse::Results(results_response) = engine_response {
+                if let Ok(response) = Self::ResponseType::from_engine_response(EngineResponse::Results(results_response)) {
                     callback(response);
                 }
             }

@@ -22,8 +22,8 @@ pub trait ScanRequest: Clone + Serialize + DeserializeOwned {
         let command = self.clone().to_engine_command();
 
         CommandDispatcher::dispatch_command(command, move |engine_response| {
-            if let EngineResponse::Scan(process_response) = engine_response {
-                if let Ok(response) = Self::ResponseType::from_engine_response(EngineResponse::Scan(process_response)) {
+            if let EngineResponse::Scan(scan_response) = engine_response {
+                if let Ok(response) = Self::ResponseType::from_engine_response(EngineResponse::Scan(scan_response)) {
                     callback(response);
                 }
             }
