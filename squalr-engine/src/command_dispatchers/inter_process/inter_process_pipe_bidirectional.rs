@@ -1,4 +1,4 @@
-use crate::inter_process::inter_process_pipe_unidirectional::InterProcessPipeUnidirectional;
+use crate::command_dispatchers::inter_process::inter_process_pipe_unidirectional::InterProcessPipeUnidirectional;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::io;

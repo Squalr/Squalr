@@ -3,7 +3,7 @@ use crate::commands::memory::memory_command::MemoryCommand;
 use crate::commands::memory::memory_request::MemoryRequest;
 use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::memory::write::memory_write_response::MemoryWriteResponse;
-use crate::squalr_session::SqualrSession;
+use crate::squalr_engine::SqualrEngine;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::conversions::parse_hex_or_int;
 use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
@@ -26,7 +26,7 @@ impl MemoryRequest for MemoryWriteRequest {
     type ResponseType = MemoryWriteResponse;
 
     fn execute(&self) -> Self::ResponseType {
-        if let Some(process_info) = SqualrSession::get_opened_process() {
+        if let Some(process_info) = SqualrEngine::get_opened_process() {
             // Log the memory write operation
             Logger::get_instance().log(LogLevel::Info, &format!("Writing value {:?} to address {}", self.value, self.address), None);
 

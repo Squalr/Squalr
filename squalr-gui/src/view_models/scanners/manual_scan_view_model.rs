@@ -12,7 +12,7 @@ use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::commands::scan::hybrid::scan_hybrid_request::ScanHybridRequest;
 use squalr_engine::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine::commands::scan::scan_request::ScanRequest;
-use squalr_engine::squalr_session::SqualrSession;
+use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::values::anonymous_value::AnonymousValue;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::endian::Endian;
@@ -89,8 +89,8 @@ impl ManualScanViewModel {
     }
 
     fn on_collect_values() {
-        if let Some(process_info) = SqualrSession::get_opened_process() {
-            let snapshot = SqualrSession::get_snapshot();
+        if let Some(process_info) = SqualrEngine::get_opened_process() {
+            let snapshot = SqualrEngine::get_snapshot();
             let _task = ValueCollector::collect_values(process_info.clone(), snapshot, None, true);
         }
     }

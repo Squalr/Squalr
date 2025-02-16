@@ -3,7 +3,7 @@ use crate::commands::process::close::process_close_response::ProcessCloseRespons
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_request::ProcessRequest;
 use crate::commands::process::process_response::ProcessResponse;
-use crate::squalr_session::SqualrSession;
+use crate::squalr_engine::SqualrEngine;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -17,7 +17,7 @@ impl ProcessRequest for ProcessCloseRequest {
     type ResponseType = ProcessCloseResponse;
 
     fn execute(&self) -> Self::ResponseType {
-        if let Some(process_info) = SqualrSession::get_opened_process() {
+        if let Some(process_info) = SqualrEngine::get_opened_process() {
             Logger::get_instance().log(
                 LogLevel::Info,
                 &format!("Closing process {} with handle {}", process_info.process_id, process_info.handle),
@@ -26,7 +26,7 @@ impl ProcessRequest for ProcessCloseRequest {
 
             match ProcessQuery::close_process(process_info.handle) {
                 Ok(_) => {
-                    SqualrSession::clear_opened_process();
+                    SqualrEngine::clear_opened_process();
                 }
                 Err(err) => {
                     Logger::get_instance().log(

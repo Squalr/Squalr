@@ -2,7 +2,7 @@ use crate::commands::scan::new::scan_new_response::ScanNewResponse;
 use crate::commands::scan::scan_request::ScanRequest;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::{engine_command::EngineCommand, scan::scan_command::ScanCommand};
-use crate::squalr_session::SqualrSession;
+use crate::squalr_engine::SqualrEngine;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::values::{data_type::DataType, endian::Endian};
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
@@ -37,8 +37,8 @@ impl ScanRequest for ScanNewRequest {
             ];
         }
 
-        if let Some(process_info) = SqualrSession::get_opened_process() {
-            let snapshot = SqualrSession::get_snapshot();
+        if let Some(process_info) = SqualrEngine::get_opened_process() {
+            let snapshot = SqualrEngine::get_snapshot();
             let mut snapshot = snapshot.write().unwrap();
 
             snapshot.new_scan(&process_info, scan_filter_parameters);

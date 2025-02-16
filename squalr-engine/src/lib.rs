@@ -1,6 +1,6 @@
 #![feature(mpmc_channel)]
 
+pub mod command_dispatchers;
 pub mod commands;
-mod inter_process;
+pub mod engine_mode;
 pub mod squalr_engine;
-pub mod squalr_session;

@@ -1,8 +1,8 @@
+use crate::command_dispatchers::command_dispatcher::CommandDispatcher;
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::engine_response::EngineResponse;
 use crate::commands::engine_response::TypedEngineResponse;
 use crate::commands::results::results_response::ResultsResponse;
-use crate::squalr_engine::SqualrEngine;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -21,7 +21,7 @@ pub trait ResultsRequest: Clone + Serialize + DeserializeOwned {
     {
         let command = self.clone().to_engine_command();
 
-        SqualrEngine::dispatch_command(command, move |engine_response| {
+        CommandDispatcher::dispatch_command(command, move |engine_response| {
             if let EngineResponse::Results(process_response) = engine_response {
                 if let Ok(response) = Self::ResponseType::from_engine_response(EngineResponse::Results(process_response)) {
                     callback(response);

@@ -3,7 +3,7 @@ use crate::commands::results::list::results_list_response::ResultsListResponse;
 use crate::commands::results::results_command::ResultsCommand;
 use crate::commands::results::results_request::ResultsRequest;
 use crate::commands::results::results_response::ResultsResponse;
-use crate::squalr_session::SqualrSession;
+use crate::squalr_engine::SqualrEngine;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -27,7 +27,7 @@ impl ResultsRequest for ResultsListRequest {
         let results_page_size = ScanSettings::get_instance().get_results_page_size() as u64;
         let initial_index = self.page * results_page_size;
         let end_index = initial_index + results_page_size;
-        let snapshot_lock = SqualrSession::get_snapshot();
+        let snapshot_lock = SqualrEngine::get_snapshot();
         let snapshot = snapshot_lock.read().unwrap();
 
         for result_index in initial_index..end_index {

@@ -3,7 +3,7 @@ use crate::commands::scan::hybrid::scan_hybrid_response::ScanHybridResponse;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_request::ScanRequest;
 use crate::commands::scan::scan_response::ScanResponse;
-use crate::squalr_session::SqualrSession;
+use crate::squalr_engine::SqualrEngine;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -26,8 +26,8 @@ impl ScanRequest for ScanHybridRequest {
     type ResponseType = ScanHybridResponse;
 
     fn execute(&self) -> Self::ResponseType {
-        if let Some(process_info) = SqualrSession::get_opened_process() {
-            let snapshot = SqualrSession::get_snapshot();
+        if let Some(process_info) = SqualrEngine::get_opened_process() {
+            let snapshot = SqualrEngine::get_snapshot();
             let scan_parameters = ScanParameters::new_with_value(self.compare_type.to_owned(), self.scan_value.to_owned());
 
             // Perform the hybrid scan which simultaneously collects and scans memory.

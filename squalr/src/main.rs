@@ -1,7 +1,7 @@
 // Disable terminal from spawning. All relevant output is routed to the output view anyways.
 #![windows_subsystem = "windows"]
 
-use squalr_engine::squalr_engine::EngineMode;
+use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -14,7 +14,7 @@ pub fn main() {
         std::env::set_var("SLINT_BACKEND", "winit-software");
     }
 
-    SqualrEngine::initialize(EngineMode::UnprivilegedHost);
+    SqualrEngine::initialize(EngineMode::Standalone);
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
     let _main_window_view = MainWindowViewModel::new();

@@ -1,3 +1,4 @@
+use squalr_engine::command_dispatchers::command_dispatcher::CommandDispatcher;
 use squalr_engine::commands::engine_command::EngineCommand;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -63,7 +64,7 @@ impl Cli {
             }
         };
 
-        SqualrEngine::dispatch_command(engine_command, |engine_command| {
+        CommandDispatcher::dispatch_command(engine_command, |engine_command| {
             handle_engine_response(engine_command);
         });
         true

@@ -3,7 +3,7 @@ use crate::commands::process::open::process_open_response::ProcessOpenResponse;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_request::ProcessRequest;
 use crate::commands::process::process_response::ProcessResponse;
-use crate::squalr_session::SqualrSession;
+use crate::squalr_engine::SqualrEngine;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -47,7 +47,7 @@ impl ProcessRequest for ProcessOpenRequest {
         if let Some(process_info) = processes.first() {
             match ProcessQuery::open_process(&process_info) {
                 Ok(opened_process_info) => {
-                    SqualrSession::set_opened_process(opened_process_info.clone());
+                    SqualrEngine::set_opened_process(opened_process_info.clone());
 
                     return ProcessOpenResponse {
                         opened_process_info: Some(opened_process_info),

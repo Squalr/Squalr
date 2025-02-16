@@ -3,7 +3,7 @@ use crate::commands::memory::memory_command::MemoryCommand;
 use crate::commands::memory::memory_request::MemoryRequest;
 use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::memory::read::memory_read_response::MemoryReadResponse;
-use crate::squalr_session::SqualrSession;
+use crate::squalr_engine::SqualrEngine;
 use serde::Deserialize;
 use serde::Serialize;
 use squalr_engine_common::conversions::parse_hex_or_int;
@@ -26,7 +26,7 @@ impl MemoryRequest for MemoryReadRequest {
     type ResponseType = MemoryReadResponse;
 
     fn execute(&self) -> Self::ResponseType {
-        if let Some(process_info) = SqualrSession::get_opened_process() {
+        if let Some(process_info) = SqualrEngine::get_opened_process() {
             Logger::get_instance().log(LogLevel::Info, &format!("Reading value from address {}", self.address), None);
 
             let mut out_value = self.value.clone();

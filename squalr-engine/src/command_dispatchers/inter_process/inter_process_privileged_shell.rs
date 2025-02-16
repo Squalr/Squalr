@@ -1,7 +1,7 @@
+use crate::command_dispatchers::command_dispatcher::CommandDispatcher;
+use crate::command_dispatchers::inter_process::inter_process_pipe_bidirectional::InterProcessPipeBidirectional;
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::engine_response::EngineResponse;
-use crate::inter_process::inter_process_pipe_bidirectional::InterProcessPipeBidirectional;
-use crate::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use std::sync::{Arc, Once, RwLock};
@@ -77,7 +77,7 @@ impl InterProcessPrivilegedShell {
                             Ok((engine_command, request_id)) => {
                                 Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
                                 let engine_response = engine_command.execute();
-                                SqualrEngine::dispatch_response(engine_response, request_id);
+                                CommandDispatcher::dispatch_response(engine_response, request_id);
                             }
                             Err(err) => {
                                 Logger::get_instance().log(LogLevel::Error, &format!("Parent connection lost: {}. Shutting down.", err), None);
