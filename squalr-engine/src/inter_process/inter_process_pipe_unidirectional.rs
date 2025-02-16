@@ -1,6 +1,3 @@
-use crate::inter_process::inter_process_connection::InterProcessConnection;
-use crate::inter_process::inter_process_data_egress::InterProcessDataEgress;
-use crate::inter_process::inter_process_data_ingress::InterProcessDataIngress;
 use interprocess::local_socket::ListenerOptions;
 use interprocess::local_socket::Name;
 use interprocess::local_socket::prelude::LocalSocketStream;
@@ -14,7 +11,7 @@ use std::io;
 use std::io::Read;
 use std::io::Write;
 use std::sync::Arc;
-use std::sync::RwLock;
+use std::sync::Mutex;
 use std::thread;
 use uuid::Uuid;
 
@@ -31,26 +28,46 @@ use interprocess::local_socket::GenericNamespaced as NamedPipeType;
 use interprocess::os::windows::local_socket::NamedPipe as NamedPipeType;
 
 #[cfg(windows)]
-const IPC_SOCKET_PATH_INGRESS: &str = "\\\\.\\pipe\\squalr-ipc-ingress";
+const IPC_SOCKET_PATH_TO_SHELL: &str = "\\\\.\\pipe\\squalr-ipc-to-shell";
 #[cfg(all(not(windows), not(target_os = "android")))]
-const IPC_SOCKET_PATH_INGRESS: &str = "/tmp/squalr-ipc-ingress.sock";
+const IPC_SOCKET_PATH_TO_SHELL: &str = "/tmp/squalr-ipc-to-shell.sock";
 #[cfg(target_os = "android")]
-const IPC_SOCKET_PATH_INGRESS: &str = "squalr-ipc-ingress";
+const IPC_SOCKET_PATH_TO_SHELL: &str = "squalr-ipc-to-shell";
 
 #[cfg(windows)]
-const IPC_SOCKET_PATH_EGRESS: &str = "\\\\.\\pipe\\squalr-ipc-egress";
+const IPC_SOCKET_PATH_OUTBOND: &str = "\\\\.\\pipe\\squalr-ipc-from-shell";
 #[cfg(all(not(windows), not(target_os = "android")))]
-const IPC_SOCKET_PATH_EGRESS: &str = "/tmp/squalr-ipc-egress.sock";
+const IPC_SOCKET_PATH_OUTBOND: &str = "/tmp/squalr-ipc-from-shell.sock";
 #[cfg(target_os = "android")]
-const IPC_SOCKET_PATH_EGRESS: &str = "squalr-ipc-egress";
+const IPC_SOCKET_PATH_OUTBOND: &str = "squalr-ipc-from-shell";
 
-pub struct InterProcessCommandPipe {}
+pub struct InterProcessPipeUnidirectional {
+    socket_stream: Arc<Mutex<Option<LocalSocketStream>>>,
+}
 
-impl InterProcessCommandPipe {
+impl InterProcessPipeUnidirectional {
+    pub fn create(to_shell: bool) -> io::Result<Self> {
+        match Self::create_inter_process_pipe(to_shell) {
+            Ok(socket_stream) => Ok(Self {
+                socket_stream: Arc::new(Mutex::new(Some(socket_stream))),
+            }),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub fn bind(to_shell: bool) -> io::Result<Self> {
+        match Self::bind_to_inter_process_pipe(to_shell) {
+            Ok(socket_stream) => Ok(Self {
+                socket_stream: Arc::new(Mutex::new(Some(socket_stream))),
+            }),
+            Err(err) => Err(err),
+        }
+    }
+
     /// Creates a single manager connection: effectively "binds" to the socket
     /// (or named pipe on Windows), listens, and accepts exactly one incoming connection.
-    pub fn create_inter_process_pipe(is_ingress: bool) -> io::Result<LocalSocketStream> {
-        let ipc_socket_path = if is_ingress { IPC_SOCKET_PATH_INGRESS } else { IPC_SOCKET_PATH_EGRESS };
+    fn create_inter_process_pipe(to_shell: bool) -> io::Result<LocalSocketStream> {
+        let ipc_socket_path = if to_shell { IPC_SOCKET_PATH_TO_SHELL } else { IPC_SOCKET_PATH_OUTBOND };
 
         // On Unix-like non-Android systems, remove any leftover socket file
         #[cfg(all(not(windows), not(target_os = "android")))]
@@ -85,9 +102,9 @@ impl InterProcessCommandPipe {
         Ok(stream)
     }
 
-    pub fn bind_to_inter_process_pipe(is_ingress: bool) -> io::Result<LocalSocketStream> {
+    fn bind_to_inter_process_pipe(to_shell: bool) -> io::Result<LocalSocketStream> {
         const MAX_RETRIES: u32 = 256;
-        let ipc_socket_path = if is_ingress { IPC_SOCKET_PATH_INGRESS } else { IPC_SOCKET_PATH_EGRESS };
+        let ipc_socket_path = if to_shell { IPC_SOCKET_PATH_TO_SHELL } else { IPC_SOCKET_PATH_OUTBOND };
         let retry_delay = std::time::Duration::from_millis(100);
 
         #[cfg(not(target_os = "android"))]
@@ -103,12 +120,12 @@ impl InterProcessCommandPipe {
                     Logger::get_instance().log(LogLevel::Info, "Squalr successfully connected to privileged local server!", None);
                     return Ok(stream);
                 }
-                Err(e) => {
+                Err(err) => {
                     Logger::get_instance().log(
                         LogLevel::Info,
                         &format!(
-                            "Squalr privileged local server connection failed, attempt {}/{}. Ingress: {} Error: {}. Retrying...",
-                            attempt, MAX_RETRIES, is_ingress, e
+                            "Squalr privileged local server connection failed, attempt {}/{}. Inbound: {} Error: {}. Retrying...",
+                            attempt, MAX_RETRIES, to_shell, err
                         ),
                         None,
                     );
@@ -119,51 +136,27 @@ impl InterProcessCommandPipe {
         Err(io::Error::new(io::ErrorKind::Other, "Failed to create IPC connection!"))
     }
 
-    pub fn ipc_send_to_shell(
-        ipc_connection: &Arc<RwLock<InterProcessConnection>>,
-        value: InterProcessDataIngress,
-        uuid: Uuid,
-    ) -> io::Result<()> {
-        Self::ipc_send(ipc_connection, value, uuid)
-    }
-
-    pub fn ipc_send_to_host(
-        ipc_connection: &Arc<RwLock<InterProcessConnection>>,
-        value: InterProcessDataEgress,
-        uuid: Uuid,
-    ) -> io::Result<()> {
-        Self::ipc_send(ipc_connection, value, uuid)
-    }
-
-    pub fn ipc_receive_from_shell(ipc_connection: &Arc<RwLock<InterProcessConnection>>) -> io::Result<(InterProcessDataEgress, Uuid)> {
-        Self::ipc_receive(ipc_connection)
-    }
-
-    pub fn ipc_receive_from_host(ipc_connection: &Arc<RwLock<InterProcessConnection>>) -> io::Result<(InterProcessDataIngress, Uuid)> {
-        Self::ipc_receive(ipc_connection)
-    }
-
     /// Sends a value of generic type `T` (which must implement `Serialize`) over the IPC connection.
     /// Returns the serialized bytes on success.
-    fn ipc_send<T: Serialize>(
-        ipc_connection: &Arc<RwLock<InterProcessConnection>>,
+    pub fn ipc_send<T: Serialize>(
+        &self,
         value: T,
-        uuid: Uuid,
+        request_id: Uuid,
     ) -> io::Result<()> {
         // Serialize the data.
         let serialized_data = bincode::serialize(&value).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Serialize error: {}", e)))?;
 
         // Acquire write lock on the connection to send in a thread-safe manner.
-        if let Ok(connection_guard) = ipc_connection.write() {
-            if let Some(mut stream) = connection_guard.socket_stream.as_ref() {
-                let uuid_bytes = uuid.as_bytes();
-                let len = (uuid_bytes.len() + serialized_data.len()) as u32;
+        if let Ok(stream) = self.socket_stream.lock() {
+            if let Some(mut stream) = stream.as_ref() {
+                let request_id_bytes = request_id.as_bytes();
+                let len = (request_id_bytes.len() + serialized_data.len()) as u32;
 
                 // First send length as u32 in little-endian.
                 stream.write_all(&len.to_le_bytes())?;
 
                 // Next send identifier as uuid bytes.
-                stream.write_all(uuid_bytes)?;
+                stream.write_all(request_id_bytes)?;
 
                 // Then send the actual data.
                 stream.write_all(&serialized_data)?;
@@ -171,29 +164,29 @@ impl InterProcessCommandPipe {
 
                 Ok(())
             } else {
-                Err(io::Error::new(io::ErrorKind::NotConnected, "No IPC connection established"))
+                Err(io::Error::new(io::ErrorKind::Other, "No stream set, failed to send data."))
             }
         } else {
-            Err(io::Error::new(io::ErrorKind::Other, "Failed to acquire connection lock"))
+            Err(io::Error::new(io::ErrorKind::Other, "Failed to acquire connection lock."))
         }
     }
 
     /// Receives a value of generic type `T` (which must implement `DeserializeOwned`) from the IPC connection.
-    fn ipc_receive<T: DeserializeOwned>(ipc_connection: &Arc<RwLock<InterProcessConnection>>) -> io::Result<(T, Uuid)> {
+    pub fn ipc_receive<T: DeserializeOwned>(&self) -> io::Result<(T, Uuid)> {
         // Acquire read lock on the connection
-        if let Ok(connection_guard) = ipc_connection.read() {
-            if let Some(mut stream) = connection_guard.socket_stream.as_ref() {
+        if let Ok(stream) = self.socket_stream.lock() {
+            if let Some(mut stream) = stream.as_ref() {
                 // First read the length (4 bytes).
                 let mut len_buf = [0u8; size_of::<u32>()];
                 stream.read_exact(&mut len_buf)?;
                 let total_len = u32::from_le_bytes(len_buf);
 
                 // Next read the uuid (16 bytes).
-                let mut uuid_buf = [0u8; size_of::<Uuid>()];
-                stream.read_exact(&mut uuid_buf)?;
-                let uuid = Uuid::from_bytes(uuid_buf);
+                let mut request_id_buf = [0u8; size_of::<Uuid>()];
+                stream.read_exact(&mut request_id_buf)?;
+                let request_id = Uuid::from_bytes(request_id_buf);
 
-                // Finally read the remaining data (total_len - uuid size).
+                // Finally read the remaining data (total_len - request_id size).
                 let data_len = total_len as usize - size_of::<Uuid>();
                 let mut data_buf = vec![0u8; data_len];
                 stream.read_exact(&mut data_buf)?;
@@ -202,9 +195,9 @@ impl InterProcessCommandPipe {
                 let value =
                     bincode::deserialize::<T>(&data_buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Deserialize error: {}", e)))?;
 
-                Ok((value, uuid))
+                Ok((value, request_id))
             } else {
-                Err(io::Error::new(io::ErrorKind::NotConnected, "No IPC connection established"))
+                Err(io::Error::new(io::ErrorKind::Other, "No stream set, failed to send data."))
             }
         } else {
             Err(io::Error::new(io::ErrorKind::Other, "Failed to acquire connection lock"))

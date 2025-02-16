@@ -102,10 +102,10 @@ impl SqualrEngine {
             callback(command.execute());
         } else {
             // For an inter-process engine (ie for Android), we dispatch the command to the priviliged root shell.
-            let ipc_uuid = Uuid::new_v4();
+            let request_id = Uuid::new_v4();
             if let Ok(mut request_handles) = Self::get_instance().request_handles.lock() {
-                request_handles.insert(ipc_uuid, Box::new(callback));
-                InterProcessUnprivilegedHost::get_instance().dispatch_command(command, ipc_uuid);
+                request_handles.insert(request_id, Box::new(callback));
+                InterProcessUnprivilegedHost::get_instance().dispatch_command(command, request_id);
             }
         }
     }
@@ -123,34 +123,34 @@ impl SqualrEngine {
 
     pub fn dispatch_response(
         response: EngineResponse,
-        uuid: Uuid,
+        request_id: Uuid,
     ) {
         let engine_mode = Self::get_instance().engine_mode;
 
         if engine_mode == EngineMode::Standalone {
             // For a standalone engine (the common case), we just immediately handle the response.
-            SqualrEngine::handle_response(response, uuid);
+            SqualrEngine::handle_response(response, request_id);
         } else {
             // For an inter-process engine (ie for Android), we dispatch the response back to the unprivileged host for handling.
-            InterProcessPrivilegedShell::get_instance().dispatch_response(response, uuid)
+            InterProcessPrivilegedShell::get_instance().dispatch_response(response, request_id)
         }
     }
 
     pub fn dispatch_response_async(
         response: EngineResponse,
-        uuid: Uuid,
+        request_id: Uuid,
     ) {
         std::thread::spawn(move || {
-            Self::dispatch_response(response, uuid);
+            Self::dispatch_response(response, request_id);
         });
     }
 
     pub fn handle_response(
         response: EngineResponse,
-        uuid: Uuid,
+        request_id: Uuid,
     ) {
         if let Ok(mut request_handles) = Self::get_instance().request_handles.lock() {
-            if let Some(callback) = request_handles.remove(&uuid) {
+            if let Some(callback) = request_handles.remove(&request_id) {
                 callback(response);
             }
         }

@@ -1,8 +1,6 @@
 use crate::commands::engine_command::EngineCommand;
-use crate::inter_process::inter_process_command_pipe::InterProcessCommandPipe;
-use crate::inter_process::inter_process_connection::InterProcessConnection;
-use crate::inter_process::inter_process_data_egress::InterProcessDataEgress::Response;
-use crate::inter_process::inter_process_data_ingress::InterProcessDataIngress;
+use crate::commands::engine_response::EngineResponse;
+use crate::inter_process::inter_process_pipe_bidirectional::InterProcessPipeBidirectional;
 use crate::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -17,8 +15,7 @@ use uuid::Uuid;
 
 pub struct InterProcessUnprivilegedHost {
     privileged_shell_process: Arc<RwLock<Option<Child>>>,
-    ipc_connection_ingress: Arc<RwLock<InterProcessConnection>>,
-    ipc_connection_egress: Arc<RwLock<InterProcessConnection>>,
+    ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>,
 }
 
 impl InterProcessUnprivilegedHost {
@@ -40,8 +37,7 @@ impl InterProcessUnprivilegedHost {
     fn new() -> InterProcessUnprivilegedHost {
         let instance = InterProcessUnprivilegedHost {
             privileged_shell_process: Arc::new(RwLock::new(None)),
-            ipc_connection_ingress: Arc::new(RwLock::new(InterProcessConnection::new())),
-            ipc_connection_egress: Arc::new(RwLock::new(InterProcessConnection::new())),
+            ipc_connection: Arc::new(RwLock::new(None)),
         };
 
         instance
@@ -51,27 +47,50 @@ impl InterProcessUnprivilegedHost {
         Logger::get_instance().log(LogLevel::Info, "Spawning squalr-cli privileged shell...", None);
 
         let privileged_shell_process = self.privileged_shell_process.clone();
-        let ipc_connection_ingress = self.ipc_connection_ingress.clone();
-        let ipc_connection_egress = self.ipc_connection_egress.clone();
+        let ipc_connection = self.ipc_connection.clone();
 
         thread::spawn(move || {
-            // Self::spawn_privileged_cli(privileged_shell_process);
-            Self::bind_to_inter_process_pipe(ipc_connection_ingress, true);
-            Self::bind_to_inter_process_pipe(ipc_connection_egress.clone(), false);
-            Self::listen_for_shell_events(ipc_connection_egress);
+            Self::spawn_privileged_cli(privileged_shell_process);
+            Self::bind_to_inter_process_pipe(ipc_connection.clone());
+            Self::listen_for_shell_events(ipc_connection);
         });
     }
 
     pub fn dispatch_command(
         &self,
         command: EngineCommand,
-        uuid: Uuid,
+        request_id: Uuid,
     ) {
-        let ingress = InterProcessDataIngress::Command(command);
-
-        if let Err(err) = InterProcessCommandPipe::ipc_send_to_shell(&self.ipc_connection_ingress, ingress, uuid) {
-            Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC command: {}", err), None);
+        if let Ok(ipc_connection) = self.ipc_connection.read() {
+            if let Some(ipc_connection) = ipc_connection.as_ref() {
+                if let Err(err) = ipc_connection.send(command, request_id) {
+                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to send IPC command: {}", err), None);
+                }
+            }
         }
+    }
+
+    fn listen_for_shell_events(ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>) {
+        thread::spawn(move || {
+            loop {
+                if let Ok(ipc_connection) = ipc_connection.read() {
+                    if let Some(ipc_connection) = ipc_connection.as_ref() {
+                        match ipc_connection.receive::<EngineResponse>() {
+                            Ok((engine_response, request_id)) => {
+                                Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
+                                SqualrEngine::handle_response(engine_response, request_id);
+                            }
+                            Err(err) => {
+                                Logger::get_instance().log(LogLevel::Error, &format!("Parent connection lost: {}. Shutting down.", err), None);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                }
+
+                thread::sleep(Duration::from_millis(1));
+            }
+        });
     }
 
     fn spawn_privileged_cli(privileged_shell_process: Arc<RwLock<Option<Child>>>) {
@@ -90,46 +109,17 @@ impl InterProcessUnprivilegedHost {
         }
     }
 
-    fn bind_to_inter_process_pipe(
-        ipc_connection: Arc<RwLock<InterProcessConnection>>,
-        is_ingress: bool,
-    ) {
-        match InterProcessCommandPipe::bind_to_inter_process_pipe(is_ingress) {
-            Ok(stream) => {
-                if let Ok(mut connection) = ipc_connection.write() {
-                    connection.set_socket_stream(stream);
-                } else {
-                    Logger::get_instance().log(LogLevel::Error, "Failed to acquire write lock on IPC connection.", None);
+    fn bind_to_inter_process_pipe(ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>) {
+        if let Ok(mut ipc_connection) = ipc_connection.write() {
+            match InterProcessPipeBidirectional::bind() {
+                Ok(bound_connection) => *ipc_connection = Some(bound_connection),
+                Err(err) => {
+                    Logger::get_instance().log(LogLevel::Error, &format!("Error creating bidirectional interprocess connection: {}", err), None);
                 }
             }
-            Err(err) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Error creating IPC manager: {}", err), None);
-            }
+        } else {
+            Logger::get_instance().log(LogLevel::Error, "Failed to acquire write lock on bidirectional interprocess connection.", None);
         }
-    }
-
-    fn listen_for_shell_events(ipc_connection_egress: Arc<RwLock<InterProcessConnection>>) {
-        thread::spawn(move || {
-            loop {
-                match InterProcessCommandPipe::ipc_receive_from_shell(&ipc_connection_egress) {
-                    Ok((data_egress, uuid)) => {
-                        Logger::get_instance().log(LogLevel::Info, "Dispatching IPC command...", None);
-                        match data_egress {
-                            Response(engine_response) => {
-                                SqualrEngine::handle_response(engine_response, uuid);
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        // If we get an error here that indicates the socket is closed, and the parent process is closed. Shutdown this worker/child process too.
-                        Logger::get_instance().log(LogLevel::Error, &format!("Parent connection lost: {}. Shutting down.", err), None);
-                        std::process::exit(1);
-                    }
-                }
-
-                thread::sleep(Duration::from_millis(1));
-            }
-        });
     }
 
     #[cfg(any(target_os = "android"))]

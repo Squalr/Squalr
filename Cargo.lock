@@ -4255,7 +4255,6 @@ dependencies = [
  "squalr-engine-memory",
  "squalr-engine-processes",
  "sysinfo 0.31.2",
- "uuid",
 ]
 
 [[package]]
