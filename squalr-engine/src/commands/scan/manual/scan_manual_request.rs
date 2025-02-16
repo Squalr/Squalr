@@ -1,7 +1,7 @@
 use crate::commands::engine_command::EngineCommand;
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::scan::manual::scan_manual_response::ScanManualResponse;
 use crate::commands::scan::scan_command::ScanCommand;
-use crate::commands::scan::scan_request::ScanRequest;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::squalr_engine::SqualrEngine;
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,7 @@ pub struct ScanManualRequest {
     pub compare_type: ScanCompareType,
 }
 
-impl ScanRequest for ScanManualRequest {
+impl EngineRequest for ScanManualRequest {
     type ResponseType = ScanManualResponse;
 
     fn execute(&self) -> Self::ResponseType {

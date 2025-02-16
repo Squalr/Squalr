@@ -1,7 +1,7 @@
 use crate::commands::engine_command::EngineCommand;
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::scan::hybrid::scan_hybrid_response::ScanHybridResponse;
 use crate::commands::scan::scan_command::ScanCommand;
-use crate::commands::scan::scan_request::ScanRequest;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::squalr_engine::SqualrEngine;
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,7 @@ pub struct ScanHybridRequest {
     pub compare_type: ScanCompareType,
 }
 
-impl ScanRequest for ScanHybridRequest {
+impl EngineRequest for ScanHybridRequest {
     type ResponseType = ScanHybridResponse;
 
     fn execute(&self) -> Self::ResponseType {

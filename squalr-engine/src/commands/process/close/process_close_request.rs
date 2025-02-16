@@ -1,7 +1,7 @@
 use crate::commands::engine_command::EngineCommand;
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::process::close::process_close_response::ProcessCloseResponse;
 use crate::commands::process::process_command::ProcessCommand;
-use crate::commands::process::process_request::ProcessRequest;
 use crate::commands::process::process_response::ProcessResponse;
 use crate::squalr_engine::SqualrEngine;
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProcessCloseRequest {}
 
-impl ProcessRequest for ProcessCloseRequest {
+impl EngineRequest for ProcessCloseRequest {
     type ResponseType = ProcessCloseResponse;
 
     fn execute(&self) -> Self::ResponseType {

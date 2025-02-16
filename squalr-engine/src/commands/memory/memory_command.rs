@@ -1,5 +1,5 @@
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::engine_response::{EngineResponse, TypedEngineResponse};
-use crate::commands::memory::memory_request::MemoryRequest;
 use crate::commands::memory::read::memory_read_request::MemoryReadRequest;
 use crate::commands::memory::write::memory_write_request::MemoryWriteRequest;
 use serde::{Deserialize, Serialize};

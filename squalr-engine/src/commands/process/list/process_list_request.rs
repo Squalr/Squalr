@@ -1,7 +1,7 @@
 use crate::commands::engine_command::EngineCommand;
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::process::list::process_list_response::ProcessListResponse;
 use crate::commands::process::process_command::ProcessCommand;
-use crate::commands::process::process_request::ProcessRequest;
 use crate::commands::process::process_response::ProcessResponse;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::log_level::LogLevel;
@@ -24,7 +24,7 @@ pub struct ProcessListRequest {
     pub fetch_icons: bool,
 }
 
-impl ProcessRequest for ProcessListRequest {
+impl EngineRequest for ProcessListRequest {
     type ResponseType = ProcessListResponse;
 
     fn execute(&self) -> Self::ResponseType {

@@ -1,8 +1,8 @@
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::engine_response::TypedEngineResponse;
 use crate::commands::process::list::process_list_request::ProcessListRequest;
 use crate::commands::process::listen::process_listen_request::ProcessListenRequest;
 use crate::commands::process::open::process_open_request::ProcessOpenRequest;
-use crate::commands::process::process_request::ProcessRequest;
 use crate::commands::{engine_response::EngineResponse, process::close::process_close_request::ProcessCloseRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;

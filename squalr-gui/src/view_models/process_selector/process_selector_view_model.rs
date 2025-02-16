@@ -8,9 +8,9 @@ use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
+use squalr_engine::commands::engine_request::EngineRequest;
 use squalr_engine::commands::process::list::process_list_request::ProcessListRequest;
 use squalr_engine::commands::process::open::process_open_request::ProcessOpenRequest;
-use squalr_engine::commands::process::process_request::ProcessRequest;
 use squalr_engine_processes::process_info::ProcessInfo;
 
 pub struct ProcessSelectorViewModel {

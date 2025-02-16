@@ -1,7 +1,7 @@
 use crate::commands::engine_command::EngineCommand;
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::process::open::process_open_response::ProcessOpenResponse;
 use crate::commands::process::process_command::ProcessCommand;
-use crate::commands::process::process_request::ProcessRequest;
 use crate::commands::process::process_response::ProcessResponse;
 use crate::squalr_engine::SqualrEngine;
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,7 @@ pub struct ProcessOpenRequest {
     pub match_case: bool,
 }
 
-impl ProcessRequest for ProcessOpenRequest {
+impl EngineRequest for ProcessOpenRequest {
     type ResponseType = ProcessOpenResponse;
 
     fn execute(&self) -> Self::ResponseType {

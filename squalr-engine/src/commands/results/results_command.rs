@@ -1,5 +1,5 @@
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::engine_response::TypedEngineResponse;
-use crate::commands::results::results_request::ResultsRequest;
 use crate::commands::{engine_response::EngineResponse, results::list::results_list_request::ResultsListRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;

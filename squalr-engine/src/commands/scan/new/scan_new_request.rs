@@ -1,5 +1,5 @@
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::scan::new::scan_new_response::ScanNewResponse;
-use crate::commands::scan::scan_request::ScanRequest;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::{engine_command::EngineCommand, scan::scan_command::ScanCommand};
 use crate::squalr_engine::SqualrEngine;
@@ -16,7 +16,7 @@ pub struct ScanNewRequest {
     pub scan_all_primitives: bool,
 }
 
-impl ScanRequest for ScanNewRequest {
+impl EngineRequest for ScanNewRequest {
     type ResponseType = ScanNewResponse;
 
     fn execute(&self) -> Self::ResponseType {

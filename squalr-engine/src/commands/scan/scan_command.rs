@@ -1,8 +1,8 @@
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::engine_response::TypedEngineResponse;
 use crate::commands::scan::hybrid::scan_hybrid_request::ScanHybridRequest;
 use crate::commands::scan::manual::scan_manual_request::ScanManualRequest;
 use crate::commands::scan::new::scan_new_request::ScanNewRequest;
-use crate::commands::scan::scan_request::ScanRequest;
 use crate::commands::{engine_response::EngineResponse, scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;

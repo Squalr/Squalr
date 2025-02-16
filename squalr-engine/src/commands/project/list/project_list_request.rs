@@ -1,5 +1,5 @@
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::project::project_command::ProjectCommand;
-use crate::commands::project::project_request::ProjectRequest;
 use crate::commands::project::project_response::ProjectResponse;
 use crate::commands::{engine_command::EngineCommand, project::list::project_list_response::ProjectListResponse};
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,7 @@ use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProjectListRequest {}
 
-impl ProjectRequest for ProjectListRequest {
+impl EngineRequest for ProjectListRequest {
     type ResponseType = ProjectListResponse;
 
     fn execute(&self) -> Self::ResponseType {

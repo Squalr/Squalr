@@ -1,7 +1,7 @@
 use crate::commands::engine_command::EngineCommand;
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::results::list::results_list_response::ResultsListResponse;
 use crate::commands::results::results_command::ResultsCommand;
-use crate::commands::results::results_request::ResultsRequest;
 use crate::commands::results::results_response::ResultsResponse;
 use crate::squalr_engine::SqualrEngine;
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,7 @@ pub struct ResultsListRequest {
     pub data_type: DataType,
 }
 
-impl ResultsRequest for ResultsListRequest {
+impl EngineRequest for ResultsListRequest {
     type ResponseType = ResultsListResponse;
 
     fn execute(&self) -> Self::ResponseType {

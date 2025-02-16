@@ -1,6 +1,6 @@
 use crate::commands::engine_command::EngineCommand;
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::memory::memory_command::MemoryCommand;
-use crate::commands::memory::memory_request::MemoryRequest;
 use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::memory::read::memory_read_response::MemoryReadResponse;
 use crate::squalr_engine::SqualrEngine;
@@ -22,7 +22,7 @@ pub struct MemoryReadRequest {
     pub value: DynamicStruct,
 }
 
-impl MemoryRequest for MemoryReadRequest {
+impl EngineRequest for MemoryReadRequest {
     type ResponseType = MemoryReadResponse;
 
     fn execute(&self) -> Self::ResponseType {
