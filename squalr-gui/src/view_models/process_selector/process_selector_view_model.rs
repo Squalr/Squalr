@@ -4,14 +4,20 @@ use crate::ProcessViewData;
 use crate::view_models::process_selector::process_info_comparer::ProcessInfoComparer;
 use crate::view_models::process_selector::process_info_converter::ProcessInfoConverter;
 use slint::ComponentHandle;
+use slint::Image;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_collection_binding::ViewCollectionBinding;
+use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::commands::engine_request::EngineRequest;
 use squalr_engine::commands::process::list::process_list_request::ProcessListRequest;
+use squalr_engine::commands::process::listen::process_listen_request::ProcessListenRequest;
 use squalr_engine::commands::process::open::process_open_request::ProcessOpenRequest;
+use squalr_engine_processes::process_info::OpenedProcessInfo;
 use squalr_engine_processes::process_info::ProcessInfo;
+
+use super::opened_process_info_converter::OpenedProcessInfoConverter;
 
 pub struct ProcessSelectorViewModel {
     _view_binding: ViewBinding<MainWindowView>,
@@ -48,7 +54,7 @@ impl ProcessSelectorViewModel {
             ProcessSelectorViewModelBindings => {
                 on_refresh_full_process_list() -> [full_process_list_collection] -> Self::on_refresh_full_process_list
                 on_refresh_windowed_process_list() -> [windowed_process_list_collection] -> Self::on_refresh_windowed_process_list
-                on_select_process(process_entry: ProcessViewData) -> [] -> Self::on_select_process
+                on_select_process(process_entry: ProcessViewData) -> [view_binding] -> Self::on_select_process
             }
         });
 
@@ -61,6 +67,28 @@ impl ProcessSelectorViewModel {
         &self,
         view_binding: ViewBinding<MainWindowView>,
     ) {
+        let process_listen_request = ProcessListenRequest {};
+        process_listen_request.send(move |process_listen_response| Self::refresh_opened_process(&view_binding, process_listen_response.opened_process_info));
+    }
+
+    fn refresh_opened_process(
+        view_binding: &ViewBinding<MainWindowView>,
+        process_info: Option<OpenedProcessInfo>,
+    ) {
+        view_binding.execute_on_ui_thread(move |main_window_view, _| {
+            let process_selector_bindings = main_window_view.global::<ProcessSelectorViewModelBindings>();
+
+            if let Some(process_info) = process_info {
+                process_selector_bindings.set_selected_process(OpenedProcessInfoConverter::new().convert_to_view_data(&process_info));
+            } else {
+                process_selector_bindings.set_selected_process(ProcessViewData {
+                    icon: Image::default(),
+                    name: "".into(),
+                    process_id: 0,
+                    process_id_str: "".into(),
+                });
+            }
+        });
     }
 
     fn on_refresh_full_process_list(full_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>) {
@@ -91,13 +119,16 @@ impl ProcessSelectorViewModel {
         });
     }
 
-    fn on_select_process(process_entry: ProcessViewData) {
+    fn on_select_process(
+        view_binding: ViewBinding<MainWindowView>,
+        process_entry: ProcessViewData,
+    ) {
         let open_process_command = ProcessOpenRequest {
             process_id: Some(process_entry.process_id as u32),
             search_name: None,
             match_case: false,
         };
 
-        open_process_command.send(|_process_open_response| {});
+        open_process_command.send(move |process_open_response| Self::refresh_opened_process(&view_binding, process_open_response.opened_process_info));
     }
 }

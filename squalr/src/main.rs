@@ -22,8 +22,8 @@ pub fn main() {
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {
         Ok(_) => {}
-        Err(e) => {
-            Logger::get_instance().log(LogLevel::Error, "Fatal error starting Squalr.", Some(e.to_string().as_str()));
+        Err(err) => {
+            Logger::get_instance().log(LogLevel::Error, "Fatal error starting Squalr.", Some(err.to_string().as_str()));
         }
     }
 }

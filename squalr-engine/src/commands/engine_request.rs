@@ -15,7 +15,7 @@ pub trait EngineRequest: Clone + Serialize + DeserializeOwned {
         &self,
         callback: F,
     ) where
-        F: FnOnce(Self::ResponseType) + Send + Sync + 'static,
+        F: Fn(Self::ResponseType) + Clone + Send + Sync + 'static,
         Self::ResponseType: TypedEngineResponse,
     {
         let command = self.clone().to_engine_command();

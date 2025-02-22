@@ -1,5 +1,3 @@
-#![feature(mpmc_channel)]
-
 pub mod models;
 pub mod view_models;
 
