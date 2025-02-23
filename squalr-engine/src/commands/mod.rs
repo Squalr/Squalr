@@ -1,5 +1,5 @@
-pub mod command_dispatcher;
 pub mod engine_command;
+pub mod engine_command_dispatcher;
 pub mod engine_request;
 pub mod engine_response;
 pub mod memory;

@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum InterprocessEgress<ResponseType> {
+pub enum InterprocessEgress<ResponseType, EventType> {
     EngineResponse(ResponseType),
+    EngineEvent(EventType),
 }
 
 pub trait TypedEngineResponse<ResponseType>: Sized {

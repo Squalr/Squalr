@@ -1,3 +1,5 @@
+use std::thread;
+
 use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
@@ -12,8 +14,9 @@ use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::commands::engine_request::EngineRequest;
 use squalr_engine::commands::process::list::process_list_request::ProcessListRequest;
-use squalr_engine::commands::process::listen::process_listen_request::ProcessListenRequest;
 use squalr_engine::commands::process::open::process_open_request::ProcessOpenRequest;
+use squalr_engine::events::engine_event::EngineEvent;
+use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
 use squalr_engine_processes::process_info::ProcessInfo;
 
@@ -67,8 +70,17 @@ impl ProcessSelectorViewModel {
         &self,
         view_binding: ViewBinding<MainWindowView>,
     ) {
-        let process_listen_request = ProcessListenRequest {};
-        process_listen_request.send(move |process_listen_response| Self::refresh_opened_process(&view_binding, process_listen_response.opened_process_info));
+        thread::spawn(move || {
+            let receiver = SqualrEngine::subscribe_to_engine_events();
+
+            while let Ok(engine_event) = receiver.recv() {
+                match engine_event {
+                    EngineEvent::Process(process_changed_event) => {
+                        Self::refresh_opened_process(&view_binding, process_changed_event.process_info);
+                    }
+                }
+            }
+        });
     }
 
     fn refresh_opened_process(

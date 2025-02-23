@@ -1,6 +1,12 @@
 use crate::commands::engine_response::EngineResponse;
-use crate::commands::{command_dispatcher::CommandDispatcher, engine_command::EngineCommand};
+use crate::commands::{engine_command::EngineCommand, engine_command_dispatcher::EngineCommandDispatcher};
 use crate::engine_mode::EngineMode;
+use crate::events::engine_event::EngineEvent;
+use crate::events::event_handler::EngineEventHandler;
+use crate::events::process::process_changed_event::ProcessChangedEvent;
+use crossbeam_channel::Receiver;
+use interprocess_shell::shell::inter_process_privileged_shell::InterProcessPrivilegedShell;
+use interprocess_shell::shell::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
 use squalr_engine_architecture::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::{process_info::OpenedProcessInfo, process_query::process_queryer::ProcessQuery};
@@ -19,7 +25,10 @@ pub struct SqualrEngine {
     engine_mode: EngineMode,
 
     /// The dispatcher that sends commands to the engine.
-    command_dispatcher: Arc<CommandDispatcher>,
+    command_dispatcher: Arc<EngineCommandDispatcher>,
+
+    /// The event handler for listening to events emitted from the engine.
+    event_handler: Arc<EngineEventHandler>,
 
     /// The process to which Squalr is attached.
     opened_process: RwLock<Option<OpenedProcessInfo>>,
@@ -30,9 +39,19 @@ pub struct SqualrEngine {
 
 impl SqualrEngine {
     fn new(engine_mode: EngineMode) -> Self {
+        let mut optional_host = None;
+        let mut optional_shell = None;
+
+        if engine_mode == EngineMode::UnprivilegedHost {
+            optional_host = Some(Arc::new(InterProcessUnprivilegedHost::new()));
+        } else if engine_mode == EngineMode::PrivilegedShell {
+            optional_shell = Some(Arc::new(InterProcessPrivilegedShell::new()));
+        }
+
         SqualrEngine {
             engine_mode,
-            command_dispatcher: Arc::new(CommandDispatcher::new(engine_mode)),
+            command_dispatcher: Arc::new(EngineCommandDispatcher::new(optional_host)),
+            event_handler: Arc::new(EngineEventHandler::new(optional_shell)),
             opened_process: RwLock::new(None),
             snapshot: Arc::new(RwLock::new(Snapshot::new(vec![]))),
         }
@@ -92,6 +111,16 @@ impl SqualrEngine {
             .dispatch_command(command, callback)
     }
 
+    /// Emits an event from the engine. Direct usage is not advised except by the engine code itself.
+    pub fn subscribe_to_engine_events() -> Receiver<EngineEvent> {
+        Self::get_instance().event_handler.subscribe()
+    }
+
+    /// Emits an event from the engine. Direct usage is not advised except by the engine code itself.
+    pub fn emit_event(event: EngineEvent) {
+        Self::get_instance().event_handler.emit_event(event);
+    }
+
     pub fn set_opened_process(process_info: OpenedProcessInfo) {
         if let Ok(mut process) = Self::get_instance().opened_process.write() {
             Logger::get_instance().log(
@@ -100,12 +129,17 @@ impl SqualrEngine {
                 None,
             );
             *process = Some(process_info.clone());
+
+            Self::emit_event(EngineEvent::Process(ProcessChangedEvent {
+                process_info: Some(process_info),
+            }));
         }
     }
 
     pub fn clear_opened_process() {
         if let Ok(mut process) = Self::get_instance().opened_process.write() {
             *process = None;
+            Self::emit_event(EngineEvent::Process(ProcessChangedEvent { process_info: None }));
             Logger::get_instance().log(LogLevel::Info, "Process closed", None);
         }
     }

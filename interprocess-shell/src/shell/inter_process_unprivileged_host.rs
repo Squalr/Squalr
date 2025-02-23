@@ -18,18 +18,22 @@ use uuid::Uuid;
 pub struct InterProcessUnprivilegedHost<
     RequestType: ExecutableRequest<ResponseType> + DeserializeOwned + Serialize,
     ResponseType: DeserializeOwned + Serialize + 'static,
+    EventType: DeserializeOwned + Serialize + 'static,
 > {
     privileged_shell_process: Arc<RwLock<Option<Child>>>,
     ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>,
     /// A map of outgoing requests that are awaiting an engine response.
-    request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(InterprocessEgress<ResponseType>) + Send + Sync>>>>,
+    request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(InterprocessEgress<ResponseType, EventType>) + Send + Sync>>>>,
     _phantom: PhantomData<RequestType>,
 }
 
-impl<RequestType: ExecutableRequest<ResponseType> + DeserializeOwned + Serialize, ResponseType: DeserializeOwned + Serialize>
-    InterProcessUnprivilegedHost<RequestType, ResponseType>
+impl<
+        RequestType: ExecutableRequest<ResponseType> + DeserializeOwned + Serialize,
+        ResponseType: DeserializeOwned + Serialize,
+        EventType: DeserializeOwned + Serialize,
+    > InterProcessUnprivilegedHost<RequestType, ResponseType, EventType>
 {
-    pub fn new() -> InterProcessUnprivilegedHost<RequestType, ResponseType> {
+    pub fn new() -> InterProcessUnprivilegedHost<RequestType, ResponseType, EventType> {
         let instance = InterProcessUnprivilegedHost {
             privileged_shell_process: Arc::new(RwLock::new(None)),
             ipc_connection: Arc::new(RwLock::new(None)),
@@ -37,17 +41,19 @@ impl<RequestType: ExecutableRequest<ResponseType> + DeserializeOwned + Serialize
             _phantom: PhantomData,
         };
 
+        instance.initialize();
+
         instance
     }
 
-    pub fn initialize(&self) {
+    fn initialize(&self) {
         let privileged_shell_process = self.privileged_shell_process.clone();
         let ipc_connection = self.ipc_connection.clone();
         let request_handles = self.request_handles.clone();
 
         thread::spawn(move || {
-            Self::spawn_privileged_cli(privileged_shell_process);
-            Self::bind_to_inter_process_pipe(ipc_connection.clone());
+            let _ = Self::spawn_privileged_cli(privileged_shell_process);
+            let _ = Self::bind_to_inter_process_pipe(ipc_connection.clone());
             Self::listen_for_shell_responses(request_handles, ipc_connection);
         });
     }
@@ -58,9 +64,8 @@ impl<RequestType: ExecutableRequest<ResponseType> + DeserializeOwned + Serialize
         callback: F,
     ) -> io::Result<()>
     where
-        F: FnOnce(InterprocessEgress<ResponseType>) + Send + Sync + 'static,
+        F: FnOnce(InterprocessEgress<ResponseType, EventType>) + Send + Sync + 'static,
     {
-        // For an inter-process engine (ie for Android), we dispatch the command to the priviliged root shell.
         let request_id = Uuid::new_v4();
 
         if let Ok(mut request_handles) = self.request_handles.lock() {
@@ -81,8 +86,8 @@ impl<RequestType: ExecutableRequest<ResponseType> + DeserializeOwned + Serialize
     }
 
     fn handle_command_response(
-        request_handles: &Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(InterprocessEgress<ResponseType>) + Send + Sync>>>>,
-        engine_response: InterprocessEgress<ResponseType>,
+        request_handles: &Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(InterprocessEgress<ResponseType, EventType>) + Send + Sync>>>>,
+        engine_response: InterprocessEgress<ResponseType, EventType>,
         request_id: Uuid,
     ) {
         if let Ok(mut request_handles) = request_handles.lock() {
@@ -93,7 +98,7 @@ impl<RequestType: ExecutableRequest<ResponseType> + DeserializeOwned + Serialize
     }
 
     fn listen_for_shell_responses(
-        request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(InterprocessEgress<ResponseType>) + Send + Sync>>>>,
+        request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(InterprocessEgress<ResponseType, EventType>) + Send + Sync>>>>,
         ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>,
     ) {
         let request_handles = request_handles.clone();
@@ -101,7 +106,7 @@ impl<RequestType: ExecutableRequest<ResponseType> + DeserializeOwned + Serialize
         thread::spawn(move || loop {
             if let Ok(ipc_connection) = ipc_connection.read() {
                 if let Some(ipc_connection) = ipc_connection.as_ref() {
-                    match ipc_connection.receive::<InterprocessEgress<ResponseType>>() {
+                    match ipc_connection.receive::<InterprocessEgress<ResponseType, EventType>>() {
                         Ok((engine_response, request_id)) => {
                             Self::handle_command_response(&request_handles, engine_response, request_id);
                         }

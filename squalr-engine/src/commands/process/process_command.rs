@@ -1,7 +1,6 @@
 use crate::commands::engine_request::EngineRequest;
 use crate::commands::engine_response::TypedEngineResponse;
 use crate::commands::process::list::process_list_request::ProcessListRequest;
-use crate::commands::process::listen::process_listen_request::ProcessListenRequest;
 use crate::commands::process::open::process_open_request::ProcessOpenRequest;
 use crate::commands::{engine_response::EngineResponse, process::close::process_close_request::ProcessCloseRequest};
 use serde::{Deserialize, Serialize};
@@ -21,10 +20,6 @@ pub enum ProcessCommand {
         #[structopt(flatten)]
         process_close_request: ProcessCloseRequest,
     },
-    Listen {
-        #[structopt(flatten)]
-        process_listen_request: ProcessListenRequest,
-    },
 }
 
 impl ProcessCommand {
@@ -33,7 +28,6 @@ impl ProcessCommand {
             ProcessCommand::Open { process_open_request } => process_open_request.execute().to_engine_response(),
             ProcessCommand::List { process_list_request } => process_list_request.execute().to_engine_response(),
             ProcessCommand::Close { process_close_request } => process_close_request.execute().to_engine_response(),
-            ProcessCommand::Listen { process_listen_request } => process_listen_request.execute().to_engine_response(),
         }
     }
 }
