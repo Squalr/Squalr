@@ -1,8 +1,7 @@
-use crate::commands::engine_command::EngineCommand;
 use crate::commands::settings::list::settings_list_response::SettingsListResponse;
 use crate::commands::settings::settings_command::SettingsCommand;
-use crate::commands::settings::settings_request::SettingsRequest;
 use crate::commands::settings::settings_response::SettingsResponse;
+use crate::commands::{engine_command::EngineCommand, engine_request::EngineRequest};
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_memory::memory_settings::MemorySettings;
@@ -19,7 +18,7 @@ pub struct SettingsListRequest {
     list_all: bool,
 }
 
-impl SettingsRequest for SettingsListRequest {
+impl EngineRequest for SettingsListRequest {
     type ResponseType = SettingsListResponse;
 
     fn execute(&self) -> Self::ResponseType {

@@ -1,4 +1,6 @@
-use crate::{command_dispatchers::command_dispatcher::CommandDispatcher, engine_mode::EngineMode};
+use crate::commands::engine_response::EngineResponse;
+use crate::commands::{command_dispatcher::CommandDispatcher, engine_command::EngineCommand};
+use crate::engine_mode::EngineMode;
 use squalr_engine_architecture::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::{process_info::OpenedProcessInfo, process_query::process_queryer::ProcessQuery};
@@ -16,6 +18,9 @@ pub struct SqualrEngine {
     /// - Privileged shell returns data via ipc. Used on platforms like Android.
     engine_mode: EngineMode,
 
+    /// The dispatcher that sends commands to the engine.
+    command_dispatcher: Arc<CommandDispatcher>,
+
     /// The process to which Squalr is attached.
     opened_process: RwLock<Option<OpenedProcessInfo>>,
 
@@ -25,11 +30,9 @@ pub struct SqualrEngine {
 
 impl SqualrEngine {
     fn new(engine_mode: EngineMode) -> Self {
-        // Initialize the command dispatcher, which handles routing and executing all engine commands.
-        CommandDispatcher::initialize(engine_mode);
-
         SqualrEngine {
             engine_mode,
+            command_dispatcher: Arc::new(CommandDispatcher::new(engine_mode)),
             opened_process: RwLock::new(None),
             snapshot: Arc::new(RwLock::new(Snapshot::new(vec![]))),
         }
@@ -73,6 +76,20 @@ impl SqualrEngine {
 
     pub fn get_engine_mode() -> EngineMode {
         Self::get_instance().engine_mode
+    }
+
+    /// Dispatches a command to the engine. Direct usage is generally not advised unless you know what you are doing.
+    /// Instead, create `{Command}Request` instances and call `.send()` directly on them.
+    /// This is only made public to support direct usage by CLIs and other features that need direct access.
+    pub fn dispatch_command<F>(
+        command: EngineCommand,
+        callback: F,
+    ) where
+        F: FnOnce(EngineResponse) + Send + Sync + 'static,
+    {
+        Self::get_instance()
+            .command_dispatcher
+            .dispatch_command(command, callback)
     }
 
     pub fn set_opened_process(process_info: OpenedProcessInfo) {

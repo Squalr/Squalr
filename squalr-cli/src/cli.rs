@@ -1,12 +1,11 @@
-use squalr_engine::command_dispatchers::command_dispatcher::CommandDispatcher;
+use crate::response_handlers::handle_engine_response;
 use squalr_engine::commands::engine_command::EngineCommand;
+use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use std::io;
 use std::io::Write;
 use structopt::StructOpt;
-
-use crate::response_handlers::handle_engine_response;
 
 pub struct Cli {}
 
@@ -63,7 +62,7 @@ impl Cli {
             }
         };
 
-        CommandDispatcher::dispatch_command(engine_command, |engine_command| {
+        SqualrEngine::dispatch_command(engine_command, |engine_command| {
             handle_engine_response(engine_command);
         });
 

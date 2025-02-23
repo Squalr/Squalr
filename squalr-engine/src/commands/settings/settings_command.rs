@@ -1,6 +1,6 @@
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::engine_response::TypedEngineResponse;
 use crate::commands::settings::set::settings_set_request::SettingsSetRequest;
-use crate::commands::settings::settings_request::SettingsRequest;
 use crate::commands::{engine_response::EngineResponse, settings::list::settings_list_request::SettingsListRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;

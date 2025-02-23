@@ -1,4 +1,2 @@
 pub mod inter_process_pipe_bidirectional;
 pub mod inter_process_pipe_unidirectional;
-pub mod inter_process_privileged_shell;
-pub mod inter_process_unprivileged_host;

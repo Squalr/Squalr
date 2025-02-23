@@ -1,5 +1,5 @@
+use crate::commands::engine_request::EngineRequest;
 use crate::commands::settings::settings_command::SettingsCommand;
-use crate::commands::settings::settings_request::SettingsRequest;
 use crate::commands::settings::settings_response::SettingsResponse;
 use crate::commands::{engine_command::EngineCommand, settings::set::settings_set_response::SettingsSetResponse};
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,7 @@ pub struct SettingsSetRequest {
     setting_command: String,
 }
 
-impl SettingsRequest for SettingsSetRequest {
+impl EngineRequest for SettingsSetRequest {
     type ResponseType = SettingsSetResponse;
 
     fn execute(&self) -> Self::ResponseType {

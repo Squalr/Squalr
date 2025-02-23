@@ -1,12 +1,10 @@
-use interprocess::local_socket::ListenerOptions;
-use interprocess::local_socket::Name;
 use interprocess::local_socket::prelude::LocalSocketStream;
 use interprocess::local_socket::traits::ListenerExt;
 use interprocess::local_socket::traits::Stream;
-use serde::Serialize;
+use interprocess::local_socket::ListenerOptions;
+use interprocess::local_socket::Name;
 use serde::de::DeserializeOwned;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
+use serde::Serialize;
 use std::io;
 use std::io::Read;
 use std::io::Write;
@@ -28,18 +26,18 @@ use interprocess::local_socket::GenericNamespaced as NamedPipeType;
 use interprocess::os::windows::local_socket::NamedPipe as NamedPipeType;
 
 #[cfg(windows)]
-const IPC_SOCKET_PATH_TO_SHELL: &str = "\\\\.\\pipe\\squalr-ipc-to-shell";
+const IPC_SOCKET_PATH_TO_SHELL: &str = "\\\\.\\pipe\\interprocess-shell-to-shell";
 #[cfg(all(not(windows), not(target_os = "android")))]
-const IPC_SOCKET_PATH_TO_SHELL: &str = "/tmp/squalr-ipc-to-shell.sock";
+const IPC_SOCKET_PATH_TO_SHELL: &str = "/tmp/interprocess-shell-to-shell.sock";
 #[cfg(target_os = "android")]
-const IPC_SOCKET_PATH_TO_SHELL: &str = "squalr-ipc-to-shell";
+const IPC_SOCKET_PATH_TO_SHELL: &str = "interprocess-shell-to-shell";
 
 #[cfg(windows)]
-const IPC_SOCKET_PATH_OUTBOND: &str = "\\\\.\\pipe\\squalr-ipc-from-shell";
+const IPC_SOCKET_PATH_OUTBOND: &str = "\\\\.\\pipe\\interprocess-shell-from-shell";
 #[cfg(all(not(windows), not(target_os = "android")))]
-const IPC_SOCKET_PATH_OUTBOND: &str = "/tmp/squalr-ipc-from-shell.sock";
+const IPC_SOCKET_PATH_OUTBOND: &str = "/tmp/interprocess-shell-from-shell.sock";
 #[cfg(target_os = "android")]
-const IPC_SOCKET_PATH_OUTBOND: &str = "squalr-ipc-from-shell";
+const IPC_SOCKET_PATH_OUTBOND: &str = "interprocess-shell-from-shell";
 
 pub struct InterProcessPipeUnidirectional {
     socket_stream: Arc<Mutex<Option<LocalSocketStream>>>,
@@ -83,12 +81,8 @@ impl InterProcessPipeUnidirectional {
         #[cfg(target_os = "android")]
         let name: Name<'_> = ipc_socket_path.to_ns_name::<NamedPipeType>()?;
 
-        Logger::get_instance().log(LogLevel::Info, "Creating listener...", None);
-
         // Create the listener using ListenerOptions
         let listener = ListenerOptions::new().name(name).create_sync()?;
-
-        Logger::get_instance().log(LogLevel::Info, &format!("Manager: listening on {}", ipc_socket_path), None);
 
         // Accept one connection
         let stream = match listener.incoming().next() {
@@ -96,8 +90,6 @@ impl InterProcessPipeUnidirectional {
             Some(Err(e)) => return Err(e),
             None => return Err(io::Error::new(io::ErrorKind::Other, "Manager: no connection arrived.")),
         };
-
-        Logger::get_instance().log(LogLevel::Info, "Manager accepted a connection from worker", None);
 
         Ok(stream)
     }
@@ -113,23 +105,13 @@ impl InterProcessPipeUnidirectional {
         #[cfg(target_os = "android")]
         let name: Name<'_> = ipc_socket_path.to_ns_name::<NamedPipeType>()?;
 
-        for attempt in 1..=MAX_RETRIES {
+        for _attempt in 1..=MAX_RETRIES {
             thread::sleep(retry_delay);
             match LocalSocketStream::connect(name.clone()) {
                 Ok(stream) => {
-                    Logger::get_instance().log(LogLevel::Info, "Squalr successfully connected to privileged local server!", None);
                     return Ok(stream);
                 }
-                Err(err) => {
-                    Logger::get_instance().log(
-                        LogLevel::Info,
-                        &format!(
-                            "Squalr privileged local server connection failed, attempt {}/{}. Inbound: {} Error: {}. Retrying...",
-                            attempt, MAX_RETRIES, to_shell, err
-                        ),
-                        None,
-                    );
-                }
+                _ => {}
             }
         }
 

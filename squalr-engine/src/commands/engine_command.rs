@@ -5,6 +5,7 @@ use crate::commands::project::project_command::ProjectCommand;
 use crate::commands::results::results_command::ResultsCommand;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::settings::settings_command::SettingsCommand;
+use interprocess_shell::interprocess_ingress::ExecutableRequest;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -29,8 +30,8 @@ pub enum EngineCommand {
     Settings(SettingsCommand),
 }
 
-impl EngineCommand {
-    pub fn execute(&self) -> EngineResponse {
+impl ExecutableRequest<EngineResponse> for EngineCommand {
+    fn execute(&self) -> EngineResponse {
         match self {
             EngineCommand::Memory(command) => command.execute(),
             EngineCommand::Process(command) => command.execute(),

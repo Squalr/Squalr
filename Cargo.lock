@@ -2235,6 +2235,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "interprocess-shell"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "interprocess",
+ "log",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "io-lifetimes"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2527,9 +2538,9 @@ checksum = "9374ef4228402d4b7e403e5838cb880d9ee663314b0a900d5a6aabf0c213552e"
 
 [[package]]
 name = "log"
-version = "0.4.22"
+version = "0.4.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
+checksum = "30bde2b3dc3671ae49d8e2e9f044c7c005836e7a023ee57cffa25ab82764bb9e"
 
 [[package]]
 name = "loop9"
@@ -4152,8 +4163,7 @@ dependencies = [
 name = "squalr-engine"
 version = "0.1.0"
 dependencies = [
- "bincode",
- "interprocess",
+ "interprocess-shell",
  "serde",
  "squalr-engine-architecture",
  "squalr-engine-common",
@@ -4164,7 +4174,6 @@ dependencies = [
  "squalr-engine-scripting",
  "structopt",
  "sysinfo 0.31.2",
- "uuid",
 ]
 
 [[package]]
