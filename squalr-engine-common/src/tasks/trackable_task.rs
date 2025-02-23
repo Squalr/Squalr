@@ -1,3 +1,4 @@
+use crate::tasks::trackable_task_handle::TrackableTaskHandle;
 use crossbeam_channel::{Receiver, Sender};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -22,7 +23,7 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
         let task_identifier = task_identifier.unwrap_or_else(|| Uuid::new_v4().to_string());
         let (progress_sender, progress_receiver) = crossbeam_channel::unbounded();
 
-        let task = TrackableTask {
+        let task = Arc::new(TrackableTask {
             name,
             progress: Arc::new(Mutex::new(0.0)),
             task_identifier,
@@ -31,12 +32,21 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
             result: Arc::new((Mutex::new(None), Condvar::new())),
             progress_sender,
             progress_receiver,
-        };
+        });
 
-        Arc::new(task)
+        task
     }
 
-    pub fn get_progress(self: &Arc<Self>) -> f32 {
+    pub fn get_task_handle(&self) -> TrackableTaskHandle {
+        TrackableTaskHandle {
+            name: self.get_name().clone(),
+            progress: self.get_progress(),
+            task_identifier: self.get_task_identifier(),
+            cancellation_token: self.get_cancellation_token().clone(),
+        }
+    }
+
+    pub fn get_progress(&self) -> f32 {
         if let Ok(progress_guard) = self.progress.lock() {
             *progress_guard
         } else {
@@ -45,13 +55,17 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
     }
 
     pub fn set_progress(
-        self: &Arc<Self>,
+        &self,
         progress: f32,
     ) {
         if let Ok(mut progress_guard) = self.progress.lock() {
             *progress_guard = progress;
             let _ = self.progress_sender.send(progress);
         }
+    }
+
+    pub fn subscribe_to_progress_updates(&self) -> Receiver<f32> {
+        self.progress_receiver.clone()
     }
 
     pub fn get_name(&self) -> String {
@@ -73,55 +87,44 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
         self.is_canceled.clone()
     }
 
-    pub fn set_canceled(
-        self: &Arc<Self>,
-        value: bool,
-    ) {
-        self.is_canceled.store(value, Ordering::SeqCst);
-    }
-
     pub fn is_completed(&self) -> bool {
         self.is_completed.load(Ordering::SeqCst)
     }
 
-    pub fn set_completed(
-        self: &Arc<Self>,
-        value: bool,
-    ) {
-        self.is_completed.store(value, Ordering::SeqCst);
-    }
-
-    pub fn cancel(self: &Arc<Self>) {
-        self.set_canceled(true);
+    pub fn cancel(&self) {
+        self.is_canceled.store(true, Ordering::SeqCst);
     }
 
     pub fn complete(
-        self: &Arc<Self>,
+        &self,
         result: ResultType,
     ) {
-        self.set_completed(true);
+        self.is_completed.store(true, Ordering::SeqCst);
 
-        let (result_lock, cvar) = &*self.result;
-        let mut result_guard = result_lock.lock().unwrap();
-        *result_guard = Some(result);
+        if let Ok((result_lock, cvar)) = Arc::try_unwrap(self.result.clone()) {
+            if let Ok(mut result_guard) = result_lock.lock() {
+                *result_guard = Some(result);
 
-        // Notify all waiting threads that the result is available.
-        cvar.notify_all();
+                // Notify all waiting threads that the result is available.
+                cvar.notify_all();
+            }
+        }
     }
 
-    pub fn wait_for_completion(self: Arc<Self>) -> ResultType {
+    pub fn wait_for_completion(&self) -> Option<ResultType> {
         let (result_lock, cvar) = &*self.result;
-        let mut result_guard = result_lock.lock().unwrap();
+        let mut result_guard = match result_lock.lock() {
+            Ok(guard) => guard,
+            Err(_) => return None,
+        };
 
-        // Wait until the result is available.
         while result_guard.is_none() {
-            result_guard = cvar.wait(result_guard).unwrap();
+            result_guard = match cvar.wait(result_guard) {
+                Ok(guard) => guard,
+                Err(_) => return None,
+            };
         }
 
-        result_guard.take().unwrap()
-    }
-
-    pub fn subscribe_to_progress_updates(&self) -> Receiver<f32> {
-        self.progress_receiver.clone()
+        result_guard.take()
     }
 }

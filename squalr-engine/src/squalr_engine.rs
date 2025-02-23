@@ -4,11 +4,13 @@ use crate::engine_mode::EngineMode;
 use crate::events::engine_event::EngineEvent;
 use crate::events::event_handler::EngineEventHandler;
 use crate::events::process::process_changed_event::ProcessChangedEvent;
+use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
 use interprocess_shell::shell::inter_process_privileged_shell::InterProcessPrivilegedShell;
 use interprocess_shell::shell::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
 use squalr_engine_architecture::vectors;
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
+use squalr_engine_common::tasks::trackable_task_handle::TrackableTaskHandle;
 use squalr_engine_processes::{process_info::OpenedProcessInfo, process_query::process_queryer::ProcessQuery};
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
 use std::sync::{Arc, Once, RwLock};
@@ -25,10 +27,13 @@ pub struct SqualrEngine {
     engine_mode: EngineMode,
 
     /// The dispatcher that sends commands to the engine.
-    command_dispatcher: Arc<EngineCommandDispatcher>,
+    command_dispatcher: EngineCommandDispatcher,
 
     /// The event handler for listening to events emitted from the engine.
-    event_handler: Arc<EngineEventHandler>,
+    event_handler: EngineEventHandler,
+
+    /// The manager that tracks all running engine tasks.
+    task_manager: TrackableTaskManager,
 
     /// The process to which Squalr is attached.
     opened_process: RwLock<Option<OpenedProcessInfo>>,
@@ -50,8 +55,9 @@ impl SqualrEngine {
 
         SqualrEngine {
             engine_mode,
-            command_dispatcher: Arc::new(EngineCommandDispatcher::new(optional_host)),
-            event_handler: Arc::new(EngineEventHandler::new(optional_shell)),
+            command_dispatcher: EngineCommandDispatcher::new(optional_host),
+            event_handler: EngineEventHandler::new(optional_shell),
+            task_manager: TrackableTaskManager::new(),
             opened_process: RwLock::new(None),
             snapshot: Arc::new(RwLock::new(Snapshot::new(vec![]))),
         }
@@ -119,6 +125,18 @@ impl SqualrEngine {
     /// Emits an event from the engine. Direct usage is not advised except by the engine code itself.
     pub fn emit_event(event: EngineEvent) {
         Self::get_instance().event_handler.emit_event(event);
+    }
+
+    pub fn register_task(trackable_task_handle: TrackableTaskHandle) {
+        Self::get_instance()
+            .task_manager
+            .register_task(trackable_task_handle);
+    }
+
+    pub fn unregister_task(task_identifier: &String) {
+        Self::get_instance()
+            .task_manager
+            .unregister_task(task_identifier);
     }
 
     pub fn set_opened_process(process_info: OpenedProcessInfo) {

@@ -37,6 +37,8 @@ impl EngineRequest for ScanManualRequest {
             // Perform the manual scan on the collected memory.
             let task = ManualScanner::scan(snapshot, &scan_parameters, None, true);
 
+            SqualrEngine::register_task(task.get_task_handle());
+
             // Spawn a thread to listen to progress updates
             let progress_receiver = task.subscribe_to_progress_updates();
             thread::spawn(move || {
@@ -47,6 +49,8 @@ impl EngineRequest for ScanManualRequest {
 
             // Wait for completion synchronously
             task.wait_for_completion();
+
+            SqualrEngine::unregister_task(&task.get_task_identifier());
         } else {
             Logger::get_instance().log(LogLevel::Info, "No opened process", None);
         }
