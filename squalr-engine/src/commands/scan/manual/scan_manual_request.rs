@@ -32,12 +32,14 @@ impl EngineRequest for ScanManualRequest {
             let scan_parameters = ScanParameters::new_with_value(self.compare_type.to_owned(), self.scan_value.to_owned());
 
             // First collect values before the manual scan.
+            // TODO: This should not be blocking.
             ValueCollector::collect_values(process_info.clone(), snapshot.clone(), None, true).wait_for_completion();
 
             // Perform the manual scan on the collected memory.
             let task = ManualScanner::scan(snapshot, &scan_parameters, None, true);
+            let task_handle = task.get_task_handle();
 
-            SqualrEngine::register_task(task.get_task_handle());
+            SqualrEngine::register_task(task_handle.clone());
 
             // Spawn a thread to listen to progress updates
             let progress_receiver = task.subscribe_to_progress_updates();
@@ -47,15 +49,18 @@ impl EngineRequest for ScanManualRequest {
                 }
             });
 
-            // Wait for completion synchronously
-            task.wait_for_completion();
+            thread::spawn(move || {
+                task.wait_for_completion();
+                SqualrEngine::unregister_task(&task.get_task_identifier());
+            });
 
-            SqualrEngine::unregister_task(&task.get_task_identifier());
+            ScanManualResponse {
+                trackable_task_handle: Some(task_handle),
+            }
         } else {
             Logger::get_instance().log(LogLevel::Info, "No opened process", None);
+            ScanManualResponse { trackable_task_handle: None }
         }
-
-        ScanManualResponse {}
     }
 
     fn to_engine_command(&self) -> EngineCommand {

@@ -21,8 +21,9 @@ impl EngineRequest for ScanCollectValuesRequest {
         if let Some(process_info) = SqualrEngine::get_opened_process() {
             let snapshot = SqualrEngine::get_snapshot();
             let task = ValueCollector::collect_values(process_info.clone(), snapshot, None, true);
+            let task_handle = task.get_task_handle();
 
-            SqualrEngine::register_task(task.get_task_handle());
+            SqualrEngine::register_task(task_handle.clone());
 
             // Spawn a thread to listen to progress updates
             let progress_receiver = task.subscribe_to_progress_updates();
@@ -32,15 +33,18 @@ impl EngineRequest for ScanCollectValuesRequest {
                 }
             });
 
-            // Wait for completion synchronously
-            task.wait_for_completion();
+            thread::spawn(move || {
+                task.wait_for_completion();
+                SqualrEngine::unregister_task(&task.get_task_identifier());
+            });
 
-            SqualrEngine::unregister_task(&task.get_task_identifier());
+            ScanCollectValuesResponse {
+                trackable_task_handle: Some(task_handle),
+            }
         } else {
             Logger::get_instance().log(LogLevel::Info, "No opened process", None);
+            ScanCollectValuesResponse { trackable_task_handle: None }
         }
-
-        ScanCollectValuesResponse {}
     }
 
     fn to_engine_command(&self) -> EngineCommand {

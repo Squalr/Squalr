@@ -32,8 +32,9 @@ impl EngineRequest for ScanHybridRequest {
 
             // Perform the hybrid scan which simultaneously collects and scans memory.
             let task = HybridScanner::scan(process_info.clone(), snapshot, &scan_parameters, None, true);
+            let task_handle = task.get_task_handle();
 
-            SqualrEngine::register_task(task.get_task_handle());
+            SqualrEngine::register_task(task_handle.clone());
 
             // Spawn a thread to listen to progress updates
             let progress_receiver = task.subscribe_to_progress_updates();
@@ -43,15 +44,18 @@ impl EngineRequest for ScanHybridRequest {
                 }
             });
 
-            // Wait for completion synchronously
-            task.wait_for_completion();
+            thread::spawn(move || {
+                task.wait_for_completion();
+                SqualrEngine::unregister_task(&task.get_task_identifier());
+            });
 
-            SqualrEngine::unregister_task(&task.get_task_identifier());
+            ScanHybridResponse {
+                trackable_task_handle: Some(task_handle),
+            }
         } else {
             Logger::get_instance().log(LogLevel::Info, "No opened process", None);
+            ScanHybridResponse { trackable_task_handle: None }
         }
-
-        ScanHybridResponse {}
     }
 
     fn to_engine_command(&self) -> EngineCommand {
