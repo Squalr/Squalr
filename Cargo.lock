@@ -4197,6 +4197,7 @@ dependencies = [
 name = "squalr-engine-common"
 version = "0.1.0"
 dependencies = [
+ "crossbeam-channel",
  "futures",
  "hex",
  "rayon",

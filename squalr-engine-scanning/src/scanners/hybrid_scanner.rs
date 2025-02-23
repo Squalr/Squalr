@@ -9,7 +9,7 @@ use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Instant;
@@ -30,19 +30,11 @@ impl HybridScanner {
         with_logging: bool,
     ) -> Arc<TrackableTask<()>> {
         let task = TrackableTask::<()>::create(HybridScanner::NAME.to_string(), task_identifier);
-
         let task_clone = task.clone();
         let scan_parameters_clone = scan_parameters.clone();
 
         thread::spawn(move || {
-            Self::scan_task(
-                &process_info,
-                snapshot,
-                &scan_parameters_clone,
-                task_clone.clone(),
-                task_clone.get_cancellation_token().clone(),
-                with_logging,
-            );
+            Self::scan_task(&process_info, snapshot, &scan_parameters_clone, task_clone.clone(), with_logging);
 
             task_clone.complete(());
         });
@@ -55,13 +47,13 @@ impl HybridScanner {
         snapshot: Arc<RwLock<Snapshot>>,
         scan_parameters: &ScanParameters,
         task: Arc<TrackableTask<()>>,
-        cancellation_token: Arc<AtomicBool>,
         with_logging: bool,
     ) {
         if with_logging {
             Logger::get_instance().log(LogLevel::Info, "Performing hybrid manual scan...", None);
         }
 
+        let cancellation_token = task.get_cancellation_token();
         let data_types_and_alignments = {
             let snapshot = snapshot.read().unwrap();
             snapshot.get_data_types_and_alignments()

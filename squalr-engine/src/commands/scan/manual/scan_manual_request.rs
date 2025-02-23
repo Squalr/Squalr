@@ -38,7 +38,7 @@ impl EngineRequest for ScanManualRequest {
             let task = ManualScanner::scan(snapshot, &scan_parameters, None, true);
 
             // Spawn a thread to listen to progress updates
-            let progress_receiver = task.add_listener();
+            let progress_receiver = task.subscribe_to_progress_updates();
             thread::spawn(move || {
                 while let Ok(progress) = progress_receiver.recv() {
                     Logger::get_instance().log(LogLevel::Info, &format!("Progress: {:.2}%", progress), None);

@@ -1,7 +1,7 @@
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::engine_response::EngineResponse;
 use crate::events::engine_event::EngineEvent;
-use crossbeam_channel::{Receiver, Sender, unbounded};
+use crossbeam_channel::{Receiver, Sender};
 use interprocess_shell::interprocess_egress::InterprocessEgress;
 use interprocess_shell::shell::inter_process_privileged_shell::InterProcessPrivilegedShell;
 use std::sync::Arc;
@@ -17,7 +17,7 @@ pub struct EngineEventHandler {
 
 impl EngineEventHandler {
     pub fn new(optional_shell: Option<Arc<InterProcessPrivilegedShell<EngineCommand, EngineResponse, EngineEvent>>>) -> Self {
-        let (event_sender, event_receiver) = unbounded();
+        let (event_sender, event_receiver) = crossbeam_channel::unbounded();
 
         {
             let event_sender = event_sender.clone();

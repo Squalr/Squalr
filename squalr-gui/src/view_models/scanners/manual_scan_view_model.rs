@@ -72,7 +72,7 @@ impl ManualScanViewModel {
             scan_all_primitives: false,
         };
 
-        scan_new_request.send(|scan_new_response| {});
+        scan_new_request.send(|_scan_new_response| {});
     }
 
     fn on_start_scan(
@@ -85,7 +85,7 @@ impl ManualScanViewModel {
             compare_type: ScanConstraintConverter::new().convert_from_view_data(&scan_constraint),
         };
 
-        scan_hybrid_request.send(|scan_new_response| {});
+        scan_hybrid_request.send(|_scan_hybrid_response| {});
     }
 
     fn on_collect_values() {
