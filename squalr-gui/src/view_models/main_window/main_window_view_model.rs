@@ -4,6 +4,7 @@ use crate::view_models::docking::dock_root_view_model::DockRootViewModel;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
+use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_common::logging::logger::Logger;
 use std::sync::Arc;
 
@@ -11,18 +12,20 @@ pub struct MainWindowViewModel {
     _view: MainWindowView,
     view_binding: ViewBinding<MainWindowView>,
     _dock_root_view_model: Arc<DockRootViewModel>,
+    _engine_execution_context: Arc<EngineExecutionContext>,
 }
 
 impl MainWindowViewModel {
-    pub fn new() -> Self {
+    pub fn new(engine_execution_context: &Arc<EngineExecutionContext>) -> Self {
         let view = MainWindowView::new().unwrap();
         let view_binding = ViewBinding::new(ComponentHandle::as_weak(&view));
-        let dock_root_view_model = Arc::new(DockRootViewModel::new(view_binding.clone()));
+        let dock_root_view_model = Arc::new(DockRootViewModel::new(view_binding.clone(), engine_execution_context.clone()));
 
         let view: MainWindowViewModel = MainWindowViewModel {
             _view: view,
             view_binding: view_binding.clone(),
             _dock_root_view_model: dock_root_view_model.clone(),
+            _engine_execution_context: engine_execution_context.clone(),
         };
 
         Logger::get_instance().subscribe(dock_root_view_model.get_output_view_model().clone());

@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::engine_request::EngineRequest;
 use crate::commands::process::list::process_list_response::ProcessListResponse;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
+use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -27,7 +30,10 @@ pub struct ProcessListRequest {
 impl EngineRequest for ProcessListRequest {
     type ResponseType = ProcessListResponse;
 
-    fn execute(&self) -> Self::ResponseType {
+    fn execute(
+        &self,
+        _execution_context: &Arc<EngineExecutionContext>,
+    ) -> Self::ResponseType {
         Logger::get_instance().log(
             LogLevel::Info,
             &format!(

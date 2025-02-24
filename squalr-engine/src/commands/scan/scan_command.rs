@@ -1,9 +1,12 @@
+use std::sync::Arc;
+
 use crate::commands::engine_request::EngineRequest;
 use crate::commands::engine_response::TypedEngineResponse;
 use crate::commands::scan::hybrid::scan_hybrid_request::ScanHybridRequest;
 use crate::commands::scan::manual::scan_manual_request::ScanManualRequest;
 use crate::commands::scan::new::scan_new_request::ScanNewRequest;
 use crate::commands::{engine_response::EngineResponse, scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest};
+use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -32,12 +35,21 @@ pub enum ScanCommand {
 }
 
 impl ScanCommand {
-    pub fn execute(&self) -> EngineResponse {
+    pub fn execute(
+        &self,
+        execution_context: &Arc<EngineExecutionContext>,
+    ) -> EngineResponse {
         match self {
-            ScanCommand::CollectValues { scan_value_collector_request } => scan_value_collector_request.execute().to_engine_response(),
-            ScanCommand::Hybrid { scan_hybrid_request } => scan_hybrid_request.execute().to_engine_response(),
-            ScanCommand::New { scan_new_request } => scan_new_request.execute().to_engine_response(),
-            ScanCommand::Manual { scan_manual_request } => scan_manual_request.execute().to_engine_response(),
+            ScanCommand::CollectValues { scan_value_collector_request } => scan_value_collector_request
+                .execute(execution_context)
+                .to_engine_response(),
+            ScanCommand::Hybrid { scan_hybrid_request } => scan_hybrid_request
+                .execute(execution_context)
+                .to_engine_response(),
+            ScanCommand::New { scan_new_request } => scan_new_request.execute(execution_context).to_engine_response(),
+            ScanCommand::Manual { scan_manual_request } => scan_manual_request
+                .execute(execution_context)
+                .to_engine_response(),
         }
     }
 }

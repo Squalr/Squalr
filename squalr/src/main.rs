@@ -14,10 +14,10 @@ pub fn main() {
         std::env::set_var("SLINT_BACKEND", "winit-software");
     }
 
-    SqualrEngine::initialize(EngineMode::Standalone);
+    let squalr_engine = SqualrEngine::new(EngineMode::Standalone);
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
-    let _main_window_view = MainWindowViewModel::new();
+    let _main_window_view = MainWindowViewModel::new(squalr_engine.get_engine_execution_context());
 
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {

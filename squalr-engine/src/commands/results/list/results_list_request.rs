@@ -3,12 +3,13 @@ use crate::commands::engine_request::EngineRequest;
 use crate::commands::results::list::results_list_response::ResultsListResponse;
 use crate::commands::results::results_command::ResultsCommand;
 use crate::commands::results::results_response::ResultsResponse;
-use crate::squalr_engine::SqualrEngine;
+use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_scanning::scan_settings::ScanSettings;
+use std::sync::Arc;
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
@@ -23,11 +24,14 @@ pub struct ResultsListRequest {
 impl EngineRequest for ResultsListRequest {
     type ResponseType = ResultsListResponse;
 
-    fn execute(&self) -> Self::ResponseType {
+    fn execute(
+        &self,
+        execution_context: &Arc<EngineExecutionContext>,
+    ) -> Self::ResponseType {
         let results_page_size = ScanSettings::get_instance().get_results_page_size() as u64;
         let initial_index = self.page * results_page_size;
         let end_index = initial_index + results_page_size;
-        let snapshot_lock = SqualrEngine::get_snapshot();
+        let snapshot_lock = execution_context.get_snapshot();
         let snapshot = snapshot_lock.read().unwrap();
 
         for result_index in initial_index..end_index {

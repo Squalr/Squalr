@@ -16,24 +16,26 @@ use std::time::Duration;
 use uuid::Uuid;
 
 pub struct InterProcessUnprivilegedHost<
-    RequestType: ExecutableRequest<ResponseType> + DeserializeOwned + Serialize,
+    RequestType: ExecutableRequest<ResponseType, ExecutionContextType> + DeserializeOwned + Serialize,
     ResponseType: DeserializeOwned + Serialize + 'static,
     EventType: DeserializeOwned + Serialize + 'static,
+    ExecutionContextType,
 > {
     privileged_shell_process: Arc<RwLock<Option<Child>>>,
     ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>,
     /// A map of outgoing requests that are awaiting an engine response.
     request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(InterprocessEgress<ResponseType, EventType>) + Send + Sync>>>>,
-    _phantom: PhantomData<RequestType>,
+    _phantom: PhantomData<(RequestType, ExecutionContextType)>,
 }
 
 impl<
-        RequestType: ExecutableRequest<ResponseType> + DeserializeOwned + Serialize,
+        RequestType: ExecutableRequest<ResponseType, ExecutionContextType> + DeserializeOwned + Serialize,
         ResponseType: DeserializeOwned + Serialize,
         EventType: DeserializeOwned + Serialize,
-    > InterProcessUnprivilegedHost<RequestType, ResponseType, EventType>
+        ExecutionContextType,
+    > InterProcessUnprivilegedHost<RequestType, ResponseType, EventType, ExecutionContextType>
 {
-    pub fn new() -> InterProcessUnprivilegedHost<RequestType, ResponseType, EventType> {
+    pub fn new() -> InterProcessUnprivilegedHost<RequestType, ResponseType, EventType, ExecutionContextType> {
         let instance = InterProcessUnprivilegedHost {
             privileged_shell_process: Arc::new(RwLock::new(None)),
             ipc_connection: Arc::new(RwLock::new(None)),
@@ -60,7 +62,7 @@ impl<
 
     pub fn dispatch_command<F>(
         &self,
-        command: InterprocessIngress<RequestType, ResponseType>,
+        command: InterprocessIngress<RequestType, ResponseType, ExecutionContextType>,
         callback: F,
     ) -> io::Result<()>
     where

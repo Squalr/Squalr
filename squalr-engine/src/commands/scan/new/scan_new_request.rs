@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use crate::commands::engine_request::EngineRequest;
 use crate::commands::scan::new::scan_new_response::ScanNewResponse;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::{engine_command::EngineCommand, scan::scan_command::ScanCommand};
-use crate::squalr_engine::SqualrEngine;
+use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -21,7 +23,10 @@ pub struct ScanNewRequest {
 impl EngineRequest for ScanNewRequest {
     type ResponseType = ScanNewResponse;
 
-    fn execute(&self) -> Self::ResponseType {
+    fn execute(
+        &self,
+        execution_context: &Arc<EngineExecutionContext>,
+    ) -> Self::ResponseType {
         let mut scan_filter_parameters = self.scan_filter_parameters.clone();
 
         if self.scan_all_primitives {
@@ -39,8 +44,8 @@ impl EngineRequest for ScanNewRequest {
             ];
         }
 
-        if let Some(process_info) = SqualrEngine::get_opened_process() {
-            let snapshot = SqualrEngine::get_snapshot();
+        if let Some(process_info) = execution_context.get_opened_process() {
+            let snapshot = execution_context.get_snapshot();
             if let Ok(mut snapshot) = snapshot.write() {
                 snapshot.new_scan(&process_info, scan_filter_parameters);
             } else {

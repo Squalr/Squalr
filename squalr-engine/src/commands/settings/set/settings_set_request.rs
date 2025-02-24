@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use crate::commands::engine_request::EngineRequest;
 use crate::commands::settings::settings_command::SettingsCommand;
 use crate::commands::settings::settings_response::SettingsResponse;
 use crate::commands::{engine_command::EngineCommand, settings::set::settings_set_response::SettingsSetResponse};
+use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_memory::memory_settings::MemorySettings;
@@ -17,7 +20,10 @@ pub struct SettingsSetRequest {
 impl EngineRequest for SettingsSetRequest {
     type ResponseType = SettingsSetResponse;
 
-    fn execute(&self) -> Self::ResponseType {
+    fn execute(
+        &self,
+        _execution_context: &Arc<EngineExecutionContext>,
+    ) -> Self::ResponseType {
         // Parse the setting command
         let (domain_and_setting, new_value) = match self.setting_command.split_once('=') {
             Some(parts) => parts,

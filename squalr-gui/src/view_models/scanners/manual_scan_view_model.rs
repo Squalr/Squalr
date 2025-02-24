@@ -12,37 +12,46 @@ use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::commands::engine_request::EngineRequest;
 use squalr_engine::commands::scan::hybrid::scan_hybrid_request::ScanHybridRequest;
 use squalr_engine::commands::scan::new::scan_new_request::ScanNewRequest;
-use squalr_engine::squalr_engine::SqualrEngine;
+use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_common::values::anonymous_value::AnonymousValue;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::endian::Endian;
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
+use std::sync::Arc;
 
 pub struct ManualScanViewModel {
     _view_binding: ViewBinding<MainWindowView>,
+    _engine_execution_context: Arc<EngineExecutionContext>,
 }
 
 impl ManualScanViewModel {
-    pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
+    pub fn new(
+        view_binding: ViewBinding<MainWindowView>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) -> Self {
         let view: ManualScanViewModel = ManualScanViewModel {
             _view_binding: view_binding.clone(),
+            _engine_execution_context: engine_execution_context.clone(),
         };
 
         create_view_bindings!(view_binding, {
             ManualScanViewModelBindings => {
-                on_new_scan(data_type: DataTypeView) -> [] -> Self::on_new_scan,
-                on_start_scan(scan_constraint: ScanConstraintTypeView, scan_value: SharedString) -> [] -> Self::on_start_scan,
+                on_new_scan(data_type: DataTypeView) -> [engine_execution_context] -> Self::on_new_scan,
+                on_start_scan(scan_constraint: ScanConstraintTypeView, scan_value: SharedString) -> [engine_execution_context] -> Self::on_start_scan,
             },
             ValueCollectorViewModelBindings => {
-                on_collect_values() -> [] -> Self::on_collect_values,
+                on_collect_values() -> [engine_execution_context] -> Self::on_collect_values,
             },
         });
 
         view
     }
 
-    fn on_new_scan(data_type: DataTypeView) {
+    fn on_new_scan(
+        engine_execution_context: Arc<EngineExecutionContext>,
+        data_type: DataTypeView,
+    ) {
         // TODO: Push this into a converter perhaps, although gets tricky with args
         let scan_filter_parameters = vec![match data_type {
             DataTypeView::I8 => ScanFilterParameters::new_with_value(None, DataType::I8()),
@@ -72,10 +81,11 @@ impl ManualScanViewModel {
             scan_all_primitives: false,
         };
 
-        scan_new_request.send(|_scan_new_response| {});
+        scan_new_request.send(&engine_execution_context, |_scan_new_response| {});
     }
 
     fn on_start_scan(
+        engine_execution_context: Arc<EngineExecutionContext>,
         scan_constraint: ScanConstraintTypeView,
         scan_value: SharedString,
     ) {
@@ -85,12 +95,12 @@ impl ManualScanViewModel {
             compare_type: ScanConstraintConverter::new().convert_from_view_data(&scan_constraint),
         };
 
-        scan_hybrid_request.send(|_scan_hybrid_response| {});
+        scan_hybrid_request.send(&engine_execution_context, |_scan_hybrid_response| {});
     }
 
-    fn on_collect_values() {
-        if let Some(process_info) = SqualrEngine::get_opened_process() {
-            let snapshot = SqualrEngine::get_snapshot();
+    fn on_collect_values(engine_execution_context: Arc<EngineExecutionContext>) {
+        if let Some(process_info) = engine_execution_context.get_opened_process() {
+            let snapshot = engine_execution_context.get_snapshot();
             let _task = ValueCollector::collect_values(process_info.clone(), snapshot, None, true);
         }
     }

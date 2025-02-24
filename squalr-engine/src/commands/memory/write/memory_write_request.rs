@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::engine_request::EngineRequest;
 use crate::commands::memory::memory_command::MemoryCommand;
 use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::memory::write::memory_write_response::MemoryWriteResponse;
-use crate::squalr_engine::SqualrEngine;
+use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::conversions::parse_hex_or_int;
 use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
@@ -25,8 +27,11 @@ pub struct MemoryWriteRequest {
 impl EngineRequest for MemoryWriteRequest {
     type ResponseType = MemoryWriteResponse;
 
-    fn execute(&self) -> Self::ResponseType {
-        if let Some(process_info) = SqualrEngine::get_opened_process() {
+    fn execute(
+        &self,
+        execution_context: &Arc<EngineExecutionContext>,
+    ) -> Self::ResponseType {
+        if let Some(process_info) = execution_context.get_opened_process() {
             // Log the memory write operation
             Logger::get_instance().log(LogLevel::Info, &format!("Writing value {:?} to address {}", self.value, self.address), None);
 

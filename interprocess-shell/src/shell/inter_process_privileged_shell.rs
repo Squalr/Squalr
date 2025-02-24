@@ -12,41 +12,40 @@ use std::time::Duration;
 use uuid::Uuid;
 
 pub struct InterProcessPrivilegedShell<
-    RequestType: ExecutableRequest<ResponseType> + DeserializeOwned + Serialize,
+    RequestType: ExecutableRequest<ResponseType, ExecutionContextType> + DeserializeOwned + Serialize,
     ResponseType: DeserializeOwned + Serialize,
     EventType: DeserializeOwned + Serialize,
+    ExecutionContextType: Send + Sync + 'static,
 > {
     ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>,
-    _phantom_request: PhantomData<RequestType>,
-    _phantom_response: PhantomData<ResponseType>,
-    _phantom_event: PhantomData<EventType>,
+    _phantom_data: PhantomData<(RequestType, ResponseType, EventType, ExecutionContextType)>,
 }
 
 impl<
-        RequestType: ExecutableRequest<ResponseType> + DeserializeOwned + Serialize,
+        RequestType: ExecutableRequest<ResponseType, ExecutionContextType> + DeserializeOwned + Serialize,
         ResponseType: DeserializeOwned + Serialize,
         EventType: DeserializeOwned + Serialize,
-    > InterProcessPrivilegedShell<RequestType, ResponseType, EventType>
+        ExecutionContextType: Send + Sync,
+    > InterProcessPrivilegedShell<RequestType, ResponseType, EventType, ExecutionContextType>
 {
-    pub fn new() -> InterProcessPrivilegedShell<RequestType, ResponseType, EventType> {
+    pub fn new() -> InterProcessPrivilegedShell<RequestType, ResponseType, EventType, ExecutionContextType> {
         let instance = InterProcessPrivilegedShell {
             ipc_connection: Arc::new(RwLock::new(None)),
-            _phantom_request: PhantomData,
-            _phantom_response: PhantomData,
-            _phantom_event: PhantomData,
+            _phantom_data: PhantomData,
         };
-
-        let _ = instance.initialize();
 
         instance
     }
 
-    fn initialize(&self) -> io::Result<()> {
+    pub fn initialize(
+        &self,
+        execution_context: &Arc<ExecutionContextType>,
+    ) -> io::Result<()> {
         if let Ok(mut ipc_connection) = self.ipc_connection.write() {
             match InterProcessPipeBidirectional::create() {
                 Ok(new_connection) => {
                     *ipc_connection = Some(new_connection);
-                    self.listen_for_host_requests();
+                    self.listen_for_host_requests(&execution_context);
                     Ok(())
                 }
                 Err(err) => Err(err),
@@ -81,18 +80,23 @@ impl<
         Ok(())
     }
 
-    fn listen_for_host_requests(&self) {
+    fn listen_for_host_requests(
+        &self,
+        execution_context: &Arc<ExecutionContextType>,
+    ) {
         let ipc_connection = self.ipc_connection.clone();
+        let execution_context = execution_context.clone();
 
         thread::spawn(move || loop {
             let ipc_connection = ipc_connection.clone();
+            let execution_context = execution_context.clone();
 
             if let Ok(ipc_connection_guard) = ipc_connection.read() {
                 if let Some(ipc_connection_pipe) = ipc_connection_guard.as_ref() {
-                    match ipc_connection_pipe.receive::<InterprocessIngress<RequestType, ResponseType>>() {
+                    match ipc_connection_pipe.receive::<InterprocessIngress<RequestType, ResponseType, ExecutionContextType>>() {
                         Ok((interprocess_command, request_id)) => match interprocess_command {
                             InterprocessIngress::EngineCommand(engine_command) => {
-                                let interprocess_response = InterprocessEgress::EngineResponse(engine_command.execute());
+                                let interprocess_response = InterprocessEgress::EngineResponse(engine_command.execute(&execution_context));
                                 let _ = Self::dispatch_response(ipc_connection.clone(), interprocess_response, request_id);
                             }
                             InterprocessIngress::_Phantom(_) => {}

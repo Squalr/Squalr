@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::engine_request::EngineRequest;
 use crate::commands::process::open::process_open_response::ProcessOpenResponse;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
-use crate::squalr_engine::SqualrEngine;
+use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -25,7 +27,10 @@ pub struct ProcessOpenRequest {
 impl EngineRequest for ProcessOpenRequest {
     type ResponseType = ProcessOpenResponse;
 
-    fn execute(&self) -> Self::ResponseType {
+    fn execute(
+        &self,
+        execution_context: &Arc<EngineExecutionContext>,
+    ) -> Self::ResponseType {
         if self.process_id.is_none() && self.search_name.is_none() {
             Logger::get_instance().log(LogLevel::Error, "Error: Neither PID nor search name provided. Cannot open process.", None);
             return ProcessOpenResponse { opened_process_info: None };
@@ -47,7 +52,7 @@ impl EngineRequest for ProcessOpenRequest {
         if let Some(process_info) = processes.first() {
             match ProcessQuery::open_process(&process_info) {
                 Ok(opened_process_info) => {
-                    SqualrEngine::set_opened_process(opened_process_info.clone());
+                    execution_context.set_opened_process(opened_process_info.clone());
 
                     return ProcessOpenResponse {
                         opened_process_info: Some(opened_process_info),

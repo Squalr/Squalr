@@ -3,16 +3,23 @@ use crate::MemorySettingsViewModelBindings;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
+use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_memory::memory_settings::MemorySettings;
+use std::sync::Arc;
 
 pub struct MemorySettingsViewModel {
     view_binding: ViewBinding<MainWindowView>,
+    _engine_execution_context: Arc<EngineExecutionContext>,
 }
 
 impl MemorySettingsViewModel {
-    pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
+    pub fn new(
+        view_binding: ViewBinding<MainWindowView>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) -> Self {
         let view = MemorySettingsViewModel {
             view_binding: view_binding.clone(),
+            _engine_execution_context: engine_execution_context.clone(),
         };
 
         create_view_bindings!(view_binding, {

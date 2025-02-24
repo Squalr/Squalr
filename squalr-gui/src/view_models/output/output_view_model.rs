@@ -2,16 +2,25 @@ use crate::MainWindowView;
 use crate::OutputViewModelBindings;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
+use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger_observer::LoggerObserver;
+use std::sync::Arc;
 
 pub struct OutputViewModel {
     view_binding: ViewBinding<MainWindowView>,
+    _engine_execution_context: Arc<EngineExecutionContext>,
 }
 
 impl OutputViewModel {
-    pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
-        let view = OutputViewModel { view_binding: view_binding };
+    pub fn new(
+        view_binding: ViewBinding<MainWindowView>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) -> Self {
+        let view = OutputViewModel {
+            view_binding: view_binding,
+            _engine_execution_context: engine_execution_context,
+        };
 
         view
     }

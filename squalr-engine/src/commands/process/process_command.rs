@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use crate::commands::engine_request::EngineRequest;
 use crate::commands::engine_response::TypedEngineResponse;
 use crate::commands::process::list::process_list_request::ProcessListRequest;
 use crate::commands::process::open::process_open_request::ProcessOpenRequest;
 use crate::commands::{engine_response::EngineResponse, process::close::process_close_request::ProcessCloseRequest};
+use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -23,11 +26,20 @@ pub enum ProcessCommand {
 }
 
 impl ProcessCommand {
-    pub fn execute(&self) -> EngineResponse {
+    pub fn execute(
+        &self,
+        execution_context: &Arc<EngineExecutionContext>,
+    ) -> EngineResponse {
         match self {
-            ProcessCommand::Open { process_open_request } => process_open_request.execute().to_engine_response(),
-            ProcessCommand::List { process_list_request } => process_list_request.execute().to_engine_response(),
-            ProcessCommand::Close { process_close_request } => process_close_request.execute().to_engine_response(),
+            ProcessCommand::Open { process_open_request } => process_open_request
+                .execute(execution_context)
+                .to_engine_response(),
+            ProcessCommand::List { process_list_request } => process_list_request
+                .execute(execution_context)
+                .to_engine_response(),
+            ProcessCommand::Close { process_close_request } => process_close_request
+                .execute(execution_context)
+                .to_engine_response(),
         }
     }
 }

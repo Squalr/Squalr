@@ -19,6 +19,7 @@ use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
+use squalr_engine::engine_execution_context::EngineExecutionContext;
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -33,18 +34,21 @@ pub struct DockRootViewModel {
 }
 
 impl DockRootViewModel {
-    pub fn new(view_binding: ViewBinding<MainWindowView>) -> Self {
+    pub fn new(
+        view_binding: ViewBinding<MainWindowView>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) -> Self {
         let main_dock_root = DockableWindowSettings::get_instance().get_dock_layout_settings();
         let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));
 
         let view: DockRootViewModel = DockRootViewModel {
             view_binding: view_binding.clone(),
             _docking_manager: docking_manager.clone(),
-            manual_scan_view_model: Arc::new(ManualScanViewModel::new(view_binding.clone())),
-            memory_settings_view_model: Arc::new(MemorySettingsViewModel::new(view_binding.clone())),
-            output_view_model: Arc::new(OutputViewModel::new(view_binding.clone())),
-            process_selector_view_model: Arc::new(ProcessSelectorViewModel::new(view_binding.clone())),
-            scan_settings_view_model: Arc::new(ScanSettingsViewModel::new(view_binding.clone())),
+            manual_scan_view_model: Arc::new(ManualScanViewModel::new(view_binding.clone(), engine_execution_context.clone())),
+            memory_settings_view_model: Arc::new(MemorySettingsViewModel::new(view_binding.clone(), engine_execution_context.clone())),
+            output_view_model: Arc::new(OutputViewModel::new(view_binding.clone(), engine_execution_context.clone())),
+            process_selector_view_model: Arc::new(ProcessSelectorViewModel::new(view_binding.clone(), engine_execution_context.clone())),
+            scan_settings_view_model: Arc::new(ScanSettingsViewModel::new(view_binding.clone(), engine_execution_context.clone())),
         };
 
         // Initialize the dock root size.

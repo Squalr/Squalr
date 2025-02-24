@@ -1,5 +1,6 @@
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::engine_response::EngineResponse;
+use crate::engine_execution_context::EngineExecutionContext;
 use crate::events::engine_event::EngineEvent;
 use interprocess_shell::interprocess_egress::InterprocessEgress;
 use interprocess_shell::interprocess_ingress::ExecutableRequest;
@@ -10,11 +11,11 @@ use std::sync::Arc;
 /// Orchestrates commands and responses to and from the engine.
 pub struct EngineCommandDispatcher {
     /// An optional interprocess command dispatcher to a privileged shell. This is for Android where the GUI is unprivileged.
-    optional_host: Option<Arc<InterProcessUnprivilegedHost<EngineCommand, EngineResponse, EngineEvent>>>,
+    optional_host: Option<Arc<InterProcessUnprivilegedHost<EngineCommand, EngineResponse, EngineEvent, EngineExecutionContext>>>,
 }
 
 impl EngineCommandDispatcher {
-    pub fn new(optional_host: Option<Arc<InterProcessUnprivilegedHost<EngineCommand, EngineResponse, EngineEvent>>>) -> Self {
+    pub fn new(optional_host: Option<Arc<InterProcessUnprivilegedHost<EngineCommand, EngineResponse, EngineEvent, EngineExecutionContext>>>) -> Self {
         Self { optional_host }
     }
 
@@ -23,6 +24,7 @@ impl EngineCommandDispatcher {
     pub fn dispatch_command<F>(
         &self,
         command: EngineCommand,
+        execution_context: &Arc<EngineExecutionContext>,
         callback: F,
     ) where
         F: FnOnce(EngineResponse) + Send + Sync + 'static,
@@ -40,7 +42,7 @@ impl EngineCommandDispatcher {
             );
         } else {
             // For a standalone engine (the common case), we just immediately execute the command with a callback.
-            callback(command.execute());
+            callback(command.execute(execution_context));
         }
     }
 }

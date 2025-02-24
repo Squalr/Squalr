@@ -3,7 +3,7 @@ use crate::commands::engine_request::EngineRequest;
 use crate::commands::scan::manual::scan_manual_response::ScanManualResponse;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
-use crate::squalr_engine::SqualrEngine;
+use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -12,6 +12,7 @@ use squalr_engine_scanning::scanners::manual_scanner::ManualScanner;
 use squalr_engine_scanning::scanners::parameters::scan_compare_type::ScanCompareType;
 use squalr_engine_scanning::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
+use std::sync::Arc;
 use std::thread;
 use structopt::StructOpt;
 
@@ -26,9 +27,12 @@ pub struct ScanManualRequest {
 impl EngineRequest for ScanManualRequest {
     type ResponseType = ScanManualResponse;
 
-    fn execute(&self) -> Self::ResponseType {
-        if let Some(process_info) = SqualrEngine::get_opened_process() {
-            let snapshot = SqualrEngine::get_snapshot();
+    fn execute(
+        &self,
+        execution_context: &Arc<EngineExecutionContext>,
+    ) -> Self::ResponseType {
+        if let Some(process_info) = execution_context.get_opened_process() {
+            let snapshot = execution_context.get_snapshot();
             let scan_parameters = ScanParameters::new_with_value(self.compare_type.to_owned(), self.scan_value.to_owned());
 
             // First collect values before the manual scan.
@@ -39,7 +43,7 @@ impl EngineRequest for ScanManualRequest {
             let task = ManualScanner::scan(snapshot, &scan_parameters, None, true);
             let task_handle = task.get_task_handle();
 
-            SqualrEngine::register_task(task_handle.clone());
+            execution_context.register_task(task_handle.clone());
 
             // Spawn a thread to listen to progress updates
             let progress_receiver = task.subscribe_to_progress_updates();
@@ -49,9 +53,11 @@ impl EngineRequest for ScanManualRequest {
                 }
             });
 
+            let execution_context = execution_context.clone();
+
             thread::spawn(move || {
                 task.wait_for_completion();
-                SqualrEngine::unregister_task(&task.get_task_identifier());
+                execution_context.unregister_task(&task.get_task_identifier());
             });
 
             ScanManualResponse {

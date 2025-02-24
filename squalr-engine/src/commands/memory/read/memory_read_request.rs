@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::engine_request::EngineRequest;
 use crate::commands::memory::memory_command::MemoryCommand;
 use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::memory::read::memory_read_response::MemoryReadResponse;
-use crate::squalr_engine::SqualrEngine;
+use crate::engine_execution_context::EngineExecutionContext;
 use serde::Deserialize;
 use serde::Serialize;
 use squalr_engine_common::conversions::parse_hex_or_int;
@@ -25,8 +27,11 @@ pub struct MemoryReadRequest {
 impl EngineRequest for MemoryReadRequest {
     type ResponseType = MemoryReadResponse;
 
-    fn execute(&self) -> Self::ResponseType {
-        if let Some(process_info) = SqualrEngine::get_opened_process() {
+    fn execute(
+        &self,
+        execution_context: &Arc<EngineExecutionContext>,
+    ) -> Self::ResponseType {
+        if let Some(process_info) = execution_context.get_opened_process() {
             Logger::get_instance().log(LogLevel::Info, &format!("Reading value from address {}", self.address), None);
 
             let mut out_value = self.value.clone();
