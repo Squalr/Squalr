@@ -50,14 +50,13 @@ pub trait IMemoryQueryer {
 
     fn address_to_module(
         &self,
-        process_info: &OpenedProcessInfo,
         address: u64,
-        module_name: &mut String,
-    ) -> u64;
+        modules: &Vec<NormalizedModule>,
+    ) -> Option<(String, u64)>;
 
     fn resolve_module(
         &self,
-        process_info: &OpenedProcessInfo,
+        modules: &Vec<NormalizedModule>,
         identifier: &str,
     ) -> u64;
 }

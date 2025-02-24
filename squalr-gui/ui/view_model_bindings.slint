@@ -177,7 +177,7 @@ export global ScanSettingsViewModelBindings {
 
 export global ProjectExplorerViewModelBindings { }
 
-export struct ScanResultDataView {
+export struct ScanResultViewData {
     data_type: DataTypeView,
     address: string,
     value: string,
@@ -185,7 +185,7 @@ export struct ScanResultDataView {
 }
 
 export global ScanResultsViewModelBindings {
-    in property <[ScanResultDataView]> scan_results;
+    in property <[ScanResultViewData]> scan_results;
     in-out property <string> results_memory_size;
     in-out property <int> result_count;
     callback navigate_first_page();

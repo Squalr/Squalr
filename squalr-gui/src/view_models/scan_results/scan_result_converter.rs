@@ -1,4 +1,4 @@
-use crate::ScanResultDataView;
+use crate::ScanResultViewData;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use squalr_engine_scanning::results::scan_result::ScanResult;
 
@@ -10,11 +10,11 @@ impl ScanResultConverter {
     }
 }
 
-impl ViewDataConverter<ScanResult, ScanResultDataView> for ScanResultConverter {
+impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
     fn convert_collection(
         &self,
         scan_compare_type_list: &Vec<ScanResult>,
-    ) -> Vec<ScanResultDataView> {
+    ) -> Vec<ScanResultViewData> {
         return scan_compare_type_list
             .into_iter()
             .map(|item| self.convert_to_view_data(item))
@@ -24,18 +24,27 @@ impl ViewDataConverter<ScanResult, ScanResultDataView> for ScanResultConverter {
     fn convert_to_view_data(
         &self,
         scan_result: &ScanResult,
-    ) -> ScanResultDataView {
-        ScanResultDataView {
-            address: "asdf".into(),
+    ) -> ScanResultViewData {
+        let base_address = scan_result.get_base_address();
+        let module = scan_result.get_module();
+
+        let address_string = if module.is_empty() {
+            format!("0x{:X}", base_address)
+        } else {
+            format!("{}+0x{:X}", module, base_address)
+        };
+
+        ScanResultViewData {
+            address: address_string.into(),
             data_type: crate::DataTypeView::Aob,
-            value: "val".into(),
-            previous_value: "prev".into(),
+            value: scan_result.get_current_value().to_string().into(),
+            previous_value: scan_result.get_previous_value().to_string().into(),
         }
     }
 
     fn convert_from_view_data(
         &self,
-        scan_result: &ScanResultDataView,
+        scan_result: &ScanResultViewData,
     ) -> ScanResult {
         panic!("Not implemented.")
     }

@@ -7,7 +7,8 @@ use std::str::FromStr;
 
 pub type FieldMemoryLoadFunc = unsafe fn(&mut FieldValue, *const u8);
 
-/// TODO: This belongs in projects. This does not need to be known nor exist at a common level.
+// TODO: Think over whether this belongs in common or projects.
+// AnonymousValue, DataValue, etc may cover common use cases.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct FieldValue {
     pub data_type: DataType,

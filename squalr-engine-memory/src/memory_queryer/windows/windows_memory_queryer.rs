@@ -8,6 +8,8 @@ use core::ffi::c_void;
 use core::mem::size_of;
 use squalr_engine_processes::process_info::Bitness;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
+use std::ffi::OsStr;
+use std::path::Path;
 use windows_sys::Win32::Foundation::HMODULE;
 use windows_sys::Win32::System::Memory::{
     MEMORY_BASIC_INFORMATION64, PAGE_EXECUTE, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE, PAGE_EXECUTE_WRITECOPY, PAGE_READWRITE, PAGE_WRITECOPY, VirtualQueryEx,
@@ -257,13 +259,13 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         let num_modules = cb_needed / std::mem::size_of::<HMODULE>() as u32;
 
         for index in 0..num_modules as usize {
-            let mut module_name = vec![0u8; 1024];
+            let mut module_path_bytes = vec![0u8; 1024];
             let result = unsafe {
                 K32GetModuleFileNameExA(
                     process_info.handle as *mut c_void,
                     module_handles[index],
-                    module_name.as_mut_ptr(),
-                    module_name.len() as u32,
+                    module_path_bytes.as_mut_ptr(),
+                    module_path_bytes.len() as u32,
                 )
             };
 
@@ -271,7 +273,15 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
                 continue;
             }
 
-            let module_name = String::from_utf8_lossy(&module_name).to_string();
+            let module_path = String::from_utf8_lossy(&module_path_bytes)
+                .trim_end_matches('\0')
+                .to_string();
+            let module_name = Path::new(&module_path)
+                .file_name()
+                .unwrap_or_else(|| OsStr::new(""))
+                .to_str()
+                .unwrap_or("")
+                .to_string();
             let mut module_info: MODULEINFO = unsafe { std::mem::zeroed() };
 
             let result = unsafe {
@@ -299,32 +309,25 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
     fn address_to_module(
         &self,
-        process_info: &OpenedProcessInfo,
         address: u64,
-        module_name: &mut String,
-    ) -> u64 {
-        let modules = self.get_modules(process_info);
-
+        modules: &Vec<NormalizedModule>,
+    ) -> Option<(String, u64)> {
         for module in modules {
             if module.contains_address(address) {
-                *module_name = module.get_name().to_string();
-                return address - module.get_base_address();
+                return Some((module.get_module_name().to_string(), address - module.get_base_address()));
             }
         }
 
-        *module_name = String::new();
-        address
+        None
     }
 
     fn resolve_module(
         &self,
-        process_info: &OpenedProcessInfo,
+        modules: &Vec<NormalizedModule>,
         identifier: &str,
     ) -> u64 {
-        let modules = self.get_modules(process_info);
-
         for module in modules {
-            if module.get_name().eq_ignore_ascii_case(identifier) {
+            if module.get_module_name().eq_ignore_ascii_case(identifier) {
                 return module.get_base_address();
             }
         }

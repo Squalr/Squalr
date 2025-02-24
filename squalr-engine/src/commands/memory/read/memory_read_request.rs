@@ -35,7 +35,7 @@ impl EngineRequest for MemoryReadRequest {
             Logger::log(LogLevel::Info, &format!("Reading value from address {}", self.address), None);
 
             let mut out_value = self.value.clone();
-            let success = MemoryReader::get_instance().read(&process_info, self.address, &mut out_value);
+            let success = MemoryReader::get_instance().read_struct(&process_info, self.address, &mut out_value);
 
             MemoryReadResponse {
                 value: out_value,

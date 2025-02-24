@@ -11,6 +11,7 @@ use crate::view_models::docking::dock_target_converter::DocktargetConverter;
 use crate::view_models::docking::dock_window_converter::DockWindowConverter;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
+use crate::view_models::scan_results::scan_results_view_model::ScanResultsViewModel;
 use crate::view_models::scanners::manual_scan_view_model::ManualScanViewModel;
 use crate::view_models::settings::memory_settings_view_model::MemorySettingsViewModel;
 use crate::view_models::settings::scan_settings_view_model::ScanSettingsViewModel;
@@ -31,6 +32,7 @@ pub struct DockRootViewModel {
     output_view_model: Arc<OutputViewModel>,
     process_selector_view_model: Arc<ProcessSelectorViewModel>,
     scan_settings_view_model: Arc<ScanSettingsViewModel>,
+    scan_results_view_model: Arc<ScanResultsViewModel>,
 }
 
 impl DockRootViewModel {
@@ -49,6 +51,7 @@ impl DockRootViewModel {
             output_view_model: Arc::new(OutputViewModel::new(view_binding.clone(), engine_execution_context.clone())),
             process_selector_view_model: Arc::new(ProcessSelectorViewModel::new(view_binding.clone(), engine_execution_context.clone())),
             scan_settings_view_model: Arc::new(ScanSettingsViewModel::new(view_binding.clone(), engine_execution_context.clone())),
+            scan_results_view_model: Arc::new(ScanResultsViewModel::new(view_binding.clone(), engine_execution_context.clone())),
         };
 
         // Initialize the dock root size.
@@ -135,6 +138,10 @@ impl DockRootViewModel {
 
     pub fn get_scan_settings_view_model(&self) -> &Arc<ScanSettingsViewModel> {
         &self.scan_settings_view_model
+    }
+
+    pub fn get_scan_results_view_model(&self) -> &Arc<ScanResultsViewModel> {
+        &self.scan_results_view_model
     }
 
     fn on_minimize(view_binding: ViewBinding<MainWindowView>) {

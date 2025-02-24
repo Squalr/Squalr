@@ -1,4 +1,3 @@
-use crate::results::scan_result::ScanResult;
 use crate::results::snapshot_scan_results::SnapshotScanResults;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
@@ -79,13 +78,13 @@ impl Snapshot {
             .sum();
     }
 
-    pub fn get_scan_result(
+    pub fn get_scan_result_address(
         &self,
         index: u64,
         data_type: &DataType,
-    ) -> Option<ScanResult> {
+    ) -> Option<u64> {
         if let Some(scan_results) = self.scan_results_by_data_type.get(data_type) {
-            return scan_results.get_scan_result(index, &self.snapshot_regions);
+            return scan_results.get_scan_result_address(index, &self.snapshot_regions);
         }
         return None;
     }

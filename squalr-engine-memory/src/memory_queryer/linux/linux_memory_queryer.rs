@@ -85,8 +85,7 @@ impl IMemoryQueryer for LinuxMemoryQueryer {
         &self,
         process_info: &OpenedProcessInfo,
         address: u64,
-        module_name: &mut String,
-    ) -> u64 {
+    ) -> Option<(String, u64)> {
         0
     }
 

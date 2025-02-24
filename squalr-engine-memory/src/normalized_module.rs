@@ -1,49 +1,30 @@
 use super::normalized_region::NormalizedRegion;
-use std::ffi::OsStr;
 use std::hash::{Hash, Hasher};
-use std::path::Path;
 
 pub struct NormalizedModule {
     base_region: NormalizedRegion,
-    name: String,
-    full_path: String,
+    module_name: String,
 }
 
 impl NormalizedModule {
     pub fn new(
-        full_path: &str,
+        module_name: &str,
         base_address: u64,
         size: u64,
     ) -> Self {
-        let name = Path::new(full_path)
-            .file_name()
-            .unwrap_or_else(|| OsStr::new(""))
-            .to_str()
-            .unwrap_or("")
-            .to_string();
-
         Self {
             base_region: NormalizedRegion::new(base_address, size),
-            name,
-            full_path: full_path.to_string(),
+            module_name: module_name.to_string(),
         }
     }
 
     pub fn new_from_normalized_region(
         normalized_region: NormalizedRegion,
-        full_path: &str,
+        module_name: &str,
     ) -> Self {
-        let name = Path::new(full_path)
-            .file_name()
-            .unwrap_or_else(|| OsStr::new(""))
-            .to_str()
-            .unwrap_or("")
-            .to_string();
-
         Self {
             base_region: normalized_region,
-            name,
-            full_path: full_path.to_string(),
+            module_name: module_name.to_string(),
         }
     }
 
@@ -51,12 +32,8 @@ impl NormalizedModule {
         self.base_region
     }
 
-    pub fn get_name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn get_full_path(&self) -> &str {
-        &self.full_path
+    pub fn get_module_name(&self) -> &str {
+        &self.module_name
     }
 
     pub fn get_base_address(&self) -> u64 {
@@ -98,7 +75,7 @@ impl PartialEq for NormalizedModule {
         &self,
         other: &Self,
     ) -> bool {
-        self.base_region == other.base_region && self.name == other.name && self.full_path == other.full_path
+        self.base_region == other.base_region && self.module_name == other.module_name
     }
 }
 
@@ -110,7 +87,6 @@ impl Hash for NormalizedModule {
         state: &mut H,
     ) {
         self.base_region.hash(state);
-        self.name.hash(state);
-        self.full_path.hash(state);
+        self.module_name.hash(state);
     }
 }

@@ -3,7 +3,8 @@ use crate::values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+/// Represents a value as a string that can potentially be converted to an explicit type later.
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AnonymousValue {
     value_str: String,
 }
@@ -23,10 +24,16 @@ impl AnonymousValue {
     }
 }
 
+impl ToString for AnonymousValue {
+    fn to_string(&self) -> String {
+        self.value_str.clone()
+    }
+}
+
 impl FromStr for AnonymousValue {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        return Ok(AnonymousValue::new(s));
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        return Ok(AnonymousValue::new(string));
     }
 }

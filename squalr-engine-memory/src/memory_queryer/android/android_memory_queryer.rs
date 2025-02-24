@@ -328,8 +328,7 @@ impl IMemoryQueryer for AndroidMemoryQueryer {
         &self,
         process_info: &OpenedProcessInfo,
         address: u64,
-        module_name: &mut String,
-    ) -> u64 {
+    ) -> Option<(String, u64)> {
         let modules = self.get_modules(process_info);
         for m in modules {
             let start = m.get_base_address();

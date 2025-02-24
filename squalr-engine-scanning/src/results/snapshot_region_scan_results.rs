@@ -1,4 +1,3 @@
-use crate::results::scan_result::ScanResult;
 use crate::results::scan_results_index_map::ScanResultsIndexMap;
 use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_common::values::data_type::DataType;
@@ -62,11 +61,11 @@ impl SnapshotRegionScanResults {
         return self.scan_result_lookup_table.get_number_of_results();
     }
 
-    pub fn get_scan_result(
+    pub fn get_scan_result_address(
         &self,
         index: u64,
         memory_alignment: MemoryAlignment,
-    ) -> Option<ScanResult> {
+    ) -> Option<u64> {
         // Get the index of the filter from the lookup table.
         if let Some((filter_range, snapshot_filter_index)) = self
             .scan_result_lookup_table
@@ -86,9 +85,8 @@ impl SnapshotRegionScanResults {
                 // to determine which element specifically we are trying to fetch.
                 let element_index = filter_range.end() - index;
                 let scan_result_address = filter.get_base_address() + element_index * memory_alignment as u64;
-                let scan_result = ScanResult::new(scan_result_address);
 
-                return Some(scan_result);
+                return Some(scan_result_address);
             }
         }
 

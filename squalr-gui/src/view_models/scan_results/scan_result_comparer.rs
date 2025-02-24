@@ -1,4 +1,4 @@
-use crate::ScanResultDataView;
+use crate::ScanResultViewData;
 use slint_mvvm::view_data_comparer::ViewDataComparer;
 
 pub struct ScanResultComparer;
@@ -9,11 +9,11 @@ impl ScanResultComparer {
     }
 }
 
-impl ViewDataComparer<ScanResultDataView> for ScanResultComparer {
+impl ViewDataComparer<ScanResultViewData> for ScanResultComparer {
     fn compare(
         &self,
-        a: &ScanResultDataView,
-        b: &ScanResultDataView,
+        a: &ScanResultViewData,
+        b: &ScanResultViewData,
     ) -> bool {
         a.address == b.address
     }

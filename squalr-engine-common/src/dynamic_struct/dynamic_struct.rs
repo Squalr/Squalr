@@ -5,12 +5,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
 
+// TODO: Think over whether this belongs in common or projects.
+// AnonymousValue, DataValue, etc may cover common use cases.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DynamicStruct {
     fields: HashMap<String, FieldValue>,
 }
 
-/// TODO: This belongs in projects. This does not need to be known nor exist at a common level.
 impl DynamicStruct {
     pub fn new() -> Self {
         DynamicStruct { fields: HashMap::new() }

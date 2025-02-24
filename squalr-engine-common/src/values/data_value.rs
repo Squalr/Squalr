@@ -215,6 +215,84 @@ impl DataValue {
             DataValue::BitField { value, .. } => value.clone(),
         }
     }
+
+    pub fn copy_from_bytes(
+        &mut self,
+        bytes: &[u8],
+    ) {
+        match self {
+            DataValue::U8(value) => {
+                if bytes.len() >= 1 {
+                    *value = u8::from_le_bytes([bytes[0]]);
+                }
+            }
+            DataValue::U16(value) => {
+                if bytes.len() >= 2 {
+                    *value = u16::from_le_bytes([bytes[0], bytes[1]]);
+                }
+            }
+            DataValue::U32(value) => {
+                if bytes.len() >= 4 {
+                    *value = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+                }
+            }
+            DataValue::U64(value) => {
+                if bytes.len() >= 8 {
+                    *value = u64::from_le_bytes([
+                        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                    ]);
+                }
+            }
+            DataValue::I8(value) => {
+                if bytes.len() >= 1 {
+                    *value = i8::from_le_bytes([bytes[0]]);
+                }
+            }
+            DataValue::I16(value) => {
+                if bytes.len() >= 2 {
+                    *value = i16::from_le_bytes([bytes[0], bytes[1]]);
+                }
+            }
+            DataValue::I32(value) => {
+                if bytes.len() >= 4 {
+                    *value = i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+                }
+            }
+            DataValue::I64(value) => {
+                if bytes.len() >= 8 {
+                    *value = i64::from_le_bytes([
+                        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                    ]);
+                }
+            }
+            DataValue::F32(value) => {
+                if bytes.len() >= 4 {
+                    let mut arr = [0u8; 4];
+                    arr.copy_from_slice(&bytes[0..4]);
+                    *value = f32::from_le_bytes(arr);
+                }
+            }
+            DataValue::F64(value) => {
+                if bytes.len() >= 8 {
+                    let mut arr = [0u8; 8];
+                    arr.copy_from_slice(&bytes[0..8]);
+                    *value = f64::from_le_bytes(arr);
+                }
+            }
+            DataValue::Bytes(value) => {
+                *value = bytes.to_vec();
+            }
+            DataValue::BitField { value, bits } => {
+                let byte_count = ((*bits + 7) / 8) as usize;
+                if bytes.len() >= byte_count {
+                    *value = bytes[..byte_count].to_vec();
+                } else {
+                    value.clear();
+                    value.extend_from_slice(bytes);
+                }
+            }
+        }
+    }
 }
 
 impl FromStr for DataValue {

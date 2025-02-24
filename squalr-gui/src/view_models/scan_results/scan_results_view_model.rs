@@ -1,5 +1,5 @@
 use crate::MainWindowView;
-use crate::ScanResultDataView;
+use crate::ScanResultViewData;
 use crate::ScanResultsViewModelBindings;
 use crate::view_models::scan_results::scan_result_comparer::ScanResultComparer;
 use crate::view_models::scan_results::scan_result_converter::ScanResultConverter;
@@ -19,7 +19,7 @@ use std::time::Duration;
 
 pub struct ScanResultsViewModel {
     view_binding: ViewBinding<MainWindowView>,
-    scan_results_collection: ViewCollectionBinding<ScanResultDataView, ScanResult, MainWindowView>,
+    scan_results_collection: ViewCollectionBinding<ScanResultViewData, ScanResult, MainWindowView>,
     engine_execution_context: Arc<EngineExecutionContext>,
     current_page_index: Arc<u64>,
 }
@@ -70,7 +70,7 @@ impl ScanResultsViewModel {
                 let scan_results_list_request = ScanResultsListRequest {
                     page_index: *current_page_index,
                     // TODO
-                    data_type: squalr_engine_common::values::data_type::DataType::I32(Endian::Big),
+                    data_type: squalr_engine_common::values::data_type::DataType::I32(Endian::Little),
                 };
                 let scan_results_collection = scan_results_collection.clone();
 

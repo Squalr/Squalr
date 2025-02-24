@@ -1,0 +1,31 @@
+import { HorizontalBox, VerticalBox, Palette, GridBox } from "std-widgets.slint";
+
+import { Theme } from "../../theme.slint";
+import { ScanResultsViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
+
+import { Button } from "../../components/buttons/button.slint";
+
+export component ScanResultEntry inherits Button {
+    in property <ScanResultViewData> scan_result_view_data;
+    callback on-click();
+    clicked => {
+        root.on-click();
+    }
+    HorizontalLayout {
+        HorizontalBox {
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            Text {
+                color: Theme.foreground;
+                horizontal-alignment: left;
+                vertical-alignment: center;
+                text: scan_result_view_data.address;
+            }
+        }
+    }
+}
