@@ -36,7 +36,7 @@ impl EngineRequest for ProcessOpenRequest {
             return ProcessOpenResponse { opened_process_info: None };
         }
 
-        Logger::log(LogLevel::Info, "Opening process", None);
+        Logger::log(LogLevel::Info, "Opening process...", None);
 
         let options = ProcessQueryOptions {
             search_name: self.search_name.clone(),

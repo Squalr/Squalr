@@ -3,7 +3,10 @@ use std::fmt;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Endian {
+    /// Little endian is the default for most systems.
     Little,
+
+    /// Big endian is the default for some systems, such as GameCube (and thus any emulators for these systems).
     Big,
 }
 

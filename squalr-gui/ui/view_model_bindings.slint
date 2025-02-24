@@ -10,8 +10,8 @@ export global WindowViewModelBindings {
     callback maximize();
     callback minimize();
     callback double-clicked();
-    callback drag(int, int);
-    callback play-sound(string);
+    callback drag(x: int, y: int);
+    callback play-sound(sound_file: string);
 }
 
 export struct DockedWindowViewData {
@@ -69,7 +69,7 @@ export struct ProcessViewData {
 export global ProcessSelectorViewModelBindings {
     callback refresh-windowed-process-list();
     callback refresh-full-process-list();
-    callback select-process(ProcessViewData);
+    callback select-process(process: ProcessViewData);
     in property <[ProcessViewData]> windowed-processes;
     in property <[ProcessViewData]> processes;
     in property <ProcessViewData> selected-process;
@@ -131,53 +131,69 @@ export global ManualScanViewModelBindings {
 
 export global MemorySettingsViewModelBindings {
     in-out property <bool> memory_type_none;
-    callback memory_type_none_changed(bool);
+    callback memory_type_none_changed(memory_type_none: bool);
     in-out property <bool> memory_type_private;
-    callback memory_type_private_changed(bool);
+    callback memory_type_private_changed(memory_type_private: bool);
     in-out property <bool> memory_type_image;
-    callback memory_type_image_changed(bool);
+    callback memory_type_image_changed(memory_type_image: bool);
     in-out property <bool> memory_type_mapped;
-    callback memory_type_mapped_changed(bool);
+    callback memory_type_mapped_changed(memory_type_mapped: bool);
     in-out property <bool> required_write;
-    callback required_write_changed(bool);
+    callback required_write_changed(required_write: bool);
     in-out property <bool> required_execute;
-    callback required_execute_changed(bool);
+    callback required_execute_changed(required_execute: bool);
     in-out property <bool> required_copy_on_write;
-    callback required_copy_on_write_changed(bool);
+    callback required_copy_on_write_changed(required_copy_on_write: bool);
     in-out property <bool> excluded_write;
-    callback excluded_write_changed(bool);
+    callback excluded_write_changed(excluded_write: bool);
     in-out property <bool> excluded_execute;
-    callback excluded_execute_changed(bool);
+    callback excluded_execute_changed(excluded_execute: bool);
     in-out property <bool> excluded_copy_on_write;
-    callback excluded_copy_on_write_changed(bool);
+    callback excluded_copy_on_write_changed(excluded_copy_on_write: bool);
     in-out property <string> start_address;
-    callback start_address_changed(string);
+    callback start_address_changed(start_address: string);
     in-out property <string> end_address;
-    callback end_address_changed(string);
+    callback end_address_changed(end_address: string);
     in-out property <bool> only_query_usermode;
-    callback only_query_usermode_changed(bool);
+    callback only_query_usermode_changed(only_query_usermode: bool);
 }
 
 export global ScanSettingsViewModelBindings {
     in-out property <int> results_page_size;
-    callback results_page_size_changed(int);
+    callback results_page_size_changed(page_size: int);
     in-out property <int> results_read_interval;
-    callback results_read_interval_changed(int);
+    callback results_read_interval_changed(result_read_interval: int);
     in-out property <int> table_read_interval;
-    callback table_read_interval_changed(int);
+    callback table_read_interval_changed(table_read_interval: int);
     in-out property <int> freeze_interval;
-    callback freeze_interval_changed(int);
+    callback freeze_interval_changed(freeze_interval: int);
     // Option<MemoryAlignment>,
     in-out property <int> memory_alignment;
-    callback memory_alignment_changed(int);
+    callback memory_alignment_changed(memory_alignment: int);
     // FloatingPointTolerance,
     in-out property <int> floating_point_tolerance;
-    callback floating_point_tolerance_changed(int);
+    callback floating_point_tolerance_changed(floating_point_tolerance: int);
 }
 
 export global ProjectExplorerViewModelBindings { }
 
-export global ScanResultsViewModelBindings { }
+export struct ScanResultDataView {
+    data_type: DataTypeView,
+    address: string,
+    value: string,
+    previous_value: string,
+}
+
+export global ScanResultsViewModelBindings {
+    in property <[ScanResultDataView]> scan_results;
+    in-out property <string> results_memory_size;
+    in-out property <int> result_count;
+    callback navigate_first_page();
+    callback navigate_last_page();
+    callback navigate_next_page();
+    callback navigate_previous_page();
+    callback add_result_range(start_index: int, end_index: int);
+}
 
 export global PointerScanResultsViewModelBindings { }
 

@@ -1,5 +1,6 @@
 mod memory;
 mod process;
+mod results;
 mod scan;
 
 use crate::response_handlers::memory::handle_memory_response;
