@@ -62,6 +62,8 @@ impl EngineRequest for ScanResultsListRequest {
                     }
 
                     scan_results.push(ScanResult::new(scan_result_base_address, module_name, current_value, previous_value));
+                } else {
+                    break;
                 }
             }
         }

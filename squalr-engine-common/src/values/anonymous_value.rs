@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 /// Represents a value as a string that can potentially be converted to an explicit type later.
+/// This is particularly useful when scannining for a value that may later be interpreted
+/// as many data types, and supporting values passed via command line.
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AnonymousValue {
     value_str: String,

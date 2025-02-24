@@ -26,6 +26,20 @@ export component ScanResultEntry inherits Button {
                 vertical-alignment: center;
                 text: scan_result_view_data.address;
             }
+
+            Text {
+                color: Theme.foreground;
+                horizontal-alignment: left;
+                vertical-alignment: center;
+                text: scan_result_view_data.current_value;
+            }
+
+            Text {
+                color: Theme.foreground;
+                horizontal-alignment: left;
+                vertical-alignment: center;
+                text: scan_result_view_data.previous_value;
+            }
         }
     }
 }

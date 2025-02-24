@@ -84,7 +84,7 @@ impl IMemoryReader for WindowsMemoryReaderNt {
             let size = values.len();
             let mut bytes_read = 0;
 
-            let result = (self.nt_read_virtual_memory)(
+            let _unused_result = (self.nt_read_virtual_memory)(
                 process_info.handle as isize,
                 address as *const c_void,
                 values.as_mut_ptr() as *mut c_void,
@@ -92,7 +92,7 @@ impl IMemoryReader for WindowsMemoryReaderNt {
                 &mut bytes_read,
             );
 
-            return result != 0;
+            return bytes_read == size;
         }
     }
 }

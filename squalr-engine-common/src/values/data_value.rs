@@ -216,6 +216,23 @@ impl DataValue {
         }
     }
 
+    pub fn to_value_string(&self) -> String {
+        match self {
+            DataValue::U8(v) => v.to_string(),
+            DataValue::U16(v) => v.to_string(),
+            DataValue::U32(v) => v.to_string(),
+            DataValue::U64(v) => v.to_string(),
+            DataValue::I8(v) => v.to_string(),
+            DataValue::I16(v) => v.to_string(),
+            DataValue::I32(v) => v.to_string(),
+            DataValue::I64(v) => v.to_string(),
+            DataValue::F32(v) => v.to_string(),
+            DataValue::F64(v) => v.to_string(),
+            DataValue::Bytes(v) => v.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
+            DataValue::BitField { value, bits } => value.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
+        }
+    }
+
     pub fn copy_from_bytes(
         &mut self,
         bytes: &[u8],

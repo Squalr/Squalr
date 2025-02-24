@@ -37,14 +37,14 @@ impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
         ScanResultViewData {
             address: address_string.into(),
             data_type: crate::DataTypeView::Aob,
-            value: scan_result.get_current_value().to_string().into(),
-            previous_value: scan_result.get_previous_value().to_string().into(),
+            current_value: scan_result.get_current_value().to_value_string().into(),
+            previous_value: scan_result.get_previous_value().to_value_string().into(),
         }
     }
 
     fn convert_from_view_data(
         &self,
-        scan_result: &ScanResultViewData,
+        _scan_result_view_data: &ScanResultViewData,
     ) -> ScanResult {
         panic!("Not implemented.")
     }
