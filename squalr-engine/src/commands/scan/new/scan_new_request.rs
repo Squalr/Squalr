@@ -49,7 +49,7 @@ impl EngineRequest for ScanNewRequest {
             if let Ok(mut snapshot) = snapshot.write() {
                 snapshot.new_scan(&process_info, scan_filter_parameters);
             } else {
-                Logger::get_instance().log(LogLevel::Error, "Failed to create new snapshot!", None);
+                Logger::log(LogLevel::Error, "Failed to create new snapshot!", None);
             }
         }
 

@@ -19,13 +19,13 @@ fn main() {
 
     // Hook into engine logging for the cli to display.
     let cli_log_listener = CliLogListener::new();
-    Logger::get_instance().subscribe(cli_log_listener);
+    Logger::subscribe(cli_log_listener);
 
     // Start Squalr engine.
     let squalr_engine = SqualrEngine::new(engine_mode);
 
     if engine_mode == EngineMode::PrivilegedShell {
-        Logger::get_instance().log(LogLevel::Info, "CLI running as a privileged IPC shell.", None);
+        Logger::log(LogLevel::Info, "CLI running as a privileged IPC shell.", None);
     }
 
     // Listen for user input.

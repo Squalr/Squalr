@@ -156,7 +156,7 @@ impl<
 
     #[cfg(any(target_os = "android"))]
     fn spawn_squalr_cli_as_root() -> std::io::Result<std::process::Child> {
-        Logger::get_instance().log(LogLevel::Info, "Spawning privileged worker...", None);
+        Logger::log(LogLevel::Info, "Spawning privileged worker...", None);
 
         let child = Command::new("su")
             .arg("-c")

@@ -33,12 +33,12 @@ impl EngineRequest for SettingsListRequest {
 
         if scan {
             let scan_config = ScanSettings::get_instance().get_full_config().read().unwrap();
-            Logger::get_instance().log(LogLevel::Info, format!("{:?}", scan_config).as_str(), None);
+            Logger::log(LogLevel::Info, format!("{:?}", scan_config).as_str(), None);
         }
 
         if memory {
             let memory_config = MemorySettings::get_instance().get_full_config().read().unwrap();
-            Logger::get_instance().log(LogLevel::Info, format!("{:?}", memory_config).as_str(), None);
+            Logger::log(LogLevel::Info, format!("{:?}", memory_config).as_str(), None);
         }
 
         SettingsListResponse {}

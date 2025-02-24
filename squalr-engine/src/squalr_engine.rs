@@ -25,13 +25,13 @@ impl SqualrEngine {
         &self,
         engine_mode: EngineMode,
     ) {
-        Logger::get_instance().log(LogLevel::Info, "Squalr started", None);
+        Logger::log(LogLevel::Info, "Squalr started", None);
         vectors::log_vector_architecture();
 
         match engine_mode {
             EngineMode::Standalone | EngineMode::PrivilegedShell => {
                 if let Err(err) = ProcessQuery::start_monitoring() {
-                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to monitor system processes: {}", err), None);
+                    Logger::log(LogLevel::Error, &format!("Failed to monitor system processes: {}", err), None);
                 }
             }
             EngineMode::UnprivilegedHost => {}

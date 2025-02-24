@@ -46,7 +46,7 @@ impl ManualScanner {
         with_logging: bool,
     ) {
         if with_logging {
-            Logger::get_instance().log(LogLevel::Info, "Performing manual scan...", None);
+            Logger::log(LogLevel::Info, "Performing manual scan...", None);
         }
 
         let cancellation_token = task.get_cancellation_token();
@@ -123,18 +123,18 @@ impl ManualScanner {
             let byte_count = snapshot.get_byte_count();
             let duration = start_time.elapsed();
 
-            Logger::get_instance().log(LogLevel::Info, &format!("Results: {} bytes", value_to_metric_size(byte_count)), None);
+            Logger::log(LogLevel::Info, &format!("Results: {} bytes", value_to_metric_size(byte_count)), None);
 
             let scan_results = snapshot.get_scan_results_by_data_type();
 
             for (data_type, _) in data_types_and_alignments {
                 if let Some(scan_results_for_type) = scan_results.get(&data_type) {
                     let element_count = scan_results_for_type.get_number_of_results();
-                    Logger::get_instance().log(LogLevel::Info, &format!("Results [{:?}]: {} element(s)", data_type, element_count), None);
+                    Logger::log(LogLevel::Info, &format!("Results [{:?}]: {} element(s)", data_type, element_count), None);
                 }
             }
 
-            Logger::get_instance().log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
+            Logger::log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
         }
     }
 }

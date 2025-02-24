@@ -35,7 +35,7 @@ impl Snapshot {
         process_info: &OpenedProcessInfo,
         scan_filter_parameters: Vec<ScanFilterParameters>,
     ) {
-        Logger::get_instance().log(LogLevel::Info, "Creating new scan...", None);
+        Logger::log(LogLevel::Info, "Creating new scan...", None);
 
         self.create_initial_snapshot_regions(process_info);
         self.scan_results_by_data_type.clear();
@@ -48,10 +48,10 @@ impl Snapshot {
                     scan_filter_parameter.get_memory_alignment_or_default(),
                 ),
             );
-            Logger::get_instance().log(LogLevel::Info, &format!("Adding data type: {}", scan_filter_parameter.get_data_type()), None);
+            Logger::log(LogLevel::Info, &format!("Adding data type: {}", scan_filter_parameter.get_data_type()), None);
         }
 
-        Logger::get_instance().log(LogLevel::Info, "New scan created", None);
+        Logger::log(LogLevel::Info, "New scan created", None);
     }
 
     pub fn get_snapshot_regions(&self) -> &Vec<SnapshotRegion> {

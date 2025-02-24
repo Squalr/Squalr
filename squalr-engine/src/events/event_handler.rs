@@ -48,7 +48,7 @@ impl EngineEventHandler {
     ) {
         if let Some(shell) = self.optional_shell.as_ref() {
             if let Err(err) = shell.initialize(execution_context) {
-                Logger::get_instance().log(LogLevel::Error, &format!("Error initializing shell: {}", err), None);
+                Logger::log(LogLevel::Error, &format!("Error initializing shell: {}", err), None);
             }
         }
     }

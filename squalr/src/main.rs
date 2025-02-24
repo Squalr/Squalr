@@ -23,7 +23,7 @@ pub fn main() {
     match slint::run_event_loop() {
         Ok(_) => {}
         Err(err) => {
-            Logger::get_instance().log(LogLevel::Error, "Fatal error starting Squalr.", Some(err.to_string().as_str()));
+            Logger::log(LogLevel::Error, "Fatal error starting Squalr.", Some(err.to_string().as_str()));
         }
     }
 }

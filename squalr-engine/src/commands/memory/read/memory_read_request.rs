@@ -32,7 +32,7 @@ impl EngineRequest for MemoryReadRequest {
         execution_context: &Arc<EngineExecutionContext>,
     ) -> Self::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
-            Logger::get_instance().log(LogLevel::Info, &format!("Reading value from address {}", self.address), None);
+            Logger::log(LogLevel::Info, &format!("Reading value from address {}", self.address), None);
 
             let mut out_value = self.value.clone();
             let success = MemoryReader::get_instance().read(&process_info, self.address, &mut out_value);
@@ -43,7 +43,7 @@ impl EngineRequest for MemoryReadRequest {
                 success: success,
             }
         } else {
-            Logger::get_instance().log(LogLevel::Error, "No opened process available.", None);
+            Logger::log(LogLevel::Error, "No opened process available.", None);
 
             MemoryReadResponse {
                 value: DynamicStruct::new(),

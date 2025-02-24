@@ -251,7 +251,7 @@ impl ProcessQueryer for WindowsProcessQuery {
         let process_monitor_guard = match PROCESS_MONITOR.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire process monitor lock: {}", e), None);
+                Logger::log(LogLevel::Error, &format!("Failed to acquire process monitor lock: {}", e), None);
                 return Vec::new();
             }
         };
@@ -260,7 +260,7 @@ impl ProcessQueryer for WindowsProcessQuery {
         let system_guard = match system.read() {
             Ok(guard) => guard,
             Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire system read lock: {}", e), None);
+                Logger::log(LogLevel::Error, &format!("Failed to acquire system read lock: {}", e), None);
                 return Vec::new();
             }
         };

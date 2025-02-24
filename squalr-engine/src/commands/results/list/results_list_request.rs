@@ -36,7 +36,7 @@ impl EngineRequest for ResultsListRequest {
 
         for result_index in initial_index..end_index {
             if let Some(scan_result) = snapshot.get_scan_result(result_index, &self.data_type) {
-                Logger::get_instance().log(LogLevel::Info, format!("{:?}", scan_result).as_str(), None);
+                Logger::log(LogLevel::Info, format!("{:?}", scan_result).as_str(), None);
             }
         }
 

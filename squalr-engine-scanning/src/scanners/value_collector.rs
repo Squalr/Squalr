@@ -54,7 +54,7 @@ impl ValueCollector {
         cancellation_token: Arc<AtomicBool>,
     ) {
         if with_logging {
-            Logger::get_instance().log(
+            Logger::log(
                 LogLevel::Info,
                 &format!("Reading values from memory (process {})...", process_info.process_id),
                 None,
@@ -112,8 +112,8 @@ impl ValueCollector {
             let duration = start_time.elapsed();
             let byte_count = snapshot.get_byte_count();
 
-            Logger::get_instance().log(LogLevel::Info, &format!("Values collected in: {:?}", duration), None);
-            Logger::get_instance().log(
+            Logger::log(LogLevel::Info, &format!("Values collected in: {:?}", duration), None);
+            Logger::log(
                 LogLevel::Info,
                 &format!("{} bytes read ({})", byte_count, value_to_metric_size(byte_count)),
                 None,

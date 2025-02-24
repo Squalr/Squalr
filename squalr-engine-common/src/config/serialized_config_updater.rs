@@ -1,7 +1,7 @@
 use crate::logging::log_level::LogLevel;
 use crate::logging::logger::Logger;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 pub fn update_config_field<T: Serialize + DeserializeOwned>(
@@ -12,7 +12,7 @@ pub fn update_config_field<T: Serialize + DeserializeOwned>(
     let config_json = match serde_json::to_value(&*config) {
         Ok(json) => json,
         Err(e) => {
-            Logger::get_instance().log(LogLevel::Error, &format!("Failed to serialize config: {}", e), None);
+            Logger::log(LogLevel::Error, &format!("Failed to serialize config: {}", e), None);
             return;
         }
     };
@@ -23,20 +23,20 @@ pub fn update_config_field<T: Serialize + DeserializeOwned>(
                 Value::Number(_) => match value.parse::<serde_json::Number>() {
                     Ok(parsed_value) => Value::Number(parsed_value),
                     Err(_) => {
-                        Logger::get_instance().log(LogLevel::Error, "Failed to parse number", None);
+                        Logger::log(LogLevel::Error, "Failed to parse number", None);
                         return;
                     }
                 },
                 Value::Bool(_) => match value.parse::<bool>() {
                     Ok(parsed_value) => Value::Bool(parsed_value),
                     Err(_) => {
-                        Logger::get_instance().log(LogLevel::Error, "Failed to parse boolean", None);
+                        Logger::log(LogLevel::Error, "Failed to parse boolean", None);
                         return;
                     }
                 },
                 Value::String(_) => Value::String(value.to_string()),
                 _ => {
-                    Logger::get_instance().log(LogLevel::Error, "Unsupported value type", None);
+                    Logger::log(LogLevel::Error, "Unsupported value type", None);
                     return;
                 }
             };
@@ -50,13 +50,13 @@ pub fn update_config_field<T: Serialize + DeserializeOwned>(
             match serde_json::from_value(updated_json) {
                 Ok(updated_config) => *config = updated_config,
                 Err(e) => {
-                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to deserialize config: {}", e), None);
+                    Logger::log(LogLevel::Error, &format!("Failed to deserialize config: {}", e), None);
                 }
             }
         } else {
-            Logger::get_instance().log(LogLevel::Error, "Unknown setting name", None);
+            Logger::log(LogLevel::Error, "Unknown setting name", None);
         }
     } else {
-        Logger::get_instance().log(LogLevel::Error, "Failed to convert config to JSON map", None);
+        Logger::log(LogLevel::Error, "Failed to convert config to JSON map", None);
     }
 }

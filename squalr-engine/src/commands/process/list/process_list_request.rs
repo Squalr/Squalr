@@ -34,7 +34,7 @@ impl EngineRequest for ProcessListRequest {
         &self,
         _execution_context: &Arc<EngineExecutionContext>,
     ) -> Self::ResponseType {
-        Logger::get_instance().log(
+        Logger::log(
             LogLevel::Info,
             &format!(
                 "Listing processes with options: require_windowed={}, search_name={:?}, match_case={}, limit={:?}",

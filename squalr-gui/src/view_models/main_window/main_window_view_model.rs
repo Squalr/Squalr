@@ -28,7 +28,7 @@ impl MainWindowViewModel {
             _engine_execution_context: engine_execution_context.clone(),
         };
 
-        Logger::get_instance().subscribe(dock_root_view_model.get_output_view_model().clone());
+        Logger::subscribe(dock_root_view_model.get_output_view_model().clone());
 
         create_view_bindings!(view_binding, {
             WindowViewModelBindings => {

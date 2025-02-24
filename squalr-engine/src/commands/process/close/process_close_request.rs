@@ -23,7 +23,7 @@ impl EngineRequest for ProcessCloseRequest {
         execution_context: &Arc<EngineExecutionContext>,
     ) -> Self::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
-            Logger::get_instance().log(
+            Logger::log(
                 LogLevel::Info,
                 &format!("Closing process {} with handle {}", process_info.process_id, process_info.handle),
                 None,
@@ -34,7 +34,7 @@ impl EngineRequest for ProcessCloseRequest {
                     execution_context.clear_opened_process();
                 }
                 Err(err) => {
-                    Logger::get_instance().log(
+                    Logger::log(
                         LogLevel::Error,
                         &format!("Failed to close process handle {}: {}", process_info.handle, err),
                         None,
@@ -46,7 +46,7 @@ impl EngineRequest for ProcessCloseRequest {
                 process_info: Some(process_info),
             }
         } else {
-            Logger::get_instance().log(LogLevel::Info, "No process to close", None);
+            Logger::log(LogLevel::Info, "No process to close", None);
             ProcessCloseResponse { process_info: None }
         }
     }

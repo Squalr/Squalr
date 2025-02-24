@@ -46,7 +46,7 @@ impl MemoryQueryer {
                 return MemoryQueryer::query_pages_from_non_modules(process_info);
             }
             _ => {
-                Logger::get_instance().log(LogLevel::Error, "Unknown snapshot retrieval mode", None);
+                Logger::log(LogLevel::Error, "Unknown snapshot retrieval mode", None);
                 return vec![];
             }
         }

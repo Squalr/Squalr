@@ -33,7 +33,7 @@ impl EngineRequest for ScanCollectValuesRequest {
             let progress_receiver = task.subscribe_to_progress_updates();
             thread::spawn(move || {
                 while let Ok(progress) = progress_receiver.recv() {
-                    Logger::get_instance().log(LogLevel::Info, &format!("Progress: {:.2}%", progress), None);
+                    Logger::log(LogLevel::Info, &format!("Progress: {:.2}%", progress), None);
                 }
             });
 
@@ -48,7 +48,7 @@ impl EngineRequest for ScanCollectValuesRequest {
                 trackable_task_handle: Some(task_handle),
             }
         } else {
-            Logger::get_instance().log(LogLevel::Info, "No opened process", None);
+            Logger::log(LogLevel::Info, "No opened process", None);
             ScanCollectValuesResponse { trackable_task_handle: None }
         }
     }

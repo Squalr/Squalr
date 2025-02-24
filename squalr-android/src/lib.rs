@@ -10,12 +10,12 @@ static SQUALR_CLI: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/../../../sq
 #[unsafe(no_mangle)]
 fn android_main(app: slint::android::AndroidApp) {
     if let Err(err) = slint::android::init(app) {
-        Logger::get_instance().log(LogLevel::Error, "Failed to initialize Slint Android.", Some(&err.to_string()));
+        Logger::log(LogLevel::Error, "Failed to initialize Slint Android.", Some(&err.to_string()));
         return;
     }
 
     if let Err(err) = unpack_cli() {
-        Logger::get_instance().log(LogLevel::Error, "Fatal error unpacking privileged cli.", Some(err.to_string().as_str()));
+        Logger::log(LogLevel::Error, "Fatal error unpacking privileged cli.", Some(err.to_string().as_str()));
         return;
     }
 
@@ -28,7 +28,7 @@ fn android_main(app: slint::android::AndroidApp) {
     match slint::run_event_loop() {
         Ok(_) => {}
         Err(err) => {
-            Logger::get_instance().log(LogLevel::Error, "Fatal error starting Squalr.", Some(err.to_string().as_str()));
+            Logger::log(LogLevel::Error, "Fatal error starting Squalr.", Some(err.to_string().as_str()));
         }
     }
 }
@@ -37,14 +37,14 @@ fn unpack_cli() -> std::io::Result<()> {
     use std::io::Write;
     use std::process::{Command, Stdio};
 
-    Logger::get_instance().log(LogLevel::Info, "Removing existing cli...", None);
+    Logger::log(LogLevel::Info, "Removing existing cli...", None);
 
     let _ = Command::new("su")
         .arg("-c")
         .arg("rm /data/data/rust.squalr_android/files/squalr-cli")
         .status()?;
 
-    Logger::get_instance().log(LogLevel::Info, "Unpacking server (privileged worker)...", None);
+    Logger::log(LogLevel::Info, "Unpacking server (privileged worker)...", None);
 
     let mut child = Command::new("su")
         .arg("-c")
@@ -63,7 +63,7 @@ fn unpack_cli() -> std::io::Result<()> {
         return Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to write squalr-cli via cat"));
     }
 
-    Logger::get_instance().log(LogLevel::Info, "Elevating worker file privileges...", None);
+    Logger::log(LogLevel::Info, "Elevating worker file privileges...", None);
 
     let status = Command::new("su")
         .arg("-c")

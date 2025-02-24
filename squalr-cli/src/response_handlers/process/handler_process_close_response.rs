@@ -7,13 +7,13 @@ pub fn handle_process_close_response(process_response: ProcessResponse) {
         let process_info = process_close_response.process_info;
 
         if let Some(process_info) = process_info {
-            Logger::get_instance().log(
+            Logger::log(
                 LogLevel::Info,
                 &format!("Closed process_id: {}, Name: {}", process_info.process_id, process_info.name),
                 None,
             );
         } else {
-            Logger::get_instance().log(LogLevel::Info, "Failed to close process", None);
+            Logger::log(LogLevel::Info, "Failed to close process", None);
         }
     }
 }

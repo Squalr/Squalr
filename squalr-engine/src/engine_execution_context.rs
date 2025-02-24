@@ -73,7 +73,7 @@ impl EngineExecutionContext {
         process_info: OpenedProcessInfo,
     ) {
         if let Ok(mut process) = self.opened_process.write() {
-            Logger::get_instance().log(
+            Logger::log(
                 LogLevel::Info,
                 &format!("Opened process: {}, pid: {}", process_info.name, process_info.process_id),
                 None,
@@ -90,7 +90,7 @@ impl EngineExecutionContext {
         if let Ok(mut process) = self.opened_process.write() {
             *process = None;
             self.emit_event(EngineEvent::Process(ProcessChangedEvent { process_info: None }));
-            Logger::get_instance().log(LogLevel::Info, "Process closed", None);
+            Logger::log(LogLevel::Info, "Process closed", None);
         }
     }
 

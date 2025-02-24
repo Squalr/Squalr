@@ -4,8 +4,8 @@ use squalr_engine_common::logging::logger::Logger;
 
 pub fn handle_memory_response_write(memory_response: MemoryWriteResponse) {
     if memory_response.success {
-        Logger::get_instance().log(LogLevel::Info, "Write success.", None);
+        Logger::log(LogLevel::Info, "Write success.", None);
     } else {
-        Logger::get_instance().log(LogLevel::Info, "Write failed.", None);
+        Logger::log(LogLevel::Info, "Write failed.", None);
     }
 }

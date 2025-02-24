@@ -33,7 +33,7 @@ impl EngineRequest for MemoryWriteRequest {
     ) -> Self::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             // Log the memory write operation
-            Logger::get_instance().log(LogLevel::Info, &format!("Writing value {:?} to address {}", self.value, self.address), None);
+            Logger::log(LogLevel::Info, &format!("Writing value {:?} to address {}", self.value, self.address), None);
 
             // Convert value to bytes and write to memory
             let value_bytes = self.value.to_bytes();
@@ -43,7 +43,7 @@ impl EngineRequest for MemoryWriteRequest {
 
             MemoryWriteResponse { success }
         } else {
-            Logger::get_instance().log(LogLevel::Info, "No process is opened to write to.", None);
+            Logger::log(LogLevel::Info, "No process is opened to write to.", None);
             MemoryWriteResponse { success: false }
         }
     }

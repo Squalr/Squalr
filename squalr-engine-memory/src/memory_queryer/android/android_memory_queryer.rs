@@ -215,7 +215,7 @@ impl IMemoryQueryer for AndroidMemoryQueryer {
 
         let regions_result = Self::parse_proc_maps(process_id_i32);
         let Ok(regions) = regions_result else {
-            Logger::get_instance().log(LogLevel::Info, "Failed to query memory regions via SU shell.", None);
+            Logger::log(LogLevel::Info, "Failed to query memory regions via SU shell.", None);
             return vec![];
         };
 

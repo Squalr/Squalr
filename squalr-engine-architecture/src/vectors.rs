@@ -10,7 +10,7 @@ pub fn log_vector_architecture() {
     let hardware_vector_size = get_hardware_vector_size();
     let hardware_vector_name = get_hardware_vector_name();
 
-    Logger::get_instance().log(
+    Logger::log(
         LogLevel::Info,
         format!(
             "CPU vector size for accelerated scans: {:?} bytes ({:?} bits), architecture: {}.",

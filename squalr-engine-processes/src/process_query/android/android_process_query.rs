@@ -60,7 +60,7 @@ impl AndroidProcessQuery {
             let package_map_cache = match PACKAGE_CACHE.read() {
                 Ok(cache) => cache,
                 Err(_) => {
-                    Logger::get_instance().log(LogLevel::Error, "Failed to acquire PACKAGE_CACHE read lock.", None);
+                    Logger::log(LogLevel::Error, "Failed to acquire PACKAGE_CACHE read lock.", None);
                     return;
                 }
             };
@@ -73,30 +73,30 @@ impl AndroidProcessQuery {
         let mut package_map_cache = match PACKAGE_CACHE.write() {
             Ok(cache) => cache,
             Err(_) => {
-                Logger::get_instance().log(LogLevel::Error, "Failed to acquire PACKAGE_CACHE write lock.", None);
+                Logger::log(LogLevel::Error, "Failed to acquire PACKAGE_CACHE write lock.", None);
                 return;
             }
         };
 
-        Logger::get_instance().log(LogLevel::Info, "Scanning packages.xml...", None);
+        Logger::log(LogLevel::Info, "Scanning packages.xml...", None);
         let file = match File::open("/data/system/packages.xml") {
             Ok(f) => f,
             Err(err) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Error opening packages.xml: {}", err), None);
+                Logger::log(LogLevel::Error, &format!("Error opening packages.xml: {}", err), None);
                 return;
             }
         };
 
         let mut buffer = Vec::new();
         if let Err(err) = BufReader::new(file).read_to_end(&mut buffer) {
-            Logger::get_instance().log(LogLevel::Error, &format!("Error reading packages.xml: {}", err), None);
+            Logger::log(LogLevel::Error, &format!("Error reading packages.xml: {}", err), None);
             return;
         }
 
         let re = match Regex::new(r"/data/app(?:/[^/]+)?/(?P<package_name>[a-zA-Z0-9_.]+)-[^/]+/") {
             Ok(regex) => regex,
             Err(err) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to compile regex: {}", err), None);
+                Logger::log(LogLevel::Error, &format!("Failed to compile regex: {}", err), None);
                 return;
             }
         };
@@ -112,7 +112,7 @@ impl AndroidProcessQuery {
             }
         }
 
-        Logger::get_instance().log(LogLevel::Info, &format!("Found {} packages.", package_map_cache.len()), None);
+        Logger::log(LogLevel::Info, &format!("Found {} packages.", package_map_cache.len()), None);
     }
 
     fn get_apk_path(package_name: &str) -> Option<String> {
@@ -163,7 +163,7 @@ impl ProcessQueryer for AndroidProcessQuery {
             .write()
             .map_err(|err| format!("Failed to acquire process monitor lock: {}", err))?;
 
-        Logger::get_instance().log(LogLevel::Error, "Monitoring system processes...", None);
+        Logger::log(LogLevel::Error, "Monitoring system processes...", None);
         monitor.start_monitoring();
 
         Ok(())
@@ -199,7 +199,7 @@ impl ProcessQueryer for AndroidProcessQuery {
         let process_monitor_guard = match PROCESS_MONITOR.read() {
             Ok(guard) => guard,
             Err(err) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire process monitor lock: {}", err), None);
+                Logger::log(LogLevel::Error, &format!("Failed to acquire process monitor lock: {}", err), None);
                 return Vec::new();
             }
         };
@@ -210,7 +210,7 @@ impl ProcessQueryer for AndroidProcessQuery {
         let all_processes_guard = match all_processes_lock.read() {
             Ok(guard) => guard,
             Err(err) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire process read lock: {}", err), None);
+                Logger::log(LogLevel::Error, &format!("Failed to acquire process read lock: {}", err), None);
                 return Vec::new();
             }
         };
@@ -218,7 +218,7 @@ impl ProcessQueryer for AndroidProcessQuery {
         let zygote_processes_guard = match zygote_processes_lock.read() {
             Ok(guard) => guard,
             Err(err) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("Failed to acquire zygote process read lock: {}", err), None);
+                Logger::log(LogLevel::Error, &format!("Failed to acquire zygote process read lock: {}", err), None);
                 return Vec::new();
             }
         };

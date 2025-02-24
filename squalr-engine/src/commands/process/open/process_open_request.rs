@@ -32,11 +32,11 @@ impl EngineRequest for ProcessOpenRequest {
         execution_context: &Arc<EngineExecutionContext>,
     ) -> Self::ResponseType {
         if self.process_id.is_none() && self.search_name.is_none() {
-            Logger::get_instance().log(LogLevel::Error, "Error: Neither PID nor search name provided. Cannot open process.", None);
+            Logger::log(LogLevel::Error, "Error: Neither PID nor search name provided. Cannot open process.", None);
             return ProcessOpenResponse { opened_process_info: None };
         }
 
-        Logger::get_instance().log(LogLevel::Info, "Opening process", None);
+        Logger::log(LogLevel::Info, "Opening process", None);
 
         let options = ProcessQueryOptions {
             search_name: self.search_name.clone(),
@@ -59,11 +59,11 @@ impl EngineRequest for ProcessOpenRequest {
                     };
                 }
                 Err(err) => {
-                    Logger::get_instance().log(LogLevel::Error, &format!("Failed to open process {}: {}", process_info.process_id, err), None);
+                    Logger::log(LogLevel::Error, &format!("Failed to open process {}: {}", process_info.process_id, err), None);
                 }
             }
         } else {
-            Logger::get_instance().log(LogLevel::Warn, "No matching process found.", None);
+            Logger::log(LogLevel::Warn, "No matching process found.", None);
         }
 
         ProcessOpenResponse { opened_process_info: None }

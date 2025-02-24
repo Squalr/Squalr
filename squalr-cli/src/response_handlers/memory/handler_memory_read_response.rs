@@ -3,15 +3,15 @@ use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 
 pub fn handle_memory_read_response(memory_read_response: MemoryReadResponse) {
-    // Logger::get_instance().log(LogLevel::Info, &format!("Reading value from address {}", address), None);
+    // Logger::log(LogLevel::Info, &format!("Reading value from address {}", address), None);
 
     if memory_read_response.success {
-        Logger::get_instance().log(
+        Logger::log(
             LogLevel::Info,
             &format!("Read value {:?} from address {}", memory_read_response.value, memory_read_response.address),
             None,
         );
     } else {
-        Logger::get_instance().log(LogLevel::Error, &format!("Failed to read memory"), None);
+        Logger::log(LogLevel::Error, &format!("Failed to read memory"), None);
     }
 }

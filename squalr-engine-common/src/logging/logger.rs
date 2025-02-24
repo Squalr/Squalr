@@ -15,7 +15,7 @@ impl Logger {
         }
     }
 
-    pub fn get_instance() -> &'static Logger {
+    fn get_instance() -> &'static Logger {
         static mut INSTANCE: Option<Logger> = None;
         static INIT: Once = Once::new();
 
@@ -30,21 +30,17 @@ impl Logger {
         }
     }
 
-    pub fn subscribe(
-        &self,
-        observer: Arc<dyn LoggerObserver>,
-    ) {
-        self.observers
+    pub fn subscribe(observer: Arc<dyn LoggerObserver>) {
+        Logger::get_instance()
+            .observers
             .lock()
             .unwrap()
             .insert(ObserverHandle::new(observer.clone()));
     }
 
-    pub fn unsubscribe(
-        &self,
-        observer: &Arc<dyn LoggerObserver>,
-    ) {
-        self.observers
+    pub fn unsubscribe(observer: &Arc<dyn LoggerObserver>) {
+        Logger::get_instance()
+            .observers
             .lock()
             .unwrap()
             .retain(|o| !Arc::ptr_eq(o.get(), observer));
@@ -52,30 +48,27 @@ impl Logger {
 
     // Log a message with an optional inner message
     pub fn log(
-        &self,
         log_level: LogLevel,
         message: &str,
         inner_message: Option<&str>,
     ) {
-        let observers = self.observers.lock().unwrap();
+        let observers = Logger::get_instance().observers.lock().unwrap();
         for observer in observers.iter() {
-            self.log_to_observer(observer.get(), log_level, message, inner_message);
+            Logger::log_to_observer(observer.get(), log_level, message, inner_message);
         }
     }
 
     // Convenience method to log a message with an exception
     pub fn log_with_exception(
-        &self,
         log_level: LogLevel,
         message: &str,
         exception: Option<&dyn std::error::Error>,
     ) {
         let inner_message = exception.map(|e| e.to_string());
-        self.log(log_level, message, inner_message.as_deref());
+        Logger::log(log_level, message, inner_message.as_deref());
     }
 
     fn log_to_observer(
-        &self,
         observer: &Arc<dyn LoggerObserver>,
         log_level: LogLevel,
         message: &str,

@@ -17,13 +17,13 @@ impl Cli {
 
         loop {
             if let Err(err) = stdout.flush() {
-                Logger::get_instance().log(LogLevel::Error, &format!("Error flushing stdout {}", err), None);
+                Logger::log(LogLevel::Error, &format!("Error flushing stdout {}", err), None);
                 break;
             }
 
             let mut input = String::new();
             if let Err(err) = stdin.read_line(&mut input) {
-                Logger::get_instance().log(LogLevel::Error, &format!("Error reading input {}", err), None);
+                Logger::log(LogLevel::Error, &format!("Error reading input {}", err), None);
                 break;
             }
 
@@ -41,7 +41,7 @@ impl Cli {
         let mut cli_command = match shlex::split(input) {
             Some(cli_command) => cli_command,
             None => {
-                Logger::get_instance().log(LogLevel::Error, "Error parsing input", None);
+                Logger::log(LogLevel::Error, "Error parsing input", None);
                 return true;
             }
         };
@@ -57,7 +57,7 @@ impl Cli {
         let engine_command = match EngineCommand::from_iter_safe(&cli_command) {
             Ok(engine_command) => engine_command,
             Err(e) => {
-                Logger::get_instance().log(LogLevel::Error, &format!("{}", e), None);
+                Logger::log(LogLevel::Error, &format!("{}", e), None);
                 return true;
             }
         };

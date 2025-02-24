@@ -7,7 +7,7 @@ pub fn handle_process_list_response(process_response: ProcessResponse) {
         let processes = process_list_response.processes;
 
         for process_info in processes {
-            Logger::get_instance().log(
+            Logger::log(
                 LogLevel::Info,
                 &format!("process_id: {}, name: {}", process_info.process_id, process_info.name),
                 None,
