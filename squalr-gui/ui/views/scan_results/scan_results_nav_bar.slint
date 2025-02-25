@@ -1,0 +1,97 @@
+import { HorizontalBox, VerticalBox, Palette, ScrollView } from "std-widgets.slint";
+
+import { Theme } from "../../theme.slint";
+import { ScanResultsViewModelBindings } from "../../view_model_bindings.slint";
+
+import { Button } from "../../components/buttons/button.slint";
+
+export component ScanResultsNavBar inherits Rectangle {
+    in property <length> header_entry_padding;
+    in property <length> current_value_header_start;
+    in property <length> previous_value_header_start;
+    height: 32px;
+    HorizontalBox {
+        alignment: center;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        spacing: 4px;
+        first-page-button := Button {
+            width: 36px;
+            tooltip-text: @tr("Navigate to the first page");
+            click-sound: "";
+            clicked => {
+                ScanResultsViewModelBindings.navigate_first_page();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                source: @image-url("../../images/navigation/left_arrows.png");
+            }
+        }
+
+        previous-page-button := Button {
+            width: 36px;
+            tooltip-text: @tr("Navigate to the previous page");
+            click-sound: "";
+            clicked => {
+                ScanResultsViewModelBindings.navigate_previous_page();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                source: @image-url("../../images/navigation/left_arrow.png");
+            }
+        }
+
+        Rectangle {
+            background: Theme.background-primary;
+            border-color: Theme.submenu-border;
+            border-radius: 2px;
+            border-width: 1px;
+            width: 64px;
+            line-edit := TextInput {
+                text: "0";
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                color: Theme.foreground;
+                single-line: true;
+            }
+        }
+
+        next-page-button := Button {
+            width: 36px;
+            tooltip-text: @tr("Navigate to the next page");
+            click-sound: "";
+            clicked => {
+                ScanResultsViewModelBindings.navigate_next_page();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                source: @image-url("../../images/navigation/right_arrow.png");
+            }
+        }
+
+        last-page-button := Button {
+            width: 36px;
+            tooltip-text: @tr("Navigate to the last page");
+            click-sound: "";
+            clicked => {
+                ScanResultsViewModelBindings.navigate_last_page();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                source: @image-url("../../images/navigation/right_arrows.png");
+            }
+        }
+    }
+}
