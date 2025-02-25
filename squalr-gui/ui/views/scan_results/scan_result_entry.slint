@@ -7,39 +7,47 @@ import { Button } from "../../components/buttons/button.slint";
 
 export component ScanResultEntry inherits Button {
     in property <ScanResultViewData> scan_result_view_data;
-    callback on-click();
+    in property <length> current_values_splitter_location;
+    in property <length> previous_values_splitter_location;
+    height: 24px;
+    callback on_click();
     clicked => {
-        root.on-click();
+        root.on_click();
     }
-    HorizontalLayout {
-        HorizontalBox {
-            Image {
-                width: 16px;
-                height: 16px;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-
-            Text {
-                color: Theme.foreground;
-                horizontal-alignment: left;
-                vertical-alignment: center;
-                text: scan_result_view_data.address;
-            }
-
-            Text {
-                color: Theme.foreground;
-                horizontal-alignment: left;
-                vertical-alignment: center;
-                text: scan_result_view_data.current_value;
-            }
-
-            Text {
-                color: Theme.foreground;
-                horizontal-alignment: left;
-                vertical-alignment: center;
-                text: scan_result_view_data.previous_value;
-            }
+    HorizontalBox {
+        x: 8px;
+        padding: 0px;
+        Image {
+            width: 16px;
+            height: 16px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
         }
+
+        Text {
+            color: Theme.hex-green;
+            horizontal-alignment: left;
+            vertical-alignment: center;
+            text: scan_result_view_data.address;
+            font-family: Theme.mono-font-family;
+        }
+    }
+
+    Text {
+        x: current_values_splitter_location + 8px;
+        color: Theme.foreground;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+        text: scan_result_view_data.current_value;
+        font-family: Theme.mono-font-family;
+    }
+
+    Text {
+        x: previous_values_splitter_location + 8px;
+        color: Theme.foreground;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+        text: scan_result_view_data.previous_value;
+        font-family: Theme.mono-font-family;
     }
 }

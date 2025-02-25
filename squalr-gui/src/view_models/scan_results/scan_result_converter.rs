@@ -28,10 +28,12 @@ impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
         let base_address = scan_result.get_base_address();
         let module = scan_result.get_module();
 
-        let address_string = if module.is_empty() {
-            format!("0x{:X}", base_address)
+        let address_string = if !module.is_empty() {
+            format!("{}+{:X}", module, base_address)
+        } else if base_address <= u32::MAX as u64 {
+            format!("{:08X}", base_address)
         } else {
-            format!("{}+0x{:X}", module, base_address)
+            format!("{:016X}", base_address)
         };
 
         ScanResultViewData {

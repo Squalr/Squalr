@@ -1,0 +1,36 @@
+import { HorizontalBox, VerticalBox, Palette, ScrollView } from "std-widgets.slint";
+
+import { Theme } from "../../theme.slint";
+
+export component ScanResultsHeader inherits Rectangle {
+    in property <length> header_entry_padding;
+    in property <length> current_value_header_start;
+    in property <length> previous_value_header_start;
+    height: 32px;
+    Text {
+        x: header_entry_padding;
+        color: Theme.foreground;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+        text: @tr("Address");
+        font-family: Theme.mono-font-family;
+    }
+
+    Text {
+        x: root.current_value_header_start + header_entry_padding;
+        color: Theme.foreground;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+        text: @tr("Value");
+        font-family: Theme.mono-font-family;
+    }
+
+    Text {
+        x: root.previous_value_header_start + header_entry_padding;
+        color: Theme.foreground;
+        horizontal-alignment: left;
+        vertical-alignment: center;
+        text: @tr("Previous Value");
+        font-family: Theme.mono-font-family;
+    }
+}
