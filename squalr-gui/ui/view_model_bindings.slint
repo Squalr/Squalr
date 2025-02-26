@@ -187,12 +187,15 @@ export struct ScanResultViewData {
 export global ScanResultsViewModelBindings {
     in property <[ScanResultViewData]> scan_results;
     in-out property <string> results_memory_size;
-    in-out property <int> result_count;
+    in-out property <string> result_count_string;
+    in-out property <string> current_page_index_string: "0";
+    in-out property <string> total_page_index_string;
     callback navigate_first_page();
     callback navigate_last_page();
     callback navigate_next_page();
     callback navigate_previous_page();
     callback add_result_range(start_index: int, end_index: int);
+    callback page_index_text_changed(new_page_index_text: string);
 }
 
 export global PointerScanResultsViewModelBindings { }

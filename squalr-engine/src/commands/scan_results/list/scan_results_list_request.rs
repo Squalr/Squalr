@@ -32,9 +32,8 @@ impl EngineRequest for ScanResultsListRequest {
         execution_context: &Arc<EngineExecutionContext>,
     ) -> Self::ResponseType {
         let results_page_size = ScanSettings::get_instance().get_results_page_size() as u64;
-        let initial_index = self.page_index * results_page_size;
-        let end_index = initial_index + results_page_size;
         let mut scan_results = vec![];
+        let mut last_page_index = 0;
 
         // Collect modules if possible so that we can resolve whether individual addresses are static later.
         let modules = if let Some(opened_process_info) = execution_context.get_opened_process() {
@@ -44,27 +43,38 @@ impl EngineRequest for ScanResultsListRequest {
         };
 
         if let Ok(snapshot) = execution_context.get_snapshot().read() {
-            for result_index in initial_index..end_index {
-                if let Some(mut scan_result_base_address) = snapshot.get_scan_result_address(result_index, &self.data_type) {
-                    let mut current_value = self.data_type.to_default_value();
-                    let previous_value = self.data_type.to_default_value();
-                    let mut module_name = String::default();
+            // Determine the index of the last page of results for this data type.
+            if let Some(scan_results) = snapshot.get_scan_results_by_data_type().get(&self.data_type) {
+                let result_count = scan_results.get_number_of_results();
+                last_page_index = result_count % results_page_size;
+            }
 
-                    // Best-effort attempt to read the values for this scan result.
-                    if let Some(opened_process_info) = execution_context.get_opened_process() {
-                        let _ = MemoryReader::get_instance().read(&opened_process_info, scan_result_base_address, &mut current_value);
-                    }
+            // Get the range of indicies for the elements of this page.
+            let index_of_first_page_entry = self.page_index.clamp(0, last_page_index) * results_page_size;
+            let index_of_last_page_entry = index_of_first_page_entry + results_page_size;
 
-                    // Check whether this scan result belongs to a module (ie check if the address is static).
-                    if let Some((found_module_name, address)) = MemoryQueryer::get_instance().address_to_module(scan_result_base_address, &modules) {
-                        module_name = found_module_name;
-                        scan_result_base_address = address;
-                    }
+            for result_index in index_of_first_page_entry..index_of_last_page_entry {
+                let mut scan_result_base_address = match snapshot.get_scan_result_address(result_index, &self.data_type) {
+                    None => break,
+                    Some(address) => address,
+                };
 
-                    scan_results.push(ScanResult::new(scan_result_base_address, module_name, current_value, previous_value));
-                } else {
-                    break;
+                let mut current_value = self.data_type.to_default_value();
+                let previous_value = self.data_type.to_default_value();
+                let mut module_name = String::default();
+
+                // Best-effort attempt to read the values for this scan result.
+                if let Some(opened_process_info) = execution_context.get_opened_process() {
+                    let _ = MemoryReader::get_instance().read(&opened_process_info, scan_result_base_address, &mut current_value);
                 }
+
+                // Check whether this scan result belongs to a module (ie check if the address is static).
+                if let Some((found_module_name, address)) = MemoryQueryer::get_instance().address_to_module(scan_result_base_address, &modules) {
+                    module_name = found_module_name;
+                    scan_result_base_address = address;
+                }
+
+                scan_results.push(ScanResult::new(scan_result_base_address, module_name, current_value, previous_value));
             }
         }
 
@@ -72,6 +82,7 @@ impl EngineRequest for ScanResultsListRequest {
             scan_results,
             page_index: self.page_index,
             page_size: results_page_size,
+            last_page_index,
         }
     }
 

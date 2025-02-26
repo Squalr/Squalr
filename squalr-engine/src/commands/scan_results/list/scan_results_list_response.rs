@@ -8,6 +8,7 @@ use squalr_engine_scanning::results::scan_result::ScanResult;
 pub struct ScanResultsListResponse {
     pub scan_results: Vec<ScanResult>,
     pub page_index: u64,
+    pub last_page_index: u64,
     pub page_size: u64,
 }
 

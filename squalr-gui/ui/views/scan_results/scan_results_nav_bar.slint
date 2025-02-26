@@ -53,12 +53,15 @@ export component ScanResultsNavBar inherits Rectangle {
             border-radius: 2px;
             border-width: 1px;
             width: 64px;
-            line-edit := TextInput {
-                text: "0";
+            page-number-input := TextInput {
+                text <=> ScanResultsViewModelBindings.current_page_index_string;
                 horizontal-alignment: center;
                 vertical-alignment: center;
                 color: Theme.foreground;
                 single-line: true;
+                changed text => {
+                    ScanResultsViewModelBindings.page_index_text_changed(page-number-input.text);
+                }
             }
         }
 
