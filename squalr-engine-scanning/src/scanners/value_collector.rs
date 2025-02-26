@@ -2,7 +2,7 @@ use crate::results::snapshot_region_filter::SnapshotRegionFilter;
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
-use squalr_engine_common::conversions::value_to_metric_size;
+use squalr_engine_common::conversions::Conversions;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
@@ -115,7 +115,7 @@ impl ValueCollector {
             Logger::log(LogLevel::Info, &format!("Values collected in: {:?}", duration), None);
             Logger::log(
                 LogLevel::Info,
-                &format!("{} bytes read ({})", byte_count, value_to_metric_size(byte_count)),
+                &format!("{} bytes read ({})", byte_count, Conversions::value_to_metric_size(byte_count)),
                 None,
             );
         }

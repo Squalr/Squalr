@@ -34,6 +34,8 @@ impl EngineRequest for ScanResultsListRequest {
         let results_page_size = ScanSettings::get_instance().get_results_page_size() as u64;
         let mut scan_results = vec![];
         let mut last_page_index = 0;
+        let mut result_count = 0;
+        let mut total_size_in_bytes = 0;
 
         // Collect modules if possible so that we can resolve whether individual addresses are static later.
         let modules = if let Some(opened_process_info) = execution_context.get_opened_process() {
@@ -45,9 +47,12 @@ impl EngineRequest for ScanResultsListRequest {
         if let Ok(snapshot) = execution_context.get_snapshot().read() {
             // Determine the index of the last page of results for this data type.
             if let Some(scan_results) = snapshot.get_scan_results_by_data_type().get(&self.data_type) {
-                let result_count = scan_results.get_number_of_results();
+                result_count = scan_results.get_number_of_results();
+
                 last_page_index = result_count % results_page_size;
             }
+
+            total_size_in_bytes = snapshot.get_byte_count();
 
             // Get the range of indicies for the elements of this page.
             let index_of_first_page_entry = self.page_index.clamp(0, last_page_index) * results_page_size;
@@ -83,6 +88,8 @@ impl EngineRequest for ScanResultsListRequest {
             page_index: self.page_index,
             page_size: results_page_size,
             last_page_index,
+            result_count,
+            total_size_in_bytes,
         }
     }
 

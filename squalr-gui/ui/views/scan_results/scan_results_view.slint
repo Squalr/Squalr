@@ -5,7 +5,8 @@ import { ScanResultsViewModelBindings, ScanResultViewData } from "../../view_mod
 
 import { ScanResultEntry } from "scan_result_entry.slint";
 import { ScanResultsHeader } from "scan_results_header.slint";
-import { ScanResultsNavBar } from "scan_results_nav_bar.slint";
+import { ScanResultsNavigationBar } from "scan_results_navigation_bar.slint";
+import { ScanResultsStatisticsBar } from "scan_results_statistics_bar.slint";
 
 export component ScanResultsView inherits Rectangle {
     property <float> ratio_address: 0.33;
@@ -88,6 +89,9 @@ export component ScanResultsView inherits Rectangle {
         }
 
         // Nav bar buttons
-        ScanResultsNavBar { }
+        ScanResultsNavigationBar { }
+
+        // Scan statistics
+        ScanResultsStatisticsBar { }
     }
 }

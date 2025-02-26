@@ -3,7 +3,7 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scan_dispatcher::ScanDispatcher;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
-use squalr_engine_common::conversions::value_to_metric_size;
+use squalr_engine_common::conversions::Conversions;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
@@ -123,7 +123,11 @@ impl ManualScanner {
             let byte_count = snapshot.get_byte_count();
             let duration = start_time.elapsed();
 
-            Logger::log(LogLevel::Info, &format!("Results: {} bytes", value_to_metric_size(byte_count)), None);
+            Logger::log(
+                LogLevel::Info,
+                &format!("Results: {} bytes", Conversions::value_to_metric_size(byte_count)),
+                None,
+            );
 
             let scan_results = snapshot.get_scan_results_by_data_type();
 

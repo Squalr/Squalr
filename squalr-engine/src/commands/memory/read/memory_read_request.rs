@@ -8,7 +8,7 @@ use crate::commands::memory::read::memory_read_response::MemoryReadResponse;
 use crate::engine_execution_context::EngineExecutionContext;
 use serde::Deserialize;
 use serde::Serialize;
-use squalr_engine_common::conversions::parse_hex_or_int;
+use squalr_engine_common::conversions::Conversions;
 use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
@@ -18,7 +18,7 @@ use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct MemoryReadRequest {
-    #[structopt(short = "a", long, parse(try_from_str = parse_hex_or_int))]
+    #[structopt(short = "a", long, parse(try_from_str = Conversions::parse_hex_or_int))]
     pub address: u64,
     #[structopt(short = "v", long)]
     pub value: DynamicStruct,

@@ -10,6 +10,8 @@ pub struct ScanResultsListResponse {
     pub page_index: u64,
     pub last_page_index: u64,
     pub page_size: u64,
+    pub result_count: u64,
+    pub total_size_in_bytes: u64,
 }
 
 impl TypedEngineResponse for ScanResultsListResponse {

@@ -12,6 +12,7 @@ use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::commands::engine_request::EngineRequest;
 use squalr_engine::commands::scan_results::list::scan_results_list_request::ScanResultsListRequest;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_common::conversions::Conversions;
 use squalr_engine_common::values::endian::Endian;
 use squalr_engine_scanning::results::scan_result::ScanResult;
 use std::sync::Arc;
@@ -21,7 +22,7 @@ use std::thread;
 use std::time::Duration;
 
 pub struct ScanResultsViewModel {
-    _view_binding: ViewBinding<MainWindowView>,
+    view_binding: ViewBinding<MainWindowView>,
     scan_results_collection: ViewCollectionBinding<ScanResultViewData, ScanResult, MainWindowView>,
     engine_execution_context: Arc<EngineExecutionContext>,
     current_page_index: Arc<AtomicU64>,
@@ -45,7 +46,7 @@ impl ScanResultsViewModel {
         let cached_last_page_index = Arc::new(AtomicU64::new(0));
 
         let view: ScanResultsViewModel = ScanResultsViewModel {
-            _view_binding: view_binding.clone(),
+            view_binding: view_binding.clone(),
             scan_results_collection: scan_results_collection.clone(),
             engine_execution_context: engine_execution_context.clone(),
             current_page_index: current_page_index.clone(),
@@ -69,6 +70,7 @@ impl ScanResultsViewModel {
     }
 
     fn poll_scan_results(&self) {
+        let view_binding = self.view_binding.clone();
         let scan_results_collection = self.scan_results_collection.clone();
         let engine_execution_context = self.engine_execution_context.clone();
         let current_page_index = self.current_page_index.clone();
@@ -77,6 +79,7 @@ impl ScanResultsViewModel {
         thread::spawn(move || {
             loop {
                 Self::refresh_scan_results(
+                    view_binding.clone(),
                     engine_execution_context.clone(),
                     scan_results_collection.clone(),
                     current_page_index.clone(),
@@ -97,6 +100,7 @@ impl ScanResultsViewModel {
     }
 
     fn refresh_scan_results(
+        view_binding: ViewBinding<MainWindowView>,
         engine_execution_context: Arc<EngineExecutionContext>,
         scan_results_collection: ViewCollectionBinding<ScanResultViewData, ScanResult, MainWindowView>,
         current_page_index: Arc<AtomicU64>,
@@ -110,10 +114,21 @@ impl ScanResultsViewModel {
         };
         let scan_results_collection = scan_results_collection.clone();
 
+        // TODO: We should also be decoupling refreshing values vs querying the actual results, no?
         scan_results_list_request.send(&engine_execution_context, move |scan_results_list_response| {
             cached_last_page_index.store(scan_results_list_response.last_page_index, Ordering::Release);
 
+            let result_count = scan_results_list_response.result_count;
+            let byte_count = scan_results_list_response.total_size_in_bytes;
+
             scan_results_collection.update_from_source(scan_results_list_response.scan_results);
+
+            view_binding.execute_on_ui_thread(move |main_window_view, _| {
+                let scan_results_bindings = main_window_view.global::<ScanResultsViewModelBindings>();
+                let byte_size_in_metric = Conversions::value_to_metric_size(byte_count);
+
+                scan_results_bindings.set_result_statistics(format!("{} (Count: {})", byte_size_in_metric, result_count).into());
+            });
         });
     }
 
@@ -126,6 +141,8 @@ impl ScanResultsViewModel {
         new_page_index: u64,
     ) {
         let new_page_index = new_page_index.clamp(0, cached_last_page_index.load(Ordering::Acquire));
+        let view_binding_clone = view_binding.clone();
+        let current_page_index_clone = current_page_index.clone();
 
         view_binding.execute_on_ui_thread(move |main_window_view, _| {
             let scan_results_bindings = main_window_view.global::<ScanResultsViewModelBindings>();
@@ -138,10 +155,16 @@ impl ScanResultsViewModel {
 
             // Update the view binding with the cleaned numeric string
             scan_results_bindings.set_current_page_index_string(SharedString::from(new_page_index.to_string()));
-
-            // Refresh scan results with the new page index
-            Self::refresh_scan_results(engine_execution_context, scan_results_collection, current_page_index, cached_last_page_index);
         });
+
+        // Refresh scan results with the new page index
+        Self::refresh_scan_results(
+            view_binding_clone,
+            engine_execution_context,
+            scan_results_collection,
+            current_page_index_clone,
+            cached_last_page_index,
+        );
     }
 
     fn on_add_result_range(

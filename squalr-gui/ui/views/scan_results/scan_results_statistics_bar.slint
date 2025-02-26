@@ -1,0 +1,22 @@
+import { HorizontalBox, VerticalBox, Palette, ScrollView } from "std-widgets.slint";
+
+import { Theme } from "../../theme.slint";
+import { ScanResultsViewModelBindings } from "../../view_model_bindings.slint";
+
+import { Button } from "../../components/buttons/button.slint";
+
+export component ScanResultsStatisticsBar inherits Rectangle {
+    height: 32px;
+    HorizontalBox {
+        alignment: center;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        spacing: 4px;
+        Text {
+            color: Theme.foreground;
+            horizontal-alignment: left;
+            vertical-alignment: center;
+            text: ScanResultsViewModelBindings.result_statistics;
+        }
+    }
+}
