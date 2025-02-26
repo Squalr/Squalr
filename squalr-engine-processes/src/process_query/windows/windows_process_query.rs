@@ -5,8 +5,6 @@ use crate::process_query::process_queryer::ProcessQueryer;
 use crate::process_query::windows::windows_icon_handle::{DcHandle, IconHandle};
 use crate::process_query::windows::windows_process_monitor::WindowsProcessMonitor;
 use once_cell::sync::Lazy;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -250,8 +248,8 @@ impl ProcessQueryer for WindowsProcessQuery {
     fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
         let process_monitor_guard = match PROCESS_MONITOR.lock() {
             Ok(guard) => guard,
-            Err(e) => {
-                Logger::log(LogLevel::Error, &format!("Failed to acquire process monitor lock: {}", e), None);
+            Err(err) => {
+                log::error!("Failed to acquire process monitor lock: {}", err);
                 return Vec::new();
             }
         };
@@ -259,8 +257,8 @@ impl ProcessQueryer for WindowsProcessQuery {
         let system = process_monitor_guard.get_system();
         let system_guard = match system.read() {
             Ok(guard) => guard,
-            Err(e) => {
-                Logger::log(LogLevel::Error, &format!("Failed to acquire system read lock: {}", e), None);
+            Err(err) => {
+                log::error!("Failed to acquire system read lock: {}", err);
                 return Vec::new();
             }
         };

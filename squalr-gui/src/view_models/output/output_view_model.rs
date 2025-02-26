@@ -3,8 +3,6 @@ use crate::OutputViewModelBindings;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger_observer::LoggerObserver;
 use std::sync::Arc;
 
 pub struct OutputViewModel {
@@ -26,6 +24,7 @@ impl OutputViewModel {
     }
 }
 
+/*
 impl LoggerObserver for OutputViewModel {
     fn on_log_event(
         &self,
@@ -47,3 +46,4 @@ impl LoggerObserver for OutputViewModel {
             });
     }
 }
+ */

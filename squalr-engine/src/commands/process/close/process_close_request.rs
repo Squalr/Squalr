@@ -7,8 +7,6 @@ use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
 use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use structopt::StructOpt;
 
@@ -23,22 +21,14 @@ impl EngineRequest for ProcessCloseRequest {
         execution_context: &Arc<EngineExecutionContext>,
     ) -> Self::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
-            Logger::log(
-                LogLevel::Info,
-                &format!("Closing process {} with handle {}", process_info.process_id, process_info.handle),
-                None,
-            );
+            log::info!("Closing process {} with handle {}", process_info.process_id, process_info.handle);
 
             match ProcessQuery::close_process(process_info.handle) {
                 Ok(_) => {
                     execution_context.clear_opened_process();
                 }
                 Err(err) => {
-                    Logger::log(
-                        LogLevel::Error,
-                        &format!("Failed to close process handle {}: {}", process_info.handle, err),
-                        None,
-                    );
+                    log::error!("Failed to close process handle {}: {}", process_info.handle, err);
                 }
             }
 
@@ -46,7 +36,7 @@ impl EngineRequest for ProcessCloseRequest {
                 process_info: Some(process_info),
             }
         } else {
-            Logger::log(LogLevel::Info, "No process to close", None);
+            log::error!("No process to close");
             ProcessCloseResponse { process_info: None }
         }
     }

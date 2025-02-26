@@ -6,7 +6,6 @@ use crate::commands::settings::settings_response::SettingsResponse;
 use crate::commands::{engine_command::EngineCommand, settings::set::settings_set_response::SettingsSetResponse};
 use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_memory::memory_settings::MemorySettings;
 use squalr_engine_scanning::scan_settings::ScanSettings;
 use structopt::StructOpt;
@@ -28,7 +27,7 @@ impl EngineRequest for SettingsSetRequest {
         let (domain_and_setting, new_value) = match self.setting_command.split_once('=') {
             Some(parts) => parts,
             None => {
-                Logger::log(LogLevel::Error, "Invalid command format. Expected format: domain.setting=value", None);
+                log::error!("Invalid command format. Expected format: domain.setting=value");
                 return SettingsSetResponse {};
             }
         };
@@ -36,12 +35,12 @@ impl EngineRequest for SettingsSetRequest {
         let (domain, setting_name) = match domain_and_setting.split_once('.') {
             Some(parts) => parts,
             None => {
-                Logger::log(LogLevel::Error, "Invalid setting format. Expected format: domain.setting", None);
+                log::error!("Invalid setting format. Expected format: domain.setting");
                 return SettingsSetResponse {};
             }
         };
 
-        Logger::log(LogLevel::Info, &format!("Setting {}.{}={}", domain, setting_name, new_value), None);
+        log::error!("Setting {}.{}={}", domain, setting_name, new_value);
 
         // Dispatch to the appropriate domain handler
         match domain {
@@ -54,7 +53,7 @@ impl EngineRequest for SettingsSetRequest {
                 scan_settings.update_config_field(setting_name, new_value);
             }
             _ => {
-                Logger::log(LogLevel::Error, "Unknown domain", None);
+                log::error!("Unknown domain");
                 return SettingsSetResponse {};
             }
         }

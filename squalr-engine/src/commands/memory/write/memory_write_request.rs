@@ -10,8 +10,6 @@ use serde::{Deserialize, Serialize};
 use squalr_engine_common::conversions::Conversions;
 use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
 use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_memory::memory_writer::MemoryWriter;
 use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
 use structopt::StructOpt;
@@ -33,7 +31,7 @@ impl EngineRequest for MemoryWriteRequest {
     ) -> Self::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             // Log the memory write operation
-            Logger::log(LogLevel::Info, &format!("Writing value {:?} to address {}", self.value, self.address), None);
+            log::info!("Writing value {:?} to address {}", self.value, self.address);
 
             // Convert value to bytes and write to memory
             let value_bytes = self.value.to_bytes();
@@ -43,7 +41,7 @@ impl EngineRequest for MemoryWriteRequest {
 
             MemoryWriteResponse { success }
         } else {
-            Logger::log(LogLevel::Info, "No process is opened to write to.", None);
+            log::error!("No process is opened to write to.");
             MemoryWriteResponse { success: false }
         }
     }

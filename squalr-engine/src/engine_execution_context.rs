@@ -8,8 +8,6 @@ use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
 use interprocess_shell::shell::inter_process_privileged_shell::InterProcessPrivilegedShell;
 use interprocess_shell::shell::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::tasks::trackable_task_handle::TrackableTaskHandle;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
@@ -73,11 +71,7 @@ impl EngineExecutionContext {
         process_info: OpenedProcessInfo,
     ) {
         if let Ok(mut process) = self.opened_process.write() {
-            Logger::log(
-                LogLevel::Info,
-                &format!("Opened process: {}, pid: {}", process_info.name, process_info.process_id),
-                None,
-            );
+            log::info!("Opened process: {}, pid: {}", process_info.name, process_info.process_id);
             *process = Some(process_info.clone());
 
             self.emit_event(EngineEvent::Process(ProcessChangedEvent {
@@ -89,8 +83,8 @@ impl EngineExecutionContext {
     pub fn clear_opened_process(&self) {
         if let Ok(mut process) = self.opened_process.write() {
             *process = None;
+            log::info!("Process closed");
             self.emit_event(EngineEvent::Process(ProcessChangedEvent { process_info: None }));
-            Logger::log(LogLevel::Info, "Process closed", None);
         }
     }
 

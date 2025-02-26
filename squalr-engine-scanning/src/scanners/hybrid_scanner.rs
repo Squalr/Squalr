@@ -5,8 +5,6 @@ use crate::scanners::scan_dispatcher::ScanDispatcher;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::Conversions;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -50,7 +48,7 @@ impl HybridScanner {
         with_logging: bool,
     ) {
         if with_logging {
-            Logger::log(LogLevel::Info, "Performing hybrid manual scan...", None);
+            log::info!("Performing hybrid manual scan...");
         }
 
         let cancellation_token = task.get_cancellation_token();
@@ -143,22 +141,18 @@ impl HybridScanner {
             let byte_count = snapshot.get_byte_count();
             let duration = start_time.elapsed();
 
-            Logger::log(
-                LogLevel::Info,
-                &format!("Results: {} bytes", Conversions::value_to_metric_size(byte_count)),
-                None,
-            );
+            log::info!("Results: {} bytes", Conversions::value_to_metric_size(byte_count));
 
             let scan_results = snapshot.get_scan_results_by_data_type();
 
             for (data_type, _) in data_types_and_alignments {
                 if let Some(scan_results_for_type) = scan_results.get(&data_type) {
                     let element_count = scan_results_for_type.get_number_of_results();
-                    Logger::log(LogLevel::Info, &format!("Results [{:?}]: {} element(s)", data_type, element_count), None);
+                    log::info!("Results [{:?}]: {} element(s)", data_type, element_count);
                 }
             }
 
-            Logger::log(LogLevel::Info, &format!("Scan complete in: {:?}", duration), None);
+            log::info!("Scan complete in: {:?}", duration);
         }
     }
 }

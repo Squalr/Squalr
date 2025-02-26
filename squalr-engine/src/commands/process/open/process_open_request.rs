@@ -7,8 +7,6 @@ use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
 use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use structopt::StructOpt;
@@ -32,11 +30,11 @@ impl EngineRequest for ProcessOpenRequest {
         execution_context: &Arc<EngineExecutionContext>,
     ) -> Self::ResponseType {
         if self.process_id.is_none() && self.search_name.is_none() {
-            Logger::log(LogLevel::Error, "Error: Neither PID nor search name provided. Cannot open process.", None);
+            log::error!("Error: Neither PID nor search name provided. Cannot open process.");
             return ProcessOpenResponse { opened_process_info: None };
         }
 
-        Logger::log(LogLevel::Info, "Opening process...", None);
+        log::info!("Opening process...");
 
         let options = ProcessQueryOptions {
             search_name: self.search_name.clone(),
@@ -59,11 +57,11 @@ impl EngineRequest for ProcessOpenRequest {
                     };
                 }
                 Err(err) => {
-                    Logger::log(LogLevel::Error, &format!("Failed to open process {}: {}", process_info.process_id, err), None);
+                    log::info!("Failed to open process {}: {}", process_info.process_id, err);
                 }
             }
         } else {
-            Logger::log(LogLevel::Warn, "No matching process found.", None);
+            log::error!("No matching process found.");
         }
 
         ProcessOpenResponse { opened_process_info: None }

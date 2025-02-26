@@ -7,8 +7,6 @@ use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
 use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use structopt::StructOpt;
@@ -34,13 +32,12 @@ impl EngineRequest for ProcessListRequest {
         &self,
         _execution_context: &Arc<EngineExecutionContext>,
     ) -> Self::ResponseType {
-        Logger::log(
-            LogLevel::Info,
-            &format!(
-                "Listing processes with options: require_windowed={}, search_name={:?}, match_case={}, limit={:?}",
-                self.require_windowed, self.search_name, self.match_case, self.limit
-            ),
-            None,
+        log::info!(
+            "Listing processes with options: require_windowed={}, search_name={:?}, match_case={}, limit={:?}",
+            self.require_windowed,
+            self.search_name,
+            self.match_case,
+            self.limit
         );
 
         let options = ProcessQueryOptions {

@@ -1,5 +1,3 @@
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger_observer::LoggerObserver;
 use std::sync::Arc;
 
 pub struct CliLogListener;

@@ -5,7 +5,6 @@ use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_common::logging::logger::Logger;
 use std::sync::Arc;
 
 pub struct MainWindowViewModel {
@@ -28,7 +27,7 @@ impl MainWindowViewModel {
             _engine_execution_context: engine_execution_context.clone(),
         };
 
-        Logger::subscribe(dock_root_view_model.get_output_view_model().clone());
+        // Logger::subscribe(dock_root_view_model.get_output_view_model().clone());
 
         create_view_bindings!(view_binding, {
             WindowViewModelBindings => {

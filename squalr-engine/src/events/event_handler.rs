@@ -5,8 +5,6 @@ use crate::events::engine_event::EngineEvent;
 use crossbeam_channel::{Receiver, Sender};
 use interprocess_shell::interprocess_egress::InterprocessEgress;
 use interprocess_shell::shell::inter_process_privileged_shell::InterProcessPrivilegedShell;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use std::sync::Arc;
 use std::thread;
 
@@ -48,7 +46,7 @@ impl EngineEventHandler {
     ) {
         if let Some(shell) = self.optional_shell.as_ref() {
             if let Err(err) = shell.initialize(execution_context) {
-                Logger::log(LogLevel::Error, &format!("Error initializing shell: {}", err), None);
+                log::error!("Error initializing shell: {}", err);
             }
         }
     }

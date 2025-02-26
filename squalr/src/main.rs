@@ -3,8 +3,6 @@
 
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_gui::view_models::main_window::main_window_view_model::MainWindowViewModel;
 
 pub fn main() {
@@ -23,7 +21,7 @@ pub fn main() {
     match slint::run_event_loop() {
         Ok(_) => {}
         Err(err) => {
-            Logger::log(LogLevel::Error, "Fatal error starting Squalr.", Some(err.to_string().as_str()));
+            log::error!("Fatal error starting Squalr: {}", err);
         }
     }
 }

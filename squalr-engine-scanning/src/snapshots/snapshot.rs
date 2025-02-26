@@ -2,8 +2,6 @@ use crate::results::snapshot_scan_results::SnapshotScanResults;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use dashmap::DashMap;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
@@ -34,7 +32,7 @@ impl Snapshot {
         process_info: &OpenedProcessInfo,
         scan_filter_parameters: Vec<ScanFilterParameters>,
     ) {
-        Logger::log(LogLevel::Info, "Creating new scan...", None);
+        log::info!("Creating new scan...");
 
         self.create_initial_snapshot_regions(process_info);
         self.scan_results_by_data_type.clear();
@@ -47,10 +45,10 @@ impl Snapshot {
                     scan_filter_parameter.get_memory_alignment_or_default(),
                 ),
             );
-            Logger::log(LogLevel::Info, &format!("Adding data type: {}", scan_filter_parameter.get_data_type()), None);
+            log::info!("Adding data type to new scan: {}", scan_filter_parameter.get_data_type());
         }
 
-        Logger::log(LogLevel::Info, "New scan created", None);
+        log::info!("New scan created");
     }
 
     pub fn get_snapshot_regions(&self) -> &Vec<SnapshotRegion> {
@@ -131,7 +129,7 @@ impl Snapshot {
         process_info: &OpenedProcessInfo,
     ) {
         // Query all memory pages for the process from the OS
-        let memory_pages = MemoryQueryer::get_memory_page_bounds(process_info, PageRetrievalMode::FROM_SETTINGS);
+        let memory_pages = MemoryQueryer::get_memory_page_bounds(process_info, PageRetrievalMode::FromSettings);
 
         if memory_pages.is_empty() {
             self.snapshot_regions.clear();

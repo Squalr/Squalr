@@ -3,8 +3,6 @@ use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::Conversions;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::sync::Arc;
@@ -54,11 +52,7 @@ impl ValueCollector {
         cancellation_token: Arc<AtomicBool>,
     ) {
         if with_logging {
-            Logger::log(
-                LogLevel::Info,
-                &format!("Reading values from memory (process {})...", process_info.process_id),
-                None,
-            );
+            log::info!("Reading values from memory (process {})...", process_info.process_id);
         }
 
         let data_types_and_alignments = {
@@ -112,12 +106,8 @@ impl ValueCollector {
             let duration = start_time.elapsed();
             let byte_count = snapshot.get_byte_count();
 
-            Logger::log(LogLevel::Info, &format!("Values collected in: {:?}", duration), None);
-            Logger::log(
-                LogLevel::Info,
-                &format!("{} bytes read ({})", byte_count, Conversions::value_to_metric_size(byte_count)),
-                None,
-            );
+            log::info!("Values collected in: {:?}", duration);
+            log::info!("{} bytes read ({})", byte_count, Conversions::value_to_metric_size(byte_count));
         }
     }
 }

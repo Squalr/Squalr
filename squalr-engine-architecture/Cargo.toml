@@ -7,5 +7,6 @@ edition = "2024"
 
 [dependencies]
 squalr-engine-common = { path = "../squalr-engine-common" }
+log = ">=0.4.26"
 
 [build-dependencies]

@@ -6,8 +6,6 @@ use crate::logging::cli_log_listener::CliLogListener;
 use cli::Cli;
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

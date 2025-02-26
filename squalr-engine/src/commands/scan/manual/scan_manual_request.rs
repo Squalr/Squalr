@@ -5,8 +5,6 @@ use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::values::anonymous_value::AnonymousValue;
 use squalr_engine_scanning::scanners::manual_scanner::ManualScanner;
 use squalr_engine_scanning::scanners::parameters::scan_compare_type::ScanCompareType;
@@ -49,7 +47,7 @@ impl EngineRequest for ScanManualRequest {
             let progress_receiver = task.subscribe_to_progress_updates();
             thread::spawn(move || {
                 while let Ok(progress) = progress_receiver.recv() {
-                    Logger::log(LogLevel::Info, &format!("Progress: {:.2}%", progress), None);
+                    log::info!("Progress: {:.2}%", progress);
                 }
             });
 
@@ -64,7 +62,7 @@ impl EngineRequest for ScanManualRequest {
                 trackable_task_handle: Some(task_handle),
             }
         } else {
-            Logger::log(LogLevel::Info, "No opened process", None);
+            log::error!("No opened process");
             ScanManualResponse { trackable_task_handle: None }
         }
     }

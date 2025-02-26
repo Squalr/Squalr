@@ -6,8 +6,6 @@ use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::{engine_command::EngineCommand, scan::scan_command::ScanCommand};
 use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_common::values::{data_type::DataType, endian::Endian};
 use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use structopt::StructOpt;
@@ -49,7 +47,7 @@ impl EngineRequest for ScanNewRequest {
             if let Ok(mut snapshot) = snapshot.write() {
                 snapshot.new_scan(&process_info, scan_filter_parameters);
             } else {
-                Logger::log(LogLevel::Error, "Failed to create new snapshot!", None);
+                log::error!("Failed to create new snapshot!");
             }
         }
 

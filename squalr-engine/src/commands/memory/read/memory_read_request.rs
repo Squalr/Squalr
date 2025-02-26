@@ -10,8 +10,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use squalr_engine_common::conversions::Conversions;
 use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use structopt::StructOpt;
@@ -32,7 +30,7 @@ impl EngineRequest for MemoryReadRequest {
         execution_context: &Arc<EngineExecutionContext>,
     ) -> Self::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
-            Logger::log(LogLevel::Info, &format!("Reading value from address {}", self.address), None);
+            log::info!("Reading value from address {}", self.address);
 
             let mut out_value = self.value.clone();
             let success = MemoryReader::get_instance().read_struct(&process_info, self.address, &mut out_value);
@@ -43,7 +41,7 @@ impl EngineRequest for MemoryReadRequest {
                 success: success,
             }
         } else {
-            Logger::log(LogLevel::Error, "No opened process available.", None);
+            log::error!("No opened process available.");
 
             MemoryReadResponse {
                 value: DynamicStruct::new(),

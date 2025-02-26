@@ -5,7 +5,6 @@ use crate::memory_queryer::page_retrieval_mode::PageRetrievalMode;
 use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
 use crate::normalized_region::NormalizedRegion;
 use crate::{memory_queryer::memory_queryer_trait::IMemoryQueryer, memory_settings::MemorySettings};
-use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::{collections::HashSet, sync::Once};
 
@@ -33,21 +32,17 @@ impl MemoryQueryer {
         page_retrieval_mode: PageRetrievalMode,
     ) -> Vec<NormalizedRegion> {
         match page_retrieval_mode {
-            PageRetrievalMode::FROM_SETTINGS => {
+            PageRetrievalMode::FromSettings => {
                 return MemoryQueryer::query_pages_from_settings(process_info);
             }
-            PageRetrievalMode::FROM_USER_MODE_MEMORY => {
+            PageRetrievalMode::FromUserMode => {
                 return MemoryQueryer::query_pages_from_usermode_memory(process_info);
             }
-            PageRetrievalMode::FROM_MODULES => {
+            PageRetrievalMode::FromModules => {
                 return MemoryQueryer::query_pages_from_modules(process_info);
             }
-            PageRetrievalMode::FROM_NON_MODULES => {
+            PageRetrievalMode::FromNonModules => {
                 return MemoryQueryer::query_pages_from_non_modules(process_info);
-            }
-            _ => {
-                Logger::log(LogLevel::Error, "Unknown snapshot retrieval mode", None);
-                return vec![];
             }
         }
     }

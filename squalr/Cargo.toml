@@ -18,6 +18,7 @@ squalr-engine-projects = { path = "../squalr-engine-projects" }
 squalr-engine-scanning = { path = "../squalr-engine-scanning" }
 squalr-engine-scripting = { path = "../squalr-engine-scripting" }
 squalr-gui = { path = "../squalr-gui" }
+log = ">=0.4.26"
 slint = { version = ">=1.9.2", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "renderer-software", "std"] }
 
 [build-dependencies]

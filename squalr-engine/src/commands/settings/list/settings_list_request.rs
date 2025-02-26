@@ -6,7 +6,6 @@ use crate::commands::settings::settings_response::SettingsResponse;
 use crate::commands::{engine_command::EngineCommand, engine_request::EngineRequest};
 use crate::engine_execution_context::EngineExecutionContext;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::logging::{log_level::LogLevel, logger::Logger};
 use squalr_engine_memory::memory_settings::MemorySettings;
 use squalr_engine_scanning::scan_settings::ScanSettings;
 use structopt::StructOpt;
@@ -33,12 +32,12 @@ impl EngineRequest for SettingsListRequest {
 
         if scan {
             let scan_config = ScanSettings::get_instance().get_full_config().read().unwrap();
-            Logger::log(LogLevel::Info, format!("{:?}", scan_config).as_str(), None);
+            log::info!("{:?}", scan_config);
         }
 
         if memory {
             let memory_config = MemorySettings::get_instance().get_full_config().read().unwrap();
-            Logger::log(LogLevel::Info, format!("{:?}", memory_config).as_str(), None);
+            log::info!("{:?}", memory_config);
         }
 
         SettingsListResponse {}
