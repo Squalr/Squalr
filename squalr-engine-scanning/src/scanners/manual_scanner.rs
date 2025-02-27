@@ -101,7 +101,7 @@ impl ManualScanner {
 
                     region_scan_results_map.insert(
                         data_type.clone(),
-                        SnapshotRegionScanResults::new_from_filters(new_region_scan_filters, data_type, *memory_alignment),
+                        SnapshotRegionScanResults::new(new_region_scan_filters, data_type, *memory_alignment),
                     );
                 });
 
@@ -115,7 +115,7 @@ impl ManualScanner {
         });
 
         snapshot.discard_empty_regions();
-        snapshot.build_scan_results();
+        snapshot.build_scan_results_lookup_table();
 
         if with_logging {
             let byte_count = snapshot.get_byte_count();

@@ -7,6 +7,7 @@ edition = "2024"
 
 [dependencies]
 interprocess-shell = { path = "../interprocess-shell" }
+squalr-engine-api = { path = "../squalr-engine-api" }
 squalr-engine-architecture = { path = "../squalr-engine-architecture" }
 squalr-engine-common = { path = "../squalr-engine-common" }
 squalr-engine-debuggers = { path = "../squalr-engine-debuggers" }

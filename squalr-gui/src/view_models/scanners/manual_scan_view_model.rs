@@ -53,7 +53,7 @@ impl ManualScanViewModel {
         data_type: DataTypeView,
     ) {
         // TODO: Push this into a converter perhaps, although gets tricky with args
-        let scan_filter_parameters = vec![match data_type {
+        let scan_filter_parameters = match data_type {
             DataTypeView::I8 => ScanFilterParameters::new_with_value(None, DataType::I8()),
             DataTypeView::U8 => ScanFilterParameters::new_with_value(None, DataType::U8()),
             DataTypeView::I16 => ScanFilterParameters::new_with_value(None, DataType::I16(Endian::Little)),
@@ -74,10 +74,10 @@ impl ManualScanViewModel {
             DataTypeView::F64be => ScanFilterParameters::new_with_value(None, DataType::F64(Endian::Big)),
             DataTypeView::Aob => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)), // TODO
             DataTypeView::Str => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)), // TODO
-        }];
+        };
 
         let scan_new_request = ScanNewRequest {
-            scan_filter_parameters: scan_filter_parameters,
+            scan_filter_parameters: vec![scan_filter_parameters],
             scan_all_primitives: false,
         };
 

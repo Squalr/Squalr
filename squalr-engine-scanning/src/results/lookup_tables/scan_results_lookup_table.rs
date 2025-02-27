@@ -3,44 +3,47 @@ use std::ops::RangeInclusive;
 
 type ScanResultRangeMap = RangeInclusiveMap<u64, u64>;
 
+/// Defines a mapping of scan result indicies onto the corresponding snapshot region containing the results.
 #[derive(Debug)]
 pub struct ScanResultsLookupTable {
-    scan_result_range_map: ScanResultRangeMap,
+    result_index_to_region_index_map: ScanResultRangeMap,
     number_of_results: u64,
 }
 
 impl ScanResultsLookupTable {
     pub fn new() -> Self {
         Self {
-            scan_result_range_map: ScanResultRangeMap::new(),
+            result_index_to_region_index_map: ScanResultRangeMap::new(),
             number_of_results: 0,
         }
     }
 
-    pub fn get_scan_result_range_map(&self) -> &ScanResultRangeMap {
-        return &self.scan_result_range_map;
+    pub fn get_lookup_mapping(&self) -> &ScanResultRangeMap {
+        return &self.result_index_to_region_index_map;
     }
 
     pub fn get_number_of_results(&self) -> u64 {
         return self.number_of_results;
     }
 
-    pub fn insert(
+    /// Maps the next specified `n` scan results, denoted by `result_range_count` to a specific region index.
+    pub fn add_lookup_mapping(
         &mut self,
-        element_range_start: u64,
-        element_range_size: u64,
+        result_range_count: u64,
         region_index: u64,
     ) {
-        self.scan_result_range_map.insert(
-            RangeInclusive::new(element_range_start, element_range_start + element_range_size.saturating_sub(1)),
+        let result_index_start = self.get_number_of_results();
+
+        self.result_index_to_region_index_map.insert(
+            RangeInclusive::new(result_index_start, result_index_start + result_range_count.saturating_sub(1)),
             region_index,
         );
 
-        self.number_of_results += element_range_size;
+        self.number_of_results = self.number_of_results.saturating_add(result_range_count);
     }
 
     pub fn clear(&mut self) {
-        self.scan_result_range_map.clear();
+        self.result_index_to_region_index_map.clear();
         self.number_of_results = 0;
     }
 }

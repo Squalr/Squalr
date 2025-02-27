@@ -4,19 +4,21 @@ use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 
+/// Allows direct access of scan results for a given data type and alignment. Through the use of
+/// interval tree index mappings, efficient and low-footprint lookups of scan results are possible.
 #[derive(Debug)]
 pub struct SnapshotScanResults {
     data_type: DataType,
     memory_alignment: MemoryAlignment,
-    scan_results_lookup_table: ScanResultsLookupTable,
+    scan_results_global_lookup_table: ScanResultsLookupTable,
 }
 
 /// Fundamentally, we need to be able to quickly navigate to a specific page number and offset of scan results within a snapshot region.
-/// We need to avoid 'seeking' implementations that require repeatedly iterating over the entire scan, and for this we need to use interval trees.
+/// We need to avoid 'seeking' implementations that require repeatedly iterating over the entire scan, and for this we use interval trees.
 ///
-/// There are two steps of obtaining a scan result.
+/// There are two steps to building these interval trees:
 /// 1) Map the scan result index (global index) to a particular snapshot region.
-/// 2) Map a local index to a particular scan result address within this region.
+/// 2) Map a local index to a particular scan result address within this region. This can be parallelized and performed during scans.
 ///
 /// Scan result collections are separated by data type for improved parallelism.
 impl SnapshotScanResults {
@@ -25,9 +27,9 @@ impl SnapshotScanResults {
         memory_alignment: MemoryAlignment,
     ) -> Self {
         Self {
-            data_type: data_type,
-            memory_alignment: memory_alignment,
-            scan_results_lookup_table: ScanResultsLookupTable::new(),
+            data_type,
+            memory_alignment,
+            scan_results_global_lookup_table: ScanResultsLookupTable::new(),
         }
     }
 
@@ -36,10 +38,10 @@ impl SnapshotScanResults {
         index: u64,
         snapshot_regions: &Vec<SnapshotRegion>,
     ) -> Option<u64> {
-        // Access the scan result lookup table to get the snapshot_region containing this scan result index.
+        // Access the scan result lookup table to get the SnapshotRegion containing this scan result index.
         if let Some((scan_result_index_range, snapshot_region_index)) = self
-            .scan_results_lookup_table
-            .get_scan_result_range_map()
+            .scan_results_global_lookup_table
+            .get_lookup_mapping()
             .get_key_value(&index)
         {
             if *snapshot_region_index < snapshot_regions.len() as u64 {
@@ -57,7 +59,7 @@ impl SnapshotScanResults {
     }
 
     pub fn get_number_of_results(&self) -> u64 {
-        return self.scan_results_lookup_table.get_number_of_results();
+        return self.scan_results_global_lookup_table.get_number_of_results();
     }
 
     pub fn set_scan_filter_parameters(
@@ -76,24 +78,26 @@ impl SnapshotScanResults {
         return self.memory_alignment;
     }
 
-    pub fn build_scan_results(
+    /// Creates the lookup tables that allow for easily navigating to the scan results in the provided snapshot.
+    pub fn build_global_scan_results_lookup_table(
         &mut self,
         snapshot_regions: &Vec<SnapshotRegion>,
     ) {
-        self.scan_results_lookup_table.clear();
+        self.scan_results_global_lookup_table.clear();
 
         // Iterate every snapshot region contained by the snapshot.
         for (region_index, snapshot_region) in snapshot_regions.iter().enumerate() {
+            // The snapshot region should already have the scan results, so grab them. At this stage we are now just adding a global indexing.
             let snapshot_region_scan_results_map = snapshot_region.get_region_scan_results();
 
-            // Create scan result lookup table for each data type being scanned.
+            // Create scan result lookup table for the data type in this particular set of scan results.
+            // Note that there may be more than one SnapshotScanResults instance, each tracking a data type.
             if let Some(snapshot_region_scan_results) = snapshot_region_scan_results_map.get(&self.data_type) {
                 let number_of_filter_results = snapshot_region_scan_results.get_number_of_results();
-                let current_number_of_results = self.scan_results_lookup_table.get_number_of_results();
 
-                // Simply map the result range onto a the index of a particular snapshot region.
-                self.scan_results_lookup_table
-                    .insert(current_number_of_results, number_of_filter_results, region_index as u64);
+                // Simply map the result range (ie global scan result indicies) onto a the index of a particular snapshot region.
+                self.scan_results_global_lookup_table
+                    .add_lookup_mapping(number_of_filter_results, region_index as u64);
             }
         }
     }

@@ -4,8 +4,7 @@ use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 
 pub struct SnapshotRegionScanResults {
-    // These should be combined into a single data structure
-    scan_result_lookup_table: ScanResultsLookupTable,
+    scan_results_local_lookup_table: ScanResultsLookupTable,
     filters: SnapshotFilterCollection,
     filter_lowest_address: u64,
     filter_highest_address: u64,
@@ -23,22 +22,13 @@ pub struct SnapshotRegionScanResults {
 ///
 /// Additionally, there are separate sets of scan results for each data type, as this helps substantially with parallalism in scans.
 impl SnapshotRegionScanResults {
-    pub fn new() -> Self {
-        Self {
-            scan_result_lookup_table: ScanResultsLookupTable::new(),
-            filters: vec![vec![]],
-            filter_lowest_address: 0,
-            filter_highest_address: 0,
-        }
-    }
-
-    pub fn new_from_filters(
+    pub fn new(
         filters: SnapshotFilterCollection,
         data_type: &DataType,
         memory_alignment: MemoryAlignment,
     ) -> Self {
         let mut instance = Self {
-            scan_result_lookup_table: ScanResultsLookupTable::new(),
+            scan_results_local_lookup_table: ScanResultsLookupTable::new(),
             filters,
             filter_lowest_address: 0,
             filter_highest_address: 0,
@@ -46,13 +36,9 @@ impl SnapshotRegionScanResults {
 
         // Set the filter lowest/highest address based on the given filter collection
         instance.update_filter_bounds();
-        instance.build_region_scan_results(data_type, memory_alignment);
+        instance.build_local_scan_results_lookup_table(data_type, memory_alignment);
 
         return instance;
-    }
-
-    pub fn get_number_of_results(&self) -> u64 {
-        return self.scan_result_lookup_table.get_number_of_results();
     }
 
     pub fn get_scan_result_address(
@@ -62,8 +48,8 @@ impl SnapshotRegionScanResults {
     ) -> Option<u64> {
         // Get the index of the filter from the lookup table.
         if let Some((filter_range, snapshot_filter_index)) = self
-            .scan_result_lookup_table
-            .get_scan_result_range_map()
+            .scan_results_local_lookup_table
+            .get_lookup_mapping()
             .get_key_value(&index)
         {
             // Because our filters are a vector of vectors, we have to iterate to index into the filter we want.
@@ -87,27 +73,12 @@ impl SnapshotRegionScanResults {
         return None;
     }
 
-    pub fn get_filters(&self) -> &SnapshotFilterCollection {
-        return &self.filters;
+    pub fn get_number_of_results(&self) -> u64 {
+        return self.scan_results_local_lookup_table.get_number_of_results();
     }
 
-    pub fn build_region_scan_results(
-        &mut self,
-        data_type: &DataType,
-        memory_alignment: MemoryAlignment,
-    ) {
-        self.scan_result_lookup_table.clear();
-        let data_type_size = data_type.get_size_in_bytes();
-
-        // Iterate every snapshot region contained by the snapshot.
-        for (filter_index, filter) in self.filters.iter().flatten().enumerate() {
-            let current_number_of_results = self.scan_result_lookup_table.get_number_of_results();
-            let number_of_filter_results = filter.get_element_count(data_type_size, memory_alignment);
-
-            // Simply map the result range onto a the index of a particular snapshot region.
-            self.scan_result_lookup_table
-                .insert(current_number_of_results, number_of_filter_results, filter_index as u64);
-        }
+    pub fn get_filters(&self) -> &SnapshotFilterCollection {
+        return &self.filters;
     }
 
     pub fn get_filter_bounds(&self) -> (u64, u64) {
@@ -138,6 +109,24 @@ impl SnapshotRegionScanResults {
                 self.filter_lowest_address = self.filter_lowest_address.min(filter_base);
                 self.filter_highest_address = self.filter_lowest_address.max(filter_end);
             }
+        }
+    }
+
+    fn build_local_scan_results_lookup_table(
+        &mut self,
+        data_type: &DataType,
+        memory_alignment: MemoryAlignment,
+    ) {
+        self.scan_results_local_lookup_table.clear();
+        let data_type_size = data_type.get_size_in_bytes();
+
+        // Iterate every snapshot region contained by the snapshot.
+        for (filter_index, filter) in self.filters.iter().flatten().enumerate() {
+            let number_of_filter_results = filter.get_element_count(data_type_size, memory_alignment);
+
+            // Simply map the result range onto a the index of a particular snapshot region.
+            self.scan_results_local_lookup_table
+                .add_lookup_mapping(number_of_filter_results, filter_index as u64);
         }
     }
 }

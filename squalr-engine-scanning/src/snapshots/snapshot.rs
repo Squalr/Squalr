@@ -116,11 +116,11 @@ impl Snapshot {
         result
     }
 
-    pub fn build_scan_results(&mut self) {
+    pub fn build_scan_results_lookup_table(&mut self) {
         for mut scan_results in self.scan_results_by_data_type.iter_mut() {
             return scan_results
                 .value_mut()
-                .build_scan_results(&self.snapshot_regions);
+                .build_global_scan_results_lookup_table(&self.snapshot_regions);
         }
     }
 
