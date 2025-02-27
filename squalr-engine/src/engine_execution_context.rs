@@ -2,7 +2,7 @@ use crate::commands::engine_response::EngineResponse;
 use crate::commands::{engine_command::EngineCommand, engine_command_dispatcher::EngineCommandDispatcher};
 use crate::engine_mode::EngineMode;
 use crate::events::engine_event::EngineEvent;
-use crate::events::event_handler::EngineEventHandler;
+use crate::events::engine_event_handler::EngineEventHandler;
 use crate::events::process::process_changed_event::ProcessChangedEvent;
 use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
@@ -115,7 +115,7 @@ impl EngineExecutionContext {
     }
 
     /// Emits an event from the engine. Direct usage is not advised except by the engine code itself.
-    pub fn subscribe_to_engine_events(&self) -> Receiver<EngineEvent> {
+    pub fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
         self.event_handler.subscribe()
     }
 

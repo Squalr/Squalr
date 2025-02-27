@@ -20,7 +20,7 @@ impl Append for LogDispatcher {
     ) -> anyhow::Result<()> {
         let log_message = format!("[{}] {}\n", record.level(), record.args());
 
-        // Just silently fail -- logging errors inside a failing logging framework seems disasterous.
+        // Just silently fail -- logging more errors inside a failing logging framework risks infinite loops.
         let _ = self.log_sender.send(log_message);
 
         return Ok(());

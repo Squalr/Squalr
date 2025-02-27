@@ -23,13 +23,18 @@ impl OutputViewModel {
             _engine_execution_context: engine_execution_context,
         };
 
-        let receiver = file_system_logger.subscribe_to_logs();
-
-        thread::spawn(move || {
-            while let Ok(log_message) = receiver.recv() {
-                Self::on_log_event(view_binding.clone(), log_message);
+        match file_system_logger.subscribe_to_logs() {
+            Ok(receiver) => {
+                thread::spawn(move || {
+                    while let Ok(log_message) = receiver.recv() {
+                        Self::on_log_event(view_binding.clone(), log_message);
+                    }
+                });
             }
-        });
+            Err(err) => {
+                log::error!("Error subscribing to engine logs: {}", err);
+            }
+        }
 
         view
     }

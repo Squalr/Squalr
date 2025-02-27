@@ -6,34 +6,34 @@ use log4rs::{
     config::{Appender, Config, Root},
     encode::pattern::PatternEncoder,
 };
-use std::fs;
-use std::path::PathBuf;
+use std::{fs, sync::Arc, thread};
+use std::{path::PathBuf, sync::RwLock};
 
 pub struct FileSystemLogger {
-    log_receiver: Receiver<String>,
+    log_event_senders: Arc<RwLock<Vec<Sender<String>>>>,
 }
 
 impl FileSystemLogger {
     pub fn new() -> Self {
-        let (log_sender, log_receiver) = crossbeam_channel::unbounded();
+        let file_system_logger = FileSystemLogger {
+            log_event_senders: Arc::new(RwLock::new(Vec::new())),
+        };
 
-        let file_system_logger = FileSystemLogger { log_receiver };
-
-        if let Err(err) = file_system_logger.initialize(log_sender) {
+        if let Err(err) = file_system_logger.initialize() {
             log::error!("Failed to initialize file system logging: {err}");
         }
 
         file_system_logger
     }
 
-    pub fn subscribe_to_logs(&self) -> Receiver<String> {
-        self.log_receiver.clone()
+    pub fn subscribe_to_logs(&self) -> Result<Receiver<String>, String> {
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        let mut sender_lock = self.log_event_senders.write().map_err(|err| err.to_string())?;
+        sender_lock.push(sender);
+        Ok(receiver)
     }
 
-    fn initialize(
-        &self,
-        log_sender: Sender<String>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn initialize(&self) -> Result<(), Box<dyn std::error::Error>> {
         let log_root_dir = Self::get_log_root_path();
 
         if !log_root_dir.exists() {
@@ -52,11 +52,12 @@ impl FileSystemLogger {
             .encoder(Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S)} - {l} - {t} - {m}\n")))
             .build(log_file)?;
 
-        let output_log_collector = LogDispatcher::new(log_sender);
+        let (log_dispatcher_sender, log_dispatcher_receiver) = crossbeam_channel::unbounded();
+        let log_dispatcher = LogDispatcher::new(log_dispatcher_sender);
 
         let config = Config::builder()
             .appender(Appender::builder().build("file", Box::new(file_appender)))
-            .appender(Appender::builder().build("log_events", Box::new(output_log_collector)))
+            .appender(Appender::builder().build("log_events", Box::new(log_dispatcher)))
             .build(
                 Root::builder()
                     .appender("file")
@@ -66,7 +67,24 @@ impl FileSystemLogger {
 
         log4rs::init_config(config)?;
 
-        return Ok(());
+        let log_event_senders = self.log_event_senders.clone();
+
+        // Listen for events from the log dispatcher, then re-dispatch them to all listeners.
+        // This "daisy chain" of event listeners is done because direct access to LogDispatcher is difficult,
+        // due to being abstracted behind a generic Appender. The easiest work-around is just to have
+        // LogDispatcher be responsible for emitting a single event, then in FileSystemLogger we can fan it out
+        // to multiple listeners, as we do here.
+        thread::spawn(move || {
+            while let Ok(log_message) = log_dispatcher_receiver.recv() {
+                if let Ok(senders) = log_event_senders.read() {
+                    for sender in senders.iter() {
+                        let _ = sender.send(log_message.clone());
+                    }
+                }
+            }
+        });
+
+        Ok(())
     }
 
     fn get_log_root_path() -> PathBuf {
@@ -90,13 +108,13 @@ impl FileSystemLogger {
         let mut log_path = Self::get_log_root_path();
         log_path.push("application.log");
 
-        return log_path;
+        log_path
     }
 
     fn get_log_backup_path() -> PathBuf {
         let mut log_path = Self::get_log_root_path();
         log_path.push("application.log.bak");
 
-        return log_path;
+        log_path
     }
 }

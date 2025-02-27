@@ -5,38 +5,20 @@ use crate::events::engine_event::EngineEvent;
 use crossbeam_channel::{Receiver, Sender};
 use interprocess_shell::interprocess_egress::InterprocessEgress;
 use interprocess_shell::shell::inter_process_privileged_shell::InterProcessPrivilegedShell;
-use std::sync::Arc;
-use std::thread;
+use std::sync::{Arc, RwLock};
 
 /// Orchestrates commands and responses to and from the engine.
 pub struct EngineEventHandler {
     /// An optional interprocess shell-side command handler. This is for Android, where commands go through a privileged shell.
     optional_shell: Option<Arc<InterProcessPrivilegedShell<EngineCommand, EngineResponse, EngineEvent, EngineExecutionContext>>>,
-    event_sender: Sender<EngineEvent>,
-    event_receiver: Receiver<EngineEvent>,
+    event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
 }
 
 impl EngineEventHandler {
     pub fn new(optional_shell: Option<Arc<InterProcessPrivilegedShell<EngineCommand, EngineResponse, EngineEvent, EngineExecutionContext>>>) -> Self {
-        let (event_sender, event_receiver) = crossbeam_channel::unbounded();
-
-        {
-            let event_sender = event_sender.clone();
-            let event_receiver = event_receiver.clone();
-
-            thread::spawn(move || {
-                let event_sender = event_sender.clone();
-                let event_receiver = event_receiver.clone();
-                while let Ok(event) = event_receiver.recv() {
-                    let _ = event_sender.send(event);
-                }
-            });
-        }
-
         Self {
             optional_shell,
-            event_sender,
-            event_receiver,
+            event_senders: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
@@ -51,8 +33,11 @@ impl EngineEventHandler {
         }
     }
 
-    pub fn subscribe(&self) -> Receiver<EngineEvent> {
-        self.event_receiver.clone()
+    pub fn subscribe(&self) -> Result<Receiver<EngineEvent>, String> {
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        let mut sender_lock = self.event_senders.write().map_err(|err| err.to_string())?;
+        sender_lock.push(sender);
+        Ok(receiver)
     }
 
     pub fn emit_event(
@@ -60,9 +45,13 @@ impl EngineEventHandler {
         event: EngineEvent,
     ) {
         if let Some(shell) = &self.optional_shell {
-            let _ = shell.dispatch_event(InterprocessEgress::EngineEvent(event));
+            let _ = shell.dispatch_event(InterprocessEgress::EngineEvent(event.clone()));
         } else {
-            let _ = self.event_sender.send(event);
+            if let Ok(senders) = self.event_senders.read() {
+                for sender in senders.iter() {
+                    let _ = sender.send(event.clone());
+                }
+            }
         }
     }
 }
