@@ -8,14 +8,14 @@ use std::sync::Arc;
 /// Orchestrates commands and responses to and from the engine.
 pub struct SqualrEngine {
     engine_execution_context: Arc<EngineExecutionContext>,
-    file_system_logger: FileSystemLogger,
+    file_system_logger: Arc<FileSystemLogger>,
 }
 
 impl SqualrEngine {
     pub fn new(engine_mode: EngineMode) -> Self {
         let squalr_engine = SqualrEngine {
             engine_execution_context: EngineExecutionContext::new(engine_mode),
-            file_system_logger: FileSystemLogger::new(),
+            file_system_logger: Arc::new(FileSystemLogger::new()),
         };
 
         squalr_engine.initialize(engine_mode);
@@ -27,10 +27,6 @@ impl SqualrEngine {
         &self,
         engine_mode: EngineMode,
     ) {
-        if let Err(err) = self.file_system_logger.initialize() {
-            log::error!("Failed to initialize file system logging: {err}");
-        }
-
         log::info!("Squalr started");
         log::info!(
             "CPU vector size for accelerated scans: {:?} bytes ({:?} bits), architecture: {}",
@@ -51,5 +47,9 @@ impl SqualrEngine {
 
     pub fn get_engine_execution_context(&self) -> &Arc<EngineExecutionContext> {
         &self.engine_execution_context
+    }
+
+    pub fn get_logger(&self) -> &Arc<FileSystemLogger> {
+        &self.file_system_logger
     }
 }

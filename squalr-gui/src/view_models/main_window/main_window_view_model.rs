@@ -5,6 +5,7 @@ use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_common::logging::file_system_logger::FileSystemLogger;
 use std::sync::Arc;
 
 pub struct MainWindowViewModel {
@@ -15,10 +16,17 @@ pub struct MainWindowViewModel {
 }
 
 impl MainWindowViewModel {
-    pub fn new(engine_execution_context: &Arc<EngineExecutionContext>) -> Self {
+    pub fn new(
+        engine_execution_context: &Arc<EngineExecutionContext>,
+        file_system_logger: &Arc<FileSystemLogger>,
+    ) -> Self {
         let view = MainWindowView::new().unwrap();
         let view_binding = ViewBinding::new(ComponentHandle::as_weak(&view));
-        let dock_root_view_model = Arc::new(DockRootViewModel::new(view_binding.clone(), engine_execution_context.clone()));
+        let dock_root_view_model = Arc::new(DockRootViewModel::new(
+            view_binding.clone(),
+            engine_execution_context.clone(),
+            file_system_logger.clone(),
+        ));
 
         let view: MainWindowViewModel = MainWindowViewModel {
             _view: view,

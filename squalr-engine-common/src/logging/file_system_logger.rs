@@ -1,3 +1,5 @@
+use crate::logging::output_log_collector::OutputLogCollector;
+use crossbeam_channel::{Receiver, Sender};
 use log::LevelFilter;
 use log4rs::{
     append::file::FileAppender,
@@ -7,14 +9,31 @@ use log4rs::{
 use std::fs;
 use std::path::PathBuf;
 
-pub struct FileSystemLogger {}
+pub struct FileSystemLogger {
+    log_receiver: Receiver<String>,
+}
 
 impl FileSystemLogger {
     pub fn new() -> Self {
-        FileSystemLogger {}
+        let (log_sender, log_receiver) = crossbeam_channel::unbounded();
+
+        let file_system_logger = FileSystemLogger { log_receiver };
+
+        if let Err(err) = file_system_logger.initialize(log_sender) {
+            log::error!("Failed to initialize file system logging: {err}");
+        }
+
+        file_system_logger
     }
 
-    pub fn initialize(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn subscribe_to_logs(&self) -> Receiver<String> {
+        self.log_receiver.clone()
+    }
+
+    fn initialize(
+        &self,
+        log_sender: Sender<String>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let log_root_dir = Self::get_log_root_path();
 
         if !log_root_dir.exists() {
@@ -33,9 +52,17 @@ impl FileSystemLogger {
             .encoder(Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S)} - {l} - {t} - {m}\n")))
             .build(log_file)?;
 
+        let output_log_collector = OutputLogCollector::new(log_sender);
+
         let config = Config::builder()
             .appender(Appender::builder().build("file", Box::new(file_appender)))
-            .build(Root::builder().appender("file").build(LevelFilter::Debug))?;
+            .appender(Appender::builder().build("output", Box::new(output_log_collector)))
+            .build(
+                Root::builder()
+                    .appender("file")
+                    .appender("output")
+                    .build(LevelFilter::Debug),
+            )?;
 
         log4rs::init_config(config)?;
 

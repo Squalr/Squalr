@@ -21,6 +21,7 @@ use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_common::logging::file_system_logger::FileSystemLogger;
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -39,6 +40,7 @@ impl DockRootViewModel {
     pub fn new(
         view_binding: ViewBinding<MainWindowView>,
         engine_execution_context: Arc<EngineExecutionContext>,
+        file_system_logger: Arc<FileSystemLogger>,
     ) -> Self {
         let main_dock_root = DockableWindowSettings::get_instance().get_dock_layout_settings();
         let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));
@@ -48,7 +50,7 @@ impl DockRootViewModel {
             _docking_manager: docking_manager.clone(),
             manual_scan_view_model: Arc::new(ManualScanViewModel::new(view_binding.clone(), engine_execution_context.clone())),
             memory_settings_view_model: Arc::new(MemorySettingsViewModel::new(view_binding.clone(), engine_execution_context.clone())),
-            output_view_model: Arc::new(OutputViewModel::new(view_binding.clone(), engine_execution_context.clone())),
+            output_view_model: Arc::new(OutputViewModel::new(view_binding.clone(), engine_execution_context.clone(), file_system_logger)),
             process_selector_view_model: Arc::new(ProcessSelectorViewModel::new(view_binding.clone(), engine_execution_context.clone())),
             scan_settings_view_model: Arc::new(ScanSettingsViewModel::new(view_binding.clone(), engine_execution_context.clone())),
             scan_results_view_model: Arc::new(ScanResultsViewModel::new(view_binding.clone(), engine_execution_context.clone())),
