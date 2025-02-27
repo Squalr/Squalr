@@ -1,17 +1,11 @@
-use crate::results::scan_results_index_map::ScanResultsIndexMap;
-use crate::results::snapshot_region_filter::SnapshotRegionFilter;
+use crate::filters::snapshot_region_filter_collection::SnapshotFilterCollection;
+use crate::results::lookup_tables::scan_results_lookup_table::ScanResultsLookupTable;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 
-/// A custom type that defines a set of filters (scan results) discovered by scanners.
-/// While this looks silly, it is better to have a vector of vectors for parallelization.
-/// This is because when we scan a filter, it produces a list of filters. Combining these back into
-/// one giant list would cost too much scan time, so it's better to keep it as a list of lists.
-pub type SnapshotFilterCollection = Vec<Vec<SnapshotRegionFilter>>;
-
 pub struct SnapshotRegionScanResults {
     // These should be combined into a single data structure
-    scan_result_lookup_table: ScanResultsIndexMap,
+    scan_result_lookup_table: ScanResultsLookupTable,
     filters: SnapshotFilterCollection,
     filter_lowest_address: u64,
     filter_highest_address: u64,
@@ -31,7 +25,7 @@ pub struct SnapshotRegionScanResults {
 impl SnapshotRegionScanResults {
     pub fn new() -> Self {
         Self {
-            scan_result_lookup_table: ScanResultsIndexMap::new(),
+            scan_result_lookup_table: ScanResultsLookupTable::new(),
             filters: vec![vec![]],
             filter_lowest_address: 0,
             filter_highest_address: 0,
@@ -44,7 +38,7 @@ impl SnapshotRegionScanResults {
         memory_alignment: MemoryAlignment,
     ) -> Self {
         let mut instance = Self {
-            scan_result_lookup_table: ScanResultsIndexMap::new(),
+            scan_result_lookup_table: ScanResultsLookupTable::new(),
             filters,
             filter_lowest_address: 0,
             filter_highest_address: 0,

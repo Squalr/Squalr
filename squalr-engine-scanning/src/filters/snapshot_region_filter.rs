@@ -3,7 +3,7 @@ use squalr_engine_memory::normalized_region::NormalizedRegion;
 use std::cmp::max;
 
 /// Defines a range of filtered memory within a snapshot region. These filters are created by
-/// scans to narrow down on the desired addresses.
+/// scans to narrow down on a set of desired addresses within the parent snapshot region.
 pub struct SnapshotRegionFilter {
     filter_range: NormalizedRegion,
 }
@@ -18,10 +18,12 @@ impl SnapshotRegionFilter {
         }
     }
 
+    /// Gets the base/start address of this filter.
     pub fn get_base_address(&self) -> u64 {
         return self.filter_range.get_base_address();
     }
 
+    /// Sets the base/start address of this filter.
     pub fn set_base_address(
         &mut self,
         base_address: u64,
@@ -29,6 +31,7 @@ impl SnapshotRegionFilter {
         self.filter_range.set_base_address(base_address);
     }
 
+    /// Sets the end address of this filter.
     pub fn set_end_address(
         &mut self,
         end_address: u64,
@@ -36,14 +39,17 @@ impl SnapshotRegionFilter {
         self.filter_range.set_end_address(end_address);
     }
 
+    /// Gets the end address of this filter.
     pub fn get_end_address(&self) -> u64 {
         return self.filter_range.get_end_address();
     }
 
+    /// Gets the size of this filter.
     pub fn get_region_size(&self) -> u64 {
         return self.filter_range.get_region_size();
     }
 
+    /// Gets the number of elements contained by this filter for the given data type and alignment.
     pub fn get_element_count(
         &self,
         data_type_size: u64,

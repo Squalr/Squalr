@@ -1,4 +1,4 @@
-use crate::results::scan_results_index_map::ScanResultsIndexMap;
+use crate::results::lookup_tables::scan_results_lookup_table::ScanResultsLookupTable;
 use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_common::values::data_type::DataType;
@@ -8,7 +8,7 @@ use squalr_engine_memory::memory_alignment::MemoryAlignment;
 pub struct SnapshotScanResults {
     data_type: DataType,
     memory_alignment: MemoryAlignment,
-    lookup_table: ScanResultsIndexMap,
+    scan_results_lookup_table: ScanResultsLookupTable,
 }
 
 /// Fundamentally, we need to be able to quickly navigate to a specific page number and offset of scan results within a snapshot region.
@@ -27,7 +27,7 @@ impl SnapshotScanResults {
         Self {
             data_type: data_type,
             memory_alignment: memory_alignment,
-            lookup_table: ScanResultsIndexMap::new(),
+            scan_results_lookup_table: ScanResultsLookupTable::new(),
         }
     }
 
@@ -38,7 +38,7 @@ impl SnapshotScanResults {
     ) -> Option<u64> {
         // Access the scan result lookup table to get the snapshot_region containing this scan result index.
         if let Some((scan_result_index_range, snapshot_region_index)) = self
-            .lookup_table
+            .scan_results_lookup_table
             .get_scan_result_range_map()
             .get_key_value(&index)
         {
@@ -57,7 +57,7 @@ impl SnapshotScanResults {
     }
 
     pub fn get_number_of_results(&self) -> u64 {
-        return self.lookup_table.get_number_of_results();
+        return self.scan_results_lookup_table.get_number_of_results();
     }
 
     pub fn set_scan_filter_parameters(
@@ -80,7 +80,7 @@ impl SnapshotScanResults {
         &mut self,
         snapshot_regions: &Vec<SnapshotRegion>,
     ) {
-        self.lookup_table.clear();
+        self.scan_results_lookup_table.clear();
 
         // Iterate every snapshot region contained by the snapshot.
         for (region_index, snapshot_region) in snapshot_regions.iter().enumerate() {
@@ -89,10 +89,10 @@ impl SnapshotScanResults {
             // Create scan result lookup table for each data type being scanned.
             if let Some(snapshot_region_scan_results) = snapshot_region_scan_results_map.get(&self.data_type) {
                 let number_of_filter_results = snapshot_region_scan_results.get_number_of_results();
-                let current_number_of_results = self.lookup_table.get_number_of_results();
+                let current_number_of_results = self.scan_results_lookup_table.get_number_of_results();
 
                 // Simply map the result range onto a the index of a particular snapshot region.
-                self.lookup_table
+                self.scan_results_lookup_table
                     .insert(current_number_of_results, number_of_filter_results, region_index as u64);
             }
         }

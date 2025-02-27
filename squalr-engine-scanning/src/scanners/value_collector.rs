@@ -1,4 +1,4 @@
-use crate::results::snapshot_region_filter::SnapshotRegionFilter;
+use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};

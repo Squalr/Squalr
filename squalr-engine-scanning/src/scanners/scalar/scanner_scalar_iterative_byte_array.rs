@@ -1,4 +1,4 @@
-use crate::results::snapshot_region_filter::SnapshotRegionFilter;
+use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::scalar::scanner_scalar_encoder_byte_array::ScannerScalarEncoderByteArray;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;

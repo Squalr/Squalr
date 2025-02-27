@@ -21,10 +21,12 @@ impl NormalizedRegion {
         }
     }
 
+    /// Gets the base/start address of this region.
     pub fn get_base_address(&self) -> u64 {
         return self.base_address;
     }
 
+    /// Sets the base/start address of this region.
     pub fn set_base_address(
         &mut self,
         base_address: u64,
@@ -32,10 +34,12 @@ impl NormalizedRegion {
         self.base_address = base_address;
     }
 
+    /// Gets the size of this region.
     pub fn get_region_size(&self) -> u64 {
         return self.region_size;
     }
 
+    /// Sets the size of this region.
     pub fn set_region_size(
         &mut self,
         region_size: u64,
@@ -43,24 +47,17 @@ impl NormalizedRegion {
         self.region_size = region_size;
     }
 
+    /// Gets the end address of this region.
     pub fn get_end_address(&self) -> u64 {
         return self.base_address.add(self.region_size as u64);
     }
 
+    /// Sets the end address of this region.
     pub fn set_end_address(
         &mut self,
         end_address: u64,
     ) {
         self.region_size = (end_address - self.base_address) as u64;
-    }
-
-    pub fn generic_constructor(
-        &mut self,
-        base_address: u64,
-        region_size: u64,
-    ) {
-        self.base_address = base_address;
-        self.region_size = region_size;
     }
 
     pub fn set_alignment(
@@ -79,6 +76,7 @@ impl NormalizedRegion {
         self.set_end_address(end_address);
     }
 
+    /// Gets a value indicating whether the provided address is contained inclusively by this region.
     pub fn contains_address(
         &self,
         address: u64,
@@ -86,12 +84,14 @@ impl NormalizedRegion {
         return address >= self.base_address && address <= self.get_end_address();
     }
 
+    /// Expands this snapshot region in both directions, saturating, in both directions. For example,
+    /// expanding by 1 will cause the base address to decrease by 1, and the end address to increase by 1.
     pub fn expand(
         &mut self,
         expand_size: u64,
     ) {
-        self.base_address -= expand_size as u64;
-        self.region_size += expand_size * 2;
+        self.base_address = self.base_address.saturating_sub(expand_size);
+        self.region_size = self.region_size.saturating_add(expand_size * 2);
     }
 }
 

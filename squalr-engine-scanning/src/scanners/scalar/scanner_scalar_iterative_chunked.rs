@@ -1,9 +1,9 @@
-use crate::results::snapshot_region_filter::SnapshotRegionFilter;
+use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::scalar::scanner_scalar_encoder::ScannerScalarEncoder;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use rayon::prelude::*;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::sync::Once;

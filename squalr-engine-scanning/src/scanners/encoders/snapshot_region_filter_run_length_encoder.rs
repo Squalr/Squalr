@@ -1,4 +1,4 @@
-use crate::results::snapshot_region_filter::SnapshotRegionFilter;
+use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 
 pub struct SnapshotRegionFilterRunLengthEncoder {
     result_regions: Vec<SnapshotRegionFilter>,

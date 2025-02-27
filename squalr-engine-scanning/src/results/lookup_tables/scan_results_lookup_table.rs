@@ -1,16 +1,15 @@
-use std::ops::RangeInclusive;
-
 use rangemap::RangeInclusiveMap;
+use std::ops::RangeInclusive;
 
 type ScanResultRangeMap = RangeInclusiveMap<u64, u64>;
 
 #[derive(Debug)]
-pub struct ScanResultsIndexMap {
+pub struct ScanResultsLookupTable {
     scan_result_range_map: ScanResultRangeMap,
     number_of_results: u64,
 }
 
-impl ScanResultsIndexMap {
+impl ScanResultsLookupTable {
     pub fn new() -> Self {
         Self {
             scan_result_range_map: ScanResultRangeMap::new(),
