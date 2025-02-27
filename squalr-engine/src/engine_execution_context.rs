@@ -1,15 +1,15 @@
-use crate::commands::engine_response::EngineResponse;
-use crate::commands::{engine_command::EngineCommand, engine_command_dispatcher::EngineCommandDispatcher};
+use crate::command_executors::engine_command_dispatcher::EngineCommandDispatcher;
 use crate::engine_mode::EngineMode;
-use crate::events::engine_event::EngineEvent;
 use crate::events::engine_event_handler::EngineEventHandler;
-use crate::events::process::process_changed_event::ProcessChangedEvent;
 use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
 use interprocess_shell::shell::inter_process_privileged_shell::InterProcessPrivilegedShell;
 use interprocess_shell::shell::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
+use squalr_engine_api::commands::engine_response::EngineResponse;
+use squalr_engine_api::events::process::process_changed_event::ProcessChangedEvent;
+use squalr_engine_api::{commands::engine_command::EngineCommand, events::engine_event::EngineEvent};
+use squalr_engine_common::structures::process_info::OpenedProcessInfo;
 use squalr_engine_common::tasks::trackable_task_handle::TrackableTaskHandle;
-use squalr_engine_processes::process_info::OpenedProcessInfo;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
 use std::sync::{Arc, RwLock};
 

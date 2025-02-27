@@ -6,6 +6,10 @@ edition = "2024"
 # build = "build.rs"
 
 [dependencies]
+squalr-engine-common = { path = "../squalr-engine-common" }
+log = ">=0.4.26"
+serde = ">=1.0.218"
+structopt = ">=0.3.26"
 
 [build-dependencies]
 

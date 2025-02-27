@@ -1,10 +1,9 @@
-use crate::process_info::ProcessIcon;
-use crate::process_info::{Bitness, OpenedProcessInfo, ProcessInfo};
 use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
 use crate::process_query::windows::windows_icon_handle::{DcHandle, IconHandle};
 use crate::process_query::windows::windows_process_monitor::WindowsProcessMonitor;
 use once_cell::sync::Lazy;
+use squalr_engine_common::structures::process_info::{Bitness, OpenedProcessInfo, ProcessIcon, ProcessInfo};
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;

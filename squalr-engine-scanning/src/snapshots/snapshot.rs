@@ -1,12 +1,12 @@
 use crate::results::snapshot_scan_results::SnapshotScanResults;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use dashmap::DashMap;
+use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
+use squalr_engine_common::structures::process_info::OpenedProcessInfo;
+use squalr_engine_common::structures::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_common::values::data_type::DataType;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::page_retrieval_mode::PageRetrievalMode;
-use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::sync::Arc;
 
 pub struct Snapshot {

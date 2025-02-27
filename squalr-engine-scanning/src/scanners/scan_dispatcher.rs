@@ -11,8 +11,7 @@ use crate::scanners::vector::scanner_vector_cascading::ScannerVectorCascading;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use squalr_engine_common::values::data_type::DataType;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
+use squalr_engine_common::{structures::memory_alignment::MemoryAlignment, values::data_type::DataType};
 use std::sync::Once;
 
 pub struct ScanDispatcher {

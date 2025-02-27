@@ -9,21 +9,15 @@ edition = "2024"
 slint-mvvm = { path = "../slint-mvvm" }
 slint-mvvm-macros = { path = "../slint-mvvm-macros" }
 squalr-engine = { path = "../squalr-engine" }
-squalr-engine-architecture = { path = "../squalr-engine-architecture" }
+squalr-engine-api = { path = "../squalr-engine-api" }
 squalr-engine-common = { path = "../squalr-engine-common" }
-squalr-engine-debuggers = { path = "../squalr-engine-debuggers" }
-squalr-engine-memory = { path = "../squalr-engine-memory" }
-squalr-engine-processes = { path = "../squalr-engine-processes" }
-squalr-engine-projects = { path = "../squalr-engine-projects" }
-squalr-engine-scanning = { path = "../squalr-engine-scanning" }
-squalr-engine-scripting = { path = "../squalr-engine-scripting" }
-futures = ">=0.3"
+futures = ">=0.3.31"
 log = ">=0.4.26"
 rayon = ">=1.10.0"
 serde = { version = ">=1.0.0", features = ["derive"] }
-serde_json = ">=1.0.0"
+serde_json = ">=1.0.139"
 slint = { version = ">=1.9.2", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "renderer-software", "std"] }
-structopt = ">=0.3"
+structopt = ">=0.3.26"
 sysinfo = ">=0.30"
 
 [build-dependencies]

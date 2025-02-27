@@ -4,7 +4,7 @@ use crate::response_handlers::scan::handler_scan_collect_values_response::handle
 use crate::response_handlers::scan::handler_scan_hybrid_response::handle_scan_hybrid_response;
 use crate::response_handlers::scan::handler_scan_manual_response::handle_scan_manual_response;
 use crate::response_handlers::scan::handler_scan_new_response::handle_scan_new_response;
-use squalr_engine::commands::scan::scan_response::ScanResponse;
+use squalr_engine::command_executors::scan::scan_response::ScanResponse;
 
 pub fn handle_scan_response(cmd: ScanResponse) {
     match cmd {

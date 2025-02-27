@@ -1,4 +1,4 @@
-use squalr_engine::commands::process::process_response::ProcessResponse;
+use squalr_engine::command_executors::process::process_response::ProcessResponse;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 

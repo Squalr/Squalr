@@ -1,6 +1,7 @@
 use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
+use crate::view_models::process_selector::opened_process_info_converter::OpenedProcessInfoConverter;
 use crate::view_models::process_selector::process_info_comparer::ProcessInfoComparer;
 use crate::view_models::process_selector::process_info_converter::ProcessInfoConverter;
 use slint::ComponentHandle;
@@ -10,17 +11,15 @@ use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
-use squalr_engine::commands::engine_request::EngineRequest;
-use squalr_engine::commands::process::list::process_list_request::ProcessListRequest;
-use squalr_engine::commands::process::open::process_open_request::ProcessOpenRequest;
+use squalr_engine::command_executors::engine_request_executor::EngineRequestExecutor;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine::events::engine_event::EngineEvent;
-use squalr_engine_processes::process_info::OpenedProcessInfo;
-use squalr_engine_processes::process_info::ProcessInfo;
+use squalr_engine_api::commands::process::list::process_list_request::ProcessListRequest;
+use squalr_engine_api::commands::process::open::process_open_request::ProcessOpenRequest;
+use squalr_engine_api::events::engine_event::EngineEvent;
+use squalr_engine_common::structures::process_info::OpenedProcessInfo;
+use squalr_engine_common::structures::process_info::ProcessInfo;
 use std::sync::Arc;
 use std::thread;
-
-use super::opened_process_info_converter::OpenedProcessInfoConverter;
 
 pub struct ProcessSelectorViewModel {
     _view_binding: ViewBinding<MainWindowView>,

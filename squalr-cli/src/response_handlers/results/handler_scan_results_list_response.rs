@@ -1,4 +1,4 @@
-use squalr_engine::commands::scan_results::list::scan_results_list_response::ScanResultsListResponse;
+use squalr_engine::command_executors::scan_results::list::scan_results_list_response::ScanResultsListResponse;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 

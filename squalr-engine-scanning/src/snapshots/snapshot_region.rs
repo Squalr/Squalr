@@ -3,11 +3,11 @@ use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use dashmap::DashMap;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+use squalr_engine_common::structures::process_info::OpenedProcessInfo;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
-use squalr_engine_processes::process_info::OpenedProcessInfo;
 use std::sync::Arc;
 
 pub struct SnapshotRegion {

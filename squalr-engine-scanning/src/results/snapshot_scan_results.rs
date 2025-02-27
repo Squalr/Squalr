@@ -1,8 +1,8 @@
 use crate::results::lookup_tables::scan_results_lookup_table::ScanResultsLookupTable;
-use crate::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
+use squalr_engine_common::structures::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_common::values::data_type::DataType;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
 
 /// Allows direct access of scan results for a given data type and alignment. Through the use of
 /// interval tree index mappings, efficient and low-footprint lookups of scan results are possible.

@@ -9,15 +9,14 @@ use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
-use squalr_engine::commands::engine_request::EngineRequest;
-use squalr_engine::commands::scan::hybrid::scan_hybrid_request::ScanHybridRequest;
-use squalr_engine::commands::scan::new::scan_new_request::ScanNewRequest;
+use squalr_engine::command_executors::engine_request_executor::EngineRequestExecutor;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::commands::scan::hybrid::scan_hybrid_request::ScanHybridRequest;
+use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
+use squalr_engine_common::structures::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_common::values::anonymous_value::AnonymousValue;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::endian::Endian;
-use squalr_engine_scanning::scanners::parameters::scan_filter_parameters::ScanFilterParameters;
-use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use std::sync::Arc;
 
 pub struct ManualScanViewModel {
@@ -101,7 +100,8 @@ impl ManualScanViewModel {
     fn on_collect_values(engine_execution_context: Arc<EngineExecutionContext>) {
         if let Some(process_info) = engine_execution_context.get_opened_process() {
             let snapshot = engine_execution_context.get_snapshot();
-            let _task = ValueCollector::collect_values(process_info.clone(), snapshot, None, true);
+            // TODO: Port to a command
+            // let _task = ValueCollector::collect_values(process_info.clone(), snapshot, None, true);
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::scanners::encoders::vector::simd_type::SimdType;
-use crate::scanners::parameters::scan_compare_type::ScanCompareType;
+use squalr_engine_common::structures::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::endian::Endian;
 use std::ops::{Add, Sub};

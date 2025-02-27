@@ -5,7 +5,7 @@ use crate::memory_queryer::page_retrieval_mode::PageRetrievalMode;
 use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
 use crate::normalized_region::NormalizedRegion;
 use crate::{memory_queryer::memory_queryer_trait::IMemoryQueryer, memory_settings::MemorySettings};
-use squalr_engine_processes::process_info::OpenedProcessInfo;
+use squalr_engine_common::structures::process_info::OpenedProcessInfo;
 use std::{collections::HashSet, sync::Once};
 
 pub struct MemoryQueryer;
@@ -26,7 +26,6 @@ impl MemoryQueryer {
         }
     }
 
-    // TODO: Support middle-ware for emulator types to filter down the address space
     pub fn get_memory_page_bounds(
         process_info: &OpenedProcessInfo,
         page_retrieval_mode: PageRetrievalMode,

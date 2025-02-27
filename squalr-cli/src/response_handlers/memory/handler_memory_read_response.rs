@@ -1,4 +1,4 @@
-use squalr_engine::commands::memory::read::memory_read_response::MemoryReadResponse;
+use squalr_engine::command_executors::memory::read::memory_read_response::MemoryReadResponse;
 use squalr_engine_common::logging::log_level::LogLevel;
 use squalr_engine_common::logging::logger::Logger;
 

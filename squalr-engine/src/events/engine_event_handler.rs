@@ -1,10 +1,11 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_response::EngineResponse;
 use crate::engine_execution_context::EngineExecutionContext;
-use crate::events::engine_event::EngineEvent;
 use crossbeam_channel::{Receiver, Sender};
 use interprocess_shell::interprocess_egress::InterprocessEgress;
 use interprocess_shell::shell::inter_process_privileged_shell::InterProcessPrivilegedShell;
+use squalr_engine_api::{
+    commands::{engine_command::EngineCommand, engine_response::EngineResponse},
+    events::engine_event::EngineEvent,
+};
 use std::sync::{Arc, RwLock};
 
 /// Orchestrates commands and responses to and from the engine.

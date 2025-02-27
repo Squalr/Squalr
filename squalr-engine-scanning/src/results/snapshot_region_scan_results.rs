@@ -1,7 +1,7 @@
 use crate::filters::snapshot_region_filter_collection::SnapshotFilterCollection;
 use crate::results::lookup_tables::scan_results_lookup_table::ScanResultsLookupTable;
+use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use squalr_engine_common::values::data_type::DataType;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
 
 pub struct SnapshotRegionScanResults {
     scan_results_local_lookup_table: ScanResultsLookupTable,

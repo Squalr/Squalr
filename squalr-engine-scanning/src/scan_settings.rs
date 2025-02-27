@@ -2,7 +2,7 @@ use crate::floating_point_tolerance::FloatingPointTolerance;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use squalr_engine_common::config::serialized_config_updater;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
+use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use std::path::PathBuf;
 use std::sync::Once;
 use std::sync::{Arc, RwLock};

@@ -3,8 +3,8 @@ use crate::scanners::comparers::scalar::scanner_scalar_comparer::ScannerScalarCo
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use squalr_engine_common::values::data_type::DataType;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::sync::Once;
 
 pub struct ScannerScalarSingleElement {}

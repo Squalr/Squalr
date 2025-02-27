@@ -1,8 +1,8 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
+use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use squalr_engine_common::values::data_type::DataType;
-use squalr_engine_memory::memory_alignment::MemoryAlignment;
 use std::collections::HashMap;
 use std::sync::Once;
 

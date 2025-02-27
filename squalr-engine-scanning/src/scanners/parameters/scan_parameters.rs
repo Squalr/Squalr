@@ -1,4 +1,4 @@
-use crate::scanners::parameters::scan_compare_type::ScanCompareType;
+use squalr_engine_common::structures::scan_compare_type::ScanCompareType;
 use squalr_engine_common::values::anonymous_value::AnonymousValue;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::data_value::DataValue;
