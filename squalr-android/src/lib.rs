@@ -1,7 +1,5 @@
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
 use squalr_gui::view_models::main_window::main_window_view_model::MainWindowViewModel;
 
 // On a rooted device, the unprivileged GUI must spawn a privileged CLI app, so it is bundled into the GUI.
@@ -10,25 +8,28 @@ static SQUALR_CLI: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/../../../sq
 #[unsafe(no_mangle)]
 fn android_main(app: slint::android::AndroidApp) {
     if let Err(err) = slint::android::init(app) {
-        Logger::log(LogLevel::Error, "Failed to initialize Slint Android.", Some(&err.to_string()));
+        log::error!("Failed to initialize Slint Android: {}", err);
         return;
     }
 
     if let Err(err) = unpack_cli() {
-        Logger::log(LogLevel::Error, "Fatal error unpacking privileged cli.", Some(err.to_string().as_str()));
+        log::error!("Fatal error unpacking privileged cli: {}", err);
         return;
     }
 
-    SqualrEngine::initialize(EngineMode::UnprivilegedHost);
+    let squalr_engine = SqualrEngine::new(EngineMode::UnprivilegedHost);
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
-    let _main_window_view = MainWindowViewModel::new();
+    let _main_window_view = MainWindowViewModel::new(squalr_engine.get_engine_execution_context(), squalr_engine.get_logger());
+
+    // Start the log event sending now that both the GUI and engine are ready to receive log messages.
+    squalr_engine.get_logger().start_log_event_sender();
 
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {
         Ok(_) => {}
         Err(err) => {
-            Logger::log(LogLevel::Error, "Fatal error starting Squalr.", Some(err.to_string().as_str()));
+            log::error!("Fatal error starting Squalr: {}", err);
         }
     }
 }
@@ -37,14 +38,14 @@ fn unpack_cli() -> std::io::Result<()> {
     use std::io::Write;
     use std::process::{Command, Stdio};
 
-    Logger::log(LogLevel::Info, "Removing existing cli...", None);
+    log::info!("Removing existing cli...");
 
     let _ = Command::new("su")
         .arg("-c")
         .arg("rm /data/data/rust.squalr_android/files/squalr-cli")
         .status()?;
 
-    Logger::log(LogLevel::Info, "Unpacking server (privileged worker)...", None);
+    log::info!("Unpacking server (privileged worker)...");
 
     let mut child = Command::new("su")
         .arg("-c")
@@ -63,7 +64,7 @@ fn unpack_cli() -> std::io::Result<()> {
         return Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to write squalr-cli via cat"));
     }
 
-    Logger::log(LogLevel::Info, "Elevating worker file privileges...", None);
+    log::info!("Elevating worker file privileges...");
 
     let status = Command::new("su")
         .arg("-c")

@@ -17,6 +17,9 @@ pub fn main() {
     // Create and show the main window, which in turn will instantiate all dockable windows.
     let _main_window_view = MainWindowViewModel::new(squalr_engine.get_engine_execution_context(), squalr_engine.get_logger());
 
+    // Start the log event sending now that both the GUI and engine are ready to receive log messages.
+    squalr_engine.get_logger().start_log_event_sender();
+
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {
         Ok(_) => {}

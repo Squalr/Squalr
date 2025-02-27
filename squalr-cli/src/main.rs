@@ -22,6 +22,9 @@ fn main() {
     // Start Squalr engine.
     let squalr_engine = SqualrEngine::new(engine_mode);
 
+    // Start the log event sending now that both the CLI and engine are ready to receive log messages.
+    squalr_engine.get_logger().start_log_event_sender();
+
     if engine_mode == EngineMode::PrivilegedShell {
         Logger::log(LogLevel::Info, "CLI running as a privileged IPC shell.", None);
     }

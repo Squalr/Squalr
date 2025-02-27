@@ -11,15 +11,18 @@ use std::{path::PathBuf, sync::RwLock};
 
 pub struct FileSystemLogger {
     log_event_senders: Arc<RwLock<Vec<Sender<String>>>>,
+    log_dispatcher_receiver: Receiver<String>,
 }
 
 impl FileSystemLogger {
     pub fn new() -> Self {
+        let (log_dispatcher_sender, log_dispatcher_receiver) = crossbeam_channel::unbounded();
         let file_system_logger = FileSystemLogger {
             log_event_senders: Arc::new(RwLock::new(Vec::new())),
+            log_dispatcher_receiver,
         };
 
-        if let Err(err) = file_system_logger.initialize() {
+        if let Err(err) = file_system_logger.initialize(log_dispatcher_sender) {
             log::error!("Failed to initialize file system logging: {err}");
         }
 
@@ -33,7 +36,32 @@ impl FileSystemLogger {
         Ok(receiver)
     }
 
-    fn initialize(&self) -> Result<(), Box<dyn std::error::Error>> {
+    /// Starts sending events for log messages to subscribers. This should be called after everything that needs logs is initialized.
+    /// For example, after the engine and GUI are initialized, that would be a good time to call this.
+    pub fn start_log_event_sender(&self) {
+        let log_event_senders: Arc<RwLock<Vec<Sender<String>>>> = self.log_event_senders.clone();
+        let log_dispatcher_receiver = self.log_dispatcher_receiver.clone();
+
+        // Listen for events from the log dispatcher, then re-dispatch them to all listeners.
+        // This "daisy chain" of event listeners is done because direct access to LogDispatcher is difficult,
+        // due to being abstracted behind a generic Appender. The easiest work-around is just to have
+        // LogDispatcher be responsible for emitting a single event, then in FileSystemLogger we can fan it out
+        // to multiple listeners, as we do here.
+        thread::spawn(move || {
+            while let Ok(log_message) = log_dispatcher_receiver.recv() {
+                if let Ok(senders) = log_event_senders.read() {
+                    for sender in senders.iter() {
+                        let _ = sender.send(log_message.clone());
+                    }
+                }
+            }
+        });
+    }
+
+    fn initialize(
+        &self,
+        log_dispatcher_sender: Sender<String>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let log_root_dir = Self::get_log_root_path();
 
         if !log_root_dir.exists() {
@@ -52,7 +80,6 @@ impl FileSystemLogger {
             .encoder(Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S)} - {l} - {t} - {m}\n")))
             .build(log_file)?;
 
-        let (log_dispatcher_sender, log_dispatcher_receiver) = crossbeam_channel::unbounded();
         let log_dispatcher = LogDispatcher::new(log_dispatcher_sender);
 
         let config = Config::builder()
@@ -66,23 +93,6 @@ impl FileSystemLogger {
             )?;
 
         log4rs::init_config(config)?;
-
-        let log_event_senders = self.log_event_senders.clone();
-
-        // Listen for events from the log dispatcher, then re-dispatch them to all listeners.
-        // This "daisy chain" of event listeners is done because direct access to LogDispatcher is difficult,
-        // due to being abstracted behind a generic Appender. The easiest work-around is just to have
-        // LogDispatcher be responsible for emitting a single event, then in FileSystemLogger we can fan it out
-        // to multiple listeners, as we do here.
-        thread::spawn(move || {
-            while let Ok(log_message) = log_dispatcher_receiver.recv() {
-                if let Ok(senders) = log_event_senders.read() {
-                    for sender in senders.iter() {
-                        let _ = sender.send(log_message.clone());
-                    }
-                }
-            }
-        });
 
         Ok(())
     }
