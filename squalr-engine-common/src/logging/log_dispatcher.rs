@@ -3,17 +3,17 @@ use log::Record;
 use log4rs::append::Append;
 
 #[derive(Debug)]
-pub struct OutputLogCollector {
+pub struct LogDispatcher {
     log_sender: Sender<String>,
 }
 
-impl OutputLogCollector {
+impl LogDispatcher {
     pub fn new(log_sender: Sender<String>) -> Self {
-        OutputLogCollector { log_sender }
+        LogDispatcher { log_sender }
     }
 }
 
-impl Append for OutputLogCollector {
+impl Append for LogDispatcher {
     fn append(
         &self,
         record: &Record,

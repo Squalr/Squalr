@@ -1,4 +1,4 @@
-use crate::logging::output_log_collector::OutputLogCollector;
+use crate::logging::log_dispatcher::LogDispatcher;
 use crossbeam_channel::{Receiver, Sender};
 use log::LevelFilter;
 use log4rs::{
@@ -52,15 +52,15 @@ impl FileSystemLogger {
             .encoder(Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S)} - {l} - {t} - {m}\n")))
             .build(log_file)?;
 
-        let output_log_collector = OutputLogCollector::new(log_sender);
+        let output_log_collector = LogDispatcher::new(log_sender);
 
         let config = Config::builder()
             .appender(Appender::builder().build("file", Box::new(file_appender)))
-            .appender(Appender::builder().build("output", Box::new(output_log_collector)))
+            .appender(Appender::builder().build("log_events", Box::new(output_log_collector)))
             .build(
                 Root::builder()
                     .appender("file")
-                    .appender("output")
+                    .appender("log_events")
                     .build(LevelFilter::Debug),
             )?;
 
