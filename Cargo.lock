@@ -4307,7 +4307,9 @@ dependencies = [
 name = "squalr-cli"
 version = "0.1.0"
 dependencies = [
+ "crossbeam-channel",
  "futures",
+ "log",
  "serde",
  "serde_json",
  "shlex",

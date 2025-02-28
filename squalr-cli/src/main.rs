@@ -15,20 +15,24 @@ fn main() {
         EngineMode::Standalone
     };
 
-    // Hook into engine logging for the cli to display.
-    let cli_log_listener = CliLogListener::new();
-    Logger::subscribe(cli_log_listener);
-
     // Start Squalr engine.
     let squalr_engine = SqualrEngine::new(engine_mode);
+
+    // Hook into engine logging for the cli to display.
+    let _cli_log_listener = CliLogListener::new(match squalr_engine.get_logger().subscribe_to_logs() {
+        Ok(listener) => listener,
+        Err(err) => {
+            panic!("Fatal error hooking into engine log events: {}", err);
+        }
+    });
 
     // Start the log event sending now that both the CLI and engine are ready to receive log messages.
     squalr_engine.get_logger().start_log_event_sender();
 
     if engine_mode == EngineMode::PrivilegedShell {
-        Logger::log(LogLevel::Info, "CLI running as a privileged IPC shell.", None);
+        log::info!("CLI running as a privileged IPC shell.")
     }
 
     // Listen for user input.
-    Cli::run_loop();
+    Cli::run_loop(squalr_engine.get_engine_execution_context());
 }

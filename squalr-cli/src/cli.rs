@@ -1,37 +1,41 @@
 use crate::response_handlers::handle_engine_response;
-use squalr_engine::command_executors::engine_command::EngineCommand;
-use squalr_engine::squalr_engine::SqualrEngine;
+use squalr_engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::commands::engine_command::EngineCommand;
 use std::io;
 use std::io::Write;
+use std::sync::Arc;
 use structopt::StructOpt;
 
 pub struct Cli {}
 
 /// Implements a command line listener polls for text input commands to control the engine.
 impl Cli {
-    pub fn run_loop() {
+    pub fn run_loop(engine_execution_context: &Arc<EngineExecutionContext>) {
         let stdin = io::stdin();
         let mut stdout = io::stdout();
 
         loop {
             if let Err(err) = stdout.flush() {
-                Logger::log(LogLevel::Error, &format!("Error flushing stdout {}", err), None);
+                log::error!("Error flushing stdout {}", err);
                 break;
             }
 
             let mut input = String::new();
             if let Err(err) = stdin.read_line(&mut input) {
-                Logger::log(LogLevel::Error, &format!("Error reading input {}", err), None);
+                log::error!("Error reading input {}", err);
                 break;
             }
 
-            if !Self::handle_input(input.trim()) {
+            if !Self::handle_input(engine_execution_context, input.trim()) {
                 break;
             }
         }
     }
 
-    fn handle_input(input: &str) -> bool {
+    fn handle_input(
+        engine_execution_context: &Arc<EngineExecutionContext>,
+        input: &str,
+    ) -> bool {
         if input.eq_ignore_ascii_case("exit") || input.eq_ignore_ascii_case("close") || input.eq_ignore_ascii_case("quit") {
             return false;
         }
@@ -39,7 +43,7 @@ impl Cli {
         let mut cli_command = match shlex::split(input) {
             Some(cli_command) => cli_command,
             None => {
-                Logger::log(LogLevel::Error, "Error parsing input", None);
+                log::error!("Error parsing input");
                 return true;
             }
         };
@@ -54,13 +58,13 @@ impl Cli {
 
         let engine_command = match EngineCommand::from_iter_safe(&cli_command) {
             Ok(engine_command) => engine_command,
-            Err(e) => {
-                Logger::log(LogLevel::Error, &format!("{}", e), None);
+            Err(err) => {
+                log::error!("Error parsing engine command: {}", err);
                 return true;
             }
         };
 
-        SqualrEngine::dispatch_command(engine_command, |engine_command| {
+        engine_execution_context.dispatch_command(engine_command, |engine_command| {
             handle_engine_response(engine_command);
         });
 

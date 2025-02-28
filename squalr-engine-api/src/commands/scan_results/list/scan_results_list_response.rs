@@ -17,13 +17,13 @@ pub struct ScanResultsListResponse {
 impl TypedEngineResponse for ScanResultsListResponse {
     fn to_engine_response(&self) -> EngineResponse {
         EngineResponse::Results(ScanResultsResponse::List {
-            results_list_response: self.clone(),
+            scan_results_list_response: self.clone(),
         })
     }
 
     fn from_engine_response(response: EngineResponse) -> Result<Self, EngineResponse> {
-        if let EngineResponse::Results(ScanResultsResponse::List { results_list_response }) = response {
-            Ok(results_list_response)
+        if let EngineResponse::Results(ScanResultsResponse::List { scan_results_list_response }) = response {
+            Ok(scan_results_list_response)
         } else {
             Err(response)
         }

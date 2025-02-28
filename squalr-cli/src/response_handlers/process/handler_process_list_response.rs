@@ -1,17 +1,16 @@
-use squalr_engine::command_executors::process::process_response::ProcessResponse;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_api::commands::process::process_response::ProcessResponse;
 
 pub fn handle_process_list_response(process_response: ProcessResponse) {
     if let ProcessResponse::List { process_list_response } = process_response {
         let processes = process_list_response.processes;
 
+        if processes.is_empty() {
+            log::warn!("No processes found!");
+            return;
+        }
+
         for process_info in processes {
-            Logger::log(
-                LogLevel::Info,
-                &format!("process_id: {}, name: {}", process_info.process_id, process_info.name),
-                None,
-            );
+            log::info!("process_id: {}, name: {}", process_info.process_id, process_info.name);
         }
     }
 }

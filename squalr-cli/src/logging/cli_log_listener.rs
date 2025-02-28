@@ -1,23 +1,18 @@
-use std::sync::Arc;
+use std::thread;
 
-pub struct CliLogListener;
-
-impl LoggerObserver for CliLogListener {
-    fn on_log_event(
-        &self,
-        log_level: LogLevel,
-        message: &str,
-        inner_message: Option<&str>,
-    ) {
-        match inner_message {
-            Some(inner) => println!("[{:?}] {} - {}", log_level, message, inner),
-            None => println!("[{:?}] {}", log_level, message),
-        }
-    }
-}
+use crossbeam_channel::Receiver;
+pub struct CliLogListener {}
 
 impl CliLogListener {
-    pub fn new() -> Arc<Self> {
-        Arc::new(Self)
+    pub fn new(log_receiver: Receiver<String>) -> Self {
+        let cli_log_listener = Self {};
+
+        thread::spawn(move || {
+            while let Ok(log_message) = log_receiver.recv() {
+                println!("{}", log_message);
+            }
+        });
+
+        cli_log_listener
     }
 }

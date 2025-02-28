@@ -3,5 +3,5 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ScanResultsResponse {
-    List { results_list_response: ScanResultsListResponse },
+    List { scan_results_list_response: ScanResultsListResponse },
 }

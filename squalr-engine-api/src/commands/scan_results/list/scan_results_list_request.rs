@@ -27,7 +27,7 @@ impl EngineRequest for ScanResultsListRequest {
 }
 
 impl From<ScanResultsListResponse> for ScanResultsResponse {
-    fn from(results_list_response: ScanResultsListResponse) -> Self {
-        ScanResultsResponse::List { results_list_response }
+    fn from(scan_results_list_response: ScanResultsListResponse) -> Self {
+        ScanResultsResponse::List { scan_results_list_response }
     }
 }
