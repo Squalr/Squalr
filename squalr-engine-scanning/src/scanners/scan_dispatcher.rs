@@ -133,6 +133,7 @@ impl ScanDispatcher {
             return ScannerScalarSingleElement::get_instance();
         }
 
+        /*
         // Use parallel scanners when the region size is >= 64MB
         if region_size >= 1024 * 1024 * 64 {
             match data_type {
@@ -209,7 +210,7 @@ impl ScanDispatcher {
                     }
                 }
             }
-        }
+        } */
 
         // Default to scalar iterative
         return ScannerScalarIterative::get_instance();

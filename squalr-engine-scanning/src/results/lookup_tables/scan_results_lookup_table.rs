@@ -18,10 +18,12 @@ impl ScanResultsLookupTable {
         }
     }
 
+    /// Gets the internal interval tree mapping of the lookup table.
     pub fn get_lookup_mapping(&self) -> &ScanResultRangeMap {
         return &self.result_index_to_region_index_map;
     }
 
+    /// Gets the number of scan results mapped by this lookup table.
     pub fn get_number_of_results(&self) -> u64 {
         return self.number_of_results;
     }
@@ -42,6 +44,7 @@ impl ScanResultsLookupTable {
         self.number_of_results = self.number_of_results.saturating_add(result_range_count);
     }
 
+    /// Removes all entries from the lookup table.
     pub fn clear(&mut self) {
         self.result_index_to_region_index_map.clear();
         self.number_of_results = 0;

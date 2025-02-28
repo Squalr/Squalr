@@ -1,5 +1,7 @@
+use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::filters::snapshot_region_filter_collection::SnapshotFilterCollection;
 use crate::results::lookup_tables::scan_results_lookup_table::ScanResultsLookupTable;
+use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use squalr_engine_common::values::data_type::DataType;
 
@@ -37,6 +39,22 @@ impl SnapshotRegionScanResults {
         // Set the filter lowest/highest address based on the given filter collection
         instance.update_filter_bounds();
         instance.build_local_scan_results_lookup_table(data_type, memory_alignment);
+
+        return instance;
+    }
+
+    /// Creates scan results without building a lookup table, covering the entire provided snapshot.
+    /// This is used for two-phase scans that will build lookup tables at a deferred time.
+    pub fn new_from_snapshot_region(snapshot_region: &SnapshotRegion) -> Self {
+        let instance = Self {
+            scan_results_local_lookup_table: ScanResultsLookupTable::new(),
+            filters: vec![vec![SnapshotRegionFilter::new(
+                snapshot_region.get_base_address(),
+                snapshot_region.get_region_size(),
+            )]],
+            filter_lowest_address: snapshot_region.get_base_address(),
+            filter_highest_address: snapshot_region.get_end_address(),
+        };
 
         return instance;
     }

@@ -33,11 +33,11 @@ impl SnapshotRegion {
     }
 
     pub fn get_current_values(&self) -> &Vec<u8> {
-        return &self.current_values;
+        &self.current_values
     }
 
     pub fn get_previous_values(&self) -> &Vec<u8> {
-        return &self.previous_values;
+        &self.previous_values
     }
 
     pub fn read_all_memory(
@@ -74,7 +74,7 @@ impl SnapshotRegion {
             }
         }
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn read_all_memory_parallel(
@@ -132,7 +132,7 @@ impl SnapshotRegion {
             }
         }
 
-        return Ok(());
+        Ok(())
     }
 
     pub fn get_current_values_pointer(
@@ -141,7 +141,9 @@ impl SnapshotRegion {
     ) -> *const u8 {
         unsafe {
             let offset = snapshot_region_filter.get_base_address() - self.get_base_address();
-            return self.get_current_values().as_ptr().add(offset as usize);
+            let ptr = self.get_current_values().as_ptr().add(offset as usize);
+
+            ptr
         }
     }
 
@@ -151,28 +153,30 @@ impl SnapshotRegion {
     ) -> *const u8 {
         unsafe {
             let offset = snapshot_region_filter.get_base_address() - self.get_base_address();
-            return self.get_previous_values().as_ptr().add(offset as usize);
+            let ptr = self.get_previous_values().as_ptr().add(offset as usize);
+
+            ptr
         }
     }
 
     pub fn get_base_address(&self) -> u64 {
-        return self.normalized_region.get_base_address();
+        self.normalized_region.get_base_address()
     }
 
     pub fn get_end_address(&self) -> u64 {
-        return self.normalized_region.get_base_address() + self.normalized_region.get_region_size();
+        self.normalized_region.get_base_address() + self.normalized_region.get_region_size()
     }
 
     pub fn get_region_size(&self) -> u64 {
-        return self.normalized_region.get_region_size();
+        self.normalized_region.get_region_size()
     }
 
     pub fn has_current_values(&self) -> bool {
-        return !self.current_values.is_empty();
+        !self.current_values.is_empty()
     }
 
     pub fn has_previous_values(&self) -> bool {
-        return !self.previous_values.is_empty();
+        !self.previous_values.is_empty()
     }
 
     pub fn can_compare_using_parameters(
@@ -180,18 +184,16 @@ impl SnapshotRegion {
         scan_parameters: &ScanParameters,
     ) -> bool {
         if !scan_parameters.is_valid() || !self.has_current_values() {
-            return false;
+            false
+        } else if !scan_parameters.is_immediate_comparison() && !self.has_previous_values() {
+            false
+        } else {
+            true
         }
-
-        if !scan_parameters.is_immediate_comparison() && !self.has_previous_values() {
-            return false;
-        }
-
-        return true;
     }
 
     pub fn get_region_scan_results(&self) -> &Arc<DashMap<DataType, SnapshotRegionScanResults>> {
-        return &self.region_scan_results_by_data_type;
+        &self.region_scan_results_by_data_type
     }
 
     pub fn resize_to_filters(&mut self) {

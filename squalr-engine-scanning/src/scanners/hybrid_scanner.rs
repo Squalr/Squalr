@@ -1,4 +1,3 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scan_dispatcher::ScanDispatcher;
@@ -85,14 +84,7 @@ impl HybridScanner {
 
                     // Create the initial scan results for this data type if none exist.
                     if !region_scan_results_map.contains_key(&data_type) {
-                        let initial_scan_results = vec![vec![SnapshotRegionFilter::new(
-                            snapshot_region.get_base_address(),
-                            snapshot_region.get_region_size(),
-                        )]];
-                        region_scan_results_map.insert(
-                            data_type.clone(),
-                            SnapshotRegionScanResults::new(initial_scan_results, data_type, *memory_alignment),
-                        );
+                        region_scan_results_map.insert(data_type.clone(), SnapshotRegionScanResults::new_from_snapshot_region(&snapshot_region));
                     }
 
                     let new_region_scan_filters;

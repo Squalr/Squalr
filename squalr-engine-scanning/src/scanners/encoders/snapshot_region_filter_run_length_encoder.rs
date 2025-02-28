@@ -50,7 +50,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
     pub fn finalize_current_encode(
         &mut self,
         // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
-        // For scalar scans, this is generally the size of the hardware vector.
+        // For vector scans, this is generally the size of the hardware vector.
         byte_advance_count: u64,
     ) {
         if self.is_encoding {
@@ -68,7 +68,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
     pub fn finalize_current_encode_data_size_padded(
         &mut self,
         // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
-        // For scalar scans, this is generally the size of the hardware vector.
+        // For vector scans, this is generally the size of the hardware vector.
         byte_advance_count: u64,
         // The data size of the values being encoded for which we need to pad the encoded region.
         data_size_padding: u64,
@@ -88,7 +88,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
     pub fn finalize_current_encode_with_minimum_size(
         &mut self,
         // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
-        // For scalar scans, this is generally the size of the hardware vector.
+        // For vector scans, this is generally the size of the hardware vector.
         byte_advance_count: u64,
         // The minimum size allowed to create a region.
         minimum_size: u64,

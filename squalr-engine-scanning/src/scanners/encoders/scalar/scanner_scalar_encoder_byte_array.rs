@@ -37,10 +37,10 @@ impl ScannerScalarEncoderByteArray {
     pub fn encode(
         &self,
         current_value_pointer: *const u8,
-        _: *const u8,
+        _prevous_value_pointer: *const u8,
         scan_parameters: &ScanParameters,
         data_type: &DataType,
-        _: MemoryAlignment,
+        _memory_alignment: MemoryAlignment,
         base_address: u64,
         region_size: u64,
     ) -> Vec<SnapshotRegionFilter> {

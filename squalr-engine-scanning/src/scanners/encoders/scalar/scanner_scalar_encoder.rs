@@ -57,7 +57,8 @@ impl ScannerScalarEncoder {
             };
 
             if scan_parameters.is_immediate_comparison() {
-                let immediate_value_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
+                let immediate_value = scan_parameters.deanonymize_type(&data_type);
+                let immediate_value_ptr = immediate_value.as_ptr();
                 let compare_func = comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), &data_type);
 
                 for index in 0..element_count {
@@ -78,7 +79,8 @@ impl ScannerScalarEncoder {
                 }
             } else if scan_parameters.is_relative_delta_comparison() {
                 let compare_func = comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type);
-                let delta_arg_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
+                let delta_arg = scan_parameters.deanonymize_type(&data_type);
+                let delta_arg_ptr = delta_arg.as_ptr();
 
                 for index in 0..element_count {
                     let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);

@@ -61,7 +61,7 @@ where
         let simd_all_true_mask = Simd::<u8, N>::splat(0xFF);
         let results;
 
-        // For immediate comparisons, we can use a cascading periodic scan
+        // For immediate comparisons, we can use a cascading periodic scan.
         if scan_parameters.is_immediate_comparison() {
             let encoder: ScannerVectorEncoderCascadingPeriodic<T, N> = ScannerVectorEncoderCascadingPeriodic::<T, N>::new();
             let vector_comparer = ScannerVectorComparer::<T, N>::new();
