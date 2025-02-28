@@ -35,7 +35,7 @@ impl EngineRequestExecutor for ScanResultsListRequest {
             if let Some(scan_results) = snapshot.get_scan_results_by_data_type().get(&self.data_type) {
                 result_count = scan_results.get_number_of_results();
 
-                last_page_index = result_count % results_page_size;
+                last_page_index = result_count / results_page_size;
             }
 
             total_size_in_bytes = snapshot.get_byte_count();
