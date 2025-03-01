@@ -1,4 +1,5 @@
 use squalr_engine_common::structures::scan_compare_type::ScanCompareType;
+use squalr_engine_common::structures::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_common::values::anonymous_value::AnonymousValue;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::data_value::DataValue;
@@ -7,6 +8,7 @@ use squalr_engine_common::values::data_value::DataValue;
 pub struct ScanParameters {
     compare_type: ScanCompareType,
     compare_immediate: Option<AnonymousValue>,
+    scan_filter_parameters: Vec<ScanFilterParameters>,
 }
 
 impl ScanParameters {
@@ -14,6 +16,7 @@ impl ScanParameters {
         Self {
             compare_type: ScanCompareType::Changed,
             compare_immediate: None,
+            scan_filter_parameters: vec![],
         }
     }
 
@@ -24,6 +27,7 @@ impl ScanParameters {
         Self {
             compare_type,
             compare_immediate: value,
+            scan_filter_parameters: vec![],
         }
     }
 
@@ -31,49 +35,52 @@ impl ScanParameters {
         self.compare_type.clone()
     }
 
+    pub fn get_scan_filter_parameters(&self) -> &Vec<ScanFilterParameters> {
+        &self.scan_filter_parameters
+    }
+
     pub fn deanonymize_type(
         &self,
         data_type: &DataType,
     ) -> DataValue {
-        return self
-            .compare_immediate
+        self.compare_immediate
             .as_ref()
             .and_then(|value| value.deanonymize_type(data_type).ok())
-            .unwrap_or_else(|| panic!("Invalid type"));
+            .unwrap_or_else(|| panic!("Invalid type"))
     }
 
     pub fn get_compare_immediate(&self) -> Option<&AnonymousValue> {
         if self.is_immediate_comparison() {
-            return self.compare_immediate.as_ref();
+            self.compare_immediate.as_ref()
         } else {
-            return None;
+            None
         }
     }
 
     pub fn is_valid(&self) -> bool {
         if !self.is_immediate_comparison() {
-            return true;
+            true
         } else {
-            return self.compare_immediate.is_some();
+            self.compare_immediate.is_some()
         }
     }
 
     pub fn is_relative_delta_comparison(&self) -> bool {
-        return match self.compare_type {
+        match self.compare_type {
             ScanCompareType::IncreasedByX | ScanCompareType::DecreasedByX => true,
             _ => false,
-        };
+        }
     }
 
     pub fn is_relative_comparison(&self) -> bool {
-        return match self.compare_type {
+        match self.compare_type {
             ScanCompareType::Changed | ScanCompareType::Unchanged | ScanCompareType::Increased | ScanCompareType::Decreased => true,
             _ => false,
-        };
+        }
     }
 
     pub fn is_immediate_comparison(&self) -> bool {
-        return match self.compare_type {
+        match self.compare_type {
             ScanCompareType::Equal
             | ScanCompareType::NotEqual
             | ScanCompareType::GreaterThan
@@ -83,13 +90,14 @@ impl ScanParameters {
             | ScanCompareType::IncreasedByX
             | ScanCompareType::DecreasedByX => true,
             _ => false,
-        };
+        }
     }
 
     pub fn clone(&self) -> Self {
         ScanParameters {
             compare_type: self.compare_type.clone(),
             compare_immediate: self.compare_immediate.clone(),
+            scan_filter_parameters: self.scan_filter_parameters.clone(),
         }
     }
 
@@ -98,14 +106,10 @@ impl ScanParameters {
         other: &ScanParameters,
     ) -> bool {
         if self.compare_type == other.compare_type {
-            return true;
-        }
-
-        if !self.is_immediate_comparison() && !other.is_immediate_comparison() {
-            return true;
-        }
-
-        if self.is_immediate_comparison() && other.is_immediate_comparison() {
+            true
+        } else if !self.is_immediate_comparison() && !other.is_immediate_comparison() {
+            true
+        } else if self.is_immediate_comparison() && other.is_immediate_comparison() {
             if (matches!(
                 self.compare_type,
                 ScanCompareType::LessThan | ScanCompareType::LessThanOrEqual | ScanCompareType::NotEqual
@@ -119,10 +123,12 @@ impl ScanParameters {
                 other.compare_type,
                 ScanCompareType::LessThan | ScanCompareType::LessThanOrEqual | ScanCompareType::NotEqual
             )) {
-                return true;
+                true
+            } else {
+                false
             }
+        } else {
+            false
         }
-
-        return false;
     }
 }

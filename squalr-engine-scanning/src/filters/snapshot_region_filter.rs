@@ -20,7 +20,7 @@ impl SnapshotRegionFilter {
 
     /// Gets the base/start address of this filter.
     pub fn get_base_address(&self) -> u64 {
-        return self.filter_range.get_base_address();
+        self.filter_range.get_base_address()
     }
 
     /// Sets the base/start address of this filter.
@@ -41,12 +41,12 @@ impl SnapshotRegionFilter {
 
     /// Gets the end address of this filter.
     pub fn get_end_address(&self) -> u64 {
-        return self.filter_range.get_end_address();
+        self.filter_range.get_end_address()
     }
 
     /// Gets the size of this filter.
     pub fn get_region_size(&self) -> u64 {
-        return self.filter_range.get_region_size();
+        self.filter_range.get_region_size()
     }
 
     /// Gets the number of elements contained by this filter for the given data type and alignment.
@@ -67,9 +67,12 @@ impl SnapshotRegionFilter {
         debug_assert!(size_in_bytes >= data_type_size);
         debug_assert!(size_in_bytes >= trailing_bytes);
 
-        return effective_size_in_bytes / memory_alignment;
+        effective_size_in_bytes / memory_alignment
     }
 
+    /// Gets the number of misaligned bytes at the base address for this region. This should always
+    /// be zero. For instance, an alignment of 4 should always have a base address ending in 0, 4, 8, or C.
+    /// Any other values would produce a non-zero misalignment, and would be evidence of something gone wrong.
     fn get_misaligned_starting_byte_count(
         &self,
         alignment: MemoryAlignment,
@@ -79,6 +82,6 @@ impl SnapshotRegionFilter {
         let misalignment = base_address % alignment;
 
         // Additional modulo to handle the case where misalignment is 0.
-        return (alignment.saturating_sub(misalignment)) % alignment;
+        (alignment.saturating_sub(misalignment)) % alignment
     }
 }

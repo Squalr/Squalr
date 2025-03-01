@@ -1,16 +1,14 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::filters::snapshot_region_filter_collection::SnapshotFilterCollection;
+use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
-use crate::scanners::scalar::scanner_scalar_iterative_byte_array::ScannerScalarIterativeByteArray;
-use crate::scanners::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::vector::scanner_vector_aligned::ScannerVectorAligned;
 use crate::scanners::vector::scanner_vector_aligned_chunked::ScannerVectorAlignedChunked;
 use crate::scanners::vector::scanner_vector_cascading::ScannerVectorCascading;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::ParallelIterator;
 use squalr_engine_common::{structures::memory_alignment::MemoryAlignment, values::data_type::DataType};
 use std::sync::Once;
 
@@ -78,43 +76,41 @@ impl ScanDispatcher {
     pub fn dispatch_scan(
         &self,
         snapshot_region: &SnapshotRegion,
-        snapshot_region_filters: &SnapshotFilterCollection,
+        snapshot_region_filters: &SnapshotRegionFilterCollection,
         scan_parameters: &ScanParameters,
         data_type: &DataType,
         memory_alignment: MemoryAlignment,
-    ) -> SnapshotFilterCollection {
-        let results = snapshot_region_filters
+    ) -> SnapshotRegionFilterCollection {
+        let result_snapshot_region_filters = snapshot_region_filters
             .iter()
-            .flatten()
             .map(|snapshot_region_filter| {
                 let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
 
-                return scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment);
+                scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment)
             })
             .collect();
 
-        return results;
+        SnapshotRegionFilterCollection::new(result_snapshot_region_filters, data_type.clone(), memory_alignment)
     }
 
     pub fn dispatch_scan_parallel(
         &self,
         snapshot_region: &SnapshotRegion,
-        snapshot_region_filters: &SnapshotFilterCollection,
+        snapshot_region_filters: &SnapshotRegionFilterCollection,
         scan_parameters: &ScanParameters,
         data_type: &DataType,
         memory_alignment: MemoryAlignment,
-    ) -> SnapshotFilterCollection {
-        let results = snapshot_region_filters
+    ) -> SnapshotRegionFilterCollection {
+        let result_snapshot_region_filters = snapshot_region_filters
             .par_iter()
-            .flatten()
             .map(|snapshot_region_filter| {
                 let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
 
-                return scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment);
+                scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment)
             })
             .collect();
 
-        return results;
+        SnapshotRegionFilterCollection::new(result_snapshot_region_filters, data_type.clone(), memory_alignment)
     }
 
     fn acquire_scanner_instance(
@@ -123,6 +119,7 @@ impl ScanDispatcher {
         data_type: &DataType,
         memory_alignment: MemoryAlignment,
     ) -> &dyn Scanner {
+        /*
         let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment_size = memory_alignment as u64;
         let element_count = snapshot_region_filter.get_element_count(data_type_size, memory_alignment);
@@ -133,7 +130,6 @@ impl ScanDispatcher {
             return ScannerScalarSingleElement::get_instance();
         }
 
-        /*
         // Use parallel scanners when the region size is >= 64MB
         if region_size >= 1024 * 1024 * 64 {
             match data_type {
@@ -213,6 +209,6 @@ impl ScanDispatcher {
         } */
 
         // Default to scalar iterative
-        return ScannerScalarIterative::get_instance();
+        ScannerScalarIterative::get_instance()
     }
 }

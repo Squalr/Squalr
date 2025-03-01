@@ -1,166 +1,59 @@
-use crate::results::snapshot_scan_results::SnapshotScanResults;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use dashmap::DashMap;
-use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
-use squalr_engine_common::structures::process_info::OpenedProcessInfo;
-use squalr_engine_common::structures::scan_filter_parameters::ScanFilterParameters;
-use squalr_engine_common::values::data_type::DataType;
-use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
-use squalr_engine_memory::memory_queryer::page_retrieval_mode::PageRetrievalMode;
-use std::sync::Arc;
 
 pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,
-    scan_results_by_data_type: Arc<DashMap<DataType, SnapshotScanResults>>,
 }
 
 /// Represents a snapshot of memory in an external process that contains current and previous values of memory pages.
 impl Snapshot {
-    pub fn new(mut snapshot_regions: Vec<SnapshotRegion>) -> Self {
-        // Remove empty regions and sort them ascending
-        snapshot_regions.retain(|region| region.get_region_size() > 0);
-        snapshot_regions.sort_by_key(|region| region.get_base_address());
-
-        Self {
-            snapshot_regions,
-            scan_results_by_data_type: Arc::new(DashMap::new()),
-        }
+    /// Creates a new snapshot from the given collection of snapshot regions.
+    /// This will automatically sort and remove invalid regions.
+    pub fn new() -> Self {
+        Self { snapshot_regions: vec![] }
     }
 
-    pub fn new_scan(
+    /// Assigns new snapshot regions to this snapshot.
+    pub fn set_snapshot_regions(
         &mut self,
-        process_info: &OpenedProcessInfo,
-        scan_filter_parameters: Vec<ScanFilterParameters>,
+        snapshot_regions: Vec<SnapshotRegion>,
     ) {
-        log::info!("Creating new scan...");
-
-        self.create_initial_snapshot_regions(process_info);
-        self.scan_results_by_data_type.clear();
-
-        for scan_filter_parameter in scan_filter_parameters {
-            self.scan_results_by_data_type.insert(
-                scan_filter_parameter.get_data_type().clone(),
-                SnapshotScanResults::new(
-                    scan_filter_parameter.get_data_type().clone(),
-                    scan_filter_parameter.get_memory_alignment_or_default(),
-                ),
-            );
-            log::info!("Adding data type to new scan: {}", scan_filter_parameter.get_data_type());
-        }
-
-        log::info!("New scan created");
+        self.snapshot_regions = snapshot_regions;
+        self.discard_empty_regions();
+        self.sort_regions();
     }
 
+    /// Gets a reference to the snapshot regions contained by this snapshot.
     pub fn get_snapshot_regions(&self) -> &Vec<SnapshotRegion> {
-        return &self.snapshot_regions;
+        &self.snapshot_regions
     }
 
-    pub fn get_snapshot_regions_for_update(&mut self) -> &mut Vec<SnapshotRegion> {
-        return &mut self.snapshot_regions;
+    /// Gets a mutable reference to the snapshot regions contained by this snapshot.
+    pub fn get_snapshot_regions_mut(&mut self) -> &mut Vec<SnapshotRegion> {
+        &mut self.snapshot_regions
     }
 
+    /// Discards all snapshot regions with a size of zero.
     pub fn discard_empty_regions(&mut self) {
         self.snapshot_regions
             .retain(|region| region.get_region_size() > 0);
     }
 
-    pub fn get_region_count(&self) -> u64 {
-        return self.snapshot_regions.len() as u64;
+    /// Sorts all snapshot regions by base address ascending.
+    pub fn sort_regions(&mut self) {
+        self.snapshot_regions
+            .sort_by_key(|region| region.get_base_address());
     }
 
+    /// Gets the total number of snapshot regions contained in this snapshot.
+    pub fn get_region_count(&self) -> u64 {
+        self.snapshot_regions.len() as u64
+    }
+
+    /// Gets the total number of bytes contained in this snapshot.
     pub fn get_byte_count(&self) -> u64 {
-        return self
-            .snapshot_regions
+        self.snapshot_regions
             .iter()
             .map(|region| region.get_region_size())
-            .sum();
-    }
-
-    pub fn get_scan_result_address(
-        &self,
-        index: u64,
-        data_type: &DataType,
-    ) -> Option<u64> {
-        if let Some(scan_results) = self.scan_results_by_data_type.get(data_type) {
-            return scan_results.get_scan_result_address(index, &self.snapshot_regions);
-        }
-        return None;
-    }
-
-    pub fn get_memory_alignment_or_default_for_data_type(
-        &self,
-        data_type: &DataType,
-    ) -> MemoryAlignment {
-        if let Some(scan_results) = self.scan_results_by_data_type.get(data_type) {
-            return scan_results.get_memory_alignment();
-        }
-        return MemoryAlignment::Alignment1;
-    }
-
-    pub fn get_scan_results_by_data_type(&self) -> &DashMap<DataType, SnapshotScanResults> {
-        return &self.scan_results_by_data_type;
-    }
-
-    pub fn get_data_types_and_alignments(&self) -> Vec<(DataType, MemoryAlignment)> {
-        let result: Vec<(DataType, MemoryAlignment)> = self
-            .scan_results_by_data_type
-            .iter()
-            .map(|entry| {
-                let data_type = entry.key().clone();
-                let scan_result = entry.value();
-                let alignment = scan_result.get_memory_alignment();
-                (data_type, alignment)
-            })
-            .collect();
-
-        result
-    }
-
-    pub fn build_scan_results_lookup_table(&mut self) {
-        for mut scan_results in self.scan_results_by_data_type.iter_mut() {
-            return scan_results
-                .value_mut()
-                .build_global_scan_results_lookup_table(&self.snapshot_regions);
-        }
-    }
-
-    pub fn create_initial_snapshot_regions(
-        &mut self,
-        process_info: &OpenedProcessInfo,
-    ) {
-        // Query all memory pages for the process from the OS
-        let memory_pages = MemoryQueryer::get_memory_page_bounds(process_info, PageRetrievalMode::FromSettings);
-
-        if memory_pages.is_empty() {
-            self.snapshot_regions.clear();
-            return;
-        }
-
-        // Attempt to merge any adjacent regions, tracking the page boundaries at which the merge took place.
-        // This is done since we want to track these such that the SnapshotRegions can avoid reading process memory across
-        // page boundaries, as this can be problematic (ie if one of the pages deallocates later, we want to be able to recover).
-        let mut merged_snapshot_regions = Vec::new();
-        let mut iter = memory_pages.into_iter();
-        let mut current_region = iter.next().unwrap();
-        let mut page_boundaries = Vec::new();
-
-        loop {
-            let Some(region) = iter.next() else {
-                break;
-            };
-
-            if current_region.get_end_address() == region.get_base_address() {
-                current_region.set_end_address(region.get_end_address());
-                page_boundaries.push(region.get_base_address());
-            } else {
-                merged_snapshot_regions.push(SnapshotRegion::new(current_region, std::mem::take(&mut page_boundaries)));
-                current_region = region;
-            }
-        }
-
-        // Push the last region
-        merged_snapshot_regions.push(SnapshotRegion::new(current_region, page_boundaries));
-
-        self.snapshot_regions = merged_snapshot_regions;
+            .sum()
     }
 }

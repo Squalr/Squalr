@@ -60,6 +60,6 @@ where
             simd_all_true_mask,
         );
 
-        return results;
+        results
     }
 }

@@ -100,6 +100,6 @@ where
             Self::get_sparse_mask(memory_alignment),
         );
 
-        return results;
+        results
     }
 }

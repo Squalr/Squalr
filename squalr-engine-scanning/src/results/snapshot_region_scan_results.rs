@@ -1,69 +1,41 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::filters::snapshot_region_filter_collection::SnapshotFilterCollection;
+use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::results::lookup_tables::scan_results_lookup_table::ScanResultsLookupTable;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use dashmap::DashMap;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
+use squalr_engine_common::structures::scan_result::ScanResult;
 use squalr_engine_common::values::data_type::DataType;
+use std::sync::Arc;
 
+/// Tracks the scan results for a region, and builds a lookup table that maps a local index to each scan result.
+/// This lookup table solves several problems efficiently:
+/// 1) Support sharding on data type, to increase parallelism in scans.
+/// 2) Support quickly navigating (without seeking or CPU heavy solutions!) to a specific scan result by local index.
+/// 3) Interleave scan results by address for all data types, such that scan results appear sorted.
+///
+/// The solution is to use interval trees to map local scan result indicies onto the corresponding snapshot filter.
+/// Additionally,
 pub struct SnapshotRegionScanResults {
     scan_results_local_lookup_table: ScanResultsLookupTable,
-    filters: SnapshotFilterCollection,
-    filter_lowest_address: u64,
-    filter_highest_address: u64,
+    filters_by_data_type: Arc<DashMap<DataType, SnapshotRegionFilterCollection>>,
+    snapshot_region_filter_collection: Vec<SnapshotRegionFilterCollection>,
 }
 
-/// Scan results are stored by using interval trees to map into snapshot regions / snapshot filters.
-///
-/// This solves two problems:
-/// 1) We need to be able to quickly navigate to a specific page number and offset of scan results within a snapshot region.
-/// 2) We need to avoid 'seeking' implementations that require large CPU costs, as well as any data structure that has high storage requirements.
-///
-/// We need to use two layers of interval trees to obtain a scan result:
-/// 1) An interval tree to map the scan result index to a particular snapshot region.
-/// 2) Offset this index to map into a particular scan result within this region.
-///
-/// Additionally, there are separate sets of scan results for each data type, as this helps substantially with parallalism in scans.
 impl SnapshotRegionScanResults {
-    pub fn new(
-        filters: SnapshotFilterCollection,
-        data_type: &DataType,
-        memory_alignment: MemoryAlignment,
-    ) -> Self {
-        let mut instance = Self {
+    pub fn new(snapshot_region_filter_collection: Vec<SnapshotRegionFilterCollection>) -> Self {
+        Self {
             scan_results_local_lookup_table: ScanResultsLookupTable::new(),
-            filters,
-            filter_lowest_address: 0,
-            filter_highest_address: 0,
-        };
-
-        // Set the filter lowest/highest address based on the given filter collection
-        instance.update_filter_bounds();
-        instance.build_local_scan_results_lookup_table(data_type, memory_alignment);
-
-        return instance;
+            filters_by_data_type: Arc::new(DashMap::new()),
+            snapshot_region_filter_collection,
+        }
     }
 
-    /// Creates scan results without building a lookup table, covering the entire provided snapshot.
-    /// This is used for two-phase scans that will build lookup tables at a deferred time.
-    pub fn new_from_snapshot_region(snapshot_region: &SnapshotRegion) -> Self {
-        let instance = Self {
-            scan_results_local_lookup_table: ScanResultsLookupTable::new(),
-            filters: vec![vec![SnapshotRegionFilter::new(
-                snapshot_region.get_base_address(),
-                snapshot_region.get_region_size(),
-            )]],
-            filter_lowest_address: snapshot_region.get_base_address(),
-            filter_highest_address: snapshot_region.get_end_address(),
-        };
-
-        return instance;
-    }
-
-    pub fn get_scan_result_address(
+    pub fn get_scan_result(
         &self,
         index: u64,
-        memory_alignment: MemoryAlignment,
-    ) -> Option<u64> {
+    ) -> Option<ScanResult> {
+        /*
         // Get the index of the filter from the lookup table.
         if let Some((filter_range, snapshot_filter_index)) = self
             .scan_results_local_lookup_table
@@ -72,7 +44,7 @@ impl SnapshotRegionScanResults {
         {
             // Because our filters are a vector of vectors, we have to iterate to index into the filter we want.
             let mut iter = self
-                .filters
+                .snapshot_region_filters
                 .iter()
                 .flatten()
                 .skip(*snapshot_filter_index as usize);
@@ -86,48 +58,41 @@ impl SnapshotRegionScanResults {
 
                 return Some(scan_result_address);
             }
-        }
+        }*/
 
-        return None;
+        None
     }
 
     pub fn get_number_of_results(&self) -> u64 {
-        return self.scan_results_local_lookup_table.get_number_of_results();
+        self.scan_results_local_lookup_table.get_number_of_results()
     }
 
-    pub fn get_filters(&self) -> &SnapshotFilterCollection {
-        return &self.filters;
+    pub fn get_filter_collections(&self) -> &Vec<SnapshotRegionFilterCollection> {
+        &self.snapshot_region_filter_collection
     }
 
+    /*
     pub fn get_filter_bounds(&self) -> (u64, u64) {
-        return (self.filter_lowest_address, self.filter_highest_address);
-    }
-
-    /// Calculates and stores the bounds of all filters contained by the snapshot region. This helps snapshot regions cull unused bytes.
-    fn update_filter_bounds(&mut self) {
-        self.filter_lowest_address = 0u64;
-        self.filter_highest_address = 0u64;
-
-        if self.filters.is_empty() {
-            return;
-        }
-
+        let mut filter_lowest_address = 0u64;
+        let mut filter_highest_address = 0u64;
         let mut run_once = true;
 
         // Flatten and check each filter to find the highest and lowest addresses.
-        for filter in self.filters.iter().flatten() {
+        for filter in self.snapshot_region_filters.iter().flatten() {
             let filter_base = filter.get_base_address();
             let filter_end = filter.get_end_address();
 
             if run_once {
                 run_once = false;
-                self.filter_lowest_address = filter_base;
-                self.filter_highest_address = filter_end;
+                filter_lowest_address = filter_base;
+                filter_highest_address = filter_end;
             } else {
-                self.filter_lowest_address = self.filter_lowest_address.min(filter_base);
-                self.filter_highest_address = self.filter_lowest_address.max(filter_end);
+                filter_lowest_address = filter_lowest_address.min(filter_base);
+                filter_highest_address = filter_lowest_address.max(filter_end);
             }
         }
+
+        (filter_lowest_address, filter_highest_address)
     }
 
     fn build_local_scan_results_lookup_table(
@@ -139,12 +104,12 @@ impl SnapshotRegionScanResults {
         let data_type_size = data_type.get_size_in_bytes();
 
         // Iterate every snapshot region contained by the snapshot.
-        for (filter_index, filter) in self.filters.iter().flatten().enumerate() {
+        for (filter_index, filter) in self.snapshot_region_filters.iter().flatten().enumerate() {
             let number_of_filter_results = filter.get_element_count(data_type_size, memory_alignment);
 
             // Simply map the result range onto a the index of a particular snapshot region.
             self.scan_results_local_lookup_table
                 .add_lookup_mapping(number_of_filter_results, filter_index as u64);
         }
-    }
+    }*/
 }

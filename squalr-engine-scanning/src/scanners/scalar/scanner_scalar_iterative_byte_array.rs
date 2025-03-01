@@ -25,7 +25,7 @@ impl ScannerScalarIterativeByteArray {
             });
 
             #[allow(static_mut_refs)]
-            return INSTANCE.as_ref().unwrap_unchecked();
+            INSTANCE.as_ref().unwrap_unchecked()
         }
     }
 }
@@ -55,6 +55,6 @@ impl Scanner for ScannerScalarIterativeByteArray {
             snapshot_region_filter.get_region_size(),
         );
 
-        return results;
+        results
     }
 }

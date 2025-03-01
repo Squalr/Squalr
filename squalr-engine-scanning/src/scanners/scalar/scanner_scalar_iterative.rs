@@ -25,7 +25,7 @@ impl ScannerScalarIterative {
             });
 
             #[allow(static_mut_refs)]
-            return INSTANCE.as_ref().unwrap_unchecked();
+            INSTANCE.as_ref().unwrap_unchecked()
         }
     }
 }
@@ -56,6 +56,6 @@ impl Scanner for ScannerScalarIterative {
             snapshot_region_filter.get_element_count(data_type_size, memory_alignment),
         );
 
-        return results;
+        results
     }
 }

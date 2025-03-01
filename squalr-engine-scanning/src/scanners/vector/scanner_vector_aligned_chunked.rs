@@ -101,6 +101,6 @@ where
             }
         }
 
-        return results;
+        results
     }
 }

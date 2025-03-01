@@ -69,12 +69,12 @@ impl Scanner for ScannerScalarSingleElement {
         }
 
         if compare_result {
-            return vec![SnapshotRegionFilter::new(
+            vec![SnapshotRegionFilter::new(
                 snapshot_region_filter.get_base_address(),
                 snapshot_region_filter.get_region_size(),
-            )];
+            )]
         } else {
-            return vec![];
+            vec![]
         }
     }
 }

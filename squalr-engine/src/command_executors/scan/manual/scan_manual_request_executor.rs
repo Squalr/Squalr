@@ -17,14 +17,16 @@ impl EngineRequestExecutor for ScanManualRequest {
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             let snapshot = execution_context.get_snapshot();
+            let current_scan_results = execution_context.get_scan_results();
+            let scan_filter_parameters = execution_context.get_scan_filter_parameters();
             let scan_parameters = ScanParameters::new_with_value(self.compare_type.to_owned(), self.scan_value.to_owned());
 
             // First collect values before the manual scan.
             // TODO: This should not be blocking.
-            ValueCollector::collect_values(process_info.clone(), snapshot.clone(), None, true).wait_for_completion();
+            ValueCollector::collect_values(process_info.clone(), snapshot.clone(), scan_filter_parameters, None, true).wait_for_completion();
 
             // Perform the manual scan on the collected memory.
-            let task = ManualScanner::scan(snapshot, &scan_parameters, None, true);
+            let task = ManualScanner::scan(snapshot, current_scan_results, &scan_parameters, None, true);
             let task_handle = task.get_task_handle();
 
             execution_context.register_task(task_handle.clone());

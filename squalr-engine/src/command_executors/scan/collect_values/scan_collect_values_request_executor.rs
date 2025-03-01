@@ -15,7 +15,8 @@ impl EngineRequestExecutor for ScanCollectValuesRequest {
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             let snapshot = execution_context.get_snapshot();
-            let task = ValueCollector::collect_values(process_info.clone(), snapshot, None, true);
+            let scan_filter_parameters = execution_context.get_scan_filter_parameters();
+            let task = ValueCollector::collect_values(process_info.clone(), snapshot, scan_filter_parameters, None, true);
             let task_handle = task.get_task_handle();
 
             execution_context.register_task(task_handle.clone());
@@ -31,7 +32,9 @@ impl EngineRequestExecutor for ScanCollectValuesRequest {
             let execution_context = execution_context.clone();
 
             thread::spawn(move || {
-                task.wait_for_completion();
+                if let Some(scan_results) = task.wait_for_completion() {
+                    execution_context.set_scan_results(scan_results);
+                }
                 execution_context.unregister_task(&task.get_task_identifier());
             });
 

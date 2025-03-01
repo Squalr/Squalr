@@ -1,4 +1,5 @@
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
+use crate::results::snapshot_scan_results::SnapshotScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scan_dispatcher::ScanDispatcher;
 use crate::snapshots::snapshot::Snapshot;
@@ -25,109 +26,122 @@ impl HybridScanner {
         scan_parameters: &ScanParameters,
         task_identifier: Option<String>,
         with_logging: bool,
-    ) -> Arc<TrackableTask<()>> {
-        let task = TrackableTask::<()>::create(HybridScanner::NAME.to_string(), task_identifier);
+    ) -> Arc<TrackableTask<SnapshotScanResults>> {
+        let task = TrackableTask::<SnapshotScanResults>::create(HybridScanner::NAME.to_string(), task_identifier);
         let task_clone = task.clone();
         let scan_parameters_clone = scan_parameters.clone();
 
         thread::spawn(move || {
-            Self::scan_task(&process_info, snapshot, &scan_parameters_clone, task_clone.clone(), with_logging);
+            let scan_results = Self::scan_task(&process_info, snapshot, &scan_parameters_clone, task_clone.clone(), with_logging);
 
-            task_clone.complete(());
+            task_clone.complete(scan_results);
         });
 
-        return task;
+        task
     }
 
     fn scan_task(
         process_info: &OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         scan_parameters: &ScanParameters,
-        task: Arc<TrackableTask<()>>,
+        task: Arc<TrackableTask<SnapshotScanResults>>,
         with_logging: bool,
-    ) {
+    ) -> SnapshotScanResults {
         if with_logging {
             log::info!("Performing hybrid manual scan...");
         }
 
-        let cancellation_token = task.get_cancellation_token();
-        let data_types_and_alignments = {
-            let snapshot = snapshot.read().unwrap();
-            snapshot.get_data_types_and_alignments()
+        /*
+        let mut snapshot = match snapshot.write() {
+            Ok(guard) => guard,
+            Err(e) => {
+                if with_logging {
+                    log::error!("Failed to acquire write lock on snapshot: {}", e);
+                }
+
+                return SnapshotScanResults::new(vec![]);
+            }
         };
-        let region_count = snapshot.read().unwrap().get_region_count();
-        let mut snapshot = snapshot.write().unwrap();
-        let scan_parameters = &scan_parameters.clone();
-        let snapshot_regions = snapshot.get_snapshot_regions_for_update();
 
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
+        let total_region_count = snapshot.get_region_count();
+        let cancellation_token = task.get_cancellation_token();
+        let scan_filter_parameters = scan_parameters.get_scan_filter_parameters();
 
-        snapshot_regions.par_iter_mut().for_each(|snapshot_region| {
-            if cancellation_token.load(Ordering::SeqCst) {
-                return;
-            }
+        snapshot
+            .get_snapshot_regions_mut()
+            .par_iter_mut()
+            .for_each(|snapshot_region| {
+                if cancellation_token.load(Ordering::SeqCst) {
+                    return;
+                }
 
-            // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages.
-            let _ = snapshot_region.read_all_memory(&process_info);
+                // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages.
+                let _ = snapshot_region.read_all_memory(&process_info);
 
-            if !snapshot_region.can_compare_using_parameters(scan_parameters) {
-                processed_region_count.fetch_add(1, Ordering::SeqCst);
-                return;
-            }
+                if !snapshot_region.can_compare_using_parameters(scan_parameters) {
+                    processed_region_count.fetch_add(1, Ordering::SeqCst);
+                    return;
+                }
 
-            // Iterate over each data type in the scan. Generally there is only 1, but multiple simultaneous scans are supported.
-            data_types_and_alignments
-                .par_iter()
-                .for_each(|(data_type, memory_alignment)| {
-                    let region_scan_results_map = snapshot_region.get_region_scan_results();
+                // Iterate over each data type in the scan. Generally there is only 1, but multiple simultaneous scans are supported.
+                let scan_results = SnapshotScanResults::new(
+                    scan_filter_parameters
+                        .par_iter()
+                        .map(|scan_filter_parameter| {
+                            let data_type = scan_filter_parameter.get_data_type();
+                            let memory_alignment = scan_filter_parameter.get_memory_alignment_or_default();
+                            let region_scan_results_map = snapshot_region.get_region_scan_results();
 
-                    // Create the initial scan results for this data type if none exist.
-                    if !region_scan_results_map.contains_key(&data_type) {
-                        region_scan_results_map.insert(data_type.clone(), SnapshotRegionScanResults::new_from_snapshot_region(&snapshot_region));
-                    }
+                            // Create the initial scan results for this data type if none exist.
+                            if !region_scan_results_map.contains_key(&data_type) {
+                                region_scan_results_map.insert(data_type.clone(), SnapshotRegionScanResults::new_from_snapshot_region(&snapshot_region));
+                            }
 
-                    let new_region_scan_filters;
+                            let new_region_scan_filters;
 
-                    // Perform the scan.
-                    if let Some(mut region_scan_results) = region_scan_results_map.get_mut(&data_type) {
-                        let region_scan_results = region_scan_results.value_mut();
-                        let snapshot_region_filters = region_scan_results.get_filters();
-                        let scan_dispatcher = ScanDispatcher::get_instance();
+                            // Perform the scan.
+                            if let Some(mut region_scan_results) = region_scan_results_map.get_mut(&data_type) {
+                                let region_scan_results = region_scan_results.value_mut();
+                                let snapshot_region_filters = region_scan_results.get_filters();
+                                let scan_dispatcher = ScanDispatcher::get_instance();
 
-                        if snapshot_region_filters.len() > 0 {
-                            new_region_scan_filters = scan_dispatcher.dispatch_scan_parallel(
-                                snapshot_region,
-                                &snapshot_region_filters,
-                                scan_parameters,
-                                &data_type,
-                                *memory_alignment,
+                                if snapshot_region_filters.len() > 0 {
+                                    new_region_scan_filters = scan_dispatcher.dispatch_scan_parallel(
+                                        snapshot_region,
+                                        &snapshot_region_filters,
+                                        scan_parameters,
+                                        data_type,
+                                        memory_alignment,
+                                    );
+                                } else {
+                                    new_region_scan_filters =
+                                        scan_dispatcher.dispatch_scan(snapshot_region, &snapshot_region_filters, scan_parameters, data_type, memory_alignment);
+                                }
+                            } else {
+                                new_region_scan_filters = vec![];
+                            }
+
+                            region_scan_results_map.insert(
+                                data_type.clone(),
+                                SnapshotRegionScanResults::new(new_region_scan_filters, data_type, memory_alignment),
                             );
-                        } else {
-                            new_region_scan_filters =
-                                scan_dispatcher.dispatch_scan(snapshot_region, &snapshot_region_filters, scan_parameters, &data_type, *memory_alignment);
-                        }
-                    } else {
-                        new_region_scan_filters = vec![];
-                    }
+                        })
+                        .collect(),
+                );
 
-                    region_scan_results_map.insert(
-                        data_type.clone(),
-                        SnapshotRegionScanResults::new(new_region_scan_filters, data_type, *memory_alignment),
-                    );
-                });
+                let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
 
-            let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
-
-            // To reduce performance impact, only periodically send progress updates.
-            if processed % 32 == 0 {
-                let progress = (processed as f32 / region_count as f32) * 100.0;
-                task.set_progress(progress);
-            }
-        });
+                // To reduce performance impact, only periodically send progress updates.
+                if processed % 32 == 0 {
+                    let progress = (processed as f32 / total_region_count as f32) * 100.0;
+                    task.set_progress(progress);
+                }
+            });
 
         snapshot.discard_empty_regions();
-        snapshot.build_scan_results_lookup_table();
+        // snapshot.build_scan_results_lookup_table();
 
         if with_logging {
             let byte_count = snapshot.get_byte_count();
@@ -135,6 +149,7 @@ impl HybridScanner {
 
             log::info!("Results: {} bytes", Conversions::value_to_metric_size(byte_count));
 
+            /*
             let scan_results = snapshot.get_scan_results_by_data_type();
 
             for (data_type, _) in data_types_and_alignments {
@@ -142,9 +157,12 @@ impl HybridScanner {
                     let element_count = scan_results_for_type.get_number_of_results();
                     log::info!("Results [{:?}]: {} element(s)", data_type, element_count);
                 }
-            }
+            } */
 
             log::info!("Scan complete in: {:?}", duration);
         }
+
+        scan_results*/
+        SnapshotScanResults::new(vec![])
     }
 }

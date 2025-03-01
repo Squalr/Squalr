@@ -15,10 +15,10 @@ impl ViewDataConverter<String, SharedString> for SharedStringConverter {
         &self,
         strings: &Vec<String>,
     ) -> Vec<SharedString> {
-        return strings
+        strings
             .into_iter()
             .map(|item| self.convert_to_view_data(item))
-            .collect();
+            .collect()
     }
 
     fn convert_to_view_data(

@@ -1,20 +1,22 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
-use dashmap::DashMap;
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::structures::process_info::OpenedProcessInfo;
-use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
-use std::sync::Arc;
 
+/// Defines a contiguous region of memory within a snapshot.
 pub struct SnapshotRegion {
+    /// The underlying region that contains the start address and length of this snapshot.
     normalized_region: NormalizedRegion,
+
+    /// The most recent values collected from memory within this snapshot region bounds.
     current_values: Vec<u8>,
+
+    /// The prior values collected from memory within this snapshot region bounds.
     previous_values: Vec<u8>,
-    region_scan_results_by_data_type: Arc<DashMap<DataType, SnapshotRegionScanResults>>,
+
+    /// Any OS level page boundaries that may sub-divide this snapshot region.
     page_boundaries: Vec<u64>,
 }
 
@@ -24,18 +26,19 @@ impl SnapshotRegion {
         page_boundaries: Vec<u64>,
     ) -> Self {
         Self {
-            normalized_region: normalized_region,
+            normalized_region,
             current_values: vec![],
             previous_values: vec![],
-            region_scan_results_by_data_type: Arc::new(DashMap::new()),
-            page_boundaries: page_boundaries,
+            page_boundaries,
         }
     }
 
+    /// Gets the most recent values collected from memory within this snapshot region bounds.
     pub fn get_current_values(&self) -> &Vec<u8> {
         &self.current_values
     }
 
+    /// Gets the prior values collected from memory within this snapshot region bounds.
     pub fn get_previous_values(&self) -> &Vec<u8> {
         &self.previous_values
     }
@@ -59,7 +62,7 @@ impl SnapshotRegion {
             MemoryReader::get_instance().read_bytes(&process_info, self.get_base_address(), &mut self.current_values);
         } else {
             // Otherwise, this snapshot is a merging of two or more OS regions, and special care is taken to separate the read calls.
-            // This prevents any issues where 1 page deallocates.
+            // This prevents the case where one page deallocates, causing the read for both to fail.
             for (boundary_index, &boundary_address) in self.page_boundaries.iter().enumerate() {
                 let next_boundary_address = if boundary_index + 1 < self.page_boundaries.len() {
                     self.page_boundaries[boundary_index + 1]
@@ -71,64 +74,6 @@ impl SnapshotRegion {
                 let offset = (boundary_address - self.get_base_address()) as usize;
                 let current_values_slice = &mut self.current_values[offset..offset + read_size];
                 MemoryReader::get_instance().read_bytes(&process_info, boundary_address, current_values_slice);
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn read_all_memory_parallel(
-        &mut self,
-        process_info: &OpenedProcessInfo,
-    ) -> Result<(), String> {
-        self.resize_to_filters();
-
-        let region_size = self.get_region_size() as usize;
-        let chunk_size = 1024 * 1024 * 4; // 4MB
-
-        if region_size <= chunk_size {
-            return self.read_all_memory(&process_info);
-        }
-
-        std::mem::swap(&mut self.current_values, &mut self.previous_values);
-
-        if self.current_values.is_empty() && region_size > 0 {
-            self.current_values = vec![0u8; region_size];
-        }
-
-        if self.page_boundaries.is_empty() {
-            // No boundaries, read the entire region at once
-            let mut chunks: Vec<_> = self.current_values.chunks_mut(chunk_size).collect();
-            let base_address = self.normalized_region.get_base_address();
-
-            chunks.par_iter_mut().enumerate().for_each(|(index, chunk)| {
-                let offset = index * chunk_size;
-                MemoryReader::get_instance().read_bytes(process_info, base_address + offset as u64, chunk);
-            });
-        } else {
-            for (boundary_index, &boundary_address) in self.page_boundaries.iter().enumerate() {
-                let next_boundary_address = if boundary_index + 1 < self.page_boundaries.len() {
-                    self.page_boundaries[boundary_index + 1]
-                } else {
-                    self.get_end_address()
-                };
-
-                let read_size = (next_boundary_address - boundary_address) as usize;
-                let offset = (boundary_address - self.get_base_address()) as usize;
-                let current_values_slice = &mut self.current_values[offset..offset + read_size];
-
-                if read_size <= chunk_size {
-                    MemoryReader::get_instance().read_bytes(process_info, boundary_address, current_values_slice);
-                } else {
-                    // Parallel processing if the chunk size exceeds the defined optimal chunk size
-                    let mut chunks: Vec<_> = current_values_slice.chunks_mut(chunk_size).collect();
-                    let base_address = boundary_address;
-
-                    chunks.par_iter_mut().enumerate().for_each(|(index, chunk)| {
-                        let offset = index * chunk_size;
-                        MemoryReader::get_instance().read_bytes(process_info, base_address + offset as u64, chunk);
-                    });
-                }
             }
         }
 
@@ -192,13 +137,16 @@ impl SnapshotRegion {
         }
     }
 
-    pub fn get_region_scan_results(&self) -> &Arc<DashMap<DataType, SnapshotRegionScanResults>> {
-        &self.region_scan_results_by_data_type
-    }
-
+    /// TODO: This probably needs to be a more robust function that handles large gaps too.
+    /// The concept is only partially correct -- limit the size of the region to the bounds of provided scan results.
+    /// The problem of course is if there are scan results at the ends of the region, and not in the middle.
+    /// There is likely some profiling to be done, where we decide if:
+    /// A) Any inner page boundaries are eclipsed. Okay, remove those. Easy.
+    /// B) Decide if its worth sharding a fragmented region into two regions. Less easy.
     pub fn resize_to_filters(&mut self) {
         let original_base_address = self.get_base_address();
 
+        /*
         // Constrict this snapshot region based on the highest and lowest addresses in the contained scan result filters.
         for scan_results in self.region_scan_results_by_data_type.iter() {
             let scan_results = scan_results.value();
@@ -232,6 +180,6 @@ impl SnapshotRegion {
             // Remove any page boundaries outside of the resized region
             self.page_boundaries
                 .retain(|&boundary| boundary >= filter_lowest_address && boundary <= filter_highest_address);
-        }
+        } */
     }
 }

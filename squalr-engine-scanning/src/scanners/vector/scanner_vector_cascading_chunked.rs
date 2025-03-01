@@ -127,6 +127,6 @@ where
             panic!("relative and delta cascading scans are not implemented yet");
         }
 
-        return results;
+        results
     }
 }
