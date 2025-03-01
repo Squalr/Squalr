@@ -1,4 +1,4 @@
-use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
+use squalr_engine_common::{structures::memory_alignment::MemoryAlignment, values::data_type::DataType};
 use squalr_engine_memory::normalized_region::NormalizedRegion;
 use std::cmp::max;
 
@@ -52,9 +52,10 @@ impl SnapshotRegionFilter {
     /// Gets the number of elements contained by this filter for the given data type and alignment.
     pub fn get_element_count(
         &self,
-        data_type_size: u64,
+        data_type: &DataType,
         memory_alignment: MemoryAlignment,
     ) -> u64 {
+        let data_type_size = data_type.get_size_in_bytes();
         let misalignment = self.get_misaligned_starting_byte_count(memory_alignment);
         let memory_alignment: u64 = max(memory_alignment as u64, 1);
         let trailing_bytes = data_type_size.saturating_sub(memory_alignment);

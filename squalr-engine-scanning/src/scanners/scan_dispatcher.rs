@@ -73,6 +73,7 @@ impl ScanDispatcher {
         }
     }
 
+    /// Performs a scan over a provided filter collection, returning a new filter collection with the results.
     pub fn dispatch_scan(
         &self,
         snapshot_region: &SnapshotRegion,
@@ -93,6 +94,7 @@ impl ScanDispatcher {
         SnapshotRegionFilterCollection::new(result_snapshot_region_filters, data_type.clone(), memory_alignment)
     }
 
+    /// Performs a parallelized scan over a provided filter collection, returning a new filter collection with the results.
     pub fn dispatch_scan_parallel(
         &self,
         snapshot_region: &SnapshotRegion,

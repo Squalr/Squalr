@@ -1,39 +1,39 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
-use crate::results::lookup_tables::scan_results_lookup_table::ScanResultsLookupTable;
-use crate::snapshots::snapshot_region::SnapshotRegion;
-use dashmap::DashMap;
-use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
+use crate::results::lookup_tables::snapshot_region_filter_lookup_table::SnapshotRegionFilterLookupTable;
 use squalr_engine_common::structures::scan_result::ScanResult;
-use squalr_engine_common::values::data_type::DataType;
-use std::sync::Arc;
 
 /// Tracks the scan results for a region, and builds a lookup table that maps a local index to each scan result.
 /// This lookup table solves several problems efficiently:
 /// 1) Support sharding on data type, to increase parallelism in scans.
-/// 2) Support quickly navigating (without seeking or CPU heavy solutions!) to a specific scan result by local index.
+/// 2) Support quickly navigating (without linear seeking or CPU heavy solutions!) to a specific scan result by local index.
 /// 3) Interleave scan results by address for all data types, such that scan results appear sorted.
 ///
-/// The solution is to use interval trees to map local scan result indicies onto the corresponding snapshot filter.
-/// Additionally,
+/// The solution is to use sorted ranges and modulo hashing the index to any overlapping filters.
+/// Filters only are expected to overlap when two filters of differing data types both have a result in the same address.
+/// For example, scanning for 0 across multiple data types could produce 1, 2, 4, and 8 byte integer matches on the same address.
 pub struct SnapshotRegionScanResults {
-    scan_results_local_lookup_table: ScanResultsLookupTable,
-    filters_by_data_type: Arc<DashMap<DataType, SnapshotRegionFilterCollection>>,
-    snapshot_region_filter_collection: Vec<SnapshotRegionFilterCollection>,
+    /// The collection of filters produced by a scan for a specific snapshot region.
+    snapshot_region_filter_collections: Vec<SnapshotRegionFilterCollection>,
+
+    /// A lookup table for fast and efficient querying of scan results.
+    scan_results_local_lookup_table: SnapshotRegionFilterLookupTable,
 }
 
 impl SnapshotRegionScanResults {
-    pub fn new(snapshot_region_filter_collection: Vec<SnapshotRegionFilterCollection>) -> Self {
-        Self {
-            scan_results_local_lookup_table: ScanResultsLookupTable::new(),
-            filters_by_data_type: Arc::new(DashMap::new()),
-            snapshot_region_filter_collection,
-        }
+    pub fn new(snapshot_region_filter_collections: Vec<SnapshotRegionFilterCollection>) -> Self {
+        let mut instance: SnapshotRegionScanResults = Self {
+            snapshot_region_filter_collections,
+            scan_results_local_lookup_table: SnapshotRegionFilterLookupTable::new(),
+        };
+
+        instance.build_scan_results();
+
+        instance
     }
 
     pub fn get_scan_result(
         &self,
-        index: u64,
+        local_scan_index: u64,
     ) -> Option<ScanResult> {
         /*
         // Get the index of the filter from the lookup table.
@@ -68,48 +68,32 @@ impl SnapshotRegionScanResults {
     }
 
     pub fn get_filter_collections(&self) -> &Vec<SnapshotRegionFilterCollection> {
-        &self.snapshot_region_filter_collection
+        &self.snapshot_region_filter_collections
     }
 
-    /*
     pub fn get_filter_bounds(&self) -> (u64, u64) {
-        let mut filter_lowest_address = 0u64;
-        let mut filter_highest_address = 0u64;
-        let mut run_once = true;
+        let mut filter_min_address = 0u64;
+        let mut filter_max_address = 0u64;
 
-        // Flatten and check each filter to find the highest and lowest addresses.
-        for filter in self.snapshot_region_filters.iter().flatten() {
-            let filter_base = filter.get_base_address();
-            let filter_end = filter.get_end_address();
+        // Collect the minimum and maximum filter bounds. These are used to efficiently build our lookup table.
+        for snapshot_region_filter_collection in &self.snapshot_region_filter_collections {
+            filter_min_address = filter_min_address.min(snapshot_region_filter_collection.get_filter_minimum_address());
+            filter_max_address = filter_max_address.min(snapshot_region_filter_collection.get_filter_minimum_address());
+        }
 
-            if run_once {
-                run_once = false;
-                filter_lowest_address = filter_base;
-                filter_highest_address = filter_end;
-            } else {
-                filter_lowest_address = filter_lowest_address.min(filter_base);
-                filter_highest_address = filter_lowest_address.max(filter_end);
+        (filter_min_address, filter_max_address)
+    }
+
+    fn build_scan_results(&mut self) {
+        for snapshot_region_filter_collection in &self.snapshot_region_filter_collections {
+            let data_type = snapshot_region_filter_collection.get_data_type();
+            let memory_alignment = snapshot_region_filter_collection.get_memory_alignment();
+
+            for (filter_index, filter) in snapshot_region_filter_collection.iter().enumerate() {
+                let filter_element_count = filter.get_element_count(&data_type, memory_alignment);
+                self.scan_results_local_lookup_table
+                    .append_lookup_mapping(filter_element_count, filter_index as u64);
             }
         }
-
-        (filter_lowest_address, filter_highest_address)
     }
-
-    fn build_local_scan_results_lookup_table(
-        &mut self,
-        data_type: &DataType,
-        memory_alignment: MemoryAlignment,
-    ) {
-        self.scan_results_local_lookup_table.clear();
-        let data_type_size = data_type.get_size_in_bytes();
-
-        // Iterate every snapshot region contained by the snapshot.
-        for (filter_index, filter) in self.snapshot_region_filters.iter().flatten().enumerate() {
-            let number_of_filter_results = filter.get_element_count(data_type_size, memory_alignment);
-
-            // Simply map the result range onto a the index of a particular snapshot region.
-            self.scan_results_local_lookup_table
-                .add_lookup_mapping(number_of_filter_results, filter_index as u64);
-        }
-    }*/
 }

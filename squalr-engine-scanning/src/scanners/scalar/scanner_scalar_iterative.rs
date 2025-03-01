@@ -43,7 +43,6 @@ impl Scanner for ScannerScalarIterative {
         data_type: &DataType,
         memory_alignment: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_type_size = data_type.get_size_in_bytes();
         let encoder = ScannerScalarEncoder::get_instance();
 
         let results = encoder.encode(
@@ -53,7 +52,7 @@ impl Scanner for ScannerScalarIterative {
             data_type,
             memory_alignment,
             snapshot_region_filter.get_base_address(),
-            snapshot_region_filter.get_element_count(data_type_size, memory_alignment),
+            snapshot_region_filter.get_element_count(data_type, memory_alignment),
         );
 
         results

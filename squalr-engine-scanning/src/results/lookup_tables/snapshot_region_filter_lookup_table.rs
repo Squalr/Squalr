@@ -1,52 +1,64 @@
-use rangemap::RangeInclusiveMap;
-use std::ops::RangeInclusive;
+type ResultIndexBaseToFilterIndex = (u64, u64);
 
-type ScanResultRangeMap = RangeInclusiveMap<u64, u64>;
+struct LookupTableEntry {
+    local_index_base: u64,
+    filter_index: u64,
+}
 
 /// Defines a mapping of scan result indicies onto the corresponding snapshot region containing the results.
-#[derive(Debug)]
 pub struct SnapshotRegionFilterLookupTable {
-    result_index_to_region_index_map: ScanResultRangeMap,
+    index_table: Vec<LookupTableEntry>,
     number_of_results: u64,
 }
 
 impl SnapshotRegionFilterLookupTable {
     pub fn new() -> Self {
         Self {
-            result_index_to_region_index_map: ScanResultRangeMap::new(),
+            index_table: vec![],
             number_of_results: 0,
         }
     }
 
-    /// Gets the internal interval tree mapping of the lookup table.
-    pub fn get_lookup_mapping(&self) -> &ScanResultRangeMap {
-        return &self.result_index_to_region_index_map;
-    }
-
-    /// Gets the number of scan results mapped by this lookup table.
+    /// Gets the number of results contained in this lookup table.
     pub fn get_number_of_results(&self) -> u64 {
-        return self.number_of_results;
+        self.number_of_results
     }
 
-    /// Maps the next specified `n` scan results, denoted by `result_range_count` to a specific region index.
-    pub fn add_lookup_mapping(
+    pub fn append_lookup_mapping(
         &mut self,
         result_range_count: u64,
-        region_index: u64,
+        filter_index: u64,
     ) {
-        let result_index_start = self.get_number_of_results();
-
-        self.result_index_to_region_index_map.insert(
-            RangeInclusive::new(result_index_start, result_index_start + result_range_count.saturating_sub(1)),
-            region_index,
-        );
+        self.index_table.push(LookupTableEntry {
+            local_index_base: self.number_of_results,
+            filter_index,
+        });
 
         self.number_of_results = self.number_of_results.saturating_add(result_range_count);
     }
 
-    /// Removes all entries from the lookup table.
-    pub fn clear(&mut self) {
-        self.result_index_to_region_index_map.clear();
-        self.number_of_results = 0;
+    pub fn lookup_filter_base_address_and_index(
+        &self,
+        local_scan_result_index: u64,
+    ) -> Option<ResultIndexBaseToFilterIndex> {
+        // Binary search for the largest local_index_base <= local_scan_result_index.
+        let binary_search_result = self
+            .index_table
+            .binary_search_by_key(&local_scan_result_index, |entry| entry.local_index_base);
+
+        match binary_search_result {
+            // If an exact match is found, use it directly.
+            Ok(index) => {
+                let entry = &self.index_table[index];
+                Some((entry.filter_index, local_scan_result_index - entry.local_index_base))
+            }
+            // If no exact match, `Err(index)` tells us where it would be inserted.
+            Err(index) if index > 0 => {
+                let entry = &self.index_table[index - 1];
+                Some((entry.filter_index, local_scan_result_index - entry.local_index_base))
+            }
+            // If index == 0, then no valid range exists
+            _ => None,
+        }
     }
 }
