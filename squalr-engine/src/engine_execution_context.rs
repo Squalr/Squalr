@@ -9,7 +9,6 @@ use squalr_engine_api::commands::engine_response::EngineResponse;
 use squalr_engine_api::events::process::process_changed_event::ProcessChangedEvent;
 use squalr_engine_api::{commands::engine_command::EngineCommand, events::engine_event::EngineEvent};
 use squalr_engine_common::structures::process_info::OpenedProcessInfo;
-use squalr_engine_common::structures::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_common::tasks::trackable_task_handle::TrackableTaskHandle;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
 use std::sync::{Arc, RwLock};
@@ -21,9 +20,6 @@ pub struct EngineExecutionContext {
 
     /// The current snapshot of process memory.
     snapshot: Arc<RwLock<Snapshot>>,
-
-    /// The current global parameters used for scan filtering, such as data type and alignment.
-    scan_filter_parameters: RwLock<Vec<ScanFilterParameters>>,
 
     /// Defines the mode in which the engine is running.
     /// - Standalone engine is self-handling. This is the most common way Squalr is used.
@@ -55,7 +51,6 @@ impl EngineExecutionContext {
         let execution_context = Arc::new(EngineExecutionContext {
             opened_process: RwLock::new(None),
             snapshot: Arc::new(RwLock::new(Snapshot::new())),
-            scan_filter_parameters: RwLock::new(vec![]),
             engine_mode,
             command_dispatcher: EngineCommandDispatcher::new(optional_host),
             event_handler: EngineEventHandler::new(optional_shell),
@@ -105,30 +100,6 @@ impl EngineExecutionContext {
 
     pub fn get_snapshot(&self) -> Arc<RwLock<Snapshot>> {
         self.snapshot.clone()
-    }
-
-    pub fn get_scan_filter_parameters(&self) -> Vec<ScanFilterParameters> {
-        match self.scan_filter_parameters.read() {
-            Ok(guard) => guard.clone(),
-            Err(err) => {
-                log::error!("Failed to read scan filter parameters: {}", err);
-                vec![]
-            }
-        }
-    }
-
-    pub fn set_scan_filter_parameters(
-        &self,
-        new_scan_filter_parameters: Vec<ScanFilterParameters>,
-    ) {
-        match self.scan_filter_parameters.write() {
-            Ok(mut scan_filter_parameters) => {
-                *scan_filter_parameters = new_scan_filter_parameters;
-            }
-            Err(err) => {
-                log::error!("Failed to set scan results: {}", err);
-            }
-        }
     }
 
     pub fn get_engine_mode(&self) -> EngineMode {

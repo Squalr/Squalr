@@ -1,4 +1,3 @@
-use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scan_dispatcher::ScanDispatcher;
@@ -88,22 +87,22 @@ impl HybridScanner {
                 let scan_results = SnapshotRegionScanResults::new(
                     scan_filter_parameters
                         .par_iter()
-                        .map(|scan_filter_parameter| {
+                        .filter_map(|scan_filter_parameter| {
                             let data_type = scan_filter_parameter.get_data_type();
                             let memory_alignment = scan_filter_parameter.get_memory_alignment_or_default();
                             let scan_results: &SnapshotRegionScanResults = snapshot_region.get_scan_results();
 
                             // Perform the scan.
                             if let Some(snapshot_region_filters) = scan_results.get_scan_results_by_data_type(data_type) {
-                                ScanDispatcher::get_instance().dispatch_scan_parallel(
+                                Some(ScanDispatcher::get_instance().dispatch_scan_parallel(
                                     snapshot_region,
                                     snapshot_region_filters,
                                     scan_parameters,
                                     data_type,
                                     memory_alignment,
-                                )
+                                ))
                             } else {
-                                SnapshotRegionFilterCollection::new(vec![], data_type.clone(), memory_alignment)
+                                None
                             }
                         })
                         .collect(),

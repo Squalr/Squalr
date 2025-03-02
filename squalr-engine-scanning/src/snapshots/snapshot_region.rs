@@ -3,6 +3,7 @@ use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterColle
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_common::structures::process_info::OpenedProcessInfo;
+use squalr_engine_common::structures::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
@@ -29,13 +30,31 @@ impl SnapshotRegion {
     pub fn new(
         normalized_region: NormalizedRegion,
         page_boundaries: Vec<u64>,
+        scan_filter_parameters: &Vec<ScanFilterParameters>,
     ) -> Self {
+        // Create an initial filter, spanning the entire region, for each data type that the scan results will represent.
+        let scan_filter_collections = scan_filter_parameters
+            .iter()
+            .map(|scan_filter_parameter| {
+                let initial_filter = vec![vec![SnapshotRegionFilter::new(
+                    normalized_region.get_base_address(),
+                    normalized_region.get_region_size(),
+                )]];
+
+                SnapshotRegionFilterCollection::new(
+                    initial_filter,
+                    scan_filter_parameter.get_data_type().clone(),
+                    scan_filter_parameter.get_memory_alignment_or_default(),
+                )
+            })
+            .collect();
+
         Self {
             normalized_region,
             current_values: vec![],
             previous_values: vec![],
             page_boundaries,
-            scan_results: SnapshotRegionScanResults::new(vec![]),
+            scan_results: SnapshotRegionScanResults::new(scan_filter_collections),
         }
     }
 
@@ -53,8 +72,6 @@ impl SnapshotRegion {
         &mut self,
         process_info: &OpenedProcessInfo,
     ) -> Result<(), String> {
-        self.resize_to_filters();
-
         let region_size = self.get_region_size() as usize;
 
         std::mem::swap(&mut self.current_values, &mut self.previous_values);
@@ -152,51 +169,43 @@ impl SnapshotRegion {
         scan_results: SnapshotRegionScanResults,
     ) {
         self.scan_results = scan_results;
+
+        // Upon assigning new scan results, we want to cull memory outside of the bounds of the filters.
+        self.resize_to_filters();
     }
 
-    /// TODO: This probably needs to be a more robust function that handles large gaps too.
-    /// The concept is only partially correct -- limit the size of the region to the bounds of provided scan results.
-    /// The problem of course is if there are scan results at the ends of the region, and not in the middle.
-    /// There is likely some profiling to be done, where we decide if:
-    /// A) Any inner page boundaries are eclipsed. Okay, remove those. Easy.
-    /// B) Decide if its worth sharding a fragmented region into two regions. Less easy.
-    pub fn resize_to_filters(&mut self) {
+    /// Constrict this snapshot region based on the highest and lowest addresses in the contained scan result filters.
+    /// JIRA: Shard large gaps into multiple regions?
+    fn resize_to_filters(&mut self) {
+        let (filter_lowest_address, filter_highest_address) = self.scan_results.get_filter_bounds();
         let original_base_address = self.get_base_address();
+        let new_region_size = filter_highest_address - filter_lowest_address;
 
-        /*
-        // Constrict this snapshot region based on the highest and lowest addresses in the contained scan result filters.
-        for scan_results in self.region_scan_results_by_data_type.iter() {
-            let scan_results = scan_results.value();
-            let (filter_lowest_address, filter_highest_address) = scan_results.get_filter_bounds();
+        // No filters remaining! Set this regions size to 0 so that it can be cleaned up later.
+        if new_region_size <= 0 {
+            self.normalized_region.set_region_size(0);
+            self.page_boundaries.clear();
+            return;
+        }
 
-            let new_region_size = filter_highest_address - filter_lowest_address;
+        self.normalized_region.set_base_address(filter_lowest_address);
+        self.normalized_region.set_region_size(new_region_size);
 
-            // No filters remaining! Set this regions size to 0 so that it can be cleaned up later.
-            if new_region_size <= 0 {
-                self.normalized_region.set_region_size(0);
-                self.page_boundaries.clear();
-                return;
-            }
+        let start_offset = (filter_lowest_address - original_base_address) as usize;
+        let new_length = (filter_highest_address - filter_lowest_address) as usize;
 
-            self.normalized_region.set_base_address(filter_lowest_address);
-            self.normalized_region.set_region_size(new_region_size);
+        if !self.current_values.is_empty() {
+            self.current_values.drain(..start_offset);
+            self.current_values.truncate(new_length);
+        }
 
-            let start_offset = (filter_lowest_address - original_base_address) as usize;
-            let new_length = (filter_highest_address - filter_lowest_address) as usize;
+        if !self.previous_values.is_empty() {
+            self.previous_values.drain(..start_offset);
+            self.previous_values.truncate(new_length);
+        }
 
-            if !self.current_values.is_empty() {
-                self.current_values.drain(..start_offset);
-                self.current_values.truncate(new_length);
-            }
-
-            if !self.previous_values.is_empty() {
-                self.previous_values.drain(..start_offset);
-                self.previous_values.truncate(new_length);
-            }
-
-            // Remove any page boundaries outside of the resized region
-            self.page_boundaries
-                .retain(|&boundary| boundary >= filter_lowest_address && boundary <= filter_highest_address);
-        } */
+        // Remove any page boundaries outside of the resized region
+        self.page_boundaries
+            .retain(|&boundary| boundary >= filter_lowest_address && boundary <= filter_highest_address);
     }
 }

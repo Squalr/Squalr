@@ -53,8 +53,6 @@ impl EngineRequestExecutor for ScanNewRequest {
             }
         };
 
-        execution_context.set_scan_filter_parameters(scan_filter_parameters);
-
         // Query all memory pages for the process from the OS.
         let memory_pages = MemoryQueryer::get_memory_page_bounds(&opened_process_info, PageRetrievalMode::FromSettings);
 
@@ -77,13 +75,17 @@ impl EngineRequestExecutor for ScanNewRequest {
                     current_region.set_end_address(region.get_end_address());
                     page_boundaries.push(region.get_base_address());
                 } else {
-                    merged_snapshot_regions.push(SnapshotRegion::new(current_region, std::mem::take(&mut page_boundaries)));
+                    merged_snapshot_regions.push(SnapshotRegion::new(
+                        current_region,
+                        std::mem::take(&mut page_boundaries),
+                        &scan_filter_parameters,
+                    ));
                     current_region = region;
                 }
             }
 
             // Push the last region.
-            merged_snapshot_regions.push(SnapshotRegion::new(current_region, page_boundaries));
+            merged_snapshot_regions.push(SnapshotRegion::new(current_region, page_boundaries, &scan_filter_parameters));
 
             // Update snapshot with new merged regions.
             snapshot.set_snapshot_regions(merged_snapshot_regions);

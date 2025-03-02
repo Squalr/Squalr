@@ -1,5 +1,4 @@
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
-use crate::results::snapshot_scan_results::SnapshotScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scan_dispatcher::ScanDispatcher;
 use crate::snapshots::snapshot::Snapshot;
@@ -23,8 +22,8 @@ impl ManualScanner {
         scan_parameters: &ScanParameters,
         task_identifier: Option<String>,
         with_logging: bool,
-    ) -> Arc<TrackableTask<SnapshotScanResults>> {
-        let task = TrackableTask::<SnapshotScanResults>::create(ManualScanner::NAME.to_string(), task_identifier);
+    ) -> Arc<TrackableTask<()>> {
+        let task = TrackableTask::<()>::create(ManualScanner::NAME.to_string(), task_identifier);
 
         let task_clone = task.clone();
         let scan_parameters_clone = scan_parameters.clone();
@@ -41,9 +40,9 @@ impl ManualScanner {
     fn scan_task(
         snapshot: Arc<RwLock<Snapshot>>,
         scan_parameters: &ScanParameters,
-        task: Arc<TrackableTask<SnapshotScanResults>>,
+        task: Arc<TrackableTask<()>>,
         with_logging: bool,
-    ) -> SnapshotScanResults {
+    ) {
         if with_logging {
             log::info!("Performing manual scan...");
         }
@@ -152,6 +151,5 @@ impl ManualScanner {
         }
 
         scan_results*/
-        return SnapshotScanResults::new(vec![]);
     }
 }
