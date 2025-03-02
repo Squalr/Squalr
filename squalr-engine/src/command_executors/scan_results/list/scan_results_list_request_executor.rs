@@ -18,7 +18,7 @@ impl EngineRequestExecutor for ScanResultsListRequest {
         execution_context: &Arc<EngineExecutionContext>,
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         let results_page_size = ScanSettings::get_instance().get_results_page_size() as u64;
-        let mut scan_results = vec![];
+        let mut scan_results_list = vec![];
         let mut last_page_index = 0;
         let mut result_count = 0;
         let mut total_size_in_bytes = 0;
@@ -29,24 +29,19 @@ impl EngineRequestExecutor for ScanResultsListRequest {
         } else {
             vec![]
         };
-        /*
-            if let Ok(snapshot) = execution_context.get_snapshot().read() {
-                // Determine the index of the last page of results for this data type.
-                if let Some(scan_results) = snapshot.get_scan_results_by_data_type().get(&self.data_type) {
-                    result_count = scan_results.get_number_of_results();
 
-                    last_page_index = result_count / results_page_size;
-                }
-
+        if let Ok(snapshot) = execution_context.get_snapshot().read() {
+            if let Ok(scan_results) = execution_context.get_scan_results().read() {
+                result_count = scan_results.get_number_of_results();
+                last_page_index = result_count / results_page_size;
                 total_size_in_bytes = snapshot.get_byte_count();
 
                 // Get the range of indicies for the elements of this page.
                 let index_of_first_page_entry = self.page_index.clamp(0, last_page_index) * results_page_size;
                 let index_of_last_page_entry = index_of_first_page_entry + results_page_size;
 
-
                 for result_index in index_of_first_page_entry..index_of_last_page_entry {
-                    let mut scan_result_base_address = match snapshot.get_scan_result_address(result_index, &self.data_type) {
+                    let mut scan_result_base_address = match scan_results.get_scan_result_address(result_index) {
                         None => break,
                         Some(address) => address,
                     };
@@ -66,12 +61,13 @@ impl EngineRequestExecutor for ScanResultsListRequest {
                         scan_result_base_address = address;
                     }
 
-                    scan_results.push(ScanResult::new(scan_result_base_address, module_name, current_value, previous_value));
+                    scan_results_list.push(ScanResult::new(scan_result_base_address, module_name, current_value, previous_value));
                 }
             }
-        */
+        }
+
         ScanResultsListResponse {
-            scan_results,
+            scan_results: scan_results_list,
             page_index: self.page_index,
             page_size: results_page_size,
             last_page_index,

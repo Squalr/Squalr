@@ -12,6 +12,9 @@ pub struct SnapshotRegionFilterCollection {
 
     // The memory alignment of all elements in this filter.
     memory_alignment: MemoryAlignment,
+
+    // The total number of results contained in this collection.
+    number_of_results: u64,
 }
 
 impl SnapshotRegionFilterCollection {
@@ -29,6 +32,7 @@ impl SnapshotRegionFilterCollection {
         }
 
         // Sort the outer vector by the base address of the first element in each inner vector.
+        // JIRA: Cut this if we don't need it in our scan results querying.
         snapshot_region_filters.sort_by_key(|filters| {
             filters
                 .first()
@@ -36,8 +40,15 @@ impl SnapshotRegionFilterCollection {
                 .unwrap_or(u64::MAX)
         });
 
+        let number_of_results = snapshot_region_filters
+            .iter()
+            .flatten()
+            .map(|filter| filter.get_element_count(&data_type, memory_alignment))
+            .sum();
+
         Self {
             snapshot_region_filters,
+            number_of_results,
             data_type,
             memory_alignment,
         }
@@ -67,18 +78,27 @@ impl SnapshotRegionFilterCollection {
         max_address
     }
 
+    // Get the total number of results contained in this collection.
+    pub fn get_number_of_results(&self) -> u64 {
+        self.number_of_results
+    }
+
+    /// Gets the data type of this snapshot region filter collection.
     pub fn get_data_type(&self) -> &DataType {
         &self.data_type
     }
 
+    /// Gets the memory alignment of this snapshot region filter collection.
     pub fn get_memory_alignment(&self) -> MemoryAlignment {
         self.memory_alignment.clone()
     }
 
+    /// Iterates the snapshot region filters sequentially, which are sorted by base address ascending.
     pub fn iter(&self) -> std::iter::Flatten<std::slice::Iter<'_, Vec<SnapshotRegionFilter>>> {
         self.snapshot_region_filters.iter().flatten()
     }
 
+    /// Iterates the snapshot region filters in parallel, which are sorted by base address ascending.
     pub fn par_iter(&self) -> rayon::iter::Flatten<rayon::slice::Iter<'_, Vec<SnapshotRegionFilter>>> {
         self.snapshot_region_filters.par_iter().flatten()
     }
