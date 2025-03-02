@@ -2,7 +2,7 @@ use crate::command_executors::engine_request_executor::EngineRequestExecutor;
 use crate::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan_results::list::scan_results_list_request::ScanResultsListRequest;
 use squalr_engine_api::commands::scan_results::list::scan_results_list_response::ScanResultsListResponse;
-use squalr_engine_common::structures::scan_result::ScanResult;
+use squalr_engine_common::structures::scan_results::scan_result::ScanResult;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
 use squalr_engine_memory::memory_reader::MemoryReader;
@@ -31,38 +31,37 @@ impl EngineRequestExecutor for ScanResultsListRequest {
         };
 
         if let Ok(snapshot) = execution_context.get_snapshot().read() {
-            if let Ok(scan_results) = execution_context.get_scan_results().read() {
-                result_count = scan_results.get_number_of_results();
-                last_page_index = result_count / results_page_size;
-                total_size_in_bytes = snapshot.get_byte_count();
+            result_count = snapshot.get_number_of_results();
+            last_page_index = result_count / results_page_size;
+            total_size_in_bytes = snapshot.get_byte_count();
 
-                // Get the range of indicies for the elements of this page.
-                let index_of_first_page_entry = self.page_index.clamp(0, last_page_index) * results_page_size;
-                let index_of_last_page_entry = index_of_first_page_entry + results_page_size;
+            // Get the range of indicies for the elements of this page.
+            let index_of_first_page_entry = self.page_index.clamp(0, last_page_index) * results_page_size;
+            let index_of_last_page_entry = index_of_first_page_entry + results_page_size;
 
-                for result_index in index_of_first_page_entry..index_of_last_page_entry {
-                    let mut scan_result_base_address = match scan_results.get_scan_result_address(result_index) {
-                        None => break,
-                        Some(address) => address,
-                    };
+            for result_index in index_of_first_page_entry..index_of_last_page_entry {
+                let scan_result_raw = match snapshot.get_scan_result(result_index) {
+                    None => break,
+                    Some(scan_result_raw) => scan_result_raw,
+                };
 
-                    let mut current_value = self.data_type.to_default_value();
-                    let previous_value = self.data_type.to_default_value();
-                    let mut module_name = String::default();
+                let mut current_value = self.data_type.to_default_value();
+                let previous_value = self.data_type.to_default_value();
+                let mut module_name = String::default();
+                let mut scan_result_base_address = scan_result_raw.base_address;
 
-                    // Best-effort attempt to read the values for this scan result.
-                    if let Some(opened_process_info) = execution_context.get_opened_process() {
-                        let _ = MemoryReader::get_instance().read(&opened_process_info, scan_result_base_address, &mut current_value);
-                    }
-
-                    // Check whether this scan result belongs to a module (ie check if the address is static).
-                    if let Some((found_module_name, address)) = MemoryQueryer::get_instance().address_to_module(scan_result_base_address, &modules) {
-                        module_name = found_module_name;
-                        scan_result_base_address = address;
-                    }
-
-                    scan_results_list.push(ScanResult::new(scan_result_base_address, module_name, current_value, previous_value));
+                // Best-effort attempt to read the values for this scan result.
+                if let Some(opened_process_info) = execution_context.get_opened_process() {
+                    let _ = MemoryReader::get_instance().read(&opened_process_info, scan_result_base_address, &mut current_value);
                 }
+
+                // Check whether this scan result belongs to a module (ie check if the address is static).
+                if let Some((found_module_name, address)) = MemoryQueryer::get_instance().address_to_module(scan_result_base_address, &modules) {
+                    module_name = found_module_name;
+                    scan_result_base_address = address;
+                }
+
+                scan_results_list.push(ScanResult::new(scan_result_base_address, module_name, current_value, previous_value));
             }
         }
 

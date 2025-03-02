@@ -2,7 +2,7 @@ use crate::commands::engine_response::EngineResponse;
 use crate::commands::engine_response::TypedEngineResponse;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::structures::scan_result::ScanResult;
+use squalr_engine_common::structures::scan_results::scan_result::ScanResult;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanResultsListResponse {

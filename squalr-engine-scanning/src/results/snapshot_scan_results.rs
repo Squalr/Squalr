@@ -21,30 +21,4 @@ impl SnapshotScanResults {
             snapshot_region_scan_results_collection,
         }
     }
-
-    pub fn get_scan_result_address(
-        &self,
-        scan_result_index: u64,
-    ) -> Option<u64> {
-        let mut scan_result_index = scan_result_index;
-
-        for snapshot_region_scan_results in &self.snapshot_region_scan_results_collection {
-            let number_of_region_results = snapshot_region_scan_results.get_number_of_results();
-
-            if scan_result_index < number_of_region_results {
-                return snapshot_region_scan_results.get_scan_result_address(scan_result_index);
-            }
-
-            scan_result_index = scan_result_index.saturating_sub(number_of_region_results);
-        }
-
-        None
-    }
-
-    pub fn get_number_of_results(&self) -> u64 {
-        self.snapshot_region_scan_results_collection
-            .iter()
-            .map(|snapshot_region_scan_results| snapshot_region_scan_results.get_number_of_results())
-            .sum()
-    }
 }

@@ -20,7 +20,6 @@ impl ManualScanner {
 
     pub fn scan(
         snapshot: Arc<RwLock<Snapshot>>,
-        current_results: Arc<RwLock<SnapshotScanResults>>,
         scan_parameters: &ScanParameters,
         task_identifier: Option<String>,
         with_logging: bool,
@@ -31,7 +30,7 @@ impl ManualScanner {
         let scan_parameters_clone = scan_parameters.clone();
 
         thread::spawn(move || {
-            let scan_results = Self::scan_task(snapshot, current_results, &scan_parameters_clone, task_clone.clone(), with_logging);
+            let scan_results = Self::scan_task(snapshot, &scan_parameters_clone, task_clone.clone(), with_logging);
 
             task_clone.complete(scan_results);
         });
@@ -41,7 +40,6 @@ impl ManualScanner {
 
     fn scan_task(
         snapshot: Arc<RwLock<Snapshot>>,
-        current_results: Arc<RwLock<SnapshotScanResults>>,
         scan_parameters: &ScanParameters,
         task: Arc<TrackableTask<SnapshotScanResults>>,
         with_logging: bool,

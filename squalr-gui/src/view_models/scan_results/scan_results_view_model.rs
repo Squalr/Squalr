@@ -13,7 +13,7 @@ use squalr_engine::command_executors::engine_request_executor::EngineRequestExec
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan_results::list::scan_results_list_request::ScanResultsListRequest;
 use squalr_engine_common::conversions::Conversions;
-use squalr_engine_common::structures::scan_result::ScanResult;
+use squalr_engine_common::structures::scan_results::scan_result::ScanResult;
 use squalr_engine_common::values::endian::Endian;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;

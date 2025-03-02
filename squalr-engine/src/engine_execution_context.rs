@@ -11,7 +11,6 @@ use squalr_engine_api::{commands::engine_command::EngineCommand, events::engine_
 use squalr_engine_common::structures::process_info::OpenedProcessInfo;
 use squalr_engine_common::structures::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_common::tasks::trackable_task_handle::TrackableTaskHandle;
-use squalr_engine_scanning::results::snapshot_scan_results::SnapshotScanResults;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
 use std::sync::{Arc, RwLock};
 
@@ -25,9 +24,6 @@ pub struct EngineExecutionContext {
 
     /// The current global parameters used for scan filtering, such as data type and alignment.
     scan_filter_parameters: RwLock<Vec<ScanFilterParameters>>,
-
-    /// The current scan results.
-    scan_results: Arc<RwLock<SnapshotScanResults>>,
 
     /// Defines the mode in which the engine is running.
     /// - Standalone engine is self-handling. This is the most common way Squalr is used.
@@ -60,7 +56,6 @@ impl EngineExecutionContext {
             opened_process: RwLock::new(None),
             snapshot: Arc::new(RwLock::new(Snapshot::new())),
             scan_filter_parameters: RwLock::new(vec![]),
-            scan_results: Arc::new(RwLock::new(SnapshotScanResults::new(vec![]))),
             engine_mode,
             command_dispatcher: EngineCommandDispatcher::new(optional_host),
             event_handler: EngineEventHandler::new(optional_shell),
@@ -129,24 +124,6 @@ impl EngineExecutionContext {
         match self.scan_filter_parameters.write() {
             Ok(mut scan_filter_parameters) => {
                 *scan_filter_parameters = new_scan_filter_parameters;
-            }
-            Err(err) => {
-                log::error!("Failed to set scan results: {}", err);
-            }
-        }
-    }
-
-    pub fn get_scan_results(&self) -> Arc<RwLock<SnapshotScanResults>> {
-        self.scan_results.clone()
-    }
-
-    pub fn set_scan_results(
-        &self,
-        new_scan_results: SnapshotScanResults,
-    ) {
-        match self.scan_results.write() {
-            Ok(mut scan_results) => {
-                *scan_results = new_scan_results;
             }
             Err(err) => {
                 log::error!("Failed to set scan results: {}", err);

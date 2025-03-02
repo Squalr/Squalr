@@ -1,4 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
+use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
+use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_common::structures::process_info::OpenedProcessInfo;
 use squalr_engine_memory::memory_reader::MemoryReader;
@@ -18,6 +20,9 @@ pub struct SnapshotRegion {
 
     /// Any OS level page boundaries that may sub-divide this snapshot region.
     page_boundaries: Vec<u64>,
+
+    /// The current scan results on this snapshot region.
+    scan_results: SnapshotRegionScanResults,
 }
 
 impl SnapshotRegion {
@@ -30,6 +35,7 @@ impl SnapshotRegion {
             current_values: vec![],
             previous_values: vec![],
             page_boundaries,
+            scan_results: SnapshotRegionScanResults::new(vec![]),
         }
     }
 
@@ -135,6 +141,17 @@ impl SnapshotRegion {
         } else {
             true
         }
+    }
+
+    pub fn get_scan_results(&self) -> &SnapshotRegionScanResults {
+        &self.scan_results
+    }
+
+    pub fn set_scan_results(
+        &mut self,
+        scan_results: SnapshotRegionScanResults,
+    ) {
+        self.scan_results = scan_results;
     }
 
     /// TODO: This probably needs to be a more robust function that handles large gaps too.

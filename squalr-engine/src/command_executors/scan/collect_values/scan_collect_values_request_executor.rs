@@ -32,9 +32,7 @@ impl EngineRequestExecutor for ScanCollectValuesRequest {
             let execution_context = execution_context.clone();
 
             thread::spawn(move || {
-                if let Some(scan_results) = task.wait_for_completion() {
-                    execution_context.set_scan_results(scan_results);
-                }
+                task.wait_for_completion();
                 execution_context.unregister_task(&task.get_task_identifier());
             });
 

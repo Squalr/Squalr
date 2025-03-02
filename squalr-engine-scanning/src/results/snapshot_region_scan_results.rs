@@ -1,3 +1,5 @@
+use squalr_engine_common::{structures::scan_results::scan_result_raw::ScanResultRaw, values::data_type::DataType};
+
 use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use std::{cmp::Reverse, collections::BinaryHeap};
 
@@ -21,10 +23,23 @@ impl SnapshotRegionScanResults {
         }
     }
 
-    pub fn get_scan_result_address(
+    pub fn get_scan_results_by_data_type(
+        &self,
+        data_type: &DataType,
+    ) -> Option<&SnapshotRegionFilterCollection> {
+        for collection in &self.snapshot_region_filter_collections {
+            if collection.get_data_type() == data_type {
+                return Some(&collection);
+            }
+        }
+
+        None
+    }
+
+    pub fn get_scan_result(
         &self,
         mut scan_result_index: u64,
-    ) -> Option<u64> {
+    ) -> Option<ScanResultRaw> {
         let mut heap: BinaryHeap<Reverse<(usize, usize)>> = BinaryHeap::new();
 
         // Each entry in heap is (address, collection_index, filter_index).
@@ -46,11 +61,17 @@ impl SnapshotRegionScanResults {
             let iterator = &mut iterators[collection_index];
             let filter = iterator.next().unwrap();
             let collection = &self.snapshot_region_filter_collections[collection_index];
-            let result_count = filter.get_element_count(collection.get_data_type(), collection.get_memory_alignment());
+            let memory_alignment = collection.get_memory_alignment();
+            let data_type = collection.get_data_type();
+            let result_count = filter.get_element_count(data_type, memory_alignment);
 
             if scan_result_index < result_count {
                 // The desired result is within this filter.
-                return Some(filter.get_base_address() + scan_result_index * collection.get_memory_alignment() as u64);
+                let scan_result_address = filter.get_base_address() + scan_result_index * memory_alignment as u64;
+                return Some(ScanResultRaw {
+                    base_address: scan_result_address,
+                    data_type: data_type.clone(),
+                });
             }
 
             // Decrease the index as we've skipped this entire filter's elements.

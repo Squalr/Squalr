@@ -1,4 +1,5 @@
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_common::structures::scan_results::scan_result_raw::ScanResultRaw;
 
 pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,
@@ -54,6 +55,34 @@ impl Snapshot {
         self.snapshot_regions
             .iter()
             .map(|region| region.get_region_size())
+            .sum()
+    }
+
+    /// Seeks to the
+    pub fn get_scan_result(
+        &self,
+        scan_result_index: u64,
+    ) -> Option<ScanResultRaw> {
+        let mut scan_result_index = scan_result_index;
+
+        for snapshot_region in &self.snapshot_regions {
+            let snapshot_region_scan_results = snapshot_region.get_scan_results();
+            let number_of_region_results = snapshot_region_scan_results.get_number_of_results();
+
+            if scan_result_index < number_of_region_results {
+                return snapshot_region_scan_results.get_scan_result(scan_result_index);
+            }
+
+            scan_result_index = scan_result_index.saturating_sub(number_of_region_results);
+        }
+
+        None
+    }
+
+    pub fn get_number_of_results(&self) -> u64 {
+        self.snapshot_regions
+            .iter()
+            .map(|snapshot_region| snapshot_region.get_scan_results().get_number_of_results())
             .sum()
     }
 }
