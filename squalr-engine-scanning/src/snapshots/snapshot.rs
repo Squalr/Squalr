@@ -70,7 +70,7 @@ impl Snapshot {
             let number_of_region_results = snapshot_region_scan_results.get_number_of_results();
 
             if scan_result_index < number_of_region_results {
-                return snapshot_region_scan_results.get_scan_result(scan_result_index);
+                return snapshot_region_scan_results.get_scan_result(snapshot_region, scan_result_index);
             }
 
             scan_result_index = scan_result_index.saturating_sub(number_of_region_results);

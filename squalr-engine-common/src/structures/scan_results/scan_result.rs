@@ -8,8 +8,7 @@ pub struct ScanResult {
     base_result: ScanResultBase,
     module: String,
     module_offset: u64,
-    current_value: DataValue,
-    previous_value: DataValue,
+    recently_read_value: Option<DataValue>,
 }
 
 impl ScanResult {
@@ -17,15 +16,13 @@ impl ScanResult {
         base_result: ScanResultBase,
         module: String,
         module_offset: u64,
-        current_value: DataValue,
-        previous_value: DataValue,
+        recently_read_value: Option<DataValue>,
     ) -> Self {
         Self {
             base_result,
             module,
             module_offset,
-            current_value,
-            previous_value,
+            recently_read_value,
         }
     }
 
@@ -49,12 +46,16 @@ impl ScanResult {
         self.module_offset
     }
 
-    pub fn get_current_value(&self) -> &DataValue {
-        &self.current_value
+    pub fn get_recently_read_value(&self) -> &Option<DataValue> {
+        &self.recently_read_value
     }
 
-    pub fn get_previous_value(&self) -> &DataValue {
-        &self.previous_value
+    pub fn get_current_value(&self) -> &Option<DataValue> {
+        &self.base_result.previous_value
+    }
+
+    pub fn get_previous_value(&self) -> &Option<DataValue> {
+        &self.base_result.previous_value
     }
 }
 

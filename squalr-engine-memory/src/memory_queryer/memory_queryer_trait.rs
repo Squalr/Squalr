@@ -1,9 +1,10 @@
+use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
+
 use crate::memory_queryer::memory_protection_enum::MemoryProtectionEnum;
 use crate::memory_queryer::memory_type_enum::MemoryTypeEnum;
 use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
 use crate::normalized_module::NormalizedModule;
 use crate::normalized_region::NormalizedRegion;
-use squalr_engine_common::structures::process_info::OpenedProcessInfo;
 
 pub trait IMemoryQueryer {
     fn get_virtual_pages(

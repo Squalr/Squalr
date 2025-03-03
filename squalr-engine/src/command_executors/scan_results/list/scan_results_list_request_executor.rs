@@ -45,14 +45,16 @@ impl EngineRequestExecutor for ScanResultsListRequest {
                     Some(scan_result_base) => scan_result_base,
                 };
 
-                let mut current_value = self.data_type.to_default_value();
-                let previous_value = self.data_type.to_default_value();
+                let mut recently_read_value = None;
                 let mut module_name = String::default();
                 let mut module_offset = scan_result_base.address;
 
                 // Best-effort attempt to read the values for this scan result.
                 if let Some(opened_process_info) = execution_context.get_opened_process() {
-                    let _ = MemoryReader::get_instance().read(&opened_process_info, scan_result_base.address, &mut current_value);
+                    let mut data_value = self.data_type.to_default_value();
+                    if MemoryReader::get_instance().read(&opened_process_info, scan_result_base.address, &mut data_value) {
+                        recently_read_value = Some(data_value);
+                    }
                 }
 
                 // Check whether this scan result belongs to a module (ie check if the address is static).
@@ -61,7 +63,7 @@ impl EngineRequestExecutor for ScanResultsListRequest {
                     module_offset = address;
                 }
 
-                scan_results_list.push(ScanResult::new(scan_result_base, module_name, module_offset, current_value, previous_value));
+                scan_results_list.push(ScanResult::new(scan_result_base, module_name, module_offset, recently_read_value));
             }
         }
 

@@ -51,11 +51,24 @@ impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
             DataType::BitField { .. } => DataTypeView::Bitfield,
         };
 
+        let current_value_string = match scan_result.get_recently_read_value() {
+            Some(recently_read_value) => recently_read_value.to_value_string(),
+            None => match scan_result.get_current_value() {
+                Some(current_value) => current_value.to_value_string(),
+                None => "??".to_string(),
+            },
+        };
+
+        let previous_value_string = match scan_result.get_previous_value() {
+            Some(previous_value) => previous_value.to_value_string(),
+            None => "??".to_string(),
+        };
+
         ScanResultViewData {
             address: address_string.into(),
             data_type,
-            current_value: scan_result.get_current_value().to_value_string().into(),
-            previous_value: scan_result.get_previous_value().to_value_string().into(),
+            current_value: current_value_string.into(),
+            previous_value: previous_value_string.into(),
         }
     }
 

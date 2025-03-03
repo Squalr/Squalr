@@ -45,20 +45,20 @@ impl Scanner for ScannerScalarSingleElement {
 
         unsafe {
             if scan_parameters.is_immediate_comparison() {
-                let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
+                let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
                 let immediate_value_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
                 let compare_func = scalar_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), data_type);
 
                 compare_result = compare_func(current_value_pointer, immediate_value_ptr);
             } else if scan_parameters.is_relative_comparison() {
-                let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
-                let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
+                let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
+                let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
                 let compare_func = scalar_comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type);
 
                 compare_result = compare_func(current_value_pointer, previous_value_pointer);
             } else if scan_parameters.is_immediate_comparison() {
-                let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
-                let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
+                let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
+                let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
                 let compare_func = scalar_comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type);
                 let delta_arg_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
 

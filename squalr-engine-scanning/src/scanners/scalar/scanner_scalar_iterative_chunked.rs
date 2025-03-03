@@ -44,8 +44,8 @@ impl Scanner for ScannerScalarIterativeChunked {
         data_type: &DataType,
         memory_alignment: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
-        let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
-        let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
+        let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
+        let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment) as usize;
 
         // Convert raw pointers to slices

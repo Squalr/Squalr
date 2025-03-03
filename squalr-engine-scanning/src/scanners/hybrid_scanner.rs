@@ -4,7 +4,7 @@ use crate::scanners::scan_dispatcher::ScanDispatcher;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::Conversions;
-use squalr_engine_common::structures::process_info::OpenedProcessInfo;
+use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};

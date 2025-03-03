@@ -5,19 +5,20 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::str::FromStr;
 
-pub type FieldMemoryLoadFunc = unsafe fn(&mut FieldValue, *const u8);
+pub type FieldMemoryLoadFunc = unsafe fn(&mut DynamicStructField, *const u8);
 
 // TODO: Think over whether this belongs in common or projects.
 // AnonymousValue, DataValue, etc may cover common use cases.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct FieldValue {
+pub struct DynamicStructField {
+    pub symbol: String,
     pub data_type: DataType,
     pub data_value: DataValue,
 }
 
-impl Eq for FieldValue {}
+impl Eq for DynamicStructField {}
 
-impl Ord for FieldValue {
+impl Ord for DynamicStructField {
     fn cmp(
         &self,
         other: &Self,
@@ -26,21 +27,23 @@ impl Ord for FieldValue {
     }
 }
 
-impl Default for FieldValue {
+impl Default for DynamicStructField {
     fn default() -> Self {
-        FieldValue {
+        DynamicStructField {
+            symbol: String::new(),
             data_type: DataType::default(),
             data_value: DataValue::default(),
         }
     }
 }
 
-impl FieldValue {
+impl DynamicStructField {
     pub fn new(
+        symbol: String,
         data_type: DataType,
         data_value: DataValue,
     ) -> Self {
-        FieldValue { data_type, data_value }
+        DynamicStructField { symbol, data_type, data_value }
     }
 
     pub fn get_size_in_bytes(&self) -> u64 {
@@ -168,74 +171,80 @@ impl FieldValue {
     }
 }
 
-impl FromStr for FieldValue {
+impl FromStr for DynamicStructField {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let value_and_type: Vec<&str> = s.split('=').collect();
-        let has_value = value_and_type.len() == 2;
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let mut symbol_splitter = string.split(':');
+        let symbol = symbol_splitter.next().unwrap_or_default();
+        let remainder = symbol_splitter.next().unwrap_or_default();
 
-        if value_and_type.len() != 1 && value_and_type.len() != 2 {
-            return Err("Invalid field type and value format".to_string());
+        if symbol.is_empty() {
+            return Err("No name found in dynamic struct field.".to_string());
         }
 
-        let data_type = if has_value {
-            DataType::from_str(value_and_type[1])?
-        } else {
-            DataType::from_str(value_and_type[0])?
-        };
-
-        if !has_value {
-            return Ok(FieldValue::new(data_type.clone(), data_type.to_default_value()));
+        if remainder.is_empty() {
+            return Err("No field type or value found dynamic struct field.".to_string());
         }
 
-        let value_str = value_and_type[0];
+        let mut type_splitter = remainder.split('=');
+        let type_string = type_splitter.next().unwrap_or_default();
+        let value_string = type_splitter.next().unwrap_or_default();
+
+        // Attempt to parse out the data type. If there are format errors, this will propagate them.
+        let data_type = DataType::from_str(type_string)?;
+
+        if value_string.is_empty() {
+            let default_value = data_type.to_default_value();
+
+            return Ok(DynamicStructField::new(symbol.to_string(), data_type, default_value));
+        }
 
         let value = match data_type {
-            DataType::U8() => value_str
+            DataType::U8() => value_string
                 .parse::<u8>()
                 .map(DataValue::U8)
                 .map_err(|e| e.to_string()),
-            DataType::U16(_) => value_str
+            DataType::U16(_) => value_string
                 .parse::<u16>()
                 .map(DataValue::U16)
                 .map_err(|e| e.to_string()),
-            DataType::U32(_) => value_str
+            DataType::U32(_) => value_string
                 .parse::<u32>()
                 .map(DataValue::U32)
                 .map_err(|e| e.to_string()),
-            DataType::U64(_) => value_str
+            DataType::U64(_) => value_string
                 .parse::<u64>()
                 .map(DataValue::U64)
                 .map_err(|e| e.to_string()),
-            DataType::I8() => value_str
+            DataType::I8() => value_string
                 .parse::<i8>()
                 .map(DataValue::I8)
                 .map_err(|e| e.to_string()),
-            DataType::I16(_) => value_str
+            DataType::I16(_) => value_string
                 .parse::<i16>()
                 .map(DataValue::I16)
                 .map_err(|e| e.to_string()),
-            DataType::I32(_) => value_str
+            DataType::I32(_) => value_string
                 .parse::<i32>()
                 .map(DataValue::I32)
                 .map_err(|e| e.to_string()),
-            DataType::I64(_) => value_str
+            DataType::I64(_) => value_string
                 .parse::<i64>()
                 .map(DataValue::I64)
                 .map_err(|e| e.to_string()),
-            DataType::F32(_) => value_str
+            DataType::F32(_) => value_string
                 .parse::<f32>()
                 .map(DataValue::F32)
                 .map_err(|e| e.to_string()),
-            DataType::F64(_) => value_str
+            DataType::F64(_) => value_string
                 .parse::<f64>()
                 .map(DataValue::F64)
                 .map_err(|e| e.to_string()),
-            DataType::String(_) => Ok(DataValue::String(value_str.to_string())),
-            DataType::Bytes(_) => Ok(DataValue::Bytes(value_str.as_bytes().to_vec())),
+            DataType::String(_) => Ok(DataValue::String(value_string.to_string())),
+            DataType::Bytes(_) => Ok(DataValue::Bytes(value_string.as_bytes().to_vec())),
             DataType::BitField(bits) => {
-                let bytes = hex::decode(value_str).map_err(|e| e.to_string())?;
+                let bytes = hex::decode(value_string).map_err(|e| e.to_string())?;
 
                 if bytes.len() * 8 < bits as usize {
                     return Err("Not enough bits in bitfield".to_string());
@@ -245,6 +254,6 @@ impl FromStr for FieldValue {
             }
         }?;
 
-        return Ok(FieldValue::new(data_type, value));
+        Ok(DynamicStructField::new(symbol.to_string(), data_type, value))
     }
 }

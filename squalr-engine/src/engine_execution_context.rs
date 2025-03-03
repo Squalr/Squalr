@@ -8,7 +8,7 @@ use interprocess_shell::shell::inter_process_unprivileged_host::InterProcessUnpr
 use squalr_engine_api::commands::engine_response::EngineResponse;
 use squalr_engine_api::events::process::process_changed_event::ProcessChangedEvent;
 use squalr_engine_api::{commands::engine_command::EngineCommand, events::engine_event::EngineEvent};
-use squalr_engine_common::structures::process_info::OpenedProcessInfo;
+use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_common::tasks::trackable_task_handle::TrackableTaskHandle;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
 use std::sync::{Arc, RwLock};

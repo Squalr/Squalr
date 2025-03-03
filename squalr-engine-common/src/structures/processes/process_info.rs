@@ -1,18 +1,7 @@
+use crate::structures::bitness::Bitness;
+use crate::structures::processes::process_icon::ProcessIcon;
 use serde::{Deserialize, Serialize};
 use sysinfo::Pid;
-
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Bitness {
-    Bit32,
-    Bit64,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ProcessIcon {
-    pub bytes_rgba: Vec<u8>,
-    pub width: u32,
-    pub height: u32,
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProcessInfo {

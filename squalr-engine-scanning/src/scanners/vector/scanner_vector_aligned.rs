@@ -50,8 +50,8 @@ where
         let simd_all_true_mask = Simd::<u8, N>::splat(0xFF);
 
         let results = encoder.encode(
-            snapshot_region.get_current_values_pointer(&snapshot_region_filter),
-            snapshot_region.get_previous_values_pointer(&snapshot_region_filter),
+            snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
+            snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
             scan_parameters,
             data_type,
             snapshot_region_filter.get_base_address(),

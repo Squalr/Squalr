@@ -66,8 +66,8 @@ where
         // For immediate comparisons, we can use a cascading periodic scan
         if scan_parameters.is_immediate_comparison() {
             let vector_comparer = ScannerVectorComparer::<T, N>::new();
-            let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
-            let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
+            let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
+            let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
             let region_size = snapshot_region_filter.get_region_size();
 
             let chunk_size = 1024 * 1024 * 1; // 1 MB

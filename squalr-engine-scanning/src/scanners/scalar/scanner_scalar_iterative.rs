@@ -46,8 +46,8 @@ impl Scanner for ScannerScalarIterative {
         let encoder = ScannerScalarEncoder::get_instance();
 
         let results = encoder.encode(
-            snapshot_region.get_current_values_pointer(&snapshot_region_filter),
-            snapshot_region.get_previous_values_pointer(&snapshot_region_filter),
+            snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
+            snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
             scan_parameters,
             data_type,
             memory_alignment,

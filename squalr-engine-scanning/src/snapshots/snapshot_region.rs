@@ -2,8 +2,10 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
-use squalr_engine_common::structures::process_info::OpenedProcessInfo;
-use squalr_engine_common::structures::scan_filter_parameters::ScanFilterParameters;
+use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
+use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_common::values::data_value::DataValue;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
@@ -68,6 +70,75 @@ impl SnapshotRegion {
         &self.previous_values
     }
 
+    /// Gets the most recent values collected from memory within this snapshot region bounds.
+    pub fn get_current_value(
+        &self,
+        element_address: u64,
+        data_type: &DataType,
+    ) -> Option<DataValue> {
+        let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
+        let data_type_size = data_type.get_size_in_bytes();
+
+        if byte_offset.saturating_add(data_type_size) <= self.current_values.len() as u64 {
+            let mut data_value = data_type.to_default_value();
+            let start = byte_offset as usize;
+            let end = start + data_type_size as usize;
+            data_value.copy_from_bytes(&self.current_values[start..end]);
+
+            Some(data_value)
+        } else {
+            None
+        }
+    }
+
+    /// Gets the prior values collected from memory within this snapshot region bounds.
+    pub fn get_previous_value(
+        &self,
+        element_address: u64,
+        data_type: &DataType,
+    ) -> Option<DataValue> {
+        let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
+        let data_type_size = data_type.get_size_in_bytes();
+
+        if byte_offset.saturating_add(data_type_size) <= self.previous_values.len() as u64 {
+            let mut data_value = data_type.to_default_value();
+            let start = byte_offset as usize;
+            let end = start + data_type_size as usize;
+            data_value.copy_from_bytes(&self.previous_values[start..end]);
+
+            Some(data_value)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_current_values_filter_pointer(
+        &self,
+        snapshot_region_filter: &SnapshotRegionFilter,
+    ) -> *const u8 {
+        unsafe {
+            let filter_base_address = snapshot_region_filter.get_base_address();
+            let offset = filter_base_address.saturating_sub(self.get_base_address());
+            let ptr = self.get_current_values().as_ptr().add(offset as usize);
+
+            ptr
+        }
+    }
+
+    pub fn get_previous_values_filter_pointer(
+        &self,
+        snapshot_region_filter: &SnapshotRegionFilter,
+    ) -> *const u8 {
+        unsafe {
+            let filter_base_address = snapshot_region_filter.get_base_address();
+            let offset = filter_base_address.saturating_sub(self.get_base_address());
+            let ptr = self.get_previous_values().as_ptr().add(offset as usize);
+
+            ptr
+        }
+    }
+
+    /// Reads all memory for this snapshot region, updating the current and previous value arrays.
     pub fn read_all_memory(
         &mut self,
         process_info: &OpenedProcessInfo,
@@ -103,36 +174,14 @@ impl SnapshotRegion {
         Ok(())
     }
 
-    pub fn get_current_values_pointer(
-        &self,
-        snapshot_region_filter: &SnapshotRegionFilter,
-    ) -> *const u8 {
-        unsafe {
-            let offset = snapshot_region_filter.get_base_address() - self.get_base_address();
-            let ptr = self.get_current_values().as_ptr().add(offset as usize);
-
-            ptr
-        }
-    }
-
-    pub fn get_previous_values_pointer(
-        &self,
-        snapshot_region_filter: &SnapshotRegionFilter,
-    ) -> *const u8 {
-        unsafe {
-            let offset = snapshot_region_filter.get_base_address() - self.get_base_address();
-            let ptr = self.get_previous_values().as_ptr().add(offset as usize);
-
-            ptr
-        }
-    }
-
     pub fn get_base_address(&self) -> u64 {
         self.normalized_region.get_base_address()
     }
 
     pub fn get_end_address(&self) -> u64 {
-        self.normalized_region.get_base_address() + self.normalized_region.get_region_size()
+        self.normalized_region
+            .get_base_address()
+            .saturating_add(self.normalized_region.get_region_size())
     }
 
     pub fn get_region_size(&self) -> u64 {

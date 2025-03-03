@@ -33,7 +33,7 @@ impl fmt::Debug for Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            results_page_size: 20,
+            results_page_size: 22,
             results_read_interval: 2500,
             table_read_interval: 2500,
             freeze_interval: 50,

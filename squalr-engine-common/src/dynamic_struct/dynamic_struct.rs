@@ -1,35 +1,30 @@
-use crate::dynamic_struct::field_value::FieldValue;
+use crate::dynamic_struct::dynamic_struct_field::DynamicStructField;
 use crate::dynamic_struct::to_bytes::ToBytes;
 use crate::values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::str::FromStr;
 
 // TODO: Think over whether this belongs in common or projects.
 // AnonymousValue, DataValue, etc may cover common use cases.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DynamicStruct {
-    fields: HashMap<String, FieldValue>,
+    fields: Vec<DynamicStructField>,
 }
 
 impl DynamicStruct {
     pub fn new() -> Self {
-        DynamicStruct { fields: HashMap::new() }
+        DynamicStruct { fields: vec![] }
     }
 
     pub fn add_field(
         &mut self,
-        name: &str,
-        value: FieldValue,
+        struct_field: DynamicStructField,
     ) {
-        self.fields.insert(name.to_string(), value);
+        self.fields.push(struct_field);
     }
 
     pub fn get_size_in_bytes(&self) -> u64 {
-        self.fields
-            .values()
-            .map(|field| field.get_size_in_bytes())
-            .sum()
+        self.fields.iter().map(|field| field.get_size_in_bytes()).sum()
     }
 
     pub fn copy_from_bytes(
@@ -37,7 +32,7 @@ impl DynamicStruct {
         bytes: &[u8],
     ) {
         let mut offset = 0;
-        for field in self.fields.values_mut() {
+        for field in &mut self.fields {
             let size = field.get_size_in_bytes() as usize;
             field.copy_from_bytes(&bytes[offset..offset + size]);
             offset += size;
@@ -51,7 +46,7 @@ impl ToBytes for DynamicStruct {
         let mut bit_offset = 0;
         let current_byte = 0u8;
 
-        for field in self.fields.values() {
+        for field in &self.fields {
             let field_bytes = field.to_bytes();
             match field.data_value {
                 DataValue::BitField { value: _, bits } => {
@@ -92,21 +87,9 @@ impl FromStr for DynamicStruct {
         let fields: Vec<&str> = s.split(';').filter(|&f| !f.is_empty()).collect();
 
         for field in fields {
-            let parts: Vec<&str> = field.split('=').collect();
-            if parts.len() != 2 {
-                return Err("Invalid field format".to_string());
-            }
+            let struct_field = DynamicStructField::from_str(&field)?;
 
-            let name_and_type: Vec<&str> = parts[0].split(':').collect();
-            if name_and_type.len() != 2 {
-                return Err("Invalid field name and type format".to_string());
-            }
-
-            let field_name = name_and_type[0];
-            let field_type_value = format!("{}={}", name_and_type[1], parts[1]);
-            let field_value = FieldValue::from_str(&field_type_value)?;
-
-            dynamic_struct.add_field(field_name, field_value);
+            dynamic_struct.add_field(struct_field);
         }
 
         Ok(dynamic_struct)

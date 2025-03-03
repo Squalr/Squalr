@@ -1,5 +1,5 @@
 use squalr_engine_common::{
-    structures::scan_compare_type::ScanCompareType,
+    structures::scanning::scan_compare_type::ScanCompareType,
     values::{data_type::DataType, endian::Endian},
 };
 use std::sync::Once;

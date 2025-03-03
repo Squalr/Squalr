@@ -1,6 +1,6 @@
 use squalr_engine_common::{structures::scan_results::scan_result_base::ScanResultBase, values::data_type::DataType};
 
-use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
+use crate::{filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection, snapshots::snapshot_region::SnapshotRegion};
 use std::{cmp::Reverse, collections::BinaryHeap};
 
 /// Tracks the scan results for a region, and builds a lookup table that allows mapping a local index to a scan result.
@@ -38,6 +38,7 @@ impl SnapshotRegionScanResults {
 
     pub fn get_scan_result(
         &self,
+        snapshot_region: &SnapshotRegion,
         mut scan_result_index: u64,
     ) -> Option<ScanResultBase> {
         let mut heap: BinaryHeap<Reverse<(usize, usize)>> = BinaryHeap::new();
@@ -56,10 +57,10 @@ impl SnapshotRegionScanResults {
             }
         }
 
-        // TODO: Incomplete solution that processes 1 data type at a time. We need to zipper the results together by address.
+        // JIRA: Incomplete solution that processes 1 data type at a time. We need to zipper the results together by address.
         while let Some(Reverse((collection_index, filter_index))) = heap.pop() {
             let iterator = &mut iterators[collection_index];
-            let filter = iterator.next().unwrap();
+            let filter = iterator.next().unwrap(); // JIRA: Should be always safe, although I'd prefer to eliminate this.
             let collection = &self.snapshot_region_filter_collections[collection_index];
             let memory_alignment = collection.get_memory_alignment();
             let data_type = collection.get_data_type();
@@ -71,6 +72,8 @@ impl SnapshotRegionScanResults {
                 return Some(ScanResultBase {
                     address: scan_result_address,
                     data_type: data_type.clone(),
+                    current_value: snapshot_region.get_current_value(scan_result_address, data_type),
+                    previous_value: snapshot_region.get_previous_value(scan_result_address, data_type),
                 });
             }
 

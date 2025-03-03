@@ -2,7 +2,7 @@ use crate::commands::engine_response::EngineResponse;
 use crate::commands::engine_response::TypedEngineResponse;
 use crate::commands::process::process_response::ProcessResponse;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::structures::process_info::ProcessInfo;
+use squalr_engine_common::structures::processes::process_info::ProcessInfo;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProcessListResponse {

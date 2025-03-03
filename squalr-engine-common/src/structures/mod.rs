@@ -1,5 +1,5 @@
+pub mod bitness;
 pub mod memory_alignment;
-pub mod process_info;
-pub mod scan_compare_type;
-pub mod scan_filter_parameters;
+pub mod processes;
 pub mod scan_results;
+pub mod scanning;

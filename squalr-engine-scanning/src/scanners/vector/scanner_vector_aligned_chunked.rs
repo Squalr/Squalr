@@ -58,8 +58,8 @@ where
             .map(|chunk_index| {
                 let chunk_start_offset_bytes = (chunk_index * chunk_size) as u64;
                 let chunk_start_address = snapshot_region_filter.get_base_address() + chunk_start_offset_bytes;
-                let current_value_pointer = snapshot_region.get_current_values_pointer(&snapshot_region_filter);
-                let previous_value_pointer = snapshot_region.get_previous_values_pointer(&snapshot_region_filter);
+                let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
+                let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
                 let remaining_size = region_size as u64 - chunk_start_offset_bytes;
                 let chunk_region_size = remaining_size.min(chunk_size as u64);
 

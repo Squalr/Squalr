@@ -36,6 +36,7 @@ impl DockSettingsConfig {
                                 0.5,
                                 DockBuilder::tab_node("project-explorer")
                                     .push_tab(DockBuilder::window("process-selector"))
+                                    .visible(false)
                                     .push_tab(DockBuilder::window("project-explorer")),
                             )
                             .push_child(0.5, DockBuilder::window("property-viewer")),
