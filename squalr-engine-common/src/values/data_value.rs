@@ -16,6 +16,7 @@ pub enum DataValue {
     I64(i64),
     F32(f32),
     F64(f64),
+    String(String),
     Bytes(Vec<u8>),
     BitField { value: Vec<u8>, bits: u16 },
 }
@@ -36,6 +37,7 @@ impl fmt::Display for DataValue {
             DataValue::I64(v) => write!(f, "{}=i64", v),
             DataValue::F32(v) => write!(f, "{}=f32", v),
             DataValue::F64(v) => write!(f, "{}=f64", v),
+            DataValue::String(v) => write!(f, "{}", v),
             DataValue::Bytes(v) => {
                 // Convert bytes to hex string
                 let hex = v.iter().map(|b| format!("{:02x}", b)).collect::<String>();
@@ -93,6 +95,7 @@ impl DataValue {
             DataValue::I64(_) => std::mem::size_of::<i64>() as u64,
             DataValue::F32(_) => std::mem::size_of::<f32>() as u64,
             DataValue::F64(_) => std::mem::size_of::<f64>() as u64,
+            DataValue::String(string) => string.len() as u64,
             DataValue::Bytes(bytes) => bytes.len() as u64,
             DataValue::BitField { bits, .. } => ((*bits + 7) / 8) as u64,
         }
@@ -194,6 +197,7 @@ impl DataValue {
             DataValue::I64(v) => v as *const i64 as *const u8,
             DataValue::F32(v) => v as *const f32 as *const u8,
             DataValue::F64(v) => v as *const f64 as *const u8,
+            DataValue::String(v) => v.as_ptr(),
             DataValue::Bytes(v) => v.as_ptr(),
             DataValue::BitField { value, .. } => value.as_ptr(),
         }
@@ -211,6 +215,7 @@ impl DataValue {
             DataValue::I64(v) => v.to_le_bytes().to_vec(),
             DataValue::F32(v) => v.to_le_bytes().to_vec(),
             DataValue::F64(v) => v.to_le_bytes().to_vec(),
+            DataValue::String(v) => v.as_bytes().to_vec(),
             DataValue::Bytes(v) => v.clone(),
             DataValue::BitField { value, .. } => value.clone(),
         }
@@ -228,6 +233,7 @@ impl DataValue {
             DataValue::I64(v) => v.to_string(),
             DataValue::F32(v) => v.to_string(),
             DataValue::F64(v) => v.to_string(),
+            DataValue::String(v) => v.clone(),
             DataValue::Bytes(v) => v.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
             DataValue::BitField { value, bits } => value.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
         }
@@ -295,6 +301,9 @@ impl DataValue {
                     arr.copy_from_slice(&bytes[0..8]);
                     *value = f64::from_le_bytes(arr);
                 }
+            }
+            DataValue::String(value) => {
+                *value = String::from_utf8_lossy(bytes).to_string();
             }
             DataValue::Bytes(value) => {
                 *value = bytes.to_vec();
@@ -376,6 +385,7 @@ impl FromStr for DataValue {
                 .parse::<f64>()
                 .map(DataValue::F64)
                 .map_err(|e| e.to_string()),
+            DataType::String(_) => Ok(DataValue::String(value_str.to_string())),
             DataType::Bytes(_) => Ok(DataValue::Bytes(value_str.as_bytes().to_vec())),
             DataType::BitField(bits) => {
                 let bytes = hex::decode(value_str).map_err(|e| e.to_string())?;

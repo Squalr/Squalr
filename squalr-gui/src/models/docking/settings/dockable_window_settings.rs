@@ -27,7 +27,7 @@ impl DockSettingsConfig {
         #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
         let default_layout = DockBuilder::split_node(DockSplitDirection::VerticalDivider)
             .push_child(
-                0.7,
+                0.6,
                 DockBuilder::split_node(DockSplitDirection::HorizontalDivider)
                     .push_child(
                         0.5,
@@ -38,15 +38,15 @@ impl DockSettingsConfig {
                                     .push_tab(DockBuilder::window("process-selector"))
                                     .push_tab(DockBuilder::window("project-explorer")),
                             )
-                            .push_child(0.5, DockBuilder::window("settings")),
+                            .push_child(0.5, DockBuilder::window("property-viewer")),
                     )
                     .push_child(0.5, DockBuilder::window("output")),
             )
             .push_child(
-                0.3,
-                DockBuilder::split_node(DockSplitDirection::HorizontalDivider)
-                    .push_child(0.6, DockBuilder::window("scan-results"))
-                    .push_child(0.4, DockBuilder::window("property-viewer")),
+                0.4,
+                DockBuilder::tab_node("scan-results")
+                    .push_tab(DockBuilder::window("scan-results"))
+                    .push_tab(DockBuilder::window("settings")),
             )
             .build();
 
@@ -59,10 +59,14 @@ impl DockSettingsConfig {
                         0.5,
                         DockBuilder::tab_node("project-explorer")
                             .push_tab(DockBuilder::window("process-selector").visible(false))
-                            .push_tab(DockBuilder::window("project-explorer"))
-                            .push_tab(DockBuilder::window("settings").visible(false)),
+                            .push_tab(DockBuilder::window("project-explorer")),
                     )
-                    .push_child(0.5, DockBuilder::tab_node("scan-results").push_tab(DockBuilder::window("scan-results"))),
+                    .push_child(
+                        0.5,
+                        DockBuilder::tab_node("scan-results")
+                            .push_tab(DockBuilder::window("scan-results"))
+                            .push_tab(DockBuilder::window("settings")),
+                    ),
             )
             .push_child(0.25, DockBuilder::window("property-viewer"))
             .push_child(0.2, DockBuilder::window("output"))

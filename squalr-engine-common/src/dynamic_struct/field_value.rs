@@ -155,6 +155,7 @@ impl FieldValue {
                 };
                 DataValue::F64(value)
             }
+            DataType::String(_) => DataValue::String(String::from_utf8_lossy(bytes).to_string()),
             DataType::Bytes(_) => DataValue::Bytes(bytes.to_vec()),
             DataType::BitField(bits) => {
                 let total_bytes = ((bits + 7) / 8) as usize;
@@ -231,6 +232,7 @@ impl FromStr for FieldValue {
                 .parse::<f64>()
                 .map(DataValue::F64)
                 .map_err(|e| e.to_string()),
+            DataType::String(_) => Ok(DataValue::String(value_str.to_string())),
             DataType::Bytes(_) => Ok(DataValue::Bytes(value_str.as_bytes().to_vec())),
             DataType::BitField(bits) => {
                 let bytes = hex::decode(value_str).map_err(|e| e.to_string())?;

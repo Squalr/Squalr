@@ -71,8 +71,9 @@ impl ManualScanViewModel {
             DataTypeView::F32be => ScanFilterParameters::new_with_value(None, DataType::F32(Endian::Big)),
             DataTypeView::F64 => ScanFilterParameters::new_with_value(None, DataType::F64(Endian::Little)),
             DataTypeView::F64be => ScanFilterParameters::new_with_value(None, DataType::F64(Endian::Big)),
-            DataTypeView::Aob => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)), // TODO
-            DataTypeView::Str => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)), // TODO
+            DataTypeView::Bytes => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)), // TODO
+            DataTypeView::String => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)), // TODO
+            DataTypeView::Bitfield => ScanFilterParameters::new_with_value(None, DataType::BitField(0)), // TODO
         };
 
         let scan_new_request = ScanNewRequest {

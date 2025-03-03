@@ -40,28 +40,28 @@ impl EngineRequestExecutor for ScanResultsListRequest {
             let index_of_last_page_entry = index_of_first_page_entry + results_page_size;
 
             for result_index in index_of_first_page_entry..index_of_last_page_entry {
-                let scan_result_raw = match snapshot.get_scan_result(result_index) {
+                let scan_result_base = match snapshot.get_scan_result(result_index) {
                     None => break,
-                    Some(scan_result_raw) => scan_result_raw,
+                    Some(scan_result_base) => scan_result_base,
                 };
 
                 let mut current_value = self.data_type.to_default_value();
                 let previous_value = self.data_type.to_default_value();
                 let mut module_name = String::default();
-                let mut scan_result_base_address = scan_result_raw.base_address;
+                let mut module_offset = scan_result_base.address;
 
                 // Best-effort attempt to read the values for this scan result.
                 if let Some(opened_process_info) = execution_context.get_opened_process() {
-                    let _ = MemoryReader::get_instance().read(&opened_process_info, scan_result_base_address, &mut current_value);
+                    let _ = MemoryReader::get_instance().read(&opened_process_info, scan_result_base.address, &mut current_value);
                 }
 
                 // Check whether this scan result belongs to a module (ie check if the address is static).
-                if let Some((found_module_name, address)) = MemoryQueryer::get_instance().address_to_module(scan_result_base_address, &modules) {
+                if let Some((found_module_name, address)) = MemoryQueryer::get_instance().address_to_module(scan_result_base.address, &modules) {
                     module_name = found_module_name;
-                    scan_result_base_address = address;
+                    module_offset = address;
                 }
 
-                scan_results_list.push(ScanResult::new(scan_result_base_address, module_name, current_value, previous_value));
+                scan_results_list.push(ScanResult::new(scan_result_base, module_name, module_offset, current_value, previous_value));
             }
         }
 

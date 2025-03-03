@@ -1,105 +1,20 @@
 import { HorizontalBox, VerticalBox, Palette, GridBox } from "std-widgets.slint";
 
-import { Theme } from "./../theme.slint";
+import { Theme } from "../theme.slint";
 
-import { ContextMenu } from "./../components/context_menu/context_menu.slint";
+import { ContextMenu } from "../components/context_menu/context_menu.slint";
 import { Button } from "../components/buttons/button.slint";
 import { DataTypeButton } from "data_type_button.slint";
 import { ManualScanViewModelBindings, DataTypeView } from "../view_model_bindings.slint";
+import { DataTypeIconConverter } from "../converters/data_type_icon_converter.slint";
 
 export component DataTypeSelector inherits Rectangle {
     background: Theme.background-control;
     border-color: Theme.submenu-border;
     border-width: 1px;
     width: 84px;
-    function data_type_string(data_type_view: DataTypeView) -> string {
-        if (data_type_view == DataTypeView.i8) {
-            return "i8";
-        } else if (data_type_view == DataTypeView.u8) {
-            return "u8";
-        } else if (data_type_view == DataTypeView.i16) {
-            return "i16";
-        } else if (data_type_view == DataTypeView.i16be) {
-            return "i16 (BE)";
-        } else if (data_type_view == DataTypeView.u16) {
-            return "u16";
-        } else if (data_type_view == DataTypeView.u16be) {
-            return "u16 (BE)";
-        } else if (data_type_view == DataTypeView.i32) {
-            return "i32";
-        } else if (data_type_view == DataTypeView.i32be) {
-            return "i32 (BE)";
-        } else if (data_type_view == DataTypeView.u32) {
-            return "u32";
-        } else if (data_type_view == DataTypeView.u32be) {
-            return "u32 (BE)";
-        } else if (data_type_view == DataTypeView.u64) {
-            return "u64";
-        } else if (data_type_view == DataTypeView.u64be) {
-            return "u64 (BE)";
-        } else if (data_type_view == DataTypeView.i64) {
-            return "i64";
-        } else if (data_type_view == DataTypeView.i64be) {
-            return "i64 (BE)";
-        } else if (data_type_view == DataTypeView.f32) {
-            return "f32";
-        } else if (data_type_view == DataTypeView.f32be) {
-            return "f32 (BE)";
-        } else if (data_type_view == DataTypeView.f64) {
-            return "f64";
-        } else if (data_type_view == DataTypeView.f64be) {
-            return "f64 (BE)";
-        } else if (data_type_view == DataTypeView.aob) {
-            return "u8 [ ]";
-        } else if (data_type_view == DataTypeView.str) {
-            return "String";
-        }
-        return @tr("Data Type");
-    }
-    function data_type_source(data_type_view: DataTypeView) -> image {
-        if (data_type_view == DataTypeView.i8) {
-            return @image-url("./../images/data_types/blue_blocks_1.png");
-        } else if (data_type_view == DataTypeView.u8) {
-            return @image-url("./../images/data_types/purple_blocks_1.png");
-        } else if (data_type_view == DataTypeView.i16) {
-            return @image-url("./../images/data_types/blue_blocks_2.png");
-        } else if (data_type_view == DataTypeView.i16be) {
-            return @image-url("./../images/data_types/blue_blocks_2.png");
-        } else if (data_type_view == DataTypeView.u16) {
-            return @image-url("./../images/data_types/purple_blocks_2.png");
-        } else if (data_type_view == DataTypeView.u16be) {
-            return @image-url("./../images/data_types/purple_blocks_2.png");
-        } else if (data_type_view == DataTypeView.i32) {
-            return @image-url("./../images/data_types/blue_blocks_4.png");
-        } else if (data_type_view == DataTypeView.i32be) {
-            return @image-url("./../images/data_types/blue_blocks_4.png");
-        } else if (data_type_view == DataTypeView.u32) {
-            return @image-url("./../images/data_types/purple_blocks_4.png");
-        } else if (data_type_view == DataTypeView.u32be) {
-            return @image-url("./../images/data_types/purple_blocks_4.png");
-        } else if (data_type_view == DataTypeView.i64) {
-            return @image-url("./../images/data_types/blue_blocks_8.png");
-        } else if (data_type_view == DataTypeView.i64be) {
-            return @image-url("./../images/data_types/blue_blocks_8.png");
-        } else if (data_type_view == DataTypeView.u64) {
-            return @image-url("./../images/data_types/purple_blocks_8.png");
-        } else if (data_type_view == DataTypeView.u64be) {
-            return @image-url("./../images/data_types/purple_blocks_8.png");
-        } else if (data_type_view == DataTypeView.f32) {
-            return @image-url("./../images/data_types/orange_blocks_4.png");
-        } else if (data_type_view == DataTypeView.f32be) {
-            return @image-url("./../images/data_types/orange_blocks_4.png");
-        } else if (data_type_view == DataTypeView.f64) {
-            return @image-url("./../images/data_types/orange_blocks_8.png");
-        } else if (data_type_view == DataTypeView.f64be) {
-            return @image-url("./../images/data_types/orange_blocks_8.png");
-        } else if (data_type_view == DataTypeView.aob) {
-            return @image-url("./../images/data_types/blue_blocks_array.png");
-        } else if (data_type_view == DataTypeView.str) {
-            return @image-url("./../images/projects/static_type.png");
-        }
-        return @image-url("./../images/data_types/blue_blocks_4.png");
-    }
+    data_type_icon_converter := DataTypeIconConverter { }
+
     data-type-button := Button {
         width: 100%;
         height: 100%;
@@ -124,14 +39,14 @@ export component DataTypeSelector inherits Rectangle {
                         height: 16px;
                         horizontal-alignment: left;
                         vertical-alignment: center;
-                        source: root.data_type_source(ManualScanViewModelBindings.active_data_type);
+                        source: data_type_icon_converter.data_type_source(ManualScanViewModelBindings.active_data_type);
                     }
                 }
 
                 VerticalLayout {
                     alignment: center;
                     Text {
-                        text: root.data_type_string(ManualScanViewModelBindings.active_data_type);
+                        text: data_type_icon_converter.data_type_string(ManualScanViewModelBindings.active_data_type);
                         color: Theme.foreground;
                         horizontal-alignment: left;
                         vertical-alignment: center;
@@ -335,7 +250,7 @@ export component DataTypeSelector inherits Rectangle {
                     text: @tr("u8 [ ]");
                     tooltip-text: @tr("Data Type: u8[]. Size depends on the number of bytes provided. Also known as a byte[] or array of bytes. Represents a contiguous array of bytes.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = DataTypeView.aob;
+                        ManualScanViewModelBindings.active_data_type = DataTypeView.bytes;
                     }
                 }
 
@@ -345,7 +260,7 @@ export component DataTypeSelector inherits Rectangle {
                     text: @tr("String");
                     tooltip-text: @tr("Data Type: String. Size depends on the encoding and length of text. Represents any text.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = DataTypeView.str;
+                        ManualScanViewModelBindings.active_data_type = DataTypeView.string;
                     }
                 }
             }

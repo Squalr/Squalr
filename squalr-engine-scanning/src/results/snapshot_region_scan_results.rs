@@ -1,4 +1,4 @@
-use squalr_engine_common::{structures::scan_results::scan_result_raw::ScanResultRaw, values::data_type::DataType};
+use squalr_engine_common::{structures::scan_results::scan_result_base::ScanResultBase, values::data_type::DataType};
 
 use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use std::{cmp::Reverse, collections::BinaryHeap};
@@ -39,7 +39,7 @@ impl SnapshotRegionScanResults {
     pub fn get_scan_result(
         &self,
         mut scan_result_index: u64,
-    ) -> Option<ScanResultRaw> {
+    ) -> Option<ScanResultBase> {
         let mut heap: BinaryHeap<Reverse<(usize, usize)>> = BinaryHeap::new();
 
         // Each entry in heap is (address, collection_index, filter_index).
@@ -68,8 +68,8 @@ impl SnapshotRegionScanResults {
             if scan_result_index < result_count {
                 // The desired result is within this filter.
                 let scan_result_address = filter.get_base_address() + scan_result_index * memory_alignment as u64;
-                return Some(ScanResultRaw {
-                    base_address: scan_result_address,
+                return Some(ScanResultBase {
+                    address: scan_result_address,
                     data_type: data_type.clone(),
                 });
             }

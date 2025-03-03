@@ -9,9 +9,9 @@ import { DataTypeSelector } from "../../controls/data_type_selector.slint";
 import { ScanConstraintTypeSelector } from "../../controls/scan_constraint_selector.slint";
 import { DockFocusCatcher } from "../docking/drag_and_drop/dock_focus_catcher.slint";
 import { HexDecBox } from "../../components/hex_dec_box.slint";
-import { DockRootViewModelBindings, ValueCollectorViewModelBindings, ManualScanViewModelBindings } from "../../view_model_bindings.slint";
+import { ValueCollectorViewModelBindings, ManualScanViewModelBindings } from "../../view_model_bindings.slint";
 
-export component ShortcutBarView inherits Rectangle {
+export component ScanBarView inherits Rectangle {
     property <length> bar-height: 28px;
     property <length> bar-spacing: 4px;
     property <length> bottom-padding: 4px;
@@ -28,42 +28,71 @@ export component ShortcutBarView inherits Rectangle {
         padding-right: 0px;
         padding-top: 0px;
         spacing: 4px;
-        select-process-button := Button {
+        new-scan-button := Button {
             height: bar-height;
             width: 36px;
-            tooltip-text: @tr("Select Process");
+            tooltip-text: @tr("New Scan");
             click-sound: "";
             clicked => {
-                DockRootViewModelBindings.toggle-visibility(DockRootViewModelBindings.process-selector-window.identifier);
+                ManualScanViewModelBindings.new_scan(ManualScanViewModelBindings.active_data_type);
             }
             Image {
                 width: 16px;
                 height: 16px;
                 horizontal-alignment: center;
                 vertical-alignment: center;
-                source: @image-url("../../images/select_process.png");
+                source: @image-url("../../images/scans/scan_new.png");
             }
         }
 
-        open-project-button := Button {
+        collect-values-button := Button {
             height: bar-height;
             width: 36px;
-            tooltip-text: @tr("Open Project");
+            tooltip-text: @tr("Collect Values");
             click-sound: "";
             clicked => {
-                // WindowViewModelBindings.minimize();
+                ValueCollectorViewModelBindings.collect_values();
             }
             Image {
                 width: 16px;
                 height: 16px;
                 horizontal-alignment: center;
                 vertical-alignment: center;
-                source: @image-url("../../images/file_system/open_folder.png");
+                source: @image-url("../../images/scans/scan_collect_values.png");
             }
         }
 
-        process-quick-selector := ProcessQuickSelector {
+        scan-constraint-selector := ScanConstraintTypeSelector {
             height: bar-height;
+        }
+
+        scan-value := HexDecBox {
+            height: bar-height;
+            text-padding-top: 0px;
+            text-padding-bottom: 0px;
+            width: 192px;
+            preview-text: @tr("Enter a scan value...");
+        }
+
+        data-type-selector := DataTypeSelector {
+            height: bar-height;
+        }
+
+        start-scan-button := Button {
+            height: bar-height;
+            width: 36px;
+            tooltip-text: @tr("Start Scan");
+            click-sound: "";
+            clicked => {
+                ManualScanViewModelBindings.start_scan(ManualScanViewModelBindings.active_scan_type, scan-value.get_value_text());
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                source: @image-url("../../images/navigation/right_arrow.png");
+            }
         }
     }
 

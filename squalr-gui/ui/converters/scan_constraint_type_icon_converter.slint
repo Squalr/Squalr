@@ -1,0 +1,32 @@
+import { ScanConstraintTypeView } from "../view_model_bindings.slint";
+
+export component ScanConstraintTypeIconConverter {
+    public pure function scan_constraint_type_source(scan_constraint_type_view: ScanConstraintTypeView) -> image {
+        if (scan_constraint_type_view == ScanConstraintTypeView.changed) {
+            return @image-url("./../images/scans/scan_changed.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.unchanged) {
+            return @image-url("./../images/scans/scan_unchanged.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.increased) {
+            return @image-url("./../images/scans/scan_increased.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.decreased) {
+            return @image-url("./../images/scans/scan_decreased.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.equal) {
+            return @image-url("./../images/scans/scan_equal.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.not-equal) {
+            return @image-url("./../images/scans/scan_not_equal.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.increased_by) {
+            return @image-url("./../images/scans/scan_increased_by_x.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.decreased-by) {
+            return @image-url("./../images/scans/scan_decreased_by_x.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.greater-than) {
+            return @image-url("./../images/scans/scan_greater_than.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.greater-than-or-equal-to) {
+            return @image-url("./../images/scans/scan_greater_than_or_equal.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.less-than) {
+            return @image-url("./../images/scans/scan_less_than.png");
+        } else if (scan_constraint_type_view == ScanConstraintTypeView.less-than-or-equal-to) {
+            return @image-url("./../images/scans/scan_less_than_or_equal.png");
+        }
+        return @image-url("./../images/scans/scan_equal.png");
+    }
+}

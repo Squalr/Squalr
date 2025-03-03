@@ -3,6 +3,7 @@ import { HorizontalBox, VerticalBox, Palette, ScrollView } from "std-widgets.sli
 import { Theme } from "../../theme.slint";
 import { ScanResultsViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
 
+import { ScanBarView } from "scan_bar.slint";
 import { ScanResultEntry } from "scan_result_entry.slint";
 import { ScanResultsHeader } from "scan_results_header.slint";
 import { ScanResultsNavigationBar } from "scan_results_navigation_bar.slint";
@@ -24,7 +25,9 @@ export component ScanResultsView inherits Rectangle {
     }
     VerticalLayout {
         padding: 0px;
-        spacing: 2px;
+        spacing: 0px;
+        ScanBarView { }
+
         Rectangle {
             VerticalLayout {
                 padding: 0px;
@@ -86,6 +89,12 @@ export component ScanResultsView inherits Rectangle {
                     }
                 }
             }
+        }
+
+        Rectangle {
+            width: parent.width;
+            height: 4px;
+            background: Theme.background-control;
         }
 
         // Nav bar buttons

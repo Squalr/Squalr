@@ -1,6 +1,6 @@
-use crate::ScanResultViewData;
+use crate::{DataTypeView, ScanResultViewData};
 use slint_mvvm::view_data_converter::ViewDataConverter;
-use squalr_engine_common::structures::scan_results::scan_result::ScanResult;
+use squalr_engine_common::{structures::scan_results::scan_result::ScanResult, values::data_type::DataType};
 
 pub struct ScanResultConverter;
 
@@ -25,20 +25,35 @@ impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
         &self,
         scan_result: &ScanResult,
     ) -> ScanResultViewData {
-        let base_address = scan_result.get_base_address();
-        let module = scan_result.get_module();
+        let address = scan_result.get_address();
 
-        let address_string = if !module.is_empty() {
-            format!("{}+{:X}", module, base_address)
-        } else if base_address <= u32::MAX as u64 {
-            format!("{:08X}", base_address)
+        let address_string = if scan_result.is_module() {
+            format!("{}+{:X}", scan_result.get_module(), scan_result.get_module_offset())
+        } else if address <= u32::MAX as u64 {
+            format!("{:08X}", address)
         } else {
-            format!("{:016X}", base_address)
+            format!("{:016X}", address)
+        };
+
+        let data_type = match scan_result.get_data_type() {
+            DataType::U8 { .. } => DataTypeView::U8,
+            DataType::U16 { .. } => DataTypeView::U16,
+            DataType::U32 { .. } => DataTypeView::U32,
+            DataType::U64 { .. } => DataTypeView::U64,
+            DataType::I8 { .. } => DataTypeView::I8,
+            DataType::I16 { .. } => DataTypeView::I16,
+            DataType::I32 { .. } => DataTypeView::I32,
+            DataType::I64 { .. } => DataTypeView::I64,
+            DataType::F32 { .. } => DataTypeView::F32,
+            DataType::F64 { .. } => DataTypeView::F64,
+            DataType::String { .. } => DataTypeView::String,
+            DataType::Bytes { .. } => DataTypeView::Bytes,
+            DataType::BitField { .. } => DataTypeView::Bitfield,
         };
 
         ScanResultViewData {
             address: address_string.into(),
-            data_type: crate::DataTypeView::Aob,
+            data_type,
             current_value: scan_result.get_current_value().to_value_string().into(),
             previous_value: scan_result.get_previous_value().to_value_string().into(),
         }

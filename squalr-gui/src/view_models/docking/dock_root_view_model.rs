@@ -244,7 +244,7 @@ impl DockRootViewModel {
     fn on_get_tab_text(identifier: SharedString) -> SharedString {
         match identifier.as_str() {
             "settings" => "Settings".into(),
-            "scan-results" => "Scan Results".into(),
+            "scan-results" => "Memory Scanner".into(),
             "output" => "Output".into(),
             "process-selector" => "Process Selector".into(),
             "property-viewer" => "Property Viewer".into(),

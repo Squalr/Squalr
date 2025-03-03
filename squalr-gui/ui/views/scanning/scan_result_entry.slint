@@ -2,6 +2,7 @@ import { HorizontalBox, VerticalBox, Palette, GridBox } from "std-widgets.slint"
 
 import { Theme } from "../../theme.slint";
 import { ScanResultsViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
+import { DataTypeIconConverter } from "../../converters/data_type_icon_converter.slint";
 
 import { Button } from "../../components/buttons/button.slint";
 
@@ -9,19 +10,26 @@ export component ScanResultEntry inherits Button {
     in property <ScanResultViewData> scan_result_view_data;
     in property <length> current_values_splitter_location;
     in property <length> previous_values_splitter_location;
-    height: 24px;
     callback on_click();
+    height: 24px;
+    data_type_icon_converter := DataTypeIconConverter { }
+
     clicked => {
         root.on_click();
     }
     HorizontalBox {
         x: 8px;
         padding: 0px;
-        Image {
-            width: 16px;
-            height: 16px;
-            horizontal-alignment: center;
-            vertical-alignment: center;
+        spacing: 4px;
+        VerticalLayout {
+            alignment: center;
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                source: data_type_icon_converter.data_type_source(scan_result_view_data.data_type);
+            }
         }
 
         Text {

@@ -16,6 +16,7 @@ pub enum DataType {
     I64(Endian),
     F32(Endian),
     F64(Endian),
+    String(u64),
     Bytes(u64),
     BitField(u16),
 }
@@ -39,6 +40,7 @@ impl DataType {
             DataType::I64(_) => std::mem::size_of::<i64>() as u64,
             DataType::F32(_) => std::mem::size_of::<f32>() as u64,
             DataType::F64(_) => std::mem::size_of::<f64>() as u64,
+            DataType::String(size) => *size,
             DataType::Bytes(size) => *size,
             DataType::BitField(bits) => ((*bits + 7) / 8) as u64,
         }
@@ -56,6 +58,7 @@ impl DataType {
             DataType::I64(endian) => endian.clone(),
             DataType::F32(endian) => endian.clone(),
             DataType::F64(endian) => endian.clone(),
+            DataType::String(_) => Endian::default(),
             DataType::Bytes(_) => Endian::default(),
             DataType::BitField(_) => Endian::default(),
         }
@@ -73,6 +76,7 @@ impl DataType {
             DataType::I64(_) => DataValue::I64(0),
             DataType::F32(_) => DataValue::F32(0.0),
             DataType::F64(_) => DataValue::F64(0.0),
+            DataType::String(size) => DataValue::Bytes(vec![0; *size as usize]),
             DataType::Bytes(size) => DataValue::Bytes(vec![0; *size as usize]),
             DataType::BitField(bits) => DataValue::BitField {
                 value: vec![0; ((*bits + 7) / 8) as usize],
@@ -98,6 +102,7 @@ impl fmt::Display for DataType {
             DataType::I64(endian) => write!(f, "i64:{}", endian),
             DataType::F32(endian) => write!(f, "f32:{}", endian),
             DataType::F64(endian) => write!(f, "f64:{}", endian),
+            DataType::String(size) => write!(f, "string:{}", size),
             DataType::Bytes(size) => write!(f, "bytes:{}", size),
             DataType::BitField(bits) => write!(f, "bitfield{}", bits),
         }
@@ -116,6 +121,16 @@ impl FromStr for DataType {
         let type_str = parts[0];
 
         match type_str {
+            "string" => {
+                if parts.len() == 2 {
+                    let num_bytes: u64 = parts[1]
+                        .parse()
+                        .map_err(|_| "Invalid string length format".to_string())?;
+                    Ok(DataType::String(num_bytes))
+                } else {
+                    Err("String type requires a string length".to_string())
+                }
+            }
             "bytes" => {
                 if parts.len() == 2 {
                     let num_bytes: u64 = parts[1]

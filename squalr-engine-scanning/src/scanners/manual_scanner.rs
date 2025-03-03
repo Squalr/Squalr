@@ -47,7 +47,6 @@ impl ManualScanner {
             log::info!("Performing manual scan...");
         }
 
-        /*
         let mut snapshot = match snapshot.write() {
             Ok(guard) => guard,
             Err(e) => {
@@ -55,7 +54,7 @@ impl ManualScanner {
                     log::error!("Failed to acquire write lock on snapshot: {}", e);
                 }
 
-                return SnapshotScanResults::new(vec![]);
+                return;
             }
         };
 
@@ -63,7 +62,6 @@ impl ManualScanner {
         let processed_region_count = Arc::new(AtomicUsize::new(0));
         let total_region_count = snapshot.get_region_count();
         let cancellation_token = task.get_cancellation_token();
-        let scan_filter_parameters = scan_parameters.get_scan_filter_parameters();
 
         // Iterate over every snapshot region, from which we will grab the existing snapshot filters to perform our next scan.
         snapshot
@@ -80,44 +78,19 @@ impl ManualScanner {
                 }
 
                 // Iterate over each data type in the scan. Generally there is only 1, but multiple simultaneous scans are supported.
-                let scan_results = SnapshotScanResults::new(
-                    scan_filter_parameters
+                let scan_results = SnapshotRegionScanResults::new(
+                    snapshot_region
+                        .get_scan_results()
+                        .get_filter_collections()
                         .par_iter()
-                        .map(|scan_filter_parameter| {
-                            let data_type = scan_filter_parameter.get_data_type();
-                            let memory_alignment = scan_filter_parameter.get_memory_alignment_or_default();
-                            let region_scan_results_map = snapshot_region.get_region_scan_results();
-                            let new_region_scan_filters;
-
+                        .map(|snapshot_region_filter_collection| {
                             // Perform the scan.
-                            if let Some(mut region_scan_results) = region_scan_results_map.get_mut(&data_type) {
-                                let region_scan_results = region_scan_results.value_mut();
-                                let snapshot_region_filters = region_scan_results.get_filters();
-                                let scan_dispatcher = ScanDispatcher::get_instance();
-
-                                if snapshot_region_filters.len() > 0 {
-                                    new_region_scan_filters = scan_dispatcher.dispatch_scan_parallel(
-                                        snapshot_region,
-                                        &snapshot_region_filters,
-                                        scan_parameters,
-                                        data_type,
-                                        memory_alignment,
-                                    );
-                                } else {
-                                    new_region_scan_filters =
-                                        scan_dispatcher.dispatch_scan(snapshot_region, &snapshot_region_filters, scan_parameters, data_type, memory_alignment);
-                                }
-                            } else {
-                                new_region_scan_filters = vec![];
-                            }
-
-                            region_scan_results_map.insert(
-                                data_type.clone(),
-                                SnapshotRegionScanResults::new(new_region_scan_filters, data_type, memory_alignment),
-                            );
+                            ScanDispatcher::get_instance().dispatch_scan_parallel(snapshot_region, snapshot_region_filter_collection, scan_parameters)
                         })
                         .collect(),
                 );
+
+                snapshot_region.set_scan_results(scan_results);
 
                 let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
 
@@ -129,7 +102,6 @@ impl ManualScanner {
             });
 
         snapshot.discard_empty_regions();
-        // snapshot.build_scan_results_lookup_table();
 
         if with_logging {
             let byte_count = snapshot.get_byte_count();
@@ -149,7 +121,5 @@ impl ManualScanner {
 
             log::info!("Scan complete in: {:?}", duration);
         }
-
-        scan_results*/
     }
 }

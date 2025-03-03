@@ -1,5 +1,5 @@
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_common::structures::scan_results::scan_result_raw::ScanResultRaw;
+use squalr_engine_common::structures::scan_results::scan_result_base::ScanResultBase;
 
 pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,
@@ -62,7 +62,7 @@ impl Snapshot {
     pub fn get_scan_result(
         &self,
         scan_result_index: u64,
-    ) -> Option<ScanResultRaw> {
+    ) -> Option<ScanResultBase> {
         let mut scan_result_index = scan_result_index;
 
         for snapshot_region in &self.snapshot_regions {
