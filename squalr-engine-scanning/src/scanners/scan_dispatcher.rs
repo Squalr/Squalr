@@ -77,12 +77,13 @@ impl ScanDispatcher {
     pub fn dispatch_scan(
         &self,
         snapshot_region: &SnapshotRegion,
-        snapshot_region_filters: &SnapshotRegionFilterCollection,
+        snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         scan_parameters: &ScanParameters,
-        data_type: &DataType,
-        memory_alignment: MemoryAlignment,
     ) -> SnapshotRegionFilterCollection {
-        let result_snapshot_region_filters = snapshot_region_filters
+        let data_type = snapshot_region_filter_collection.get_data_type();
+        let memory_alignment = snapshot_region_filter_collection.get_memory_alignment();
+
+        let result_snapshot_region_filters = snapshot_region_filter_collection
             .iter()
             .map(|snapshot_region_filter| {
                 let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
@@ -98,12 +99,13 @@ impl ScanDispatcher {
     pub fn dispatch_scan_parallel(
         &self,
         snapshot_region: &SnapshotRegion,
-        snapshot_region_filters: &SnapshotRegionFilterCollection,
+        snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         scan_parameters: &ScanParameters,
-        data_type: &DataType,
-        memory_alignment: MemoryAlignment,
     ) -> SnapshotRegionFilterCollection {
-        let result_snapshot_region_filters = snapshot_region_filters
+        let data_type = snapshot_region_filter_collection.get_data_type();
+        let memory_alignment = snapshot_region_filter_collection.get_memory_alignment();
+
+        let result_snapshot_region_filters = snapshot_region_filter_collection
             .par_iter()
             .map(|snapshot_region_filter| {
                 let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);

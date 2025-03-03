@@ -171,8 +171,7 @@ where
         }
 
         run_length_encoder.finalize_current_encode(0);
-
-        return run_length_encoder.take_result_regions();
+        run_length_encoder.take_result_regions()
     }
 
     fn encode_results_packed_4(

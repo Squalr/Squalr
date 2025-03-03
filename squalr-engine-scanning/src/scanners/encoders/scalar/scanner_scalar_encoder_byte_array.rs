@@ -138,8 +138,7 @@ impl ScannerScalarEncoderByteArray {
         }
 
         run_length_encoder.finalize_current_encode_with_minimum_size(0, array_length);
-
-        return run_length_encoder.take_result_regions();
+        run_length_encoder.take_result_regions()
     }
 
     fn is_prefix(
@@ -155,7 +154,7 @@ impl ScannerScalarEncoderByteArray {
             }
         }
 
-        return true;
+        true
     }
 
     fn suffix_length(
@@ -173,6 +172,6 @@ impl ScannerScalarEncoderByteArray {
             pattern_end_index -= 1;
         }
 
-        return length;
+        length
     }
 }

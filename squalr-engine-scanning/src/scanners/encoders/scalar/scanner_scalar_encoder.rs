@@ -95,7 +95,6 @@ impl ScannerScalarEncoder {
         }
 
         run_length_encoder.finalize_current_encode_data_size_padded(memory_alignment, data_type_size_padding);
-
-        return run_length_encoder.take_result_regions();
+        run_length_encoder.take_result_regions()
     }
 }

@@ -101,13 +101,13 @@ impl SnapshotRegionScanResults {
     }
 
     pub fn get_filter_bounds(&self) -> (u64, u64) {
-        let mut filter_min_address = 0u64;
+        let mut filter_min_address = u64::MAX;
         let mut filter_max_address = 0u64;
 
         // Collect the minimum and maximum filter bounds. These are used to efficiently build our lookup table.
         for snapshot_region_filter_collection in &self.snapshot_region_filter_collections {
             filter_min_address = filter_min_address.min(snapshot_region_filter_collection.get_filter_minimum_address());
-            filter_max_address = filter_max_address.min(snapshot_region_filter_collection.get_filter_minimum_address());
+            filter_max_address = filter_max_address.max(snapshot_region_filter_collection.get_filter_maximum_address());
         }
 
         (filter_min_address, filter_max_address)

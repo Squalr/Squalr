@@ -1,5 +1,4 @@
 use squalr_engine_common::structures::scan_compare_type::ScanCompareType;
-use squalr_engine_common::structures::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_common::values::anonymous_value::AnonymousValue;
 use squalr_engine_common::values::data_type::DataType;
 use squalr_engine_common::values::data_value::DataValue;
@@ -8,7 +7,6 @@ use squalr_engine_common::values::data_value::DataValue;
 pub struct ScanParameters {
     compare_type: ScanCompareType,
     compare_immediate: Option<AnonymousValue>,
-    scan_filter_parameters: Vec<ScanFilterParameters>,
 }
 
 impl ScanParameters {
@@ -16,7 +14,6 @@ impl ScanParameters {
         Self {
             compare_type: ScanCompareType::Changed,
             compare_immediate: None,
-            scan_filter_parameters: vec![],
         }
     }
 
@@ -27,16 +24,11 @@ impl ScanParameters {
         Self {
             compare_type,
             compare_immediate: value,
-            scan_filter_parameters: vec![],
         }
     }
 
     pub fn get_compare_type(&self) -> ScanCompareType {
         self.compare_type.clone()
-    }
-
-    pub fn get_scan_filter_parameters(&self) -> &Vec<ScanFilterParameters> {
-        &self.scan_filter_parameters
     }
 
     pub fn deanonymize_type(
@@ -97,7 +89,6 @@ impl ScanParameters {
         ScanParameters {
             compare_type: self.compare_type.clone(),
             compare_immediate: self.compare_immediate.clone(),
-            scan_filter_parameters: self.scan_filter_parameters.clone(),
         }
     }
 

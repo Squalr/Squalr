@@ -65,7 +65,6 @@ impl HybridScanner {
         let processed_region_count = Arc::new(AtomicUsize::new(0));
         let total_region_count = snapshot.get_region_count();
         let cancellation_token = task.get_cancellation_token();
-        let scan_filter_parameters = scan_parameters.get_scan_filter_parameters();
 
         snapshot
             .get_snapshot_regions_mut()
@@ -85,25 +84,13 @@ impl HybridScanner {
 
                 // Iterate over each data type in the scan. Generally there is only 1, but multiple simultaneous scans are supported.
                 let scan_results = SnapshotRegionScanResults::new(
-                    scan_filter_parameters
+                    snapshot_region
+                        .get_scan_results()
+                        .get_filter_collections()
                         .par_iter()
-                        .filter_map(|scan_filter_parameter| {
-                            let data_type = scan_filter_parameter.get_data_type();
-                            let memory_alignment = scan_filter_parameter.get_memory_alignment_or_default();
-                            let scan_results: &SnapshotRegionScanResults = snapshot_region.get_scan_results();
-
+                        .map(|snapshot_region_filter_collection| {
                             // Perform the scan.
-                            if let Some(snapshot_region_filters) = scan_results.get_scan_results_by_data_type(data_type) {
-                                Some(ScanDispatcher::get_instance().dispatch_scan_parallel(
-                                    snapshot_region,
-                                    snapshot_region_filters,
-                                    scan_parameters,
-                                    data_type,
-                                    memory_alignment,
-                                ))
-                            } else {
-                                None
-                            }
+                            ScanDispatcher::get_instance().dispatch_scan_parallel(snapshot_region, snapshot_region_filter_collection, scan_parameters)
                         })
                         .collect(),
                 );

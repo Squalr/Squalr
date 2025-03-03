@@ -73,7 +73,7 @@ impl SnapshotRegionFilterCollection {
             .snapshot_region_filters
             .last()
             .and_then(|filters| filters.last())
-            .map_or(0, |filter| filter.get_base_address());
+            .map_or(0, |filter| filter.get_end_address());
 
         max_address
     }

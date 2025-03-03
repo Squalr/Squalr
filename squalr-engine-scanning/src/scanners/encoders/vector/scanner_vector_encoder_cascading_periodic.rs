@@ -121,13 +121,13 @@ where
             };
 
             // Default to an array of byte scan for unsupported periodicity lengths.
-            return ScannerScalarEncoderByteArray::get_instance().encode_byte_array(
+            ScannerScalarEncoderByteArray::get_instance().encode_byte_array(
                 current_value_pointer,
                 immediate_value_ptr,
                 data_type_size_bytes,
                 base_address,
                 region_size,
-            );
+            )
         }
     }
 
@@ -196,6 +196,6 @@ where
             }
         }
 
-        return period as u64;
+        period as u64
     }
 }

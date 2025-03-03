@@ -28,7 +28,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
     }
 
     pub fn take_result_regions(&mut self) -> Vec<SnapshotRegionFilter> {
-        return std::mem::take(&mut self.result_regions);
+        std::mem::take(&mut self.result_regions)
     }
 
     /// Encodes the next N bytes as true (ie passing the scan).
@@ -43,7 +43,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
     }
 
     pub fn is_encoding(&self) -> bool {
-        return self.is_encoding;
+        self.is_encoding
     }
 
     /// Completes the current run length encoding, creating a region filter from the result.
