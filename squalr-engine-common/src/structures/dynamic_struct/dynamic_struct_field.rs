@@ -1,6 +1,6 @@
-use crate::values::data_type::DataType;
-use crate::values::data_value::DataValue;
-use crate::values::endian::Endian;
+use crate::structures::data_types::data_type::DataType;
+use crate::structures::endian::Endian;
+use crate::structures::values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::str::FromStr;

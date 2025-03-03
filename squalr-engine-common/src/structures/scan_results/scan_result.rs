@@ -1,5 +1,6 @@
-use crate::values::data_value::DataValue;
-use crate::{structures::scan_results::scan_result_base::ScanResultBase, values::data_type::DataType};
+use crate::structures::data_types::data_type::DataType;
+use crate::structures::scan_results::scan_result_base::ScanResultBase;
+use crate::structures::values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

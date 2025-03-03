@@ -1,7 +1,7 @@
 use crate::scanners::encoders::vector::simd_type::SimdType;
+use squalr_engine_common::structures::data_types::data_type::DataType;
+use squalr_engine_common::structures::endian::Endian;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
-use squalr_engine_common::values::data_type::DataType;
-use squalr_engine_common::values::endian::Endian;
 use std::ops::{Add, Sub};
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
 use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};

@@ -1,5 +1,5 @@
-use crate::values::data_type::DataType;
-use crate::values::data_value::DataValue;
+use crate::structures::data_types::data_type::DataType;
+use crate::structures::values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 

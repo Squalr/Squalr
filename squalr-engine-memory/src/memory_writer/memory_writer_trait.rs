@@ -1,4 +1,4 @@
-use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
+use squalr_engine_common::structures::dynamic_struct::to_bytes::ToBytes;
 
 pub trait IMemoryWriter {
     fn write(

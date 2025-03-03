@@ -1,6 +1,6 @@
 use crate::{DataTypeView, ScanResultViewData};
 use slint_mvvm::view_data_converter::ViewDataConverter;
-use squalr_engine_common::{structures::scan_results::scan_result::ScanResult, values::data_type::DataType};
+use squalr_engine_common::structures::{data_types::data_type::DataType, scan_results::scan_result::ScanResult};
 
 pub struct ScanResultConverter;
 

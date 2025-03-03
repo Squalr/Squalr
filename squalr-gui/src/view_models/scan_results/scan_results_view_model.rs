@@ -14,7 +14,6 @@ use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan_results::list::scan_results_list_request::ScanResultsListRequest;
 use squalr_engine_common::conversions::Conversions;
 use squalr_engine_common::structures::scan_results::scan_result::ScanResult;
-use squalr_engine_common::values::endian::Endian;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
@@ -107,11 +106,7 @@ impl ScanResultsViewModel {
         cached_last_page_index: Arc<AtomicU64>,
     ) {
         let page_index = Self::load_current_page_index(&current_page_index, &cached_last_page_index);
-        let scan_results_list_request = ScanResultsListRequest {
-            page_index,
-            // TODO
-            data_type: squalr_engine_common::values::data_type::DataType::I32(Endian::Little),
-        };
+        let scan_results_list_request = ScanResultsListRequest { page_index };
         let scan_results_collection = scan_results_collection.clone();
 
         // TODO: We should also be decoupling refreshing values vs querying the actual results, no?

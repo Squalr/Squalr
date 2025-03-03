@@ -9,7 +9,8 @@ use crate::scanners::vector::scanner_vector_cascading::ScannerVectorCascading;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::ParallelIterator;
-use squalr_engine_common::{structures::memory_alignment::MemoryAlignment, values::data_type::DataType};
+use squalr_engine_common::structures::data_types::data_type::DataType;
+use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use std::sync::Once;
 
 pub struct ScanDispatcher {

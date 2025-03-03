@@ -1,7 +1,7 @@
 use crate::memory_reader::memory_reader_trait::IMemoryReader;
-use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
+use squalr_engine_common::structures::dynamic_struct::dynamic_struct::DynamicStruct;
 use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
-use squalr_engine_common::values::data_value::DataValue;
+use squalr_engine_common::structures::values::data_value::DataValue;
 use std::ffi::c_void;
 use std::mem;
 use windows_sys::Win32::Foundation::GetLastError;

@@ -1,4 +1,5 @@
-use crate::values::{data_type::DataType, data_value::DataValue};
+use crate::structures::data_types::data_type::DataType;
+use crate::structures::values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 
 /// Represents a base scan result containing only the address and data type.

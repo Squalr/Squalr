@@ -1,5 +1,5 @@
-use crate::values::data_value::DataValue;
-use crate::values::endian::Endian;
+use crate::structures::endian::Endian;
+use crate::structures::values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;

@@ -1,7 +1,4 @@
-use squalr_engine_common::{
-    structures::scanning::scan_compare_type::ScanCompareType,
-    values::{data_type::DataType, endian::Endian},
-};
+use squalr_engine_common::structures::{data_types::data_type::DataType, endian::Endian, scanning::scan_compare_type::ScanCompareType};
 use std::sync::Once;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)

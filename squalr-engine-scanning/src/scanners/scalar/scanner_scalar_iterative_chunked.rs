@@ -4,8 +4,7 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
-use squalr_engine_common::values::data_type::DataType;
+use squalr_engine_common::structures::{data_types::data_type::DataType, memory_alignment::MemoryAlignment};
 use std::sync::Once;
 
 pub struct ScannerScalarIterativeChunked {}

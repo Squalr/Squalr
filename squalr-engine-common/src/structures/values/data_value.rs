@@ -1,8 +1,9 @@
-use crate::values::data_type::DataType;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::fmt;
 use std::str::FromStr;
+
+use crate::structures::data_types::data_type::DataType;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum DataValue {

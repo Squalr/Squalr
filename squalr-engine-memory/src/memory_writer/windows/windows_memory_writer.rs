@@ -1,5 +1,5 @@
 use crate::memory_writer::memory_writer_trait::IMemoryWriter;
-use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
+use squalr_engine_common::structures::dynamic_struct::to_bytes::ToBytes;
 use std::os::raw::c_void;
 use std::ptr::null_mut;
 use windows_sys::Win32::System::Diagnostics::Debug::WriteProcessMemory;

@@ -2,7 +2,7 @@ use crate::command_executors::engine_request_executor::EngineRequestExecutor;
 use crate::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest;
 use squalr_engine_api::commands::memory::write::memory_write_response::MemoryWriteResponse;
-use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
+use squalr_engine_common::structures::dynamic_struct::to_bytes::ToBytes;
 use squalr_engine_memory::memory_writer::MemoryWriter;
 use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
 use std::sync::Arc;

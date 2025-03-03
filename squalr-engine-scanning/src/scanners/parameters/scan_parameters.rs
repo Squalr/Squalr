@@ -1,7 +1,8 @@
-use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
-use squalr_engine_common::values::anonymous_value::AnonymousValue;
-use squalr_engine_common::values::data_type::DataType;
-use squalr_engine_common::values::data_value::DataValue;
+use squalr_engine_common::structures::{
+    data_types::data_type::DataType,
+    scanning::scan_compare_type::ScanCompareType,
+    values::{anonymous_value::AnonymousValue, data_value::DataValue},
+};
 
 #[derive(Debug, Clone)]
 pub struct ScanParameters {

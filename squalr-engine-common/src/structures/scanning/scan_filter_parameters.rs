@@ -1,5 +1,5 @@
+use crate::structures::data_types::data_type::DataType;
 use crate::structures::memory_alignment::MemoryAlignment;
-use crate::values::data_type::DataType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::num::ParseIntError;

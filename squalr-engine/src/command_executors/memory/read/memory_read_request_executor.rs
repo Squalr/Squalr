@@ -2,7 +2,7 @@ use crate::command_executors::engine_request_executor::EngineRequestExecutor;
 use crate::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
-use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
+use squalr_engine_common::structures::dynamic_struct::dynamic_struct::DynamicStruct;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use std::sync::Arc;

@@ -1,6 +1,6 @@
-use crate::dynamic_struct::dynamic_struct_field::DynamicStructField;
-use crate::dynamic_struct::to_bytes::ToBytes;
-use crate::values::data_value::DataValue;
+use crate::structures::dynamic_struct::dynamic_struct_field::DynamicStructField;
+use crate::structures::dynamic_struct::to_bytes::ToBytes;
+use crate::structures::values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
