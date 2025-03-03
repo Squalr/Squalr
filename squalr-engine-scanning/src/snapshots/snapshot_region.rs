@@ -179,7 +179,7 @@ impl SnapshotRegion {
     fn resize_to_filters(&mut self) {
         let (filter_lowest_address, filter_highest_address) = self.scan_results.get_filter_bounds();
         let original_base_address = self.get_base_address();
-        let new_region_size = filter_highest_address - filter_lowest_address;
+        let new_region_size = filter_highest_address.saturating_sub(filter_lowest_address);
 
         // No filters remaining! Set this regions size to 0 so that it can be cleaned up later.
         if new_region_size <= 0 {
@@ -191,8 +191,8 @@ impl SnapshotRegion {
         self.normalized_region.set_base_address(filter_lowest_address);
         self.normalized_region.set_region_size(new_region_size);
 
-        let start_offset = (filter_lowest_address - original_base_address) as usize;
-        let new_length = (filter_highest_address - filter_lowest_address) as usize;
+        let start_offset = (filter_lowest_address.saturating_sub(original_base_address)) as usize;
+        let new_length = (filter_highest_address.saturating_sub(filter_lowest_address)) as usize;
 
         if !self.current_values.is_empty() {
             self.current_values.drain(..start_offset);

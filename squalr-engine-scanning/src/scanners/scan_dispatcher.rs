@@ -85,10 +85,11 @@ impl ScanDispatcher {
 
         let result_snapshot_region_filters = snapshot_region_filter_collection
             .iter()
-            .map(|snapshot_region_filter| {
+            .filter_map(|snapshot_region_filter| {
                 let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
+                let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment);
 
-                scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment)
+                if filters.len() > 0 { Some(filters) } else { None }
             })
             .collect();
 
@@ -107,10 +108,11 @@ impl ScanDispatcher {
 
         let result_snapshot_region_filters = snapshot_region_filter_collection
             .par_iter()
-            .map(|snapshot_region_filter| {
+            .filter_map(|snapshot_region_filter| {
                 let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
+                let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment);
 
-                scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment)
+                if filters.len() > 0 { Some(filters) } else { None }
             })
             .collect();
 

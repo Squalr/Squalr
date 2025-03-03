@@ -110,6 +110,9 @@ impl SnapshotRegionScanResults {
             filter_max_address = filter_max_address.max(snapshot_region_filter_collection.get_filter_maximum_address());
         }
 
+        // In the case where there are no filters (or something gone horribly wrong), correct the min to be <= max.
+        filter_min_address = filter_min_address.clamp(0u64, filter_max_address);
+
         (filter_min_address, filter_max_address)
     }
 }

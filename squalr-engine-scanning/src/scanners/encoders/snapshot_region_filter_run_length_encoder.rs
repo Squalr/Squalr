@@ -53,7 +53,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
         // For vector scans, this is generally the size of the hardware vector.
         byte_advance_count: u64,
     ) {
-        if self.is_encoding {
+        if self.is_encoding && self.run_length > 0 {
             self.result_regions
                 .push(SnapshotRegionFilter::new(self.run_length_current_address, self.run_length));
             self.run_length_current_address += self.run_length;
@@ -73,7 +73,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
         // The data size of the values being encoded for which we need to pad the encoded region.
         data_size_padding: u64,
     ) {
-        if self.is_encoding {
+        if self.is_encoding && self.run_length > 0 {
             self.result_regions
                 .push(SnapshotRegionFilter::new(self.run_length_current_address, self.run_length + data_size_padding));
             self.run_length_current_address += self.run_length;
@@ -93,7 +93,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
         // The minimum size allowed to create a region.
         minimum_size: u64,
     ) {
-        if self.is_encoding {
+        if self.is_encoding && self.run_length > 0 {
             if self.run_length >= minimum_size {
                 self.result_regions
                     .push(SnapshotRegionFilter::new(self.run_length_current_address, self.run_length));
