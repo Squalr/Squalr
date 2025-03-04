@@ -22,7 +22,9 @@ impl DataValue for DataValueI32 {
         &mut self,
         bytes: &[u8],
     ) {
-        self.value = PrimitiveType::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+        if bytes.len() as u64 >= self.get_size_in_bytes() {
+            self.value = PrimitiveType::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+        }
     }
 
     fn as_ptr(&self) -> *const u8 {

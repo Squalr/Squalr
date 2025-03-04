@@ -23,7 +23,7 @@ impl MemoryQueryer {
             });
 
             #[allow(static_mut_refs)]
-            return INSTANCE.as_ref().unwrap_unchecked();
+            INSTANCE.as_ref().unwrap_unchecked()
         }
     }
 
@@ -32,18 +32,10 @@ impl MemoryQueryer {
         page_retrieval_mode: PageRetrievalMode,
     ) -> Vec<NormalizedRegion> {
         match page_retrieval_mode {
-            PageRetrievalMode::FromSettings => {
-                return MemoryQueryer::query_pages_from_settings(process_info);
-            }
-            PageRetrievalMode::FromUserMode => {
-                return MemoryQueryer::query_pages_from_usermode_memory(process_info);
-            }
-            PageRetrievalMode::FromModules => {
-                return MemoryQueryer::query_pages_from_modules(process_info);
-            }
-            PageRetrievalMode::FromNonModules => {
-                return MemoryQueryer::query_pages_from_non_modules(process_info);
-            }
+            PageRetrievalMode::FromSettings => MemoryQueryer::query_pages_from_settings(process_info),
+            PageRetrievalMode::FromUserMode => MemoryQueryer::query_pages_from_usermode_memory(process_info),
+            PageRetrievalMode::FromModules => MemoryQueryer::query_pages_from_modules(process_info),
+            PageRetrievalMode::FromNonModules => MemoryQueryer::query_pages_from_non_modules(process_info),
         }
     }
 
@@ -67,7 +59,7 @@ impl MemoryQueryer {
             bounds_handling,
         );
 
-        return normalized_regions;
+        normalized_regions
     }
 
     fn query_pages_from_usermode_memory(process_info: &OpenedProcessInfo) -> Vec<NormalizedRegion> {
@@ -87,7 +79,7 @@ impl MemoryQueryer {
             RegionBoundsHandling::Exclude,
         );
 
-        return normalized_regions;
+        normalized_regions
     }
 
     fn query_pages_from_settings(process_info: &OpenedProcessInfo) -> Vec<NormalizedRegion> {
@@ -114,7 +106,7 @@ impl MemoryQueryer {
             RegionBoundsHandling::Exclude,
         );
 
-        return normalized_regions;
+        normalized_regions
     }
 
     fn query_pages_from_modules(process_info: &OpenedProcessInfo) -> Vec<NormalizedRegion> {
@@ -125,7 +117,7 @@ impl MemoryQueryer {
             .map(|module| module.into_base_region())
             .collect();
 
-        return module_regions;
+        module_regions
     }
 
     fn query_pages_from_non_modules(process_info: &OpenedProcessInfo) -> Vec<NormalizedRegion> {
@@ -158,7 +150,7 @@ impl MemoryQueryer {
             .filter(|page| !modules.contains(&page.get_base_address()))
             .collect();
 
-        return memory_regions;
+        memory_regions
     }
 
     fn get_allowed_type_settings() -> MemoryTypeEnum {
@@ -180,7 +172,7 @@ impl MemoryQueryer {
             result |= MemoryTypeEnum::MAPPED;
         }
 
-        return result;
+        result
     }
 
     fn get_required_protection_settings() -> MemoryProtectionEnum {
@@ -198,7 +190,7 @@ impl MemoryQueryer {
             result |= MemoryProtectionEnum::COPY_ON_WRITE;
         }
 
-        return result;
+        result
     }
 
     fn get_excluded_protection_settings() -> MemoryProtectionEnum {
@@ -216,6 +208,6 @@ impl MemoryQueryer {
             result |= MemoryProtectionEnum::COPY_ON_WRITE;
         }
 
-        return result;
+        result
     }
 }

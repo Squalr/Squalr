@@ -1,8 +1,8 @@
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
 use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
-use crate::structures::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::endian::Endian;
+use crate::structures::registries::data_type_registry::DataTypeRegistry;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -60,13 +60,13 @@ impl<'de> Deserialize<'de> for Box<dyn DataType> {
             .and_then(Value::as_str)
             .ok_or_else(|| serde::de::Error::missing_field("type_name"))?;
 
-        // Lookup constructor from registry
-        let registry = DataTypeRegistry::get_registry();
-        let constructor = registry.get(type_name).ok_or_else(|| {
+        // Lookup data type from registry.
+        let registry = DataTypeRegistry::get_instance().get_registry();
+        let data_type = registry.get(type_name).ok_or_else(|| {
             serde::de::Error::unknown_variant(type_name, &["i32" /*, other types... */]) // JIRA
         })?;
 
-        Ok(constructor())
+        Ok(data_type.value().clone())
     }
 }
 
@@ -83,12 +83,12 @@ impl FromStr for Box<dyn DataType> {
     type Err = serde_json::Error;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let registry = DataTypeRegistry::get_registry();
-        let constructor = registry.get(string).ok_or_else(|| {
+        let registry = DataTypeRegistry::get_instance().get_registry();
+        let data_type = registry.get(string).ok_or_else(|| {
             serde::de::Error::unknown_variant(string, &["i32" /*, other types... */]) // JIRA
         })?;
 
-        Ok(constructor())
+        Ok(data_type.value().clone())
     }
 }
 

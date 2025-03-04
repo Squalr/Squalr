@@ -5,6 +5,7 @@ pub mod dynamic_struct;
 pub mod endian;
 pub mod memory_alignment;
 pub mod processes;
+pub mod registries;
 pub mod scan_results;
 pub mod scanning;
 pub mod simd_type;

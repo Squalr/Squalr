@@ -8,6 +8,7 @@ edition = "2024"
 [dependencies]
 anyhow = ">=1.0.96"
 crossbeam-channel = ">=0.5.14"
+dashmap = ">=6.1.0"
 dirs = ">=6.0.0"
 futures = ">=0.3.31"
 log = { version = ">=0.4.26" }
