@@ -85,7 +85,7 @@ impl ManualScanner {
                         .par_iter()
                         .map(|snapshot_region_filter_collection| {
                             // Perform the scan.
-                            ScanDispatcher::get_instance().dispatch_scan_parallel(snapshot_region, snapshot_region_filter_collection, scan_parameters)
+                            ScanDispatcher::dispatch_scan_parallel(snapshot_region, snapshot_region_filter_collection, scan_parameters)
                         })
                         .collect(),
                 );

@@ -43,9 +43,7 @@ impl Scanner for ScannerScalarIterativeByteArray {
         data_type: &Box<dyn DataType>,
         memory_alignment: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
-        let encoder = ScannerScalarEncoderByteArray::get_instance();
-
-        let results = encoder.encode(
+        let results = ScannerScalarEncoderByteArray::scalar_encode(
             snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
             snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
             scan_parameters,

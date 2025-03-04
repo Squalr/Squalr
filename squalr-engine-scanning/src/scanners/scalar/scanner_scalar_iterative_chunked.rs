@@ -61,11 +61,10 @@ impl Scanner for ScannerScalarIterativeChunked {
                 let first_element_index = (chunk_index * chunk_size) as u64;
                 let last_element_index = ((chunk_index + 1) * chunk_size).min(element_count) as u64;
                 let chunk_address_offset = first_element_index * memory_alignment as u64;
-                let local_encoder = ScannerScalarEncoder::get_instance();
                 let base_address = snapshot_region_filter.get_base_address() + chunk_address_offset;
 
                 unsafe {
-                    return local_encoder.encode(
+                    return ScannerScalarEncoder::scalar_encode(
                         current_values_slice.as_ptr().add(chunk_address_offset as usize),
                         previous_values_slice
                             .as_ptr()

@@ -1,39 +1,20 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::vector::scanner_vector_encoder::ScannerVectorEncoder;
-use crate::scanners::encoders::vector::simd_type::SimdType;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use squalr_engine_common::structures::data_types::data_type::DataType;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
-use std::marker::PhantomData;
-use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
-pub struct ScannerVectorAlignedChunked<T: SimdType + Send + Sync, const N: usize>
+pub struct ScannerVectorAlignedChunked<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount,
-{
-    _marker: PhantomData<T>,
-}
+    LaneCount<N>: SupportedLaneCount, {}
 
-impl<T: SimdType + Send + Sync, const N: usize> ScannerVectorAlignedChunked<T, N>
+impl<const N: usize> Scanner for ScannerVectorAlignedChunked<N>
 where
     LaneCount<N>: SupportedLaneCount,
-{
-    pub fn new() -> Self {
-        Self { _marker: PhantomData }
-    }
-}
-
-impl<T: SimdType + Send + Sync + PartialEq, const N: usize> Scanner for ScannerVectorAlignedChunked<T, N>
-where
-    LaneCount<N>: SupportedLaneCount,
-    LaneCount<{ N / 2 }>: SupportedLaneCount,
-    LaneCount<{ N / 4 }>: SupportedLaneCount,
-    LaneCount<{ N / 8 }>: SupportedLaneCount,
-    Simd<T, N>: SimdPartialEq,
 {
     /// Performs a sequential iteration over a region of memory, performing the scan comparison.
     /// A run-length encoding algorithm is used to generate new sub-regions as the scan progresses.
@@ -45,8 +26,7 @@ where
         data_type: &Box<dyn DataType>,
         _: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
-        let encoder = ScannerVectorEncoder::<T, N>::new();
-        let vector_comparer = ScannerVectorComparer::<T, N>::new();
+        let vector_encoder = ScannerVectorEncoder::<N>::new();
         let simd_all_true_mask = Simd::<u8, N>::splat(0xFF);
         let region_size = snapshot_region_filter.get_region_size();
         let chunk_size = 1024 * 1024 * 1; // 1 MB
@@ -62,14 +42,13 @@ where
                 let remaining_size = region_size as u64 - chunk_start_offset_bytes;
                 let chunk_region_size = remaining_size.min(chunk_size as u64);
 
-                encoder.encode(
+                vector_encoder.vector_encode(
                     unsafe { current_value_pointer.add(chunk_start_offset_bytes as usize) },
                     unsafe { previous_value_pointer.add(chunk_start_offset_bytes as usize) },
                     scan_parameters,
                     data_type,
                     chunk_start_address,
                     chunk_region_size,
-                    &vector_comparer,
                     simd_all_true_mask,
                 )
             })

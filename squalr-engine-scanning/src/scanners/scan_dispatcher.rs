@@ -3,80 +3,18 @@ use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterColle
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::snapshot_scanner::Scanner;
-use crate::scanners::vector::scanner_vector_aligned::ScannerVectorAligned;
-use crate::scanners::vector::scanner_vector_aligned_chunked::ScannerVectorAlignedChunked;
-use crate::scanners::vector::scanner_vector_cascading::ScannerVectorCascading;
-use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::ParallelIterator;
 use squalr_engine_common::structures::data_types::data_type::DataType;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
-use std::sync::Once;
 
-pub struct ScanDispatcher {
-    scanner_aligned_64: ScannerVectorAligned<u8, 64>,
-    scanner_aligned_32: ScannerVectorAligned<u8, 32>,
-    scanner_aligned_16: ScannerVectorAligned<u8, 16>,
-
-    scanner_sparse_64: ScannerVectorSparse<u8, 64>,
-    scanner_sparse_32: ScannerVectorSparse<u8, 32>,
-    scanner_sparse_16: ScannerVectorSparse<u8, 16>,
-
-    scanner_cascading_64: ScannerVectorCascading<u8, 64>,
-    scanner_cascading_32: ScannerVectorCascading<u8, 32>,
-    scanner_cascading_16: ScannerVectorCascading<u8, 16>,
-
-    scanner_aligned_chunked_64: ScannerVectorAlignedChunked<u8, 64>,
-    scanner_aligned_chunked_32: ScannerVectorAlignedChunked<u8, 32>,
-    scanner_aligned_chunked_16: ScannerVectorAlignedChunked<u8, 16>,
-
-    scanner_cascading_chunked_64: ScannerVectorCascading<u8, 64>,
-    scanner_cascading_chunked_32: ScannerVectorCascading<u8, 32>,
-    scanner_cascading_chunked_16: ScannerVectorCascading<u8, 16>,
-}
+pub struct ScanDispatcher {}
 
 /// Implements a scan dispatcher, which picks the best scanner based on the scan constraints and the region being scanned.
 /// Choosing the best scanner is critical to maintaining high performance scans.
 impl ScanDispatcher {
-    fn new() -> Self {
-        Self {
-            scanner_aligned_64: ScannerVectorAligned::<u8, 64>::new(),
-            scanner_aligned_32: ScannerVectorAligned::<u8, 32>::new(),
-            scanner_aligned_16: ScannerVectorAligned::<u8, 16>::new(),
-            scanner_sparse_64: ScannerVectorSparse::<u8, 64>::new(),
-            scanner_sparse_32: ScannerVectorSparse::<u8, 32>::new(),
-            scanner_sparse_16: ScannerVectorSparse::<u8, 16>::new(),
-            scanner_cascading_64: ScannerVectorCascading::<u8, 64>::new(),
-            scanner_cascading_32: ScannerVectorCascading::<u8, 32>::new(),
-            scanner_cascading_16: ScannerVectorCascading::<u8, 16>::new(),
-
-            scanner_aligned_chunked_64: ScannerVectorAlignedChunked::<u8, 64>::new(),
-            scanner_aligned_chunked_32: ScannerVectorAlignedChunked::<u8, 32>::new(),
-            scanner_aligned_chunked_16: ScannerVectorAlignedChunked::<u8, 16>::new(),
-            scanner_cascading_chunked_64: ScannerVectorCascading::<u8, 64>::new(),
-            scanner_cascading_chunked_32: ScannerVectorCascading::<u8, 32>::new(),
-            scanner_cascading_chunked_16: ScannerVectorCascading::<u8, 16>::new(),
-        }
-    }
-
-    pub fn get_instance() -> &'static ScanDispatcher {
-        static mut INSTANCE: Option<ScanDispatcher> = None;
-        static INIT: Once = Once::new();
-
-        unsafe {
-            INIT.call_once(|| {
-                let instance = ScanDispatcher::new();
-                INSTANCE = Some(instance);
-            });
-
-            #[allow(static_mut_refs)]
-            return INSTANCE.as_ref().unwrap_unchecked();
-        }
-    }
-
     /// Performs a scan over a provided filter collection, returning a new filter collection with the results.
     pub fn dispatch_scan(
-        &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         scan_parameters: &ScanParameters,
@@ -87,7 +25,7 @@ impl ScanDispatcher {
         let result_snapshot_region_filters = snapshot_region_filter_collection
             .iter()
             .filter_map(|snapshot_region_filter| {
-                let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
+                let scanner_instance = Self::acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
                 let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment);
 
                 if filters.len() > 0 { Some(filters) } else { None }
@@ -99,7 +37,6 @@ impl ScanDispatcher {
 
     /// Performs a parallelized scan over a provided filter collection, returning a new filter collection with the results.
     pub fn dispatch_scan_parallel(
-        &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         scan_parameters: &ScanParameters,
@@ -110,7 +47,7 @@ impl ScanDispatcher {
         let result_snapshot_region_filters = snapshot_region_filter_collection
             .par_iter()
             .filter_map(|snapshot_region_filter| {
-                let scanner_instance = self.acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
+                let scanner_instance = Self::acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
                 let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment);
 
                 if filters.len() > 0 { Some(filters) } else { None }
@@ -121,7 +58,6 @@ impl ScanDispatcher {
     }
 
     fn acquire_scanner_instance(
-        &self,
         snapshot_region_filter: &SnapshotRegionFilter,
         data_type: &Box<dyn DataType>,
         memory_alignment: MemoryAlignment,
@@ -216,6 +152,6 @@ impl ScanDispatcher {
         } */
 
         // Default to scalar iterative
-        ScannerScalarIterative::get_instance()
+        &ScannerScalarIterative::new()
     }
 }

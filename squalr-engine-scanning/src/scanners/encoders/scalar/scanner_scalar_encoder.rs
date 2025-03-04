@@ -4,34 +4,13 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_common::structures::data_types::data_type::DataType;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
-use std::sync::Once;
 
 pub struct ScannerScalarEncoder {}
 
 impl ScannerScalarEncoder {
-    fn new() -> Self {
-        Self {}
-    }
-
-    pub fn get_instance() -> &'static ScannerScalarEncoder {
-        static mut INSTANCE: Option<ScannerScalarEncoder> = None;
-        static INIT: Once = Once::new();
-
-        unsafe {
-            INIT.call_once(|| {
-                let instance = ScannerScalarEncoder::new();
-                INSTANCE = Some(instance);
-            });
-
-            #[allow(static_mut_refs)]
-            return INSTANCE.as_ref().unwrap_unchecked();
-        }
-    }
-
     /// Scans a region of memory defined by the given parameters. Uses a run length encoding algorithm to only create the scan
     /// result when a false comparison is encountered (or if out of bytes to scan).
-    pub fn encode(
-        &self,
+    pub fn scalar_encode(
         current_value_pointer: *const u8,
         previous_value_pointer: *const u8,
         scan_parameters: &ScanParameters,

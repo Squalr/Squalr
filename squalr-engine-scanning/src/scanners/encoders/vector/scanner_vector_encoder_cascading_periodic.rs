@@ -1,20 +1,15 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::scalar::scanner_scalar_encoder_byte_array::ScannerScalarEncoderByteArray;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::scanners::encoders::vector::simd_type::SimdType;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
-use std::marker::PhantomData;
+use squalr_engine_common::structures::data_types::data_type::DataType;
+use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use std::simd::prelude::SimdPartialEq;
-use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
+use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
-pub struct ScannerVectorEncoderCascadingPeriodic<T, const N: usize>
+pub struct ScannerVectorEncoderCascadingPeriodic<const N: usize>
 where
-    T: SimdElement + SimdType + PartialEq,
-    LaneCount<N>: SupportedLaneCount,
-    Simd<T, N>: SimdPartialEq,
-{
-    _marker: PhantomData<T>,
-}
+    LaneCount<N>: SupportedLaneCount, {}
 
 /// Implements a memory region scanner to find cascading matches using "Periodicity Scans with RLE Discard".
 /// This is an algorithm that is optmized/specialized for data with repeating 1-8 byte patterns.
@@ -36,35 +31,32 @@ where
 ///
 /// Similarly, the same is true for byte array scans! If the array of bytes can be decomposed into periodic sequences, periodicty
 /// scans will results in substantial savings, given that the array fits into a hardware vector Simd<> type.
-impl<T, const N: usize> ScannerVectorEncoderCascadingPeriodic<T, N>
+impl<const N: usize> ScannerVectorEncoderCascadingPeriodic<N>
 where
-    T: SimdElement + SimdType + PartialEq,
     LaneCount<N>: SupportedLaneCount,
-    LaneCount<{ N / 2 }>: SupportedLaneCount,
-    LaneCount<{ N / 4 }>: SupportedLaneCount,
-    LaneCount<{ N / 8 }>: SupportedLaneCount,
-    Simd<T, N>: SimdPartialEq,
 {
     pub fn new() -> Self {
-        Self { _marker: PhantomData }
+        Self {}
     }
 
-    pub fn encode(
+    pub fn vector_encode(
         &self,
         current_value_pointer: *const u8,
         _: *const u8,
         scan_parameters: &ScanParameters,
-        data_type: &DataType,
+        data_type: &Box<dyn DataType>,
         base_address: u64,
         region_size: u64,
-        vector_comparer: &impl VectorComparer<T, N>,
         true_mask: Simd<u8, N>,
     ) -> Vec<SnapshotRegionFilter> {
         let data_type_size_bytes = data_type.get_size_in_bytes();
 
         unsafe {
-            if !scan_parameters.is_immediate_comparison() {
-                panic!("Unsupported comparison! Cascading periodic scans only work for immediate scans.");
+            match scan_parameters.get_compare_type() {
+                ScanCompareType::Immediate(scan_compare_type_immediate) => {}
+                _ => {
+                    panic!("Unsupported comparison! Cascading periodic scans only work for immediate scans.");
+                }
             }
 
             let immediate_value_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
@@ -79,7 +71,7 @@ where
                     let remainder_ptr_offset = iterations.saturating_sub(1) as usize * vector_size_in_bytes;
                     let false_mask = Simd::<u8, N>::splat(0);
                     let adjusted_data_type = DataType::U8();
-                    let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), &adjusted_data_type);
+                    let compare_func = data_type.get_vector_immediate_compare_func(scan_parameters.get_compare_type(), &adjusted_data_type);
 
                     // Compare as many full vectors as we can
                     for index in 0..iterations {

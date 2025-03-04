@@ -17,7 +17,7 @@ impl EngineRequestExecutor for ScanManualRequest {
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             let snapshot = execution_context.get_snapshot();
-            let scan_parameters = ScanParameters::new_with_value(self.compare_type.to_owned(), self.scan_value.to_owned());
+            let scan_parameters = ScanParameters::new(self.compare_type.to_owned(), self.scan_value.to_owned());
 
             // First collect values before the manual scan.
             // TODO: This should not be blocking.

@@ -1,43 +1,25 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::vector::scanner_vector_encoder::ScannerVectorEncoder;
-use crate::scanners::encoders::vector::simd_type::SimdType;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_common::structures::data_types::data_type::DataType;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
-use std::marker::PhantomData;
-use std::simd::prelude::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
-pub struct ScannerVectorSparse<T: SimdType + Send + Sync, const N: usize>
+pub struct ScannerVectorSparse<const N: usize>
+where
+    LaneCount<N>: SupportedLaneCount, {}
+
+impl<const N: usize> ScannerVectorSparse<N>
 where
     LaneCount<N>: SupportedLaneCount,
-    LaneCount<{ N / 2 }>: SupportedLaneCount,
-    LaneCount<{ N / 4 }>: SupportedLaneCount,
-    LaneCount<{ N / 8 }>: SupportedLaneCount,
-    Simd<T, N>: SimdPartialEq,
 {
-    _marker: PhantomData<T>,
-}
-
-impl<T: SimdType + Send + Sync, const N: usize> ScannerVectorSparse<T, N>
-where
-    LaneCount<N>: SupportedLaneCount,
-    LaneCount<{ N / 2 }>: SupportedLaneCount,
-    LaneCount<{ N / 4 }>: SupportedLaneCount,
-    LaneCount<{ N / 8 }>: SupportedLaneCount,
-    Simd<T, N>: SimdPartialEq,
-{
-    pub fn new() -> Self {
-        Self { _marker: PhantomData }
-    }
-
     // This mask automatically captures all in-between elements. For example, scanning for Byte 0 with an alignment of 2-bytes
     // against <0, 24, 0, 43> would all return true, due to this mask of <0, 255, 0, 255>. Scan results will automatically skip
     // over the unwanted elements based on alignment. In fact, we do NOT want to break this into two separate snapshot regions,
     // since this would be incredibly inefficient. So in this example, we would return a single snapshot region of size 4, and the scan results would iterate by 2.
-    fn get_sparse_mask(memory_alignment: MemoryAlignment) -> Simd<u8, N> {
+    pub fn get_sparse_mask(memory_alignment: MemoryAlignment) -> Simd<u8, N> {
         match memory_alignment {
             // This will produce a byte pattern of <0xFF, 0xFF...>.
             MemoryAlignment::Alignment1 => Simd::<u8, N>::splat(0xFF),
@@ -69,13 +51,9 @@ where
     }
 }
 
-impl<T: SimdType + Send + Sync + PartialEq, const N: usize> Scanner for ScannerVectorSparse<T, N>
+impl<const N: usize> Scanner for ScannerVectorSparse<N>
 where
     LaneCount<N>: SupportedLaneCount,
-    LaneCount<{ N / 2 }>: SupportedLaneCount,
-    LaneCount<{ N / 4 }>: SupportedLaneCount,
-    LaneCount<{ N / 8 }>: SupportedLaneCount,
-    Simd<T, N>: SimdPartialEq,
 {
     fn scan_region(
         &self,
@@ -85,17 +63,15 @@ where
         data_type: &Box<dyn DataType>,
         memory_alignment: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
-        let encoder = ScannerVectorEncoder::<T, N>::new();
-        let vector_comparer = ScannerVectorComparer::<T, N>::new();
+        let vector_encoder = ScannerVectorEncoder::<N>::new();
 
-        let results = encoder.encode(
+        let results = vector_encoder.vector_encode(
             snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
             snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
             scan_parameters,
             data_type,
             snapshot_region_filter.get_base_address(),
             snapshot_region_filter.get_region_size(),
-            &vector_comparer,
             Self::get_sparse_mask(memory_alignment),
         );
 

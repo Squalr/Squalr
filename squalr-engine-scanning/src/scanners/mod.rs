@@ -1,4 +1,3 @@
-pub mod comparers;
 pub mod encoders;
 pub mod hybrid_scanner;
 pub mod manual_scanner;

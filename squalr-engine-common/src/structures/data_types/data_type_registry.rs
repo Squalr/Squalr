@@ -12,8 +12,4 @@ impl DataTypeRegistry {
         registry.insert("i32", Box::new(|| Box::new(DataTypeI32 {})));
         registry
     }
-
-    fn construct_i32() -> Box<dyn DataType> {
-        Box::new(DataTypeI32 {})
-    }
 }

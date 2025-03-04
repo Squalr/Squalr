@@ -1,38 +1,15 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::vector::scanner_vector_encoder_cascading_periodic::ScannerVectorEncoderCascadingPeriodic;
-use crate::scanners::encoders::vector::simd_type::SimdType;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_common::structures::data_types::data_type::DataType;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
-use std::marker::PhantomData;
-use std::simd::prelude::SimdPartialEq;
+use squalr_engine_common::structures::{data_types::data_type::DataType, scanning::scan_compare_type::ScanCompareType};
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
-pub struct ScannerVectorCascading<T: SimdType + Send + Sync, const N: usize>
+pub struct ScannerVectorCascading<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount,
-    LaneCount<{ N / 2 }>: SupportedLaneCount,
-    LaneCount<{ N / 4 }>: SupportedLaneCount,
-    LaneCount<{ N / 8 }>: SupportedLaneCount,
-    Simd<T, N>: SimdPartialEq,
-{
-    _marker: PhantomData<T>,
-}
-
-impl<T: SimdType + Send + Sync, const N: usize> ScannerVectorCascading<T, N>
-where
-    LaneCount<N>: SupportedLaneCount,
-    LaneCount<{ N / 2 }>: SupportedLaneCount,
-    LaneCount<{ N / 4 }>: SupportedLaneCount,
-    LaneCount<{ N / 8 }>: SupportedLaneCount,
-    Simd<T, N>: SimdPartialEq,
-{
-    pub fn new() -> Self {
-        Self { _marker: PhantomData }
-    }
-}
+    LaneCount<N>: SupportedLaneCount, {}
 
 /// Cascading scans are the single most complex case to handle due to the base addresses not being aligned.
 /// It turns out that this problem has been extensively researched under "string search algorithms".
@@ -41,13 +18,9 @@ where
 /// scan data to use more efficient implementations when possible.
 ///
 /// There may be a ton of sub-cases, and this may best be handled by reducing the problem to a several specialized cases.
-impl<T: SimdType + Send + Sync + PartialEq, const N: usize> Scanner for ScannerVectorCascading<T, N>
+impl<const N: usize> Scanner for ScannerVectorCascading<N>
 where
     LaneCount<N>: SupportedLaneCount,
-    LaneCount<{ N / 2 }>: SupportedLaneCount,
-    LaneCount<{ N / 4 }>: SupportedLaneCount,
-    LaneCount<{ N / 8 }>: SupportedLaneCount,
-    Simd<T, N>: SimdPartialEq,
 {
     fn scan_region(
         &self,
@@ -61,22 +34,26 @@ where
         let results;
 
         // For immediate comparisons, we can use a cascading periodic scan.
-        if scan_parameters.is_immediate_comparison() {
-            let encoder: ScannerVectorEncoderCascadingPeriodic<T, N> = ScannerVectorEncoderCascadingPeriodic::<T, N>::new();
-            let vector_comparer = ScannerVectorComparer::<T, N>::new();
+        match scan_parameters.get_compare_type() {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => {
+                let vector_encoder = ScannerVectorEncoderCascadingPeriodic::<N>::new();
 
-            results = encoder.encode(
-                snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
-                snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
-                scan_parameters,
-                data_type,
-                snapshot_region_filter.get_base_address(),
-                snapshot_region_filter.get_region_size(),
-                &vector_comparer,
-                simd_all_true_mask,
-            );
-        } else {
-            panic!("relative and delta cascading scans are not implemented yet");
+                results = vector_encoder.vector_encode(
+                    snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
+                    snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
+                    scan_parameters,
+                    data_type,
+                    snapshot_region_filter.get_base_address(),
+                    snapshot_region_filter.get_region_size(),
+                    simd_all_true_mask,
+                );
+            }
+            ScanCompareType::Relative(scan_compare_type_relative) => {
+                panic!("Relative cascading scans are not implemented yet");
+            }
+            ScanCompareType::Delta(scan_compare_type_delta) => {
+                panic!("Delta cascading scans are not implemented yet");
+            }
         }
 
         results

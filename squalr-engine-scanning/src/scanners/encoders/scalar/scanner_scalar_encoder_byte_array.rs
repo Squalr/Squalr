@@ -3,39 +3,19 @@ use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::Snapsh
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_common::structures::data_types::data_type::DataType;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
+use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use std::collections::HashMap;
-use std::sync::Once;
 
 pub struct ScannerScalarEncoderByteArray {}
 
 impl ScannerScalarEncoderByteArray {
-    fn new() -> Self {
-        Self {}
-    }
-
-    pub fn get_instance() -> &'static ScannerScalarEncoderByteArray {
-        static mut INSTANCE: Option<ScannerScalarEncoderByteArray> = None;
-        static INIT: Once = Once::new();
-
-        unsafe {
-            INIT.call_once(|| {
-                let instance = ScannerScalarEncoderByteArray::new();
-                INSTANCE = Some(instance);
-            });
-
-            #[allow(static_mut_refs)]
-            return INSTANCE.as_ref().unwrap_unchecked();
-        }
-    }
-
     /// Scans a region of memory for an array of bytes defined by the given parameters. Comines the Boyer-Moore
     /// algorithm and a run length encoder to produce matches.
     ///
     /// This combination is important to efficiently capture repeated array of byte scans that are sequential in memory.
     /// The run length encoder only produces scan results after encountering a false result (scan failure / mismatch),
     /// or when no more bytes are present (and a full matching byte array was just encoded).
-    pub fn encode(
-        &self,
+    pub fn scalar_encode(
         current_value_pointer: *const u8,
         _prevous_value_pointer: *const u8,
         scan_parameters: &ScanParameters,
@@ -49,16 +29,18 @@ impl ScannerScalarEncoderByteArray {
             _ => panic!("Unsupported data type passed to byte array scanner"),
         }
 
-        if scan_parameters.is_immediate_comparison() {
-            let array_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
+        match scan_parameters.get_compare_type() {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => {
+                let array_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
 
-            return unsafe { self.encode_byte_array(current_value_pointer, array_ptr, data_type.get_size_in_bytes(), base_address, region_size) };
-        } else if scan_parameters.is_relative_comparison() {
-            panic!("Not supported yet (or maybe ever)");
-        } else if scan_parameters.is_relative_delta_comparison() {
-            panic!("Not supported yet (or maybe ever)");
-        } else {
-            panic!("Unrecognized comparison");
+                unsafe { self.encode_byte_array(current_value_pointer, array_ptr, data_type.get_size_in_bytes(), base_address, region_size) }
+            }
+            ScanCompareType::Relative(scan_compare_type_relative) => {
+                panic!("Not supported yet (or maybe ever)");
+            }
+            ScanCompareType::Delta(scan_compare_type_delta) => {
+                panic!("Not supported yet (or maybe ever)");
+            }
         }
     }
 

@@ -11,14 +11,7 @@ pub struct ScanParameters {
 }
 
 impl ScanParameters {
-    pub fn new() -> Self {
-        Self {
-            compare_type: ScanCompareType::Changed,
-            compare_immediate: None,
-        }
-    }
-
-    pub fn new_with_value(
+    pub fn new(
         compare_type: ScanCompareType,
         value: Option<AnonymousValue>,
     ) -> Self {
@@ -43,18 +36,18 @@ impl ScanParameters {
     }
 
     pub fn get_compare_immediate(&self) -> Option<&AnonymousValue> {
-        if self.is_immediate_comparison() {
-            self.compare_immediate.as_ref()
-        } else {
-            None
+        match self.get_compare_type() {
+            ScanCompareType::Immediate(_) => self.compare_immediate.as_ref(),
+            ScanCompareType::Relative(_) => None,
+            ScanCompareType::Delta(_) => None,
         }
     }
 
     pub fn is_valid(&self) -> bool {
-        if !self.is_immediate_comparison() {
-            true
-        } else {
-            self.compare_immediate.is_some()
+        match self.get_compare_type() {
+            ScanCompareType::Immediate(_) => self.compare_immediate.is_some(),
+            ScanCompareType::Relative(_) => true,
+            ScanCompareType::Delta(_) => true,
         }
     }
 

@@ -5,6 +5,7 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_common::structures::data_types::data_type::DataType;
 use squalr_engine_common::structures::data_values::data_value::DataValue;
 use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
@@ -202,10 +203,11 @@ impl SnapshotRegion {
     ) -> bool {
         if !scan_parameters.is_valid() || !self.has_current_values() {
             false
-        } else if !scan_parameters.is_immediate_comparison() && !self.has_previous_values() {
-            false
         } else {
-            true
+            match scan_parameters.get_compare_type() {
+                ScanCompareType::Immediate(_) => true,
+                ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => !self.has_previous_values(),
+            }
         }
     }
 

@@ -5,28 +5,12 @@ use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_common::structures::data_types::data_type::DataType;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
-use std::sync::Once;
 
 pub struct ScannerScalarIterative {}
 
 impl ScannerScalarIterative {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {}
-    }
-
-    pub fn get_instance() -> &'static ScannerScalarIterative {
-        static mut INSTANCE: Option<ScannerScalarIterative> = None;
-        static INIT: Once = Once::new();
-
-        unsafe {
-            INIT.call_once(|| {
-                let instance = ScannerScalarIterative::new();
-                INSTANCE = Some(instance);
-            });
-
-            #[allow(static_mut_refs)]
-            INSTANCE.as_ref().unwrap_unchecked()
-        }
     }
 }
 
@@ -43,9 +27,7 @@ impl Scanner for ScannerScalarIterative {
         data_type: &Box<dyn DataType>,
         memory_alignment: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
-        let encoder = ScannerScalarEncoder::get_instance();
-
-        let results = encoder.encode(
+        let results = ScannerScalarEncoder::scalar_encode(
             snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
             snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
             scan_parameters,

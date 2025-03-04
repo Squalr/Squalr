@@ -4,7 +4,7 @@ use crate::commands::scan::manual::scan_manual_response::ScanManualResponse;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::structures::{scanning::scan_compare_type::ScanCompareType, values::anonymous_value::AnonymousValue};
+use squalr_engine_common::structures::{data_values::anonymous_value::AnonymousValue, scanning::scan_compare_type::ScanCompareType};
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
