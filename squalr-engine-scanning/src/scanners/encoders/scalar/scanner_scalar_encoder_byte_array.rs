@@ -33,7 +33,9 @@ impl ScannerScalarEncoderByteArray {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
                 let array_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
 
-                unsafe { self.encode_byte_array(current_value_pointer, array_ptr, data_type.get_size_in_bytes(), base_address, region_size) }
+                unsafe {
+                    ScannerScalarEncoderByteArray::encode_byte_array(current_value_pointer, array_ptr, data_type.get_size_in_bytes(), base_address, region_size)
+                }
             }
             ScanCompareType::Relative(scan_compare_type_relative) => {
                 panic!("Not supported yet (or maybe ever)");
@@ -46,7 +48,6 @@ impl ScannerScalarEncoderByteArray {
 
     /// Public encoder without scan parameter and filter args to allow re-use by other scanners.
     pub unsafe fn encode_byte_array(
-        &self,
         current_value_pointer: *const u8,
         array_ptr: *const u8,
         array_length: u64,

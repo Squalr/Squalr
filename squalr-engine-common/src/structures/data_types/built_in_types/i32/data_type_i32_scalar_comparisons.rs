@@ -1,3 +1,4 @@
+use crate::structures::data_types::built_in_types::i32::data_type_i32::DataTypeI32;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnDelta;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnImmediate;
@@ -5,8 +6,6 @@ use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompare
 use std::ptr;
 
 type PrimitiveType = i32;
-
-pub struct DataTypeI32 {}
 
 impl ScalarComparable for DataTypeI32 {
     fn get_compare_equal(&self) -> ScalarCompareFnImmediate {

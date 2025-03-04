@@ -1,3 +1,5 @@
+use crate::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
+use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
 use crate::structures::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::endian::Endian;
@@ -7,7 +9,7 @@ use serde_json::Value;
 use std::fmt::{self, Debug};
 use std::str::FromStr;
 
-pub trait DataType: Debug + Send + Sync {
+pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
     fn get_name(&self) -> &str;
     fn get_size_in_bytes(&self) -> u64;
     fn get_endian(&self) -> Endian;
@@ -15,6 +17,13 @@ pub trait DataType: Debug + Send + Sync {
 
     fn clone_internal(&self) -> Box<dyn DataType>;
     fn serialize_internal(&self) -> Value;
+
+    fn partial_eq_internal(
+        &self,
+        other: &Box<dyn DataType>,
+    ) -> bool {
+        self.get_name() == other.get_name()
+    }
 }
 
 impl Clone for Box<dyn DataType> {
@@ -57,6 +66,15 @@ impl<'de> Deserialize<'de> for Box<dyn DataType> {
         })?;
 
         Ok(constructor())
+    }
+}
+
+impl PartialEq for Box<dyn DataType> {
+    fn eq(
+        &self,
+        other: &Box<dyn DataType>,
+    ) -> bool {
+        self.partial_eq_internal(other)
     }
 }
 

@@ -61,7 +61,7 @@ impl ScanDispatcher {
         snapshot_region_filter: &SnapshotRegionFilter,
         data_type: &Box<dyn DataType>,
         memory_alignment: MemoryAlignment,
-    ) -> &dyn Scanner {
+    ) -> &'static dyn Scanner {
         /*
         let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment_size = memory_alignment as u64;
@@ -152,6 +152,6 @@ impl ScanDispatcher {
         } */
 
         // Default to scalar iterative
-        &ScannerScalarIterative::new()
+        &ScannerScalarIterative {}
     }
 }
