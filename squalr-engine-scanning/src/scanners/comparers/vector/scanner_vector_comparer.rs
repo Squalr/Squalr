@@ -1,7 +1,9 @@
 use crate::scanners::encoders::vector::simd_type::SimdType;
-use squalr_engine_common::structures::data_types::data_type::DataType;
+use squalr_engine_common::structures::data_types::data_type_deprecated::DataType;
 use squalr_engine_common::structures::endian::Endian;
-use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
+use squalr_engine_common::structures::scanning::scan_compare_type_delta::ScanCompareTypeDelta;
+use squalr_engine_common::structures::scanning::scan_compare_type_immediate::ScanCompareTypeImmediate;
+use squalr_engine_common::structures::scanning::scan_compare_type_relative::ScanCompareTypeRelative;
 use std::ops::{Add, Sub};
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
 use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
@@ -16,19 +18,19 @@ where
 {
     fn get_immediate_compare_func(
         &self,
-        scan_compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareTypeImmediate,
         data_type: &DataType,
     ) -> impl Fn(*const u8, *const u8) -> Simd<u8, N>;
 
     fn get_relative_compare_func(
         &self,
-        scan_compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareTypeRelative,
         data_type: &DataType,
     ) -> impl Fn(*const u8, *const u8) -> Simd<u8, N>;
 
     fn get_relative_delta_compare_func(
         &self,
-        scan_compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareTypeDelta,
         data_type: &DataType,
     ) -> impl Fn(*const u8, *const u8, *const u8) -> Simd<u8, N>;
 }
@@ -56,7 +58,7 @@ where
 {
     fn get_immediate_compare_func(
         &self,
-        scan_compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareTypeImmediate,
         data_type: &DataType,
     ) -> impl Fn(*const u8, *const u8) -> Simd<u8, N> {
         self.get_immediate_compare_func(scan_compare_type, data_type)
@@ -64,7 +66,7 @@ where
 
     fn get_relative_compare_func(
         &self,
-        scan_compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareTypeRelative,
         data_type: &DataType,
     ) -> impl Fn(*const u8, *const u8) -> Simd<u8, N> {
         self.get_relative_compare_func(scan_compare_type, data_type)
@@ -72,7 +74,7 @@ where
 
     fn get_relative_delta_compare_func(
         &self,
-        scan_compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareTypeDelta,
         data_type: &DataType,
     ) -> impl Fn(*const u8, *const u8, *const u8) -> Simd<u8, N> {
         self.get_relative_delta_compare_func(scan_compare_type, data_type)
@@ -95,43 +97,40 @@ where
 
     pub fn get_immediate_compare_func(
         &self,
-        scan_compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareTypeImmediate,
         data_type: &DataType,
     ) -> impl Fn(*const u8, *const u8) -> Simd<u8, N> {
         match scan_compare_type {
-            ScanCompareType::Equal => Self::get_compare_equal_func(data_type),
-            ScanCompareType::NotEqual => Self::get_compare_not_equal_func(data_type),
-            ScanCompareType::GreaterThan => Self::get_compare_greater_than(data_type),
-            ScanCompareType::GreaterThanOrEqual => Self::get_compare_greater_than_or_equal(data_type),
-            ScanCompareType::LessThan => Self::get_compare_less_than(data_type),
-            ScanCompareType::LessThanOrEqual => Self::get_compare_less_than_or_equal(data_type),
-            _ => panic!("Unsupported type passed to get_immediate_compare_func"),
+            ScanCompareTypeImmediate::Equal => Self::get_compare_equal_func(data_type),
+            ScanCompareTypeImmediate::NotEqual => Self::get_compare_not_equal_func(data_type),
+            ScanCompareTypeImmediate::GreaterThan => Self::get_compare_greater_than(data_type),
+            ScanCompareTypeImmediate::GreaterThanOrEqual => Self::get_compare_greater_than_or_equal(data_type),
+            ScanCompareTypeImmediate::LessThan => Self::get_compare_less_than(data_type),
+            ScanCompareTypeImmediate::LessThanOrEqual => Self::get_compare_less_than_or_equal(data_type),
         }
     }
 
     pub fn get_relative_compare_func(
         &self,
-        scan_compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareTypeRelative,
         data_type: &DataType,
     ) -> impl Fn(*const u8, *const u8) -> Simd<u8, N> {
         match scan_compare_type {
-            ScanCompareType::Changed => Self::get_compare_changed(data_type),
-            ScanCompareType::Unchanged => Self::get_compare_unchanged(data_type),
-            ScanCompareType::Increased => Self::get_compare_increased(data_type),
-            ScanCompareType::Decreased => Self::get_compare_decreased(data_type),
-            _ => panic!("Unsupported type passed to get_relative_compare_func"),
+            ScanCompareTypeRelative::Changed => Self::get_compare_changed(data_type),
+            ScanCompareTypeRelative::Unchanged => Self::get_compare_unchanged(data_type),
+            ScanCompareTypeRelative::Increased => Self::get_compare_increased(data_type),
+            ScanCompareTypeRelative::Decreased => Self::get_compare_decreased(data_type),
         }
     }
 
     pub fn get_relative_delta_compare_func(
         &self,
-        scan_compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareTypeDelta,
         data_type: &DataType,
     ) -> impl Fn(*const u8, *const u8, *const u8) -> Simd<u8, N> {
         match scan_compare_type {
-            ScanCompareType::IncreasedByX => Self::get_compare_increased_by(data_type),
-            ScanCompareType::DecreasedByX => Self::get_compare_decreased_by(data_type),
-            _ => panic!("Unsupported type passed to get_relative_delta_compare_func"),
+            ScanCompareTypeDelta::IncreasedByX => Self::get_compare_increased_by(data_type),
+            ScanCompareTypeDelta::DecreasedByX => Self::get_compare_decreased_by(data_type),
         }
     }
 

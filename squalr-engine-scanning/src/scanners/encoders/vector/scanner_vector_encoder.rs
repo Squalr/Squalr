@@ -1,9 +1,7 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::comparers::vector::scanner_vector_comparer::VectorComparer;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::scanners::encoders::vector::simd_type::SimdType;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
-use squalr_engine_common::structures::data_types::data_type::DataType;
 use std::marker::PhantomData;
 use std::simd::prelude::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};

@@ -1,4 +1,11 @@
-use squalr_engine_common::structures::{data_types::data_type::DataType, endian::Endian, scanning::scan_compare_type::ScanCompareType};
+use squalr_engine_common::structures::{
+    data_types::data_type::DataType,
+    endian::Endian,
+    scanning::{
+        scan_compare_type_delta::ScanCompareTypeDelta, scan_compare_type_immediate::ScanCompareTypeImmediate,
+        scan_compare_type_relative::ScanCompareTypeRelative,
+    },
+};
 use std::sync::Once;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities)
@@ -56,42 +63,41 @@ impl ScannerScalarComparer {
 
     pub fn get_immediate_compare_func(
         &self,
-        scan_compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareTypeImmediate,
         data_type: &DataType,
     ) -> ScalarCompareFnImmediate {
         match scan_compare_type {
-            ScanCompareType::Equal => self.get_compare_equal(data_type),
-            ScanCompareType::NotEqual => self.get_compare_not_equal(data_type),
-            ScanCompareType::GreaterThan => self.get_compare_greater_than(data_type),
-            ScanCompareType::GreaterThanOrEqual => self.get_compare_greater_than_or_equal(data_type),
-            ScanCompareType::LessThan => self.get_compare_less_than(data_type),
-            ScanCompareType::LessThanOrEqual => self.get_compare_less_than_or_equal(data_type),
-            _ => panic!("Unsupported type passed to get_immediate_compare_func"),
+            ScanCompareTypeImmediate::Equal => self.get_compare_equal(data_type),
+            ScanCompareTypeImmediate::NotEqual => self.get_compare_not_equal(data_type),
+            ScanCompareTypeImmediate::GreaterThan => self.get_compare_greater_than(data_type),
+            ScanCompareTypeImmediate::GreaterThanOrEqual => self.get_compare_greater_than_or_equal(data_type),
+            ScanCompareTypeImmediate::LessThan => self.get_compare_less_than(data_type),
+            ScanCompareTypeImmediate::LessThanOrEqual => self.get_compare_less_than_or_equal(data_type),
         }
     }
 
     pub fn get_relative_compare_func(
         &self,
-        scan_compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareTypeRelative,
         data_type: &DataType,
     ) -> ScalarCompareFnRelative {
         match scan_compare_type {
-            ScanCompareType::Changed => self.get_compare_changed(data_type),
-            ScanCompareType::Unchanged => self.get_compare_unchanged(data_type),
-            ScanCompareType::Increased => self.get_compare_increased(data_type),
-            ScanCompareType::Decreased => self.get_compare_decreased(data_type),
+            ScanCompareTypeRelative::Changed => self.get_compare_changed(data_type),
+            ScanCompareTypeRelative::Unchanged => self.get_compare_unchanged(data_type),
+            ScanCompareTypeRelative::Increased => self.get_compare_increased(data_type),
+            ScanCompareTypeRelative::Decreased => self.get_compare_decreased(data_type),
             _ => panic!("Unsupported type passed to get_relative_compare_func"),
         }
     }
 
     pub fn get_relative_delta_compare_func(
         &self,
-        scan_compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareTypeDelta,
         data_type: &DataType,
     ) -> ScalarCompareFnDelta {
         match scan_compare_type {
-            ScanCompareType::IncreasedByX => self.get_compare_increased_by(data_type),
-            ScanCompareType::DecreasedByX => self.get_compare_decreased_by(data_type),
+            ScanCompareTypeDelta::IncreasedByX => self.get_compare_increased_by(data_type),
+            ScanCompareTypeDelta::DecreasedByX => self.get_compare_decreased_by(data_type),
             _ => panic!("Unsupported type passed to get_relative_delta_compare_func"),
         }
     }

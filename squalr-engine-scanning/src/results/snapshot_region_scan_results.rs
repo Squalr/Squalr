@@ -24,7 +24,7 @@ impl SnapshotRegionScanResults {
 
     pub fn get_scan_results_by_data_type(
         &self,
-        data_type: &DataType,
+        data_type: &Box<dyn DataType>,
     ) -> Option<&SnapshotRegionFilterCollection> {
         for collection in &self.snapshot_region_filter_collections {
             if collection.get_data_type() == data_type {

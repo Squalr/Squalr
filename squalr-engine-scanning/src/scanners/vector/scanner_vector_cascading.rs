@@ -1,5 +1,4 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::comparers::vector::scanner_vector_comparer::ScannerVectorComparer;
 use crate::scanners::encoders::vector::scanner_vector_encoder_cascading_periodic::ScannerVectorEncoderCascadingPeriodic;
 use crate::scanners::encoders::vector::simd_type::SimdType;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
@@ -55,7 +54,7 @@ where
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        data_type: &DataType,
+        data_type: &Box<dyn DataType>,
         _: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
         let simd_all_true_mask = Simd::<u8, N>::splat(0xFF);

@@ -10,7 +10,7 @@ pub trait Scanner: Send + Sync {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        data_type: &DataType,
+        data_type: &Box<dyn DataType>,
         memory_alignment: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter>;
 }

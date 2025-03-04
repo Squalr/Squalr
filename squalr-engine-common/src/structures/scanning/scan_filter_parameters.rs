@@ -10,48 +10,32 @@ use std::str::FromStr;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanFilterParameters {
     alignment: Option<MemoryAlignment>,
-    data_type: DataType,
-}
-
-impl Default for ScanFilterParameters {
-    fn default() -> Self {
-        ScanFilterParameters::new()
-    }
+    data_type: Box<dyn DataType>,
 }
 
 impl ScanFilterParameters {
-    pub fn new() -> Self {
-        Self {
-            alignment: None,
-            data_type: DataType::default(),
-        }
-    }
-
-    pub fn new_with_value(
+    pub fn new(
         alignment: Option<MemoryAlignment>,
-        data_type: DataType,
+        data_type: Box<dyn DataType>,
     ) -> Self {
-        Self {
-            alignment: alignment,
-            data_type: data_type,
-        }
+        Self { alignment, data_type }
     }
 
     pub fn get_memory_alignment(&self) -> &Option<MemoryAlignment> {
-        return &self.alignment;
+        &self.alignment
     }
 
     pub fn get_memory_alignment_or_default(&self) -> MemoryAlignment {
         if let Some(alignment) = &self.alignment {
-            return alignment.to_owned();
+            alignment.to_owned()
+        } else {
+            // Squalr is fast, so we can just default to an alignment of 1 to prevent missing anything important.
+            MemoryAlignment::Alignment1
         }
-
-        // Squalr is fast, so we can just default to an alignment of 1 to prevent missing anything important.
-        return MemoryAlignment::Alignment1;
     }
 
-    pub fn get_data_type(&self) -> &DataType {
-        return &self.data_type;
+    pub fn get_data_type(&self) -> &Box<dyn DataType> {
+        &self.data_type
     }
 }
 
@@ -65,12 +49,12 @@ pub enum ScanFilterParametersParseError {
 impl fmt::Display for ScanFilterParametersParseError {
     fn fmt(
         &self,
-        f: &mut fmt::Formatter<'_>,
+        formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            ScanFilterParametersParseError::InvalidFormat => write!(f, "Invalid format"),
-            ScanFilterParametersParseError::InvalidAlignment(e) => write!(f, "Invalid alignment: {}", e),
-            ScanFilterParametersParseError::InvalidDataType => write!(f, "Invalid data type"),
+            ScanFilterParametersParseError::InvalidFormat => write!(formatter, "Invalid format"),
+            ScanFilterParametersParseError::InvalidAlignment(err) => write!(formatter, "Invalid alignment: {}", err),
+            ScanFilterParametersParseError::InvalidDataType => write!(formatter, "Invalid data type"),
         }
     }
 }
@@ -84,8 +68,8 @@ impl From<ParseIntError> for ScanFilterParametersParseError {
 impl FromStr for ScanFilterParameters {
     type Err = ScanFilterParametersParseError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = s.split('=').collect();
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = string.split('=').collect();
 
         // Check if there is at least one part, and at most two
         if parts.len() < 1 || parts.len() > 2 {
@@ -95,13 +79,14 @@ impl FromStr for ScanFilterParameters {
         // Parse the data type from the first part
         let data_type = parts[0]
             .trim()
-            .parse::<DataType>()
+            .parse::<Box<dyn DataType>>()
             .map_err(|_| ScanFilterParametersParseError::InvalidDataType)?;
 
         // Handle the optional alignment part
         let alignment = if parts.len() == 2 {
             match parts[1].trim() {
-                "" => None, // No alignment provided
+                // No alignment provided
+                "" => None,
                 alignment_str => {
                     let alignment_value: i32 = alignment_str.parse()?;
                     Some(MemoryAlignment::from(alignment_value))
@@ -112,6 +97,6 @@ impl FromStr for ScanFilterParameters {
         };
 
         // Create a new ScanFilterParameters with the parsed values
-        Ok(ScanFilterParameters::new_with_value(alignment, data_type))
+        Ok(ScanFilterParameters::new(alignment, data_type))
     }
 }

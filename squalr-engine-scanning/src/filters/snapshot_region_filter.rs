@@ -52,7 +52,7 @@ impl SnapshotRegionFilter {
     /// Gets the number of elements contained by this filter for the given data type and alignment.
     pub fn get_element_count(
         &self,
-        data_type: &DataType,
+        data_type: &Box<dyn DataType>,
         memory_alignment: MemoryAlignment,
     ) -> u64 {
         let data_type_size = data_type.get_size_in_bytes();

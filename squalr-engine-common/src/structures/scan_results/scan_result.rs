@@ -1,6 +1,5 @@
-use crate::structures::data_types::data_type::DataType;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
-use crate::structures::values::data_value::DataValue;
+use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -9,7 +8,7 @@ pub struct ScanResult {
     base_result: ScanResultBase,
     module: String,
     module_offset: u64,
-    recently_read_value: Option<DataValue>,
+    recently_read_value: Option<Box<dyn DataValue>>,
 }
 
 impl ScanResult {
@@ -17,7 +16,7 @@ impl ScanResult {
         base_result: ScanResultBase,
         module: String,
         module_offset: u64,
-        recently_read_value: Option<DataValue>,
+        recently_read_value: Option<Box<dyn DataValue>>,
     ) -> Self {
         Self {
             base_result,
@@ -27,7 +26,7 @@ impl ScanResult {
         }
     }
 
-    pub fn get_data_type(&self) -> &DataType {
+    pub fn get_data_type(&self) -> &Box<dyn DataType> {
         &self.base_result.data_type
     }
 
@@ -47,15 +46,15 @@ impl ScanResult {
         self.module_offset
     }
 
-    pub fn get_recently_read_value(&self) -> &Option<DataValue> {
+    pub fn get_recently_read_value(&self) -> &Option<Box<dyn DataValue>> {
         &self.recently_read_value
     }
 
-    pub fn get_current_value(&self) -> &Option<DataValue> {
+    pub fn get_current_value(&self) -> &Option<Box<dyn DataValue>> {
         &self.base_result.previous_value
     }
 
-    pub fn get_previous_value(&self) -> &Option<DataValue> {
+    pub fn get_previous_value(&self) -> &Option<Box<dyn DataValue>> {
         &self.base_result.previous_value
     }
 }

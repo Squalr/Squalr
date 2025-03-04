@@ -1,18 +1,16 @@
 use crate::structures::data_types::data_type::DataType;
 use crate::structures::endian::Endian;
-use crate::structures::values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::str::FromStr;
 
-pub type FieldMemoryLoadFunc = unsafe fn(&mut DynamicStructField, *const u8);
-
 // TODO: Think over whether this belongs in common or projects.
 // AnonymousValue, DataValue, etc may cover common use cases.
+/*
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct DynamicStructField {
     pub symbol: String,
-    pub data_type: DataType,
+    pub data_type: Box<dyn DataType>,
     pub data_value: DataValue,
 }
 
@@ -257,3 +255,4 @@ impl FromStr for DynamicStructField {
         Ok(DynamicStructField::new(symbol.to_string(), data_type, value))
     }
 }
+*/

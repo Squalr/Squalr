@@ -1,9 +1,9 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::comparers::scalar::scanner_scalar_comparer::ScannerScalarComparer;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_common::structures::data_types::data_type::DataType;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
+use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use std::sync::Once;
 
 pub struct ScannerScalarEncoder {}
@@ -35,12 +35,11 @@ impl ScannerScalarEncoder {
         current_value_pointer: *const u8,
         previous_value_pointer: *const u8,
         scan_parameters: &ScanParameters,
-        data_type: &DataType,
+        data_type: &Box<dyn DataType>,
         memory_alignment: MemoryAlignment,
         base_address: u64,
         element_count: u64,
     ) -> Vec<SnapshotRegionFilter> {
-        let comparer = ScannerScalarComparer::get_instance();
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment = memory_alignment as u64;
@@ -56,41 +55,43 @@ impl ScannerScalarEncoder {
                 }
             };
 
-            if scan_parameters.is_immediate_comparison() {
-                let immediate_value = scan_parameters.deanonymize_type(&data_type);
-                let immediate_value_ptr = immediate_value.as_ptr();
-                let compare_func = comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), &data_type);
+            match scan_parameters.get_compare_type() {
+                ScanCompareType::Immediate(scan_compare_type_immediate) => {
+                    let immediate_value = scan_parameters.deanonymize_type(&data_type);
+                    let immediate_value_ptr = immediate_value.as_ptr();
+                    let compare_func = data_type.get_immediate_compare_func(scan_parameters.get_compare_type(), &data_type);
 
-                for index in 0..element_count {
-                    let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
-                    let result = compare_func(current_value_pointer, immediate_value_ptr);
+                    for index in 0..element_count {
+                        let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
+                        let result = compare_func(current_value_pointer, immediate_value_ptr);
 
-                    encode_results(result);
+                        encode_results(result);
+                    }
                 }
-            } else if scan_parameters.is_relative_comparison() {
-                let compare_func = comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type);
+                ScanCompareType::Relative(scan_compare_type_relative) => {
+                    let compare_func = data_type.get_relative_compare_func(scan_parameters.get_compare_type(), data_type);
 
-                for index in 0..element_count {
-                    let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
-                    let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment as usize);
-                    let result = compare_func(current_value_pointer, previous_value_pointer);
+                    for index in 0..element_count {
+                        let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
+                        let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment as usize);
+                        let result = compare_func(current_value_pointer, previous_value_pointer);
 
-                    encode_results(result);
+                        encode_results(result);
+                    }
                 }
-            } else if scan_parameters.is_relative_delta_comparison() {
-                let compare_func = comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type);
-                let delta_arg = scan_parameters.deanonymize_type(&data_type);
-                let delta_arg_ptr = delta_arg.as_ptr();
+                ScanCompareType::Delta(scan_compare_type_delta) => {
+                    let compare_func = data_type.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type);
+                    let delta_arg = scan_parameters.deanonymize_type(&data_type);
+                    let delta_arg_ptr = delta_arg.as_ptr();
 
-                for index in 0..element_count {
-                    let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
-                    let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment as usize);
-                    let result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);
+                    for index in 0..element_count {
+                        let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
+                        let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment as usize);
+                        let result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);
 
-                    encode_results(result);
+                        encode_results(result);
+                    }
                 }
-            } else {
-                panic!("Unrecognized comparison");
             }
         }
 

@@ -1,7 +1,7 @@
 use squalr_engine_common::structures::{
     data_types::data_type::DataType,
+    data_values::{anonymous_value::AnonymousValue, data_value::DataValue},
     scanning::scan_compare_type::ScanCompareType,
-    values::{anonymous_value::AnonymousValue, data_value::DataValue},
 };
 
 #[derive(Debug, Clone)]
@@ -34,8 +34,8 @@ impl ScanParameters {
 
     pub fn deanonymize_type(
         &self,
-        data_type: &DataType,
-    ) -> DataValue {
+        data_type: &Box<dyn DataType>,
+    ) -> Box<dyn DataValue> {
         self.compare_immediate
             .as_ref()
             .and_then(|value| value.deanonymize_type(data_type).ok())
@@ -58,69 +58,10 @@ impl ScanParameters {
         }
     }
 
-    pub fn is_relative_delta_comparison(&self) -> bool {
-        match self.compare_type {
-            ScanCompareType::IncreasedByX | ScanCompareType::DecreasedByX => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_relative_comparison(&self) -> bool {
-        match self.compare_type {
-            ScanCompareType::Changed | ScanCompareType::Unchanged | ScanCompareType::Increased | ScanCompareType::Decreased => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_immediate_comparison(&self) -> bool {
-        match self.compare_type {
-            ScanCompareType::Equal
-            | ScanCompareType::NotEqual
-            | ScanCompareType::GreaterThan
-            | ScanCompareType::GreaterThanOrEqual
-            | ScanCompareType::LessThan
-            | ScanCompareType::LessThanOrEqual
-            | ScanCompareType::IncreasedByX
-            | ScanCompareType::DecreasedByX => true,
-            _ => false,
-        }
-    }
-
     pub fn clone(&self) -> Self {
         ScanParameters {
             compare_type: self.compare_type.clone(),
             compare_immediate: self.compare_immediate.clone(),
-        }
-    }
-
-    pub fn conflicts_with(
-        &self,
-        other: &ScanParameters,
-    ) -> bool {
-        if self.compare_type == other.compare_type {
-            true
-        } else if !self.is_immediate_comparison() && !other.is_immediate_comparison() {
-            true
-        } else if self.is_immediate_comparison() && other.is_immediate_comparison() {
-            if (matches!(
-                self.compare_type,
-                ScanCompareType::LessThan | ScanCompareType::LessThanOrEqual | ScanCompareType::NotEqual
-            ) && matches!(
-                other.compare_type,
-                ScanCompareType::GreaterThan | ScanCompareType::GreaterThanOrEqual | ScanCompareType::NotEqual
-            )) || (matches!(
-                self.compare_type,
-                ScanCompareType::GreaterThan | ScanCompareType::GreaterThanOrEqual | ScanCompareType::NotEqual
-            ) && matches!(
-                other.compare_type,
-                ScanCompareType::LessThan | ScanCompareType::LessThanOrEqual | ScanCompareType::NotEqual
-            )) {
-                true
-            } else {
-                false
-            }
-        } else {
-            false
         }
     }
 }

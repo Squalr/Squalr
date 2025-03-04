@@ -1,7 +1,5 @@
 use crate::memory_reader::memory_reader_trait::IMemoryReader;
-use squalr_engine_common::structures::dynamic_struct::dynamic_struct::DynamicStruct;
-use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
-use squalr_engine_common::structures::values::data_value::DataValue;
+use squalr_engine_common::structures::{data_values::data_value::DataValue, processes::process_info::OpenedProcessInfo};
 use std::os::raw::c_void;
 use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 
@@ -20,7 +18,7 @@ impl IMemoryReader for WindowsMemoryReader {
         &self,
         process_info: &OpenedProcessInfo,
         address: u64,
-        data_value: &mut DataValue,
+        data_value: &mut Box<dyn DataValue>,
     ) -> bool {
         unsafe {
             let size = data_value.get_size_in_bytes() as usize;
@@ -40,6 +38,8 @@ impl IMemoryReader for WindowsMemoryReader {
             return result != 0;
         }
     }
+
+    /*
     fn read_struct(
         &self,
         process_info: &OpenedProcessInfo,
@@ -63,7 +63,7 @@ impl IMemoryReader for WindowsMemoryReader {
 
             return result != 0;
         }
-    }
+    }*/
 
     fn read_bytes(
         &self,

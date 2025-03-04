@@ -8,7 +8,7 @@ pub struct SnapshotRegionFilterCollection {
     snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
 
     /// The data type of all elements in this filter.
-    data_type: DataType,
+    data_type: Box<dyn DataType>,
 
     // The memory alignment of all elements in this filter.
     memory_alignment: MemoryAlignment,
@@ -22,7 +22,7 @@ impl SnapshotRegionFilterCollection {
     /// representing regions of memory with the specified data type and alignment.
     pub fn new(
         mut snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
-        data_type: DataType,
+        data_type: Box<dyn DataType>,
         memory_alignment: MemoryAlignment,
     ) -> Self {
         // Sort each inner vector by base address.
@@ -84,7 +84,7 @@ impl SnapshotRegionFilterCollection {
     }
 
     /// Gets the data type of this snapshot region filter collection.
-    pub fn get_data_type(&self) -> &DataType {
+    pub fn get_data_type(&self) -> &Box<dyn DataType> {
         &self.data_type
     }
 

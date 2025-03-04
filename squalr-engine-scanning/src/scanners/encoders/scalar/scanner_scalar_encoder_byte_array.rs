@@ -39,7 +39,7 @@ impl ScannerScalarEncoderByteArray {
         current_value_pointer: *const u8,
         _prevous_value_pointer: *const u8,
         scan_parameters: &ScanParameters,
-        data_type: &DataType,
+        data_type: &Box<dyn DataType>,
         _memory_alignment: MemoryAlignment,
         base_address: u64,
         region_size: u64,

@@ -1,5 +1,5 @@
 use crate::structures::data_types::data_type::DataType;
-use crate::structures::values::data_value::DataValue;
+use crate::structures::data_values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -18,11 +18,14 @@ impl AnonymousValue {
 
     pub fn deanonymize_type(
         &self,
-        target_type: &DataType,
-    ) -> Result<DataValue, String> {
+        target_type: &Box<dyn DataType>,
+    ) -> Result<Box<dyn DataValue>, String> {
         let value_and_type_str = format!("{}={}", self.value_str, target_type);
 
-        return value_and_type_str.parse::<DataValue>();
+        match value_and_type_str.parse::<Box<dyn DataValue>>() {
+            Ok(result) => Ok(result),
+            Err(err) => Err(err.to_string()),
+        }
     }
 }
 
@@ -36,6 +39,6 @@ impl FromStr for AnonymousValue {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        return Ok(AnonymousValue::new(string));
+        Ok(AnonymousValue::new(string))
     }
 }

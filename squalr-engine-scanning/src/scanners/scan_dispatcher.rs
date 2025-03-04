@@ -123,7 +123,7 @@ impl ScanDispatcher {
     fn acquire_scanner_instance(
         &self,
         snapshot_region_filter: &SnapshotRegionFilter,
-        data_type: &DataType,
+        data_type: &Box<dyn DataType>,
         memory_alignment: MemoryAlignment,
     ) -> &dyn Scanner {
         /*
@@ -145,9 +145,9 @@ impl ScanDispatcher {
                 }
                 // Check if a vector (SIMD) scan can be applied
                 _ => {
-                    // We actually don't really care whether the processor supports AVX-512, AVX2, etc, Rust is smart enough to abstract this.
-                    // It is actually more performant to greedily try to use AVX-512 even if its not available. Rust seems to fall back to
-                    // unrolled loops of AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
+                    // We actually don't really care whether the processor supports AVX-512, AVX2, etc, PortableSimd is smart enough to
+                    // abstract this. It is actually more performant to greedily try to use AVX-512 even if its not available. PortableSimd
+                    // seems to fall back to unrolled AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
                     if region_size >= 64 {
                         if memory_alignment_size < data_type_size {
                             return &self.scanner_cascading_chunked_64;

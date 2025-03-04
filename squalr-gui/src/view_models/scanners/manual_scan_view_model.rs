@@ -14,7 +14,7 @@ use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest;
 use squalr_engine_api::commands::scan::hybrid::scan_hybrid_request::ScanHybridRequest;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
-use squalr_engine_common::structures::data_types::data_type::DataType;
+use squalr_engine_common::structures::data_types::data_type_deprecated::DataType;
 use squalr_engine_common::structures::endian::Endian;
 use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_common::structures::values::anonymous_value::AnonymousValue;
@@ -54,27 +54,27 @@ impl ManualScanViewModel {
     ) {
         // TODO: Push this into a converter perhaps, although gets tricky with args
         let scan_filter_parameters = match data_type {
-            DataTypeView::I8 => ScanFilterParameters::new_with_value(None, DataType::I8()),
-            DataTypeView::U8 => ScanFilterParameters::new_with_value(None, DataType::U8()),
-            DataTypeView::I16 => ScanFilterParameters::new_with_value(None, DataType::I16(Endian::Little)),
-            DataTypeView::I16be => ScanFilterParameters::new_with_value(None, DataType::I16(Endian::Big)),
-            DataTypeView::U16 => ScanFilterParameters::new_with_value(None, DataType::U16(Endian::Little)),
-            DataTypeView::U16be => ScanFilterParameters::new_with_value(None, DataType::U16(Endian::Big)),
-            DataTypeView::I32 => ScanFilterParameters::new_with_value(None, DataType::I32(Endian::Little)),
-            DataTypeView::I32be => ScanFilterParameters::new_with_value(None, DataType::I32(Endian::Big)),
-            DataTypeView::U32 => ScanFilterParameters::new_with_value(None, DataType::U32(Endian::Little)),
-            DataTypeView::U32be => ScanFilterParameters::new_with_value(None, DataType::U32(Endian::Big)),
-            DataTypeView::I64 => ScanFilterParameters::new_with_value(None, DataType::I64(Endian::Little)),
-            DataTypeView::I64be => ScanFilterParameters::new_with_value(None, DataType::I64(Endian::Big)),
-            DataTypeView::U64 => ScanFilterParameters::new_with_value(None, DataType::U64(Endian::Little)),
-            DataTypeView::U64be => ScanFilterParameters::new_with_value(None, DataType::U64(Endian::Big)),
-            DataTypeView::F32 => ScanFilterParameters::new_with_value(None, DataType::F32(Endian::Little)),
-            DataTypeView::F32be => ScanFilterParameters::new_with_value(None, DataType::F32(Endian::Big)),
-            DataTypeView::F64 => ScanFilterParameters::new_with_value(None, DataType::F64(Endian::Little)),
-            DataTypeView::F64be => ScanFilterParameters::new_with_value(None, DataType::F64(Endian::Big)),
-            DataTypeView::Bytes => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)), // TODO
-            DataTypeView::String => ScanFilterParameters::new_with_value(None, DataType::Bytes(0)), // TODO
-            DataTypeView::Bitfield => ScanFilterParameters::new_with_value(None, DataType::BitField(0)), // TODO
+            DataTypeView::I8 => ScanFilterParameters::new(None, DataType::I8()),
+            DataTypeView::U8 => ScanFilterParameters::new(None, DataType::U8()),
+            DataTypeView::I16 => ScanFilterParameters::new(None, DataType::I16(Endian::Little)),
+            DataTypeView::I16be => ScanFilterParameters::new(None, DataType::I16(Endian::Big)),
+            DataTypeView::U16 => ScanFilterParameters::new(None, DataType::U16(Endian::Little)),
+            DataTypeView::U16be => ScanFilterParameters::new(None, DataType::U16(Endian::Big)),
+            DataTypeView::I32 => ScanFilterParameters::new(None, DataType::I32(Endian::Little)),
+            DataTypeView::I32be => ScanFilterParameters::new(None, DataType::I32(Endian::Big)),
+            DataTypeView::U32 => ScanFilterParameters::new(None, DataType::U32(Endian::Little)),
+            DataTypeView::U32be => ScanFilterParameters::new(None, DataType::U32(Endian::Big)),
+            DataTypeView::I64 => ScanFilterParameters::new(None, DataType::I64(Endian::Little)),
+            DataTypeView::I64be => ScanFilterParameters::new(None, DataType::I64(Endian::Big)),
+            DataTypeView::U64 => ScanFilterParameters::new(None, DataType::U64(Endian::Little)),
+            DataTypeView::U64be => ScanFilterParameters::new(None, DataType::U64(Endian::Big)),
+            DataTypeView::F32 => ScanFilterParameters::new(None, DataType::F32(Endian::Little)),
+            DataTypeView::F32be => ScanFilterParameters::new(None, DataType::F32(Endian::Big)),
+            DataTypeView::F64 => ScanFilterParameters::new(None, DataType::F64(Endian::Little)),
+            DataTypeView::F64be => ScanFilterParameters::new(None, DataType::F64(Endian::Big)),
+            DataTypeView::Bytes => ScanFilterParameters::new(None, DataType::Bytes(0)), // TODO
+            DataTypeView::String => ScanFilterParameters::new(None, DataType::Bytes(0)), // TODO
+            DataTypeView::Bitfield => ScanFilterParameters::new(None, DataType::BitField(0)), // TODO
         };
 
         let scan_new_request = ScanNewRequest {

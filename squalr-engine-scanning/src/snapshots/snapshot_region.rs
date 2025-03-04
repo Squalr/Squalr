@@ -3,9 +3,9 @@ use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterColle
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_common::structures::data_types::data_type::DataType;
+use squalr_engine_common::structures::data_values::data_value::DataValue;
 use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
-use squalr_engine_common::structures::values::data_value::DataValue;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
@@ -74,8 +74,8 @@ impl SnapshotRegion {
     pub fn get_current_value(
         &self,
         element_address: u64,
-        data_type: &DataType,
-    ) -> Option<DataValue> {
+        data_type: &Box<dyn DataType>,
+    ) -> Option<Box<dyn DataValue>> {
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
         let data_type_size = data_type.get_size_in_bytes();
 
@@ -95,8 +95,8 @@ impl SnapshotRegion {
     pub fn get_previous_value(
         &self,
         element_address: u64,
-        data_type: &DataType,
-    ) -> Option<DataValue> {
+        data_type: &Box<dyn DataType>,
+    ) -> Option<Box<dyn DataValue>> {
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
         let data_type_size = data_type.get_size_in_bytes();
 

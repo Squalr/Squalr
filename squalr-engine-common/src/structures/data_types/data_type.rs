@@ -1,178 +1,83 @@
+use crate::structures::data_types::data_type_registry::DataTypeRegistry;
+use crate::structures::data_values::data_value::DataValue;
 use crate::structures::endian::Endian;
-use crate::structures::values::data_value::DataValue;
-use serde::{Deserialize, Serialize};
-use std::fmt;
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
+use std::fmt::{self, Debug};
 use std::str::FromStr;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum DataType {
-    U8(),
-    U16(Endian),
-    U32(Endian),
-    U64(Endian),
-    I8(),
-    I16(Endian),
-    I32(Endian),
-    I64(Endian),
-    F32(Endian),
-    F64(Endian),
-    String(u64),
-    Bytes(u64),
-    BitField(u16),
+pub trait DataType: Debug + Send + Sync {
+    fn get_name(&self) -> &str;
+    fn get_size_in_bytes(&self) -> u64;
+    fn get_endian(&self) -> Endian;
+    fn to_default_value(&self) -> Box<dyn DataValue>;
+
+    fn clone_internal(&self) -> Box<dyn DataType>;
+    fn serialize_internal(&self) -> Value;
 }
 
-impl Default for DataType {
-    fn default() -> Self {
-        DataType::U8()
+impl Clone for Box<dyn DataType> {
+    fn clone(&self) -> Box<dyn DataType> {
+        self.clone_internal()
     }
 }
 
-impl DataType {
-    pub fn get_size_in_bytes(&self) -> u64 {
-        match self {
-            DataType::U8() => std::mem::size_of::<u8>() as u64,
-            DataType::U16(_) => std::mem::size_of::<u16>() as u64,
-            DataType::U32(_) => std::mem::size_of::<u32>() as u64,
-            DataType::U64(_) => std::mem::size_of::<u64>() as u64,
-            DataType::I8() => std::mem::size_of::<i8>() as u64,
-            DataType::I16(_) => std::mem::size_of::<i16>() as u64,
-            DataType::I32(_) => std::mem::size_of::<i32>() as u64,
-            DataType::I64(_) => std::mem::size_of::<i64>() as u64,
-            DataType::F32(_) => std::mem::size_of::<f32>() as u64,
-            DataType::F64(_) => std::mem::size_of::<f64>() as u64,
-            DataType::String(size) => *size,
-            DataType::Bytes(size) => *size,
-            DataType::BitField(bits) => ((*bits + 7) / 8) as u64,
-        }
-    }
-
-    pub fn get_endian(&self) -> Endian {
-        match self {
-            DataType::U8() => Endian::default(),
-            DataType::U16(endian) => endian.clone(),
-            DataType::U32(endian) => endian.clone(),
-            DataType::U64(endian) => endian.clone(),
-            DataType::I8() => Endian::default(),
-            DataType::I16(endian) => endian.clone(),
-            DataType::I32(endian) => endian.clone(),
-            DataType::I64(endian) => endian.clone(),
-            DataType::F32(endian) => endian.clone(),
-            DataType::F64(endian) => endian.clone(),
-            DataType::String(_) => Endian::default(),
-            DataType::Bytes(_) => Endian::default(),
-            DataType::BitField(_) => Endian::default(),
-        }
-    }
-
-    pub fn to_default_value(&self) -> DataValue {
-        match self {
-            DataType::U8() => DataValue::U8(0),
-            DataType::U16(_) => DataValue::U16(0),
-            DataType::U32(_) => DataValue::U32(0),
-            DataType::U64(_) => DataValue::U64(0),
-            DataType::I8() => DataValue::I8(0),
-            DataType::I16(_) => DataValue::I16(0),
-            DataType::I32(_) => DataValue::I32(0),
-            DataType::I64(_) => DataValue::I64(0),
-            DataType::F32(_) => DataValue::F32(0.0),
-            DataType::F64(_) => DataValue::F64(0.0),
-            DataType::String(size) => DataValue::Bytes(vec![0; *size as usize]),
-            DataType::Bytes(size) => DataValue::Bytes(vec![0; *size as usize]),
-            DataType::BitField(bits) => DataValue::BitField {
-                value: vec![0; ((*bits + 7) / 8) as usize],
-                bits: *bits,
-            },
-        }
+impl Serialize for Box<dyn DataType> {
+    fn serialize<S>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("type_name", self.get_name())?;
+        map.end()
     }
 }
 
-impl fmt::Display for DataType {
+impl<'de> Deserialize<'de> for Box<dyn DataType> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value: Value = Deserialize::deserialize(deserializer)?;
+
+        // Extract type_name and data
+        let type_name = value
+            .get("type_name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| serde::de::Error::missing_field("type_name"))?;
+
+        // Lookup constructor from registry
+        let registry = DataTypeRegistry::get_registry();
+        let constructor = registry.get(type_name).ok_or_else(|| {
+            serde::de::Error::unknown_variant(type_name, &["i32" /*, other types... */]) // JIRA
+        })?;
+
+        Ok(constructor())
+    }
+}
+
+impl FromStr for Box<dyn DataType> {
+    type Err = serde_json::Error;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let registry = DataTypeRegistry::get_registry();
+        let constructor = registry.get(string).ok_or_else(|| {
+            serde::de::Error::unknown_variant(string, &["i32" /*, other types... */]) // JIRA
+        })?;
+
+        Ok(constructor())
+    }
+}
+
+impl fmt::Display for dyn DataType {
     fn fmt(
         &self,
-        f: &mut fmt::Formatter<'_>,
+        formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        match self {
-            DataType::U8() => write!(f, "u8"),
-            DataType::U16(endian) => write!(f, "u16:{}", endian),
-            DataType::U32(endian) => write!(f, "u32:{}", endian),
-            DataType::U64(endian) => write!(f, "u64:{}", endian),
-            DataType::I8() => write!(f, "i8"),
-            DataType::I16(endian) => write!(f, "i16:{}", endian),
-            DataType::I32(endian) => write!(f, "i32:{}", endian),
-            DataType::I64(endian) => write!(f, "i64:{}", endian),
-            DataType::F32(endian) => write!(f, "f32:{}", endian),
-            DataType::F64(endian) => write!(f, "f64:{}", endian),
-            DataType::String(size) => write!(f, "string:{}", size),
-            DataType::Bytes(size) => write!(f, "bytes:{}", size),
-            DataType::BitField(bits) => write!(f, "bitfield{}", bits),
-        }
-    }
-}
-
-impl FromStr for DataType {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = s.split(':').collect();
-        if parts.len() != 1 && parts.len() != 2 {
-            return Err("Invalid format".to_string());
-        }
-
-        let type_str = parts[0];
-
-        match type_str {
-            "string" => {
-                if parts.len() == 2 {
-                    let num_bytes: u64 = parts[1]
-                        .parse()
-                        .map_err(|_| "Invalid string length format".to_string())?;
-                    Ok(DataType::String(num_bytes))
-                } else {
-                    Err("String type requires a string length".to_string())
-                }
-            }
-            "bytes" => {
-                if parts.len() == 2 {
-                    let num_bytes: u64 = parts[1]
-                        .parse()
-                        .map_err(|_| "Invalid byte length format".to_string())?;
-                    Ok(DataType::Bytes(num_bytes))
-                } else {
-                    Err("Bytes type requires a byte length".to_string())
-                }
-            }
-            _ => {
-                let endian = if parts.len() == 2 {
-                    match parts[1] {
-                        "le" => Endian::Little,
-                        "be" => Endian::Big,
-                        _ => return Err("Invalid endian format".to_string()),
-                    }
-                } else {
-                    Endian::Little
-                };
-
-                match type_str {
-                    "u8" => Ok(DataType::U8()),
-                    "u16" => Ok(DataType::U16(endian)),
-                    "u32" => Ok(DataType::U32(endian)),
-                    "u64" => Ok(DataType::U64(endian)),
-                    "i8" => Ok(DataType::I8()),
-                    "i16" => Ok(DataType::I16(endian)),
-                    "i32" => Ok(DataType::I32(endian)),
-                    "i64" => Ok(DataType::I64(endian)),
-                    "f32" => Ok(DataType::F32(endian)),
-                    "f64" => Ok(DataType::F64(endian)),
-                    other if other.starts_with("bitfield") => {
-                        let bits_str = other.trim_start_matches("bitfield");
-                        let bits: u16 = bits_str
-                            .parse()
-                            .map_err(|_| "Invalid bitfield format".to_string())?;
-                        Ok(DataType::BitField(bits))
-                    }
-                    _ => Err("Unsupported type.".to_string()),
-                }
-            }
-        }
+        write!(formatter, "{}", self.get_name())
     }
 }
