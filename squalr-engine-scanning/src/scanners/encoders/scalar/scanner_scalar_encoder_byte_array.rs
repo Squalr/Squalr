@@ -24,10 +24,11 @@ impl ScannerScalarEncoderByteArray {
         base_address: u64,
         region_size: u64,
     ) -> Vec<SnapshotRegionFilter> {
+        /*
         match data_type {
             DataType::Bytes(_) => {}
             _ => panic!("Unsupported data type passed to byte array scanner"),
-        }
+        } */
 
         match scan_parameters.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {

@@ -44,7 +44,7 @@ pub trait ScalarComparable {
     fn get_compare_increased_by(&self) -> ScalarCompareFnDelta;
     fn get_compare_decreased_by(&self) -> ScalarCompareFnDelta;
 
-    fn get_scalar_compare_function_immediate(
+    fn get_scalar_compare_func_immediate(
         &self,
         scan_compare_type: ScanCompareTypeImmediate,
     ) -> ScalarCompareFnImmediate {

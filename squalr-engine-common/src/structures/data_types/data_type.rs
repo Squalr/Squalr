@@ -9,6 +9,7 @@ use serde_json::Value;
 use std::fmt::{self, Debug};
 use std::str::FromStr;
 
+/// Defines a generic scannable data type.
 pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
     fn get_name(&self) -> &str;
     fn get_size_in_bytes(&self) -> u64;

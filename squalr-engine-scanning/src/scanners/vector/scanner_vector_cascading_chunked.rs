@@ -4,13 +4,14 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use squalr_engine_common::structures::data_types::comparisons::vector_compare::VectorCompare;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use squalr_engine_common::structures::{data_types::data_type::DataType, scanning::scan_compare_type::ScanCompareType};
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorCascading<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount, {}
+    LaneCount<N>: SupportedLaneCount + VectorCompare<N>, {}
 
 /// Cascading scans are the single most complex case to handle due to the base addresses not being aligned.
 /// It turns out that this problem has been extensively researched under "string search algorithms".
@@ -21,7 +22,7 @@ where
 /// There may be a ton of sub-cases, and this may best be handled by reducing the problem to a several specialized cases.
 impl<const N: usize> Scanner for ScannerVectorCascading<N>
 where
-    LaneCount<N>: SupportedLaneCount,
+    LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
 {
     fn scan_region(
         &self,

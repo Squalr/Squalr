@@ -1,6 +1,7 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
+use squalr_engine_common::structures::data_types::comparisons::vector_compare::VectorCompare;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
 use std::simd::prelude::SimdPartialEq;
@@ -9,11 +10,11 @@ use std::simd::{LaneCount, Simd, SupportedLaneCount};
 /// Experimental feature. From testing, this appears to offer no performance gains over byte packing.
 pub struct ScannerVectorEncoderBitPacked<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount, {}
+    LaneCount<N>: SupportedLaneCount + VectorCompare<N>, {}
 
 impl<const N: usize> ScannerVectorEncoderBitPacked<N>
 where
-    LaneCount<N>: SupportedLaneCount,
+    LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
 {
     pub fn vector_encode(
         &self,
@@ -50,8 +51,8 @@ where
         unsafe {
             match scan_parameters.get_compare_type() {
                 ScanCompareType::Immediate(scan_compare_type_immediate) => {
+                    let compare_func = <LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_immediate(data_type, &scan_compare_type_immediate);
                     let immediate_value = scan_parameters.deanonymize_type(&data_type).as_ptr();
-                    let compare_func = vector_comparer.get_immediate_compare_func(scan_parameters.get_compare_type(), data_type);
 
                     match data_type_size_bytes {
                         4 => {
@@ -178,7 +179,7 @@ where
                     }
                 }
                 ScanCompareType::Relative(scan_compare_type_relative) => {
-                    let compare_func = vector_comparer.get_relative_compare_func(scan_parameters.get_compare_type(), data_type);
+                    let compare_func = <LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_relative(data_type, &scan_compare_type_relative);
 
                     // Compare as many full vectors as we can
                     for index in 0..total_iterations {
@@ -199,7 +200,7 @@ where
                     }
                 }
                 ScanCompareType::Delta(scan_compare_type_delta) => {
-                    let compare_func = vector_comparer.get_relative_delta_compare_func(scan_parameters.get_compare_type(), data_type);
+                    let compare_func = <LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_delta(data_type, &scan_compare_type_delta);
                     let delta_arg = scan_parameters.deanonymize_type(&data_type).as_ptr();
 
                     // Compare as many full vectors as we can

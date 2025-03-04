@@ -1,6 +1,6 @@
 use crate::{DataTypeView, ScanResultViewData};
 use slint_mvvm::view_data_converter::ViewDataConverter;
-use squalr_engine_common::structures::{data_types::data_type_deprecated::DataType, scan_results::scan_result::ScanResult};
+use squalr_engine_common::structures::{data_types::data_type::DataType, scan_results::scan_result::ScanResult};
 
 pub struct ScanResultConverter;
 
@@ -35,7 +35,8 @@ impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
             format!("{:016X}", address)
         };
 
-        let data_type = match scan_result.get_data_type() {
+        /*
+        let data_type_view = match scan_result.get_data_type() {
             DataType::U8 { .. } => DataTypeView::U8,
             DataType::U16 { .. } => DataTypeView::U16,
             DataType::U32 { .. } => DataTypeView::U32,
@@ -49,24 +50,25 @@ impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
             DataType::String { .. } => DataTypeView::String,
             DataType::Bytes { .. } => DataTypeView::Bytes,
             DataType::BitField { .. } => DataTypeView::Bitfield,
-        };
+        };*/
+        let data_type_view = DataTypeView::Bytes;
 
         let current_value_string = match scan_result.get_recently_read_value() {
-            Some(recently_read_value) => recently_read_value.to_value_string(),
+            Some(recently_read_value) => recently_read_value.get_value_string(),
             None => match scan_result.get_current_value() {
-                Some(current_value) => current_value.to_value_string(),
+                Some(current_value) => current_value.get_value_string(),
                 None => "??".to_string(),
             },
         };
 
         let previous_value_string = match scan_result.get_previous_value() {
-            Some(previous_value) => previous_value.to_value_string(),
+            Some(previous_value) => previous_value.get_value_string(),
             None => "??".to_string(),
         };
 
         ScanResultViewData {
             address: address_string.into(),
-            data_type,
+            data_type: data_type_view,
             current_value: current_value_string.into(),
             previous_value: previous_value_string.into(),
         }

@@ -15,6 +15,7 @@ impl EngineRequestExecutor for MemoryWriteRequest {
         execution_context: &Arc<EngineExecutionContext>,
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
+            /*
             // Log the memory write operation
             log::info!("Writing value {:?} to address {}", self.value, self.address);
 
@@ -24,7 +25,8 @@ impl EngineRequestExecutor for MemoryWriteRequest {
             // Perform the memory write operation
             let success = MemoryWriter::get_instance().write_bytes(process_info.handle, self.address, &value_bytes);
 
-            MemoryWriteResponse { success }
+            MemoryWriteResponse { success }*/
+            MemoryWriteResponse { success: false }
         } else {
             log::error!("No process is opened to write to.");
             MemoryWriteResponse { success: false }

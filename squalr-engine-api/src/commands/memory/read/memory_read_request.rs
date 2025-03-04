@@ -6,15 +6,15 @@ use crate::commands::memory::read::memory_read_response::MemoryReadResponse;
 use serde::Deserialize;
 use serde::Serialize;
 use squalr_engine_common::conversions::Conversions;
-use squalr_engine_common::structures::dynamic_struct::dynamic_struct::DynamicStruct;
+// use squalr_engine_common::structures::dynamic_struct::dynamic_struct::DynamicStruct;
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct MemoryReadRequest {
     #[structopt(short = "a", long, parse(try_from_str = Conversions::parse_hex_or_int))]
     pub address: u64,
-    #[structopt(short = "v", long)]
-    pub value: DynamicStruct,
+    // #[structopt(short = "v", long)]
+    // pub value: DynamicStruct,
 }
 
 impl EngineRequest for MemoryReadRequest {

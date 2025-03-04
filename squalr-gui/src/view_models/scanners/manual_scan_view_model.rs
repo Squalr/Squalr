@@ -14,10 +14,10 @@ use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest;
 use squalr_engine_api::commands::scan::hybrid::scan_hybrid_request::ScanHybridRequest;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
-use squalr_engine_common::structures::data_types::data_type_deprecated::DataType;
+use squalr_engine_common::structures::data_types::data_type::DataType;
+use squalr_engine_common::structures::data_values::anonymous_value::AnonymousValue;
 use squalr_engine_common::structures::endian::Endian;
 use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
-use squalr_engine_common::structures::values::anonymous_value::AnonymousValue;
 use std::sync::Arc;
 
 pub struct ManualScanViewModel {
@@ -53,6 +53,7 @@ impl ManualScanViewModel {
         data_type: DataTypeView,
     ) {
         // TODO: Push this into a converter perhaps, although gets tricky with args
+        /*
         let scan_filter_parameters = match data_type {
             DataTypeView::I8 => ScanFilterParameters::new(None, DataType::I8()),
             DataTypeView::U8 => ScanFilterParameters::new(None, DataType::U8()),
@@ -75,10 +76,11 @@ impl ManualScanViewModel {
             DataTypeView::Bytes => ScanFilterParameters::new(None, DataType::Bytes(0)), // TODO
             DataTypeView::String => ScanFilterParameters::new(None, DataType::Bytes(0)), // TODO
             DataTypeView::Bitfield => ScanFilterParameters::new(None, DataType::BitField(0)), // TODO
-        };
+        };*/
 
         let scan_new_request = ScanNewRequest {
-            scan_filter_parameters: vec![scan_filter_parameters],
+            // scan_filter_parameters: vec![scan_filter_parameters],
+            scan_filter_parameters: vec![],
             scan_all_primitives: false,
         };
 

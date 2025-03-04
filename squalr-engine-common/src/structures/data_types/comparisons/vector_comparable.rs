@@ -75,9 +75,9 @@ pub trait VectorComparable {
     fn get_vector_compare_decreased_by_32(&self) -> VectorCompareFnDelta32;
     fn get_vector_compare_decreased_by_16(&self) -> VectorCompareFnDelta16;
 
-    fn get_vector_compare_function_immediate_64(
+    fn get_vector_compare_func_immediate_64(
         &self,
-        scan_compare_type: ScanCompareTypeImmediate,
+        scan_compare_type: &ScanCompareTypeImmediate,
     ) -> VectorCompareFnImmediate64 {
         match scan_compare_type {
             ScanCompareTypeImmediate::Equal => self.get_vector_compare_equal_64(),
@@ -89,9 +89,9 @@ pub trait VectorComparable {
         }
     }
 
-    fn get_vector_compare_function_immediate_32(
+    fn get_vector_compare_func_immediate_32(
         &self,
-        scan_compare_type: ScanCompareTypeImmediate,
+        scan_compare_type: &ScanCompareTypeImmediate,
     ) -> VectorCompareFnImmediate32 {
         match scan_compare_type {
             ScanCompareTypeImmediate::Equal => self.get_vector_compare_equal_32(),
@@ -103,9 +103,9 @@ pub trait VectorComparable {
         }
     }
 
-    fn get_vector_compare_function_immediate_16(
+    fn get_vector_compare_func_immediate_16(
         &self,
-        scan_compare_type: ScanCompareTypeImmediate,
+        scan_compare_type: &ScanCompareTypeImmediate,
     ) -> VectorCompareFnImmediate16 {
         match scan_compare_type {
             ScanCompareTypeImmediate::Equal => self.get_vector_compare_equal_16(),
@@ -117,9 +117,9 @@ pub trait VectorComparable {
         }
     }
 
-    fn get_vector_relative_compare_func_64(
+    fn get_vector_compare_func_relative_64(
         &self,
-        scan_compare_type: ScanCompareTypeRelative,
+        scan_compare_type: &ScanCompareTypeRelative,
     ) -> VectorCompareFnRelative64 {
         match scan_compare_type {
             ScanCompareTypeRelative::Changed => self.get_vector_compare_changed_64(),
@@ -129,13 +129,57 @@ pub trait VectorComparable {
         }
     }
 
-    fn get_vector_compare_function_delta_64(
+    fn get_vector_compare_func_relative_32(
         &self,
-        scan_compare_type: ScanCompareTypeDelta,
+        scan_compare_type: &ScanCompareTypeRelative,
+    ) -> VectorCompareFnRelative32 {
+        match scan_compare_type {
+            ScanCompareTypeRelative::Changed => self.get_vector_compare_changed_32(),
+            ScanCompareTypeRelative::Unchanged => self.get_vector_compare_unchanged_32(),
+            ScanCompareTypeRelative::Increased => self.get_vector_compare_increased_32(),
+            ScanCompareTypeRelative::Decreased => self.get_vector_compare_decreased_32(),
+        }
+    }
+
+    fn get_vector_compare_func_relative_16(
+        &self,
+        scan_compare_type: &ScanCompareTypeRelative,
+    ) -> VectorCompareFnRelative16 {
+        match scan_compare_type {
+            ScanCompareTypeRelative::Changed => self.get_vector_compare_changed_16(),
+            ScanCompareTypeRelative::Unchanged => self.get_vector_compare_unchanged_16(),
+            ScanCompareTypeRelative::Increased => self.get_vector_compare_increased_16(),
+            ScanCompareTypeRelative::Decreased => self.get_vector_compare_decreased_16(),
+        }
+    }
+
+    fn get_vector_compare_func_delta_64(
+        &self,
+        scan_compare_type: &ScanCompareTypeDelta,
     ) -> VectorCompareFnDelta64 {
         match scan_compare_type {
             ScanCompareTypeDelta::IncreasedByX => self.get_vector_compare_increased_by_64(),
             ScanCompareTypeDelta::DecreasedByX => self.get_vector_compare_decreased_by_64(),
+        }
+    }
+
+    fn get_vector_compare_func_delta_32(
+        &self,
+        scan_compare_type: &ScanCompareTypeDelta,
+    ) -> VectorCompareFnDelta32 {
+        match scan_compare_type {
+            ScanCompareTypeDelta::IncreasedByX => self.get_vector_compare_increased_by_32(),
+            ScanCompareTypeDelta::DecreasedByX => self.get_vector_compare_decreased_by_32(),
+        }
+    }
+
+    fn get_vector_compare_func_delta_16(
+        &self,
+        scan_compare_type: &ScanCompareTypeDelta,
+    ) -> VectorCompareFnDelta16 {
+        match scan_compare_type {
+            ScanCompareTypeDelta::IncreasedByX => self.get_vector_compare_increased_by_16(),
+            ScanCompareTypeDelta::DecreasedByX => self.get_vector_compare_decreased_by_16(),
         }
     }
 }

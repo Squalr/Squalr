@@ -25,6 +25,10 @@ impl DataValue for DataValueI32 {
         self.value = PrimitiveType::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
     }
 
+    fn as_ptr(&self) -> *const u8 {
+        self.value as *const u8
+    }
+
     fn clone_internal(&self) -> Box<dyn DataValue> {
         Box::new(self.clone())
     }

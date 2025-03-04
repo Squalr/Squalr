@@ -12,6 +12,7 @@ pub trait DataValue: Debug + Send + Sync {
         &mut self,
         bytes: &[u8],
     );
+    fn as_ptr(&self) -> *const u8;
 
     fn clone_internal(&self) -> Box<dyn DataValue>;
     fn serialize_internal(&self) -> Value;

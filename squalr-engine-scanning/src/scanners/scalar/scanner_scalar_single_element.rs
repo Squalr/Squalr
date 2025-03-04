@@ -32,7 +32,7 @@ impl Scanner for ScannerScalarSingleElement {
                     let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
                     let immediate_value = scan_parameters.deanonymize_type(&data_type);
                     let immediate_value_ptr = immediate_value.as_ptr();
-                    let compare_func = data_type.get_scalar_compare_function_immediate(scan_compare_type_immediate);
+                    let compare_func = data_type.get_scalar_compare_func_immediate(scan_compare_type_immediate);
 
                     compare_result = compare_func(current_value_pointer, immediate_value_ptr);
                 }

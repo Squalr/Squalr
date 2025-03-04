@@ -1,6 +1,6 @@
 use crate::ScanConstraintTypeView;
 use slint_mvvm::view_data_converter::ViewDataConverter;
-use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
+use squalr_engine_common::structures::scanning::{scan_compare_type::ScanCompareType, scan_compare_type_relative::ScanCompareTypeRelative};
 
 pub struct ScanConstraintConverter;
 
@@ -25,6 +25,7 @@ impl ViewDataConverter<ScanCompareType, ScanConstraintTypeView> for ScanConstrai
         &self,
         scan_compare_type: &ScanCompareType,
     ) -> ScanConstraintTypeView {
+        /*
         match scan_compare_type {
             ScanCompareType::Equal => ScanConstraintTypeView::Equal,
             ScanCompareType::NotEqual => ScanConstraintTypeView::NotEqual,
@@ -38,13 +39,15 @@ impl ViewDataConverter<ScanCompareType, ScanConstraintTypeView> for ScanConstrai
             ScanCompareType::GreaterThanOrEqual => ScanConstraintTypeView::GreaterThanOrEqualTo,
             ScanCompareType::LessThan => ScanConstraintTypeView::LessThan,
             ScanCompareType::LessThanOrEqual => ScanConstraintTypeView::LessThanOrEqualTo,
-        }
+        }*/
+        ScanConstraintTypeView::GreaterThanOrEqualTo
     }
 
     fn convert_from_view_data(
         &self,
         scan_compare_type: &ScanConstraintTypeView,
     ) -> ScanCompareType {
+        /*
         match scan_compare_type {
             ScanConstraintTypeView::Equal => ScanCompareType::Equal,
             ScanConstraintTypeView::NotEqual => ScanCompareType::NotEqual,
@@ -58,6 +61,7 @@ impl ViewDataConverter<ScanCompareType, ScanConstraintTypeView> for ScanConstrai
             ScanConstraintTypeView::GreaterThanOrEqualTo => ScanCompareType::GreaterThanOrEqual,
             ScanConstraintTypeView::LessThan => ScanCompareType::LessThan,
             ScanConstraintTypeView::LessThanOrEqualTo => ScanCompareType::LessThanOrEqual,
-        }
+        }*/
+        ScanCompareType::Relative(ScanCompareTypeRelative::Decreased)
     }
 }
