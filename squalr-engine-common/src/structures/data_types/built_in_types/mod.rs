@@ -1,8 +1,14 @@
 pub mod i16;
+pub mod i16be;
 pub mod i32;
+pub mod i32be;
 pub mod i64;
+pub mod i64be;
 pub mod i8;
 pub mod u16;
+pub mod u16be;
 pub mod u32;
+pub mod u32be;
 pub mod u64;
+pub mod u64be;
 pub mod u8;

@@ -25,7 +25,7 @@ impl Scanner for ScannerScalarSingleElement {
                 ScanCompareType::Immediate(scan_compare_type_immediate) => {
                     if let Some(compare_func) = data_type.get_scalar_compare_func_immediate(&scan_compare_type_immediate) {
                         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
-                        if let Some(immediate_value) = scan_parameters.deanonymize_type(&data_type) {
+                        if let Some(immediate_value) = scan_parameters.deanonymize_immediate(&data_type) {
                             let immediate_value_ptr = immediate_value.as_ptr();
 
                             compare_result = compare_func(current_value_pointer, immediate_value_ptr);
@@ -44,7 +44,7 @@ impl Scanner for ScannerScalarSingleElement {
                     if let Some(compare_func) = data_type.get_scalar_compare_func_delta(&scan_compare_type_delta) {
                         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
                         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
-                        if let Some(delta_arg) = scan_parameters.deanonymize_type(&data_type) {
+                        if let Some(delta_arg) = scan_parameters.deanonymize_relative_delta_as_little_endian(&data_type) {
                             let delta_arg_ptr = delta_arg.as_ptr();
 
                             compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);

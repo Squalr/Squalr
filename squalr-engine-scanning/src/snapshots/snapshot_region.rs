@@ -212,7 +212,7 @@ impl SnapshotRegion {
         } else {
             match scan_parameters.get_compare_type() {
                 ScanCompareType::Immediate(_) => true,
-                ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => !self.has_previous_values(),
+                ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => self.has_previous_values(),
             }
         }
     }

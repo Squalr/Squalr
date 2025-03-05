@@ -25,12 +25,26 @@ impl ScanParameters {
         self.compare_type.clone()
     }
 
-    pub fn deanonymize_type(
+    /// Tries to deanonymizes the scan arg into a usable `DataValue` based on the provided `DataType`.
+    pub fn deanonymize_immediate(
         &self,
         data_type: &DataTypeRef,
     ) -> Option<DataValue> {
         match &self.compare_immediate {
             Some(anonymous_value) => data_type.deanonymize_value(&anonymous_value),
+            None => None,
+        }
+    }
+
+    /// Tries to deanonymizes the scan arg into a usable `DataValue` based on the provided `DataType`.
+    /// In addition, the `Endian` of the value is potentially forced to `LittleEndian` for `BigEndian` data types.
+    /// This is unintuitive, but this allows for big endian scans to make significant optimizations.
+    pub fn deanonymize_relative_delta_as_little_endian(
+        &self,
+        data_type: &DataTypeRef,
+    ) -> Option<DataValue> {
+        match &self.compare_immediate {
+            Some(anonymous_value) => data_type.deanonymize_value_little_endian(&anonymous_value),
             None => None,
         }
     }
@@ -45,9 +59,8 @@ impl ScanParameters {
 
     pub fn is_valid(&self) -> bool {
         match self.get_compare_type() {
-            ScanCompareType::Immediate(_) => self.compare_immediate.is_some(),
+            ScanCompareType::Immediate(_) | ScanCompareType::Delta(_) => self.compare_immediate.is_some(),
             ScanCompareType::Relative(_) => true,
-            ScanCompareType::Delta(_) => true,
         }
     }
 

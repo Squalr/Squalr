@@ -55,7 +55,7 @@ where
         unsafe {
             match scan_parameters.get_compare_type() {
                 ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                    if let Some(immediate_value) = scan_parameters.deanonymize_type(&data_type) {
+                    if let Some(immediate_value) = scan_parameters.deanonymize_immediate(&data_type) {
                         let immediate_value_ptr = immediate_value.as_ptr();
                         let periodicity = Self::calculate_periodicity(immediate_value_ptr, data_type_size_bytes);
 

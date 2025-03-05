@@ -41,7 +41,7 @@ where
             match scan_parameters.get_compare_type() {
                 ScanCompareType::Immediate(scan_compare_type_immediate) => {
                     if let Some(compare_func) = data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate) {
-                        if let Some(immediate_value) = scan_parameters.deanonymize_type(&data_type) {
+                        if let Some(immediate_value) = scan_parameters.deanonymize_immediate(&data_type) {
                             let immediate_value_ptr = immediate_value.as_ptr();
 
                             // Compare as many full vectors as we can
@@ -84,7 +84,7 @@ where
                 }
                 ScanCompareType::Delta(scan_compare_type_delta) => {
                     if let Some(compare_func) = data_type.get_vector_compare_func_delta(&scan_compare_type_delta) {
-                        if let Some(delta_arg) = scan_parameters.deanonymize_type(&data_type) {
+                        if let Some(delta_arg) = scan_parameters.deanonymize_relative_delta_as_little_endian(&data_type) {
                             let delta_arg_ptr = delta_arg.as_ptr();
 
                             // Compare as many full vectors as we can

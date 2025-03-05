@@ -46,7 +46,7 @@ impl ScalarComparable for DataTypeU16 {
 
     fn get_compare_changed(&self) -> ScalarCompareFnRelative {
         |current_value_ptr, previous_value_ptr| unsafe {
-            ptr::read_unaligned(current_value_ptr as *const u32) != ptr::read_unaligned(previous_value_ptr as *const u32)
+            ptr::read_unaligned(current_value_ptr as *const PrimitiveType) != ptr::read_unaligned(previous_value_ptr as *const PrimitiveType)
         }
     }
 

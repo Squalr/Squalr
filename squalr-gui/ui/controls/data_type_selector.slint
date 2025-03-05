@@ -66,19 +66,19 @@ export component DataTypeSelector inherits Rectangle {
             Row {
                 data-type-u8 := DataTypeButton {
                     text: @tr("u8");
-                    icon: @image-url("./../images/data_types/purple_blocks_1.png");
+                    icon: DataTypeIconView.u8;
                     tooltip-text: @tr("Data Type: u8. Size: 1 byte. Also known as an unsigned byte, or byte.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "u8", icon: DataTypeIconView.u8 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "u8", icon: self.icon };
                     }
                 }
 
                 data-type-i8 := DataTypeButton {
                     text: @tr("i8");
-                    icon: @image-url("./../images/data_types/blue_blocks_1.png");
+                    icon: DataTypeIconView.i8;
                     tooltip-text: @tr("Data Type: i8. Size: 1 byte. Also known as a signed byte, or sbyte.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "i8", icon: DataTypeIconView.i8 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "i8", icon: self.icon };
                     }
                 }
             }
@@ -86,19 +86,19 @@ export component DataTypeSelector inherits Rectangle {
             Row {
                 data-type-i16 := DataTypeButton {
                     text: @tr("i16");
-                    icon: @image-url("./../images/data_types/blue_blocks_2.png");
+                    icon: DataTypeIconView.i16;
                     tooltip-text: @tr("Data Type: i16. Size: 2 bytes. Also known as a (signed) short integer, or short.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "i16", icon: DataTypeIconView.i16 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "i16", icon: self.icon };
                     }
                 }
 
                 data-type-i16be := DataTypeButton {
                     text: @tr("i16 (BE)");
-                    icon: @image-url("./../images/data_types/blue_blocks_2.png");
+                    icon: DataTypeIconView.i16be;
                     tooltip-text: @tr("Data Type: i16 (Big Endian). Size: 2 bytes. Also known as a (signed) short integer, or short. Big Endian is generally only used in certain console emulators.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "i16be", icon: DataTypeIconView.i16 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "i16be", icon: self.icon };
                     }
                 }
             }
@@ -106,19 +106,19 @@ export component DataTypeSelector inherits Rectangle {
             Row {
                 data-type-i32 := DataTypeButton {
                     text: @tr("i32");
-                    icon: @image-url("./../images/data_types/blue_blocks_4.png");
+                    icon: DataTypeIconView.i32;
                     tooltip-text: @tr("Data Type: i32. Size: 4 bytes. Also known as a (signed) integer, or int.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "i32", icon: DataTypeIconView.i32 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "i32", icon: self.icon };
                     }
                 }
 
                 data-type-i32be := DataTypeButton {
                     text: @tr("i32 (BE)");
-                    icon: @image-url("./../images/data_types/blue_blocks_4.png");
+                    icon: DataTypeIconView.i32be;
                     tooltip-text: @tr("Data Type: i32 (Big Endian). Size: 4 bytes. Also known as a (signed) integer, or int. Big Endian is generally only used in certain console emulators.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "i32be", icon: DataTypeIconView.i32 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "i32be", icon: self.icon };
                     }
                 }
             }
@@ -126,19 +126,19 @@ export component DataTypeSelector inherits Rectangle {
             Row {
                 data-type-i64 := DataTypeButton {
                     text: @tr("i64");
-                    icon: @image-url("./../images/data_types/blue_blocks_8.png");
+                    icon: DataTypeIconView.i64;
                     tooltip-text: @tr("Data Type: i64. Size: 8 bytes. Also known as a (signed) long integer, long long, or long.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "i64", icon: DataTypeIconView.i64 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "i64", icon: self.icon };
                     }
                 }
 
                 data-type-i64be := DataTypeButton {
                     text: @tr("i64 (BE)");
-                    icon: @image-url("./../images/data_types/blue_blocks_8.png");
+                    icon: DataTypeIconView.i64be;
                     tooltip-text: @tr("Data Type: i64 (Big Endian). Size: 8 bytes. Also known as a (signed) long integer, long long, or long. Big Endian is generally only used in certain console emulators.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "i64be", icon: DataTypeIconView.i64 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "i64be", icon: self.icon };
                     }
                 }
             }
@@ -146,19 +146,19 @@ export component DataTypeSelector inherits Rectangle {
             Row {
                 data-type-u16 := DataTypeButton {
                     text: @tr("u16");
-                    icon: @image-url("./../images/data_types/purple_blocks_2.png");
+                    icon: DataTypeIconView.u16;
                     tooltip-text: @tr("Data Type: u16. Size: 2 bytes. Also known as an unsigned short integer, unsigned short, or ushort.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "u16", icon: DataTypeIconView.u16 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "u16", icon: self.icon };
                     }
                 }
 
                 data-type-u16be := DataTypeButton {
                     text: @tr("u16 (BE)");
-                    icon: @image-url("./../images/data_types/purple_blocks_2.png");
+                    icon: DataTypeIconView.u16be;
                     tooltip-text: @tr("Data Type: u16 (Big Endian). Size: 2 bytes. Also known as an unsigned short integer, unsigned short, or ushort. Big Endian is generally only used in certain console emulators.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "u16be", icon: DataTypeIconView.u16 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "u16be", icon: self.icon };
                     }
                 }
             }
@@ -166,19 +166,19 @@ export component DataTypeSelector inherits Rectangle {
             Row {
                 data-type-u32 := DataTypeButton {
                     text: @tr("u32");
-                    icon: @image-url("./../images/data_types/purple_blocks_4.png");
+                    icon: DataTypeIconView.u32;
                     tooltip-text: @tr("Data Type: u32. Size: 4 bytes. Also known as an unsigned integer, unsigned int, or uint.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "u32", icon: DataTypeIconView.u32 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "u32", icon: self.icon };
                     }
                 }
 
                 data-type-u32be := DataTypeButton {
                     text: @tr("u32 (BE)");
-                    icon: @image-url("./../images/data_types/purple_blocks_4.png");
+                    icon: DataTypeIconView.u32be;
                     tooltip-text: @tr("Data Type: u32 (Big Endian). Size: 4 bytes. Also known as an unsigned integer, unsigned int, or uint. Big Endian is generally only used in certain console emulators.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "u32be", icon: DataTypeIconView.u32 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "u32be", icon: self.icon };
                     }
                 }
             }
@@ -186,19 +186,19 @@ export component DataTypeSelector inherits Rectangle {
             Row {
                 data-type-u64 := DataTypeButton {
                     text: @tr("u64");
-                    icon: @image-url("./../images/data_types/purple_blocks_8.png");
+                    icon: DataTypeIconView.u64;
                     tooltip-text: @tr("Data Type: u64. Size: 8 bytes. Also known as an unsigned long integer, unsigned long long, or ulong.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "u64", icon: DataTypeIconView.u64 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "u64", icon: self.icon };
                     }
                 }
 
                 data-type-u64be := DataTypeButton {
                     text: @tr("u64 (BE)");
-                    icon: @image-url("./../images/data_types/purple_blocks_8.png");
+                    icon: DataTypeIconView.u64be;
                     tooltip-text: @tr("Data Type: u64 (Big Endian). Size: 8 bytes. Also known as an unsigned long integer, unsigned long long, or ulong. Big Endian is generally only used in certain console emulators.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "u64be", icon: DataTypeIconView.u64 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "u64be", icon: self.icon };
                     }
                 }
             }
@@ -206,19 +206,19 @@ export component DataTypeSelector inherits Rectangle {
             Row {
                 data-type-f32 := DataTypeButton {
                     text: @tr("f32");
-                    icon: @image-url("./../images/data_types/orange_blocks_4.png");
+                    icon: DataTypeIconView.f32;
                     tooltip-text: @tr("Data Type: f32. Size: 4 bytes. Also known as a Single-precision floating point.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "f32", icon: DataTypeIconView.f32 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "f32", icon: self.icon };
                     }
                 }
 
                 data-type-f32be := DataTypeButton {
                     text: @tr("f32 (BE)");
-                    icon: @image-url("./../images/data_types/orange_blocks_4.png");
+                    icon: DataTypeIconView.f32be;
                     tooltip-text: @tr("Data Type: f32 (Big Endian). Size: 4 bytes. Also known as a Single-precision floating point. Big Endian is generally only used in certain console emulators.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "f32be", icon: DataTypeIconView.f32 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "f32be", icon: self.icon };
                     }
                 }
             }
@@ -226,41 +226,39 @@ export component DataTypeSelector inherits Rectangle {
             Row {
                 data-type-f64 := DataTypeButton {
                     text: @tr("f64");
-                    icon: @image-url("./../images/data_types/orange_blocks_8.png");
+                    icon: DataTypeIconView.f64;
                     tooltip-text: @tr("Data Type: f64. Size: 8 bytes. Also known as a Double-precision floating point.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "f64", icon: DataTypeIconView.f64 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "f64", icon: self.icon };
                     }
                 }
 
                 data-type-f64be := DataTypeButton {
                     text: @tr("f64 (BE)");
-                    icon: @image-url("./../images/data_types/orange_blocks_8.png");
+                    icon: DataTypeIconView.f64be;
                     tooltip-text: @tr("Data Type: f64 (Big Endian). Size: 8 bytes. Also known as a Double-precision floating point. Big Endian is generally only used in certain console emulators.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "f64be", icon: DataTypeIconView.f64 };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "f64be", icon: self.icon };
                     }
                 }
             }
 
             Row {
                 data-type-bytes := DataTypeButton {
-                    // TODO: These should be purple
-                    icon: @image-url("./../images/data_types/blue_blocks_array.png");
                     text: @tr("u8 [ ]");
+                    icon: DataTypeIconView.bytes;
                     tooltip-text: @tr("Data Type: u8[]. Size depends on the number of bytes provided. Also known as a byte[] or array of bytes. Represents a contiguous array of bytes.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "bytes", icon: DataTypeIconView.bytes };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "bytes", icon: self.icon };
                     }
                 }
 
                 data-type-string := DataTypeButton {
-                    // TODO: Find your own damn icon
-                    icon: @image-url("./../images/projects/static_type.png");
                     text: @tr("String");
+                    icon: DataTypeIconView.string;
                     tooltip-text: @tr("Data Type: String. Size depends on the encoding and length of text. Represents any text.");
                     clicked => {
-                        ManualScanViewModelBindings.active_data_type = { data_type: "string", icon: DataTypeIconView.string };
+                        ManualScanViewModelBindings.active_data_type = { data_type: "string", icon: self.icon };
                     }
                 }
             }

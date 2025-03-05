@@ -4,10 +4,14 @@ import { Theme } from "./../theme.slint";
 
 import { ContextMenu } from "./../components/context_menu/context_menu.slint";
 import { Button } from "../components/buttons/button.slint";
+import { DataTypeIconConverter } from "../converters/data_type_icon_converter.slint";
+import { DataTypeIconView } from "../view_model_bindings.slint";
 
 export component DataTypeButton inherits Button {
     in property <string> text;
-    in property <image> icon;
+    in property <DataTypeIconView> icon;
+    data_type_icon_converter := DataTypeIconConverter { }
+
     HorizontalLayout {
         HorizontalBox {
             Image {
@@ -15,7 +19,7 @@ export component DataTypeButton inherits Button {
                 height: 16px;
                 horizontal-alignment: center;
                 vertical-alignment: center;
-                source: root.icon;
+                source: data_type_icon_converter.data_type_source(root.icon);
             }
 
             Text {
