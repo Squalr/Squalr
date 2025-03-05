@@ -1,5 +1,4 @@
-use crate::structures::data_types::built_in_types::i32::data_type_i32::DataTypeI32;
-use crate::structures::data_types::data_type::DataType;
+use crate::structures::data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type::DataType};
 use dashmap::DashMap;
 use std::sync::{Arc, Once};
 

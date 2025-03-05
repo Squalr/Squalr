@@ -85,7 +85,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
             icon: @image-url("./../images/scans/scan_not_equal.png");
             tooltip-text: "Scan for values that are not equal to the entered value.";
             clicked => {
-                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.not-equal;
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.not_equal;
             }
         }
 
@@ -94,7 +94,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
             icon: @image-url("./../images/scans/scan_increased_by_x.png");
             tooltip-text: "Scan for values that have increased by the entered value.";
             clicked => {
-                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.increased_by;
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.increased_by_x;
             }
         }
 
@@ -103,7 +103,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
             icon: @image-url("./../images/scans/scan_decreased_by_x.png");
             tooltip-text: "Scan for values that have decreased by the entered value.";
             clicked => {
-                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.decreased_by;
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.decreased_by_x;
             }
         }
 
@@ -112,7 +112,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
             icon: @image-url("./../images/scans/scan_greater_than.png");
             tooltip-text: "Scan for values that are greater than the entered value.";
             clicked => {
-                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.greater-than;
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.greater_than;
             }
         }
 
@@ -121,7 +121,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
             icon: @image-url("./../images/scans/scan_greater_than_or_equal.png");
             tooltip-text: "Scan for values that are greater than or equal to the entered value.";
             clicked => {
-                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.greater-than-or-equal-to;
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.greater_than_or_equal;
             }
         }
 
@@ -139,7 +139,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
             icon: @image-url("./../images/scans/scan_less_than_or_equal.png");
             tooltip-text: "Scan for values that are less than or equal to the entered value.";
             clicked => {
-                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.less-than-or-equal-to;
+                ManualScanViewModelBindings.active_scan_type = ScanConstraintTypeView.less_than_or_equal;
             }
         }
     }

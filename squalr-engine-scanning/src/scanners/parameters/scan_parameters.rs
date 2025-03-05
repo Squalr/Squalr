@@ -1,5 +1,5 @@
 use squalr_engine_common::structures::{
-    data_types::{data_type::DataType, data_type_ref::DataTypeRef},
+    data_types::data_type_ref::DataTypeRef,
     data_values::{anonymous_value::AnonymousValue, data_value::DataValue},
     scanning::scan_compare_type::ScanCompareType,
 };
@@ -28,11 +28,11 @@ impl ScanParameters {
     pub fn deanonymize_type(
         &self,
         data_type: &DataTypeRef,
-    ) -> Box<dyn DataValue> {
-        self.compare_immediate
-            .as_ref()
-            .and_then(|value| value.deanonymize_type(data_type).ok())
-            .unwrap_or_else(|| panic!("Invalid type"))
+    ) -> Option<DataValue> {
+        match &self.compare_immediate {
+            Some(anonymous_value) => data_type.deanonymize_value(&anonymous_value),
+            None => None,
+        }
     }
 
     pub fn get_compare_immediate(&self) -> Option<&AnonymousValue> {

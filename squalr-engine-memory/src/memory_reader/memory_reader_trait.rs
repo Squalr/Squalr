@@ -5,7 +5,7 @@ pub trait IMemoryReader {
         &self,
         process_info: &OpenedProcessInfo,
         address: u64,
-        data_value: &mut Box<dyn DataValue>,
+        data_value: &mut DataValue,
     ) -> bool;
     /*
     fn read_struct(

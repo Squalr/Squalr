@@ -2,8 +2,9 @@ use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompare
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnImmediate;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnRelative;
 use crate::structures::data_types::comparisons::vector_compare::VectorCompare;
+use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::data_values::data_value::DataValue;
-use crate::structures::registries::data_type_registry::DataTypeRegistry;
+use crate::structures::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::scanning::scan_compare_type_delta::ScanCompareTypeDelta;
 use crate::structures::scanning::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::scan_compare_type_relative::ScanCompareTypeRelative;
@@ -26,8 +27,10 @@ pub struct DataTypeRef {
 
 impl DataTypeRef {
     /// Creates a new reference to a registered `DataType`.
-    pub fn new(data_type_id: String) -> Self {
-        Self { data_type_id }
+    pub fn new(data_type_id: &str) -> Self {
+        Self {
+            data_type_id: data_type_id.to_string(),
+        }
     }
 
     /// Determines if the `DataType` this struct represents is currently registered and available.
@@ -50,16 +53,28 @@ impl DataTypeRef {
         }
     }
 
-    pub fn get_size_in_bytes(&self) -> u64 {
+    pub fn get_default_size_in_bytes(&self) -> u64 {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(self.get_id()) {
-            Some(data_type) => data_type.get_size_in_bytes(),
+            Some(data_type) => data_type.get_default_size_in_bytes(),
             None => 0,
         }
     }
 
-    pub fn get_default_value(&self) -> Option<Box<dyn DataValue>> {
+    pub fn deanonymize_value(
+        &self,
+        anonymous_value: &AnonymousValue,
+    ) -> Option<DataValue> {
+        let registry = DataTypeRegistry::get_instance().get_registry();
+
+        match registry.get(self.get_id()) {
+            Some(data_type) => Some(DataValue::new(self.clone(), data_type.deanonymize_value(anonymous_value))),
+            None => None,
+        }
+    }
+
+    pub fn get_default_value(&self) -> Option<DataValue> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(self.get_id()) {
@@ -178,7 +193,7 @@ impl FromStr for DataTypeRef {
     type Err = serde_json::Error;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(DataTypeRef::new(string.to_string()))
+        Ok(DataTypeRef::new(string))
     }
 }
 

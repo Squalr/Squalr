@@ -28,7 +28,7 @@ where
     ) -> Vec<SnapshotRegionFilter> {
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_filter_parameters.get_data_type();
-        let data_type_size_bytes = data_type.get_size_in_bytes();
+        let data_type_size_bytes = data_type.get_default_size_in_bytes(); // JIRA: This should be the data_value.get_size_in_bytes() to support container types
         let vector_size_in_bytes = N;
 
         // The total number of vectors we can fill entirely.
@@ -48,68 +48,70 @@ where
         match scan_parameters.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
                 if let Some(compare_func) = data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate) {
-                    let immediate_value = scan_parameters.deanonymize_type(&data_type).as_ptr();
+                    if let Some(immediate_value) = scan_parameters.deanonymize_type(&data_type) {
+                        let immediate_value_ptr = immediate_value.as_ptr();
 
-                    match data_type_size_bytes {
-                        4 => {
-                            let packing_size = vector_size_in_bytes * data_type_size_bytes as usize;
+                        match data_type_size_bytes {
+                            4 => {
+                                let packing_size = vector_size_in_bytes * data_type_size_bytes as usize;
 
-                            // Compare as many packed vectors as we can.
-                            unsafe {
-                                for packed_iteration_index in 0..packed_iterations {
-                                    let pointer_offset_base = packing_size * packed_iteration_index as usize;
-                                    let current_value_pointers = [
-                                        current_value_pointer.add(pointer_offset_base + vector_size_in_bytes * 0),
-                                        current_value_pointer.add(pointer_offset_base + vector_size_in_bytes * 1),
-                                        current_value_pointer.add(pointer_offset_base + vector_size_in_bytes * 2),
-                                        current_value_pointer.add(pointer_offset_base + vector_size_in_bytes * 3),
-                                    ];
+                                // Compare as many packed vectors as we can.
+                                unsafe {
+                                    for packed_iteration_index in 0..packed_iterations {
+                                        let pointer_offset_base = packing_size * packed_iteration_index as usize;
+                                        let current_value_pointers = [
+                                            current_value_pointer.add(pointer_offset_base + vector_size_in_bytes * 0),
+                                            current_value_pointer.add(pointer_offset_base + vector_size_in_bytes * 1),
+                                            current_value_pointer.add(pointer_offset_base + vector_size_in_bytes * 2),
+                                            current_value_pointer.add(pointer_offset_base + vector_size_in_bytes * 3),
+                                        ];
 
-                                    let compare_results = [
-                                        compare_func(current_value_pointers[0], immediate_value),
-                                        compare_func(current_value_pointers[1], immediate_value),
-                                        compare_func(current_value_pointers[2], immediate_value),
-                                        compare_func(current_value_pointers[3], immediate_value),
-                                    ];
+                                        let compare_results = [
+                                            compare_func(current_value_pointers[0], immediate_value_ptr),
+                                            compare_func(current_value_pointers[1], immediate_value_ptr),
+                                            compare_func(current_value_pointers[2], immediate_value_ptr),
+                                            compare_func(current_value_pointers[3], immediate_value_ptr),
+                                        ];
 
-                                    let mut compare_results_packed: Simd<u8, N> = compare_results[0];
+                                        let mut compare_results_packed: Simd<u8, N> = compare_results[0];
 
-                                    for index in (0..N).step_by(data_type_size_bytes as usize) {
-                                        // compare_results_packed[index] = compare_results[0][index];
-                                        compare_results_packed[index + 1] = compare_results[1][index];
-                                        compare_results_packed[index + 2] = compare_results[2][index];
-                                        compare_results_packed[index + 3] = compare_results[3][index];
+                                        for index in (0..N).step_by(data_type_size_bytes as usize) {
+                                            // compare_results_packed[index] = compare_results[0][index];
+                                            compare_results_packed[index + 1] = compare_results[1][index];
+                                            compare_results_packed[index + 2] = compare_results[2][index];
+                                            compare_results_packed[index + 3] = compare_results[3][index];
+                                        }
+
+                                        self.encode_results_packed_4(
+                                            &compare_results_packed,
+                                            &compare_results,
+                                            &mut run_length_encoder,
+                                            data_type_size_bytes,
+                                            true_mask,
+                                            false_mask,
+                                        );
                                     }
 
-                                    self.encode_results_packed_4(
-                                        &compare_results_packed,
-                                        &compare_results,
-                                        &mut run_length_encoder,
-                                        data_type_size_bytes,
-                                        true_mask,
-                                        false_mask,
-                                    );
-                                }
+                                    let unpacked_start_address = packed_iterations as usize * packing_size;
 
-                                let unpacked_start_address = packed_iterations as usize * packing_size;
+                                    for unpacked_iteration_index in 0..unpacked_iterations {
+                                        let unpacked_pointer_offset = unpacked_start_address + unpacked_iteration_index as usize * vector_size_in_bytes;
+                                        let current_value_pointer = current_value_pointer.add(unpacked_pointer_offset);
+                                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
 
-                                for unpacked_iteration_index in 0..unpacked_iterations {
-                                    let unpacked_pointer_offset = unpacked_start_address + unpacked_iteration_index as usize * vector_size_in_bytes;
-                                    let current_value_pointer = current_value_pointer.add(unpacked_pointer_offset);
-                                    let compare_result = compare_func(current_value_pointer, immediate_value);
+                                        self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
+                                    }
 
-                                    self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
-                                }
-
-                                // Handle remainder elements.
-                                if remainder_bytes > 0 {
-                                    let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                                    let compare_result = compare_func(current_value_pointer, immediate_value);
-                                    self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
+                                    // Handle remainder elements.
+                                    if remainder_bytes > 0 {
+                                        let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
+                                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
+                                        self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
+                                    }
                                 }
                             }
+                            _ => panic!("not implemented yet."),
                         }
-                        _ => panic!("not implemented yet."),
                     }
                 }
             }
@@ -138,24 +140,26 @@ where
             }
             ScanCompareType::Delta(scan_compare_type_delta) => {
                 if let Some(compare_func) = data_type.get_vector_compare_func_delta(&scan_compare_type_delta) {
-                    let delta_arg = scan_parameters.deanonymize_type(&data_type).as_ptr();
+                    if let Some(delta_arg) = scan_parameters.deanonymize_type(&data_type) {
+                        let delta_arg_ptr = delta_arg.as_ptr();
 
-                    unsafe {
-                        // Compare as many full vectors as we can.
-                        for index in 0..total_iterations {
-                            let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
-                            let previous_value_pointer = previous_value_pointer.add(index as usize * vector_size_in_bytes);
-                            let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg);
+                        unsafe {
+                            // Compare as many full vectors as we can.
+                            for index in 0..total_iterations {
+                                let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
+                                let previous_value_pointer = previous_value_pointer.add(index as usize * vector_size_in_bytes);
+                                let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);
 
-                            self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
-                        }
+                                self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
+                            }
 
-                        // Handle remainder elements
-                        if remainder_bytes > 0 {
-                            let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                            let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg);
+                            // Handle remainder elements
+                            if remainder_bytes > 0 {
+                                let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
+                                let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);
 
-                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
+                                self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
+                            }
                         }
                     }
                 }

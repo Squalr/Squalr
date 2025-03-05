@@ -1,65 +1,48 @@
-use serde::ser::SerializeMap;
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
-use std::fmt;
+use crate::structures::{data_types::data_type_ref::DataTypeRef, registries::data_types::data_type_registry::DataTypeRegistry};
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use std::str::FromStr;
 
-pub trait DataValue: Debug + Send + Sync {
-    fn get_size_in_bytes(&self) -> u64;
-    fn get_value_string(&self) -> String;
-    fn copy_from_bytes(
+/// Represents a value for a `DataType`. Additionally, new `DataType` and `DataValue` pairs can be registered by plugins.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct DataValue {
+    /// A weak handle to the data type that this value represents.
+    data_type: DataTypeRef,
+
+    /// The raw bytes of the data value. This could be a large number of underlying values, such as an int, string,
+    /// or even a serialized bitfield and mask. It is the responsibility of the `DataType` object to interpret the bytes.
+    value: Vec<u8>,
+}
+
+impl DataValue {
+    pub fn new(
+        data_type: DataTypeRef,
+        value: Vec<u8>,
+    ) -> Self {
+        Self { data_type, value }
+    }
+
+    pub fn copy_from_bytes(
         &mut self,
-        bytes: &[u8],
-    );
-    fn as_ptr(&self) -> *const u8;
-
-    fn clone_internal(&self) -> Box<dyn DataValue>;
-    fn serialize_internal(&self) -> Value;
-}
-
-impl Clone for Box<dyn DataValue> {
-    fn clone(&self) -> Box<dyn DataValue> {
-        self.clone_internal()
+        value: &[u8],
+    ) {
+        self.value = value.to_vec()
     }
-}
 
-impl Serialize for Box<dyn DataValue> {
-    fn serialize<S>(
-        &self,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(2))?;
-        map.serialize_entry("value", &self.get_value_string())?;
-        map.end()
+    pub fn get_size_in_bytes(&self) -> u64 {
+        self.value.len() as u64
     }
-}
 
-impl<'de> Deserialize<'de> for Box<dyn DataValue> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        panic!("TODO")
+    pub fn get_value_bytes(&self) -> &Vec<u8> {
+        &self.value
     }
-}
 
-impl FromStr for Box<dyn DataValue> {
-    type Err = serde_json::Error;
+    pub fn get_value_string(&self) -> String {
+        let registry = DataTypeRegistry::get_instance().get_registry();
 
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        panic!("TODO")
+        String::new()
     }
-}
 
-impl fmt::Display for dyn DataValue {
-    fn fmt(
-        &self,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        write!(formatter, "{}", self.get_value_string())
+    pub fn as_ptr(&self) -> *const u8 {
+        self.value.as_ptr()
     }
 }

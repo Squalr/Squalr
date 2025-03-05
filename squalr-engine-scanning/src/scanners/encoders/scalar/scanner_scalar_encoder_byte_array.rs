@@ -25,26 +25,38 @@ impl ScannerScalarEncoderByteArray {
         region_size: u64,
     ) -> Vec<SnapshotRegionFilter> {
         /*
-        match data_type {
-            DataType::Bytes(_) => {}
-            _ => panic!("Unsupported data type passed to byte array scanner"),
-        } */
+               /*
+               match data_type {
+                   DataType::Bytes(_) => {}
+                   _ => panic!("Unsupported data type passed to byte array scanner"),
+               } */
 
-        match scan_parameters.get_compare_type() {
-            ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                let array_ptr = scan_parameters.deanonymize_type(&data_type).as_ptr();
+               match scan_parameters.get_compare_type() {
+                   ScanCompareType::Immediate(scan_compare_type_immediate) => {
+                       if let Some(immediate_value) = scan_parameters.deanonymize_type(&data_type) {
+                           let immediate_value_ptr = immediate_value.as_ptr();
 
-                unsafe {
-                    ScannerScalarEncoderByteArray::encode_byte_array(current_value_pointer, array_ptr, data_type.get_size_in_bytes(), base_address, region_size)
-                }
-            }
-            ScanCompareType::Relative(scan_compare_type_relative) => {
-                panic!("Not supported yet (or maybe ever)");
-            }
-            ScanCompareType::Delta(scan_compare_type_delta) => {
-                panic!("Not supported yet (or maybe ever)");
-            }
-        }
+                           unsafe {
+                               // JIRA: This should be the data_value.get_size_in_bytes() to support container types
+                               return ScannerScalarEncoderByteArray::encode_byte_array(
+                                   current_value_pointer,
+                                   array_ptr,
+                                   data_type.get_default_size_in_bytes(),
+                                   base_address,
+                                   region_size,
+                               );
+                           }
+                       }
+                   }
+                   ScanCompareType::Relative(scan_compare_type_relative) => {
+                       panic!("Not supported yet (or maybe ever)");
+                   }
+                   ScanCompareType::Delta(scan_compare_type_delta) => {
+                       panic!("Not supported yet (or maybe ever)");
+                   }
+               }
+        */
+        vec![]
     }
 
     /// Public encoder without scan parameter and filter args to allow re-use by other scanners.

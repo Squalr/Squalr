@@ -1,1 +1,1 @@
-pub mod data_type_registry;
+pub mod data_types;

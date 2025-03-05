@@ -30,7 +30,7 @@ where
         true_mask: Simd<u8, N>,
     ) -> Vec<SnapshotRegionFilter> {
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type_size_bytes = data_type.get_size_in_bytes();
+        let data_type_size_bytes = data_type.get_default_size_in_bytes(); // JIRA: This should be the data_value.get_size_in_bytes() to support container types
         let vector_size_in_bytes = N;
         let iterations = region_size / vector_size_in_bytes as u64;
         let remainder_bytes = region_size % vector_size_in_bytes as u64;
@@ -41,21 +41,23 @@ where
             match scan_parameters.get_compare_type() {
                 ScanCompareType::Immediate(scan_compare_type_immediate) => {
                     if let Some(compare_func) = data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate) {
-                        let immediate_value = scan_parameters.deanonymize_type(&data_type).as_ptr();
+                        if let Some(immediate_value) = scan_parameters.deanonymize_type(&data_type) {
+                            let immediate_value_ptr = immediate_value.as_ptr();
 
-                        // Compare as many full vectors as we can
-                        for index in 0..iterations {
-                            let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
-                            let compare_result = compare_func(current_value_pointer, immediate_value);
+                            // Compare as many full vectors as we can
+                            for index in 0..iterations {
+                                let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
+                                let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
 
-                            self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
-                        }
+                                self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
+                            }
 
-                        // Handle remainder elements
-                        if remainder_bytes > 0 {
-                            let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                            let compare_result = compare_func(current_value_pointer, immediate_value);
-                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
+                            // Handle remainder elements
+                            if remainder_bytes > 0 {
+                                let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
+                                let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
+                                self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
+                            }
                         }
                     }
                 }
@@ -82,23 +84,25 @@ where
                 }
                 ScanCompareType::Delta(scan_compare_type_delta) => {
                     if let Some(compare_func) = data_type.get_vector_compare_func_delta(&scan_compare_type_delta) {
-                        let delta_arg = scan_parameters.deanonymize_type(&data_type).as_ptr();
+                        if let Some(delta_arg) = scan_parameters.deanonymize_type(&data_type) {
+                            let delta_arg_ptr = delta_arg.as_ptr();
 
-                        // Compare as many full vectors as we can
-                        for index in 0..iterations {
-                            let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
-                            let previous_value_pointer = previous_value_pointer.add(index as usize * vector_size_in_bytes);
-                            let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg);
+                            // Compare as many full vectors as we can
+                            for index in 0..iterations {
+                                let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
+                                let previous_value_pointer = previous_value_pointer.add(index as usize * vector_size_in_bytes);
+                                let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);
 
-                            self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
-                        }
+                                self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
+                            }
 
-                        // Handle remainder elements
-                        if remainder_bytes > 0 {
-                            let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                            let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg);
+                            // Handle remainder elements
+                            if remainder_bytes > 0 {
+                                let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
+                                let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);
 
-                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
+                                self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
+                            }
                         }
                     }
                 }

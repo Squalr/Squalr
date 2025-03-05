@@ -46,7 +46,7 @@ impl IMemoryReader for WindowsMemoryReaderNt {
         &self,
         process_info: &OpenedProcessInfo,
         address: u64,
-        data_value: &mut Box<dyn DataValue>,
+        data_value: &mut DataValue,
     ) -> bool {
         let mut buffer = vec![0u8; data_value.get_size_in_bytes() as usize];
 

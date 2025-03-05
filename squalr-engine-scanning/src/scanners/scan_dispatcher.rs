@@ -8,6 +8,8 @@ use rayon::iter::ParallelIterator;
 use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 
+use super::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
+
 pub struct ScanDispatcher {}
 
 /// Implements a scan dispatcher, which picks the best scanner based on the scan constraints and the region being scanned.
@@ -62,93 +64,93 @@ impl ScanDispatcher {
         data_type: &DataTypeRef,
         memory_alignment: MemoryAlignment,
     ) -> &'static dyn Scanner {
-        /*
-        let data_type_size = data_type.get_size_in_bytes();
+        let data_type_size = data_type.get_default_size_in_bytes(); // JIRA: This should be the data_value.get_size_in_bytes() to support container types
         let memory_alignment_size = memory_alignment as u64;
-        let element_count = snapshot_region_filter.get_element_count(data_type_size, memory_alignment);
+        let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
         let region_size = snapshot_region_filter.get_region_size();
 
         if element_count == 1 {
             // Single element scanner
-            return ScannerScalarSingleElement::get_instance();
-        }
+            return &ScannerScalarSingleElement {};
+        } /*
+        
 
         // Use parallel scanners when the region size is >= 64MB
         if region_size >= 1024 * 1024 * 64 {
-            match data_type {
-                DataType::Bytes(_) => {
-                    return ScannerScalarIterativeByteArray::get_instance();
-                }
-                // Check if a vector (SIMD) scan can be applied
-                _ => {
-                    // We actually don't really care whether the processor supports AVX-512, AVX2, etc, PortableSimd is smart enough to
-                    // abstract this. It is actually more performant to greedily try to use AVX-512 even if its not available. PortableSimd
-                    // seems to fall back to unrolled AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
-                    if region_size >= 64 {
-                        if memory_alignment_size < data_type_size {
-                            return &self.scanner_cascading_chunked_64;
-                        } else if memory_alignment_size == data_type_size {
-                            return &self.scanner_aligned_chunked_64;
-                        } else if memory_alignment_size > data_type_size {
-                            return &self.scanner_sparse_64;
-                        }
-                    } else if region_size >= 32 {
-                        if memory_alignment_size < data_type_size {
-                            return &self.scanner_cascading_chunked_32;
-                        } else if memory_alignment_size == data_type_size {
-                            return &self.scanner_aligned_chunked_32;
-                        } else if memory_alignment_size > data_type_size {
-                            return &self.scanner_sparse_32;
-                        }
-                    } else if region_size >= 16 {
-                        if memory_alignment_size < data_type_size {
-                            return &self.scanner_cascading_chunked_16;
-                        } else if memory_alignment_size == data_type_size {
-                            return &self.scanner_aligned_chunked_16;
-                        } else if memory_alignment_size > data_type_size {
-                            return &self.scanner_sparse_16;
-                        }
-                    }
-                }
-            }
+        match data_type {
+        DataType::Bytes(_) => {
+        return ScannerScalarIterativeByteArray::get_instance();
+        }
+        // Check if a vector (SIMD) scan can be applied
+        _ => {
+        // We actually don't really care whether the processor supports AVX-512, AVX2, etc, PortableSimd is smart enough to
+        // abstract this. It is actually more performant to greedily try to use AVX-512 even if its not available. PortableSimd
+        // seems to fall back to unrolled AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
+        if region_size >= 64 {
+        if memory_alignment_size < data_type_size {
+        return &self.scanner_cascading_chunked_64;
+        } else if memory_alignment_size == data_type_size {
+        return &self.scanner_aligned_chunked_64;
+        } else if memory_alignment_size > data_type_size {
+        return &self.scanner_sparse_64;
+        }
+        } else if region_size >= 32 {
+        if memory_alignment_size < data_type_size {
+        return &self.scanner_cascading_chunked_32;
+        } else if memory_alignment_size == data_type_size {
+        return &self.scanner_aligned_chunked_32;
+        } else if memory_alignment_size > data_type_size {
+        return &self.scanner_sparse_32;
+        }
+        } else if region_size >= 16 {
+        if memory_alignment_size < data_type_size {
+        return &self.scanner_cascading_chunked_16;
+        } else if memory_alignment_size == data_type_size {
+        return &self.scanner_aligned_chunked_16;
+        } else if memory_alignment_size > data_type_size {
+        return &self.scanner_sparse_16;
+        }
+        }
+        }
+        }
         }
 
         // Prioritize vector scans for small to large regions.
         match data_type {
-            DataType::Bytes(_) => {
-                return ScannerScalarIterativeByteArray::get_instance();
-            }
-            // Check if a vector (SIMD) scan can be applied
-            _ => {
-                // We actually don't really care whether the processor supports AVX-512, AVX2, etc, PortableSimd is smart enough to
-                // abstract this. It is actually more performant to greedily try to use AVX-512 even if its not available. PortableSimd
-                // seems to fall back to unrolled AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
-                if region_size >= 64 {
-                    if memory_alignment_size < data_type_size {
-                        return &self.scanner_cascading_64;
-                    } else if memory_alignment_size == data_type_size {
-                        return &self.scanner_aligned_64;
-                    } else if memory_alignment_size > data_type_size {
-                        return &self.scanner_sparse_64;
-                    }
-                } else if region_size >= 32 {
-                    if memory_alignment_size < data_type_size {
-                        return &self.scanner_cascading_32;
-                    } else if memory_alignment_size == data_type_size {
-                        return &self.scanner_aligned_32;
-                    } else if memory_alignment_size > data_type_size {
-                        return &self.scanner_sparse_32;
-                    }
-                } else if region_size >= 16 {
-                    if memory_alignment_size < data_type_size {
-                        return &self.scanner_cascading_16;
-                    } else if memory_alignment_size == data_type_size {
-                        return &self.scanner_aligned_16;
-                    } else if memory_alignment_size > data_type_size {
-                        return &self.scanner_sparse_16;
-                    }
-                }
-            }
+        DataType::Bytes(_) => {
+        return ScannerScalarIterativeByteArray::get_instance();
+        }
+        // Check if a vector (SIMD) scan can be applied
+        _ => {
+        // We actually don't really care whether the processor supports AVX-512, AVX2, etc, PortableSimd is smart enough to
+        // abstract this. It is actually more performant to greedily try to use AVX-512 even if its not available. PortableSimd
+        // seems to fall back to unrolled AVX2 or SSE2 code, and it ends up being faster than the AVX2/SSE-first implementations.
+        if region_size >= 64 {
+        if memory_alignment_size < data_type_size {
+        return &self.scanner_cascading_64;
+        } else if memory_alignment_size == data_type_size {
+        return &self.scanner_aligned_64;
+        } else if memory_alignment_size > data_type_size {
+        return &self.scanner_sparse_64;
+        }
+        } else if region_size >= 32 {
+        if memory_alignment_size < data_type_size {
+        return &self.scanner_cascading_32;
+        } else if memory_alignment_size == data_type_size {
+        return &self.scanner_aligned_32;
+        } else if memory_alignment_size > data_type_size {
+        return &self.scanner_sparse_32;
+        }
+        } else if region_size >= 16 {
+        if memory_alignment_size < data_type_size {
+        return &self.scanner_cascading_16;
+        } else if memory_alignment_size == data_type_size {
+        return &self.scanner_aligned_16;
+        } else if memory_alignment_size > data_type_size {
+        return &self.scanner_sparse_16;
+        }
+        }
+        }
         } */
 
         // Default to scalar iterative

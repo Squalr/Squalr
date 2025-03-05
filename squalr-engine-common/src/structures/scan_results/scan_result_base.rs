@@ -7,6 +7,6 @@ use serde::{Deserialize, Serialize};
 pub struct ScanResultBase {
     pub address: u64,
     pub data_type: DataTypeRef,
-    pub current_value: Option<Box<dyn DataValue>>,
-    pub previous_value: Option<Box<dyn DataValue>>,
+    pub current_value: Option<DataValue>,
+    pub previous_value: Option<DataValue>,
 }

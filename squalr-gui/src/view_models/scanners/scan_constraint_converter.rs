@@ -1,6 +1,9 @@
 use crate::ScanConstraintTypeView;
 use slint_mvvm::view_data_converter::ViewDataConverter;
-use squalr_engine_common::structures::scanning::{scan_compare_type::ScanCompareType, scan_compare_type_relative::ScanCompareTypeRelative};
+use squalr_engine_common::structures::scanning::{
+    scan_compare_type::ScanCompareType, scan_compare_type_delta::ScanCompareTypeDelta, scan_compare_type_immediate::ScanCompareTypeImmediate,
+    scan_compare_type_relative::ScanCompareTypeRelative,
+};
 
 pub struct ScanConstraintConverter;
 
@@ -25,43 +28,45 @@ impl ViewDataConverter<ScanCompareType, ScanConstraintTypeView> for ScanConstrai
         &self,
         scan_compare_type: &ScanCompareType,
     ) -> ScanConstraintTypeView {
-        /*
         match scan_compare_type {
-            ScanCompareType::Equal => ScanConstraintTypeView::Equal,
-            ScanCompareType::NotEqual => ScanConstraintTypeView::NotEqual,
-            ScanCompareType::Changed => ScanConstraintTypeView::Changed,
-            ScanCompareType::Unchanged => ScanConstraintTypeView::Unchanged,
-            ScanCompareType::Increased => ScanConstraintTypeView::Increased,
-            ScanCompareType::Decreased => ScanConstraintTypeView::Decreased,
-            ScanCompareType::IncreasedByX => ScanConstraintTypeView::IncreasedBy,
-            ScanCompareType::DecreasedByX => ScanConstraintTypeView::DecreasedBy,
-            ScanCompareType::GreaterThan => ScanConstraintTypeView::GreaterThan,
-            ScanCompareType::GreaterThanOrEqual => ScanConstraintTypeView::GreaterThanOrEqualTo,
-            ScanCompareType::LessThan => ScanConstraintTypeView::LessThan,
-            ScanCompareType::LessThanOrEqual => ScanConstraintTypeView::LessThanOrEqualTo,
-        }*/
-        ScanConstraintTypeView::GreaterThanOrEqualTo
+            ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
+                ScanCompareTypeImmediate::Equal => ScanConstraintTypeView::Equal,
+                ScanCompareTypeImmediate::NotEqual => ScanConstraintTypeView::NotEqual,
+                ScanCompareTypeImmediate::GreaterThan => ScanConstraintTypeView::GreaterThan,
+                ScanCompareTypeImmediate::GreaterThanOrEqual => ScanConstraintTypeView::GreaterThanOrEqual,
+                ScanCompareTypeImmediate::LessThan => ScanConstraintTypeView::LessThan,
+                ScanCompareTypeImmediate::LessThanOrEqual => ScanConstraintTypeView::LessThanOrEqual,
+            },
+            ScanCompareType::Relative(scan_compare_type_relative) => match scan_compare_type_relative {
+                ScanCompareTypeRelative::Changed => ScanConstraintTypeView::Changed,
+                ScanCompareTypeRelative::Unchanged => ScanConstraintTypeView::Unchanged,
+                ScanCompareTypeRelative::Increased => ScanConstraintTypeView::Increased,
+                ScanCompareTypeRelative::Decreased => ScanConstraintTypeView::Decreased,
+            },
+            ScanCompareType::Delta(scan_compare_type_delta) => match scan_compare_type_delta {
+                ScanCompareTypeDelta::IncreasedByX => ScanConstraintTypeView::IncreasedByX,
+                ScanCompareTypeDelta::DecreasedByX => ScanConstraintTypeView::DecreasedByX,
+            },
+        }
     }
 
     fn convert_from_view_data(
         &self,
         scan_compare_type: &ScanConstraintTypeView,
     ) -> ScanCompareType {
-        /*
         match scan_compare_type {
-            ScanConstraintTypeView::Equal => ScanCompareType::Equal,
-            ScanConstraintTypeView::NotEqual => ScanCompareType::NotEqual,
-            ScanConstraintTypeView::Changed => ScanCompareType::Changed,
-            ScanConstraintTypeView::Unchanged => ScanCompareType::Unchanged,
-            ScanConstraintTypeView::Increased => ScanCompareType::Increased,
-            ScanConstraintTypeView::Decreased => ScanCompareType::Decreased,
-            ScanConstraintTypeView::IncreasedBy => ScanCompareType::IncreasedByX,
-            ScanConstraintTypeView::DecreasedBy => ScanCompareType::DecreasedByX,
-            ScanConstraintTypeView::GreaterThan => ScanCompareType::GreaterThan,
-            ScanConstraintTypeView::GreaterThanOrEqualTo => ScanCompareType::GreaterThanOrEqual,
-            ScanConstraintTypeView::LessThan => ScanCompareType::LessThan,
-            ScanConstraintTypeView::LessThanOrEqualTo => ScanCompareType::LessThanOrEqual,
-        }*/
-        ScanCompareType::Relative(ScanCompareTypeRelative::Decreased)
+            ScanConstraintTypeView::Equal => ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            ScanConstraintTypeView::NotEqual => ScanCompareType::Immediate(ScanCompareTypeImmediate::NotEqual),
+            ScanConstraintTypeView::GreaterThan => ScanCompareType::Immediate(ScanCompareTypeImmediate::GreaterThan),
+            ScanConstraintTypeView::GreaterThanOrEqual => ScanCompareType::Immediate(ScanCompareTypeImmediate::GreaterThanOrEqual),
+            ScanConstraintTypeView::LessThan => ScanCompareType::Immediate(ScanCompareTypeImmediate::LessThan),
+            ScanConstraintTypeView::LessThanOrEqual => ScanCompareType::Immediate(ScanCompareTypeImmediate::LessThanOrEqual),
+            ScanConstraintTypeView::Changed => ScanCompareType::Relative(ScanCompareTypeRelative::Changed),
+            ScanConstraintTypeView::Unchanged => ScanCompareType::Relative(ScanCompareTypeRelative::Unchanged),
+            ScanConstraintTypeView::Increased => ScanCompareType::Relative(ScanCompareTypeRelative::Increased),
+            ScanConstraintTypeView::Decreased => ScanCompareType::Relative(ScanCompareTypeRelative::Decreased),
+            ScanConstraintTypeView::IncreasedByX => ScanCompareType::Delta(ScanCompareTypeDelta::IncreasedByX),
+            ScanConstraintTypeView::DecreasedByX => ScanCompareType::Delta(ScanCompareTypeDelta::DecreasedByX),
+        }
     }
 }

@@ -51,7 +51,7 @@ impl ManualScanViewModel {
         engine_execution_context: Arc<EngineExecutionContext>,
         data_type_view: DataTypeView,
     ) {
-        let data_type = DataTypeRef::new(data_type_view.data_type.into());
+        let data_type = DataTypeRef::new(&data_type_view.data_type.to_string());
         let memory_alignment = None; // JIRA: TODO
         let scan_filter_parameters = vec![ScanFilterParameters::new(memory_alignment, data_type)];
 

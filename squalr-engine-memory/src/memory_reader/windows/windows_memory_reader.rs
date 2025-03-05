@@ -18,7 +18,7 @@ impl IMemoryReader for WindowsMemoryReader {
         &self,
         process_info: &OpenedProcessInfo,
         address: u64,
-        data_value: &mut Box<dyn DataValue>,
+        data_value: &mut DataValue,
     ) -> bool {
         unsafe {
             let size = data_value.get_size_in_bytes() as usize;
