@@ -50,7 +50,7 @@ where
         region_size: u64,
         true_mask: Simd<u8, N>,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_type_size_bytes = data_type.get_default_size_in_bytes(); // JIRA: This should be the data_value.get_size_in_bytes() to support container types
+        let data_type_size_bytes = data_type.get_size_in_bytes();
 
         unsafe {
             match scan_parameters.get_compare_type() {

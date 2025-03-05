@@ -64,7 +64,7 @@ impl ScanDispatcher {
         data_type: &DataTypeRef,
         memory_alignment: MemoryAlignment,
     ) -> &'static dyn Scanner {
-        let data_type_size = data_type.get_default_size_in_bytes(); // JIRA: This should be the data_value.get_size_in_bytes() to support container types
+        let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment_size = memory_alignment as u64;
         let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
         let region_size = snapshot_region_filter.get_region_size();

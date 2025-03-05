@@ -30,7 +30,7 @@ where
         true_mask: Simd<u8, N>,
     ) -> Vec<SnapshotRegionFilter> {
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type_size_bytes = data_type.get_default_size_in_bytes(); // JIRA: This should be the data_value.get_size_in_bytes() to support container types
+        let data_type_size_bytes = data_type.get_size_in_bytes();
         let vector_size_in_bytes = N;
         let iterations = region_size / vector_size_in_bytes as u64;
         let remainder_bytes = region_size % vector_size_in_bytes as u64;

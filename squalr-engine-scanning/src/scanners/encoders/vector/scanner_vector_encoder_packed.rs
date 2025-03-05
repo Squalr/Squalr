@@ -28,7 +28,7 @@ where
     ) -> Vec<SnapshotRegionFilter> {
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_filter_parameters.get_data_type();
-        let data_type_size_bytes = data_type.get_default_size_in_bytes(); // JIRA: This should be the data_value.get_size_in_bytes() to support container types
+        let data_type_size_bytes = data_type.get_size_in_bytes();
         let vector_size_in_bytes = N;
 
         // The total number of vectors we can fill entirely.

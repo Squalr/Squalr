@@ -5,6 +5,7 @@ use std::{mem, ptr};
 pub struct VectorGenerics {}
 
 impl VectorGenerics {
+    /// Reinterprets a Simd Mask of any primitive type into a plain `Simd` of `u8`.
     pub fn transmute_mask<T, const N: usize>(value: &<Simd<T, N> as SimdPartialEq>::Mask) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,

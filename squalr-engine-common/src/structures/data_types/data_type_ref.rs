@@ -2,6 +2,7 @@ use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompare
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnImmediate;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnRelative;
 use crate::structures::data_types::comparisons::vector_compare::VectorCompare;
+use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::registries::data_types::data_type_registry::DataTypeRegistry;
@@ -20,16 +21,36 @@ use std::{
 /// Represents a handle to a data type. This is kept as a weak reference, as DataTypes can be registered/unregistered by plugins.
 /// As such, `DataType` is a `Box<dyn>` type, so it is much easier to abstract them behind `DataTypeRef` and just pass around handles.
 /// This is also important for serialization/deserialization, as if a plugin that defines a type is disabled, we can still deserialize it.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DataTypeRef {
     data_type_id: String,
+    data_type_meta_data: DataTypeMetaData,
 }
 
 impl DataTypeRef {
-    /// Creates a new reference to a registered `DataType`.
-    pub fn new(data_type_id: &str) -> Self {
+    /// Creates a new reference to a registered `DataType`. The type must be registered to collect important metadata.
+    /// If the type is not yet registered, or does not exist, then this will return `None`.
+    pub fn new(data_type_id: &str) -> Option<Self> {
+        let registry = DataTypeRegistry::get_instance().get_registry();
+
+        match registry.get(data_type_id) {
+            Some(data_type) => Some(Self {
+                data_type_id: data_type.get_id().to_string(),
+                data_type_meta_data: data_type.get_default_meta_data(),
+            }),
+            None => None,
+        }
+    }
+
+    /// Creates a new reference to a registered `DataType`. The type must be registered to collect important metadata.
+    /// If the type is not yet registered, or does not exist, then this will return `None`.
+    pub fn new_with_meta_data(
+        data_type_id: &str,
+        data_type_meta_data: DataTypeMetaData,
+    ) -> Self {
         Self {
             data_type_id: data_type_id.to_string(),
+            data_type_meta_data,
         }
     }
 
@@ -53,12 +74,19 @@ impl DataTypeRef {
         }
     }
 
-    pub fn get_default_size_in_bytes(&self) -> u64 {
-        let registry = DataTypeRegistry::get_instance().get_registry();
+    pub fn get_size_in_bytes(&self) -> u64 {
+        match self.data_type_meta_data {
+            // For standard types, return the default / primitive size from the data type in the registry.
+            DataTypeMetaData::None => {
+                let registry = DataTypeRegistry::get_instance().get_registry();
 
-        match registry.get(self.get_id()) {
-            Some(data_type) => data_type.get_default_size_in_bytes(),
-            None => 0,
+                match registry.get(self.get_id()) {
+                    Some(data_type) => data_type.get_default_size_in_bytes(),
+                    None => 0,
+                }
+            }
+            // For container types, return the size of the container.
+            DataTypeMetaData::SizedContainer(size) => size,
         }
     }
 
@@ -190,10 +218,13 @@ impl DataTypeRef {
 }
 
 impl FromStr for DataTypeRef {
-    type Err = serde_json::Error;
+    type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(DataTypeRef::new(string))
+        match DataTypeRef::new(string) {
+            Some(data_type_ref) => Ok(data_type_ref),
+            None => Err("Unable to create data type ref.".to_string()),
+        }
     }
 }
 

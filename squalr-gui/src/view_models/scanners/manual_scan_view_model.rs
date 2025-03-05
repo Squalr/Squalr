@@ -51,13 +51,17 @@ impl ManualScanViewModel {
         engine_execution_context: Arc<EngineExecutionContext>,
         data_type_view: DataTypeView,
     ) {
-        let data_type = DataTypeRef::new(&data_type_view.data_type.to_string());
-        let memory_alignment = None; // JIRA: TODO
-        let scan_filter_parameters = vec![ScanFilterParameters::new(memory_alignment, data_type)];
+        match DataTypeRef::new(&data_type_view.data_type.to_string()) {
+            Some(data_type) => {
+                let memory_alignment = None; // JIRA: TODO
+                let scan_filter_parameters = vec![ScanFilterParameters::new(memory_alignment, data_type)];
 
-        let scan_new_request = ScanNewRequest { scan_filter_parameters };
+                let scan_new_request = ScanNewRequest { scan_filter_parameters };
 
-        scan_new_request.send(&engine_execution_context, |_scan_new_response| {});
+                scan_new_request.send(&engine_execution_context, |_scan_new_response| {});
+            }
+            None => log::error!("Failed to create data type for new scan."),
+        }
     }
 
     fn on_start_scan(

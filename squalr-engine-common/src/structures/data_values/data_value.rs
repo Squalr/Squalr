@@ -8,7 +8,7 @@ use std::{
 use super::anonymous_value::AnonymousValue;
 
 /// Represents a value for a `DataType`. Additionally, new `DataType` and `DataValue` pairs can be registered by plugins.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DataValue {
     /// A weak handle to the data type that this value represents.
     data_type: DataTypeRef,
@@ -92,12 +92,16 @@ impl FromStr for DataValue {
             return Err("Expected a format of {data_type_id}={value_string}".to_string());
         }
 
-        let data_type = DataTypeRef::new(parts[0]);
-        let anonymous_value = AnonymousValue::new(parts[1]);
+        match DataTypeRef::new(parts[0]) {
+            Some(data_type) => {
+                let anonymous_value = AnonymousValue::new(parts[1]);
 
-        match data_type.deanonymize_value(&anonymous_value) {
-            Some(value) => Ok(value),
-            None => Err("Unable to parse value.".to_string()),
+                match data_type.deanonymize_value(&anonymous_value) {
+                    Some(value) => Ok(value),
+                    None => Err("Unable to parse value.".to_string()),
+                }
+            }
+            None => Err("Data type not found.".to_string()),
         }
     }
 }
