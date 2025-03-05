@@ -1,4 +1,10 @@
-use crate::structures::data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type::DataType};
+use crate::structures::data_types::{
+    built_in_types::{
+        i8::data_type_i8::DataTypeI8, i16::data_type_i16::DataTypeI16, i32::data_type_i32::DataTypeI32, i64::data_type_i64::DataTypeI64,
+        u8::data_type_u8::DataTypeU8, u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64,
+    },
+    data_type::DataType,
+};
 use dashmap::DashMap;
 use std::sync::{Arc, Once};
 
@@ -34,7 +40,24 @@ impl DataTypeRegistry {
 
     fn create_built_in_types() -> DashMap<String, Arc<dyn DataType>> {
         let registry: DashMap<String, Arc<dyn DataType>> = DashMap::new();
-        registry.insert("i32".to_string(), Arc::new(DataTypeI32 {}));
+
+        let data_type_i8 = DataTypeI8 {};
+        let data_type_i16 = DataTypeI16 {};
+        let data_type_i32 = DataTypeI32 {};
+        let data_type_i64 = DataTypeI64 {};
+        let data_type_u8 = DataTypeU8 {};
+        let data_type_u16 = DataTypeU16 {};
+        let data_type_u32 = DataTypeU32 {};
+        let data_type_u64 = DataTypeU64 {};
+
+        registry.insert(data_type_i8.get_id().to_string(), Arc::new(data_type_i8));
+        registry.insert(data_type_i16.get_id().to_string(), Arc::new(data_type_i16));
+        registry.insert(data_type_i32.get_id().to_string(), Arc::new(data_type_i32));
+        registry.insert(data_type_i64.get_id().to_string(), Arc::new(data_type_i64));
+        registry.insert(data_type_u8.get_id().to_string(), Arc::new(data_type_u8));
+        registry.insert(data_type_u16.get_id().to_string(), Arc::new(data_type_u16));
+        registry.insert(data_type_u32.get_id().to_string(), Arc::new(data_type_u32));
+        registry.insert(data_type_u64.get_id().to_string(), Arc::new(data_type_u64));
 
         registry
     }

@@ -15,6 +15,6 @@ impl ViewDataComparer<ScanResultViewData> for ScanResultComparer {
         a: &ScanResultViewData,
         b: &ScanResultViewData,
     ) -> bool {
-        a.address == b.address && a.current_value == b.current_value && a.previous_value == b.previous_value
+        a.address == b.address && a.current_value == b.current_value && a.previous_value == b.previous_value && a.data_type == b.data_type
     }
 }

@@ -3,24 +3,24 @@ use crate::structures::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
 
-type PrimitiveType = i32;
+type PrimitiveType = u8;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DataTypeI32 {}
+pub struct DataTypeU8 {}
 
-impl DataTypeI32 {
-    fn to_vec(value: i32) -> Vec<u8> {
+impl DataTypeU8 {
+    fn to_vec(value: u8) -> Vec<u8> {
         value.to_le_bytes().to_vec()
     }
 }
 
-impl DataType for DataTypeI32 {
+impl DataType for DataTypeU8 {
     fn get_id(&self) -> &str {
-        &"i32"
+        &"u8"
     }
 
     fn get_icon_id(&self) -> &str {
-        &"i32"
+        &"u8"
     }
 
     fn get_default_size_in_bytes(&self) -> u64 {
@@ -33,7 +33,7 @@ impl DataType for DataTypeI32 {
     ) -> Vec<u8> {
         let value_string = anonymous_value.to_string();
 
-        match value_string.parse::<i32>() {
+        match value_string.parse::<u8>() {
             Ok(value) => Self::to_vec(value),
             Err(_) => vec![],
         }
@@ -44,7 +44,7 @@ impl DataType for DataTypeI32 {
         value_bytes: &[u8],
     ) -> Option<String> {
         if value_bytes.len() == self.get_default_size_in_bytes() as usize {
-            Some(i32::from_le_bytes([value_bytes[0], value_bytes[1], value_bytes[2], value_bytes[3]]).to_string())
+            Some(u8::from_le_bytes([value_bytes[0]]).to_string())
         } else {
             None
         }
