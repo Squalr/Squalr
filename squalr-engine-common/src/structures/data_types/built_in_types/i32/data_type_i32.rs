@@ -9,7 +9,11 @@ type PrimitiveType = i32;
 pub struct DataTypeI32 {}
 
 impl DataType for DataTypeI32 {
-    fn get_name(&self) -> &str {
+    fn get_id(&self) -> &str {
+        &"i32"
+    }
+
+    fn get_icon_id(&self) -> &str {
         &"i32"
     }
 

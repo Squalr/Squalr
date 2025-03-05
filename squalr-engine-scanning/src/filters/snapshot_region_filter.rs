@@ -1,7 +1,4 @@
-use squalr_engine_common::structures::{
-    data_types::{data_type::DataType, data_type_ref::DataTypeRef},
-    memory_alignment::MemoryAlignment,
-};
+use squalr_engine_common::structures::{data_types::data_type_ref::DataTypeRef, memory_alignment::MemoryAlignment};
 use squalr_engine_memory::normalized_region::NormalizedRegion;
 use std::cmp::max;
 

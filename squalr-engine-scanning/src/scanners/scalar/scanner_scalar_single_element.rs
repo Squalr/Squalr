@@ -8,12 +8,6 @@ use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareTy
 
 pub struct ScannerScalarSingleElement {}
 
-impl ScannerScalarSingleElement {
-    fn new() -> Self {
-        Self {}
-    }
-}
-
 /// Implements a scalar (ie CPU bound, non-SIMD) scanner which only scans a single element of memory (ie only containing 1 data type).
 impl Scanner for ScannerScalarSingleElement {
     fn scan_region(

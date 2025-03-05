@@ -37,7 +37,7 @@ where
 
         // For immediate comparisons, we can use a cascading periodic scan.
         match scan_parameters.get_compare_type() {
-            ScanCompareType::Immediate(scan_compare_type_immediate) => {
+            ScanCompareType::Immediate(_scan_compare_type_immediate) => {
                 let vector_encoder = ScannerVectorEncoderCascadingPeriodic::<N>::new();
 
                 results = vector_encoder.vector_encode(
@@ -50,10 +50,10 @@ where
                     simd_all_true_mask,
                 );
             }
-            ScanCompareType::Relative(scan_compare_type_relative) => {
+            ScanCompareType::Relative(_scan_compare_type_relative) => {
                 panic!("Relative cascading scans are not implemented yet");
             }
-            ScanCompareType::Delta(scan_compare_type_delta) => {
+            ScanCompareType::Delta(_scan_compare_type_delta) => {
                 panic!("Delta cascading scans are not implemented yet");
             }
         }

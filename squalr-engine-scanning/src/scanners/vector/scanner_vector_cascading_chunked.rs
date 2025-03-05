@@ -39,7 +39,7 @@ where
 
         match scan_parameters.get_compare_type() {
             // For immediate comparisons, we can use a cascading periodic scan
-            ScanCompareType::Immediate(scan_compare_type_immediate) => {
+            ScanCompareType::Immediate(_scan_compare_type_immediate) => {
                 let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
                 let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
                 let region_size = snapshot_region_filter.get_region_size();
@@ -97,10 +97,10 @@ where
                     }
                 }
             }
-            ScanCompareType::Relative(scan_compare_type_relative) => {
+            ScanCompareType::Relative(_scan_compare_type_relative) => {
                 panic!("Relative cascading scans are not implemented yet");
             }
-            ScanCompareType::Delta(scan_compare_type_delta) => {
+            ScanCompareType::Delta(_scan_compare_type_delta) => {
                 panic!("Delta cascading scans are not implemented yet");
             }
         }

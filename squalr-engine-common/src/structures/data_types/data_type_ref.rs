@@ -34,17 +34,26 @@ impl DataTypeRef {
     pub fn is_valid(&self) -> bool {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        registry.get(self.get_data_type_id()).is_some()
+        registry.get(self.get_id()).is_some()
     }
 
-    pub fn get_data_type_id(&self) -> &str {
+    pub fn get_id(&self) -> &str {
         &self.data_type_id
+    }
+
+    pub fn get_icon_id(&self) -> String {
+        let registry = DataTypeRegistry::get_instance().get_registry();
+
+        match registry.get(self.get_id()) {
+            Some(data_type) => data_type.get_icon_id().to_string(),
+            None => String::new(),
+        }
     }
 
     pub fn get_size_in_bytes(&self) -> u64 {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        match registry.get(self.get_data_type_id()) {
+        match registry.get(self.get_id()) {
             Some(data_type) => data_type.get_size_in_bytes(),
             None => 0,
         }
@@ -53,7 +62,7 @@ impl DataTypeRef {
     pub fn get_default_value(&self) -> Option<Box<dyn DataValue>> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        match registry.get(self.get_data_type_id()) {
+        match registry.get(self.get_id()) {
             Some(data_type) => Some(data_type.get_default_value()),
             None => None,
         }
@@ -65,7 +74,7 @@ impl DataTypeRef {
     ) -> Option<ScalarCompareFnImmediate> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        match registry.get(self.get_data_type_id()) {
+        match registry.get(self.get_id()) {
             Some(data_type) => Some(match scan_compare_type {
                 ScanCompareTypeImmediate::Equal => data_type.get_compare_equal(),
                 ScanCompareTypeImmediate::NotEqual => data_type.get_compare_not_equal(),
@@ -84,7 +93,7 @@ impl DataTypeRef {
     ) -> Option<ScalarCompareFnRelative> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        match registry.get(self.get_data_type_id()) {
+        match registry.get(self.get_id()) {
             Some(data_type) => Some(match scan_compare_type {
                 ScanCompareTypeRelative::Changed => data_type.get_compare_changed(),
                 ScanCompareTypeRelative::Unchanged => data_type.get_compare_unchanged(),
@@ -101,7 +110,7 @@ impl DataTypeRef {
     ) -> Option<ScalarCompareFnDelta> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        match registry.get(self.get_data_type_id()) {
+        match registry.get(self.get_id()) {
             Some(data_type) => Some(match scan_compare_type {
                 ScanCompareTypeDelta::IncreasedByX => data_type.get_compare_increased_by(),
                 ScanCompareTypeDelta::DecreasedByX => data_type.get_compare_decreased_by(),
@@ -119,7 +128,7 @@ impl DataTypeRef {
     {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        match registry.get(self.get_data_type_id()) {
+        match registry.get(self.get_id()) {
             Some(data_type) => Some(<LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_immediate(
                 &data_type,
                 &scan_compare_type_immediate,
@@ -137,7 +146,7 @@ impl DataTypeRef {
     {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        match registry.get(self.get_data_type_id()) {
+        match registry.get(self.get_id()) {
             Some(data_type) => Some(<LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_relative(
                 &data_type,
                 &scan_compare_type_relative,
@@ -155,7 +164,7 @@ impl DataTypeRef {
     {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        match registry.get(self.get_data_type_id()) {
+        match registry.get(self.get_id()) {
             Some(data_type) => Some(<LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_delta(
                 &data_type,
                 &scan_compare_type_delta,
@@ -178,6 +187,6 @@ impl fmt::Display for DataTypeRef {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(formatter, "{}", self.get_data_type_id())
+        write!(formatter, "{}", self.get_id())
     }
 }

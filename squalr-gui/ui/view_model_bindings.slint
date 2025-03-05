@@ -79,28 +79,21 @@ export global OutputViewModelBindings {
     in-out property <string> output-text;
 }
 
-export enum DataTypeView {
+export enum DataTypeIconView {
     i8,
     u8,
     i16,
-    i16be,
     u16,
-    u16be,
     i32,
-    i32be,
     u32,
-    u32be,
     i64,
-    i64be,
     u64,
-    u64be,
     f32,
-    f32be,
     f64,
-    f64be,
     string,
     bytes,
     bitfield,
+    unknown,
 }
 
 export enum ScanConstraintTypeView {
@@ -122,8 +115,13 @@ export global ValueCollectorViewModelBindings {
     callback collect_values();
 }
 
+export struct DataTypeView {
+    data_type: string,
+    icon: DataTypeIconView,
+}
+
 export global ManualScanViewModelBindings {
-    in-out property <DataTypeView> active_data_type: i32;
+    in-out property <DataTypeView> active_data_type: { data_type: "i32", icon: DataTypeIconView.i32 };
     in-out property <ScanConstraintTypeView> active_scan_type: equal;
     callback new_scan(data_type: DataTypeView);
     callback start_scan(scan_constraint: ScanConstraintTypeView, scan_value: string);
@@ -179,7 +177,7 @@ export global ScanSettingsViewModelBindings {
 export global ProjectExplorerViewModelBindings { }
 
 export struct ScanResultViewData {
-    data_type: DataTypeView,
+    data_type: DataTypeIconView,
     address: string,
     current_value: string,
     previous_value: string,

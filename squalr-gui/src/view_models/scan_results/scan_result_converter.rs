@@ -1,6 +1,6 @@
-use crate::{DataTypeView, ScanResultViewData};
+use crate::{DataTypeIconView, ScanResultViewData};
 use slint_mvvm::view_data_converter::ViewDataConverter;
-use squalr_engine_common::structures::{data_types::data_type::DataType, scan_results::scan_result::ScanResult};
+use squalr_engine_common::structures::scan_results::scan_result::ScanResult;
 
 pub struct ScanResultConverter;
 
@@ -35,23 +35,22 @@ impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
             format!("{:016X}", address)
         };
 
-        /*
-        let data_type_view = match scan_result.get_data_type() {
-            DataType::U8 { .. } => DataTypeView::U8,
-            DataType::U16 { .. } => DataTypeView::U16,
-            DataType::U32 { .. } => DataTypeView::U32,
-            DataType::U64 { .. } => DataTypeView::U64,
-            DataType::I8 { .. } => DataTypeView::I8,
-            DataType::I16 { .. } => DataTypeView::I16,
-            DataType::I32 { .. } => DataTypeView::I32,
-            DataType::I64 { .. } => DataTypeView::I64,
-            DataType::F32 { .. } => DataTypeView::F32,
-            DataType::F64 { .. } => DataTypeView::F64,
-            DataType::String { .. } => DataTypeView::String,
-            DataType::Bytes { .. } => DataTypeView::Bytes,
-            DataType::BitField { .. } => DataTypeView::Bitfield,
-        };*/
-        let data_type_view = DataTypeView::Bytes;
+        let data_type_view = match scan_result.get_data_type().get_icon_id().as_ref() {
+            "u8" => DataTypeIconView::U8,
+            "u16" => DataTypeIconView::U16,
+            "u32" => DataTypeIconView::U32,
+            "u64" => DataTypeIconView::U64,
+            "i8" => DataTypeIconView::I8,
+            "i16" => DataTypeIconView::I16,
+            "i32" => DataTypeIconView::I32,
+            "i64" => DataTypeIconView::I64,
+            "f32" => DataTypeIconView::F32,
+            "f64" => DataTypeIconView::F64,
+            "str" => DataTypeIconView::String,
+            "bytes" => DataTypeIconView::Bytes,
+            "bits" => DataTypeIconView::Bitfield,
+            _ => DataTypeIconView::Unknown,
+        };
 
         let current_value_string = match scan_result.get_recently_read_value() {
             Some(recently_read_value) => recently_read_value.get_value_string(),
