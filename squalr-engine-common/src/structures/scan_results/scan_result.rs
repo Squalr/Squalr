@@ -1,5 +1,6 @@
+use crate::structures::data_types::data_type_ref::DataTypeRef;
+use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
-use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -26,7 +27,7 @@ impl ScanResult {
         }
     }
 
-    pub fn get_data_type(&self) -> &Box<dyn DataType> {
+    pub fn get_data_type(&self) -> &DataTypeRef {
         &self.base_result.data_type
     }
 

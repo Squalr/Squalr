@@ -1,10 +1,10 @@
 use crate::structures::data_types::built_in_types::i32::data_type_i32::DataTypeI32;
 use crate::structures::data_types::data_type::DataType;
 use dashmap::DashMap;
-use std::sync::Once;
+use std::sync::{Arc, Once};
 
 pub struct DataTypeRegistry {
-    registry: DashMap<String, Box<dyn DataType>>,
+    registry: DashMap<String, Arc<dyn DataType>>,
 }
 
 impl DataTypeRegistry {
@@ -29,13 +29,13 @@ impl DataTypeRegistry {
         }
     }
 
-    pub fn get_registry(&self) -> &DashMap<String, Box<dyn DataType>> {
+    pub fn get_registry(&self) -> &DashMap<String, Arc<dyn DataType>> {
         &self.registry
     }
 
-    fn create_built_in_types() -> DashMap<String, Box<dyn DataType>> {
-        let registry: DashMap<String, Box<dyn DataType>> = DashMap::new();
-        registry.insert("i32".to_string(), Box::new(DataTypeI32 {}));
+    fn create_built_in_types() -> DashMap<String, Arc<dyn DataType>> {
+        let registry: DashMap<String, Arc<dyn DataType>> = DashMap::new();
+        registry.insert("i32".to_string(), Arc::new(DataTypeI32 {}));
 
         registry
     }

@@ -3,7 +3,7 @@ use crate::scanners::encoders::scalar::scanner_scalar_encoder::ScannerScalarEnco
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_common::structures::data_types::data_type::DataType;
+use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 
 pub struct ScannerScalarIterative {}
@@ -24,7 +24,7 @@ impl Scanner for ScannerScalarIterative {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        data_type: &Box<dyn DataType>,
+        data_type: &DataTypeRef,
         memory_alignment: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
         let results = ScannerScalarEncoder::scalar_encode(

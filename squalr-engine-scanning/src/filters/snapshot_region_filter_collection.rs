@@ -1,6 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use squalr_engine_common::structures::{data_types::data_type::DataType, memory_alignment::MemoryAlignment};
+use squalr_engine_common::structures::{data_types::data_type_ref::DataTypeRef, memory_alignment::MemoryAlignment};
 
 /// A custom type that defines a set of filters (scan results) discovered by scanners.
 pub struct SnapshotRegionFilterCollection {
@@ -8,7 +8,7 @@ pub struct SnapshotRegionFilterCollection {
     snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
 
     /// The data type of all elements in this filter.
-    data_type: Box<dyn DataType>,
+    data_type: DataTypeRef,
 
     // The memory alignment of all elements in this filter.
     memory_alignment: MemoryAlignment,
@@ -22,7 +22,7 @@ impl SnapshotRegionFilterCollection {
     /// representing regions of memory with the specified data type and alignment.
     pub fn new(
         mut snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
-        data_type: Box<dyn DataType>,
+        data_type: DataTypeRef,
         memory_alignment: MemoryAlignment,
     ) -> Self {
         // Sort each inner vector by base address.
@@ -84,7 +84,7 @@ impl SnapshotRegionFilterCollection {
     }
 
     /// Gets the data type of this snapshot region filter collection.
-    pub fn get_data_type(&self) -> &Box<dyn DataType> {
+    pub fn get_data_type(&self) -> &DataTypeRef {
         &self.data_type
     }
 

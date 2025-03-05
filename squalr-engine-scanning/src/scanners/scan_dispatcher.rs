@@ -5,7 +5,7 @@ use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::ParallelIterator;
-use squalr_engine_common::structures::data_types::data_type::DataType;
+use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 
 pub struct ScanDispatcher {}
@@ -59,7 +59,7 @@ impl ScanDispatcher {
 
     fn acquire_scanner_instance(
         snapshot_region_filter: &SnapshotRegionFilter,
-        data_type: &Box<dyn DataType>,
+        data_type: &DataTypeRef,
         memory_alignment: MemoryAlignment,
     ) -> &'static dyn Scanner {
         /*

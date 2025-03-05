@@ -3,7 +3,8 @@ use crate::scanners::encoders::vector::scanner_vector_encoder::ScannerVectorEnco
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_common::structures::data_types::{comparisons::vector_compare::VectorCompare, data_type::DataType};
+use squalr_engine_common::structures::data_types::comparisons::vector_compare::VectorCompare;
+use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
@@ -22,7 +23,7 @@ where
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        data_type: &Box<dyn DataType>,
+        data_type: &DataTypeRef,
         _: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
         let vector_encoder = ScannerVectorEncoder::<N>::new();

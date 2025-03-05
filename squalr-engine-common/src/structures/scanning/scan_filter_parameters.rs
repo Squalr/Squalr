@@ -1,4 +1,4 @@
-use crate::structures::data_types::data_type::DataType;
+use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::memory_alignment::MemoryAlignment;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -10,13 +10,13 @@ use std::str::FromStr;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanFilterParameters {
     alignment: Option<MemoryAlignment>,
-    data_type: Box<dyn DataType>,
+    data_type: DataTypeRef,
 }
 
 impl ScanFilterParameters {
     pub fn new(
         alignment: Option<MemoryAlignment>,
-        data_type: Box<dyn DataType>,
+        data_type: DataTypeRef,
     ) -> Self {
         Self { alignment, data_type }
     }
@@ -34,7 +34,7 @@ impl ScanFilterParameters {
         }
     }
 
-    pub fn get_data_type(&self) -> &Box<dyn DataType> {
+    pub fn get_data_type(&self) -> &DataTypeRef {
         &self.data_type
     }
 }
@@ -71,21 +71,21 @@ impl FromStr for ScanFilterParameters {
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = string.split('=').collect();
 
-        // Check if there is at least one part, and at most two
+        // Check if there is at least one part, and at most two.
         if parts.len() < 1 || parts.len() > 2 {
             return Err(ScanFilterParametersParseError::InvalidFormat);
         }
 
-        // Parse the data type from the first part
+        // Parse the data type from the first part.
         let data_type = parts[0]
             .trim()
-            .parse::<Box<dyn DataType>>()
+            .parse::<DataTypeRef>()
             .map_err(|_| ScanFilterParametersParseError::InvalidDataType)?;
 
-        // Handle the optional alignment part
+        // Handle the optional alignment part.
         let alignment = if parts.len() == 2 {
             match parts[1].trim() {
-                // No alignment provided
+                // No alignment provided.
                 "" => None,
                 alignment_str => {
                     let alignment_value: i32 = alignment_str.parse()?;
@@ -96,7 +96,7 @@ impl FromStr for ScanFilterParameters {
             None
         };
 
-        // Create a new ScanFilterParameters with the parsed values
+        // Create a new ScanFilterParameters with the parsed values.
         Ok(ScanFilterParameters::new(alignment, data_type))
     }
 }

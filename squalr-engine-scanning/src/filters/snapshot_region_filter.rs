@@ -1,4 +1,7 @@
-use squalr_engine_common::structures::{data_types::data_type::DataType, memory_alignment::MemoryAlignment};
+use squalr_engine_common::structures::{
+    data_types::{data_type::DataType, data_type_ref::DataTypeRef},
+    memory_alignment::MemoryAlignment,
+};
 use squalr_engine_memory::normalized_region::NormalizedRegion;
 use std::cmp::max;
 
@@ -52,7 +55,7 @@ impl SnapshotRegionFilter {
     /// Gets the number of elements contained by this filter for the given data type and alignment.
     pub fn get_element_count(
         &self,
-        data_type: &Box<dyn DataType>,
+        data_type: &DataTypeRef,
         memory_alignment: MemoryAlignment,
     ) -> u64 {
         let data_type_size = data_type.get_size_in_bytes();

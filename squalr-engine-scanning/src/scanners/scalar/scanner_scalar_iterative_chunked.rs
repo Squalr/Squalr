@@ -4,7 +4,7 @@ use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use squalr_engine_common::structures::{data_types::data_type::DataType, memory_alignment::MemoryAlignment};
+use squalr_engine_common::structures::{data_types::data_type_ref::DataTypeRef, memory_alignment::MemoryAlignment};
 use std::sync::Once;
 
 pub struct ScannerScalarIterativeChunked {}
@@ -40,7 +40,7 @@ impl Scanner for ScannerScalarIterativeChunked {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        data_type: &Box<dyn DataType>,
+        data_type: &DataTypeRef,
         memory_alignment: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);

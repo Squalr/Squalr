@@ -12,18 +12,18 @@ pub enum Endian {
 
 impl Default for Endian {
     fn default() -> Self {
-        if cfg!(target_endian = "little") { Endian::Little } else { Endian::Big }
+        Endian::Little
     }
 }
 
 impl fmt::Display for Endian {
     fn fmt(
         &self,
-        f: &mut fmt::Formatter<'_>,
+        formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            Endian::Little => write!(f, "le"),
-            Endian::Big => write!(f, "be"),
+            Endian::Little => write!(formatter, "le"),
+            Endian::Big => write!(formatter, "be"),
         }
     }
 }

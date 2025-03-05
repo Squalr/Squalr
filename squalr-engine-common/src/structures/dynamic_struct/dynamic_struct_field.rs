@@ -10,7 +10,7 @@ use std::str::FromStr;
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct DynamicStructField {
     pub symbol: String,
-    pub data_type: Box<dyn DataType>,
+    pub data_type: Arc<dyn DataType>,
     pub data_value: DataValue,
 }
 

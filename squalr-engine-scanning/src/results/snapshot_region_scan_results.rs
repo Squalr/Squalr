@@ -1,5 +1,5 @@
 use crate::{filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection, snapshots::snapshot_region::SnapshotRegion};
-use squalr_engine_common::structures::{data_types::data_type::DataType, scan_results::scan_result_base::ScanResultBase};
+use squalr_engine_common::structures::{data_types::data_type_ref::DataTypeRef, scan_results::scan_result_base::ScanResultBase};
 use std::{cmp::Reverse, collections::BinaryHeap};
 
 /// Tracks the scan results for a region, and builds a lookup table that allows mapping a local index to a scan result.
@@ -24,7 +24,7 @@ impl SnapshotRegionScanResults {
 
     pub fn get_scan_results_by_data_type(
         &self,
-        data_type: &Box<dyn DataType>,
+        data_type: &DataTypeRef,
     ) -> Option<&SnapshotRegionFilterCollection> {
         for collection in &self.snapshot_region_filter_collections {
             if collection.get_data_type() == data_type {

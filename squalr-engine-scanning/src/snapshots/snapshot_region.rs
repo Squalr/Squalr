@@ -2,7 +2,7 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
-use squalr_engine_common::structures::data_types::data_type::DataType;
+use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::data_values::data_value::DataValue;
 use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
@@ -75,18 +75,21 @@ impl SnapshotRegion {
     pub fn get_current_value(
         &self,
         element_address: u64,
-        data_type: &Box<dyn DataType>,
+        data_type: &DataTypeRef,
     ) -> Option<Box<dyn DataValue>> {
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
         let data_type_size = data_type.get_size_in_bytes();
 
         if byte_offset.saturating_add(data_type_size) <= self.current_values.len() as u64 {
-            let mut data_value = data_type.to_default_value();
-            let start = byte_offset as usize;
-            let end = start + data_type_size as usize;
-            data_value.copy_from_bytes(&self.current_values[start..end]);
+            if let Some(mut data_value) = data_type.get_default_value() {
+                let start = byte_offset as usize;
+                let end = start + data_type_size as usize;
+                data_value.copy_from_bytes(&self.current_values[start..end]);
 
-            Some(data_value)
+                Some(data_value)
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -96,18 +99,21 @@ impl SnapshotRegion {
     pub fn get_previous_value(
         &self,
         element_address: u64,
-        data_type: &Box<dyn DataType>,
+        data_type: &DataTypeRef,
     ) -> Option<Box<dyn DataValue>> {
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
         let data_type_size = data_type.get_size_in_bytes();
 
         if byte_offset.saturating_add(data_type_size) <= self.previous_values.len() as u64 {
-            let mut data_value = data_type.to_default_value();
-            let start = byte_offset as usize;
-            let end = start + data_type_size as usize;
-            data_value.copy_from_bytes(&self.previous_values[start..end]);
+            if let Some(mut data_value) = data_type.get_default_value() {
+                let start = byte_offset as usize;
+                let end = start + data_type_size as usize;
+                data_value.copy_from_bytes(&self.previous_values[start..end]);
 
-            Some(data_value)
+                Some(data_value)
+            } else {
+                None
+            }
         } else {
             None
         }

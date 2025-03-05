@@ -51,9 +51,10 @@ impl EngineRequestExecutor for ScanResultsListRequest {
 
                 // Best-effort attempt to read the values for this scan result.
                 if let Some(opened_process_info) = execution_context.get_opened_process() {
-                    let mut data_value = scan_result_base.data_type.to_default_value();
-                    if MemoryReader::get_instance().read(&opened_process_info, scan_result_base.address, &mut data_value) {
-                        recently_read_value = Some(data_value);
+                    if let Some(mut data_value) = scan_result_base.data_type.get_default_value() {
+                        if MemoryReader::get_instance().read(&opened_process_info, scan_result_base.address, &mut data_value) {
+                            recently_read_value = Some(data_value);
+                        }
                     }
                 }
 

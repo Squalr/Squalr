@@ -3,7 +3,7 @@ use crate::scanners::encoders::scalar::scanner_scalar_encoder_byte_array::Scanne
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_common::structures::data_types::comparisons::vector_compare::VectorCompare;
-use squalr_engine_common::structures::data_types::data_type::DataType;
+use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use std::simd::prelude::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
@@ -45,7 +45,7 @@ where
         current_value_pointer: *const u8,
         _: *const u8,
         scan_parameters: &ScanParameters,
-        data_type: &Box<dyn DataType>,
+        data_type: &DataTypeRef,
         base_address: u64,
         region_size: u64,
         true_mask: Simd<u8, N>,

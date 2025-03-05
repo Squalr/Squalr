@@ -5,8 +5,9 @@ use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use squalr_engine_common::structures::data_types::comparisons::vector_compare::VectorCompare;
+use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
-use squalr_engine_common::structures::{data_types::data_type::DataType, scanning::scan_compare_type::ScanCompareType};
+use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorCascading<const N: usize>
@@ -29,7 +30,7 @@ where
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        data_type: &Box<dyn DataType>,
+        data_type: &DataTypeRef,
         _: MemoryAlignment,
     ) -> Vec<SnapshotRegionFilter> {
         let vector_encoder: ScannerVectorEncoderCascadingPeriodic<N> = ScannerVectorEncoderCascadingPeriodic::<N>::new();

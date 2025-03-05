@@ -1,4 +1,4 @@
-use crate::structures::data_types::data_type::DataType;
+use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -18,7 +18,7 @@ impl AnonymousValue {
 
     pub fn deanonymize_type(
         &self,
-        target_type: &Box<dyn DataType>,
+        target_type: &DataTypeRef,
     ) -> Result<Box<dyn DataValue>, String> {
         let value_and_type_str = format!("{}={}", self.value_str, target_type);
 
