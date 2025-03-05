@@ -1,6 +1,11 @@
 use crate::structures::{data_types::data_type_ref::DataTypeRef, registries::data_types::data_type_registry::DataTypeRegistry};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{
+    fmt::{self, Debug},
+    str::FromStr,
+};
+
+use super::anonymous_value::AnonymousValue;
 
 /// Represents a value for a `DataType`. Additionally, new `DataType` and `DataValue` pairs can be registered by plugins.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -41,6 +46,10 @@ impl DataValue {
         }
     }
 
+    pub fn get_data_type(&self) -> &DataTypeRef {
+        &self.data_type
+    }
+
     pub fn get_size_in_bytes(&self) -> u64 {
         self.value_bytes.len() as u64
     }
@@ -70,5 +79,34 @@ impl DataValue {
             },
             None => "??".to_string(),
         }
+    }
+}
+
+impl FromStr for DataValue {
+    type Err = String;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = string.split('=').collect();
+
+        if parts.len() != 2 {
+            return Err("Expected a format of {data_type_id}={value_string}".to_string());
+        }
+
+        let data_type = DataTypeRef::new(parts[0]);
+        let anonymous_value = AnonymousValue::new(parts[1]);
+
+        match data_type.deanonymize_value(&anonymous_value) {
+            Some(value) => Ok(value),
+            None => Err("Unable to parse value.".to_string()),
+        }
+    }
+}
+
+impl fmt::Display for DataValue {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(formatter, "{}={}", self.get_data_type().get_id(), self.get_value_string())
     }
 }

@@ -10,8 +10,6 @@ use structopt::StructOpt;
 pub struct ScanNewRequest {
     #[structopt(short = "d", long, use_delimiter = true)]
     pub scan_filter_parameters: Vec<ScanFilterParameters>,
-    #[structopt(short = "a", long)]
-    pub scan_all_primitives: bool,
 }
 
 impl EngineRequest for ScanNewRequest {

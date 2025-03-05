@@ -2,9 +2,6 @@ use crate::command_executors::engine_request_executor::EngineRequestExecutor;
 use crate::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::new::scan_new_response::ScanNewResponse;
-use squalr_engine_common::structures::data_types::data_type::DataType;
-use squalr_engine_common::structures::endian::Endian;
-use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::page_retrieval_mode::PageRetrievalMode;
 use squalr_engine_scanning::snapshots::snapshot_region::SnapshotRegion;
@@ -17,23 +14,7 @@ impl EngineRequestExecutor for ScanNewRequest {
         &self,
         execution_context: &Arc<EngineExecutionContext>,
     ) -> <Self as EngineRequestExecutor>::ResponseType {
-        let mut scan_filter_parameters = self.scan_filter_parameters.clone();
-
-        if self.scan_all_primitives {
-            scan_filter_parameters = vec![
-                /*
-                ScanFilterParameters::new(None, DataType::U8()),
-                ScanFilterParameters::new(None, DataType::U16(Endian::Little)),
-                ScanFilterParameters::new(None, DataType::U32(Endian::Little)),
-                ScanFilterParameters::new(None, DataType::U64(Endian::Little)),
-                ScanFilterParameters::new(None, DataType::I8()),
-                ScanFilterParameters::new(None, DataType::I16(Endian::Little)),
-                ScanFilterParameters::new(None, DataType::I32(Endian::Little)),
-                ScanFilterParameters::new(None, DataType::I64(Endian::Little)),
-                ScanFilterParameters::new(None, DataType::F32(Endian::Little)),
-                ScanFilterParameters::new(None, DataType::F64(Endian::Little)), */
-            ];
-        }
+        let scan_filter_parameters = self.scan_filter_parameters.clone();
 
         let opened_process_info = execution_context.get_opened_process();
         let opened_process_info = match opened_process_info {

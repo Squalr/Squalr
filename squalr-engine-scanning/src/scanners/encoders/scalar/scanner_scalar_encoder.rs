@@ -20,12 +20,12 @@ impl ScannerScalarEncoder {
         element_count: u64,
     ) -> Vec<SnapshotRegionFilter> {
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type_size = data_type.get_default_size_in_bytes(); // JIRA: This should be the data_value.get_size_in_bytes() to support container types
+        let data_type_size = data_type.get_default_size_in_bytes(); // JIRA: This should be the data_value.get_size_in_bytes() to support container types.
         let memory_alignment = memory_alignment as u64;
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment);
 
         unsafe {
-            // Run length encoding for the scan results
+            // Run length encoding for the scan results.
             let mut encode_results = |compare_result: bool| {
                 if compare_result {
                     run_length_encoder.encode_range(memory_alignment);
