@@ -74,18 +74,6 @@ impl DataTypeRef {
         }
     }
 
-    pub fn deanonymize_value_little_endian(
-        &self,
-        anonymous_value: &AnonymousValue,
-    ) -> Option<DataValue> {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_id()) {
-            Some(data_type) => Some(DataValue::new(self.clone(), data_type.deanonymize_value_little_endian(anonymous_value))),
-            None => None,
-        }
-    }
-
     pub fn get_default_value(&self) -> Option<DataValue> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 

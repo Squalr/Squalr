@@ -36,19 +36,6 @@ impl ScanParameters {
         }
     }
 
-    /// Tries to deanonymizes the scan arg into a usable `DataValue` based on the provided `DataType`.
-    /// In addition, the `Endian` of the value is potentially forced to `LittleEndian` for `BigEndian` data types.
-    /// This is unintuitive, but this allows for big endian scans to make significant optimizations.
-    pub fn deanonymize_relative_delta_as_little_endian(
-        &self,
-        data_type: &DataTypeRef,
-    ) -> Option<DataValue> {
-        match &self.compare_immediate {
-            Some(anonymous_value) => data_type.deanonymize_value_little_endian(&anonymous_value),
-            None => None,
-        }
-    }
-
     pub fn get_compare_immediate(&self) -> Option<&AnonymousValue> {
         match self.get_compare_type() {
             ScanCompareType::Immediate(_) => self.compare_immediate.as_ref(),
