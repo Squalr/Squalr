@@ -39,6 +39,17 @@ impl DataType for DataTypeI32 {
         }
     }
 
+    fn create_display_value(
+        &self,
+        value_bytes: &[u8],
+    ) -> Option<String> {
+        if value_bytes.len() == 4 {
+            Some(i32::from_le_bytes([value_bytes[0], value_bytes[1], value_bytes[2], value_bytes[3]]).to_string())
+        } else {
+            None
+        }
+    }
+
     fn get_endian(&self) -> Endian {
         Endian::Big
     }

@@ -56,13 +56,13 @@ impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
             Some(recently_read_value) => recently_read_value.get_value_string(),
             None => match scan_result.get_current_value() {
                 Some(current_value) => current_value.get_value_string(),
-                None => "??".to_string(),
+                None => "??",
             },
         };
 
         let previous_value_string = match scan_result.get_previous_value() {
             Some(previous_value) => previous_value.get_value_string(),
-            None => "??".to_string(),
+            None => "??",
         };
 
         ScanResultViewData {

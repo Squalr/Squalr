@@ -16,6 +16,10 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
         &self,
         anonymous_value: &AnonymousValue,
     ) -> Vec<u8>;
+    fn create_display_value(
+        &self,
+        value_bytes: &[u8],
+    ) -> Option<String>;
     fn get_endian(&self) -> Endian;
     fn get_default_value(&self) -> DataValue;
     fn get_ref(&self) -> DataTypeRef {
