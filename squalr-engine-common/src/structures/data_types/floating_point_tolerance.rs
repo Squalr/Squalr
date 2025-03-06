@@ -4,7 +4,7 @@ use std::fmt;
 
 #[derive(Clone, Copy, Deserialize, PartialEq, Eq, Serialize)]
 pub enum FloatingPointTolerance {
-    /// Represents a tolerance of 0, i.e., an exact floating-point match.
+    /// Represents a tolerance of epsilon (ie essentially an exact match).
     #[serde(rename = "exact")]
     ExactMatch,
     /// Represents a tolerance of 0.1.
@@ -22,6 +22,30 @@ pub enum FloatingPointTolerance {
     /// Represents a tolerance of 0.00001.
     #[serde(rename = "0.00001")]
     Tolerance10E5,
+}
+
+impl FloatingPointTolerance {
+    pub fn get_value_f32(&self) -> f32 {
+        match self {
+            FloatingPointTolerance::ExactMatch => f32::EPSILON,
+            FloatingPointTolerance::Tolerance10E1 => 0.1,
+            FloatingPointTolerance::Tolerance10E2 => 0.01,
+            FloatingPointTolerance::Tolerance10E3 => 0.001,
+            FloatingPointTolerance::Tolerance10E4 => 0.0001,
+            FloatingPointTolerance::Tolerance10E5 => 0.00001,
+        }
+    }
+
+    pub fn get_value_f64(&self) -> f64 {
+        match self {
+            FloatingPointTolerance::ExactMatch => f64::EPSILON,
+            FloatingPointTolerance::Tolerance10E1 => 0.1,
+            FloatingPointTolerance::Tolerance10E2 => 0.01,
+            FloatingPointTolerance::Tolerance10E3 => 0.001,
+            FloatingPointTolerance::Tolerance10E4 => 0.0001,
+            FloatingPointTolerance::Tolerance10E5 => 0.00001,
+        }
+    }
 }
 
 impl Default for FloatingPointTolerance {

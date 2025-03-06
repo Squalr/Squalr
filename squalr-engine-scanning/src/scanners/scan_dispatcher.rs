@@ -28,13 +28,23 @@ impl ScanDispatcher {
             .iter()
             .filter_map(|snapshot_region_filter| {
                 let scanner_instance = Self::acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
-                let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment);
+                let filters = scanner_instance.scan_region(
+                    snapshot_region,
+                    snapshot_region_filter,
+                    scan_parameters,
+                    snapshot_region_filter_collection.get_scan_filter_parameters(),
+                );
 
                 if filters.len() > 0 { Some(filters) } else { None }
             })
             .collect();
 
-        SnapshotRegionFilterCollection::new(result_snapshot_region_filters, data_type.clone(), memory_alignment)
+        SnapshotRegionFilterCollection::new(
+            result_snapshot_region_filters,
+            snapshot_region_filter_collection
+                .get_scan_filter_parameters()
+                .clone(),
+        )
     }
 
     /// Performs a parallelized scan over a provided filter collection, returning a new filter collection with the results.
@@ -50,13 +60,23 @@ impl ScanDispatcher {
             .par_iter()
             .filter_map(|snapshot_region_filter| {
                 let scanner_instance = Self::acquire_scanner_instance(snapshot_region_filter, data_type, memory_alignment);
-                let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters, data_type, memory_alignment);
+                let filters = scanner_instance.scan_region(
+                    snapshot_region,
+                    snapshot_region_filter,
+                    scan_parameters,
+                    snapshot_region_filter_collection.get_scan_filter_parameters(),
+                );
 
                 if filters.len() > 0 { Some(filters) } else { None }
             })
             .collect();
 
-        SnapshotRegionFilterCollection::new(result_snapshot_region_filters, data_type.clone(), memory_alignment)
+        SnapshotRegionFilterCollection::new(
+            result_snapshot_region_filters,
+            snapshot_region_filter_collection
+                .get_scan_filter_parameters()
+                .clone(),
+        )
     }
 
     fn acquire_scanner_instance(

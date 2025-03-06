@@ -1,8 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
-use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
-use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
+use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
 use std::collections::HashMap;
 
@@ -19,8 +17,7 @@ impl ScannerScalarEncoderByteArray {
         current_value_pointer: *const u8,
         _prevous_value_pointer: *const u8,
         scan_parameters: &ScanParameters,
-        data_type: &DataTypeRef,
-        _memory_alignment: MemoryAlignment,
+        scan_filter_parameters: &ScanFilterParameters,
         base_address: u64,
         region_size: u64,
     ) -> Vec<SnapshotRegionFilter> {

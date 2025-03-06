@@ -3,7 +3,7 @@ use crate::scanners::encoders::scalar::scanner_scalar_encoder::ScannerScalarEnco
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use squalr_engine_common::structures::{data_types::data_type_ref::DataTypeRef, memory_alignment::MemoryAlignment, scanning::scan_parameters::ScanParameters};
+use squalr_engine_common::structures::scanning::{scan_filter_parameters::ScanFilterParameters, scan_parameters::ScanParameters};
 use std::sync::Once;
 
 pub struct ScannerScalarIterativeChunked {}
@@ -39,9 +39,10 @@ impl Scanner for ScannerScalarIterativeChunked {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        data_type: &DataTypeRef,
-        memory_alignment: MemoryAlignment,
+        scan_filter_parameters: &ScanFilterParameters,
     ) -> Vec<SnapshotRegionFilter> {
+        let data_type = scan_filter_parameters.get_data_type();
+        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment) as usize;
@@ -69,8 +70,7 @@ impl Scanner for ScannerScalarIterativeChunked {
                             .as_ptr()
                             .add(chunk_address_offset as usize),
                         scan_parameters,
-                        data_type,
-                        memory_alignment,
+                        scan_filter_parameters,
                         base_address,
                         last_element_index - first_element_index,
                     );

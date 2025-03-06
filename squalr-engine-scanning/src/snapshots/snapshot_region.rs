@@ -35,22 +35,18 @@ impl SnapshotRegion {
     pub fn new(
         normalized_region: NormalizedRegion,
         page_boundaries: Vec<u64>,
-        scan_filter_parameters: &Vec<ScanFilterParameters>,
+        scan_filter_parameters_collection: &Vec<ScanFilterParameters>,
     ) -> Self {
         // Create an initial filter, spanning the entire region, for each data type that the scan results will represent.
-        let scan_filter_collections = scan_filter_parameters
+        let scan_filter_collections = scan_filter_parameters_collection
             .iter()
-            .map(|scan_filter_parameter| {
+            .map(|scan_filter_parameters| {
                 let initial_filter = vec![vec![SnapshotRegionFilter::new(
                     normalized_region.get_base_address(),
                     normalized_region.get_region_size(),
                 )]];
 
-                SnapshotRegionFilterCollection::new(
-                    initial_filter,
-                    scan_filter_parameter.get_data_type().clone(),
-                    scan_filter_parameter.get_memory_alignment_or_default(),
-                )
+                SnapshotRegionFilterCollection::new(initial_filter, scan_filter_parameters.clone())
             })
             .collect();
 

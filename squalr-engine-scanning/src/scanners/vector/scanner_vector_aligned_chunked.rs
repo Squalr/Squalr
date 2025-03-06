@@ -3,10 +3,8 @@ use crate::scanners::encoders::vector::scanner_vector_encoder::ScannerVectorEnco
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use squalr_engine_common::structures::data_types::comparisons::vector_compare::VectorCompare;
-use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
-use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
+use squalr_engine_common::structures::{data_types::comparisons::vector_compare::VectorCompare, scanning::scan_filter_parameters::ScanFilterParameters};
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorAlignedChunked<const N: usize>
@@ -24,8 +22,7 @@ where
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        data_type: &DataTypeRef,
-        _: MemoryAlignment,
+        scan_filter_parameters: &ScanFilterParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let vector_encoder = ScannerVectorEncoder::<N>::new();
         let simd_all_true_mask = Simd::<u8, N>::splat(0xFF);
@@ -47,7 +44,7 @@ where
                     unsafe { current_value_pointer.add(chunk_start_offset_bytes as usize) },
                     unsafe { previous_value_pointer.add(chunk_start_offset_bytes as usize) },
                     scan_parameters,
-                    data_type,
+                    scan_filter_parameters.get_data_type(),
                     chunk_start_address,
                     chunk_region_size,
                     simd_all_true_mask,

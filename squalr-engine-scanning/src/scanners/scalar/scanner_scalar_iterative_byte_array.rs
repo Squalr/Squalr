@@ -2,8 +2,7 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::scalar::scanner_scalar_encoder_byte_array::ScannerScalarEncoderByteArray;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
-use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
+use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
 use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
 use std::sync::Once;
 
@@ -40,15 +39,13 @@ impl Scanner for ScannerScalarIterativeByteArray {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &ScanParameters,
-        data_type: &DataTypeRef,
-        memory_alignment: MemoryAlignment,
+        scan_filter_parameters: &ScanFilterParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let results = ScannerScalarEncoderByteArray::scalar_encode(
             snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
             snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
             scan_parameters,
-            data_type,
-            memory_alignment,
+            scan_filter_parameters,
             snapshot_region_filter.get_base_address(),
             snapshot_region_filter.get_region_size(),
         );

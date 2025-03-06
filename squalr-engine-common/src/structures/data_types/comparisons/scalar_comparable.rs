@@ -1,36 +1,22 @@
 use crate::structures::scanning::scan_parameters::ScanParameters;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities).
-pub type ScalarCompareFnImmediate = unsafe fn(
-    // Current value pointer.
-    *const u8,
-    // Immediate value pointer.
-    *const u8,
-) -> bool;
+/// Parameters: current value pointer, immediate value pointer.
+pub type ScalarCompareFnImmediate = Box<dyn Fn(*const u8, *const u8) -> bool + 'static>;
 
 /// Defines a compare function that operates on current and previous values (ie changed, unchanged, increased, decreased).
-pub type ScalarCompareFnRelative = unsafe fn(
-    // Current value pointer.
-    *const u8,
-    // Previous value pointer.
-    *const u8,
-) -> bool;
+/// Parameters: current value pointer, previous value pointer.
+pub type ScalarCompareFnRelative = Box<dyn Fn(*const u8, *const u8) -> bool + 'static>;
 
 /// Defines a compare function that operates on current and previous values, with a delta arg (ie +x, -x).
-pub type ScalarCompareFnDelta = unsafe fn(
-    // Current value pointer.
-    *const u8,
-    // Previous value pointer.
-    *const u8,
-    // Delta value pointer.
-    *const u8,
-) -> bool;
+/// Parameters: current value pointer, previous value pointer, delta value pointer.
+pub type ScalarCompareFnDelta = Box<dyn Fn(*const u8, *const u8, *const u8) -> bool + 'static>;
 
 pub trait ScalarComparable {
     fn get_compare_equal(
         &self,
         scan_parameters: &ScanParameters,
-    ) -> ScalarCompareFnRelative;
+    ) -> Box<(dyn Fn(*const u8, *const u8) -> bool + 'static)>;
     fn get_compare_not_equal(
         &self,
         scan_parameters: &ScanParameters,
