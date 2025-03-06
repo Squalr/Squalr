@@ -2,6 +2,9 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::parameters::scan_parameters::ScanParameters;
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
 use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::data_values::data_value::DataValue;
 use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
@@ -164,18 +167,30 @@ impl SnapshotRegion {
         } else {
             // Otherwise, this snapshot is a merging of two or more OS regions, and special care is taken to separate the read calls.
             // This prevents the case where one page deallocates, causing the read for both to fail.
-            for (boundary_index, &boundary_address) in self.page_boundaries.iter().enumerate() {
-                let next_boundary_address = if boundary_index + 1 < self.page_boundaries.len() {
-                    self.page_boundaries[boundary_index + 1]
-                } else {
-                    self.get_end_address()
-                };
+            // Additionally, we read these chunks of memory in parallel, as they may be quite large due to our merging.
+            let mut read_ranges = Vec::with_capacity(self.page_boundaries.len() + 1);
+            let mut next_range_start_address = self.get_base_address();
+            let mut current_slice = self.current_values.as_mut_slice();
 
-                let read_size = (next_boundary_address - boundary_address) as usize;
-                let offset = (boundary_address - self.get_base_address()) as usize;
-                let current_values_slice = &mut self.current_values[offset..offset + read_size];
-                MemoryReader::get_instance().read_bytes(&process_info, boundary_address, current_values_slice);
+            // Iterate the page boundaries and pull out non-overlapping mutable slices to satisfy the Rust borrow checker.
+            for &next_boundary_address in &self.page_boundaries {
+                let range_size = next_boundary_address.saturating_sub(next_range_start_address) as usize;
+                let (slice, remaining) = current_slice.split_at_mut(range_size);
+
+                read_ranges.push((next_range_start_address, slice));
+                current_slice = remaining;
+                next_range_start_address = next_boundary_address;
             }
+
+            // Last slice after final boundary.
+            if !current_slice.is_empty() {
+                read_ranges.push((next_range_start_address, current_slice));
+            }
+
+            // And finally parallel read using the obtained non-overlapping mutable slices.
+            read_ranges.into_par_iter().for_each(|(address, buffer)| {
+                MemoryReader::get_instance().read_bytes(process_info, address, buffer);
+            });
         }
 
         Ok(())
@@ -240,8 +255,10 @@ impl SnapshotRegion {
 
         // No filters remaining! Set this regions size to 0 so that it can be cleaned up later.
         if new_region_size <= 0 {
+            self.current_values = vec![];
+            self.previous_values = vec![];
+            self.page_boundaries = vec![];
             self.normalized_region.set_region_size(0);
-            self.page_boundaries.clear();
             return;
         }
 
@@ -249,16 +266,15 @@ impl SnapshotRegion {
         self.normalized_region.set_region_size(new_region_size);
 
         let start_offset = (filter_lowest_address.saturating_sub(original_base_address)) as usize;
-        let new_length = (filter_highest_address.saturating_sub(filter_lowest_address)) as usize;
 
         if !self.current_values.is_empty() {
             self.current_values.drain(..start_offset);
-            self.current_values.truncate(new_length);
+            self.current_values.truncate(new_region_size as usize);
         }
 
         if !self.previous_values.is_empty() {
             self.previous_values.drain(..start_offset);
-            self.previous_values.truncate(new_length);
+            self.previous_values.truncate(new_region_size as usize);
         }
 
         // Remove any page boundaries outside of the resized region

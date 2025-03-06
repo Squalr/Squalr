@@ -55,7 +55,6 @@ impl ManualScanViewModel {
             Some(data_type) => {
                 let memory_alignment = None; // JIRA: TODO
                 let scan_filter_parameters = vec![ScanFilterParameters::new(memory_alignment, data_type)];
-
                 let scan_new_request = ScanNewRequest { scan_filter_parameters };
 
                 scan_new_request.send(&engine_execution_context, |_scan_new_response| {});
