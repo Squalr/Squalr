@@ -3,13 +3,13 @@ use crate::commands::scan::new::scan_new_response::ScanNewResponse;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::{engine_command::EngineCommand, scan::scan_command::ScanCommand};
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
+use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ScanNewRequest {
     #[structopt(short = "d", long, use_delimiter = true)]
-    pub scan_filter_parameters: Vec<ScanFilterParameters>,
+    pub scan_parameters_local: Vec<ScanParametersLocal>,
 }
 
 impl EngineRequest for ScanNewRequest {

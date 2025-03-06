@@ -3,7 +3,7 @@ use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompara
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnDelta;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnImmediate;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnRelative;
-use crate::structures::scanning::scan_parameters::ScanParameters;
+use crate::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use std::mem;
 use std::ops::Add;
 use std::ops::Sub;
@@ -15,7 +15,7 @@ type SwapCompatibleType = i32;
 impl ScalarComparable for DataTypeF32be {
     fn get_compare_equal(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> ScalarCompareFnImmediate {
         Box::new(move |current_value_ptr, immediate_value_ptr| unsafe {
             // No endian byte swap required.
@@ -28,7 +28,7 @@ impl ScalarComparable for DataTypeF32be {
 
     fn get_compare_not_equal(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> ScalarCompareFnImmediate {
         Box::new(move |current_value_ptr, immediate_value_ptr| unsafe {
             // No endian byte swap required.
@@ -41,7 +41,7 @@ impl ScalarComparable for DataTypeF32be {
 
     fn get_compare_greater_than(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> ScalarCompareFnImmediate {
         Box::new(move |current_value_ptr, immediate_value_ptr| unsafe {
             let current_value = mem::transmute::<SwapCompatibleType, PrimitiveType>(SwapCompatibleType::swap_bytes(ptr::read_unaligned(
@@ -57,7 +57,7 @@ impl ScalarComparable for DataTypeF32be {
 
     fn get_compare_greater_than_or_equal(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> ScalarCompareFnImmediate {
         Box::new(move |current_value_ptr, immediate_value_ptr| unsafe {
             let current_value = mem::transmute::<SwapCompatibleType, PrimitiveType>(SwapCompatibleType::swap_bytes(ptr::read_unaligned(
@@ -73,7 +73,7 @@ impl ScalarComparable for DataTypeF32be {
 
     fn get_compare_less_than(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> ScalarCompareFnImmediate {
         Box::new(move |current_value_ptr, immediate_value_ptr| unsafe {
             let current_value = mem::transmute::<SwapCompatibleType, PrimitiveType>(SwapCompatibleType::swap_bytes(ptr::read_unaligned(
@@ -89,7 +89,7 @@ impl ScalarComparable for DataTypeF32be {
 
     fn get_compare_less_than_or_equal(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> ScalarCompareFnImmediate {
         Box::new(move |current_value_ptr, immediate_value_ptr| unsafe {
             let current_value = mem::transmute::<SwapCompatibleType, PrimitiveType>(SwapCompatibleType::swap_bytes(ptr::read_unaligned(
@@ -105,7 +105,7 @@ impl ScalarComparable for DataTypeF32be {
 
     fn get_compare_changed(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> ScalarCompareFnRelative {
         Box::new(move |current_value_ptr, previous_value_ptr| unsafe {
             // No endian byte swap required.
@@ -118,7 +118,7 @@ impl ScalarComparable for DataTypeF32be {
 
     fn get_compare_unchanged(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> ScalarCompareFnRelative {
         Box::new(move |current_value_ptr, previous_value_ptr| unsafe {
             // No endian byte swap required.
@@ -131,7 +131,7 @@ impl ScalarComparable for DataTypeF32be {
 
     fn get_compare_increased(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> ScalarCompareFnRelative {
         Box::new(move |current_value_ptr, previous_value_ptr| unsafe {
             let current_value = mem::transmute::<SwapCompatibleType, PrimitiveType>(SwapCompatibleType::swap_bytes(ptr::read_unaligned(
@@ -147,7 +147,7 @@ impl ScalarComparable for DataTypeF32be {
 
     fn get_compare_decreased(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> ScalarCompareFnRelative {
         Box::new(move |current_value_ptr, previous_value_ptr| unsafe {
             let current_value = mem::transmute::<SwapCompatibleType, PrimitiveType>(SwapCompatibleType::swap_bytes(ptr::read_unaligned(
@@ -163,7 +163,7 @@ impl ScalarComparable for DataTypeF32be {
 
     fn get_compare_increased_by(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> ScalarCompareFnDelta {
         Box::new(move |current_value_ptr, previous_value_ptr, delta_ptr| unsafe {
             let current_value = mem::transmute::<SwapCompatibleType, PrimitiveType>(SwapCompatibleType::swap_bytes(ptr::read_unaligned(
@@ -182,7 +182,7 @@ impl ScalarComparable for DataTypeF32be {
 
     fn get_compare_decreased_by(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> ScalarCompareFnDelta {
         Box::new(move |current_value_ptr, previous_value_ptr, delta_ptr| unsafe {
             let current_value = mem::transmute::<SwapCompatibleType, PrimitiveType>(SwapCompatibleType::swap_bytes(ptr::read_unaligned(

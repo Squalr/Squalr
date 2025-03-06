@@ -2,8 +2,8 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::scalar::scanner_scalar_encoder::ScannerScalarEncoder;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
-use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
+use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
 
 pub struct ScannerScalarIterative {}
 
@@ -22,16 +22,16 @@ impl Scanner for ScannerScalarIterative {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        scan_parameters_global: &ScanParametersGlobal,
+        scan_parameters_local: &ScanParametersLocal,
     ) -> Vec<SnapshotRegionFilter> {
         let results = ScannerScalarEncoder::scalar_encode(
             snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
             snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
-            scan_parameters,
-            scan_filter_parameters,
+            scan_parameters_global,
+            scan_parameters_local,
             snapshot_region_filter.get_base_address(),
-            snapshot_region_filter.get_element_count(scan_filter_parameters.get_data_type(), scan_filter_parameters.get_memory_alignment_or_default()),
+            snapshot_region_filter.get_element_count(scan_parameters_local.get_data_type(), scan_parameters_local.get_memory_alignment_or_default()),
         );
 
         results

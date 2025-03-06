@@ -97,7 +97,7 @@ impl ValueCollector {
                                 snapshot_region.get_base_address(),
                                 snapshot_region.get_region_size(),
                             )]],
-                            current_filter_collection.get_scan_filter_parameters().clone(),
+                            current_filter_collection.get_scan_parameters_local().clone(),
                         )
                     })
                     .collect(),

@@ -4,7 +4,7 @@ use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::Conversions;
 use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
-use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
+use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
@@ -22,13 +22,13 @@ impl HybridScanner {
     pub fn scan(
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
         task_identifier: Option<String>,
         with_logging: bool,
     ) -> Arc<TrackableTask<()>> {
         let task = TrackableTask::<()>::create(HybridScanner::NAME.to_string(), task_identifier);
         let task_clone = task.clone();
-        let scan_parameters_clone = scan_parameters.clone();
+        let scan_parameters_clone = scan_parameters_global.clone();
 
         thread::spawn(move || {
             Self::scan_task(&process_info, snapshot, &scan_parameters_clone, task_clone.clone(), with_logging);
@@ -42,7 +42,7 @@ impl HybridScanner {
     fn scan_task(
         process_info: &OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
         task: Arc<TrackableTask<()>>,
         with_logging: bool,
     ) {
@@ -77,7 +77,7 @@ impl HybridScanner {
                 // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages.
                 let _ = snapshot_region.read_all_memory(&process_info);
 
-                if !snapshot_region.can_compare_using_parameters(scan_parameters) {
+                if !snapshot_region.can_compare_using_parameters(scan_parameters_global) {
                     processed_region_count.fetch_add(1, Ordering::SeqCst);
                     return;
                 }
@@ -90,7 +90,7 @@ impl HybridScanner {
                         .par_iter()
                         .map(|snapshot_region_filter_collection| {
                             // Perform the scan.
-                            ScanDispatcher::dispatch_scan_parallel(snapshot_region, snapshot_region_filter_collection, scan_parameters)
+                            ScanDispatcher::dispatch_scan_parallel(snapshot_region, snapshot_region_filter_collection, scan_parameters_global)
                         })
                         .collect(),
                 );
@@ -113,17 +113,6 @@ impl HybridScanner {
             let duration = start_time.elapsed();
 
             log::info!("Results: {} bytes", Conversions::value_to_metric_size(byte_count));
-
-            /*
-            let scan_results = snapshot.get_scan_results_by_data_type();
-
-            for filter_parameters in scan_filter_parameters {
-                if let Some(scan_results_for_type) = scan_results.get(&data_type) {
-                    let element_count = scan_results_for_type.get_number_of_results();
-                    log::info!("Results [{:?}]: {} element(s)", data_type, element_count);
-                }
-            } */
-
             log::info!("Scan complete in: {:?}", duration);
         }
     }

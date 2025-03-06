@@ -6,7 +6,7 @@ use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::ParallelIterator;
 use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
-use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
+use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 
 use super::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 
@@ -19,7 +19,7 @@ impl ScanDispatcher {
     pub fn dispatch_scan(
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> SnapshotRegionFilterCollection {
         let data_type = snapshot_region_filter_collection.get_data_type();
         let memory_alignment = snapshot_region_filter_collection.get_memory_alignment();
@@ -31,8 +31,8 @@ impl ScanDispatcher {
                 let filters = scanner_instance.scan_region(
                     snapshot_region,
                     snapshot_region_filter,
-                    scan_parameters,
-                    snapshot_region_filter_collection.get_scan_filter_parameters(),
+                    scan_parameters_global,
+                    snapshot_region_filter_collection.get_scan_parameters_local(),
                 );
 
                 if filters.len() > 0 { Some(filters) } else { None }
@@ -42,7 +42,7 @@ impl ScanDispatcher {
         SnapshotRegionFilterCollection::new(
             result_snapshot_region_filters,
             snapshot_region_filter_collection
-                .get_scan_filter_parameters()
+                .get_scan_parameters_local()
                 .clone(),
         )
     }
@@ -51,7 +51,7 @@ impl ScanDispatcher {
     pub fn dispatch_scan_parallel(
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> SnapshotRegionFilterCollection {
         let data_type = snapshot_region_filter_collection.get_data_type();
         let memory_alignment = snapshot_region_filter_collection.get_memory_alignment();
@@ -63,8 +63,8 @@ impl ScanDispatcher {
                 let filters = scanner_instance.scan_region(
                     snapshot_region,
                     snapshot_region_filter,
-                    scan_parameters,
-                    snapshot_region_filter_collection.get_scan_filter_parameters(),
+                    scan_parameters_global,
+                    snapshot_region_filter_collection.get_scan_parameters_local(),
                 );
 
                 if filters.len() > 0 { Some(filters) } else { None }
@@ -74,7 +74,7 @@ impl ScanDispatcher {
         SnapshotRegionFilterCollection::new(
             result_snapshot_region_filters,
             snapshot_region_filter_collection
-                .get_scan_filter_parameters()
+                .get_scan_parameters_local()
                 .clone(),
         )
     }

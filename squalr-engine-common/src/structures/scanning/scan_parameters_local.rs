@@ -5,20 +5,19 @@ use std::fmt;
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-/// Defines a set of parameters for scan filters, which can be considered as "windows" into a snapshot that
-/// are used to aggregate scan results for a given data type and alignment.
+/// Defines a unique pair of `DataType` and `MemoryAlignment` used in a scan within a larger scan job.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScanFilterParameters {
-    alignment: Option<MemoryAlignment>,
+pub struct ScanParametersLocal {
     data_type: DataTypeRef,
+    alignment: Option<MemoryAlignment>,
 }
 
-impl ScanFilterParameters {
+impl ScanParametersLocal {
     pub fn new(
-        alignment: Option<MemoryAlignment>,
         data_type: DataTypeRef,
+        alignment: Option<MemoryAlignment>,
     ) -> Self {
-        Self { alignment, data_type }
+        Self { data_type, alignment }
     }
 
     pub fn get_memory_alignment(&self) -> &Option<MemoryAlignment> {
@@ -26,8 +25,8 @@ impl ScanFilterParameters {
     }
 
     pub fn get_memory_alignment_or_default(&self) -> MemoryAlignment {
-        if let Some(alignment) = &self.alignment {
-            alignment.to_owned()
+        if let Some(alignment) = self.alignment {
+            alignment
         } else {
             // Squalr is fast, so we can just default to an alignment of 1 to prevent missing anything important.
             MemoryAlignment::Alignment1
@@ -40,47 +39,47 @@ impl ScanFilterParameters {
 }
 
 #[derive(Debug)]
-pub enum ScanFilterParametersParseError {
+pub enum ScanParametersLocalParseError {
     InvalidFormat,
     InvalidAlignment(ParseIntError),
     InvalidDataType,
 }
 
-impl fmt::Display for ScanFilterParametersParseError {
+impl fmt::Display for ScanParametersLocalParseError {
     fn fmt(
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            ScanFilterParametersParseError::InvalidFormat => write!(formatter, "Invalid format"),
-            ScanFilterParametersParseError::InvalidAlignment(err) => write!(formatter, "Invalid alignment: {}", err),
-            ScanFilterParametersParseError::InvalidDataType => write!(formatter, "Invalid data type"),
+            ScanParametersLocalParseError::InvalidFormat => write!(formatter, "Invalid format"),
+            ScanParametersLocalParseError::InvalidAlignment(err) => write!(formatter, "Invalid alignment: {}", err),
+            ScanParametersLocalParseError::InvalidDataType => write!(formatter, "Invalid data type"),
         }
     }
 }
 
-impl From<ParseIntError> for ScanFilterParametersParseError {
+impl From<ParseIntError> for ScanParametersLocalParseError {
     fn from(e: ParseIntError) -> Self {
-        ScanFilterParametersParseError::InvalidAlignment(e)
+        ScanParametersLocalParseError::InvalidAlignment(e)
     }
 }
 
-impl FromStr for ScanFilterParameters {
-    type Err = ScanFilterParametersParseError;
+impl FromStr for ScanParametersLocal {
+    type Err = ScanParametersLocalParseError;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = string.split('=').collect();
 
         // Check if there is at least one part, and at most two.
         if parts.len() < 1 || parts.len() > 2 {
-            return Err(ScanFilterParametersParseError::InvalidFormat);
+            return Err(ScanParametersLocalParseError::InvalidFormat);
         }
 
         // Parse the data type from the first part.
         let data_type = parts[0]
             .trim()
             .parse::<DataTypeRef>()
-            .map_err(|_| ScanFilterParametersParseError::InvalidDataType)?;
+            .map_err(|_| ScanParametersLocalParseError::InvalidDataType)?;
 
         // Handle the optional alignment part.
         let alignment = if parts.len() == 2 {
@@ -96,7 +95,7 @@ impl FromStr for ScanFilterParameters {
             None
         };
 
-        // Create a new ScanFilterParameters with the parsed values.
-        Ok(ScanFilterParameters::new(alignment, data_type))
+        // Create a new ScanParametersLocal with the parsed values.
+        Ok(ScanParametersLocal::new(data_type, alignment))
     }
 }

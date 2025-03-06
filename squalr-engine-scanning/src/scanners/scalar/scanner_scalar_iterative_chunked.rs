@@ -3,7 +3,7 @@ use crate::scanners::encoders::scalar::scanner_scalar_encoder::ScannerScalarEnco
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use squalr_engine_common::structures::scanning::{scan_filter_parameters::ScanFilterParameters, scan_parameters::ScanParameters};
+use squalr_engine_common::structures::scanning::{scan_parameters_global::ScanParametersGlobal, scan_parameters_local::ScanParametersLocal};
 use std::sync::Once;
 
 pub struct ScannerScalarIterativeChunked {}
@@ -38,11 +38,11 @@ impl Scanner for ScannerScalarIterativeChunked {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        scan_parameters_global: &ScanParametersGlobal,
+        scan_parameters_local: &ScanParametersLocal,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_type = scan_filter_parameters.get_data_type();
-        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
+        let data_type = scan_parameters_local.get_data_type();
+        let memory_alignment = scan_parameters_local.get_memory_alignment_or_default();
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment) as usize;
@@ -69,8 +69,8 @@ impl Scanner for ScannerScalarIterativeChunked {
                         previous_values_slice
                             .as_ptr()
                             .add(chunk_address_offset as usize),
-                        scan_parameters,
-                        scan_filter_parameters,
+                        scan_parameters_global,
+                        scan_parameters_local,
                         base_address,
                         last_element_index - first_element_index,
                     );

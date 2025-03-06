@@ -3,8 +3,8 @@ use crate::scanners::encoders::vector::scanner_vector_encoder_cascading_periodic
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
-use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
-use squalr_engine_common::structures::{data_types::comparisons::vector_compare::VectorCompare, scanning::scan_filter_parameters::ScanFilterParameters};
+use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_common::structures::{data_types::comparisons::vector_compare::VectorCompare, scanning::scan_parameters_local::ScanParametersLocal};
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorCascading<const N: usize>
@@ -26,22 +26,22 @@ where
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        scan_parameters_global: &ScanParametersGlobal,
+        scan_parameters_local: &ScanParametersLocal,
     ) -> Vec<SnapshotRegionFilter> {
         let simd_all_true_mask = Simd::<u8, N>::splat(0xFF);
         let results;
 
         // For immediate comparisons, we can use a cascading periodic scan.
-        match scan_parameters.get_compare_type() {
+        match scan_parameters_global.get_compare_type() {
             ScanCompareType::Immediate(_scan_compare_type_immediate) => {
                 let vector_encoder = ScannerVectorEncoderCascadingPeriodic::<N>::new();
 
                 results = vector_encoder.vector_encode(
                     snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
                     snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
-                    scan_parameters,
-                    scan_filter_parameters.get_data_type(),
+                    scan_parameters_global,
+                    scan_parameters_local.get_data_type(),
                     snapshot_region_filter.get_base_address(),
                     snapshot_region_filter.get_region_size(),
                     simd_all_true_mask,

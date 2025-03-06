@@ -7,8 +7,8 @@ use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::data_values::data_value::DataValue;
 use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
-use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
-use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
+use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
@@ -35,18 +35,18 @@ impl SnapshotRegion {
     pub fn new(
         normalized_region: NormalizedRegion,
         page_boundaries: Vec<u64>,
-        scan_filter_parameters_collection: &Vec<ScanFilterParameters>,
+        scan_parameters_local_collection: &Vec<ScanParametersLocal>,
     ) -> Self {
         // Create an initial filter, spanning the entire region, for each data type that the scan results will represent.
-        let scan_filter_collections = scan_filter_parameters_collection
+        let scan_filter_collections = scan_parameters_local_collection
             .iter()
-            .map(|scan_filter_parameters| {
+            .map(|scan_parameters_local| {
                 let initial_filter = vec![vec![SnapshotRegionFilter::new(
                     normalized_region.get_base_address(),
                     normalized_region.get_region_size(),
                 )]];
 
-                SnapshotRegionFilterCollection::new(initial_filter, scan_filter_parameters.clone())
+                SnapshotRegionFilterCollection::new(initial_filter, scan_parameters_local.clone())
             })
             .collect();
 
@@ -218,12 +218,12 @@ impl SnapshotRegion {
 
     pub fn can_compare_using_parameters(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> bool {
-        if !scan_parameters.is_valid() || !self.has_current_values() {
+        if !scan_parameters_global.is_valid() || !self.has_current_values() {
             false
         } else {
-            match scan_parameters.get_compare_type() {
+            match scan_parameters_global.get_compare_type() {
                 ScanCompareType::Immediate(_) => true,
                 ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => self.has_previous_values(),
             }

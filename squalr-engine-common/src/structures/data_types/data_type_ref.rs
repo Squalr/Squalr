@@ -9,7 +9,7 @@ use crate::structures::registries::data_types::data_type_registry::DataTypeRegis
 use crate::structures::scanning::scan_compare_type_delta::ScanCompareTypeDelta;
 use crate::structures::scanning::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::scan_compare_type_relative::ScanCompareTypeRelative;
-use crate::structures::scanning::scan_parameters::ScanParameters;
+use crate::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use serde::{Deserialize, Serialize};
 use std::simd::LaneCount;
 use std::simd::Simd;
@@ -115,18 +115,18 @@ impl DataTypeRef {
     pub fn get_scalar_compare_func_immediate(
         &self,
         scan_compare_type: &ScanCompareTypeImmediate,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> Option<ScalarCompareFnImmediate> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(self.get_id()) {
             Some(data_type) => Some(match scan_compare_type {
-                ScanCompareTypeImmediate::Equal => data_type.get_compare_equal(scan_parameters),
-                ScanCompareTypeImmediate::NotEqual => data_type.get_compare_not_equal(scan_parameters),
-                ScanCompareTypeImmediate::GreaterThan => data_type.get_compare_greater_than(scan_parameters),
-                ScanCompareTypeImmediate::GreaterThanOrEqual => data_type.get_compare_greater_than_or_equal(scan_parameters),
-                ScanCompareTypeImmediate::LessThan => data_type.get_compare_less_than(scan_parameters),
-                ScanCompareTypeImmediate::LessThanOrEqual => data_type.get_compare_less_than_or_equal(scan_parameters),
+                ScanCompareTypeImmediate::Equal => data_type.get_compare_equal(scan_parameters_global),
+                ScanCompareTypeImmediate::NotEqual => data_type.get_compare_not_equal(scan_parameters_global),
+                ScanCompareTypeImmediate::GreaterThan => data_type.get_compare_greater_than(scan_parameters_global),
+                ScanCompareTypeImmediate::GreaterThanOrEqual => data_type.get_compare_greater_than_or_equal(scan_parameters_global),
+                ScanCompareTypeImmediate::LessThan => data_type.get_compare_less_than(scan_parameters_global),
+                ScanCompareTypeImmediate::LessThanOrEqual => data_type.get_compare_less_than_or_equal(scan_parameters_global),
             }),
             None => None,
         }
@@ -135,16 +135,16 @@ impl DataTypeRef {
     pub fn get_scalar_compare_func_relative(
         &self,
         scan_compare_type: &ScanCompareTypeRelative,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> Option<ScalarCompareFnRelative> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(self.get_id()) {
             Some(data_type) => Some(match scan_compare_type {
-                ScanCompareTypeRelative::Changed => data_type.get_compare_changed(scan_parameters),
-                ScanCompareTypeRelative::Unchanged => data_type.get_compare_unchanged(scan_parameters),
-                ScanCompareTypeRelative::Increased => data_type.get_compare_increased(scan_parameters),
-                ScanCompareTypeRelative::Decreased => data_type.get_compare_decreased(scan_parameters),
+                ScanCompareTypeRelative::Changed => data_type.get_compare_changed(scan_parameters_global),
+                ScanCompareTypeRelative::Unchanged => data_type.get_compare_unchanged(scan_parameters_global),
+                ScanCompareTypeRelative::Increased => data_type.get_compare_increased(scan_parameters_global),
+                ScanCompareTypeRelative::Decreased => data_type.get_compare_decreased(scan_parameters_global),
             }),
             None => None,
         }
@@ -153,14 +153,14 @@ impl DataTypeRef {
     pub fn get_scalar_compare_func_delta(
         &self,
         scan_compare_type: &ScanCompareTypeDelta,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> Option<ScalarCompareFnDelta> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(self.get_id()) {
             Some(data_type) => Some(match scan_compare_type {
-                ScanCompareTypeDelta::IncreasedByX => data_type.get_compare_increased_by(scan_parameters),
-                ScanCompareTypeDelta::DecreasedByX => data_type.get_compare_decreased_by(scan_parameters),
+                ScanCompareTypeDelta::IncreasedByX => data_type.get_compare_increased_by(scan_parameters_global),
+                ScanCompareTypeDelta::DecreasedByX => data_type.get_compare_decreased_by(scan_parameters_global),
             }),
             None => None,
         }
@@ -169,7 +169,7 @@ impl DataTypeRef {
     pub fn get_vector_compare_func_immediate<const N: usize>(
         &self,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> Option<unsafe fn(*const u8, *const u8) -> Simd<u8, N>>
     where
         LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
@@ -180,7 +180,7 @@ impl DataTypeRef {
             Some(data_type) => Some(<LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_immediate(
                 &data_type,
                 &scan_compare_type_immediate,
-                scan_parameters,
+                scan_parameters_global,
             )),
             None => None,
         }
@@ -189,7 +189,7 @@ impl DataTypeRef {
     pub fn get_vector_compare_func_relative<const N: usize>(
         &self,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> Option<unsafe fn(*const u8, *const u8) -> Simd<u8, N>>
     where
         LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
@@ -200,7 +200,7 @@ impl DataTypeRef {
             Some(data_type) => Some(<LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_relative(
                 &data_type,
                 &scan_compare_type_relative,
-                scan_parameters,
+                scan_parameters_global,
             )),
             None => None,
         }
@@ -209,7 +209,7 @@ impl DataTypeRef {
     pub fn get_vector_compare_func_delta<const N: usize>(
         &self,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> Option<unsafe fn(*const u8, *const u8, *const u8) -> Simd<u8, N>>
     where
         LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
@@ -220,7 +220,7 @@ impl DataTypeRef {
             Some(data_type) => Some(<LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_delta(
                 &data_type,
                 &scan_compare_type_delta,
-                scan_parameters,
+                scan_parameters_global,
             )),
             None => None,
         }

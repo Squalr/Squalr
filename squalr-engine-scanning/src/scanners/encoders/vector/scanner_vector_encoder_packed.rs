@@ -2,8 +2,8 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use squalr_engine_common::structures::data_types::comparisons::vector_compare::VectorCompare;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
-use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
-use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
+use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use std::simd::prelude::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
@@ -20,14 +20,14 @@ where
         &self,
         current_value_pointer: *const u8,
         previous_value_pointer: *const u8,
-        scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        scan_parameters_global: &ScanParametersGlobal,
+        scan_parameters_local: &ScanParametersLocal,
         base_address: u64,
         region_size: u64,
         true_mask: Simd<u8, N>,
     ) -> Vec<SnapshotRegionFilter> {
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type = scan_filter_parameters.get_data_type();
+        let data_type = scan_parameters_local.get_data_type();
         let data_type_size_bytes = data_type.get_size_in_bytes();
         let vector_size_in_bytes = N;
 
@@ -45,10 +45,10 @@ where
         let remainder_ptr_offset = total_iterations.saturating_sub(1) as usize * vector_size_in_bytes;
         let false_mask = Simd::<u8, N>::splat(0);
 
-        match scan_parameters.get_compare_type() {
+        match scan_parameters_global.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                if let Some(compare_func) = data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate, scan_parameters) {
-                    if let Some(immediate_value) = scan_parameters.deanonymize_immediate(&data_type) {
+                if let Some(compare_func) = data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate, scan_parameters_global) {
+                    if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(&data_type) {
                         let immediate_value_ptr = immediate_value.as_ptr();
 
                         match data_type_size_bytes {
@@ -116,7 +116,7 @@ where
                 }
             }
             ScanCompareType::Relative(scan_compare_type_relative) => {
-                if let Some(compare_func) = data_type.get_vector_compare_func_relative(&scan_compare_type_relative, scan_parameters) {
+                if let Some(compare_func) = data_type.get_vector_compare_func_relative(&scan_compare_type_relative, scan_parameters_global) {
                     unsafe {
                         // Compare as many full vectors as we can.
                         for index in 0..total_iterations {
@@ -139,8 +139,8 @@ where
                 }
             }
             ScanCompareType::Delta(scan_compare_type_delta) => {
-                if let Some(compare_func) = data_type.get_vector_compare_func_delta(&scan_compare_type_delta, scan_parameters) {
-                    if let Some(delta_arg) = scan_parameters.deanonymize_immediate(&data_type) {
+                if let Some(compare_func) = data_type.get_vector_compare_func_delta(&scan_compare_type_delta, scan_parameters_global) {
+                    if let Some(delta_arg) = scan_parameters_global.deanonymize_immediate(&data_type) {
                         let delta_arg_ptr = delta_arg.as_ptr();
 
                         unsafe {

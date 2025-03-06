@@ -4,14 +4,15 @@ use crate::structures::{
     scanning::scan_compare_type::ScanCompareType,
 };
 
+/// Represents the global scan parameters that are used by all current scans, regardless of `DataType`.
 #[derive(Debug, Clone)]
-pub struct ScanParameters {
+pub struct ScanParametersGlobal {
     compare_type: ScanCompareType,
     compare_immediate: Option<AnonymousValue>,
     floating_point_tolerance: FloatingPointTolerance,
 }
 
-impl ScanParameters {
+impl ScanParametersGlobal {
     pub fn new(
         compare_type: ScanCompareType,
         value: Option<AnonymousValue>,

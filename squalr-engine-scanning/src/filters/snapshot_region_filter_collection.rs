@@ -1,7 +1,7 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_common::structures::{
-    data_types::data_type_ref::DataTypeRef, memory_alignment::MemoryAlignment, scanning::scan_filter_parameters::ScanFilterParameters,
+    data_types::data_type_ref::DataTypeRef, memory_alignment::MemoryAlignment, scanning::scan_parameters_local::ScanParametersLocal,
 };
 
 /// A custom type that defines a set of filters (scan results) discovered by scanners.
@@ -10,7 +10,7 @@ pub struct SnapshotRegionFilterCollection {
     snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
 
     // The data type and memory alignment of all elements in this filter.
-    scan_filter_parameters: ScanFilterParameters,
+    scan_parameters_local: ScanParametersLocal,
 
     // The total number of results contained in this collection.
     number_of_results: u64,
@@ -21,7 +21,7 @@ impl SnapshotRegionFilterCollection {
     /// representing regions of memory with the specified data type and alignment.
     pub fn new(
         mut snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
-        scan_filter_parameters: ScanFilterParameters,
+        scan_parameters_local: ScanParametersLocal,
     ) -> Self {
         // Sort each inner vector by base address.
         // JIRA: This data is likely already sorted. Should we just cut this?
@@ -38,8 +38,8 @@ impl SnapshotRegionFilterCollection {
                 .unwrap_or(u64::MAX)
         });
 
-        let data_type = scan_filter_parameters.get_data_type();
-        let memory_alignment = scan_filter_parameters.get_memory_alignment_or_default();
+        let data_type = scan_parameters_local.get_data_type();
+        let memory_alignment = scan_parameters_local.get_memory_alignment_or_default();
         let number_of_results = snapshot_region_filters
             .iter()
             .flatten()
@@ -49,7 +49,7 @@ impl SnapshotRegionFilterCollection {
         Self {
             snapshot_region_filters,
             number_of_results,
-            scan_filter_parameters,
+            scan_parameters_local,
         }
     }
 
@@ -83,18 +83,18 @@ impl SnapshotRegionFilterCollection {
     }
 
     /// Gets the scan filter parameters of this snapshot region filter collection.
-    pub fn get_scan_filter_parameters(&self) -> &ScanFilterParameters {
-        &self.scan_filter_parameters
+    pub fn get_scan_parameters_local(&self) -> &ScanParametersLocal {
+        &self.scan_parameters_local
     }
 
     /// Gets the data type of this snapshot region filter collection.
     pub fn get_data_type(&self) -> &DataTypeRef {
-        &self.scan_filter_parameters.get_data_type()
+        &self.scan_parameters_local.get_data_type()
     }
 
     /// Gets the memory alignment of this snapshot region filter collection.
     pub fn get_memory_alignment(&self) -> MemoryAlignment {
-        self.scan_filter_parameters.get_memory_alignment_or_default()
+        self.scan_parameters_local.get_memory_alignment_or_default()
     }
 
     /// Iterates the snapshot region filters sequentially, which are sorted by base address ascending.

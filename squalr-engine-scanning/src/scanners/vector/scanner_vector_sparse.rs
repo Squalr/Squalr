@@ -3,8 +3,8 @@ use crate::scanners::encoders::vector::scanner_vector_encoder::ScannerVectorEnco
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
-use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
-use squalr_engine_common::structures::{data_types::comparisons::vector_compare::VectorCompare, scanning::scan_filter_parameters::ScanFilterParameters};
+use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_common::structures::{data_types::comparisons::vector_compare::VectorCompare, scanning::scan_parameters_local::ScanParametersLocal};
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorSparse<const N: usize>
@@ -59,19 +59,19 @@ where
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        scan_parameters_global: &ScanParametersGlobal,
+        scan_parameters_local: &ScanParametersLocal,
     ) -> Vec<SnapshotRegionFilter> {
         let vector_encoder = ScannerVectorEncoder::<N>::new();
 
         let results = vector_encoder.vector_encode(
             snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
             snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
-            scan_parameters,
-            scan_filter_parameters.get_data_type(),
+            scan_parameters_global,
+            scan_parameters_local.get_data_type(),
             snapshot_region_filter.get_base_address(),
             snapshot_region_filter.get_region_size(),
-            Self::get_sparse_mask(scan_filter_parameters.get_memory_alignment_or_default()),
+            Self::get_sparse_mask(scan_parameters_local.get_memory_alignment_or_default()),
         );
 
         results

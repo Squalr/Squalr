@@ -16,7 +16,7 @@ use squalr_engine_api::commands::scan::hybrid::scan_hybrid_request::ScanHybridRe
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::data_values::anonymous_value::AnonymousValue;
-use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
+use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use std::sync::Arc;
 
 pub struct ManualScanViewModel {
@@ -54,8 +54,8 @@ impl ManualScanViewModel {
         match DataTypeRef::new(&data_type_view.data_type.to_string()) {
             Some(data_type) => {
                 let memory_alignment = None; // JIRA: TODO
-                let scan_filter_parameters = vec![ScanFilterParameters::new(memory_alignment, data_type)];
-                let scan_new_request = ScanNewRequest { scan_filter_parameters };
+                let scan_parameters_local = vec![ScanParametersLocal::new(data_type, memory_alignment)];
+                let scan_new_request = ScanNewRequest { scan_parameters_local };
 
                 scan_new_request.send(&engine_execution_context, |_scan_new_response| {});
             }

@@ -1,7 +1,7 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
-use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
+use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use std::collections::HashMap;
 
 pub struct ScannerScalarEncoderByteArray {}
@@ -16,8 +16,8 @@ impl ScannerScalarEncoderByteArray {
     pub fn scalar_encode(
         current_value_pointer: *const u8,
         _prevous_value_pointer: *const u8,
-        scan_parameters: &ScanParameters,
-        scan_filter_parameters: &ScanFilterParameters,
+        scan_parameters_global: &ScanParametersGlobal,
+        scan_parameters_local: &ScanParametersLocal,
         base_address: u64,
         region_size: u64,
     ) -> Vec<SnapshotRegionFilter> {

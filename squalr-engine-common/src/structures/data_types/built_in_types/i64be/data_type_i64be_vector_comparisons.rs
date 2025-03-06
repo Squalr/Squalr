@@ -5,7 +5,7 @@ use crate::structures::data_types::comparisons::vector_comparable::{
     VectorCompareFnRelative16, VectorCompareFnRelative32, VectorCompareFnRelative64,
 };
 use crate::structures::data_types::comparisons::vector_generics::VectorGenerics;
-use crate::structures::scanning::scan_parameters::ScanParameters;
+use crate::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use std::ptr;
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
 use std::simd::num::SimdInt;
@@ -16,7 +16,7 @@ type PrimitiveType = i64;
 struct DataTypeI64beVector {}
 
 impl DataTypeI64beVector {
-    pub fn get_vector_compare_equal<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8) -> Simd<u8, N>
+    pub fn get_vector_compare_equal<const N: usize>(scan_parameters_global: &ScanParametersGlobal) -> fn(*const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
     {
@@ -29,7 +29,7 @@ impl DataTypeI64beVector {
         }
     }
 
-    pub fn get_vector_compare_not_equal<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8) -> Simd<u8, N>
+    pub fn get_vector_compare_not_equal<const N: usize>(scan_parameters_global: &ScanParametersGlobal) -> fn(*const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
     {
@@ -42,7 +42,7 @@ impl DataTypeI64beVector {
         }
     }
 
-    pub fn get_vector_compare_greater_than<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8) -> Simd<u8, N>
+    pub fn get_vector_compare_greater_than<const N: usize>(scan_parameters_global: &ScanParametersGlobal) -> fn(*const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
     {
@@ -54,7 +54,7 @@ impl DataTypeI64beVector {
         }
     }
 
-    pub fn get_vector_compare_greater_than_or_equal<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8) -> Simd<u8, N>
+    pub fn get_vector_compare_greater_than_or_equal<const N: usize>(scan_parameters_global: &ScanParametersGlobal) -> fn(*const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
     {
@@ -66,7 +66,7 @@ impl DataTypeI64beVector {
         }
     }
 
-    pub fn get_vector_compare_less_than<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8) -> Simd<u8, N>
+    pub fn get_vector_compare_less_than<const N: usize>(scan_parameters_global: &ScanParametersGlobal) -> fn(*const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
     {
@@ -78,7 +78,7 @@ impl DataTypeI64beVector {
         }
     }
 
-    pub fn get_vector_compare_less_than_or_equal<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8) -> Simd<u8, N>
+    pub fn get_vector_compare_less_than_or_equal<const N: usize>(scan_parameters_global: &ScanParametersGlobal) -> fn(*const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
     {
@@ -90,7 +90,7 @@ impl DataTypeI64beVector {
         }
     }
 
-    pub fn get_vector_compare_changed<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8) -> Simd<u8, N>
+    pub fn get_vector_compare_changed<const N: usize>(scan_parameters_global: &ScanParametersGlobal) -> fn(*const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
     {
@@ -103,7 +103,7 @@ impl DataTypeI64beVector {
         }
     }
 
-    pub fn get_vector_compare_unchanged<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8) -> Simd<u8, N>
+    pub fn get_vector_compare_unchanged<const N: usize>(scan_parameters_global: &ScanParametersGlobal) -> fn(*const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
     {
@@ -116,7 +116,7 @@ impl DataTypeI64beVector {
         }
     }
 
-    pub fn get_vector_compare_increased<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8) -> Simd<u8, N>
+    pub fn get_vector_compare_increased<const N: usize>(scan_parameters_global: &ScanParametersGlobal) -> fn(*const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
     {
@@ -128,7 +128,7 @@ impl DataTypeI64beVector {
         }
     }
 
-    pub fn get_vector_compare_decreased<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8) -> Simd<u8, N>
+    pub fn get_vector_compare_decreased<const N: usize>(scan_parameters_global: &ScanParametersGlobal) -> fn(*const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
     {
@@ -140,7 +140,7 @@ impl DataTypeI64beVector {
         }
     }
 
-    pub fn get_vector_compare_increased_by<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8, *const u8) -> Simd<u8, N>
+    pub fn get_vector_compare_increased_by<const N: usize>(scan_parameters_global: &ScanParametersGlobal) -> fn(*const u8, *const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
     {
@@ -153,7 +153,7 @@ impl DataTypeI64beVector {
         }
     }
 
-    pub fn get_vector_compare_decreased_by<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8, *const u8) -> Simd<u8, N>
+    pub fn get_vector_compare_decreased_by<const N: usize>(scan_parameters_global: &ScanParametersGlobal) -> fn(*const u8, *const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
     {
@@ -170,253 +170,253 @@ impl DataTypeI64beVector {
 impl VectorComparable for DataTypeI64be {
     fn get_vector_compare_equal_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate64 {
-        DataTypeI64beVector::get_vector_compare_equal(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_equal(scan_parameters_global)
     }
 
     fn get_vector_compare_equal_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate32 {
-        DataTypeI64beVector::get_vector_compare_equal(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_equal(scan_parameters_global)
     }
 
     fn get_vector_compare_equal_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate16 {
-        DataTypeI64beVector::get_vector_compare_equal(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_equal(scan_parameters_global)
     }
 
     fn get_vector_compare_not_equal_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate64 {
-        DataTypeI64beVector::get_vector_compare_not_equal(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_not_equal(scan_parameters_global)
     }
 
     fn get_vector_compare_not_equal_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate32 {
-        DataTypeI64beVector::get_vector_compare_not_equal(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_not_equal(scan_parameters_global)
     }
 
     fn get_vector_compare_not_equal_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate16 {
-        DataTypeI64beVector::get_vector_compare_not_equal(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_not_equal(scan_parameters_global)
     }
 
     fn get_vector_compare_greater_than_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate64 {
-        DataTypeI64beVector::get_vector_compare_greater_than(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_greater_than(scan_parameters_global)
     }
 
     fn get_vector_compare_greater_than_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate32 {
-        DataTypeI64beVector::get_vector_compare_greater_than(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_greater_than(scan_parameters_global)
     }
 
     fn get_vector_compare_greater_than_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate16 {
-        DataTypeI64beVector::get_vector_compare_greater_than(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_greater_than(scan_parameters_global)
     }
 
     fn get_vector_compare_greater_than_or_equal_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate64 {
-        DataTypeI64beVector::get_vector_compare_greater_than_or_equal(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_greater_than_or_equal(scan_parameters_global)
     }
 
     fn get_vector_compare_greater_than_or_equal_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate32 {
-        DataTypeI64beVector::get_vector_compare_greater_than_or_equal(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_greater_than_or_equal(scan_parameters_global)
     }
 
     fn get_vector_compare_greater_than_or_equal_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate16 {
-        DataTypeI64beVector::get_vector_compare_greater_than_or_equal(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_greater_than_or_equal(scan_parameters_global)
     }
 
     fn get_vector_compare_less_than_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate64 {
-        DataTypeI64beVector::get_vector_compare_less_than(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_less_than(scan_parameters_global)
     }
 
     fn get_vector_compare_less_than_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate32 {
-        DataTypeI64beVector::get_vector_compare_less_than(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_less_than(scan_parameters_global)
     }
 
     fn get_vector_compare_less_than_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate16 {
-        DataTypeI64beVector::get_vector_compare_less_than(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_less_than(scan_parameters_global)
     }
 
     fn get_vector_compare_less_than_or_equal_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate64 {
-        DataTypeI64beVector::get_vector_compare_less_than_or_equal(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_less_than_or_equal(scan_parameters_global)
     }
 
     fn get_vector_compare_less_than_or_equal_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate32 {
-        DataTypeI64beVector::get_vector_compare_less_than_or_equal(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_less_than_or_equal(scan_parameters_global)
     }
 
     fn get_vector_compare_less_than_or_equal_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnImmediate16 {
-        DataTypeI64beVector::get_vector_compare_less_than_or_equal(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_less_than_or_equal(scan_parameters_global)
     }
 
     fn get_vector_compare_changed_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnRelative64 {
-        DataTypeI64beVector::get_vector_compare_changed(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_changed(scan_parameters_global)
     }
 
     fn get_vector_compare_changed_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnRelative32 {
-        DataTypeI64beVector::get_vector_compare_changed(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_changed(scan_parameters_global)
     }
 
     fn get_vector_compare_changed_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnRelative16 {
-        DataTypeI64beVector::get_vector_compare_changed(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_changed(scan_parameters_global)
     }
 
     fn get_vector_compare_unchanged_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnRelative64 {
-        DataTypeI64beVector::get_vector_compare_unchanged(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_unchanged(scan_parameters_global)
     }
 
     fn get_vector_compare_unchanged_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnRelative32 {
-        DataTypeI64beVector::get_vector_compare_unchanged(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_unchanged(scan_parameters_global)
     }
 
     fn get_vector_compare_unchanged_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnRelative16 {
-        DataTypeI64beVector::get_vector_compare_unchanged(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_unchanged(scan_parameters_global)
     }
 
     fn get_vector_compare_increased_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnRelative64 {
-        DataTypeI64beVector::get_vector_compare_increased(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_increased(scan_parameters_global)
     }
 
     fn get_vector_compare_increased_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnRelative32 {
-        DataTypeI64beVector::get_vector_compare_increased(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_increased(scan_parameters_global)
     }
 
     fn get_vector_compare_increased_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnRelative16 {
-        DataTypeI64beVector::get_vector_compare_increased(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_increased(scan_parameters_global)
     }
 
     fn get_vector_compare_decreased_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnRelative64 {
-        DataTypeI64beVector::get_vector_compare_decreased(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_decreased(scan_parameters_global)
     }
 
     fn get_vector_compare_decreased_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnRelative32 {
-        DataTypeI64beVector::get_vector_compare_decreased(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_decreased(scan_parameters_global)
     }
 
     fn get_vector_compare_decreased_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnRelative16 {
-        DataTypeI64beVector::get_vector_compare_decreased(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_decreased(scan_parameters_global)
     }
 
     fn get_vector_compare_increased_by_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnDelta64 {
-        DataTypeI64beVector::get_vector_compare_increased_by(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_increased_by(scan_parameters_global)
     }
 
     fn get_vector_compare_increased_by_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnDelta32 {
-        DataTypeI64beVector::get_vector_compare_increased_by(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_increased_by(scan_parameters_global)
     }
 
     fn get_vector_compare_increased_by_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnDelta16 {
-        DataTypeI64beVector::get_vector_compare_increased_by(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_increased_by(scan_parameters_global)
     }
 
     fn get_vector_compare_decreased_by_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnDelta64 {
-        DataTypeI64beVector::get_vector_compare_decreased_by(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_decreased_by(scan_parameters_global)
     }
 
     fn get_vector_compare_decreased_by_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnDelta32 {
-        DataTypeI64beVector::get_vector_compare_decreased_by(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_decreased_by(scan_parameters_global)
     }
 
     fn get_vector_compare_decreased_by_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
     ) -> VectorCompareFnDelta16 {
-        DataTypeI64beVector::get_vector_compare_decreased_by(scan_parameters)
+        DataTypeI64beVector::get_vector_compare_decreased_by(scan_parameters_global)
     }
 }

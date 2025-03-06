@@ -4,7 +4,7 @@ use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::Snapsh
 use squalr_engine_common::structures::data_types::comparisons::vector_compare::VectorCompare;
 use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
-use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
+use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use std::simd::prelude::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
@@ -44,7 +44,7 @@ where
         &self,
         current_value_pointer: *const u8,
         _: *const u8,
-        scan_parameters: &ScanParameters,
+        scan_parameters_global: &ScanParametersGlobal,
         data_type: &DataTypeRef,
         base_address: u64,
         region_size: u64,
@@ -53,9 +53,9 @@ where
         let data_type_size_bytes = data_type.get_size_in_bytes();
 
         unsafe {
-            match scan_parameters.get_compare_type() {
+            match scan_parameters_global.get_compare_type() {
                 ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                    if let Some(immediate_value) = scan_parameters.deanonymize_immediate(&data_type) {
+                    if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(&data_type) {
                         let immediate_value_ptr = immediate_value.as_ptr();
                         let periodicity = Self::calculate_periodicity(immediate_value_ptr, data_type_size_bytes);
 
