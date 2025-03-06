@@ -2,8 +2,9 @@ use crate::command_executors::engine_request_executor::EngineRequestExecutor;
 use crate::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan::hybrid::scan_hybrid_request::ScanHybridRequest;
 use squalr_engine_api::commands::scan::hybrid::scan_hybrid_response::ScanHybridResponse;
+use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
+use squalr_engine_scanning::scan_settings::ScanSettings;
 use squalr_engine_scanning::scanners::hybrid_scanner::HybridScanner;
-use squalr_engine_scanning::scanners::parameters::scan_parameters::ScanParameters;
 use std::sync::Arc;
 use std::thread;
 
@@ -16,7 +17,8 @@ impl EngineRequestExecutor for ScanHybridRequest {
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             let snapshot = execution_context.get_snapshot();
-            let scan_parameters = ScanParameters::new(self.compare_type.to_owned(), self.scan_value.to_owned());
+            let floating_point_tolerance = ScanSettings::get_instance().get_floating_point_tolerance();
+            let scan_parameters = ScanParameters::new(self.compare_type.to_owned(), self.scan_value.to_owned(), floating_point_tolerance);
 
             // Perform the hybrid scan which simultaneously collects and scans memory.
             let task = HybridScanner::scan(process_info.clone(), snapshot, &scan_parameters, None, true);

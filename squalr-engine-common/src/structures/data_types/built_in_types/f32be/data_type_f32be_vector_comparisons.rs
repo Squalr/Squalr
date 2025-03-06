@@ -1,4 +1,4 @@
-use crate::structures::data_types::built_in_types::u16be::data_type_u16be::DataTypeU16be;
+use crate::structures::data_types::built_in_types::f32be::data_type_f32be::DataTypeF32be;
 use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
 use crate::structures::data_types::comparisons::vector_comparable::{
     VectorCompareFnDelta16, VectorCompareFnDelta32, VectorCompareFnDelta64, VectorCompareFnImmediate16, VectorCompareFnImmediate32, VectorCompareFnImmediate64,
@@ -11,12 +11,12 @@ use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
 use std::simd::num::SimdInt;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
-type PrimitiveType = u16;
-type SwapCompatibleType = i16;
+type PrimitiveType = f32;
+type SwapCompatibleType = i32;
 
-struct DataTypeU16beVector {}
+struct DataTypeF32beVector {}
 
-impl DataTypeU16beVector {
+impl DataTypeF32beVector {
     pub fn get_vector_compare_equal<const N: usize>(scan_parameters: &ScanParameters) -> fn(*const u8, *const u8) -> Simd<u8, N>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -202,256 +202,256 @@ impl DataTypeU16beVector {
     }
 }
 
-impl VectorComparable for DataTypeU16be {
+impl VectorComparable for DataTypeF32be {
     fn get_vector_compare_equal_64(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate64 {
-        DataTypeU16beVector::get_vector_compare_equal(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_equal(scan_parameters)
     }
 
     fn get_vector_compare_equal_32(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate32 {
-        DataTypeU16beVector::get_vector_compare_equal(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_equal(scan_parameters)
     }
 
     fn get_vector_compare_equal_16(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate16 {
-        DataTypeU16beVector::get_vector_compare_equal(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_equal(scan_parameters)
     }
 
     fn get_vector_compare_not_equal_64(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate64 {
-        DataTypeU16beVector::get_vector_compare_not_equal(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_not_equal(scan_parameters)
     }
 
     fn get_vector_compare_not_equal_32(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate32 {
-        DataTypeU16beVector::get_vector_compare_not_equal(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_not_equal(scan_parameters)
     }
 
     fn get_vector_compare_not_equal_16(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate16 {
-        DataTypeU16beVector::get_vector_compare_not_equal(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_not_equal(scan_parameters)
     }
 
     fn get_vector_compare_greater_than_64(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate64 {
-        DataTypeU16beVector::get_vector_compare_greater_than(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_greater_than(scan_parameters)
     }
 
     fn get_vector_compare_greater_than_32(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate32 {
-        DataTypeU16beVector::get_vector_compare_greater_than(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_greater_than(scan_parameters)
     }
 
     fn get_vector_compare_greater_than_16(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate16 {
-        DataTypeU16beVector::get_vector_compare_greater_than(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_greater_than(scan_parameters)
     }
 
     fn get_vector_compare_greater_than_or_equal_64(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate64 {
-        DataTypeU16beVector::get_vector_compare_greater_than_or_equal(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_greater_than_or_equal(scan_parameters)
     }
 
     fn get_vector_compare_greater_than_or_equal_32(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate32 {
-        DataTypeU16beVector::get_vector_compare_greater_than_or_equal(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_greater_than_or_equal(scan_parameters)
     }
 
     fn get_vector_compare_greater_than_or_equal_16(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate16 {
-        DataTypeU16beVector::get_vector_compare_greater_than_or_equal(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_greater_than_or_equal(scan_parameters)
     }
 
     fn get_vector_compare_less_than_64(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate64 {
-        DataTypeU16beVector::get_vector_compare_less_than(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_less_than(scan_parameters)
     }
 
     fn get_vector_compare_less_than_32(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate32 {
-        DataTypeU16beVector::get_vector_compare_less_than(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_less_than(scan_parameters)
     }
 
     fn get_vector_compare_less_than_16(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate16 {
-        DataTypeU16beVector::get_vector_compare_less_than(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_less_than(scan_parameters)
     }
 
     fn get_vector_compare_less_than_or_equal_64(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate64 {
-        DataTypeU16beVector::get_vector_compare_less_than_or_equal(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_less_than_or_equal(scan_parameters)
     }
 
     fn get_vector_compare_less_than_or_equal_32(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate32 {
-        DataTypeU16beVector::get_vector_compare_less_than_or_equal(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_less_than_or_equal(scan_parameters)
     }
 
     fn get_vector_compare_less_than_or_equal_16(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnImmediate16 {
-        DataTypeU16beVector::get_vector_compare_less_than_or_equal(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_less_than_or_equal(scan_parameters)
     }
 
     fn get_vector_compare_changed_64(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnRelative64 {
-        DataTypeU16beVector::get_vector_compare_changed(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_changed(scan_parameters)
     }
 
     fn get_vector_compare_changed_32(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnRelative32 {
-        DataTypeU16beVector::get_vector_compare_changed(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_changed(scan_parameters)
     }
 
     fn get_vector_compare_changed_16(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnRelative16 {
-        DataTypeU16beVector::get_vector_compare_changed(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_changed(scan_parameters)
     }
 
     fn get_vector_compare_unchanged_64(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnRelative64 {
-        DataTypeU16beVector::get_vector_compare_unchanged(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_unchanged(scan_parameters)
     }
 
     fn get_vector_compare_unchanged_32(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnRelative32 {
-        DataTypeU16beVector::get_vector_compare_unchanged(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_unchanged(scan_parameters)
     }
 
     fn get_vector_compare_unchanged_16(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnRelative16 {
-        DataTypeU16beVector::get_vector_compare_unchanged(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_unchanged(scan_parameters)
     }
 
     fn get_vector_compare_increased_64(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnRelative64 {
-        DataTypeU16beVector::get_vector_compare_increased(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_increased(scan_parameters)
     }
 
     fn get_vector_compare_increased_32(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnRelative32 {
-        DataTypeU16beVector::get_vector_compare_increased(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_increased(scan_parameters)
     }
 
     fn get_vector_compare_increased_16(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnRelative16 {
-        DataTypeU16beVector::get_vector_compare_increased(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_increased(scan_parameters)
     }
 
     fn get_vector_compare_decreased_64(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnRelative64 {
-        DataTypeU16beVector::get_vector_compare_decreased(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_decreased(scan_parameters)
     }
 
     fn get_vector_compare_decreased_32(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnRelative32 {
-        DataTypeU16beVector::get_vector_compare_decreased(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_decreased(scan_parameters)
     }
 
     fn get_vector_compare_decreased_16(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnRelative16 {
-        DataTypeU16beVector::get_vector_compare_decreased(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_decreased(scan_parameters)
     }
 
     fn get_vector_compare_increased_by_64(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnDelta64 {
-        DataTypeU16beVector::get_vector_compare_increased_by(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_increased_by(scan_parameters)
     }
 
     fn get_vector_compare_increased_by_32(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnDelta32 {
-        DataTypeU16beVector::get_vector_compare_increased_by(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_increased_by(scan_parameters)
     }
 
     fn get_vector_compare_increased_by_16(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnDelta16 {
-        DataTypeU16beVector::get_vector_compare_increased_by(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_increased_by(scan_parameters)
     }
 
     fn get_vector_compare_decreased_by_64(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnDelta64 {
-        DataTypeU16beVector::get_vector_compare_decreased_by(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_decreased_by(scan_parameters)
     }
 
     fn get_vector_compare_decreased_by_32(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnDelta32 {
-        DataTypeU16beVector::get_vector_compare_decreased_by(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_decreased_by(scan_parameters)
     }
 
     fn get_vector_compare_decreased_by_16(
         &self,
         scan_parameters: &ScanParameters,
     ) -> VectorCompareFnDelta16 {
-        DataTypeU16beVector::get_vector_compare_decreased_by(scan_parameters)
+        DataTypeF32beVector::get_vector_compare_decreased_by(scan_parameters)
     }
 }

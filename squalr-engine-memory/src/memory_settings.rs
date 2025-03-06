@@ -112,11 +112,11 @@ impl MemorySettings {
     }
 
     pub fn get_full_config(&self) -> &Arc<RwLock<Config>> {
-        return &self.config;
+        &self.config
     }
 
     pub fn get_memory_type_none(&self) -> bool {
-        return self.config.read().unwrap().memory_type_none;
+        self.config.read().unwrap().memory_type_none
     }
 
     pub fn set_memory_type_none(
@@ -128,7 +128,7 @@ impl MemorySettings {
     }
 
     pub fn get_memory_type_private(&self) -> bool {
-        return self.config.read().unwrap().memory_type_private;
+        self.config.read().unwrap().memory_type_private
     }
 
     pub fn set_memory_type_private(
@@ -140,7 +140,7 @@ impl MemorySettings {
     }
 
     pub fn get_memory_type_image(&self) -> bool {
-        return self.config.read().unwrap().memory_type_image;
+        self.config.read().unwrap().memory_type_image
     }
 
     pub fn set_memory_type_image(
@@ -152,7 +152,7 @@ impl MemorySettings {
     }
 
     pub fn get_memory_type_mapped(&self) -> bool {
-        return self.config.read().unwrap().memory_type_mapped;
+        self.config.read().unwrap().memory_type_mapped
     }
 
     pub fn set_memory_type_mapped(
@@ -164,7 +164,7 @@ impl MemorySettings {
     }
 
     pub fn get_required_write(&self) -> bool {
-        return self.config.read().unwrap().required_write;
+        self.config.read().unwrap().required_write
     }
 
     pub fn set_required_write(
@@ -176,7 +176,7 @@ impl MemorySettings {
     }
 
     pub fn get_required_execute(&self) -> bool {
-        return self.config.read().unwrap().required_execute;
+        self.config.read().unwrap().required_execute
     }
 
     pub fn set_required_execute(
@@ -188,7 +188,7 @@ impl MemorySettings {
     }
 
     pub fn get_required_copy_on_write(&self) -> bool {
-        return self.config.read().unwrap().required_copy_on_write;
+        self.config.read().unwrap().required_copy_on_write
     }
 
     pub fn set_required_copy_on_write(
@@ -200,7 +200,7 @@ impl MemorySettings {
     }
 
     pub fn get_excluded_write(&self) -> bool {
-        return self.config.read().unwrap().excluded_write;
+        self.config.read().unwrap().excluded_write
     }
 
     pub fn set_excluded_write(
@@ -212,7 +212,7 @@ impl MemorySettings {
     }
 
     pub fn get_excluded_execute(&self) -> bool {
-        return self.config.read().unwrap().excluded_execute;
+        self.config.read().unwrap().excluded_execute
     }
 
     pub fn set_excluded_execute(
@@ -224,7 +224,7 @@ impl MemorySettings {
     }
 
     pub fn get_excluded_copy_on_write(&self) -> bool {
-        return self.config.read().unwrap().excluded_copy_on_write;
+        self.config.read().unwrap().excluded_copy_on_write
     }
 
     pub fn set_excluded_copy_on_write(
@@ -236,7 +236,7 @@ impl MemorySettings {
     }
 
     pub fn get_start_address(&self) -> u64 {
-        return self.config.read().unwrap().start_address;
+        self.config.read().unwrap().start_address
     }
 
     pub fn set_start_address(
@@ -248,7 +248,7 @@ impl MemorySettings {
     }
 
     pub fn get_end_address(&self) -> u64 {
-        return self.config.read().unwrap().end_address;
+        self.config.read().unwrap().end_address
     }
 
     pub fn set_end_address(
@@ -260,7 +260,7 @@ impl MemorySettings {
     }
 
     pub fn get_only_query_usermode(&self) -> bool {
-        return self.config.read().unwrap().only_query_usermode;
+        self.config.read().unwrap().only_query_usermode
     }
 
     pub fn set_only_query_usermode(

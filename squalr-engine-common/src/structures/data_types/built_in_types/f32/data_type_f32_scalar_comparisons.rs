@@ -1,14 +1,16 @@
-use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
+use crate::structures::data_types::built_in_types::f32::data_type_f32::DataTypeF32;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnDelta;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnImmediate;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnRelative;
 use crate::structures::scanning::scan_parameters::ScanParameters;
+use std::ops::Add;
+use std::ops::Sub;
 use std::ptr;
 
-type PrimitiveType = u64;
+type PrimitiveType = f32;
 
-impl ScalarComparable for DataTypeU64 {
+impl ScalarComparable for DataTypeF32 {
     fn get_compare_equal(
         &self,
         scan_parameters: &ScanParameters,
@@ -138,7 +140,7 @@ impl ScalarComparable for DataTypeU64 {
             let previous_value = ptr::read_unaligned(previous_value_ptr as *const PrimitiveType);
             let delta_value = ptr::read_unaligned(delta_ptr as *const PrimitiveType);
 
-            current_value == previous_value.wrapping_add(delta_value)
+            current_value == previous_value.add(delta_value)
         }
     }
 
@@ -151,7 +153,7 @@ impl ScalarComparable for DataTypeU64 {
             let previous_value = ptr::read_unaligned(previous_value_ptr as *const PrimitiveType);
             let delta_value = ptr::read_unaligned(delta_ptr as *const PrimitiveType);
 
-            current_value == previous_value.wrapping_sub(delta_value)
+            current_value == previous_value.sub(delta_value)
         }
     }
 }

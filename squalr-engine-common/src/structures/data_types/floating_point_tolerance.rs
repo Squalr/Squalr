@@ -24,6 +24,12 @@ pub enum FloatingPointTolerance {
     Tolerance10E5,
 }
 
+impl Default for FloatingPointTolerance {
+    fn default() -> Self {
+        FloatingPointTolerance::Tolerance10E3
+    }
+}
+
 impl fmt::Debug for FloatingPointTolerance {
     fn fmt(
         &self,
@@ -33,11 +39,5 @@ impl fmt::Debug for FloatingPointTolerance {
             Ok(json) => write!(formatter, "{}", json),
             Err(_) => write!(formatter, "FloatingPointTolerance {{ could not serialize to JSON }}"),
         }
-    }
-}
-
-impl Default for FloatingPointTolerance {
-    fn default() -> Self {
-        FloatingPointTolerance::Tolerance10E3
     }
 }

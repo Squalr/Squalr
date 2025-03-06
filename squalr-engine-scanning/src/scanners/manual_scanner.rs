@@ -1,9 +1,9 @@
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
-use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scan_dispatcher::ScanDispatcher;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::Conversions;
+use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};

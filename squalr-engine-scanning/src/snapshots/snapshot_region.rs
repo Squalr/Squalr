@@ -1,15 +1,14 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
-use crate::scanners::parameters::scan_parameters::ScanParameters;
 use rayon::iter::IntoParallelIterator;
-use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::data_values::data_value::DataValue;
 use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use squalr_engine_common::structures::scanning::scan_filter_parameters::ScanFilterParameters;
+use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::normalized_region::NormalizedRegion;
@@ -155,8 +154,11 @@ impl SnapshotRegion {
     ) -> Result<(), String> {
         let region_size = self.get_region_size() as usize;
 
+        // Move current_values to be the previous_values. This is a very efficient way to move these, as instead of
+        // discarding the old previous values, we recycle that array for use in the next scan to create new current_values.
         std::mem::swap(&mut self.current_values, &mut self.previous_values);
 
+        // Create current values vector if none exist.
         if self.current_values.is_empty() && region_size > 0 {
             self.current_values = vec![0u8; region_size];
         }

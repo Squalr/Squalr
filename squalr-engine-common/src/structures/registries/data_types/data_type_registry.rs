@@ -1,9 +1,9 @@
 use crate::structures::data_types::{
     built_in_types::{
-        i8::data_type_i8::DataTypeI8, i16::data_type_i16::DataTypeI16, i16be::data_type_i16be::DataTypeI16be, i32::data_type_i32::DataTypeI32,
-        i32be::data_type_i32be::DataTypeI32be, i64::data_type_i64::DataTypeI64, i64be::data_type_i64be::DataTypeI64be, u8::data_type_u8::DataTypeU8,
-        u16::data_type_u16::DataTypeU16, u16be::data_type_u16be::DataTypeU16be, u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be,
-        u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
+        f32::data_type_f32::DataTypeF32, f32be::data_type_f32be::DataTypeF32be, i8::data_type_i8::DataTypeI8, i16::data_type_i16::DataTypeI16,
+        i16be::data_type_i16be::DataTypeI16be, i32::data_type_i32::DataTypeI32, i32be::data_type_i32be::DataTypeI32be, i64::data_type_i64::DataTypeI64,
+        i64be::data_type_i64be::DataTypeI64be, u8::data_type_u8::DataTypeU8, u16::data_type_u16::DataTypeU16, u16be::data_type_u16be::DataTypeU16be,
+        u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be, u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
     },
     data_type::DataType,
 };
@@ -57,6 +57,8 @@ impl DataTypeRegistry {
         let data_type_u32be = DataTypeU32be {};
         let data_type_u64 = DataTypeU64 {};
         let data_type_u64be = DataTypeU64be {};
+        let data_type_f32 = DataTypeF32 {};
+        let data_type_f32be = DataTypeF32be {};
 
         registry.insert(data_type_i8.get_id().to_string(), Arc::new(data_type_i8));
         registry.insert(data_type_i16.get_id().to_string(), Arc::new(data_type_i16));
@@ -72,6 +74,8 @@ impl DataTypeRegistry {
         registry.insert(data_type_u32be.get_id().to_string(), Arc::new(data_type_u32be));
         registry.insert(data_type_u64.get_id().to_string(), Arc::new(data_type_u64));
         registry.insert(data_type_u64be.get_id().to_string(), Arc::new(data_type_u64be));
+        registry.insert(data_type_f32.get_id().to_string(), Arc::new(data_type_f32));
+        registry.insert(data_type_f32be.get_id().to_string(), Arc::new(data_type_f32be));
 
         registry
     }

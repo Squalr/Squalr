@@ -2,8 +2,9 @@ use crate::command_executors::engine_request_executor::EngineRequestExecutor;
 use crate::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan::manual::scan_manual_request::ScanManualRequest;
 use squalr_engine_api::commands::scan::manual::scan_manual_response::ScanManualResponse;
+use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
+use squalr_engine_scanning::scan_settings::ScanSettings;
 use squalr_engine_scanning::scanners::manual_scanner::ManualScanner;
-use squalr_engine_scanning::scanners::parameters::scan_parameters::ScanParameters;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use std::sync::Arc;
 use std::thread;
@@ -17,7 +18,8 @@ impl EngineRequestExecutor for ScanManualRequest {
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             let snapshot = execution_context.get_snapshot();
-            let scan_parameters = ScanParameters::new(self.compare_type.to_owned(), self.scan_value.to_owned());
+            let floating_point_tolerance = ScanSettings::get_instance().get_floating_point_tolerance();
+            let scan_parameters = ScanParameters::new(self.compare_type.to_owned(), self.scan_value.to_owned(), floating_point_tolerance);
 
             // First collect values before the manual scan.
             // TODO: This should not be blocking.

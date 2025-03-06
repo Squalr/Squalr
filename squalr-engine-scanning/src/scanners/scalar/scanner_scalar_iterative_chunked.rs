@@ -1,10 +1,9 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::scalar::scanner_scalar_encoder::ScannerScalarEncoder;
-use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use squalr_engine_common::structures::{data_types::data_type_ref::DataTypeRef, memory_alignment::MemoryAlignment};
+use squalr_engine_common::structures::{data_types::data_type_ref::DataTypeRef, memory_alignment::MemoryAlignment, scanning::scan_parameters::ScanParameters};
 use std::sync::Once;
 
 pub struct ScannerScalarIterativeChunked {}

@@ -1,7 +1,7 @@
-use crate::floating_point_tolerance::FloatingPointTolerance;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use squalr_engine_common::config::serialized_config_updater;
+use squalr_engine_common::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use std::path::PathBuf;
 use std::sync::Once;
@@ -97,11 +97,11 @@ impl ScanSettings {
     }
 
     pub fn get_full_config(&self) -> &Arc<RwLock<Config>> {
-        return &self.config;
+        &self.config
     }
 
     pub fn get_results_page_size(&self) -> u32 {
-        return self.config.read().unwrap().results_page_size;
+        self.config.read().unwrap().results_page_size
     }
 
     pub fn set_results_page_size(
@@ -113,7 +113,7 @@ impl ScanSettings {
     }
 
     pub fn get_results_read_interval(&self) -> u32 {
-        return self.config.read().unwrap().results_read_interval;
+        self.config.read().unwrap().results_read_interval
     }
 
     pub fn set_results_read_interval(
@@ -125,7 +125,7 @@ impl ScanSettings {
     }
 
     pub fn get_table_read_interval(&self) -> u32 {
-        return self.config.read().unwrap().table_read_interval;
+        self.config.read().unwrap().table_read_interval
     }
 
     pub fn set_table_read_interval(
@@ -137,7 +137,7 @@ impl ScanSettings {
     }
 
     pub fn get_freeze_interval(&self) -> u32 {
-        return self.config.read().unwrap().freeze_interval;
+        self.config.read().unwrap().freeze_interval
     }
 
     pub fn set_freeze_interval(
@@ -149,7 +149,7 @@ impl ScanSettings {
     }
 
     pub fn get_memory_alignment(&self) -> Option<MemoryAlignment> {
-        return self.config.read().unwrap().memory_alignment;
+        self.config.read().unwrap().memory_alignment
     }
 
     pub fn set_memory_alignment(
@@ -161,7 +161,7 @@ impl ScanSettings {
     }
 
     pub fn get_floating_point_tolerance(&self) -> FloatingPointTolerance {
-        return self.config.read().unwrap().floating_point_tolerance;
+        self.config.read().unwrap().floating_point_tolerance
     }
 
     pub fn set_floating_point_tolerance(

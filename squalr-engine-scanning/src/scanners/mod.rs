@@ -1,7 +1,6 @@
 pub mod encoders;
 pub mod hybrid_scanner;
 pub mod manual_scanner;
-pub mod parameters;
 pub mod scalar;
 pub mod scan_dispatcher;
 pub mod snapshot_scanner;

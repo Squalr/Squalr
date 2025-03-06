@@ -1,12 +1,12 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
-use crate::scanners::parameters::scan_parameters::ScanParameters;
 use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::ParallelIterator;
 use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
+use squalr_engine_common::structures::scanning::scan_parameters::ScanParameters;
 
 use super::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 
