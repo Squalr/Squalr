@@ -1,6 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use squalr_engine_common::structures::data_types::comparisons::vector_compare::VectorCompare;
+use squalr_engine_common::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
@@ -9,11 +9,11 @@ use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorEncoder<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount + VectorCompare<N>, {}
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N>, {}
 
 impl<const N: usize> ScannerVectorEncoder<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
     pub fn new() -> Self {
         Self {}

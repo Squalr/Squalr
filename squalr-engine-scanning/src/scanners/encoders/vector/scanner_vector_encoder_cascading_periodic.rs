@@ -1,8 +1,8 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::scalar::scanner_scalar_encoder_byte_array::ScannerScalarEncoderByteArray;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use squalr_engine_common::structures::data_types::comparisons::vector_compare::VectorCompare;
 use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_common::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use std::simd::prelude::SimdPartialEq;
@@ -10,7 +10,7 @@ use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorEncoderCascadingPeriodic<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount + VectorCompare<N>, {}
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N>, {}
 
 /// Implements a memory region scanner to find cascading matches using "Periodicity Scans with RLE Discard".
 /// This is an algorithm that is optmized/specialized for data with repeating 1-8 byte patterns.
@@ -34,7 +34,7 @@ where
 /// scans will results in substantial savings, given that the array fits into a hardware vector Simd<> type.
 impl<const N: usize> ScannerVectorEncoderCascadingPeriodic<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
     pub fn new() -> Self {
         Self {}
@@ -70,7 +70,7 @@ where
                                 let false_mask = Simd::<u8, N>::splat(0);
                                 let adjusted_data_type = DataType::U8();
                                 let compare_func =
-                                    <LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_immediate(adjusted_data_type, &scan_compare_type_immediate);
+                                    <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(adjusted_data_type, &scan_compare_type_immediate);
 
                                 // Compare as many full vectors as we can
                                 for index in 0..iterations {

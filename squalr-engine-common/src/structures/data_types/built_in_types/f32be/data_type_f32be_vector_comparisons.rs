@@ -4,7 +4,7 @@ use crate::structures::data_types::comparisons::vector_comparable::{
     VectorCompareFnDelta16, VectorCompareFnDelta32, VectorCompareFnDelta64, VectorCompareFnImmediate16, VectorCompareFnImmediate32, VectorCompareFnImmediate64,
     VectorCompareFnRelative16, VectorCompareFnRelative32, VectorCompareFnRelative64,
 };
-use crate::structures::data_types::comparisons::vector_generics::VectorGenerics;
+use crate::structures::data_types::generics::vector_generics::VectorGenerics;
 use crate::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use crate::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use std::ops::{Add, Sub};

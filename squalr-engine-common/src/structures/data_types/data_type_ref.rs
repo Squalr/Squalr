@@ -1,8 +1,8 @@
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnDelta;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnImmediate;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnRelative;
-use crate::structures::data_types::comparisons::vector_compare::VectorCompare;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
+use crate::structures::data_types::generics::vector_comparer::VectorComparer;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::registries::data_types::data_type_registry::DataTypeRegistry;
@@ -177,12 +177,12 @@ impl DataTypeRef {
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
-        LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
+        LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(self.get_id()) {
-            Some(data_type) => <LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_immediate(
+            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(
                 &data_type,
                 &scan_compare_type_immediate,
                 scan_parameters_global,
@@ -199,12 +199,12 @@ impl DataTypeRef {
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
-        LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
+        LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(self.get_id()) {
-            Some(data_type) => <LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_relative(
+            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_relative(
                 &data_type,
                 &scan_compare_type_relative,
                 scan_parameters_global,
@@ -221,12 +221,12 @@ impl DataTypeRef {
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
-        LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
+        LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(self.get_id()) {
-            Some(data_type) => <LaneCount<N> as VectorCompare<N>>::get_vector_compare_func_delta(
+            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_delta(
                 &data_type,
                 &scan_compare_type_delta,
                 scan_parameters_global,

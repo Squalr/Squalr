@@ -2,18 +2,18 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::vector::scanner_vector_encoder::ScannerVectorEncoder;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
-use squalr_engine_common::structures::{data_types::comparisons::vector_compare::VectorCompare, scanning::scan_parameters_local::ScanParametersLocal};
+use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
+use squalr_engine_common::structures::{data_types::generics::vector_comparer::VectorComparer, memory_alignment::MemoryAlignment};
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorSparse<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount + VectorCompare<N>, {}
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N>, {}
 
 impl<const N: usize> ScannerVectorSparse<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
     // This mask automatically captures all in-between elements. For example, scanning for Byte 0 with an alignment of 2-bytes
     // against <0, 24, 0, 43> would all return true, due to this mask of <0, 255, 0, 255>. Scan results will automatically skip
@@ -53,7 +53,7 @@ where
 
 impl<const N: usize> Scanner for ScannerVectorSparse<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
     fn scan_region(
         &self,

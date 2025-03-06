@@ -15,7 +15,7 @@ use std::sync::Arc;
 /// This is necessary because all `DataType` instances need to be implemented by the traits that define them.
 /// Due to Rust limitations, these traits cannot have generics, so explicit 64/32/16 byte vector functions are implemented.
 /// However, our scanners are generic, so we need to "get back to" generics, and this is how we do it.
-pub trait VectorCompare<const N: usize>
+pub trait VectorComparer<const N: usize>
 where
     LaneCount<N>: SupportedLaneCount,
 {
@@ -41,7 +41,7 @@ where
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>;
 }
 
-impl VectorCompare<64> for LaneCount<64> {
+impl VectorComparer<64> for LaneCount<64> {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
@@ -70,7 +70,7 @@ impl VectorCompare<64> for LaneCount<64> {
     }
 }
 
-impl VectorCompare<32> for LaneCount<32> {
+impl VectorComparer<32> for LaneCount<32> {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
@@ -99,7 +99,7 @@ impl VectorCompare<32> for LaneCount<32> {
     }
 }
 
-impl VectorCompare<16> for LaneCount<16> {
+impl VectorComparer<16> for LaneCount<16> {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,

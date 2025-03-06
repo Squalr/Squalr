@@ -4363,6 +4363,7 @@ dependencies = [
  "hex",
  "log",
  "log4rs",
+ "num-traits",
  "rayon",
  "serde",
  "serde_json",

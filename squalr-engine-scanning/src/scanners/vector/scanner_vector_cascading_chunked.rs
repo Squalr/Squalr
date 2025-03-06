@@ -3,14 +3,14 @@ use crate::scanners::encoders::vector::scanner_vector_encoder_cascading_periodic
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
-use squalr_engine_common::structures::{data_types::comparisons::vector_compare::VectorCompare, scanning::scan_parameters_local::ScanParametersLocal};
+use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
+use squalr_engine_common::structures::{data_types::generics::vector_comparer::VectorComparer, scanning::scan_compare_type::ScanCompareType};
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorCascading<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount + VectorCompare<N>, {}
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N>, {}
 
 /// Cascading scans are the single most complex case to handle due to the base addresses not being aligned.
 /// It turns out that this problem has been extensively researched under "string search algorithms".
@@ -21,7 +21,7 @@ where
 /// There may be a ton of sub-cases, and this may best be handled by reducing the problem to a several specialized cases.
 impl<const N: usize> Scanner for ScannerVectorCascading<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorCompare<N>,
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
     fn scan_region(
         &self,
