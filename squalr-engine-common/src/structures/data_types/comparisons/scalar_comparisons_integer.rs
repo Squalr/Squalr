@@ -184,7 +184,7 @@ impl ScalarComparisonsInteger {
         if let Some(delta_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
             unsafe {
                 let delta_value_ptr = delta_value.as_ptr();
-                let delta_value = ptr::read_unaligned(delta_value_ptr as *const PrimitiveType);
+                let delta_value: PrimitiveType = ptr::read_unaligned(delta_value_ptr as *const PrimitiveType);
 
                 Some(Box::new(move |current_value_ptr, previous_value_ptr| {
                     let current_value = ptr::read_unaligned(current_value_ptr as *const PrimitiveType);
@@ -206,7 +206,7 @@ impl ScalarComparisonsInteger {
         if let Some(delta_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
             unsafe {
                 let delta_value_ptr = delta_value.as_ptr();
-                let delta_value = ptr::read_unaligned(delta_value_ptr as *const PrimitiveType);
+                let delta_value: PrimitiveType = ptr::read_unaligned(delta_value_ptr as *const PrimitiveType);
 
                 Some(Box::new(move |current_value_ptr, previous_value_ptr| {
                     let current_value = ptr::read_unaligned(current_value_ptr as *const PrimitiveType);

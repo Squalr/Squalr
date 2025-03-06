@@ -1,3 +1,4 @@
+use num_traits::Float;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use std::fmt;
@@ -25,25 +26,16 @@ pub enum FloatingPointTolerance {
 }
 
 impl FloatingPointTolerance {
-    pub fn get_value_f32(&self) -> f32 {
-        match self {
-            FloatingPointTolerance::ExactMatch => f32::EPSILON,
-            FloatingPointTolerance::Tolerance10E1 => 0.1,
-            FloatingPointTolerance::Tolerance10E2 => 0.01,
-            FloatingPointTolerance::Tolerance10E3 => 0.001,
-            FloatingPointTolerance::Tolerance10E4 => 0.0001,
-            FloatingPointTolerance::Tolerance10E5 => 0.00001,
-        }
-    }
-
-    pub fn get_value_f64(&self) -> f64 {
-        match self {
-            FloatingPointTolerance::ExactMatch => f64::EPSILON,
-            FloatingPointTolerance::Tolerance10E1 => 0.1,
-            FloatingPointTolerance::Tolerance10E2 => 0.01,
-            FloatingPointTolerance::Tolerance10E3 => 0.001,
-            FloatingPointTolerance::Tolerance10E4 => 0.0001,
-            FloatingPointTolerance::Tolerance10E5 => 0.00001,
+    pub fn get_value<PrimitiveType: Float>(&self) -> PrimitiveType {
+        unsafe {
+            match self {
+                FloatingPointTolerance::ExactMatch => PrimitiveType::epsilon(),
+                FloatingPointTolerance::Tolerance10E1 => PrimitiveType::from(0.1).unwrap_unchecked(),
+                FloatingPointTolerance::Tolerance10E2 => PrimitiveType::from(0.01).unwrap_unchecked(),
+                FloatingPointTolerance::Tolerance10E3 => PrimitiveType::from(0.001).unwrap_unchecked(),
+                FloatingPointTolerance::Tolerance10E4 => PrimitiveType::from(0.0001).unwrap_unchecked(),
+                FloatingPointTolerance::Tolerance10E5 => PrimitiveType::from(0.00001).unwrap_unchecked(),
+            }
         }
     }
 }
