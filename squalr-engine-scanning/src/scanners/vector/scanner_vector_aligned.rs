@@ -30,7 +30,7 @@ where
             snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
             snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
             scan_parameters_global,
-            scan_parameters_local.get_data_type(),
+            scan_parameters_local,
             snapshot_region_filter.get_base_address(),
             snapshot_region_filter.get_region_size(),
             simd_all_true_mask,

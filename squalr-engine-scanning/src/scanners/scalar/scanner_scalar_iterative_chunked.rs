@@ -72,7 +72,7 @@ impl Scanner for ScannerScalarIterativeChunked {
                         scan_parameters_global,
                         scan_parameters_local,
                         base_address,
-                        last_element_index - first_element_index,
+                        last_element_index.saturating_sub(first_element_index),
                     );
                 }
             })

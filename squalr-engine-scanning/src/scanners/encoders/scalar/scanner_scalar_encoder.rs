@@ -36,21 +36,21 @@ impl ScannerScalarEncoder {
 
             match scan_parameters_global.get_compare_type() {
                 ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                    if let Some(compare_func) = data_type.get_scalar_compare_func_immediate(&scan_compare_type_immediate, &scan_parameters_global) {
-                        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(&data_type) {
-                            let immediate_value_ptr = immediate_value.as_ptr();
+                    if let Some(compare_func) =
+                        data_type.get_scalar_compare_func_immediate(&scan_compare_type_immediate, scan_parameters_global, scan_parameters_local)
+                    {
+                        for index in 0..element_count {
+                            let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
+                            let result = compare_func(current_value_pointer);
 
-                            for index in 0..element_count {
-                                let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
-                                let result = compare_func(current_value_pointer, immediate_value_ptr);
-
-                                encode_results(result);
-                            }
+                            encode_results(result);
                         }
                     }
                 }
                 ScanCompareType::Relative(scan_compare_type_relative) => {
-                    if let Some(compare_func) = data_type.get_scalar_compare_func_relative(&scan_compare_type_relative, scan_parameters_global) {
+                    if let Some(compare_func) =
+                        data_type.get_scalar_compare_func_relative(&scan_compare_type_relative, scan_parameters_global, scan_parameters_local)
+                    {
                         for index in 0..element_count {
                             let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
                             let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment as usize);
@@ -61,17 +61,14 @@ impl ScannerScalarEncoder {
                     }
                 }
                 ScanCompareType::Delta(scan_compare_type_delta) => {
-                    if let Some(compare_func) = data_type.get_scalar_compare_func_delta(&scan_compare_type_delta, scan_parameters_global) {
-                        if let Some(delta_arg) = scan_parameters_global.deanonymize_immediate(&data_type) {
-                            let delta_arg_ptr = delta_arg.as_ptr();
+                    if let Some(compare_func) = data_type.get_scalar_compare_func_delta(&scan_compare_type_delta, scan_parameters_global, scan_parameters_local)
+                    {
+                        for index in 0..element_count {
+                            let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
+                            let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment as usize);
+                            let result = compare_func(current_value_pointer, previous_value_pointer);
 
-                            for index in 0..element_count {
-                                let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
-                                let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment as usize);
-                                let result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);
-
-                                encode_results(result);
-                            }
+                            encode_results(result);
                         }
                     }
                 }

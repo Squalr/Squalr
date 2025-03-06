@@ -50,69 +50,108 @@ where
 
         match scan_parameters_global.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                if let Some(compare_func) = data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate, scan_parameters_global) {
-                    if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(&data_type) {
-                        let immediate_value_ptr = immediate_value.as_ptr();
+                if let Some(compare_func) =
+                    data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate, scan_parameters_global, scan_parameters_local)
+                {
+                    match data_type_size_bytes {
+                        4 => {
+                            let bit_packing_size = 8 * vector_size_in_bytes * data_type_size_bytes as usize;
 
-                        match data_type_size_bytes {
-                            4 => {
-                                let bit_packing_size = 8 * vector_size_in_bytes * data_type_size_bytes as usize;
+                            // Compare as many bit packed vectors as we can.
+                            for bit_packed_iteration_index in 0..bit_packed_iterations {
+                                let pointer_offset_base = bit_packing_size * bit_packed_iteration_index as usize;
+                                let mut compare_results: [[Simd<u8, N>; 4]; 8] = [[Default::default(); 4]; 8];
 
-                                // Compare as many bit packed vectors as we can.
-                                for bit_packed_iteration_index in 0..bit_packed_iterations {
-                                    let pointer_offset_base = bit_packing_size * bit_packed_iteration_index as usize;
-                                    let mut compare_results: [[Simd<u8, N>; 4]; 8] = [[Default::default(); 4]; 8];
-
-                                    // Perform 32 SIMD comparisons and store the results (4 byte data size * 8 bits to prepare for packing).
-                                    // Results in 8 groups of 4 bytes, which can be processed first for byte packing.
-                                    unsafe {
-                                        for bit_index in 0..8 {
-                                            for byte_index in 0..4 {
-                                                let current_value_pointer =
-                                                    current_value_pointer.add(pointer_offset_base + vector_size_in_bytes * bit_index * byte_index);
-                                                compare_results[bit_index][byte_index] = compare_func(current_value_pointer, immediate_value_ptr);
-                                            }
+                                // Perform 32 SIMD comparisons and store the results (4 byte data size * 8 bits to prepare for packing).
+                                // Results in 8 groups of 4 bytes, which can be processed first for byte packing.
+                                unsafe {
+                                    for bit_index in 0..8 {
+                                        for byte_index in 0..4 {
+                                            let current_value_pointer =
+                                                current_value_pointer.add(pointer_offset_base + vector_size_in_bytes * bit_index * byte_index);
+                                            compare_results[bit_index][byte_index] = compare_func(current_value_pointer);
                                         }
                                     }
+                                }
 
-                                    // Byte packing into 8 groups, each created from 4 interleaved SIMD vectors.
-                                    let mut compare_results_byte_packed: [Simd<u8, N>; 8] = [Default::default(); 8];
+                                // Byte packing into 8 groups, each created from 4 interleaved SIMD vectors.
+                                let mut compare_results_byte_packed: [Simd<u8, N>; 8] = [Default::default(); 8];
 
-                                    // Interleave pack the 32 comparisons down to 8 vectors (packing_group_index).
-                                    for packing_group_index in 0..8 {
-                                        let compare_results = compare_results[packing_group_index];
-                                        let mut compare_results_packed: Simd<u8, N> = compare_results[0];
+                                // Interleave pack the 32 comparisons down to 8 vectors (packing_group_index).
+                                for packing_group_index in 0..8 {
+                                    let compare_results = compare_results[packing_group_index];
+                                    let mut compare_results_packed: Simd<u8, N> = compare_results[0];
 
-                                        for index in (0..N).step_by(data_type_size_bytes as usize) {
-                                            // compare_results_packed[index] = compare_results[0][index];
-                                            compare_results_packed[index + 1] = compare_results[1][index];
-                                            compare_results_packed[index + 2] = compare_results[2][index];
-                                            compare_results_packed[index + 3] = compare_results[3][index];
-                                        }
-
-                                        compare_results_byte_packed[packing_group_index] = compare_results_packed;
+                                    for index in (0..N).step_by(data_type_size_bytes as usize) {
+                                        // compare_results_packed[index] = compare_results[0][index];
+                                        compare_results_packed[index + 1] = compare_results[1][index];
+                                        compare_results_packed[index + 2] = compare_results[2][index];
+                                        compare_results_packed[index + 3] = compare_results[3][index];
                                     }
 
-                                    let mut compare_results_bit_packed: Simd<u8, N> = Default::default();
+                                    compare_results_byte_packed[packing_group_index] = compare_results_packed;
+                                }
 
-                                    // Reduce the 8 packed vectors into 1 single vector by masking each of the bytes to extract a single bit.
-                                    // It doesn't really matter how we pack this.
-                                    for vector_byte_index in 0..N {
-                                        let packed_byte = (compare_results_byte_packed[0][vector_byte_index] & 0b0000_0001)
-                                            | (compare_results_byte_packed[1][vector_byte_index] & 0b0000_0010)
-                                            | (compare_results_byte_packed[2][vector_byte_index] & 0b0000_0100)
-                                            | (compare_results_byte_packed[3][vector_byte_index] & 0b0000_1000)
-                                            | (compare_results_byte_packed[4][vector_byte_index] & 0b0001_0000)
-                                            | (compare_results_byte_packed[5][vector_byte_index] & 0b0010_0000)
-                                            | (compare_results_byte_packed[6][vector_byte_index] & 0b0100_0000)
-                                            | (compare_results_byte_packed[7][vector_byte_index] & 0b1000_0000);
+                                let mut compare_results_bit_packed: Simd<u8, N> = Default::default();
 
-                                        compare_results_bit_packed[vector_byte_index] = packed_byte;
+                                // Reduce the 8 packed vectors into 1 single vector by masking each of the bytes to extract a single bit.
+                                // It doesn't really matter how we pack this.
+                                for vector_byte_index in 0..N {
+                                    let packed_byte = (compare_results_byte_packed[0][vector_byte_index] & 0b0000_0001)
+                                        | (compare_results_byte_packed[1][vector_byte_index] & 0b0000_0010)
+                                        | (compare_results_byte_packed[2][vector_byte_index] & 0b0000_0100)
+                                        | (compare_results_byte_packed[3][vector_byte_index] & 0b0000_1000)
+                                        | (compare_results_byte_packed[4][vector_byte_index] & 0b0001_0000)
+                                        | (compare_results_byte_packed[5][vector_byte_index] & 0b0010_0000)
+                                        | (compare_results_byte_packed[6][vector_byte_index] & 0b0100_0000)
+                                        | (compare_results_byte_packed[7][vector_byte_index] & 0b1000_0000);
+
+                                    compare_results_bit_packed[vector_byte_index] = packed_byte;
+                                }
+
+                                self.encode_results_bit_packed_4(
+                                    &compare_results_bit_packed,
+                                    &compare_results_byte_packed,
+                                    &compare_results,
+                                    &mut run_length_encoder,
+                                    data_type_size_bytes,
+                                    true_mask,
+                                    false_mask,
+                                );
+                            }
+
+                            let byte_packed_start_address = bit_packed_iterations as usize * bit_packing_size;
+                            let packing_size = vector_size_in_bytes * data_type_size_bytes as usize;
+
+                            // Compare as many byte packed vectors as we can.
+                            unsafe {
+                                for packed_iteration_index in 0..packed_iterations {
+                                    let byte_packed_pointer_offset = byte_packed_start_address + packed_iteration_index as usize * packing_size;
+                                    let current_value_pointers = [
+                                        current_value_pointer.add(byte_packed_pointer_offset + vector_size_in_bytes * 0),
+                                        current_value_pointer.add(byte_packed_pointer_offset + vector_size_in_bytes * 1),
+                                        current_value_pointer.add(byte_packed_pointer_offset + vector_size_in_bytes * 2),
+                                        current_value_pointer.add(byte_packed_pointer_offset + vector_size_in_bytes * 3),
+                                    ];
+
+                                    let compare_results = [
+                                        compare_func(current_value_pointers[0]),
+                                        compare_func(current_value_pointers[1]),
+                                        compare_func(current_value_pointers[2]),
+                                        compare_func(current_value_pointers[3]),
+                                    ];
+
+                                    let mut compare_results_packed: Simd<u8, N> = compare_results[0];
+
+                                    for index in (0..N).step_by(data_type_size_bytes as usize) {
+                                        // compare_results_packed[index] = compare_results[0][index];
+                                        compare_results_packed[index + 1] = compare_results[1][index];
+                                        compare_results_packed[index + 2] = compare_results[2][index];
+                                        compare_results_packed[index + 3] = compare_results[3][index];
                                     }
 
-                                    self.encode_results_bit_packed_4(
-                                        &compare_results_bit_packed,
-                                        &compare_results_byte_packed,
+                                    self.encode_results_packed_4(
+                                        &compare_results_packed,
                                         &compare_results,
                                         &mut run_length_encoder,
                                         data_type_size_bytes,
@@ -121,71 +160,32 @@ where
                                     );
                                 }
 
-                                let byte_packed_start_address = bit_packed_iterations as usize * bit_packing_size;
-                                let packing_size = vector_size_in_bytes * data_type_size_bytes as usize;
+                                let unpacked_start_address = packed_iterations as usize * packing_size;
 
-                                // Compare as many byte packed vectors as we can.
-                                unsafe {
-                                    for packed_iteration_index in 0..packed_iterations {
-                                        let byte_packed_pointer_offset = byte_packed_start_address + packed_iteration_index as usize * packing_size;
-                                        let current_value_pointers = [
-                                            current_value_pointer.add(byte_packed_pointer_offset + vector_size_in_bytes * 0),
-                                            current_value_pointer.add(byte_packed_pointer_offset + vector_size_in_bytes * 1),
-                                            current_value_pointer.add(byte_packed_pointer_offset + vector_size_in_bytes * 2),
-                                            current_value_pointer.add(byte_packed_pointer_offset + vector_size_in_bytes * 3),
-                                        ];
+                                for unpacked_iteration_index in 0..unpacked_iterations {
+                                    let unpacked_pointer_offset = unpacked_start_address + unpacked_iteration_index as usize * vector_size_in_bytes;
+                                    let current_value_pointer = current_value_pointer.add(unpacked_pointer_offset);
+                                    let compare_result = compare_func(current_value_pointer);
 
-                                        let compare_results = [
-                                            compare_func(current_value_pointers[0], immediate_value_ptr),
-                                            compare_func(current_value_pointers[1], immediate_value_ptr),
-                                            compare_func(current_value_pointers[2], immediate_value_ptr),
-                                            compare_func(current_value_pointers[3], immediate_value_ptr),
-                                        ];
+                                    self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
+                                }
 
-                                        let mut compare_results_packed: Simd<u8, N> = compare_results[0];
-
-                                        for index in (0..N).step_by(data_type_size_bytes as usize) {
-                                            // compare_results_packed[index] = compare_results[0][index];
-                                            compare_results_packed[index + 1] = compare_results[1][index];
-                                            compare_results_packed[index + 2] = compare_results[2][index];
-                                            compare_results_packed[index + 3] = compare_results[3][index];
-                                        }
-
-                                        self.encode_results_packed_4(
-                                            &compare_results_packed,
-                                            &compare_results,
-                                            &mut run_length_encoder,
-                                            data_type_size_bytes,
-                                            true_mask,
-                                            false_mask,
-                                        );
-                                    }
-
-                                    let unpacked_start_address = packed_iterations as usize * packing_size;
-
-                                    for unpacked_iteration_index in 0..unpacked_iterations {
-                                        let unpacked_pointer_offset = unpacked_start_address + unpacked_iteration_index as usize * vector_size_in_bytes;
-                                        let current_value_pointer = current_value_pointer.add(unpacked_pointer_offset);
-                                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
-
-                                        self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
-                                    }
-
-                                    // Handle remainder elements
-                                    if remainder_bytes > 0 {
-                                        let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                                        let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
-                                        self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
-                                    }
+                                // Handle remainder elements
+                                if remainder_bytes > 0 {
+                                    let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
+                                    let compare_result = compare_func(current_value_pointer);
+                                    self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
                                 }
                             }
-                            _ => panic!("not implemented yet."),
                         }
+                        _ => panic!("not implemented yet."),
                     }
                 }
             }
             ScanCompareType::Relative(scan_compare_type_relative) => {
-                if let Some(compare_func) = data_type.get_vector_compare_func_relative(&scan_compare_type_relative, scan_parameters_global) {
+                if let Some(compare_func) =
+                    data_type.get_vector_compare_func_relative(&scan_compare_type_relative, scan_parameters_global, scan_parameters_local)
+                {
                     unsafe {
                         // Compare as many full vectors as we can
                         for index in 0..total_iterations {
@@ -208,27 +208,23 @@ where
                 }
             }
             ScanCompareType::Delta(scan_compare_type_delta) => {
-                if let Some(compare_func) = data_type.get_vector_compare_func_delta(&scan_compare_type_delta, scan_parameters_global) {
-                    if let Some(delta_arg) = scan_parameters_global.deanonymize_immediate(&data_type) {
-                        let delta_arg_ptr = delta_arg.as_ptr();
+                if let Some(compare_func) = data_type.get_vector_compare_func_delta(&scan_compare_type_delta, scan_parameters_global, scan_parameters_local) {
+                    unsafe {
+                        // Compare as many full vectors as we can.
+                        for index in 0..total_iterations {
+                            let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
+                            let previous_value_pointer = previous_value_pointer.add(index as usize * vector_size_in_bytes);
+                            let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                        unsafe {
-                            // Compare as many full vectors as we can.
-                            for index in 0..total_iterations {
-                                let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
-                                let previous_value_pointer = previous_value_pointer.add(index as usize * vector_size_in_bytes);
-                                let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);
+                            self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
+                        }
 
-                                self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
-                            }
+                        // Handle remainder elements.
+                        if remainder_bytes > 0 {
+                            let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
+                            let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                            // Handle remainder elements.
-                            if remainder_bytes > 0 {
-                                let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                                let compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);
-
-                                self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
-                            }
+                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
                         }
                     }
                 }

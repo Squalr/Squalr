@@ -44,7 +44,7 @@ where
                     unsafe { current_value_pointer.add(chunk_start_offset_bytes as usize) },
                     unsafe { previous_value_pointer.add(chunk_start_offset_bytes as usize) },
                     scan_parameters_global,
-                    scan_parameters_local.get_data_type(),
+                    scan_parameters_local,
                     chunk_start_address,
                     chunk_region_size,
                     simd_all_true_mask,

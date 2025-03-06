@@ -19,36 +19,32 @@ impl Scanner for ScannerScalarSingleElement {
         let mut compare_result = false;
         let data_type = scan_parameters_local.get_data_type();
 
-        unsafe {
-            match scan_parameters_global.get_compare_type() {
-                ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                    if let Some(compare_func) = data_type.get_scalar_compare_func_immediate(&scan_compare_type_immediate, scan_parameters_global) {
-                        let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
-                        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(data_type) {
-                            let immediate_value_ptr = immediate_value.as_ptr();
+        match scan_parameters_global.get_compare_type() {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => {
+                if let Some(compare_func) =
+                    data_type.get_scalar_compare_func_immediate(&scan_compare_type_immediate, scan_parameters_global, scan_parameters_local)
+                {
+                    let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
 
-                            compare_result = compare_func(current_value_pointer, immediate_value_ptr);
-                        }
-                    }
+                    compare_result = compare_func(current_value_pointer);
                 }
-                ScanCompareType::Relative(scan_compare_type_relative) => {
-                    if let Some(compare_func) = data_type.get_scalar_compare_func_relative(&scan_compare_type_relative, scan_parameters_global) {
-                        let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
-                        let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
+            }
+            ScanCompareType::Relative(scan_compare_type_relative) => {
+                if let Some(compare_func) =
+                    data_type.get_scalar_compare_func_relative(&scan_compare_type_relative, scan_parameters_global, scan_parameters_local)
+                {
+                    let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
+                    let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
 
-                        compare_result = compare_func(current_value_pointer, previous_value_pointer);
-                    }
+                    compare_result = compare_func(current_value_pointer, previous_value_pointer);
                 }
-                ScanCompareType::Delta(scan_compare_type_delta) => {
-                    if let Some(compare_func) = data_type.get_scalar_compare_func_delta(&scan_compare_type_delta, scan_parameters_global) {
-                        let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
-                        let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
-                        if let Some(delta_arg) = scan_parameters_global.deanonymize_immediate(data_type) {
-                            let delta_arg_ptr = delta_arg.as_ptr();
+            }
+            ScanCompareType::Delta(scan_compare_type_delta) => {
+                if let Some(compare_func) = data_type.get_scalar_compare_func_delta(&scan_compare_type_delta, scan_parameters_global, scan_parameters_local) {
+                    let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
+                    let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
 
-                            compare_result = compare_func(current_value_pointer, previous_value_pointer, delta_arg_ptr);
-                        }
-                    }
+                    compare_result = compare_func(current_value_pointer, previous_value_pointer);
                 }
             }
         }
