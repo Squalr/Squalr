@@ -27,7 +27,7 @@ impl DataTypeU32beVector {
         LaneCount<N>: SupportedLaneCount,
     {
         if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
-            // No endian byte swap required for immediate or current values.
+            // Optimization: no endian byte swap required for immediate or current values.
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = Simd::splat(ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType));
@@ -51,7 +51,7 @@ impl DataTypeU32beVector {
         LaneCount<N>: SupportedLaneCount,
     {
         if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
-            // No endian byte swap required for immediate or current values.
+            // Optimization: no endian byte swap required for immediate or current values.
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = Simd::splat(ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType));
@@ -82,7 +82,7 @@ impl DataTypeU32beVector {
                 ))));
 
                 Some(Box::new(move |current_values_ptr| {
-                    let current_values: Simd<PrimitiveType, N> = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
+                    let current_values = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
                         current_values_ptr as *const [SwapCompatibleType; N],
                     ))));
 
@@ -109,7 +109,7 @@ impl DataTypeU32beVector {
                 ))));
 
                 Some(Box::new(move |current_values_ptr| {
-                    let current_values: Simd<PrimitiveType, N> = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
+                    let current_values = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
                         current_values_ptr as *const [SwapCompatibleType; N],
                     ))));
 
@@ -136,7 +136,7 @@ impl DataTypeU32beVector {
                 ))));
 
                 Some(Box::new(move |current_values_ptr| {
-                    let current_values: Simd<PrimitiveType, N> = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
+                    let current_values = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
                         current_values_ptr as *const [SwapCompatibleType; N],
                     ))));
 
@@ -163,7 +163,7 @@ impl DataTypeU32beVector {
                 ))));
 
                 Some(Box::new(move |current_values_ptr| {
-                    let current_values: Simd<PrimitiveType, N> = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
+                    let current_values = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
                         current_values_ptr as *const [SwapCompatibleType; N],
                     ))));
 
@@ -183,7 +183,7 @@ impl DataTypeU32beVector {
         LaneCount<N>: SupportedLaneCount,
     {
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
-            // No endian byte swap required.
+            // Optimization: no endian byte swap required.
             let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
             let previous_values = Simd::from_array(ptr::read_unaligned(previous_values_ptr as *const [PrimitiveType; N]));
 
@@ -199,7 +199,7 @@ impl DataTypeU32beVector {
         LaneCount<N>: SupportedLaneCount,
     {
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
-            // No endian byte swap required.
+            // Optimization: no endian byte swap required.
             let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
             let previous_values = Simd::from_array(ptr::read_unaligned(previous_values_ptr as *const [PrimitiveType; N]));
 
@@ -218,8 +218,8 @@ impl DataTypeU32beVector {
             let current_values: Simd<PrimitiveType, N> = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
                 current_values_ptr as *const [SwapCompatibleType; N],
             ))));
-            let previous_values: Simd<PrimitiveType, N> = VectorGenerics::transmute(&Simd::swap_bytes(Simd::splat(ptr::read_unaligned(
-                previous_values_ptr as *const SwapCompatibleType,
+            let previous_values = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
+                previous_values_ptr as *const [SwapCompatibleType; N],
             ))));
 
             VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_gt(previous_values))
@@ -237,8 +237,8 @@ impl DataTypeU32beVector {
             let current_values: Simd<PrimitiveType, N> = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
                 current_values_ptr as *const [SwapCompatibleType; N],
             ))));
-            let previous_values: Simd<PrimitiveType, N> = VectorGenerics::transmute(&Simd::swap_bytes(Simd::splat(ptr::read_unaligned(
-                previous_values_ptr as *const SwapCompatibleType,
+            let previous_values = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
+                previous_values_ptr as *const [SwapCompatibleType; N],
             ))));
 
             VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_lt(previous_values))
@@ -255,14 +255,16 @@ impl DataTypeU32beVector {
         if let Some(delta_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
             unsafe {
                 let delta_value_ptr = delta_value.as_ptr();
-                let delta_value = Simd::splat(ptr::read_unaligned(delta_value_ptr as *const PrimitiveType));
+                let delta_value = VectorGenerics::transmute::<SwapCompatibleType, PrimitiveType, N>(&Simd::swap_bytes(Simd::splat(ptr::read_unaligned(
+                    delta_value_ptr as *const SwapCompatibleType,
+                ))));
 
                 Some(Box::new(move |current_values_ptr, previous_values_ptr| {
-                    let current_values: Simd<PrimitiveType, N> = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
+                    let current_values = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
                         current_values_ptr as *const [SwapCompatibleType; N],
                     ))));
-                    let previous_values: Simd<PrimitiveType, N> = VectorGenerics::transmute(&Simd::swap_bytes(Simd::splat(ptr::read_unaligned(
-                        previous_values_ptr as *const SwapCompatibleType,
+                    let previous_values = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
+                        previous_values_ptr as *const [SwapCompatibleType; N],
                     ))));
 
                     VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_eq(previous_values.add(delta_value)))
@@ -283,14 +285,16 @@ impl DataTypeU32beVector {
         if let Some(delta_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
             unsafe {
                 let delta_value_ptr = delta_value.as_ptr();
-                let delta_value = Simd::splat(ptr::read_unaligned(delta_value_ptr as *const PrimitiveType));
+                let delta_value = VectorGenerics::transmute::<SwapCompatibleType, PrimitiveType, N>(&Simd::swap_bytes(Simd::splat(ptr::read_unaligned(
+                    delta_value_ptr as *const SwapCompatibleType,
+                ))));
 
                 Some(Box::new(move |current_values_ptr, previous_values_ptr| {
-                    let current_values: Simd<PrimitiveType, N> = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
+                    let current_values = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
                         current_values_ptr as *const [SwapCompatibleType; N],
                     ))));
-                    let previous_values: Simd<PrimitiveType, N> = VectorGenerics::transmute(&Simd::swap_bytes(Simd::splat(ptr::read_unaligned(
-                        previous_values_ptr as *const SwapCompatibleType,
+                    let previous_values = VectorGenerics::transmute(&Simd::swap_bytes(Simd::from_array(ptr::read_unaligned(
+                        previous_values_ptr as *const [SwapCompatibleType; N],
                     ))));
 
                     VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_eq(previous_values.sub(delta_value)))

@@ -1,5 +1,7 @@
 pub mod f32;
 pub mod f32be;
+pub mod f64;
+pub mod f64be;
 pub mod i16;
 pub mod i16be;
 pub mod i32;

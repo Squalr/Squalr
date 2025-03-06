@@ -16,7 +16,7 @@ impl ScalarComparable for DataTypeI32be {
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<ScalarCompareFnImmediate> {
         if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
-            // No endian byte swap required for immediate or current values.
+            // Optimization: no endian byte swap required for immediate or current values.
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType);
@@ -38,7 +38,7 @@ impl ScalarComparable for DataTypeI32be {
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<ScalarCompareFnImmediate> {
         if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
-            // No endian byte swap required for immediate or current values.
+            // Optimization: no endian byte swap required for immediate or current values.
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType);

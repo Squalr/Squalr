@@ -4,24 +4,24 @@ use crate::structures::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
 
-type PrimitiveType = u64;
+type PrimitiveType = f64;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DataTypeU64be {}
+pub struct DataTypeF64be {}
 
-impl DataTypeU64be {
+impl DataTypeF64be {
     fn to_vec(value: PrimitiveType) -> Vec<u8> {
         value.to_be_bytes().to_vec()
     }
 }
 
-impl DataType for DataTypeU64be {
+impl DataType for DataTypeF64be {
     fn get_id(&self) -> &str {
-        &"u64be"
+        &"f64be"
     }
 
     fn get_icon_id(&self) -> &str {
-        &"u64be"
+        &"f64be"
     }
 
     fn get_default_size_in_bytes(&self) -> u64 {
@@ -46,7 +46,7 @@ impl DataType for DataTypeU64be {
     ) -> Option<String> {
         if value_bytes.len() == self.get_default_size_in_bytes() as usize {
             Some(
-                PrimitiveType::from_be_bytes([
+                f64::from_be_bytes([
                     value_bytes[0],
                     value_bytes[1],
                     value_bytes[2],
@@ -68,7 +68,7 @@ impl DataType for DataTypeU64be {
     }
 
     fn get_default_value(&self) -> DataValue {
-        DataValue::new(self.get_ref(), Self::to_vec(0))
+        DataValue::new(self.get_ref(), Self::to_vec(0.0))
     }
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {

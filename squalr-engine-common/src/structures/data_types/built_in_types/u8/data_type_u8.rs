@@ -10,7 +10,7 @@ type PrimitiveType = u8;
 pub struct DataTypeU8 {}
 
 impl DataTypeU8 {
-    fn to_vec(value: u8) -> Vec<u8> {
+    fn to_vec(value: PrimitiveType) -> Vec<u8> {
         value.to_le_bytes().to_vec()
     }
 }
@@ -31,10 +31,10 @@ impl DataType for DataTypeU8 {
     fn deanonymize_value(
         &self,
         anonymous_value: &AnonymousValue,
-    ) -> Vec<u8> {
+    ) -> Vec<PrimitiveType> {
         let value_string = anonymous_value.to_string();
 
-        match value_string.parse::<u8>() {
+        match value_string.parse::<PrimitiveType>() {
             Ok(value) => Self::to_vec(value),
             Err(_) => vec![],
         }
@@ -45,7 +45,7 @@ impl DataType for DataTypeU8 {
         value_bytes: &[u8],
     ) -> Option<String> {
         if value_bytes.len() == self.get_default_size_in_bytes() as usize {
-            Some(u8::from_le_bytes([value_bytes[0]]).to_string())
+            Some(PrimitiveType::from_le_bytes([value_bytes[0]]).to_string())
         } else {
             None
         }

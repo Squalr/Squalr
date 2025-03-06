@@ -1,4 +1,4 @@
-use crate::structures::data_types::built_in_types::f32be::data_type_f32be::DataTypeF32be;
+use crate::structures::data_types::built_in_types::f64be::data_type_f64be::DataTypeF64be;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnDelta;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnImmediate;
@@ -10,10 +10,10 @@ use std::ops::Add;
 use std::ops::Sub;
 use std::ptr;
 
-type PrimitiveType = f32;
-type SwapCompatibleType = i32;
+type PrimitiveType = f64;
+type SwapCompatibleType = i64;
 
-impl ScalarComparable for DataTypeF32be {
+impl ScalarComparable for DataTypeF64be {
     fn get_compare_equal(
         &self,
         scan_parameters_global: &ScanParametersGlobal,
@@ -24,7 +24,7 @@ impl ScalarComparable for DataTypeF32be {
             unsafe {
                 let tolerance = scan_parameters_global
                     .get_floating_point_tolerance()
-                    .get_value_f32();
+                    .get_value_f64();
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = mem::transmute::<SwapCompatibleType, PrimitiveType>(SwapCompatibleType::swap_bytes(ptr::read_unaligned(
                     immediate_value_ptr as *const SwapCompatibleType,
@@ -54,7 +54,7 @@ impl ScalarComparable for DataTypeF32be {
             unsafe {
                 let tolerance = scan_parameters_global
                     .get_floating_point_tolerance()
-                    .get_value_f32();
+                    .get_value_f64();
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = mem::transmute::<SwapCompatibleType, PrimitiveType>(SwapCompatibleType::swap_bytes(ptr::read_unaligned(
                     immediate_value_ptr as *const SwapCompatibleType,
@@ -254,7 +254,7 @@ impl ScalarComparable for DataTypeF32be {
             unsafe {
                 let tolerance = scan_parameters_global
                     .get_floating_point_tolerance()
-                    .get_value_f32();
+                    .get_value_f64();
                 let delta_value_ptr = delta_value.as_ptr();
                 let delta_value = mem::transmute::<SwapCompatibleType, PrimitiveType>(SwapCompatibleType::swap_bytes(ptr::read_unaligned(
                     delta_value_ptr as *const SwapCompatibleType,
@@ -288,7 +288,7 @@ impl ScalarComparable for DataTypeF32be {
             unsafe {
                 let tolerance = scan_parameters_global
                     .get_floating_point_tolerance()
-                    .get_value_f32();
+                    .get_value_f64();
                 let delta_value_ptr = delta_value.as_ptr();
                 let delta_value = mem::transmute::<SwapCompatibleType, PrimitiveType>(SwapCompatibleType::swap_bytes(ptr::read_unaligned(
                     delta_value_ptr as *const SwapCompatibleType,

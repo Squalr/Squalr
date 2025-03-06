@@ -10,7 +10,7 @@ type PrimitiveType = u32;
 pub struct DataTypeU32 {}
 
 impl DataTypeU32 {
-    fn to_vec(value: u32) -> Vec<u8> {
+    fn to_vec(value: PrimitiveType) -> Vec<u8> {
         value.to_le_bytes().to_vec()
     }
 }
@@ -34,7 +34,7 @@ impl DataType for DataTypeU32 {
     ) -> Vec<u8> {
         let value_string = anonymous_value.to_string();
 
-        match value_string.parse::<u32>() {
+        match value_string.parse::<PrimitiveType>() {
             Ok(value) => Self::to_vec(value),
             Err(_) => vec![],
         }
@@ -45,7 +45,7 @@ impl DataType for DataTypeU32 {
         value_bytes: &[u8],
     ) -> Option<String> {
         if value_bytes.len() == self.get_default_size_in_bytes() as usize {
-            Some(u32::from_le_bytes([value_bytes[0], value_bytes[1], value_bytes[2], value_bytes[3]]).to_string())
+            Some(PrimitiveType::from_le_bytes([value_bytes[0], value_bytes[1], value_bytes[2], value_bytes[3]]).to_string())
         } else {
             None
         }
