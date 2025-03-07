@@ -1,32 +1,39 @@
 use crate::structures::data_types::generics::vector_generics::VectorGenerics;
 use crate::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use crate::structures::scanning::scan_parameters_local::ScanParametersLocal;
+use num_traits::Float;
 use std::ops::{Add, Sub};
 use std::ptr;
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
+use std::simd::num::SimdFloat;
 use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
 
 pub struct VectorComparisonsFloat {}
 
-// JIRA: Tolerance support!
 impl VectorComparisonsFloat {
-    pub fn get_vector_compare_equal<const N: usize, PrimitiveType: SimdElement + 'static>(
+    pub fn get_vector_compare_equal<const N: usize, PrimitiveType: SimdElement + Float + 'static>(
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
-        Simd<PrimitiveType, N>: SimdPartialEq,
+        Simd<PrimitiveType, N>: SimdFloat + SimdPartialOrd + Sub<Output = Simd<PrimitiveType, N>>,
     {
         if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
             unsafe {
+                let tolerance: Simd<PrimitiveType, N> = Simd::splat(
+                    scan_parameters_global
+                        .get_floating_point_tolerance()
+                        .get_value(),
+                );
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = Simd::splat(ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType));
 
                 Some(Box::new(move |current_values_ptr| {
                     let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
 
-                    VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_eq(immediate_value))
+                    // Equality between the current and immediate value is determined by being within the given tolerance.
+                    VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.sub(immediate_value).abs().simd_le(tolerance))
                 }))
             }
         } else {
@@ -34,23 +41,29 @@ impl VectorComparisonsFloat {
         }
     }
 
-    pub fn get_vector_compare_not_equal<const N: usize, PrimitiveType: SimdElement + 'static>(
+    pub fn get_vector_compare_not_equal<const N: usize, PrimitiveType: SimdElement + Float + 'static>(
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
-        Simd<PrimitiveType, N>: SimdPartialEq,
+        Simd<PrimitiveType, N>: SimdFloat + SimdPartialOrd + Sub<Output = Simd<PrimitiveType, N>>,
     {
         if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
             unsafe {
+                let tolerance: Simd<PrimitiveType, N> = Simd::splat(
+                    scan_parameters_global
+                        .get_floating_point_tolerance()
+                        .get_value(),
+                );
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = Simd::splat(ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType));
 
                 Some(Box::new(move |current_values_ptr| {
                     let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
 
-                    VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_ne(immediate_value))
+                    // Inequality between the current and immediate value is determined by being outside the given tolerance.
+                    VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.sub(immediate_value).abs().simd_gt(tolerance))
                 }))
             }
         } else {
@@ -74,6 +87,7 @@ impl VectorComparisonsFloat {
                 Some(Box::new(move |current_values_ptr| {
                     let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
 
+                    // No checks tolerance required.
                     VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_gt(immediate_value))
                 }))
             }
@@ -98,6 +112,7 @@ impl VectorComparisonsFloat {
                 Some(Box::new(move |current_values_ptr| {
                     let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
 
+                    // No checks tolerance required.
                     VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_ge(immediate_value))
                 }))
             }
@@ -122,6 +137,7 @@ impl VectorComparisonsFloat {
                 Some(Box::new(move |current_values_ptr| {
                     let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
 
+                    // No checks tolerance required.
                     VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_lt(immediate_value))
                 }))
             }
@@ -146,6 +162,7 @@ impl VectorComparisonsFloat {
                 Some(Box::new(move |current_values_ptr| {
                     let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
 
+                    // No checks tolerance required.
                     VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_le(immediate_value))
                 }))
             }
@@ -166,6 +183,7 @@ impl VectorComparisonsFloat {
             let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
             let previous_values = Simd::from_array(ptr::read_unaligned(previous_values_ptr as *const [PrimitiveType; N]));
 
+            // No checks tolerance required.
             VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_ne(previous_values))
         }))
     }
@@ -182,6 +200,7 @@ impl VectorComparisonsFloat {
             let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
             let previous_values = Simd::from_array(ptr::read_unaligned(previous_values_ptr as *const [PrimitiveType; N]));
 
+            // No checks tolerance required.
             VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_eq(previous_values))
         }))
     }
@@ -198,6 +217,7 @@ impl VectorComparisonsFloat {
             let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
             let previous_values = Simd::from_array(ptr::read_unaligned(previous_values_ptr as *const [PrimitiveType; N]));
 
+            // No checks tolerance required.
             VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_gt(previous_values))
         }))
     }
@@ -214,28 +234,39 @@ impl VectorComparisonsFloat {
             let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
             let previous_values = Simd::from_array(ptr::read_unaligned(previous_values_ptr as *const [PrimitiveType; N]));
 
+            // No checks tolerance required.
             VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_lt(previous_values))
         }))
     }
 
-    pub fn get_vector_compare_increased_by<const N: usize, PrimitiveType: SimdElement + 'static>(
+    pub fn get_vector_compare_increased_by<const N: usize, PrimitiveType: SimdElement + Float + 'static>(
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
-        Simd<PrimitiveType, N>: SimdPartialEq + Add<Simd<PrimitiveType, N>, Output = Simd<PrimitiveType, N>>,
+        Simd<PrimitiveType, N>: SimdFloat
+            + SimdPartialOrd
+            + Add<Simd<PrimitiveType, N>, Output = Simd<PrimitiveType, N>>
+            + Sub<Simd<PrimitiveType, N>, Output = Simd<PrimitiveType, N>>,
     {
         if let Some(delta_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
             unsafe {
+                let tolerance: Simd<PrimitiveType, N> = Simd::splat(
+                    scan_parameters_global
+                        .get_floating_point_tolerance()
+                        .get_value(),
+                );
                 let delta_value_ptr = delta_value.as_ptr();
                 let delta_value = Simd::splat(ptr::read_unaligned(delta_value_ptr as *const PrimitiveType));
 
                 Some(Box::new(move |current_values_ptr, previous_values_ptr| {
                     let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
                     let previous_values = Simd::from_array(ptr::read_unaligned(previous_values_ptr as *const [PrimitiveType; N]));
+                    let target_values = previous_values.add(delta_value);
 
-                    VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_eq(previous_values.add(delta_value)))
+                    // Equality between the current and target value is determined by being within the given tolerance.
+                    VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.sub(target_values).abs().simd_le(tolerance))
                 }))
             }
         } else {
@@ -243,24 +274,31 @@ impl VectorComparisonsFloat {
         }
     }
 
-    pub fn get_vector_compare_decreased_by<const N: usize, PrimitiveType: SimdElement + 'static>(
+    pub fn get_vector_compare_decreased_by<const N: usize, PrimitiveType: SimdElement + Float + 'static>(
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
-        Simd<PrimitiveType, N>: SimdPartialEq + Sub<Simd<PrimitiveType, N>, Output = Simd<PrimitiveType, N>>,
+        Simd<PrimitiveType, N>: SimdFloat + SimdPartialOrd + Sub<Simd<PrimitiveType, N>, Output = Simd<PrimitiveType, N>>,
     {
         if let Some(delta_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
             unsafe {
+                let tolerance: Simd<PrimitiveType, N> = Simd::splat(
+                    scan_parameters_global
+                        .get_floating_point_tolerance()
+                        .get_value(),
+                );
                 let delta_value_ptr = delta_value.as_ptr();
                 let delta_value = Simd::splat(ptr::read_unaligned(delta_value_ptr as *const PrimitiveType));
 
                 Some(Box::new(move |current_values_ptr, previous_values_ptr| {
                     let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; N]));
                     let previous_values = Simd::from_array(ptr::read_unaligned(previous_values_ptr as *const [PrimitiveType; N]));
+                    let target_values = previous_values.sub(delta_value);
 
-                    VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.simd_eq(previous_values.sub(delta_value)))
+                    // Equality between the current and target value is determined by being within the given tolerance.
+                    VectorGenerics::transmute_mask::<PrimitiveType, N>(&current_values.sub(target_values).abs().simd_le(tolerance))
                 }))
             }
         } else {
