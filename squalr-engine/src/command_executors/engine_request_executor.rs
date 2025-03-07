@@ -18,7 +18,7 @@ pub trait EngineRequestExecutor: EngineRequest + Clone + Serialize + Deserialize
         execution_context: &Arc<EngineExecutionContext>,
         callback: F,
     ) where
-        F: Fn(<Self as EngineRequestExecutor>::ResponseType) + Clone + Send + Sync + 'static,
+        F: FnOnce(<Self as EngineRequestExecutor>::ResponseType) + Clone + Send + Sync + 'static,
         <Self as EngineRequestExecutor>::ResponseType: TypedEngineResponse,
     {
         let command = self.to_engine_command();

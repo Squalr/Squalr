@@ -1,8 +1,5 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
-use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::snapshots::snapshot::Snapshot;
-use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::Conversions;
 use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
@@ -80,30 +77,6 @@ impl ValueCollector {
             // Attempt to read new (or initial) memory values. Ignore failed regions, as these are generally just deallocated pages.
             // JIRA: We probably want some way of tombstoning deallocated pages.
             let _ = snapshot_region.read_all_memory(&process_info);
-
-            // Create the scan results for this region.
-            let snapshot_region_scan_results = SnapshotRegionScanResults::new(
-                // Iterate over all data type / memory alignment pair in parallel.
-                snapshot_region
-                    .get_scan_results()
-                    .get_filter_collections()
-                    .par_iter()
-                    .map(|current_filter_collection| {
-                        // Create a new filter collection. Because we are just collecting values, the filter will encompass the entire region.
-                        // JIRA: This is probably where we would apply tombstoning based on the read above -- we would want to have the filters mask
-                        // out the regions with a failed read.
-                        SnapshotRegionFilterCollection::new(
-                            vec![vec![SnapshotRegionFilter::new(
-                                snapshot_region.get_base_address(),
-                                snapshot_region.get_region_size(),
-                            )]],
-                            current_filter_collection.get_scan_parameters_local().clone(),
-                        )
-                    })
-                    .collect(),
-            );
-
-            snapshot_region.set_scan_results(snapshot_region_scan_results);
 
             // Report progress periodically (not every time for performance)
             let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);

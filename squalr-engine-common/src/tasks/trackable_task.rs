@@ -52,6 +52,7 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
         if let Ok(progress_guard) = self.progress.lock() {
             *progress_guard
         } else {
+            log::error!("Failed to get task progress.");
             0.0
         }
     }
@@ -62,7 +63,12 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
     ) {
         if let Ok(mut progress_guard) = self.progress.lock() {
             *progress_guard = progress;
-            let _ = self.progress_sender.send(progress);
+
+            if let Err(err) = self.progress_sender.send(progress) {
+                log::error!("Failed set task progress: {}", err);
+            }
+        } else {
+            log::error!("Failed to get lock to set task progress.");
         }
     }
 
@@ -118,6 +124,7 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
 
             result_lock.take()
         } else {
+            log::error!("Failed to wait for task completion.");
             None
         }
     }
