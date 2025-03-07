@@ -1,4 +1,4 @@
-use num_traits::WrappingAdd;
+use num_traits::{WrappingAdd, WrappingSub};
 
 use crate::structures::data_types::comparisons::scalar_comparable::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
 use crate::structures::scanning::scan_parameters_global::ScanParametersGlobal;
@@ -199,7 +199,7 @@ impl ScalarComparisonsInteger {
         }
     }
 
-    pub fn get_compare_decreased_by<PrimitiveType: Copy + PartialEq + Sub<Output = PrimitiveType> + 'static>(
+    pub fn get_compare_decreased_by<PrimitiveType: Copy + PartialEq + Sub<Output = PrimitiveType> + WrappingSub + 'static>(
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<ScalarCompareFnDelta> {
@@ -211,7 +211,7 @@ impl ScalarComparisonsInteger {
                 Some(Box::new(move |current_value_ptr, previous_value_ptr| {
                     let current_value = ptr::read_unaligned(current_value_ptr as *const PrimitiveType);
                     let previous_value = ptr::read_unaligned(previous_value_ptr as *const PrimitiveType);
-                    let target_value = previous_value.sub(delta_value);
+                    let target_value = previous_value.wrapping_sub(&delta_value);
 
                     current_value == target_value
                 }))
