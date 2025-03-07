@@ -17,6 +17,7 @@ use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::reset::scan_reset_request::ScanResetRequest;
 use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::data_values::anonymous_value::AnonymousValue;
+use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use squalr_engine_common::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use std::sync::Arc;
@@ -120,7 +121,7 @@ impl ScannerViewModel {
         scan_constraint: ScanConstraintTypeView,
         scan_value: String,
     ) {
-        let memory_alignment = None; // JIRA: Pull from settings
+        let memory_alignment = Some(MemoryAlignment::Alignment4); // JIRA: Pull from settings
         let scan_parameters_local = vec![ScanParametersLocal::new(data_type, memory_alignment)];
         let scan_new_request = ScanNewRequest { scan_parameters_local };
 

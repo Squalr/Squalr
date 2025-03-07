@@ -10,6 +10,10 @@ type PrimitiveType = f32;
 pub struct DataTypeF32be {}
 
 impl DataTypeF32be {
+    pub fn get_id() -> &'static str {
+        &"f32be"
+    }
+
     fn to_vec(value: PrimitiveType) -> Vec<u8> {
         value.to_be_bytes().to_vec()
     }
@@ -17,11 +21,11 @@ impl DataTypeF32be {
 
 impl DataType for DataTypeF32be {
     fn get_id(&self) -> &str {
-        &"f32be"
+        Self::get_id()
     }
 
     fn get_icon_id(&self) -> &str {
-        &"f32be"
+        Self::get_id()
     }
 
     fn get_default_size_in_bytes(&self) -> u64 {

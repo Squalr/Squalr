@@ -10,13 +10,25 @@ use crate::structures::scanning::scan_parameters_local::ScanParametersLocal;
 
 type PrimitiveType = u32;
 
+const BYTE_COUNT_64: usize = 64;
+const ELEMENT_COUNT_64: usize = BYTE_COUNT_64 / size_of::<PrimitiveType>();
+
+const BYTE_COUNT_32: usize = 32;
+const ELEMENT_COUNT_32: usize = BYTE_COUNT_64 / size_of::<PrimitiveType>();
+
+const BYTE_COUNT_16: usize = 16;
+const ELEMENT_COUNT_16: usize = BYTE_COUNT_64 / size_of::<PrimitiveType>();
+
 impl VectorComparable for DataTypeU32be {
     fn get_vector_compare_equal_64(
         &self,
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_equal::<64, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_equal_32(
@@ -24,7 +36,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_equal::<32, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_equal_16(
@@ -32,7 +47,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_equal::<16, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_not_equal_64(
@@ -40,7 +58,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_not_equal::<64, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_not_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_not_equal_32(
@@ -48,7 +69,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_not_equal::<32, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_not_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_not_equal_16(
@@ -56,7 +80,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_not_equal::<16, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_not_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_greater_than_64(
@@ -64,7 +91,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_greater_than_unsigned::<64, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_greater_than_unsigned::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_greater_than_32(
@@ -72,7 +102,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_greater_than_unsigned::<32, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_greater_than_unsigned::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_greater_than_16(
@@ -80,7 +113,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_greater_than_unsigned::<16, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_greater_than_unsigned::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_greater_than_or_equal_64(
@@ -88,7 +124,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_greater_than_or_equal_unsigned::<64, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_greater_than_or_equal_unsigned::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_greater_than_or_equal_32(
@@ -96,7 +135,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_greater_than_or_equal_unsigned::<32, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_greater_than_or_equal_unsigned::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_greater_than_or_equal_16(
@@ -104,7 +146,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_greater_than_or_equal_unsigned::<16, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_greater_than_or_equal_unsigned::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_less_than_64(
@@ -112,7 +157,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_less_than_unsigned::<64, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_less_than_unsigned::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_less_than_32(
@@ -120,7 +168,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_less_than_unsigned::<32, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_less_than_unsigned::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_less_than_16(
@@ -128,7 +179,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_less_than_unsigned::<16, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_less_than_unsigned::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_less_than_or_equal_64(
@@ -136,7 +190,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_less_than_or_equal_unsigned::<64, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_less_than_or_equal_unsigned::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_less_than_or_equal_32(
@@ -144,7 +201,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_less_than_or_equal_unsigned::<32, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_less_than_or_equal_unsigned::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_less_than_or_equal_16(
@@ -152,7 +212,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_less_than_or_equal_unsigned::<16, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_less_than_or_equal_unsigned::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_changed_64(
@@ -160,7 +223,7 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnRelative64> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_changed::<64, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_changed::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters_global, scan_parameters_local)
     }
 
     fn get_vector_compare_changed_32(
@@ -168,7 +231,7 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnRelative32> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_changed::<32, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_changed::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters_global, scan_parameters_local)
     }
 
     fn get_vector_compare_changed_16(
@@ -176,7 +239,7 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnRelative16> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_changed::<16, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_changed::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters_global, scan_parameters_local)
     }
 
     fn get_vector_compare_unchanged_64(
@@ -184,7 +247,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnRelative64> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_unchanged::<64, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_unchanged::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_unchanged_32(
@@ -192,7 +258,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnRelative32> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_unchanged::<32, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_unchanged::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_unchanged_16(
@@ -200,7 +269,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnRelative16> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_unchanged::<16, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_unchanged::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_increased_64(
@@ -208,7 +280,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnRelative64> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_increased_unsigned::<64, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_increased_unsigned::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_increased_32(
@@ -216,7 +291,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnRelative32> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_increased_unsigned::<32, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_increased_unsigned::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_increased_16(
@@ -224,7 +302,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnRelative16> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_increased_unsigned::<16, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_increased_unsigned::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_decreased_64(
@@ -232,7 +313,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnRelative64> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_decreased_unsigned::<64, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_decreased_unsigned::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_decreased_32(
@@ -240,7 +324,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnRelative32> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_decreased_unsigned::<32, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_decreased_unsigned::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_decreased_16(
@@ -248,7 +335,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnRelative16> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_decreased_unsigned::<16, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_decreased_unsigned::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_increased_by_64(
@@ -256,7 +346,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnDelta64> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_increased_by_unsigned::<64, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_increased_by_unsigned::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_increased_by_32(
@@ -264,7 +357,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnDelta32> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_increased_by_unsigned::<32, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_increased_by_unsigned::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_increased_by_16(
@@ -272,7 +368,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnDelta16> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_increased_by_unsigned::<16, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_increased_by_unsigned::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_decreased_by_64(
@@ -280,7 +379,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnDelta64> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_decreased_by_unsigned::<64, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_decreased_by_unsigned::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_decreased_by_32(
@@ -288,7 +390,10 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnDelta32> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_decreased_by_unsigned::<32, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_decreased_by_unsigned::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 
     fn get_vector_compare_decreased_by_16(
@@ -296,6 +401,9 @@ impl VectorComparable for DataTypeU32be {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Option<VectorCompareFnDelta16> {
-        VectorComparisonsIntegerBigEndian::get_vector_compare_decreased_by_unsigned::<16, PrimitiveType>(scan_parameters_global, scan_parameters_local)
+        VectorComparisonsIntegerBigEndian::get_vector_compare_decreased_by_unsigned::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            scan_parameters_global,
+            scan_parameters_local,
+        )
     }
 }
