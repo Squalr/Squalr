@@ -119,27 +119,30 @@ impl WindowsProcessQuery {
                 return None;
             }
 
-            // Convert BGR to RGB while keeping alpha
-            let width = bmi.bmiHeader.biWidth as u32;
-            let height = bmi.bmiHeader.biHeight.unsigned_abs();
-            let mut rgba = Vec::with_capacity((width * height * 4) as usize);
+            // Convert BGR to RGB while keeping alpha.
+            let width = bmi.bmiHeader.biWidth as usize;
+            let height = bmi.bmiHeader.biHeight.unsigned_abs() as usize;
+            let stride = ((width * 4 + 3) & !3) as usize; // stride aligned to 4 bytes
 
-            for y in 0..height {
+            let mut rgba = Vec::with_capacity(width * height * 4);
+
+            // Iterate rows bottom-to-top, because windows stores these stupidly so we need to flip the image.
+            for y in (0..height).rev() {
                 for x in 0..width {
-                    let i = ((y * width + x) * 4) as usize;
+                    let index = y * stride + x * 4;
                     rgba.extend_from_slice(&[
-                        pixels[i + 2], // B to R
-                        pixels[i + 1], // G stays G
-                        pixels[i],     // R to B
-                        pixels[i + 3], // Alpha stays
+                        pixels[index + 2], // B -> R
+                        pixels[index + 1], // G stays G
+                        pixels[index],     // R -> B
+                        pixels[index + 3], // Alpha stays alpha
                     ]);
                 }
             }
 
             Some(ProcessIcon {
                 bytes_rgba: rgba,
-                width: width,
-                height: height,
+                width: width as u32,
+                height: height as u32,
             })
         }
     }
