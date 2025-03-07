@@ -107,6 +107,7 @@ impl ValueCollector {
 
             // Report progress periodically (not every time for performance)
             let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
+
             if processed % 32 == 0 {
                 let progress = (processed as f32 / total_region_count as f32) * 100.0;
                 task.set_progress(progress);

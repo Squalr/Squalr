@@ -109,7 +109,7 @@ impl ScanResultsViewModel {
         let scan_results_list_request = ScanResultsListRequest { page_index };
         let scan_results_collection = scan_results_collection.clone();
 
-        // TODO: We should also be decoupling refreshing values vs querying the actual results, no?
+        // JIRA: We should also be decoupling refreshing values vs querying the actual results, no?
         scan_results_list_request.send(&engine_execution_context, move |scan_results_list_response| {
             cached_last_page_index.store(scan_results_list_response.last_page_index, Ordering::Release);
 

@@ -130,11 +130,11 @@ export struct DataTypeView {
     icon: DataTypeIconView,
 }
 
-export global ManualScanViewModelBindings {
+export global ScannerViewModelBindings {
     in-out property <DataTypeView> active_data_type: { data_type: "i32", icon: DataTypeIconView.i32 };
     in-out property <ScanConstraintTypeView> active_scan_type: equal;
-    callback new_scan(data_type: DataTypeView);
-    callback start_scan(scan_constraint: ScanConstraintTypeView, scan_value: string);
+    callback reset_scan();
+    callback start_scan(data_type: DataTypeView, scan_constraint: ScanConstraintTypeView, scan_value: string);
     callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
 }
 

@@ -60,7 +60,7 @@ where
                                 current_values_slice.as_ptr().add(chunk_start_address as usize),
                                 previous_values_slice.as_ptr().add(chunk_start_address as usize),
                                 scan_parameters_global,
-                                scan_parameters_local.get_data_type(),
+                                scan_parameters_local,
                                 chunk_start_address,
                                 chunk_region_size,
                                 simd_all_true_mask,

@@ -41,7 +41,7 @@ impl Scanner for ScannerScalarIterativeByteArray {
         scan_parameters_global: &ScanParametersGlobal,
         scan_parameters_local: &ScanParametersLocal,
     ) -> Vec<SnapshotRegionFilter> {
-        let results = ScannerScalarEncoderByteArray::scalar_encode(
+        let results = ScannerScalarEncoderByteArray::scalar_encode_byte_array(
             snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
             snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
             scan_parameters_global,

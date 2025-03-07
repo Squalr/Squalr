@@ -1,12 +1,4 @@
-use squalr_engine_common::structures::dynamic_struct::to_bytes::ToBytes;
-
 pub trait IMemoryWriter {
-    fn write(
-        &self,
-        process_handle: u64,
-        address: u64,
-        value: &dyn ToBytes,
-    ) -> bool;
     fn write_bytes(
         &self,
         process_handle: u64,

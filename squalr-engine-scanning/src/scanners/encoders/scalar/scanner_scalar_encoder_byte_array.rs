@@ -1,5 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
+use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use std::collections::HashMap;
@@ -13,7 +14,7 @@ impl ScannerScalarEncoderByteArray {
     /// This combination is important to efficiently capture repeated array of byte scans that are sequential in memory.
     /// The run length encoder only produces scan results after encountering a false result (scan failure / mismatch),
     /// or when no more bytes are present (and a full matching byte array was just encoded).
-    pub fn scalar_encode(
+    pub fn scalar_encode_byte_array(
         current_value_pointer: *const u8,
         _prevous_value_pointer: *const u8,
         scan_parameters_global: &ScanParametersGlobal,
@@ -22,42 +23,35 @@ impl ScannerScalarEncoderByteArray {
         region_size: u64,
     ) -> Vec<SnapshotRegionFilter> {
         /*
-               /*
-               match data_type {
-                   DataType::Bytes(_) => {}
-                   _ => panic!("Unsupported data type passed to byte array scanner"),
-               } */
+        match data_type {
+            DataType::Bytes(_) => {}
+            _ => panic!("Unsupported data type passed to byte array scanner"),
+        } */
 
-               match scan_parameters.get_compare_type() {
-                   ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                       if let Some(immediate_value) = scan_parameters.deanonymize_type(&data_type) {
-                           let immediate_value_ptr = immediate_value.as_ptr();
-
-                           unsafe {
-                               // JIRA: This should be the data_value.get_size_in_bytes() to support container types
-                               return ScannerScalarEncoderByteArray::encode_byte_array(
-                                   current_value_pointer,
-                                   array_ptr,
-                                   data_type.get_default_size_in_bytes(),
-                                   base_address,
-                                   region_size,
-                               );
-                           }
-                       }
-                   }
-                   ScanCompareType::Relative(scan_compare_type_relative) => {
-                       panic!("Not supported yet (or maybe ever)");
-                   }
-                   ScanCompareType::Delta(scan_compare_type_delta) => {
-                       panic!("Not supported yet (or maybe ever)");
-                   }
-               }
-        */
+        match scan_parameters_global.get_compare_type() {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => {
+                // JIRA: This should be the data_value.get_size_in_bytes() to support container types
+                /*
+                return ScannerScalarEncoderByteArray::encode_byte_array(
+                    current_value_pointer,
+                    array_ptr,
+                    data_type.get_size_in_bytes(),
+                    base_address,
+                    region_size,
+                ); */
+            }
+            ScanCompareType::Relative(scan_compare_type_relative) => {
+                panic!("Not supported yet (or maybe ever)");
+            }
+            ScanCompareType::Delta(scan_compare_type_delta) => {
+                panic!("Not supported yet (or maybe ever)");
+            }
+        }
         vec![]
     }
 
     /// Public encoder without scan parameter and filter args to allow re-use by other scanners.
-    pub unsafe fn encode_byte_array(
+    pub fn encode_byte_array(
         current_value_pointer: *const u8,
         array_ptr: *const u8,
         array_length: u64,
@@ -75,7 +69,7 @@ impl ScannerScalarEncoderByteArray {
             let shift_value = array_length - index - 1;
 
             // Populated as mismatch_shift_table[byte_value] => length_of_array - byte_index - 1
-            // TODO: When we support masking, skip adding any elements that have a corresponding mask entry.
+            // JIRA: When we support masking, skip adding any elements that have a corresponding mask entry.
             mismatch_shift_table.insert(byte_value, shift_value);
         }
 
@@ -105,7 +99,7 @@ impl ScannerScalarEncoderByteArray {
             for inverse_array_index in (0..array_length).rev() {
                 let current_byte = unsafe { *current_value_pointer.add((index + inverse_array_index) as usize) };
                 let pattern_byte = unsafe { *array_ptr.add(inverse_array_index as usize) };
-                // TODO: Also check masking table when we decide to support masking.
+                // JIRA: Also check masking table when we decide to support masking.
                 let is_mismatch = current_byte != pattern_byte;
 
                 if is_mismatch {
@@ -139,10 +133,10 @@ impl ScannerScalarEncoderByteArray {
         suffix_start: usize,
         pattern_length: u64,
     ) -> bool {
-        let suffix_len = pattern_length - suffix_start as u64;
+        let suffix_len = pattern_length.saturating_sub(suffix_start as u64);
 
-        for i in 0..suffix_len {
-            if unsafe { *pattern_ptr.add(i as usize) } != unsafe { *pattern_ptr.add(suffix_start + i as usize) } {
+        for index in 0..suffix_len {
+            if unsafe { *pattern_ptr.add(index as usize) } != unsafe { *pattern_ptr.add(suffix_start + index as usize) } {
                 return false;
             }
         }

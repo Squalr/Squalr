@@ -13,14 +13,14 @@ impl EngineCommandExecutor for ScanCommand {
         execution_context: &Arc<EngineExecutionContext>,
     ) -> <Self as EngineCommandExecutor>::ResponseType {
         match self {
-            ScanCommand::CollectValues { scan_value_collector_request } => scan_value_collector_request
-                .execute(execution_context)
-                .to_engine_response(),
-            ScanCommand::Hybrid { scan_hybrid_request } => scan_hybrid_request
+            ScanCommand::Reset { scan_reset_request } => scan_reset_request
                 .execute(execution_context)
                 .to_engine_response(),
             ScanCommand::New { scan_new_request } => scan_new_request.execute(execution_context).to_engine_response(),
-            ScanCommand::Manual { scan_manual_request } => scan_manual_request
+            ScanCommand::CollectValues { scan_value_collector_request } => scan_value_collector_request
+                .execute(execution_context)
+                .to_engine_response(),
+            ScanCommand::Execute { scan_execute_request } => scan_execute_request
                 .execute(execution_context)
                 .to_engine_response(),
         }

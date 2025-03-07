@@ -1,10 +1,9 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::encoders::scalar::scanner_scalar_encoder_byte_array::ScannerScalarEncoderByteArray;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_common::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_common::structures::scanning::scan_compare_type::ScanCompareType;
 use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use std::simd::prelude::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
@@ -45,21 +44,22 @@ where
         current_value_pointer: *const u8,
         _: *const u8,
         scan_parameters_global: &ScanParametersGlobal,
-        data_type: &DataTypeRef,
+        scan_parameters_local: &ScanParametersLocal,
         base_address: u64,
         region_size: u64,
         true_mask: Simd<u8, N>,
     ) -> Vec<SnapshotRegionFilter> {
+        let data_type = scan_parameters_local.get_data_type();
         let data_type_size_bytes = data_type.get_size_in_bytes();
 
-        unsafe {
-            match scan_parameters_global.get_compare_type() {
-                ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                    if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(&data_type) {
-                        let immediate_value_ptr = immediate_value.as_ptr();
-                        let periodicity = Self::calculate_periodicity(immediate_value_ptr, data_type_size_bytes);
+        match scan_parameters_global.get_compare_type() {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => {
+                if let Some(compare_func) =
+                    data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate, scan_parameters_global, scan_parameters_local)
+                {
+                    if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(data_type) {
+                        let periodicity = Self::calculate_periodicity(immediate_value.get_value_bytes(), data_type_size_bytes);
 
-                        /*
                         match periodicity {
                             1 => {
                                 let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
@@ -68,36 +68,35 @@ where
                                 let remainder_bytes = region_size % vector_size_in_bytes as u64;
                                 let remainder_ptr_offset = iterations.saturating_sub(1) as usize * vector_size_in_bytes;
                                 let false_mask = Simd::<u8, N>::splat(0);
-                                let adjusted_data_type = DataType::U8();
-                                let compare_func =
-                                    <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(adjusted_data_type, &scan_compare_type_immediate);
 
                                 // Compare as many full vectors as we can
-                                for index in 0..iterations {
-                                    let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
-                                    let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
+                                unsafe {
+                                    for index in 0..iterations {
+                                        let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
+                                        let compare_result = compare_func(current_value_pointer);
 
-                                    self.encode_results(
-                                        &compare_result,
-                                        &mut run_length_encoder,
-                                        data_type_size_bytes,
-                                        true_mask,
-                                        false_mask,
-                                        data_type_size_bytes,
-                                    );
-                                }
+                                        self.encode_results(
+                                            &compare_result,
+                                            &mut run_length_encoder,
+                                            data_type_size_bytes,
+                                            true_mask,
+                                            false_mask,
+                                            data_type_size_bytes,
+                                        );
+                                    }
 
-                                // Handle remainder elements
-                                if remainder_bytes > 0 {
-                                    let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                                    let compare_result = compare_func(current_value_pointer, immediate_value_ptr);
-                                    self.encode_remainder_results(
-                                        &compare_result,
-                                        &mut run_length_encoder,
-                                        data_type_size_bytes,
-                                        remainder_bytes,
-                                        data_type_size_bytes,
-                                    );
+                                    // Handle remainder elements
+                                    if remainder_bytes > 0 {
+                                        let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
+                                        let compare_result = compare_func(current_value_pointer);
+                                        self.encode_remainder_results(
+                                            &compare_result,
+                                            &mut run_length_encoder,
+                                            data_type_size_bytes,
+                                            remainder_bytes,
+                                            data_type_size_bytes,
+                                        );
+                                    }
                                 }
 
                                 // Early exit. No post-scan cleanup needed for 1-byte periodicity.
@@ -105,25 +104,19 @@ where
 
                                 return run_length_encoder.take_result_regions();
                             }
-                            // TODO: 2, 4, 8 if they are more efficient than byte array scans
+                            // JIRA: 2, 4, 8 if they are more efficient than byte array scans
                             _ => {}
-                        };*/
-
-                        // Default to an array of byte scan for unsupported periodicity lengths.
-                        return ScannerScalarEncoderByteArray::encode_byte_array(
-                            current_value_pointer,
-                            immediate_value_ptr,
-                            data_type_size_bytes,
-                            base_address,
-                            region_size,
-                        );
+                        };
                     }
                 }
-                _ => {
-                    panic!("Unsupported comparison! Cascading periodic scans only work for immediate scans.");
-                }
+            }
+            _ => {
+                log::error!("Unsupported comparison! Cascading periodic scans only work for immediate scans.");
             }
         }
+
+        // Default to an array of byte scan for unsupported periodicity lengths.
+        // ScannerScalarEncoderByteArray::encode_byte_array(current_value_pointer, immediate_value_ptr, data_type_size_bytes, base_address, region_size)
 
         vec![]
     }
@@ -178,7 +171,7 @@ where
     /// If there are no repeating patterns, the periodicity will be equal to the data type size.
     /// For example, 7C 01 7C 01 has a data typze size of 4, but a periodicity of 2.
     fn calculate_periodicity(
-        immediate_value_ptr: *const u8,
+        immediate_value_bytes: &[u8],
         data_type_size_bytes: u64,
     ) -> u64 {
         // Assume optimal periodicity to begin with
@@ -186,10 +179,8 @@ where
 
         // Loop through all remaining bytes, and increase the periodicity when we encounter a byte that violates the current assumption.
         for byte_index in 1..data_type_size_bytes as usize {
-            unsafe {
-                if *immediate_value_ptr.add(byte_index) != *immediate_value_ptr.add(byte_index % period) {
-                    period = byte_index + 1;
-                }
+            if immediate_value_bytes[byte_index] != immediate_value_bytes[byte_index % period] {
+                period = byte_index + 1;
             }
         }
 

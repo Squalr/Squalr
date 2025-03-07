@@ -226,7 +226,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
     ) -> u64 {
         if process_info.bitness == Bitness::Bit32 {
             // For 32-bit applications, the usermode memory is generally the first 2GB of process RAM.
-            // TODO: Large Address Aware support? This is incredibly rare, but would be more correct to support.
+            // JIRA: Large Address Aware support? This is incredibly rare, but would be more correct to support.
             0x7FFF_FFFF
         } else {
             // In windows, the max usermode address is arbitrarily set to this value for x64.

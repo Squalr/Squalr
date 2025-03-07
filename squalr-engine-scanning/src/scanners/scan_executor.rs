@@ -3,6 +3,8 @@ use crate::scanners::scan_dispatcher::ScanDispatcher;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_common::conversions::Conversions;
+use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_common::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -10,26 +12,28 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Instant;
 
-pub struct ManualScanner;
+use super::value_collector::ValueCollector;
+
+pub struct ScanExecutor;
 
 /// Implementation of a task that performs a scan against the provided snapshot. Does not collect new values.
 /// Caller is assumed to have already done this if desired.
-impl ManualScanner {
-    const NAME: &'static str = "Manual Scan";
+impl ScanExecutor {
+    const NAME: &'static str = "Scan Executor";
 
     pub fn scan(
+        process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         scan_parameters_global: &ScanParametersGlobal,
         task_identifier: Option<String>,
         with_logging: bool,
     ) -> Arc<TrackableTask<()>> {
-        let task = TrackableTask::<()>::create(ManualScanner::NAME.to_string(), task_identifier);
-
+        let task = TrackableTask::<()>::create(ScanExecutor::NAME.to_string(), task_identifier);
         let task_clone = task.clone();
         let scan_parameters_clone = scan_parameters_global.clone();
 
         thread::spawn(move || {
-            let scan_results = Self::scan_task(snapshot, &scan_parameters_clone, task_clone.clone(), with_logging);
+            let scan_results = Self::scan_task(process_info, snapshot, &scan_parameters_clone, task_clone.clone(), with_logging);
 
             task_clone.complete(scan_results);
         });
@@ -38,11 +42,18 @@ impl ManualScanner {
     }
 
     fn scan_task(
+        process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         scan_parameters_global: &ScanParametersGlobal,
         task: Arc<TrackableTask<()>>,
         with_logging: bool,
     ) {
+        // If the parameter is set, first collect values before the scan.
+        // This is slower overall than interleaving the reads, but better for capturing values that may soon change.
+        if scan_parameters_global.get_memory_read_mode() == MemoryReadMode::ReadBeforeScan {
+            ValueCollector::collect_values(process_info.clone(), snapshot.clone(), None, with_logging).wait_for_completion();
+        }
+
         if with_logging {
             log::info!("Performing manual scan...");
         }
@@ -70,6 +81,11 @@ impl ManualScanner {
             .for_each(|snapshot_region| {
                 if cancellation_token.load(Ordering::SeqCst) {
                     return;
+                }
+
+                if scan_parameters_global.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
+                    // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
+                    let _ = snapshot_region.read_all_memory(&process_info);
                 }
 
                 if !snapshot_region.can_compare_using_parameters(scan_parameters_global) {

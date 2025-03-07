@@ -21,7 +21,7 @@ impl MemorySettingsViewModel {
             _engine_execution_context: engine_execution_context.clone(),
         };
 
-        // TODO: Port to a command
+        // JIRA: Port to a command
         /*
         create_view_bindings!(view_binding, {
             MemorySettingsViewModelBindings => {
@@ -47,7 +47,7 @@ impl MemorySettingsViewModel {
         self.view_binding.execute_on_ui_thread(|main_window_view, _| {
             let memory_settings_view = main_window_view.global::<MemorySettingsViewModelBindings>();
 
-            // TODO: Port to a command
+            // JIRA: Port to a command
             /*
             // Required
             memory_settings_view.set_required_write(MemorySettings::get_instance().get_required_write());

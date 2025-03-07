@@ -54,9 +54,9 @@ impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
             "f32be" => DataTypeIconView::F32be,
             "f64" => DataTypeIconView::F64,
             "f64be" => DataTypeIconView::F64be,
-            "str" => DataTypeIconView::String,
-            "bytes" => DataTypeIconView::Bytes,
-            "bits" => DataTypeIconView::Bitfield,
+            "string" => DataTypeIconView::String,
+            "byte_array" => DataTypeIconView::Bytes,
+            "bit_field" => DataTypeIconView::Bitfield,
             _ => DataTypeIconView::Unknown,
         };
 

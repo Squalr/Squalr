@@ -10,7 +10,8 @@ pub struct TrackableTask<ResultType: Send + Sync> {
     task_identifier: String,
     is_canceled: Arc<AtomicBool>,
     is_completed: Arc<AtomicBool>,
-    result: Arc<(Mutex<Option<ResultType>>, Condvar)>,
+    result: Mutex<Option<ResultType>>,
+    completed_cv: Condvar,
     progress_sender: Sender<f32>,
     progress_receiver: Receiver<f32>,
 }
@@ -29,7 +30,8 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
             task_identifier,
             is_canceled: Arc::new(AtomicBool::new(false)),
             is_completed: Arc::new(AtomicBool::new(false)),
-            result: Arc::new((Mutex::new(None), Condvar::new())),
+            result: Mutex::new(None),
+            completed_cv: Condvar::new(),
             progress_sender,
             progress_receiver,
         });
@@ -99,32 +101,24 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
         &self,
         result: ResultType,
     ) {
-        self.is_completed.store(true, Ordering::SeqCst);
-
-        if let Ok((result_lock, cvar)) = Arc::try_unwrap(self.result.clone()) {
-            if let Ok(mut result_guard) = result_lock.lock() {
-                *result_guard = Some(result);
-
-                // Notify all waiting threads that the result is available.
-                cvar.notify_all();
-            }
+        if let Ok(mut result_lock) = self.result.lock() {
+            *result_lock = Some(result);
         }
+
+        self.is_completed.store(true, Ordering::SeqCst);
+        self.completed_cv.notify_all();
     }
 
     pub fn wait_for_completion(&self) -> Option<ResultType> {
-        let (result_lock, cvar) = &*self.result;
-        let mut result_guard = match result_lock.lock() {
-            Ok(guard) => guard,
-            Err(_) => return None,
-        };
+        if let Ok(mut result_lock) = self.result.lock() {
+            while result_lock.is_none() {
+                // This releases the lock until the result is complete.
+                result_lock = self.completed_cv.wait(result_lock).unwrap();
+            }
 
-        while result_guard.is_none() {
-            result_guard = match cvar.wait(result_guard) {
-                Ok(guard) => guard,
-                Err(_) => return None,
-            };
+            result_lock.take()
+        } else {
+            None
         }
-
-        result_guard.take()
     }
 }

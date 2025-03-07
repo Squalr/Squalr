@@ -71,7 +71,7 @@ where
             // Convert the incoming data items into the UI type T.
             let converted: T = (converter)(source_data);
 
-            // TODO idk
+            // JIRA idk
             // (model_setter)(&handle, ModelRc::new(converted));
         });
     }

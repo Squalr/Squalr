@@ -9,7 +9,7 @@ import { DataTypeSelector } from "../../controls/data_type_selector.slint";
 import { ScanConstraintTypeSelector } from "../../controls/scan_constraint_selector.slint";
 import { DockFocusCatcher } from "../docking/drag_and_drop/dock_focus_catcher.slint";
 import { HexDecBox } from "../../components/hex_dec_box.slint";
-import { ValueCollectorViewModelBindings, ManualScanViewModelBindings } from "../../view_model_bindings.slint";
+import { ValueCollectorViewModelBindings, ScannerViewModelBindings } from "../../view_model_bindings.slint";
 
 export component ScanBarView inherits Rectangle {
     property <length> bar-height: 28px;
@@ -31,10 +31,10 @@ export component ScanBarView inherits Rectangle {
         new-scan-button := Button {
             height: bar-height;
             width: 36px;
-            tooltip-text: @tr("New Scan");
+            tooltip-text: @tr("Reset Scan");
             click-sound: "";
             clicked => {
-                ManualScanViewModelBindings.new_scan(ManualScanViewModelBindings.active_data_type);
+                ScannerViewModelBindings.reset_scan();
             }
             Image {
                 width: 16px;
@@ -84,7 +84,7 @@ export component ScanBarView inherits Rectangle {
             tooltip-text: @tr("Start Scan");
             click-sound: "";
             clicked => {
-                ManualScanViewModelBindings.start_scan(ManualScanViewModelBindings.active_scan_type, scan-value.get_value_text());
+                ScannerViewModelBindings.start_scan(ScannerViewModelBindings.active_data_type, ScannerViewModelBindings.active_scan_type, scan-value.get_value_text());
             }
             Image {
                 width: 16px;

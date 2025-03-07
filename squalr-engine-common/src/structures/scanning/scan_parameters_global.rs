@@ -1,3 +1,4 @@
+use crate::structures::scanning::memory_read_mode::MemoryReadMode;
 use crate::structures::{
     data_types::{data_type_ref::DataTypeRef, floating_point_tolerance::FloatingPointTolerance},
     data_values::{anonymous_value::AnonymousValue, data_value::DataValue},
@@ -10,6 +11,7 @@ pub struct ScanParametersGlobal {
     compare_type: ScanCompareType,
     compare_immediate: Option<AnonymousValue>,
     floating_point_tolerance: FloatingPointTolerance,
+    memory_read_mode: MemoryReadMode,
 }
 
 impl ScanParametersGlobal {
@@ -17,11 +19,13 @@ impl ScanParametersGlobal {
         compare_type: ScanCompareType,
         value: Option<AnonymousValue>,
         floating_point_tolerance: FloatingPointTolerance,
+        memory_read_mode: MemoryReadMode,
     ) -> Self {
         Self {
             compare_type,
             compare_immediate: value,
             floating_point_tolerance,
+            memory_read_mode,
         }
     }
 
@@ -40,8 +44,12 @@ impl ScanParametersGlobal {
         }
     }
 
-    pub fn get_floating_point_tolerance(&self) -> &FloatingPointTolerance {
-        &self.floating_point_tolerance
+    pub fn get_floating_point_tolerance(&self) -> FloatingPointTolerance {
+        self.floating_point_tolerance
+    }
+
+    pub fn get_memory_read_mode(&self) -> MemoryReadMode {
+        self.memory_read_mode
     }
 
     pub fn get_compare_immediate(&self) -> Option<&AnonymousValue> {

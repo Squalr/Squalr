@@ -1,3 +1,4 @@
+pub mod byte_array;
 pub mod f32;
 pub mod f32be;
 pub mod f64;

@@ -1,16 +1,15 @@
 use crate::command_executors::engine_request_executor::EngineRequestExecutor;
 use crate::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::commands::scan::manual::scan_manual_request::ScanManualRequest;
-use squalr_engine_api::commands::scan::manual::scan_manual_response::ScanManualResponse;
+use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecuteRequest;
+use squalr_engine_api::commands::scan::execute::scan_execute_response::ScanExecuteResponse;
 use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_scanning::scan_settings::ScanSettings;
-use squalr_engine_scanning::scanners::manual_scanner::ManualScanner;
-use squalr_engine_scanning::scanners::value_collector::ValueCollector;
+use squalr_engine_scanning::scanners::scan_executor::ScanExecutor;
 use std::sync::Arc;
 use std::thread;
 
-impl EngineRequestExecutor for ScanManualRequest {
-    type ResponseType = ScanManualResponse;
+impl EngineRequestExecutor for ScanExecuteRequest {
+    type ResponseType = ScanExecuteResponse;
 
     fn execute(
         &self,
@@ -18,20 +17,20 @@ impl EngineRequestExecutor for ScanManualRequest {
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             let snapshot = execution_context.get_snapshot();
-            let floating_point_tolerance = ScanSettings::get_instance().get_floating_point_tolerance();
-            let scan_parameters = ScanParametersGlobal::new(self.compare_type.to_owned(), self.scan_value.to_owned(), floating_point_tolerance);
+            let scan_parameters = ScanParametersGlobal::new(
+                self.compare_type.to_owned(),
+                self.scan_value.to_owned(),
+                ScanSettings::get_instance().get_floating_point_tolerance(),
+                self.memory_read_mode,
+            );
 
-            // First collect values before the manual scan.
-            // TODO: This should not be blocking.
-            ValueCollector::collect_values(process_info.clone(), snapshot.clone(), None, true).wait_for_completion();
-
-            // Perform the manual scan on the collected memory.
-            let task = ManualScanner::scan(snapshot, &scan_parameters, None, true);
+            // Start the task to perform the scan.
+            let task = ScanExecutor::scan(process_info, snapshot, &scan_parameters, None, true);
             let task_handle = task.get_task_handle();
 
             execution_context.register_task(task_handle.clone());
 
-            // Spawn a thread to listen to progress updates
+            // Spawn a thread to listen to progress updates.
             let progress_receiver = task.subscribe_to_progress_updates();
             thread::spawn(move || {
                 while let Ok(progress) = progress_receiver.recv() {
@@ -46,12 +45,12 @@ impl EngineRequestExecutor for ScanManualRequest {
                 execution_context.unregister_task(&task.get_task_identifier());
             });
 
-            ScanManualResponse {
+            ScanExecuteResponse {
                 trackable_task_handle: Some(task_handle),
             }
         } else {
             log::error!("No opened process");
-            ScanManualResponse { trackable_task_handle: None }
+            ScanExecuteResponse { trackable_task_handle: None }
         }
     }
 }

@@ -1,3 +1,4 @@
+pub mod memory_read_mode;
 pub mod scan_compare_type;
 pub mod scan_compare_type_delta;
 pub mod scan_compare_type_immediate;

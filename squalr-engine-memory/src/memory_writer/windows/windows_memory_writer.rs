@@ -1,5 +1,4 @@
 use crate::memory_writer::memory_writer_trait::IMemoryWriter;
-use squalr_engine_common::structures::dynamic_struct::to_bytes::ToBytes;
 use std::os::raw::c_void;
 use std::ptr::null_mut;
 use windows_sys::Win32::System::Diagnostics::Debug::WriteProcessMemory;
@@ -48,16 +47,6 @@ impl WindowsMemoryWriter {
 }
 
 impl IMemoryWriter for WindowsMemoryWriter {
-    fn write(
-        &self,
-        process_handle: u64,
-        address: u64,
-        value: &dyn ToBytes,
-    ) -> bool {
-        let bytes = value.to_bytes();
-        Self::write_memory(process_handle, address, &bytes)
-    }
-
     fn write_bytes(
         &self,
         process_handle: u64,
