@@ -1,6 +1,8 @@
 use slint::{ComponentHandle, ModelRc, Weak};
 use std::sync::{Arc, Mutex};
 
+// JIRA: ViewPropertyBinding -- finish implementing this.
+
 /// Defines a collection (a vector) of data that automatically syncs to the UI.
 /// This is done by using the given converter to convert data to a type that the UI recognizes,
 /// and by retrieving the existing model (via a model_getter) so we can update it *in place*.
@@ -71,7 +73,6 @@ where
             // Convert the incoming data items into the UI type T.
             let converted: T = (converter)(source_data);
 
-            // JIRA idk
             // (model_setter)(&handle, ModelRc::new(converted));
         });
     }

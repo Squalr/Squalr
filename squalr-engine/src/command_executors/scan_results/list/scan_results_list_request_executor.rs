@@ -2,7 +2,7 @@ use crate::command_executors::engine_request_executor::EngineRequestExecutor;
 use crate::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan_results::list::scan_results_list_request::ScanResultsListRequest;
 use squalr_engine_api::commands::scan_results::list::scan_results_list_response::ScanResultsListResponse;
-use squalr_engine_common::structures::scan_results::scan_result::ScanResult;
+use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
 use squalr_engine_memory::memory_reader::MemoryReader;

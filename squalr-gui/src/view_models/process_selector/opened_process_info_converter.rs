@@ -2,7 +2,7 @@ use crate::ProcessViewData;
 use slint::Image;
 use slint::SharedPixelBuffer;
 use slint_mvvm::view_data_converter::ViewDataConverter;
-use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
 
 pub struct OpenedProcessInfoConverter;
 

@@ -1,5 +1,5 @@
 use crate::memory_reader::memory_reader_trait::IMemoryReader;
-use squalr_engine_common::structures::{data_values::data_value::DataValue, processes::process_info::OpenedProcessInfo};
+use squalr_engine_api::structures::{data_values::data_value::DataValue, processes::process_info::OpenedProcessInfo};
 use std::os::raw::c_void;
 use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 

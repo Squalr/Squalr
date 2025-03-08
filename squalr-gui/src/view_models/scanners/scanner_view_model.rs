@@ -15,11 +15,11 @@ use squalr_engine_api::commands::scan::collect_values::scan_collect_values_reque
 use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecuteRequest;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::reset::scan_reset_request::ScanResetRequest;
-use squalr_engine_common::structures::data_types::data_type_ref::DataTypeRef;
-use squalr_engine_common::structures::data_values::anonymous_value::AnonymousValue;
-use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
-use squalr_engine_common::structures::scanning::memory_read_mode::MemoryReadMode;
-use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
+use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
+use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
+use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use std::sync::Arc;
 use std::sync::RwLock;
 

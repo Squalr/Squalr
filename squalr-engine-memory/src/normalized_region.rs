@@ -1,4 +1,4 @@
-use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
+use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use std::cmp::{Ord, Ordering};
 use std::hash::{Hash, Hasher};
 use std::ops::Add;

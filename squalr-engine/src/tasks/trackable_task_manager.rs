@@ -1,9 +1,9 @@
-use squalr_engine_common::tasks::trackable_task_handle::TrackableTaskHandle;
+use squalr_engine_api::structures::tasks::engine_trackable_task_handle::EngineTrackableTaskHandle;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 pub struct TrackableTaskManager {
-    tasks: Arc<Mutex<HashMap<String, TrackableTaskHandle>>>,
+    tasks: Arc<Mutex<HashMap<String, EngineTrackableTaskHandle>>>,
 }
 
 impl TrackableTaskManager {
@@ -15,7 +15,7 @@ impl TrackableTaskManager {
 
     pub fn register_task(
         &self,
-        trackable_task_handle: TrackableTaskHandle,
+        trackable_task_handle: EngineTrackableTaskHandle,
     ) {
         if let Ok(mut tasks) = self.tasks.lock() {
             tasks.insert(trackable_task_handle.task_identifier.clone(), trackable_task_handle);
@@ -34,7 +34,7 @@ impl TrackableTaskManager {
     pub fn get_task_handle(
         &self,
         task_identifier: &String,
-    ) -> Option<TrackableTaskHandle> {
+    ) -> Option<EngineTrackableTaskHandle> {
         self.tasks.lock().ok()?.get(task_identifier).cloned()
     }
 }

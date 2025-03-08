@@ -1,5 +1,5 @@
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_common::structures::scan_results::scan_result_base::ScanResultBase;
+use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
 
 pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,

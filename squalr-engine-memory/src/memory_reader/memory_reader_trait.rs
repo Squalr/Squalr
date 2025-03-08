@@ -1,4 +1,4 @@
-use squalr_engine_common::structures::{data_values::data_value::DataValue, processes::process_info::OpenedProcessInfo};
+use squalr_engine_api::structures::{data_values::data_value::DataValue, processes::process_info::OpenedProcessInfo};
 
 pub trait IMemoryReader {
     fn read(

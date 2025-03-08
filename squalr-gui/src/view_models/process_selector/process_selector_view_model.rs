@@ -16,8 +16,8 @@ use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::process::list::process_list_request::ProcessListRequest;
 use squalr_engine_api::commands::process::open::process_open_request::ProcessOpenRequest;
 use squalr_engine_api::events::engine_event::EngineEvent;
-use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
-use squalr_engine_common::structures::processes::process_info::ProcessInfo;
+use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use std::sync::Arc;
 use std::thread;
 
@@ -82,6 +82,9 @@ impl ProcessSelectorViewModel {
                     match engine_event {
                         EngineEvent::Process(process_changed_event) => {
                             Self::refresh_opened_process(&view_binding, process_changed_event.process_info);
+                        }
+                        EngineEvent::TrackableTask(trackable_task_event) => {
+                            let JIRA = 69;
                         }
                     }
                 }

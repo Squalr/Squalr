@@ -1,10 +1,13 @@
 use crate::command_executors::engine_request_executor::EngineRequestExecutor;
 use crate::engine_execution_context::EngineExecutionContext;
+use crate::tasks::trackable_task::TrackableTask;
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest;
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_response::ScanCollectValuesResponse;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use std::sync::Arc;
 use std::thread;
+
+const TASK_NAME: &'static str = "Value Collector";
 
 impl EngineRequestExecutor for ScanCollectValuesRequest {
     type ResponseType = ScanCollectValuesResponse;
@@ -15,8 +18,10 @@ impl EngineRequestExecutor for ScanCollectValuesRequest {
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             let snapshot = execution_context.get_snapshot();
-            let task = ValueCollector::collect_values(process_info.clone(), snapshot, None, true);
+            let task = TrackableTask::<()>::create(TASK_NAME.to_string(), None);
             let task_handle = task.get_task_handle();
+
+            ValueCollector::collect_values(task_handle.clone(), process_info.clone(), snapshot, true);
 
             execution_context.register_task(task_handle.clone());
 
@@ -36,7 +41,7 @@ impl EngineRequestExecutor for ScanCollectValuesRequest {
             });
 
             ScanCollectValuesResponse {
-                trackable_task_handle: Some(task_handle),
+                trackable_task_handle: Some(task_handle.to_user_handle()),
             }
         } else {
             log::error!("No opened process");

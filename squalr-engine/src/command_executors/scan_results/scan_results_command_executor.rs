@@ -16,6 +16,12 @@ impl EngineCommandExecutor for ScanResultsCommand {
             ScanResultsCommand::List { results_list_request } => results_list_request
                 .execute(execution_context)
                 .to_engine_response(),
+            ScanResultsCommand::Query { results_query_request } => results_query_request
+                .execute(execution_context)
+                .to_engine_response(),
+            ScanResultsCommand::Refresh { results_refresh_request } => results_refresh_request
+                .execute(execution_context)
+                .to_engine_response(),
         }
     }
 }

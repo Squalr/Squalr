@@ -1,8 +1,8 @@
 use crate::commands::engine_response::EngineResponse;
 use crate::commands::engine_response::TypedEngineResponse;
 use crate::commands::process::process_response::ProcessResponse;
+use crate::structures::processes::process_info::OpenedProcessInfo;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProcessCloseResponse {

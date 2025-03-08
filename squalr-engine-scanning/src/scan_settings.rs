@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
+use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
+use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_common::config::serialized_config_updater;
-use squalr_engine_common::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
-use squalr_engine_common::structures::memory_alignment::MemoryAlignment;
 use std::path::PathBuf;
 use std::sync::Once;
 use std::sync::{Arc, RwLock};

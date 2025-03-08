@@ -1,12 +1,15 @@
 use crate::command_executors::engine_request_executor::EngineRequestExecutor;
 use crate::engine_execution_context::EngineExecutionContext;
+use crate::tasks::trackable_task::TrackableTask;
 use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecuteRequest;
 use squalr_engine_api::commands::scan::execute::scan_execute_response::ScanExecuteResponse;
-use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_scanning::scan_settings::ScanSettings;
 use squalr_engine_scanning::scanners::scan_executor::ScanExecutor;
 use std::sync::Arc;
 use std::thread;
+
+const TASK_NAME: &'static str = "Scan Executor";
 
 impl EngineRequestExecutor for ScanExecuteRequest {
     type ResponseType = ScanExecuteResponse;
@@ -25,8 +28,9 @@ impl EngineRequestExecutor for ScanExecuteRequest {
             );
 
             // Start the task to perform the scan.
-            let task = ScanExecutor::scan(process_info, snapshot, &scan_parameters, None, true);
+            let task = TrackableTask::<()>::create(TASK_NAME.to_string(), None);
             let task_handle = task.get_task_handle();
+            ScanExecutor::scan(task_handle.clone(), process_info, snapshot, &scan_parameters, true);
 
             execution_context.register_task(task_handle.clone());
 
@@ -46,7 +50,7 @@ impl EngineRequestExecutor for ScanExecuteRequest {
             });
 
             ScanExecuteResponse {
-                trackable_task_handle: Some(task_handle),
+                trackable_task_handle: Some(task_handle.to_user_handle()),
             }
         } else {
             log::error!("No opened process");

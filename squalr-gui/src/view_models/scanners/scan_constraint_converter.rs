@@ -1,6 +1,6 @@
 use crate::ScanConstraintTypeView;
 use slint_mvvm::view_data_converter::ViewDataConverter;
-use squalr_engine_common::structures::scanning::{
+use squalr_engine_api::structures::scanning::{
     scan_compare_type::ScanCompareType, scan_compare_type_delta::ScanCompareTypeDelta, scan_compare_type_immediate::ScanCompareTypeImmediate,
     scan_compare_type_relative::ScanCompareTypeRelative,
 };

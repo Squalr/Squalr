@@ -4331,16 +4331,21 @@ dependencies = [
  "squalr-engine-scripting",
  "structopt",
  "sysinfo 0.31.2",
+ "uuid",
 ]
 
 [[package]]
 name = "squalr-engine-api"
 version = "0.1.0"
 dependencies = [
+ "dashmap",
  "log",
+ "num-traits",
  "serde",
+ "serde_json",
  "squalr-engine-common",
  "structopt",
+ "sysinfo 0.31.2",
 ]
 
 [[package]]
@@ -4357,18 +4362,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
- "dashmap",
  "dirs",
- "futures",
- "hex",
  "log",
  "log4rs",
- "num-traits",
- "rayon",
  "serde",
  "serde_json",
- "sysinfo 0.31.2",
- "uuid",
 ]
 
 [[package]]
@@ -4390,6 +4388,7 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "squalr-engine-api",
  "squalr-engine-common",
  "squalr-engine-processes",
  "sysinfo 0.31.2",
@@ -4406,7 +4405,7 @@ dependencies = [
  "rayon",
  "regex",
  "serde",
- "squalr-engine-common",
+ "squalr-engine-api",
  "sysinfo 0.31.2",
  "windows-sys 0.59.0",
  "zip",
@@ -4438,6 +4437,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
+ "squalr-engine-api",
  "squalr-engine-architecture",
  "squalr-engine-common",
  "squalr-engine-memory",

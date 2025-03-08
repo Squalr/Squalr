@@ -1,57 +1,52 @@
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::scan_dispatcher::ScanDispatcher;
+use crate::scanners::value_collector::ValueCollector;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
+use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
+use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_api::structures::tasks::engine_trackable_task_handle::EngineTrackableTaskHandle;
 use squalr_engine_common::conversions::Conversions;
-use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
-use squalr_engine_common::structures::scanning::memory_read_mode::MemoryReadMode;
-use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
-use squalr_engine_common::tasks::trackable_task::TrackableTask;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Instant;
-
-use super::value_collector::ValueCollector;
 
 pub struct ScanExecutor;
 
 /// Implementation of a task that performs a scan against the provided snapshot. Does not collect new values.
 /// Caller is assumed to have already done this if desired.
 impl ScanExecutor {
-    const NAME: &'static str = "Scan Executor";
-
     pub fn scan(
+        task_handle: EngineTrackableTaskHandle,
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         scan_parameters_global: &ScanParametersGlobal,
-        task_identifier: Option<String>,
         with_logging: bool,
-    ) -> Arc<TrackableTask<()>> {
-        let task = TrackableTask::<()>::create(ScanExecutor::NAME.to_string(), task_identifier);
-        let task_clone = task.clone();
+    ) {
         let scan_parameters_clone = scan_parameters_global.clone();
 
         thread::spawn(move || {
-            let scan_results = Self::scan_task(process_info, snapshot, &scan_parameters_clone, task_clone.clone(), with_logging);
+            Self::scan_task(task_handle.clone(), process_info, snapshot, &scan_parameters_clone, with_logging);
 
-            task_clone.complete(scan_results);
+            task_handle.complete();
         });
-
-        task
     }
 
     fn scan_task(
+        task_handle: EngineTrackableTaskHandle,
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         scan_parameters_global: &ScanParametersGlobal,
-        task: Arc<TrackableTask<()>>,
         with_logging: bool,
     ) {
         // If the parameter is set, first collect values before the scan.
         // This is slower overall than interleaving the reads, but better for capturing values that may soon change.
         if scan_parameters_global.get_memory_read_mode() == MemoryReadMode::ReadBeforeScan {
-            ValueCollector::collect_values(process_info.clone(), snapshot.clone(), None, with_logging).wait_for_completion();
+            let fix_me = 0;
+            // TODO: Some sort of child task function
+            // ValueCollector::collect_values(task_handle.clone(), process_info.clone(), snapshot.clone(), None, with_logging).wait_for_completion();
         }
 
         if with_logging {
@@ -72,7 +67,7 @@ impl ScanExecutor {
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
         let total_region_count = snapshot.get_region_count();
-        let cancellation_token = task.get_cancellation_token();
+        let cancellation_token = task_handle.get_cancellation_token();
 
         // Iterate over every snapshot region, from which we will grab the existing snapshot filters to perform our next scan.
         snapshot
@@ -113,7 +108,7 @@ impl ScanExecutor {
                 // To reduce performance impact, only periodically send progress updates.
                 if processed % 32 == 0 {
                     let progress = (processed as f32 / total_region_count as f32) * 100.0;
-                    task.set_progress(progress);
+                    task_handle.set_progress(progress);
                 }
             });
 

@@ -2,9 +2,9 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::vector::scanner_vector_encoder::ScannerVectorEncoder;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
-use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
-use squalr_engine_common::structures::{data_types::generics::vector_comparer::VectorComparer, memory_alignment::MemoryAlignment};
+use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
+use squalr_engine_api::structures::{data_types::generics::vector_comparer::VectorComparer, memory::memory_alignment::MemoryAlignment};
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorSparse<const N: usize>

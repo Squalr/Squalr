@@ -1,8 +1,8 @@
 use crate::commands::engine_response::EngineResponse;
 use crate::commands::engine_response::TypedEngineResponse;
 use crate::commands::scan::scan_response::ScanResponse;
+use crate::structures::tasks::trackable_task_handle::TrackableTaskHandle;
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::tasks::trackable_task_handle::TrackableTaskHandle;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanExecuteResponse {

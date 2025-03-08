@@ -1,4 +1,4 @@
-use squalr_engine_common::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
 
 use crate::memory_queryer::MemoryQueryerImpl;
 use crate::memory_queryer::memory_protection_enum::MemoryProtectionEnum;

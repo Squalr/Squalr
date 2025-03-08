@@ -1,7 +1,7 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use squalr_engine_common::structures::{
-    data_types::data_type_ref::DataTypeRef, memory_alignment::MemoryAlignment, scanning::scan_parameters_local::ScanParametersLocal,
+use squalr_engine_api::structures::{
+    data_types::data_type_ref::DataTypeRef, memory::memory_alignment::MemoryAlignment, scanning::scan_parameters_local::ScanParametersLocal,
 };
 
 /// A custom type that defines a set of filters (scan results) discovered by scanners.

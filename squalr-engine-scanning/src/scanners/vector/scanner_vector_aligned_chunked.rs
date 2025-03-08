@@ -3,8 +3,8 @@ use crate::scanners::encoders::vector::scanner_vector_encoder::ScannerVectorEnco
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
-use squalr_engine_common::structures::{data_types::generics::vector_comparer::VectorComparer, scanning::scan_parameters_global::ScanParametersGlobal};
+use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
+use squalr_engine_api::structures::{data_types::generics::vector_comparer::VectorComparer, scanning::scan_parameters_global::ScanParametersGlobal};
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorAlignedChunked<const N: usize>

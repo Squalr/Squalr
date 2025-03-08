@@ -3,7 +3,7 @@ use crate::scanners::encoders::scalar::scanner_scalar_encoder::ScannerScalarEnco
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use squalr_engine_common::structures::scanning::{scan_parameters_global::ScanParametersGlobal, scan_parameters_local::ScanParametersLocal};
+use squalr_engine_api::structures::scanning::{scan_parameters_global::ScanParametersGlobal, scan_parameters_local::ScanParametersLocal};
 use std::sync::Once;
 
 pub struct ScannerScalarIterativeChunked {}

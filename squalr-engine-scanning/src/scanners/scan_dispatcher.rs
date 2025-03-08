@@ -5,9 +5,9 @@ use crate::scanners::scalar::scanner_scalar_iterative_byte_array::ScannerScalarI
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::ParallelIterator;
-use squalr_engine_common::structures::data_types::built_in_types::byte_array::data_type_byte_array::DataTypeByteArray;
-use squalr_engine_common::structures::scanning::scan_parameters_global::ScanParametersGlobal;
-use squalr_engine_common::structures::scanning::scan_parameters_local::ScanParametersLocal;
+use squalr_engine_api::structures::data_types::built_in_types::byte_array::data_type_byte_array::DataTypeByteArray;
+use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
 
 use super::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use super::vector::scanner_vector_aligned::ScannerVectorAligned;

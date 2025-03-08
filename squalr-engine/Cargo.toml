@@ -20,6 +20,7 @@ log = ">=0.4.26"
 serde = ">=1.0.218"
 structopt = ">=0.3.26"
 sysinfo = ">=0.30"
+uuid = { version = "1.15.1", features = ["v4"] }
 
 [build-dependencies]
 
