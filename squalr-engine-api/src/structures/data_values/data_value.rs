@@ -73,7 +73,7 @@ impl DataValue {
     ) -> String {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        match registry.get(data_type.get_id()) {
+        match registry.get(data_type.get_data_type_id()) {
             Some(data_type) => match data_type.create_display_value(value_bytes) {
                 Some(value_string) => value_string,
                 None => "??".to_string(),
@@ -112,6 +112,6 @@ impl fmt::Display for DataValue {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(formatter, "{}={}", self.get_data_type().get_id(), self.get_value_string())
+        write!(formatter, "{}={}", self.get_data_type().get_data_type_id(), self.get_value_string())
     }
 }

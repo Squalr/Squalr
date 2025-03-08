@@ -10,7 +10,7 @@ type PrimitiveType = u32;
 pub struct DataTypeU32 {}
 
 impl DataTypeU32 {
-    pub fn get_id() -> &'static str {
+    pub fn get_data_type_id() -> &'static str {
         &"u32"
     }
 
@@ -20,12 +20,12 @@ impl DataTypeU32 {
 }
 
 impl DataType for DataTypeU32 {
-    fn get_id(&self) -> &str {
-        Self::get_id()
+    fn get_data_type_id(&self) -> &str {
+        Self::get_data_type_id()
     }
 
     fn get_icon_id(&self) -> &str {
-        Self::get_id()
+        Self::get_data_type_id()
     }
 
     fn get_default_size_in_bytes(&self) -> u64 {

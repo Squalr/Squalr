@@ -55,17 +55,21 @@ impl EngineExecutionContext {
             callback(command.execute(engine_privileged_state));
         } else if let Some(host) = &self.ipc_host {
             // For an inter-process engine (ie for Android), we dispatch the command to the priviliged root shell.
-            let _ = host.dispatch_command(
+            if let Err(err) = host.dispatch_command(
                 InterprocessIngress::EngineCommand(command),
                 move |interprocess_response| match interprocess_response {
                     InterprocessEgress::EngineResponse(engine_response) => {
                         callback(engine_response);
                     }
-                    _ => {}
+                    _ => {
+                        log::error!("Unexpected response received from engine!");
+                    }
                 },
-            );
+            ) {
+                log::error!("Failed to dispatch command: {}", err);
+            }
         } else {
-            log::error!("Unable to dispatch engine command!")
+            log::error!("Unable to dispatch engine command! Engine has no privileged state, nor IPC information.");
         }
     }
 

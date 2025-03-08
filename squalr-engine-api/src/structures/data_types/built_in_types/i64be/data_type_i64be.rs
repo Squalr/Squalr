@@ -10,7 +10,7 @@ type PrimitiveType = i64;
 pub struct DataTypeI64be {}
 
 impl DataTypeI64be {
-    pub fn get_id() -> &'static str {
+    pub fn get_data_type_id() -> &'static str {
         &"i64be"
     }
 
@@ -20,12 +20,12 @@ impl DataTypeI64be {
 }
 
 impl DataType for DataTypeI64be {
-    fn get_id(&self) -> &str {
-        Self::get_id()
+    fn get_data_type_id(&self) -> &str {
+        Self::get_data_type_id()
     }
 
     fn get_icon_id(&self) -> &str {
-        Self::get_id()
+        Self::get_data_type_id()
     }
 
     fn get_default_size_in_bytes(&self) -> u64 {

@@ -95,7 +95,7 @@ impl ScanDispatcher {
         if element_count == 1 {
             // Single element scanner.
             return &ScannerScalarSingleElement {};
-        } else if data_type.get_id() == DataTypeByteArray::get_id() {
+        } else if data_type.get_data_type_id() == DataTypeByteArray::get_data_type_id() {
             // Byte array scanner. // JIRA: Switch on sizes for vectorized version
             return ScannerScalarIterativeByteArray::get_instance();
         } else {

@@ -9,7 +9,7 @@ use std::fmt::Debug;
 
 /// Defines a generic scannable data type. This is the primary trait for both built-in types and plugin-defined types.
 pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
-    fn get_id(&self) -> &str;
+    fn get_data_type_id(&self) -> &str;
 
     fn get_icon_id(&self) -> &str;
 
@@ -32,6 +32,6 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
     fn get_default_meta_data(&self) -> DataTypeMetaData;
 
     fn get_ref(&self) -> DataTypeRef {
-        DataTypeRef::new_with_meta_data(self.get_id(), self.get_default_meta_data())
+        DataTypeRef::new_with_meta_data(self.get_data_type_id(), self.get_default_meta_data())
     }
 }
