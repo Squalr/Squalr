@@ -1,5 +1,5 @@
 use crate::command_executors::engine_request_executor::EngineRequestExecutor;
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest;
 use squalr_engine_api::commands::memory::write::memory_write_response::MemoryWriteResponse;
 use squalr_engine_memory::memory_writer::MemoryWriter;
@@ -11,7 +11,7 @@ impl EngineRequestExecutor for MemoryWriteRequest {
 
     fn execute(
         &self,
-        execution_context: &Arc<EngineExecutionContext>,
+        execution_context: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             /*

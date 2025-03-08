@@ -1,5 +1,5 @@
 use crate::command_executors::engine_request_executor::EngineRequestExecutor;
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::new::scan_new_response::ScanNewResponse;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
@@ -12,7 +12,7 @@ impl EngineRequestExecutor for ScanNewRequest {
 
     fn execute(
         &self,
-        execution_context: &Arc<EngineExecutionContext>,
+        execution_context: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         let scan_parameters_local = self.scan_parameters_local.clone();
 

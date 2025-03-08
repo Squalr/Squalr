@@ -13,9 +13,9 @@ use squalr_engine::command_executors::engine_request_executor::EngineRequestExec
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
-use squalr_engine_common::conversions::Conversions;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
+use squalr_engine_common::conversions::Conversions;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::AtomicU64;

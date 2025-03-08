@@ -1,4 +1,4 @@
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use interprocess_shell::interprocess_ingress::ExecutableRequest;
 use serde::{Serialize, de::DeserializeOwned};
 use squalr_engine_api::commands::{engine_command::EngineCommand, engine_response::EngineResponse};
@@ -9,14 +9,14 @@ pub trait EngineCommandExecutor: Clone + Serialize + DeserializeOwned {
 
     fn execute(
         &self,
-        execution_context: &Arc<EngineExecutionContext>,
+        execution_context: &Arc<EnginePrivilegedState>,
     ) -> Self::ResponseType;
 }
 
-impl ExecutableRequest<EngineResponse, EngineExecutionContext> for EngineCommand {
+impl ExecutableRequest<EngineResponse, EnginePrivilegedState> for EngineCommand {
     fn execute(
         &self,
-        execution_context: &Arc<EngineExecutionContext>,
+        execution_context: &Arc<EnginePrivilegedState>,
     ) -> EngineResponse {
         match self {
             EngineCommand::Memory(command) => command.execute(execution_context),

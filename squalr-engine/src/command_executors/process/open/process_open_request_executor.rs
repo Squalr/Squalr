@@ -1,5 +1,5 @@
 use crate::command_executors::engine_request_executor::EngineRequestExecutor;
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::process::open::process_open_request::ProcessOpenRequest;
 use squalr_engine_api::commands::process::open::process_open_response::ProcessOpenResponse;
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
@@ -12,7 +12,7 @@ impl EngineRequestExecutor for ProcessOpenRequest {
 
     fn execute(
         &self,
-        execution_context: &Arc<EngineExecutionContext>,
+        execution_context: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         if self.process_id.is_none() && self.search_name.is_none() {
             log::error!("Error: Neither PID nor search name provided. Cannot open process.");

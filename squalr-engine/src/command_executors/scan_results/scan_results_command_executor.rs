@@ -1,6 +1,6 @@
 use crate::command_executors::engine_command_executor::EngineCommandExecutor;
 use crate::command_executors::engine_request_executor::EngineRequestExecutor;
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::engine_response::{EngineResponse, TypedEngineResponse};
 use squalr_engine_api::commands::scan_results::scan_results_command::ScanResultsCommand;
 use std::sync::Arc;
@@ -10,7 +10,7 @@ impl EngineCommandExecutor for ScanResultsCommand {
 
     fn execute(
         &self,
-        execution_context: &Arc<EngineExecutionContext>,
+        execution_context: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandExecutor>::ResponseType {
         match self {
             ScanResultsCommand::List { results_list_request } => results_list_request

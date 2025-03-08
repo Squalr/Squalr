@@ -1,109 +1,43 @@
-use crate::command_executors::engine_command_dispatcher::EngineCommandDispatcher;
 use crate::engine_mode::EngineMode;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use crate::events::engine_event_handler::EngineEventHandler;
-use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
-use interprocess_shell::shell::inter_process_privileged_shell::InterProcessPrivilegedShell;
+use interprocess_shell::interprocess_egress::InterprocessEgress;
+use interprocess_shell::interprocess_ingress::{ExecutableRequest, InterprocessIngress};
 use interprocess_shell::shell::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
 use squalr_engine_api::commands::engine_response::EngineResponse;
-use squalr_engine_api::events::process::process_changed_event::ProcessChangedEvent;
-use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
-use squalr_engine_api::structures::tasks::engine_trackable_task_handle::EngineTrackableTaskHandle;
 use squalr_engine_api::{commands::engine_command::EngineCommand, events::engine_event::EngineEvent};
-use squalr_engine_scanning::snapshots::snapshot::Snapshot;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
-/// Tracks information vital to executing tasks, commands, and events in the engine.
+/// Exposes the ability to send commands to the engine, and handle events from the engine.
 pub struct EngineExecutionContext {
-    /// The process to which Squalr is attached.
-    opened_process: RwLock<Option<OpenedProcessInfo>>,
-
-    /// The current snapshot of process memory.
-    snapshot: Arc<RwLock<Snapshot>>,
-
-    /// Defines the mode in which the engine is running.
-    /// - Standalone engine is self-handling. This is the most common way Squalr is used.
-    /// - Unprivileged host sends data via ipc. Used on platforms like Android.
-    /// - Privileged shell returns data via ipc. Used on platforms like Android.
-    engine_mode: EngineMode,
-
     /// The dispatcher that sends commands to the engine.
-    command_dispatcher: EngineCommandDispatcher,
+    ipc_host: Option<Arc<InterProcessUnprivilegedHost<EngineCommand, EngineResponse, EngineEvent, EnginePrivilegedState>>>,
+
+    engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
 
     /// The event handler for listening to events emitted from the engine.
     event_handler: EngineEventHandler,
-
-    /// The manager that tracks all running engine tasks.
-    task_manager: TrackableTaskManager,
 }
 
 impl EngineExecutionContext {
-    pub fn new(engine_mode: EngineMode) -> Arc<Self> {
+    pub fn new(
+        engine_mode: EngineMode,
+        engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
+    ) -> Arc<Self> {
         let mut optional_host = None;
-        let mut optional_shell = None;
 
         if engine_mode == EngineMode::UnprivilegedHost {
             optional_host = Some(Arc::new(InterProcessUnprivilegedHost::new()));
-        } else if engine_mode == EngineMode::PrivilegedShell {
-            optional_shell = Some(Arc::new(InterProcessPrivilegedShell::new()));
         }
 
         let execution_context = Arc::new(EngineExecutionContext {
-            opened_process: RwLock::new(None),
-            snapshot: Arc::new(RwLock::new(Snapshot::new())),
-            engine_mode,
-            command_dispatcher: EngineCommandDispatcher::new(optional_host),
-            event_handler: EngineEventHandler::new(optional_shell),
-            task_manager: TrackableTaskManager::new(),
+            ipc_host: optional_host,
+            engine_privileged_state,
+            event_handler: EngineEventHandler::new(None),
         });
 
-        execution_context.initialize();
-
         execution_context
-    }
-
-    fn initialize(self: &Arc<Self>) {
-        self.event_handler.initialize(self);
-    }
-
-    pub fn set_opened_process(
-        &self,
-        process_info: OpenedProcessInfo,
-    ) {
-        if let Ok(mut process) = self.opened_process.write() {
-            log::info!("Opened process: {}, pid: {}", process_info.name, process_info.process_id);
-            *process = Some(process_info.clone());
-
-            self.emit_event(EngineEvent::Process(ProcessChangedEvent {
-                process_info: Some(process_info),
-            }));
-        }
-    }
-
-    pub fn clear_opened_process(&self) {
-        if let Ok(mut process) = self.opened_process.write() {
-            *process = None;
-            log::info!("Process closed");
-            self.emit_event(EngineEvent::Process(ProcessChangedEvent { process_info: None }));
-        }
-    }
-
-    pub fn get_opened_process(&self) -> Option<OpenedProcessInfo> {
-        match self.opened_process.read() {
-            Ok(opened_process) => opened_process.clone(),
-            Err(err) => {
-                log::error!("Failed to access opened process: {}", err);
-                None
-            }
-        }
-    }
-
-    pub fn get_snapshot(&self) -> Arc<RwLock<Snapshot>> {
-        self.snapshot.clone()
-    }
-
-    pub fn get_engine_mode(&self) -> EngineMode {
-        self.engine_mode
     }
 
     /// Dispatches a command to the engine. Direct usage is generally not advised unless you know what you are doing.
@@ -116,34 +50,27 @@ impl EngineExecutionContext {
     ) where
         F: FnOnce(EngineResponse) + Send + Sync + 'static,
     {
-        self.command_dispatcher
-            .dispatch_command(command, self, callback)
+        if let Some(engine_privileged_state) = &self.engine_privileged_state {
+            // For a standalone engine (the common case), we just immediately execute the command with a callback.
+            callback(command.execute(engine_privileged_state));
+        } else if let Some(host) = &self.ipc_host {
+            // For an inter-process engine (ie for Android), we dispatch the command to the priviliged root shell.
+            let _ = host.dispatch_command(
+                InterprocessIngress::EngineCommand(command),
+                move |interprocess_response| match interprocess_response {
+                    InterprocessEgress::EngineResponse(engine_response) => {
+                        callback(engine_response);
+                    }
+                    _ => {}
+                },
+            );
+        } else {
+            log::error!("Unable to dispatch engine command!")
+        }
     }
 
     /// Emits an event from the engine. Direct usage is not advised except by the engine code itself.
     pub fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
         self.event_handler.subscribe()
-    }
-
-    /// Emits an event from the engine. Direct usage is not advised except by the engine code itself.
-    pub fn emit_event(
-        &self,
-        event: EngineEvent,
-    ) {
-        self.event_handler.emit_event(event);
-    }
-
-    pub fn register_task(
-        &self,
-        trackable_task_handle: EngineTrackableTaskHandle,
-    ) {
-        self.task_manager.register_task(trackable_task_handle);
-    }
-
-    pub fn unregister_task(
-        &self,
-        task_identifier: &String,
-    ) {
-        self.task_manager.unregister_task(task_identifier);
     }
 }

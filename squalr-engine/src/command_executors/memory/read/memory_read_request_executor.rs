@@ -1,5 +1,5 @@
 use crate::command_executors::engine_request_executor::EngineRequestExecutor;
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
 // use squalr_engine_api::structures::dynamic_struct::dynamic_struct::DynamicStruct;
@@ -12,7 +12,7 @@ impl EngineRequestExecutor for MemoryReadRequest {
 
     fn execute(
         &self,
-        execution_context: &Arc<EngineExecutionContext>,
+        execution_context: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             log::info!("Reading value from address {}", self.address);

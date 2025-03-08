@@ -1,4 +1,5 @@
 use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use squalr_engine_api::commands::engine_request::EngineRequest;
@@ -10,7 +11,7 @@ pub trait EngineRequestExecutor: EngineRequest + Clone + Serialize + Deserialize
 
     fn execute(
         &self,
-        execution_context: &Arc<EngineExecutionContext>,
+        execution_context: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineRequestExecutor>::ResponseType;
 
     fn send<F>(

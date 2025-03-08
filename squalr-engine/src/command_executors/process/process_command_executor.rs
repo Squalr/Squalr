@@ -1,6 +1,6 @@
 use crate::command_executors::engine_command_executor::EngineCommandExecutor;
 use crate::command_executors::engine_request_executor::EngineRequestExecutor;
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::engine_response::{EngineResponse, TypedEngineResponse};
 use squalr_engine_api::commands::process::process_command::ProcessCommand;
 use std::sync::Arc;
@@ -10,7 +10,7 @@ impl EngineCommandExecutor for ProcessCommand {
 
     fn execute(
         &self,
-        execution_context: &Arc<EngineExecutionContext>,
+        execution_context: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandExecutor>::ResponseType {
         match self {
             ProcessCommand::Open { process_open_request } => process_open_request

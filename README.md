@@ -28,28 +28,36 @@ Additionally, we want to support CLI, which is actually pretty easy to do, since
 Unsolved architectural challenges:
 - Some form of property viewer. This is better than building bespoke editors everywhere. While Rust lacks reflection natively, we can probably leverage named fields / serialization for structs we wish to edit. That said, generally property viewers allow registering pop-up window editors, aaaaaand now we're back to bespoke editors. Pop-up windows are not valid for platforms like Android, so we need to think this through more.
 - Registry architecture needs work. It would be nice if this was 0 latency (ie exists on unprivileged GUI for mobile), but then this breaks our command/response pattern. Then again, this doesn't need privileges, so perhaps this could just live on both sides. But two sources of truth is pain. So alas, still need to dwell on this.
-- Task management system is similarly annoying. Tasks are spawned and tracked by the engine, but the client needs to be able to cancel them -- and potentially get their result objects. Unclear what the simplest approach is that is easy to reason about.
+- Task management system is similarly annoying. Tasks are spawned and tracked by the engine, but the client needs to be able to cancel them, track their progress, and potentially get their result objects. Unclear what the simplest approach is that is still easy to reason about.
 - Defining all ways that information goes to and from the engine needs work. Right now we have Commands/Responses (call engine, get a response), and Events (listen for broadcasts from engine). This is technically enough, but these alone make it hard to implement things like the task system mentioned above. ie how does a task send progress updates? It dispatches an event, and then every single event handle gets the events for all other task handles? This can be solved by having yet another task handle manager on the client side, but building more infra to solve infra problems may indicate that the problem needs to be solved at a lower level.
 - Where do settings live? Obviously these are backed by serialized files, but again, we find ourselves wrestling command/response again. Two copies that must be kept in sync? Query the settings from the engine on boot? One source of truth is generally preferred, but now a simple settings look-up can end up being a command. Tedious. Currently these live exclusively on the engine side, and the client is not using settings directly.
+- Can engine events be hooked? If we support plugins later, this might prove valuable. But lambdas are stored almost exclusively as FnOnce for easier stack capture.
+
+Note the pattern above -- the command/response architecture, primarily inflicted upon us by Android, repeatedly gives rise to the same problem. Task management, Registry, and settings all have the same issue of both the privileged/unprivileged processes needing access to shared state.
+
+I would prefer not to have to solve this problem 3 separate times.
 
 Features:
-- [X] Dockable window system
-- [X] Command/Response system, with IPC support for rooted Android devices
-- [X] Scan result display
-- [X] Integer Scans
-- [X] Float Scans
-- [X] Big Endian Scans
-- [X] Vector Aligned Scans
-- [ ] Sparse Scans
-- [ ] Vectorized cascading scans (periodic)
-- [ ] Projects with a per-file backing. Freezable addresses.
-- [ ] Freezing/deleting scan results directly from scan window
-- [ ] Array of byte scans
+- [ ] Auto updater (trivial, there is a Rust crate that does github release updates)
+- [X] Dockable window system.
+- [X] Command/Response system, with IPC support for rooted Android devices.
+- [X] Scan result display.
+- [X] Integer Scans.
+- [X] Float Scans.
+- [X] Big Endian Scans.
+- [X] Vector Aligned Scans.
+- [ ] HexDecBox support for entering scan values (similar to C# version).
+- [ ] Sparse Scans (probably done, needs testing).
+- [ ] Vectorized cascading scans (periodic).
+- [ ] Projects with a per-file backing. Freezable addresses. Sortable.
+- [ ] Freezing/deleting scan results directly from scan window.
+- [ ] Array of byte scans.
 - [ ] Property viewer.
-- [ ] String scans
+- [ ] String scans.
 
 ## Post-launch tasklist
-Lower priority features that we can defer, for now
+Lower priority features that we can defer, for now.
+
 Features:
 - [ ] Pointer Scans
 - [ ] Memory viewer

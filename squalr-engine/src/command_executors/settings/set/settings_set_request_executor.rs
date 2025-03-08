@@ -1,5 +1,5 @@
 use crate::command_executors::engine_request_executor::EngineRequestExecutor;
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::settings::set::settings_set_request::SettingsSetRequest;
 use squalr_engine_api::commands::settings::set::settings_set_response::SettingsSetResponse;
 use squalr_engine_memory::memory_settings::MemorySettings;
@@ -11,7 +11,7 @@ impl EngineRequestExecutor for SettingsSetRequest {
 
     fn execute(
         &self,
-        _execution_context: &Arc<EngineExecutionContext>,
+        _execution_context: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         // Parse the setting command
         let (domain_and_setting, new_value) = match self.setting_command.split_once('=') {

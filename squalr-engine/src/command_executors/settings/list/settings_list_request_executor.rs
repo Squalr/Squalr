@@ -1,5 +1,5 @@
 use crate::command_executors::engine_request_executor::EngineRequestExecutor;
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::settings::list::settings_list_request::SettingsListRequest;
 use squalr_engine_api::commands::settings::list::settings_list_response::SettingsListResponse;
 use squalr_engine_memory::memory_settings::MemorySettings;
@@ -11,7 +11,7 @@ impl EngineRequestExecutor for SettingsListRequest {
 
     fn execute(
         &self,
-        _execution_context: &Arc<EngineExecutionContext>,
+        _execution_context: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         let scan = self.scan | self.list_all;
         let memory = self.memory | self.list_all;

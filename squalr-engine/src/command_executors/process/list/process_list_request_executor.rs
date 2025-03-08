@@ -1,5 +1,5 @@
 use crate::command_executors::engine_request_executor::EngineRequestExecutor;
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::process::list::process_list_request::ProcessListRequest;
 use squalr_engine_api::commands::process::list::process_list_response::ProcessListResponse;
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
@@ -11,7 +11,7 @@ impl EngineRequestExecutor for ProcessListRequest {
 
     fn execute(
         &self,
-        _execution_context: &Arc<EngineExecutionContext>,
+        _execution_context: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineRequestExecutor>::ResponseType {
         log::info!(
             "Listing processes with options: require_windowed={}, search_name={:?}, match_case={}, limit={:?}",

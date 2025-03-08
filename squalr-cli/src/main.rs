@@ -34,5 +34,7 @@ fn main() {
     }
 
     // Listen for user input.
+    // Note that the "Cli", when listening for input, is considered unprivileged, as it is considered the "UI".
+    // Internally, these commands then get dispatched to an abstracted away privileged component.
     Cli::run_loop(squalr_engine.get_engine_execution_context());
 }

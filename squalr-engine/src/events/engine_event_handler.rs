@@ -1,4 +1,4 @@
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::{Receiver, Sender};
 use interprocess_shell::interprocess_egress::InterprocessEgress;
 use interprocess_shell::shell::inter_process_privileged_shell::InterProcessPrivilegedShell;
@@ -11,12 +11,12 @@ use std::sync::{Arc, RwLock};
 /// Orchestrates commands and responses to and from the engine.
 pub struct EngineEventHandler {
     /// An optional interprocess shell-side command handler. This is for Android, where commands go through a privileged shell.
-    optional_shell: Option<Arc<InterProcessPrivilegedShell<EngineCommand, EngineResponse, EngineEvent, EngineExecutionContext>>>,
+    optional_shell: Option<Arc<InterProcessPrivilegedShell<EngineCommand, EngineResponse, EngineEvent, EnginePrivilegedState>>>,
     event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
 }
 
 impl EngineEventHandler {
-    pub fn new(optional_shell: Option<Arc<InterProcessPrivilegedShell<EngineCommand, EngineResponse, EngineEvent, EngineExecutionContext>>>) -> Self {
+    pub fn new(optional_shell: Option<Arc<InterProcessPrivilegedShell<EngineCommand, EngineResponse, EngineEvent, EnginePrivilegedState>>>) -> Self {
         Self {
             optional_shell,
             event_senders: Arc::new(RwLock::new(Vec::new())),
@@ -25,7 +25,7 @@ impl EngineEventHandler {
 
     pub fn initialize(
         &self,
-        execution_context: &Arc<EngineExecutionContext>,
+        execution_context: &Arc<EnginePrivilegedState>,
     ) {
         if let Some(shell) = self.optional_shell.as_ref() {
             if let Err(err) = shell.initialize(execution_context) {
