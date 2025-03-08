@@ -1,6 +1,6 @@
-use crate::structures::scanning::scan_compare_type_delta::ScanCompareTypeDelta;
-use crate::structures::scanning::scan_compare_type_immediate::ScanCompareTypeImmediate;
-use crate::structures::scanning::scan_compare_type_relative::ScanCompareTypeRelative;
+use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
+use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
+use crate::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self};
 use std::str::FromStr;

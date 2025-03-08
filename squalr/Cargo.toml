@@ -9,14 +9,6 @@ edition = "2024"
 slint-mvvm = { path = "../slint-mvvm" }
 slint-mvvm-macros = { path = "../slint-mvvm-macros" }
 squalr-engine = { path = "../squalr-engine" }
-squalr-engine-architecture = { path = "../squalr-engine-architecture" }
-squalr-engine-common = { path = "../squalr-engine-common" }
-squalr-engine-debuggers = { path = "../squalr-engine-debuggers" }
-squalr-engine-memory = { path = "../squalr-engine-memory" }
-squalr-engine-processes = { path = "../squalr-engine-processes" }
-squalr-engine-projects = { path = "../squalr-engine-projects" }
-squalr-engine-scanning = { path = "../squalr-engine-scanning" }
-squalr-engine-scripting = { path = "../squalr-engine-scripting" }
 squalr-gui = { path = "../squalr-gui" }
 log = ">=0.4.26"
 slint = { version = ">=1.9.2", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "renderer-software", "std"] }

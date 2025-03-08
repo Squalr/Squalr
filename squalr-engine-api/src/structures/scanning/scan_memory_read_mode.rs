@@ -2,26 +2,26 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
-pub enum MemoryReadMode {
+pub enum ScanMemoryReadMode {
     Skip,
     ReadBeforeScan,
     ReadInterleavedWithScan,
 }
 
-impl Default for MemoryReadMode {
+impl Default for ScanMemoryReadMode {
     fn default() -> Self {
-        MemoryReadMode::ReadBeforeScan
+        ScanMemoryReadMode::ReadBeforeScan
     }
 }
 
-impl FromStr for MemoryReadMode {
+impl FromStr for ScanMemoryReadMode {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         match string {
-            "s" => Ok(MemoryReadMode::Skip),
-            "b" => Ok(MemoryReadMode::ReadBeforeScan),
-            "i" => Ok(MemoryReadMode::ReadInterleavedWithScan),
+            "s" => Ok(ScanMemoryReadMode::Skip),
+            "b" => Ok(ScanMemoryReadMode::ReadBeforeScan),
+            "i" => Ok(ScanMemoryReadMode::ReadInterleavedWithScan),
             _ => Err("Unknown memory reading mode.".to_string()),
         }
     }

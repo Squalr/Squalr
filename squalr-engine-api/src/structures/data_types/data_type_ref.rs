@@ -1,3 +1,4 @@
+use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnDelta;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnImmediate;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnRelative;
@@ -5,10 +6,9 @@ use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::generics::vector_comparer::VectorComparer;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::data_values::data_value::DataValue;
-use crate::structures::registries::data_types::data_type_registry::DataTypeRegistry;
-use crate::structures::scanning::scan_compare_type_delta::ScanCompareTypeDelta;
-use crate::structures::scanning::scan_compare_type_immediate::ScanCompareTypeImmediate;
-use crate::structures::scanning::scan_compare_type_relative::ScanCompareTypeRelative;
+use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
+use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
+use crate::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
 use crate::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use crate::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use serde::{Deserialize, Serialize};

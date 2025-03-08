@@ -1,4 +1,5 @@
-use crate::structures::{data_types::data_type_ref::DataTypeRef, registries::data_types::data_type_registry::DataTypeRegistry};
+use crate::registries::data_types::data_type_registry::DataTypeRegistry;
+use crate::structures::data_types::data_type_ref::DataTypeRef;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{self, Debug},

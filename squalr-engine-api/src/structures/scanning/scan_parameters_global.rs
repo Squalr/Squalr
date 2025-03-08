@@ -1,8 +1,8 @@
-use crate::structures::scanning::memory_read_mode::MemoryReadMode;
+use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
+use crate::structures::scanning::scan_memory_read_mode::ScanMemoryReadMode;
 use crate::structures::{
     data_types::{data_type_ref::DataTypeRef, floating_point_tolerance::FloatingPointTolerance},
     data_values::{anonymous_value::AnonymousValue, data_value::DataValue},
-    scanning::scan_compare_type::ScanCompareType,
 };
 
 /// Represents the global scan parameters that are used by all current scans, regardless of `DataType`.
@@ -11,7 +11,7 @@ pub struct ScanParametersGlobal {
     compare_type: ScanCompareType,
     compare_immediate: Option<AnonymousValue>,
     floating_point_tolerance: FloatingPointTolerance,
-    memory_read_mode: MemoryReadMode,
+    memory_read_mode: ScanMemoryReadMode,
 }
 
 impl ScanParametersGlobal {
@@ -19,7 +19,7 @@ impl ScanParametersGlobal {
         compare_type: ScanCompareType,
         value: Option<AnonymousValue>,
         floating_point_tolerance: FloatingPointTolerance,
-        memory_read_mode: MemoryReadMode,
+        memory_read_mode: ScanMemoryReadMode,
     ) -> Self {
         Self {
             compare_type,
@@ -48,7 +48,7 @@ impl ScanParametersGlobal {
         self.floating_point_tolerance
     }
 
-    pub fn get_memory_read_mode(&self) -> MemoryReadMode {
+    pub fn get_memory_read_mode(&self) -> ScanMemoryReadMode {
         self.memory_read_mode
     }
 

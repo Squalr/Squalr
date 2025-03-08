@@ -4263,14 +4263,6 @@ dependencies = [
  "slint-mvvm",
  "slint-mvvm-macros",
  "squalr-engine",
- "squalr-engine-architecture",
- "squalr-engine-common",
- "squalr-engine-debuggers",
- "squalr-engine-memory",
- "squalr-engine-processes",
- "squalr-engine-projects",
- "squalr-engine-scanning",
- "squalr-engine-scripting",
  "squalr-gui",
  "winresource",
 ]
@@ -4373,9 +4365,8 @@ dependencies = [
 name = "squalr-engine-debuggers"
 version = "0.1.0"
 dependencies = [
- "squalr-engine-architecture",
+ "squalr-engine-api",
  "squalr-engine-common",
- "squalr-engine-memory",
 ]
 
 [[package]]
@@ -4390,7 +4381,6 @@ dependencies = [
  "serde_json",
  "squalr-engine-api",
  "squalr-engine-common",
- "squalr-engine-processes",
  "sysinfo 0.31.2",
  "windows-sys 0.59.0",
 ]
@@ -4415,11 +4405,7 @@ dependencies = [
 name = "squalr-engine-projects"
 version = "0.1.0"
 dependencies = [
- "squalr-engine-architecture",
- "squalr-engine-common",
- "squalr-engine-memory",
- "squalr-engine-scanning",
- "squalr-engine-scripting",
+ "squalr-engine-api",
 ]
 
 [[package]]
@@ -4438,10 +4424,8 @@ dependencies = [
  "serde_json",
  "smallvec",
  "squalr-engine-api",
- "squalr-engine-architecture",
  "squalr-engine-common",
  "squalr-engine-memory",
- "squalr-engine-processes",
  "sysinfo 0.31.2",
 ]
 
