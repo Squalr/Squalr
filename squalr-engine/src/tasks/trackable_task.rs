@@ -21,7 +21,7 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
         name: String,
         task_identifier: Option<String>,
     ) -> Arc<Self> {
-        let task_identifier = task_identifier.unwrap_or_else(|| Uuid::new_v4().to_string());
+        let task_identifier = task_identifier.unwrap_or(Uuid::new_v4().to_string());
         let (progress_sender, progress_receiver) = crossbeam_channel::unbounded();
 
         let task = Arc::new(TrackableTask {
