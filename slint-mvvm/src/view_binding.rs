@@ -42,8 +42,8 @@ impl<T: 'static + ComponentHandle> ViewBinding<T> {
             }
             None => {
                 // If the immediate upgrade fails, schedule in the event loop
-                if let Err(e) = handle.upgrade_in_event_loop(move |view| f(&view, view_binding)) {
-                    log::error!("Failed to upgrade view in event loop: {}", e);
+                if let Err(err) = handle.upgrade_in_event_loop(move |view| f(&view, view_binding)) {
+                    log::error!("Failed to upgrade view in event loop: {}", err);
                 }
             }
         }

@@ -1,7 +1,6 @@
-use crate::pipes::inter_process_pipe_unidirectional::InterProcessPipeUnidirectional;
-use serde::de::DeserializeOwned;
+use crate::engine_bindings::interprocess::pipes::interprocess_pipe_unidirectional::InterProcessPipeUnidirectional;
 use serde::Serialize;
-use std::io;
+use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
 pub struct InterProcessPipeBidirectional {
@@ -10,13 +9,13 @@ pub struct InterProcessPipeBidirectional {
 }
 
 impl InterProcessPipeBidirectional {
-    pub fn create() -> io::Result<Self> {
+    pub fn create() -> Result<Self, String> {
         let pipe_receive = InterProcessPipeUnidirectional::create(true)?;
         let pipe_send = InterProcessPipeUnidirectional::create(false)?;
         Ok(Self { pipe_receive, pipe_send })
     }
 
-    pub fn bind() -> io::Result<Self> {
+    pub fn bind() -> Result<Self, String> {
         let pipe_send = InterProcessPipeUnidirectional::bind(true)?;
         let pipe_receive = InterProcessPipeUnidirectional::bind(false)?;
         Ok(Self { pipe_receive, pipe_send })
@@ -26,11 +25,11 @@ impl InterProcessPipeBidirectional {
         &self,
         value: T,
         request_id: Uuid,
-    ) -> io::Result<()> {
+    ) -> Result<(), String> {
         self.pipe_send.ipc_send(value, request_id)
     }
 
-    pub fn receive<T: DeserializeOwned>(&self) -> io::Result<(T, Uuid)> {
+    pub fn receive<T: DeserializeOwned>(&self) -> Result<(T, Uuid), String> {
         self.pipe_receive.ipc_receive()
     }
 }

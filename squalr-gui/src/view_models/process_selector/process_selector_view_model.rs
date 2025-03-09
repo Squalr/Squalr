@@ -76,6 +76,7 @@ impl ProcessSelectorViewModel {
     ) {
         let engine_execution_context = self.engine_execution_context.clone();
 
+        /*
         thread::spawn(move || match engine_execution_context.subscribe_to_engine_events() {
             Ok(receiver) => {
                 while let Ok(engine_event) = receiver.recv() {
@@ -92,7 +93,7 @@ impl ProcessSelectorViewModel {
             Err(err) => {
                 log::error!("Failed to subscribe to engine process events: {}", err);
             }
-        });
+        }); */
     }
 
     fn refresh_opened_process(

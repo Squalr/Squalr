@@ -41,9 +41,9 @@ impl ValueCollector {
 
         let mut snapshot = match snapshot.write() {
             Ok(guard) => guard,
-            Err(e) => {
+            Err(err) => {
                 if with_logging {
-                    log::error!("Failed to acquire write lock on snapshot: {}", e);
+                    log::error!("Failed to acquire write lock on snapshot: {}", err);
                 }
 
                 return;

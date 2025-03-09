@@ -161,8 +161,8 @@ impl DockRootViewModel {
     }
 
     fn on_close() {
-        if let Err(e) = slint::quit_event_loop() {
-            log::error!("Failed to quit event loop: {}", e);
+        if let Err(err) = slint::quit_event_loop() {
+            log::error!("Failed to quit event loop: {}", err);
         }
     }
 
@@ -428,8 +428,8 @@ impl DockRootViewModel {
             // Acquire the read lock once for all operations.
             let layout_guard = match docking_manager.read() {
                 Ok(guard) => guard,
-                Err(e) => {
-                    log::error!("Failed to acquire read lock on docking_manager: {}", e);
+                Err(err) => {
+                    log::error!("Failed to acquire read lock on docking_manager: {}", err);
                     return;
                 }
             };

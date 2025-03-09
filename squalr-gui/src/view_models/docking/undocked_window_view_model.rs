@@ -65,8 +65,8 @@ impl UndockedWindowViewModel {
     }
 
     fn on_close() {
-        if let Err(e) = slint::quit_event_loop() {
-            log::error!("Failed to quit event loop: {}", e);
+        if let Err(err) = slint::quit_event_loop() {
+            log::error!("Failed to quit event loop: {}", err);
         }
     }
 

@@ -1,5 +1,4 @@
-use crate::engine_privileged_state::EnginePrivilegedState;
-use interprocess_shell::interprocess_ingress::ExecutableRequest;
+use crate::{engine_bindings::engine_ingress::ExecutableRequest, engine_privileged_state::EnginePrivilegedState};
 use serde::{Serialize, de::DeserializeOwned};
 use squalr_engine_api::commands::{engine_command::EngineCommand, engine_response::EngineResponse};
 use std::sync::Arc;

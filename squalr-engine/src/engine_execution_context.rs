@@ -1,43 +1,56 @@
+use crate::engine_bindings::engine_unprivileged_bindings::EngineUnprivilegedBindings;
+use crate::engine_bindings::interprocess::interprocess_unprivileged_host::InterProcessUnprivilegedHost;
+use crate::engine_bindings::intraprocess::intraprocess_unprivileged_interface::IntraProcessUnprivilegedInterface;
 use crate::engine_mode::EngineMode;
 use crate::engine_privileged_state::EnginePrivilegedState;
-use crate::events::engine_event_handler::EngineEventHandler;
-use crossbeam_channel::Receiver;
-use interprocess_shell::interprocess_egress::InterprocessEgress;
-use interprocess_shell::interprocess_ingress::{ExecutableRequest, InterprocessIngress};
-use interprocess_shell::shell::inter_process_unprivileged_host::InterProcessUnprivilegedHost;
+use crossbeam_channel::{Receiver, Sender};
 use squalr_engine_api::commands::engine_response::EngineResponse;
 use squalr_engine_api::{commands::engine_command::EngineCommand, events::engine_event::EngineEvent};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Exposes the ability to send commands to the engine, and handle events from the engine.
 pub struct EngineExecutionContext {
-    /// The dispatcher that sends commands to the engine.
-    ipc_host: Option<Arc<InterProcessUnprivilegedHost<EngineCommand, EngineResponse, EngineEvent, EnginePrivilegedState>>>,
+    /// The bindings that allow sending commands to the engine.
+    engine_bindings: Arc<RwLock<dyn EngineUnprivilegedBindings>>,
 
-    engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
-
-    /// The event handler for listening to events emitted from the engine.
-    event_handler: EngineEventHandler,
+    event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
 }
 
 impl EngineExecutionContext {
-    pub fn new(
-        engine_mode: EngineMode,
-        engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
-    ) -> Arc<Self> {
-        let mut optional_host = None;
+    pub fn new(engine_mode: EngineMode) -> Arc<Self> {
+        let event_handler = |engine_event| {
+            // TODO
+        };
 
-        if engine_mode == EngineMode::UnprivilegedHost {
-            optional_host = Some(Arc::new(InterProcessUnprivilegedHost::new()));
-        }
+        let engine_bindings: Arc<RwLock<dyn EngineUnprivilegedBindings>> = match engine_mode {
+            EngineMode::Standalone => Arc::new(RwLock::new(IntraProcessUnprivilegedInterface::new(event_handler))),
+            EngineMode::PrivilegedShell => unreachable!("Unprivileged execution context should never be created from a privileged shell."),
+            EngineMode::UnprivilegedHost => Arc::new(RwLock::new(InterProcessUnprivilegedHost::new(event_handler))),
+        };
 
         let execution_context = Arc::new(EngineExecutionContext {
-            ipc_host: optional_host,
-            engine_privileged_state,
-            event_handler: EngineEventHandler::new(None),
+            engine_bindings,
+            event_senders: Arc::new(RwLock::new(vec![])),
         });
 
         execution_context
+    }
+
+    pub fn initialize(
+        &self,
+        engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
+        engine_execution_context: &Option<Arc<EngineExecutionContext>>,
+    ) {
+        match self.engine_bindings.write() {
+            Ok(mut engine_bindings) => {
+                if let Err(err) = engine_bindings.initialize(engine_privileged_state, engine_execution_context) {
+                    log::error!("Error initializing unprivileged engine bindings: {}", err);
+                }
+            }
+            Err(err) => {
+                log::error!("Failed to acquire unprivileged engine bindings write lock: {}", err);
+            }
+        }
     }
 
     /// Dispatches a command to the engine. Direct usage is generally not advised unless you know what you are doing.
@@ -50,31 +63,24 @@ impl EngineExecutionContext {
     ) where
         F: FnOnce(EngineResponse) + Send + Sync + 'static,
     {
-        if let Some(engine_privileged_state) = &self.engine_privileged_state {
-            // For a standalone engine (the common case), we just immediately execute the command with a callback.
-            callback(command.execute(engine_privileged_state));
-        } else if let Some(host) = &self.ipc_host {
-            // For an inter-process engine (ie for Android), we dispatch the command to the priviliged root shell.
-            if let Err(err) = host.dispatch_command(
-                InterprocessIngress::EngineCommand(command),
-                move |interprocess_response| match interprocess_response {
-                    InterprocessEgress::EngineResponse(engine_response) => {
-                        callback(engine_response);
-                    }
-                    _ => {
-                        log::error!("Unexpected response received from engine!");
-                    }
-                },
-            ) {
-                log::error!("Failed to dispatch command: {}", err);
+        match self.engine_bindings.read() {
+            Ok(engine_bindings) => {
+                if let Err(err) = engine_bindings.dispatch_command(command, Box::new(callback)) {
+                    log::error!("Error dispatching engine command: {}", err);
+                }
             }
-        } else {
-            log::error!("Unable to dispatch engine command! Engine has no privileged state, nor IPC information.");
+            Err(err) => {
+                log::error!("Failed to acquire unprivileged engine bindings read lock: {}", err);
+            }
         }
     }
 
-    /// Emits an event from the engine. Direct usage is not advised except by the engine code itself.
+    /// Creates a receiver, allowing the caller to listen to all engine events.
     pub fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
-        self.event_handler.subscribe()
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        let mut sender_lock = self.event_senders.write().map_err(|err| err.to_string())?;
+        sender_lock.push(sender);
+
+        Ok(receiver)
     }
 }

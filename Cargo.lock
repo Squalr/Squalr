@@ -2300,17 +2300,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "interprocess-shell"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "interprocess",
- "log",
- "serde",
- "uuid",
-]
-
-[[package]]
 name = "io-lifetimes"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4309,8 +4298,9 @@ dependencies = [
 name = "squalr-engine"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "crossbeam-channel",
- "interprocess-shell",
+ "interprocess",
  "log",
  "serde",
  "squalr-engine-api",
