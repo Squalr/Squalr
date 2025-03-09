@@ -1,12 +1,8 @@
 use serde::{Deserialize, Serialize};
+use squalr_engine_api::{commands::engine_response::EngineResponse, events::engine_event::EngineEvent};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum InterprocessEgress<ResponseType, EventType> {
-    EngineResponse(ResponseType),
-    EngineEvent(EventType),
-}
-
-pub trait TypedEngineResponse<ResponseType>: Sized {
-    fn to_engine_response(&self) -> ResponseType;
-    fn from_engine_response(response: ResponseType) -> Result<Self, ResponseType>;
+pub enum EngineEgress {
+    EngineResponse(EngineResponse),
+    EngineEvent(EngineEvent),
 }

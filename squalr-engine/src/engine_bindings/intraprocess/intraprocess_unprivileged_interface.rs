@@ -2,6 +2,7 @@ use crate::engine_bindings::engine_ingress::ExecutableRequest;
 use crate::engine_bindings::engine_unprivileged_bindings::EngineUnprivilegedBindings;
 use crate::engine_execution_context::EngineExecutionContext;
 use crate::engine_privileged_state::EnginePrivilegedState;
+use crossbeam_channel::Receiver;
 use squalr_engine_api::commands::engine_command::EngineCommand;
 use squalr_engine_api::commands::engine_response::EngineResponse;
 use squalr_engine_api::events::engine_event::EngineEvent;
@@ -37,13 +38,19 @@ impl EngineUnprivilegedBindings for IntraProcessUnprivilegedInterface {
 
         Ok(())
     }
+
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
+        // If we are in intraprocess mode, then we can just directly subscribe to the engine events.
+        if let Some(engine_privileged_state) = &self.engine_privileged_state {
+            engine_privileged_state.subscribe_to_engine_events()
+        } else {
+            Err("Failed to subscribe to engine events.".to_string())
+        }
+    }
 }
 
 impl IntraProcessUnprivilegedInterface {
-    pub fn new<F>(callback: F) -> IntraProcessUnprivilegedInterface
-    where
-        F: Fn(EngineEvent) + Send + Sync + 'static,
-    {
+    pub fn new() -> IntraProcessUnprivilegedInterface {
         let instance = IntraProcessUnprivilegedInterface { engine_privileged_state: None };
 
         instance

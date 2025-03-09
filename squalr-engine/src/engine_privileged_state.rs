@@ -5,6 +5,7 @@ use crate::engine_bindings::{
 use crate::engine_execution_context::EngineExecutionContext;
 use crate::engine_mode::EngineMode;
 use crate::tasks::trackable_task_manager::TrackableTaskManager;
+use crossbeam_channel::Receiver;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use squalr_engine_api::events::process::process_changed_event::ProcessChangedEvent;
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
@@ -76,7 +77,7 @@ impl EnginePrivilegedState {
             log::info!("Opened process: {}, pid: {}", process_info.name, process_info.process_id);
             *process = Some(process_info.clone());
 
-            self.dispatch_event(EngineEvent::Process(ProcessChangedEvent {
+            self.emit_event(EngineEvent::Process(ProcessChangedEvent {
                 process_info: Some(process_info),
             }));
         }
@@ -87,7 +88,7 @@ impl EnginePrivilegedState {
         if let Ok(mut process) = self.opened_process.write() {
             *process = None;
             log::info!("Process closed");
-            self.dispatch_event(EngineEvent::Process(ProcessChangedEvent { process_info: None }));
+            self.emit_event(EngineEvent::Process(ProcessChangedEvent { process_info: None }));
         }
     }
 
@@ -108,20 +109,28 @@ impl EnginePrivilegedState {
     }
 
     /// Dispatches an event from the engine.
-    pub fn dispatch_event(
+    pub fn emit_event(
         &self,
         event: EngineEvent,
     ) {
-        /*
-        if let Some(shell) = &self.optional_shell {
-            let _ = shell.dispatch_event(InterprocessEgress::EngineEvent(event.clone()));
-        } else {
-            if let Ok(senders) = self.event_senders.read() {
-                for sender in senders.iter() {
-                    let _ = sender.send(event.clone());
+        match self.engine_bindings.read() {
+            Ok(engine_bindings) => {
+                if let Err(err) = engine_bindings.emit_event(event) {
+                    log::error!("Error dispatching engine event: {}", err);
                 }
             }
-        }*/
+            Err(err) => {
+                log::error!("Failed to acquire privileged engine bindings read lock: {}", err);
+            }
+        }
+    }
+
+    /// Dispatches an event from the engine.
+    pub fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
+        match self.engine_bindings.read() {
+            Ok(engine_bindings) => engine_bindings.subscribe_to_engine_events(),
+            Err(err) => Err(format!("Failed to acquire privileged engine bindings read lock: {}", err)),
+        }
     }
 
     /// Registers a task handle to be tracked by the engine task manager.

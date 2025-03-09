@@ -1,8 +1,10 @@
-use crate::engine_bindings::engine_egress::InterprocessEgress;
+use crate::engine_bindings::engine_egress::EngineEgress;
 use crate::engine_bindings::engine_unprivileged_bindings::EngineUnprivilegedBindings;
 use crate::engine_bindings::interprocess::pipes::interprocess_pipe_bidirectional::InterProcessPipeBidirectional;
 use crate::engine_execution_context::EngineExecutionContext;
 use crate::engine_privileged_state::EnginePrivilegedState;
+use crossbeam_channel::Receiver;
+use crossbeam_channel::Sender;
 use squalr_engine_api::commands::engine_command::EngineCommand;
 use squalr_engine_api::commands::engine_response::EngineResponse;
 use squalr_engine_api::events::engine_event::EngineEvent;
@@ -26,8 +28,8 @@ pub struct InterProcessUnprivilegedHost {
     /// A map of outgoing requests that are awaiting an engine response.
     request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(EngineResponse) + Send + Sync>>>>,
 
-    // The callback function to handle all interprocess events.
-    event_handler: Arc<dyn Fn(EngineEvent) + Send + Sync>,
+    /// The list of subscribers to which we send engine events, after having received them from the engine.
+    event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
 }
 
 impl EngineUnprivilegedBindings for InterProcessUnprivilegedHost {
@@ -62,18 +64,23 @@ impl EngineUnprivilegedBindings for InterProcessUnprivilegedHost {
 
         Err("Failed to dispatch command.".to_string())
     }
+
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        let mut sender_lock = self.event_senders.write().map_err(|err| err.to_string())?;
+        sender_lock.push(sender);
+
+        Ok(receiver)
+    }
 }
 
 impl InterProcessUnprivilegedHost {
-    pub fn new<F>(callback: F) -> InterProcessUnprivilegedHost
-    where
-        F: Fn(EngineEvent) + Send + Sync + 'static,
-    {
+    pub fn new() -> InterProcessUnprivilegedHost {
         let instance = InterProcessUnprivilegedHost {
             privileged_shell_process: Arc::new(RwLock::new(None)),
             ipc_connection: Arc::new(RwLock::new(None)),
             request_handles: Arc::new(Mutex::new(HashMap::new())),
-            event_handler: Arc::new(callback),
+            event_senders: Arc::new(RwLock::new(vec![])),
         };
 
         instance.initialize();
@@ -85,7 +92,7 @@ impl InterProcessUnprivilegedHost {
         let privileged_shell_process = self.privileged_shell_process.clone();
         let ipc_connection = self.ipc_connection.clone();
         let request_handles = self.request_handles.clone();
-        let event_handler = self.event_handler.clone();
+        let event_senders = self.event_senders.clone();
 
         thread::spawn(move || {
             if let Err(err) = Self::spawn_privileged_cli(privileged_shell_process) {
@@ -96,7 +103,7 @@ impl InterProcessUnprivilegedHost {
                 log::error!("Failed to bind to inter process pipe: {}", err);
             }
 
-            Self::listen_for_shell_responses(event_handler, request_handles, ipc_connection);
+            Self::listen_for_shell_responses(request_handles, event_senders, ipc_connection);
         });
     }
 
@@ -113,30 +120,34 @@ impl InterProcessUnprivilegedHost {
     }
 
     fn handle_engine_event(
-        event_handler: &Arc<dyn Fn(EngineEvent) + Send + Sync>,
-        engine_response: EngineEvent,
+        event_senders: &Arc<RwLock<Vec<Sender<EngineEvent>>>>,
+        engine_event: EngineEvent,
     ) {
-        event_handler(engine_response);
+        if let Ok(senders) = event_senders.read() {
+            for sender in senders.iter() {
+                if let Err(err) = sender.send(engine_event.clone()) {
+                    log::error!("Error broadcasting received engine event: {}", err);
+                }
+            }
+        }
     }
 
     fn listen_for_shell_responses(
-        event_handler: Arc<dyn Fn(EngineEvent) + Send + Sync>,
         request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(EngineResponse) + Send + Sync>>>>,
+        event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
         ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>,
     ) {
         let request_handles = request_handles.clone();
-        let event_handler = event_handler.clone();
+        let event_senders = event_senders.clone();
 
         thread::spawn(move || {
             loop {
                 if let Ok(ipc_connection) = ipc_connection.read() {
                     if let Some(ipc_connection) = ipc_connection.as_ref() {
-                        match ipc_connection.receive::<InterprocessEgress<EngineResponse, EngineEvent>>() {
+                        match ipc_connection.receive::<EngineEgress>() {
                             Ok((interprocess_egress, request_id)) => match interprocess_egress {
-                                InterprocessEgress::EngineResponse(engine_response) => {
-                                    Self::handle_engine_response(&request_handles, engine_response, request_id)
-                                }
-                                InterprocessEgress::EngineEvent(engine_event) => Self::handle_engine_event(&event_handler, engine_event),
+                                EngineEgress::EngineResponse(engine_response) => Self::handle_engine_response(&request_handles, engine_response, request_id),
+                                EngineEgress::EngineEvent(engine_event) => Self::handle_engine_event(&event_senders, engine_event),
                             },
                             Err(_err) => {
                                 std::process::exit(1);

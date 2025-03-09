@@ -3,35 +3,26 @@ use crate::engine_bindings::interprocess::interprocess_unprivileged_host::InterP
 use crate::engine_bindings::intraprocess::intraprocess_unprivileged_interface::IntraProcessUnprivilegedInterface;
 use crate::engine_mode::EngineMode;
 use crate::engine_privileged_state::EnginePrivilegedState;
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::Receiver;
 use squalr_engine_api::commands::engine_response::EngineResponse;
 use squalr_engine_api::{commands::engine_command::EngineCommand, events::engine_event::EngineEvent};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
 /// Exposes the ability to send commands to the engine, and handle events from the engine.
 pub struct EngineExecutionContext {
     /// The bindings that allow sending commands to the engine.
     engine_bindings: Arc<RwLock<dyn EngineUnprivilegedBindings>>,
-
-    event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
 }
 
 impl EngineExecutionContext {
     pub fn new(engine_mode: EngineMode) -> Arc<Self> {
-        let event_handler = |engine_event| {
-            // TODO
-        };
-
         let engine_bindings: Arc<RwLock<dyn EngineUnprivilegedBindings>> = match engine_mode {
-            EngineMode::Standalone => Arc::new(RwLock::new(IntraProcessUnprivilegedInterface::new(event_handler))),
+            EngineMode::Standalone => Arc::new(RwLock::new(IntraProcessUnprivilegedInterface::new())),
             EngineMode::PrivilegedShell => unreachable!("Unprivileged execution context should never be created from a privileged shell."),
-            EngineMode::UnprivilegedHost => Arc::new(RwLock::new(InterProcessUnprivilegedHost::new(event_handler))),
+            EngineMode::UnprivilegedHost => Arc::new(RwLock::new(InterProcessUnprivilegedHost::new())),
         };
 
-        let execution_context = Arc::new(EngineExecutionContext {
-            engine_bindings,
-            event_senders: Arc::new(RwLock::new(vec![])),
-        });
+        let execution_context = Arc::new(EngineExecutionContext { engine_bindings });
 
         execution_context
     }
@@ -70,17 +61,18 @@ impl EngineExecutionContext {
                 }
             }
             Err(err) => {
-                log::error!("Failed to acquire unprivileged engine bindings read lock: {}", err);
+                log::error!("Failed to acquire unprivileged engine bindings read lock for commands: {}", err);
             }
         }
     }
 
     /// Creates a receiver, allowing the caller to listen to all engine events.
+    /// JIRA: Instead of subscribing to every single event, why not have this class serve as a middle man?
+    /// We can then allow subscribing to particular events, then dispatching those to where they need go.
     pub fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
-        let (sender, receiver) = crossbeam_channel::unbounded();
-        let mut sender_lock = self.event_senders.write().map_err(|err| err.to_string())?;
-        sender_lock.push(sender);
-
-        Ok(receiver)
+        match self.engine_bindings.read() {
+            Ok(engine_bindings) => engine_bindings.subscribe_to_engine_events(),
+            Err(err) => Err(format!("Failed to acquire unprivileged engine bindings read lock for events: {}", err)),
+        }
     }
 }

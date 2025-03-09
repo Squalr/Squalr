@@ -12,7 +12,7 @@ pub trait EngineCommandExecutor: Clone + Serialize + DeserializeOwned {
     ) -> Self::ResponseType;
 }
 
-impl ExecutableRequest<EngineResponse, EnginePrivilegedState> for EngineCommand {
+impl ExecutableRequest for EngineCommand {
     fn execute(
         &self,
         execution_context: &Arc<EnginePrivilegedState>,
