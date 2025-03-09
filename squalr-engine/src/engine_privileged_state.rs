@@ -3,8 +3,8 @@ use crate::engine_bindings::{engine_priviliged_bindings::EnginePrivilegedBinding
 use crate::engine_mode::EngineMode;
 use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
-use squalr_engine_api::events::engine_event::EngineEvent;
-use squalr_engine_api::events::process::process_changed_event::ProcessChangedEvent;
+use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
+use squalr_engine_api::events::process::changed::process_changed_event::ProcessChangedEvent;
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::tasks::engine_trackable_task_handle::EngineTrackableTaskHandle;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
@@ -73,9 +73,9 @@ impl EnginePrivilegedState {
             log::info!("Opened process: {}, pid: {}", process_info.name, process_info.process_id);
             *process = Some(process_info.clone());
 
-            self.emit_event(EngineEvent::Process(ProcessChangedEvent {
+            self.emit_event(ProcessChangedEvent {
                 process_info: Some(process_info),
-            }));
+            });
         }
     }
 
@@ -84,7 +84,7 @@ impl EnginePrivilegedState {
         if let Ok(mut process) = self.opened_process.write() {
             *process = None;
             log::info!("Process closed");
-            self.emit_event(EngineEvent::Process(ProcessChangedEvent { process_info: None }));
+            self.emit_event(ProcessChangedEvent { process_info: None });
         }
     }
 
@@ -105,13 +105,15 @@ impl EnginePrivilegedState {
     }
 
     /// Dispatches an event from the engine.
-    pub fn emit_event(
+    pub fn emit_event<F>(
         &self,
-        event: EngineEvent,
-    ) {
+        engine_event: F,
+    ) where
+        F: EngineEventRequest,
+    {
         match self.engine_bindings.read() {
             Ok(engine_bindings) => {
-                if let Err(err) = engine_bindings.emit_event(event) {
+                if let Err(err) = engine_bindings.emit_event(engine_event.to_engine_event()) {
                     log::error!("Error dispatching engine event: {}", err);
                 }
             }

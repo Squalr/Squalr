@@ -1,5 +1,5 @@
 use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_request::EngineRequest;
+use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::scan::execute::scan_execute_response::ScanExecuteResponse;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
@@ -18,7 +18,7 @@ pub struct ScanExecuteRequest {
     pub memory_read_mode: ScanMemoryReadMode,
 }
 
-impl EngineRequest for ScanExecuteRequest {
+impl EngineCommandRequest for ScanExecuteRequest {
     type ResponseType = ScanExecuteResponse;
 
     fn to_engine_command(&self) -> EngineCommand {

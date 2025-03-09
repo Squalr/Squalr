@@ -1,4 +1,4 @@
-use crate::command_executors::engine_request_executor::EngineRequestExecutor;
+use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::new::scan_new_response::ScanNewResponse;
@@ -7,13 +7,13 @@ use squalr_engine_memory::memory_queryer::page_retrieval_mode::PageRetrievalMode
 use squalr_engine_scanning::snapshots::snapshot_region::SnapshotRegion;
 use std::sync::Arc;
 
-impl EngineRequestExecutor for ScanNewRequest {
+impl EngineCommandRequestExecutor for ScanNewRequest {
     type ResponseType = ScanNewResponse;
 
     fn execute(
         &self,
         execution_context: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineRequestExecutor>::ResponseType {
+    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         let scan_parameters_local = self.scan_parameters_local.clone();
 
         let opened_process_info = execution_context.get_opened_process();

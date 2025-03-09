@@ -11,7 +11,7 @@ use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
-use squalr_engine::command_executors::engine_request_executor::EngineRequestExecutor;
+use squalr_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::process::list::process_list_request::ProcessListRequest;
 use squalr_engine_api::commands::process::open::process_open_request::ProcessOpenRequest;

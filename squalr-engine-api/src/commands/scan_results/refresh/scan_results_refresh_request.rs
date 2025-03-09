@@ -1,5 +1,5 @@
 use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_request::EngineRequest;
+use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::scan_results::refresh::scan_results_refresh_response::ScanResultsRefreshResponse;
 use crate::commands::scan_results::scan_results_command::ScanResultsCommand;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
@@ -13,7 +13,7 @@ pub struct ScanResultsRefreshRequest {
     pub scan_results: Vec<ScanResultBase>,
 }
 
-impl EngineRequest for ScanResultsRefreshRequest {
+impl EngineCommandRequest for ScanResultsRefreshRequest {
     type ResponseType = ScanResultsRefreshResponse;
 
     fn to_engine_command(&self) -> EngineCommand {

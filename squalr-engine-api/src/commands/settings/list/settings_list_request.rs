@@ -1,7 +1,7 @@
 use crate::commands::settings::list::settings_list_response::SettingsListResponse;
 use crate::commands::settings::settings_command::SettingsCommand;
 use crate::commands::settings::settings_response::SettingsResponse;
-use crate::commands::{engine_command::EngineCommand, engine_request::EngineRequest};
+use crate::commands::{engine_command::EngineCommand, engine_command_request::EngineCommandRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -15,7 +15,7 @@ pub struct SettingsListRequest {
     pub list_all: bool,
 }
 
-impl EngineRequest for SettingsListRequest {
+impl EngineCommandRequest for SettingsListRequest {
     type ResponseType = SettingsListResponse;
 
     fn to_engine_command(&self) -> EngineCommand {

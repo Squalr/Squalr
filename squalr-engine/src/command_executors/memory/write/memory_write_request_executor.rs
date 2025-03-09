@@ -1,4 +1,4 @@
-use crate::command_executors::engine_request_executor::EngineRequestExecutor;
+use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest;
 use squalr_engine_api::commands::memory::write::memory_write_response::MemoryWriteResponse;
@@ -6,13 +6,13 @@ use squalr_engine_memory::memory_writer::MemoryWriter;
 use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
 use std::sync::Arc;
 
-impl EngineRequestExecutor for MemoryWriteRequest {
+impl EngineCommandRequestExecutor for MemoryWriteRequest {
     type ResponseType = MemoryWriteResponse;
 
     fn execute(
         &self,
         execution_context: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineRequestExecutor>::ResponseType {
+    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             /*
             // Log the memory write operation

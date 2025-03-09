@@ -1,5 +1,5 @@
 use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_request::EngineRequest;
+use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::scan_results::list::scan_results_list_response::ScanResultsListResponse;
 use crate::commands::scan_results::scan_results_command::ScanResultsCommand;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
@@ -12,7 +12,7 @@ pub struct ScanResultsListRequest {
     pub page_index: u64,
 }
 
-impl EngineRequest for ScanResultsListRequest {
+impl EngineCommandRequest for ScanResultsListRequest {
     type ResponseType = ScanResultsListResponse;
 
     fn to_engine_command(&self) -> EngineCommand {

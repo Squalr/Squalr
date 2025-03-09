@@ -7,7 +7,7 @@ use crate::commands::settings::settings_response::SettingsResponse;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum EngineResponse {
+pub enum EngineCommandResponse {
     Memory(MemoryResponse),
     Process(ProcessResponse),
     Results(ScanResultsResponse),
@@ -16,7 +16,7 @@ pub enum EngineResponse {
     Settings(SettingsResponse),
 }
 
-pub trait TypedEngineResponse: Sized {
-    fn to_engine_response(&self) -> EngineResponse;
-    fn from_engine_response(response: EngineResponse) -> Result<Self, EngineResponse>;
+pub trait TypedEngineCommandResponse: Sized {
+    fn to_engine_response(&self) -> EngineCommandResponse;
+    fn from_engine_response(response: EngineCommandResponse) -> Result<Self, EngineCommandResponse>;
 }

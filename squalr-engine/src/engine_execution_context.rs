@@ -4,7 +4,7 @@ use crate::engine_bindings::standalone::standalone_unprivileged_interface::Stand
 use crate::engine_mode::EngineMode;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::Receiver;
-use squalr_engine_api::commands::engine_response::EngineResponse;
+use squalr_engine_api::commands::engine_command_response::EngineCommandResponse;
 use squalr_engine_api::{commands::engine_command::EngineCommand, events::engine_event::EngineEvent};
 use std::sync::{Arc, RwLock};
 
@@ -48,14 +48,14 @@ impl EngineExecutionContext {
     /// This is only made public to support direct usage by CLIs and other features that need direct access.
     pub fn dispatch_command<F>(
         self: &Arc<Self>,
-        command: EngineCommand,
+        engine_command: EngineCommand,
         callback: F,
     ) where
-        F: FnOnce(EngineResponse) + Send + Sync + 'static,
+        F: FnOnce(EngineCommandResponse) + Send + Sync + 'static,
     {
         match self.engine_bindings.read() {
             Ok(engine_bindings) => {
-                if let Err(err) = engine_bindings.dispatch_command(command, Box::new(callback)) {
+                if let Err(err) = engine_bindings.dispatch_command(engine_command, Box::new(callback)) {
                     log::error!("Error dispatching engine command: {}", err);
                 }
             }

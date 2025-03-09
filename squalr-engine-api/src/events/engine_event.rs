@@ -1,10 +1,13 @@
-use crate::events::process::process_changed_event::ProcessChangedEvent;
-use serde::{Deserialize, Serialize};
-
-use super::trackable_task::trackable_task_event::TrackableTaskEvent;
+use crate::events::process::process_event::ProcessEvent;
+use crate::events::trackable_task::trackable_task_event::TrackableTaskEvent;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EngineEvent {
-    Process(ProcessChangedEvent),
+    Process(ProcessEvent),
     TrackableTask(TrackableTaskEvent),
+}
+
+pub trait EngineEventRequest: Clone + Serialize + DeserializeOwned {
+    fn to_engine_event(&self) -> EngineEvent;
 }

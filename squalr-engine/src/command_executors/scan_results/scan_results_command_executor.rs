@@ -1,12 +1,12 @@
 use crate::command_executors::engine_command_executor::EngineCommandExecutor;
-use crate::command_executors::engine_request_executor::EngineRequestExecutor;
+use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
-use squalr_engine_api::commands::engine_response::{EngineResponse, TypedEngineResponse};
+use squalr_engine_api::commands::engine_command_response::{EngineCommandResponse, TypedEngineCommandResponse};
 use squalr_engine_api::commands::scan_results::scan_results_command::ScanResultsCommand;
 use std::sync::Arc;
 
 impl EngineCommandExecutor for ScanResultsCommand {
-    type ResponseType = EngineResponse;
+    type ResponseType = EngineCommandResponse;
 
     fn execute(
         &self,

@@ -1,4 +1,4 @@
-use crate::command_executors::engine_request_executor::EngineRequestExecutor;
+use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::process::open::process_open_request::ProcessOpenRequest;
 use squalr_engine_api::commands::process::open::process_open_response::ProcessOpenResponse;
@@ -7,13 +7,13 @@ use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use std::sync::Arc;
 use sysinfo::Pid;
 
-impl EngineRequestExecutor for ProcessOpenRequest {
+impl EngineCommandRequestExecutor for ProcessOpenRequest {
     type ResponseType = ProcessOpenResponse;
 
     fn execute(
         &self,
         execution_context: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineRequestExecutor>::ResponseType {
+    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         if self.process_id.is_none() && self.search_name.is_none() {
             log::error!("Error: Neither PID nor search name provided. Cannot open process.");
             return ProcessOpenResponse { opened_process_info: None };

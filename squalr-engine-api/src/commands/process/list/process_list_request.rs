@@ -1,5 +1,5 @@
 use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_request::EngineRequest;
+use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::process::list::process_list_response::ProcessListResponse;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
@@ -20,7 +20,7 @@ pub struct ProcessListRequest {
     pub fetch_icons: bool,
 }
 
-impl EngineRequest for ProcessListRequest {
+impl EngineCommandRequest for ProcessListRequest {
     type ResponseType = ProcessListResponse;
 
     fn to_engine_command(&self) -> EngineCommand {

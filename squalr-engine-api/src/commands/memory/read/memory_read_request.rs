@@ -1,5 +1,5 @@
 use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_request::EngineRequest;
+use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::memory::memory_command::MemoryCommand;
 use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -17,7 +17,7 @@ pub struct MemoryReadRequest {
     // pub value: DynamicStruct,
 }
 
-impl EngineRequest for MemoryReadRequest {
+impl EngineCommandRequest for MemoryReadRequest {
     type ResponseType = MemoryReadResponse;
 
     fn to_engine_command(&self) -> EngineCommand {

@@ -1,5 +1,5 @@
 use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_request::EngineRequest;
+use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::process::close::process_close_response::ProcessCloseResponse;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
@@ -9,7 +9,7 @@ use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProcessCloseRequest {}
 
-impl EngineRequest for ProcessCloseRequest {
+impl EngineCommandRequest for ProcessCloseRequest {
     type ResponseType = ProcessCloseResponse;
 
     fn to_engine_command(&self) -> EngineCommand {

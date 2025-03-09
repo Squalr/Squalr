@@ -1,4 +1,4 @@
-use crate::commands::engine_request::EngineRequest;
+use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::settings::settings_command::SettingsCommand;
 use crate::commands::settings::settings_response::SettingsResponse;
 use crate::commands::{engine_command::EngineCommand, settings::set::settings_set_response::SettingsSetResponse};
@@ -11,7 +11,7 @@ pub struct SettingsSetRequest {
     pub setting_command: String,
 }
 
-impl EngineRequest for SettingsSetRequest {
+impl EngineCommandRequest for SettingsSetRequest {
     type ResponseType = SettingsSetResponse;
 
     fn to_engine_command(&self) -> EngineCommand {

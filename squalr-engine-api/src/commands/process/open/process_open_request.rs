@@ -1,5 +1,5 @@
 use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_request::EngineRequest;
+use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::process::open::process_open_response::ProcessOpenResponse;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
@@ -16,7 +16,7 @@ pub struct ProcessOpenRequest {
     pub match_case: bool,
 }
 
-impl EngineRequest for ProcessOpenRequest {
+impl EngineCommandRequest for ProcessOpenRequest {
     type ResponseType = ProcessOpenResponse;
 
     fn to_engine_command(&self) -> EngineCommand {

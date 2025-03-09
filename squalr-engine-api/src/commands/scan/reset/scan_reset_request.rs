@@ -1,4 +1,4 @@
-use crate::commands::engine_request::EngineRequest;
+use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::scan::reset::scan_reset_response::ScanResetResponse;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::{engine_command::EngineCommand, scan::scan_command::ScanCommand};
@@ -8,7 +8,7 @@ use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ScanResetRequest {}
 
-impl EngineRequest for ScanResetRequest {
+impl EngineCommandRequest for ScanResetRequest {
     type ResponseType = ScanResetResponse;
 
     fn to_engine_command(&self) -> EngineCommand {

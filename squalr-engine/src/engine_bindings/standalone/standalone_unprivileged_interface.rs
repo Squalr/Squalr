@@ -3,7 +3,7 @@ use crate::engine_bindings::engine_unprivileged_bindings::EngineUnprivilegedBind
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::Receiver;
 use squalr_engine_api::commands::engine_command::EngineCommand;
-use squalr_engine_api::commands::engine_response::EngineResponse;
+use squalr_engine_api::commands::engine_command_response::EngineCommandResponse;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use std::sync::Arc;
 
@@ -30,7 +30,7 @@ impl EngineUnprivilegedBindings for StandaloneUnprivilegedInterface {
     fn dispatch_command(
         &self,
         command: EngineCommand,
-        callback: Box<dyn FnOnce(EngineResponse) + Send + Sync + 'static>,
+        callback: Box<dyn FnOnce(EngineCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), String> {
         if let Some(engine_privileged_state) = &self.engine_privileged_state {
             callback(command.execute(engine_privileged_state));

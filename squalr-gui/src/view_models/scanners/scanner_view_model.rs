@@ -9,7 +9,7 @@ use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
-use squalr_engine::command_executors::engine_request_executor::EngineRequestExecutor;
+use squalr_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest;
 use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecuteRequest;

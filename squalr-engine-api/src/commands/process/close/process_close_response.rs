@@ -1,5 +1,5 @@
-use crate::commands::engine_response::EngineResponse;
-use crate::commands::engine_response::TypedEngineResponse;
+use crate::commands::engine_command_response::EngineCommandResponse;
+use crate::commands::engine_command_response::TypedEngineCommandResponse;
 use crate::commands::process::process_response::ProcessResponse;
 use crate::structures::processes::process_info::OpenedProcessInfo;
 use serde::{Deserialize, Serialize};
@@ -9,15 +9,15 @@ pub struct ProcessCloseResponse {
     pub process_info: Option<OpenedProcessInfo>,
 }
 
-impl TypedEngineResponse for ProcessCloseResponse {
-    fn to_engine_response(&self) -> EngineResponse {
-        EngineResponse::Process(ProcessResponse::Close {
+impl TypedEngineCommandResponse for ProcessCloseResponse {
+    fn to_engine_response(&self) -> EngineCommandResponse {
+        EngineCommandResponse::Process(ProcessResponse::Close {
             process_close_response: self.clone(),
         })
     }
 
-    fn from_engine_response(response: EngineResponse) -> Result<Self, EngineResponse> {
-        if let EngineResponse::Process(ProcessResponse::Close { process_close_response }) = response {
+    fn from_engine_response(response: EngineCommandResponse) -> Result<Self, EngineCommandResponse> {
+        if let EngineCommandResponse::Process(ProcessResponse::Close { process_close_response }) = response {
             Ok(process_close_response)
         } else {
             Err(response)

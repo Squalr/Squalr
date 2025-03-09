@@ -1,4 +1,4 @@
-use crate::command_executors::engine_request_executor::EngineRequestExecutor;
+use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_response::ScanResultsRefreshResponse;
@@ -9,13 +9,13 @@ use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use std::sync::Arc;
 
-impl EngineRequestExecutor for ScanResultsRefreshRequest {
+impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
     type ResponseType = ScanResultsRefreshResponse;
 
     fn execute(
         &self,
         execution_context: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineRequestExecutor>::ResponseType {
+    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         let mut scan_results_list = vec![];
 
         // Collect modules if possible so that we can resolve whether individual addresses are static later.

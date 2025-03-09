@@ -1,4 +1,4 @@
-use crate::command_executors::engine_request_executor::EngineRequestExecutor;
+use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crate::tasks::trackable_task::TrackableTask;
 use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecuteRequest;
@@ -11,13 +11,13 @@ use std::thread;
 
 const TASK_NAME: &'static str = "Scan Executor";
 
-impl EngineRequestExecutor for ScanExecuteRequest {
+impl EngineCommandRequestExecutor for ScanExecuteRequest {
     type ResponseType = ScanExecuteResponse;
 
     fn execute(
         &self,
         execution_context: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineRequestExecutor>::ResponseType {
+    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         if let Some(process_info) = execution_context.get_opened_process() {
             let snapshot = execution_context.get_snapshot();
             let scan_parameters = ScanParametersGlobal::new(

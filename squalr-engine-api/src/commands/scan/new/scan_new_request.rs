@@ -1,4 +1,4 @@
-use crate::commands::engine_request::EngineRequest;
+use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::scan::new::scan_new_response::ScanNewResponse;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::{engine_command::EngineCommand, scan::scan_command::ScanCommand};
@@ -12,7 +12,7 @@ pub struct ScanNewRequest {
     pub scan_parameters_local: Vec<ScanParametersLocal>,
 }
 
-impl EngineRequest for ScanNewRequest {
+impl EngineCommandRequest for ScanNewRequest {
     type ResponseType = ScanNewResponse;
 
     fn to_engine_command(&self) -> EngineCommand {

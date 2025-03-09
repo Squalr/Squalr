@@ -1,17 +1,17 @@
-use crate::command_executors::engine_request_executor::EngineRequestExecutor;
+use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_response::ScanResultsQueryResponse;
 use squalr_engine_scanning::scan_settings::ScanSettings;
 use std::sync::Arc;
 
-impl EngineRequestExecutor for ScanResultsQueryRequest {
+impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
     type ResponseType = ScanResultsQueryResponse;
 
     fn execute(
         &self,
         execution_context: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineRequestExecutor>::ResponseType {
+    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         let results_page_size = ScanSettings::get_instance().get_results_page_size() as u64;
         let mut scan_results_list = vec![];
         let mut last_page_index = 0;

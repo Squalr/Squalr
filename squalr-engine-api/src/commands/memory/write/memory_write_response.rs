@@ -1,5 +1,5 @@
-use crate::commands::engine_response::EngineResponse;
-use crate::commands::engine_response::TypedEngineResponse;
+use crate::commands::engine_command_response::EngineCommandResponse;
+use crate::commands::engine_command_response::TypedEngineCommandResponse;
 use crate::commands::memory::memory_response::MemoryResponse;
 use serde::{Deserialize, Serialize};
 
@@ -8,15 +8,15 @@ pub struct MemoryWriteResponse {
     pub success: bool,
 }
 
-impl TypedEngineResponse for MemoryWriteResponse {
-    fn to_engine_response(&self) -> EngineResponse {
-        EngineResponse::Memory(MemoryResponse::Write {
+impl TypedEngineCommandResponse for MemoryWriteResponse {
+    fn to_engine_response(&self) -> EngineCommandResponse {
+        EngineCommandResponse::Memory(MemoryResponse::Write {
             memory_write_response: self.clone(),
         })
     }
 
-    fn from_engine_response(response: EngineResponse) -> Result<Self, EngineResponse> {
-        if let EngineResponse::Memory(MemoryResponse::Write { memory_write_response }) = response {
+    fn from_engine_response(response: EngineCommandResponse) -> Result<Self, EngineCommandResponse> {
+        if let EngineCommandResponse::Memory(MemoryResponse::Write { memory_write_response }) = response {
             Ok(memory_write_response)
         } else {
             Err(response)

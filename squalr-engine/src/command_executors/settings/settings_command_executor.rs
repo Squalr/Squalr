@@ -1,15 +1,15 @@
 use crate::{
-    command_executors::{engine_command_executor::EngineCommandExecutor, engine_request_executor::EngineRequestExecutor},
+    command_executors::{engine_command_executor::EngineCommandExecutor, engine_request_executor::EngineCommandRequestExecutor},
     engine_privileged_state::EnginePrivilegedState,
 };
 use squalr_engine_api::commands::{
-    engine_response::{EngineResponse, TypedEngineResponse},
+    engine_command_response::{EngineCommandResponse, TypedEngineCommandResponse},
     settings::settings_command::SettingsCommand,
 };
 use std::sync::Arc;
 
 impl EngineCommandExecutor for SettingsCommand {
-    type ResponseType = EngineResponse;
+    type ResponseType = EngineCommandResponse;
 
     fn execute(
         &self,

@@ -111,7 +111,7 @@ impl InterprocessPrivilegedShell {
                         match ipc_connection_pipe.receive::<EngineIngress>() {
                             Ok((interprocess_command, request_id)) => match interprocess_command {
                                 EngineIngress::EngineCommand(engine_command) => {
-                                    let interprocess_response = EngineEgress::EngineResponse(engine_command.execute(&engine_privileged_state));
+                                    let interprocess_response = EngineEgress::EngineCommandResponse(engine_command.execute(&engine_privileged_state));
                                     let _ = Self::dispatch_response(ipc_connection.clone(), interprocess_response, request_id);
                                 }
                             },
