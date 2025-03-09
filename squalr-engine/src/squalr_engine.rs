@@ -55,14 +55,14 @@ impl SqualrEngine {
             Vectors::get_hardware_vector_name(),
         );
 
-        // Initialize privileged engine if we own them.
+        // Initialize privileged engine capabilities if we own them.
         if let Some(engine_privileged_state) = &self.engine_privileged_state {
-            engine_privileged_state.initialize(&self.engine_privileged_state, &self.engine_execution_context);
+            engine_privileged_state.initialize(&self.engine_privileged_state);
         }
 
         // Initialize unprivileged engine capabilities if we own them.
         if let Some(engine_execution_context) = &self.engine_execution_context {
-            engine_execution_context.initialize(&self.engine_privileged_state, &self.engine_execution_context);
+            engine_execution_context.initialize(&self.engine_privileged_state);
         }
     }
 

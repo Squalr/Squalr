@@ -1,6 +1,6 @@
 use crate::engine_bindings::engine_unprivileged_bindings::EngineUnprivilegedBindings;
-use crate::engine_bindings::interprocess::interprocess_unprivileged_host::InterProcessUnprivilegedHost;
-use crate::engine_bindings::intraprocess::intraprocess_unprivileged_interface::IntraProcessUnprivilegedInterface;
+use crate::engine_bindings::interprocess::interprocess_unprivileged_host::InterprocessUnprivilegedHost;
+use crate::engine_bindings::standalone::standalone_unprivileged_interface::StandaloneUnprivilegedInterface;
 use crate::engine_mode::EngineMode;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::Receiver;
@@ -17,9 +17,9 @@ pub struct EngineExecutionContext {
 impl EngineExecutionContext {
     pub fn new(engine_mode: EngineMode) -> Arc<Self> {
         let engine_bindings: Arc<RwLock<dyn EngineUnprivilegedBindings>> = match engine_mode {
-            EngineMode::Standalone => Arc::new(RwLock::new(IntraProcessUnprivilegedInterface::new())),
+            EngineMode::Standalone => Arc::new(RwLock::new(StandaloneUnprivilegedInterface::new())),
             EngineMode::PrivilegedShell => unreachable!("Unprivileged execution context should never be created from a privileged shell."),
-            EngineMode::UnprivilegedHost => Arc::new(RwLock::new(InterProcessUnprivilegedHost::new())),
+            EngineMode::UnprivilegedHost => Arc::new(RwLock::new(InterprocessUnprivilegedHost::new())),
         };
 
         let execution_context = Arc::new(EngineExecutionContext { engine_bindings });
@@ -30,11 +30,10 @@ impl EngineExecutionContext {
     pub fn initialize(
         &self,
         engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
-        engine_execution_context: &Option<Arc<EngineExecutionContext>>,
     ) {
         match self.engine_bindings.write() {
             Ok(mut engine_bindings) => {
-                if let Err(err) = engine_bindings.initialize(engine_privileged_state, engine_execution_context) {
+                if let Err(err) = engine_bindings.initialize(engine_privileged_state) {
                     log::error!("Error initializing unprivileged engine bindings: {}", err);
                 }
             }

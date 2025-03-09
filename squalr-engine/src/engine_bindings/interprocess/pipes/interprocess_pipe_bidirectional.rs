@@ -1,23 +1,23 @@
-use crate::engine_bindings::interprocess::pipes::interprocess_pipe_unidirectional::InterProcessPipeUnidirectional;
+use crate::engine_bindings::interprocess::pipes::interprocess_pipe_unidirectional::InterprocessPipeUnidirectional;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
-pub struct InterProcessPipeBidirectional {
-    pub pipe_receive: InterProcessPipeUnidirectional,
-    pub pipe_send: InterProcessPipeUnidirectional,
+pub struct InterprocessPipeBidirectional {
+    pub pipe_receive: InterprocessPipeUnidirectional,
+    pub pipe_send: InterprocessPipeUnidirectional,
 }
 
-impl InterProcessPipeBidirectional {
+impl InterprocessPipeBidirectional {
     pub fn create() -> Result<Self, String> {
-        let pipe_receive = InterProcessPipeUnidirectional::create(true)?;
-        let pipe_send = InterProcessPipeUnidirectional::create(false)?;
+        let pipe_receive = InterprocessPipeUnidirectional::create(true)?;
+        let pipe_send = InterprocessPipeUnidirectional::create(false)?;
         Ok(Self { pipe_receive, pipe_send })
     }
 
     pub fn bind() -> Result<Self, String> {
-        let pipe_send = InterProcessPipeUnidirectional::bind(true)?;
-        let pipe_receive = InterProcessPipeUnidirectional::bind(false)?;
+        let pipe_send = InterprocessPipeUnidirectional::bind(true)?;
+        let pipe_receive = InterprocessPipeUnidirectional::bind(false)?;
         Ok(Self { pipe_receive, pipe_send })
     }
 

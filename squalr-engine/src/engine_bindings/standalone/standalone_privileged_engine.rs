@@ -1,30 +1,20 @@
 use crate::engine_bindings::engine_priviliged_bindings::EnginePrivilegedBindings;
-use crate::engine_execution_context::EngineExecutionContext;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::{Receiver, Sender};
 use squalr_engine_api::events::engine_event::EngineEvent;
 use std::sync::{Arc, RwLock};
 
-pub struct IntraProcessPrivilegedEngine {
-    // The instance of the engine unprivileged state. Since this is an intra-process implementation, we send events using this state directly.
-    engine_execution_context: Option<Arc<EngineExecutionContext>>,
-
+pub struct StandalonePrivilegedEngine {
     /// The list of subscribers to which we send engine events.
     event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
 }
 
-impl EnginePrivilegedBindings for IntraProcessPrivilegedEngine {
+impl EnginePrivilegedBindings for StandalonePrivilegedEngine {
     fn initialize(
         &mut self,
         _engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
-        engine_execution_context: &Option<Arc<EngineExecutionContext>>,
     ) -> Result<(), String> {
-        if let Some(engine_execution_context) = engine_execution_context {
-            self.engine_execution_context = Some(engine_execution_context.clone());
-            Ok(())
-        } else {
-            Err("No engine execution context provided! Engine event dispatching will be non-functional without this.".to_string())
-        }
+        Ok(())
     }
 
     /// Emits an event from the engine to all listeners.
@@ -52,10 +42,9 @@ impl EnginePrivilegedBindings for IntraProcessPrivilegedEngine {
     }
 }
 
-impl IntraProcessPrivilegedEngine {
-    pub fn new() -> IntraProcessPrivilegedEngine {
-        let instance = IntraProcessPrivilegedEngine {
-            engine_execution_context: None,
+impl StandalonePrivilegedEngine {
+    pub fn new() -> StandalonePrivilegedEngine {
+        let instance = StandalonePrivilegedEngine {
             event_senders: Arc::new(RwLock::new(vec![])),
         };
 

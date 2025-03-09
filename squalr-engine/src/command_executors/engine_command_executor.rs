@@ -1,4 +1,4 @@
-use crate::{engine_bindings::engine_ingress::ExecutableRequest, engine_privileged_state::EnginePrivilegedState};
+use crate::{engine_bindings::engine_ingress::ExecutableCommand, engine_privileged_state::EnginePrivilegedState};
 use serde::{Serialize, de::DeserializeOwned};
 use squalr_engine_api::commands::{engine_command::EngineCommand, engine_response::EngineResponse};
 use std::sync::Arc;
@@ -12,7 +12,7 @@ pub trait EngineCommandExecutor: Clone + Serialize + DeserializeOwned {
     ) -> Self::ResponseType;
 }
 
-impl ExecutableRequest for EngineCommand {
+impl ExecutableCommand for EngineCommand {
     fn execute(
         &self,
         execution_context: &Arc<EnginePrivilegedState>,

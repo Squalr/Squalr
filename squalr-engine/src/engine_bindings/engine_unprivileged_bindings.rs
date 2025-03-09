@@ -1,4 +1,4 @@
-use crate::{engine_execution_context::EngineExecutionContext, engine_privileged_state::EnginePrivilegedState};
+use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::Receiver;
 use squalr_engine_api::{
     commands::{engine_command::EngineCommand, engine_response::EngineResponse},
@@ -8,10 +8,10 @@ use std::sync::Arc;
 
 /// Defines the functionality that is invoked from a GUI, CLI, etc. and handled by the engine.
 pub trait EngineUnprivilegedBindings: Send + Sync {
+    /// Initialize unprivileged bindings. For standalone builds, the privileged engine state is passed to allow direct communcation.
     fn initialize(
         &mut self,
         engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
-        engine_execution_context: &Option<Arc<EngineExecutionContext>>,
     ) -> Result<(), String>;
 
     /// Dispatches an engine command to the engine to handle.

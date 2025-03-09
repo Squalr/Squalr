@@ -1,8 +1,5 @@
-use crate::engine_bindings::interprocess::interprocess_privileged_shell::InterProcessPrivilegedShell;
-use crate::engine_bindings::{
-    engine_priviliged_bindings::EnginePrivilegedBindings, intraprocess::intraprocess_privileged_engine::IntraProcessPrivilegedEngine,
-};
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_bindings::interprocess::interprocess_privileged_shell::InterprocessPrivilegedShell;
+use crate::engine_bindings::{engine_priviliged_bindings::EnginePrivilegedBindings, standalone::standalone_privileged_engine::StandalonePrivilegedEngine};
 use crate::engine_mode::EngineMode;
 use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
@@ -32,8 +29,8 @@ pub struct EnginePrivilegedState {
 impl EnginePrivilegedState {
     pub fn new(engine_mode: EngineMode) -> Arc<Self> {
         let engine_bindings: Arc<RwLock<dyn EnginePrivilegedBindings>> = match engine_mode {
-            EngineMode::Standalone => Arc::new(RwLock::new(IntraProcessPrivilegedEngine::new())),
-            EngineMode::PrivilegedShell => Arc::new(RwLock::new(InterProcessPrivilegedShell::new())),
+            EngineMode::Standalone => Arc::new(RwLock::new(StandalonePrivilegedEngine::new())),
+            EngineMode::PrivilegedShell => Arc::new(RwLock::new(InterprocessPrivilegedShell::new())),
             EngineMode::UnprivilegedHost => unreachable!("Privileged state should never be created on an unprivileged host."),
         };
 
@@ -50,11 +47,10 @@ impl EnginePrivilegedState {
     pub fn initialize(
         &self,
         engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
-        engine_execution_context: &Option<Arc<EngineExecutionContext>>,
     ) {
         match self.engine_bindings.write() {
             Ok(mut engine_bindings) => {
-                if let Err(err) = engine_bindings.initialize(engine_privileged_state, engine_execution_context) {
+                if let Err(err) = engine_bindings.initialize(engine_privileged_state) {
                     log::error!("Error initializing privileged engine bindings: {}", err);
                 }
             }

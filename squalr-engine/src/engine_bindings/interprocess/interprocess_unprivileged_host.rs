@@ -1,7 +1,6 @@
 use crate::engine_bindings::engine_egress::EngineEgress;
 use crate::engine_bindings::engine_unprivileged_bindings::EngineUnprivilegedBindings;
-use crate::engine_bindings::interprocess::pipes::interprocess_pipe_bidirectional::InterProcessPipeBidirectional;
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_bindings::interprocess::pipes::interprocess_pipe_bidirectional::InterprocessPipeBidirectional;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
@@ -18,12 +17,12 @@ use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
 
-pub struct InterProcessUnprivilegedHost {
+pub struct InterprocessUnprivilegedHost {
     /// The spawned shell process with system privileges.
     privileged_shell_process: Arc<RwLock<Option<Child>>>,
 
     /// The bidirectional connection to the shell process.
-    ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>,
+    ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
 
     /// A map of outgoing requests that are awaiting an engine response.
     request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(EngineResponse) + Send + Sync>>>>,
@@ -32,15 +31,16 @@ pub struct InterProcessUnprivilegedHost {
     event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
 }
 
-impl EngineUnprivilegedBindings for InterProcessUnprivilegedHost {
+impl EngineUnprivilegedBindings for InterprocessUnprivilegedHost {
+    /// Initialize unprivileged bindings. For the interprocess implementation, no work needs to be done here.
     fn initialize(
         &mut self,
         _engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
-        _engine_execution_context: &Option<Arc<EngineExecutionContext>>,
     ) -> Result<(), String> {
         Ok(())
     }
 
+    /// Dispatches an engine command to the engine to handle.
     fn dispatch_command(
         &self,
         command: EngineCommand,
@@ -65,6 +65,7 @@ impl EngineUnprivilegedBindings for InterProcessUnprivilegedHost {
         Err("Failed to dispatch command.".to_string())
     }
 
+    /// Requests to listen to all engine events.
     fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let mut sender_lock = self.event_senders.write().map_err(|err| err.to_string())?;
@@ -74,9 +75,9 @@ impl EngineUnprivilegedBindings for InterProcessUnprivilegedHost {
     }
 }
 
-impl InterProcessUnprivilegedHost {
-    pub fn new() -> InterProcessUnprivilegedHost {
-        let instance = InterProcessUnprivilegedHost {
+impl InterprocessUnprivilegedHost {
+    pub fn new() -> InterprocessUnprivilegedHost {
+        let instance = InterprocessUnprivilegedHost {
             privileged_shell_process: Arc::new(RwLock::new(None)),
             ipc_connection: Arc::new(RwLock::new(None)),
             request_handles: Arc::new(Mutex::new(HashMap::new())),
@@ -135,7 +136,7 @@ impl InterProcessUnprivilegedHost {
     fn listen_for_shell_responses(
         request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(EngineResponse) + Send + Sync>>>>,
         event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
-        ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>,
+        ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
     ) {
         let request_handles = request_handles.clone();
         let event_senders = event_senders.clone();
@@ -175,9 +176,9 @@ impl InterProcessUnprivilegedHost {
         }
     }
 
-    fn bind_to_interprocess_pipe(ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>) -> Result<(), String> {
+    fn bind_to_interprocess_pipe(ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>) -> Result<(), String> {
         if let Ok(mut ipc_connection) = ipc_connection.write() {
-            match InterProcessPipeBidirectional::bind() {
+            match InterprocessPipeBidirectional::bind() {
                 Ok(bound_connection) => {
                     *ipc_connection = Some(bound_connection);
                     Ok(())

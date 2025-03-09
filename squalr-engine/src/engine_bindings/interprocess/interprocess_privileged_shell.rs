@@ -1,9 +1,8 @@
 use crate::engine_bindings::engine_egress::EngineEgress;
 use crate::engine_bindings::engine_ingress::EngineIngress;
-use crate::engine_bindings::engine_ingress::ExecutableRequest;
+use crate::engine_bindings::engine_ingress::ExecutableCommand;
 use crate::engine_bindings::engine_priviliged_bindings::EnginePrivilegedBindings;
-use crate::engine_bindings::interprocess::pipes::interprocess_pipe_bidirectional::InterProcessPipeBidirectional;
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_bindings::interprocess::pipes::interprocess_pipe_bidirectional::InterprocessPipeBidirectional;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
@@ -13,23 +12,22 @@ use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
 
-pub struct InterProcessPrivilegedShell {
+pub struct InterprocessPrivilegedShell {
     /// The bidirectional connection to the host process.
-    ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>,
+    ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
 
     /// The list of subscribers to which we send engine events.
     event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
 }
 
-impl EnginePrivilegedBindings for InterProcessPrivilegedShell {
+impl EnginePrivilegedBindings for InterprocessPrivilegedShell {
     fn initialize(
         &mut self,
         engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
-        _engine_execution_context: &Option<Arc<EngineExecutionContext>>,
     ) -> Result<(), String> {
         if let Some(engine_privileged_state) = engine_privileged_state {
             if let Ok(mut ipc_connection) = self.ipc_connection.write() {
-                match InterProcessPipeBidirectional::create() {
+                match InterprocessPipeBidirectional::create() {
                     Ok(new_connection) => {
                         *ipc_connection = Some(new_connection);
                         self.listen_for_host_requests(&engine_privileged_state);
@@ -71,9 +69,9 @@ impl EnginePrivilegedBindings for InterProcessPrivilegedShell {
     }
 }
 
-impl InterProcessPrivilegedShell {
-    pub fn new() -> InterProcessPrivilegedShell {
-        let instance = InterProcessPrivilegedShell {
+impl InterprocessPrivilegedShell {
+    pub fn new() -> InterprocessPrivilegedShell {
+        let instance = InterprocessPrivilegedShell {
             ipc_connection: Arc::new(RwLock::new(None)),
             event_senders: Arc::new(RwLock::new(vec![])),
         };
@@ -82,7 +80,7 @@ impl InterProcessPrivilegedShell {
     }
 
     pub fn dispatch_response(
-        ipc_connection: Arc<RwLock<Option<InterProcessPipeBidirectional>>>,
+        ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
         engine_egress: EngineEgress,
         request_id: Uuid,
     ) -> Result<(), String> {

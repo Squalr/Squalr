@@ -38,11 +38,11 @@ const IPC_SOCKET_PATH_OUTBOND: &str = "/tmp/interprocess-shell-from-shell.sock";
 #[cfg(target_os = "android")]
 const IPC_SOCKET_PATH_OUTBOND: &str = "interprocess-shell-from-shell";
 
-pub struct InterProcessPipeUnidirectional {
+pub struct InterprocessPipeUnidirectional {
     socket_stream: Arc<Mutex<Option<LocalSocketStream>>>,
 }
 
-impl InterProcessPipeUnidirectional {
+impl InterprocessPipeUnidirectional {
     pub fn create(to_shell: bool) -> Result<Self, String> {
         match Self::create_interprocess_pipe(to_shell) {
             Ok(socket_stream) => Ok(Self {
