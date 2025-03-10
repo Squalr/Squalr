@@ -15,11 +15,10 @@ use squalr_engine::command_executors::engine_request_executor::EngineCommandRequ
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::process::list::process_list_request::ProcessListRequest;
 use squalr_engine_api::commands::process::open::process_open_request::ProcessOpenRequest;
-use squalr_engine_api::events::engine_event::EngineEvent;
+use squalr_engine_api::events::process::changed::process_changed_event::ProcessChangedEvent;
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use std::sync::Arc;
-use std::thread;
 
 pub struct ProcessSelectorViewModel {
     _view_binding: ViewBinding<MainWindowView>,
@@ -74,26 +73,12 @@ impl ProcessSelectorViewModel {
         &self,
         view_binding: ViewBinding<MainWindowView>,
     ) {
-        let engine_execution_context = self.engine_execution_context.clone();
+        let view_binding = view_binding.clone();
 
-        /*
-        thread::spawn(move || match engine_execution_context.subscribe_to_engine_events() {
-            Ok(receiver) => {
-                while let Ok(engine_event) = receiver.recv() {
-                    match engine_event {
-                        EngineEvent::Process(process_changed_event) => {
-                            Self::refresh_opened_process(&view_binding, process_changed_event.process_info);
-                        }
-                        EngineEvent::TrackableTask(trackable_task_event) => {
-                            let JIRA = 69;
-                        }
-                    }
-                }
-            }
-            Err(err) => {
-                log::error!("Failed to subscribe to engine process events: {}", err);
-            }
-        }); */
+        self.engine_execution_context
+            .listen_for_engine_event::<ProcessChangedEvent>(move |process_changed_event| {
+                Self::refresh_opened_process(&view_binding, process_changed_event.process_info.clone());
+            });
     }
 
     fn refresh_opened_process(

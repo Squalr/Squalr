@@ -7,9 +7,12 @@ use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
 use squalr_engine_api::events::process::changed::process_changed_event::ProcessChangedEvent;
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::tasks::engine_trackable_task_handle::EngineTrackableTaskHandle;
+use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
 use std::sync::{Arc, RwLock};
+use std::thread;
+use std::time::Duration;
 
 /// Tracks critical engine state for internal use. This includes executing engine tasks, commands, and events.
 pub struct EnginePrivilegedState {
@@ -40,6 +43,8 @@ impl EnginePrivilegedState {
             task_manager: TrackableTaskManager::new(),
             engine_bindings,
         });
+
+        Self::listen_for_open_process_changes(execution_context.clone());
 
         execution_context
     }
@@ -145,5 +150,37 @@ impl EnginePrivilegedState {
         task_identifier: &String,
     ) {
         self.task_manager.unregister_task(task_identifier);
+    }
+
+    /// Listens for the death of the currently opened process by polling for it repeatedly.
+    fn listen_for_open_process_changes(execution_context: Arc<EnginePrivilegedState>) {
+        std::thread::spawn(move || {
+            loop {
+                thread::sleep(Duration::from_millis(100));
+
+                let opened_process_id = {
+                    if let Some(opened_process) = execution_context.get_opened_process().as_ref() {
+                        opened_process.get_process_id()
+                    } else {
+                        continue;
+                    }
+                };
+
+                let process_query_options = ProcessQueryOptions {
+                    required_process_id: Some(opened_process_id),
+                    search_name: None,
+                    require_windowed: false,
+                    match_case: false,
+                    fetch_icons: false,
+                    limit: Some(1),
+                };
+
+                let processes = ProcessQuery::get_processes(process_query_options);
+
+                if processes.len() <= 0 {
+                    execution_context.clear_opened_process();
+                }
+            }
+        });
     }
 }

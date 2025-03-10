@@ -40,7 +40,7 @@ impl ProcessQuery {
         ProcessQueryImpl::close_process(handle)
     }
 
-    pub fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
-        ProcessQueryImpl::get_processes(options)
+    pub fn get_processes(process_query_options: ProcessQueryOptions) -> Vec<ProcessInfo> {
+        ProcessQueryImpl::get_processes(process_query_options)
     }
 }

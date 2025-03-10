@@ -29,12 +29,21 @@ fn main() {
     // Start the log event sending now that both the CLI and engine are ready to receive log messages.
     squalr_engine.get_logger().start_log_event_sender();
 
-    if engine_mode == EngineMode::PrivilegedShell {
-        log::info!("CLI running as a privileged IPC shell.")
-    }
+    if engine_mode == EngineMode::Standalone {
+        let engine_execution_context = squalr_engine
+            .get_engine_execution_context()
+            .as_ref()
+            .unwrap_or_else(|| panic!("Engine context failed to initialize."));
+        // Listen for user input.
+        // Note that the "Cli", when listening for input, is considered unprivileged, as it is considered the "UI".
+        // Internally, these commands then get dispatched to an abstracted away privileged component.
+        Cli::run_loop(engine_execution_context);
+    } else if engine_mode == EngineMode::PrivilegedShell {
+        log::info!("CLI running as a privileged IPC shell.");
 
-    // Listen for user input.
-    // Note that the "Cli", when listening for input, is considered unprivileged, as it is considered the "UI".
-    // Internally, these commands then get dispatched to an abstracted away privileged component.
-    Cli::run_loop(squalr_engine.get_engine_execution_context());
+        // Keep the CLI alive, exiting on any user input. Generally this is an invisible process, so it's just a way to keep the app running.
+        Cli::stay_alive();
+    } else {
+        unreachable!("Unsupported CLI state.")
+    }
 }

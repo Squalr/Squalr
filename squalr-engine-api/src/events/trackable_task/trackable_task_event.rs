@@ -3,5 +3,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TrackableTaskEvent {
-    Process(TrackableTaskProgressChangedEvent),
+    ProgressChanged {
+        progress_changed_event: TrackableTaskProgressChangedEvent,
+    },
 }

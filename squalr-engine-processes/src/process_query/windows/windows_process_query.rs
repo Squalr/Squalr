@@ -249,7 +249,7 @@ impl ProcessQueryer for WindowsProcessQuery {
         }
     }
 
-    fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
+    fn get_processes(process_query_options: ProcessQueryOptions) -> Vec<ProcessInfo> {
         let process_monitor_guard = match PROCESS_MONITOR.lock() {
             Ok(guard) => guard,
             Err(err) => {
@@ -275,7 +275,7 @@ impl ProcessQueryer for WindowsProcessQuery {
                 // Try to get from cache first
                 let process_info = if let Some(cached_info) = Self::get_from_cache(process_id) {
                     // If icons are required but not in cache, update the icon
-                    if options.fetch_icons && cached_info.icon.is_none() {
+                    if process_query_options.fetch_icons && cached_info.icon.is_none() {
                         let mut updated_info = cached_info.clone();
                         updated_info.icon = Self::get_icon(process_id);
                         // Update cache with new icon
@@ -290,7 +290,11 @@ impl ProcessQueryer for WindowsProcessQuery {
                         process_id: process_id.as_u32(),
                         name: process.name().to_string_lossy().into_owned(),
                         is_windowed: Self::is_process_windowed(process_id),
-                        icon: if options.fetch_icons { Self::get_icon(process_id) } else { None },
+                        icon: if process_query_options.fetch_icons {
+                            Self::get_icon(process_id)
+                        } else {
+                            None
+                        },
                     };
                     Self::update_cache(*process_id, new_info.name.clone(), new_info.is_windowed, new_info.icon.clone());
                     new_info
@@ -299,25 +303,25 @@ impl ProcessQueryer for WindowsProcessQuery {
                 let mut matches = true;
 
                 // Apply filters
-                if options.require_windowed {
+                if process_query_options.require_windowed {
                     matches &= process_info.is_windowed;
                 }
 
-                if let Some(ref term) = options.search_name {
-                    if options.match_case {
+                if let Some(ref term) = process_query_options.search_name {
+                    if process_query_options.match_case {
                         matches &= process_info.name.contains(term);
                     } else {
                         matches &= process_info.name.to_lowercase().contains(&term.to_lowercase());
                     }
                 }
 
-                if let Some(required_process_id) = options.required_process_id {
+                if let Some(required_process_id) = process_query_options.required_process_id {
                     matches &= process_info.process_id == required_process_id.as_u32();
                 }
 
                 matches.then_some(process_info)
             })
-            .take(options.limit.unwrap_or(usize::MAX as u64) as usize)
+            .take(process_query_options.limit.unwrap_or(usize::MAX as u64) as usize)
             .collect();
 
         filtered_processes

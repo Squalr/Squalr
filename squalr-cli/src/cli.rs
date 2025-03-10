@@ -32,6 +32,20 @@ impl Cli {
         }
     }
 
+    pub fn stay_alive() {
+        let stdin = io::stdin();
+        let mut stdout = io::stdout();
+
+        if let Err(err) = stdout.flush() {
+            log::error!("Error flushing stdout {}", err);
+            return;
+        }
+
+        let mut input = String::new();
+        let _ = stdin.read_line(&mut input);
+        log::error!("Exiting cli.");
+    }
+
     fn handle_input(
         engine_execution_context: &Arc<EngineExecutionContext>,
         input: &str,

@@ -18,9 +18,13 @@ fn android_main(app: slint::android::AndroidApp) {
     }
 
     let squalr_engine = SqualrEngine::new(EngineMode::UnprivilegedHost);
+    let engine_execution_context = squalr_engine
+        .get_engine_execution_context()
+        .as_ref()
+        .unwrap_or_else(|| panic!("Engine context failed to initialize."));
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
-    let _main_window_view = MainWindowViewModel::new(squalr_engine.get_engine_execution_context(), squalr_engine.get_logger());
+    let _main_window_view = MainWindowViewModel::new(engine_execution_context, squalr_engine.get_logger());
 
     // Start the log event sending now that both the GUI and engine are ready to receive log messages.
     squalr_engine.get_logger().start_log_event_sender();
