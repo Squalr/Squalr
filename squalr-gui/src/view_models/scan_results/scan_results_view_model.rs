@@ -37,7 +37,7 @@ impl ScanResultsViewModel {
     pub fn new(
         view_binding: ViewBinding<MainWindowView>,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Self {
+    ) -> Arc<Self> {
         // Create a binding that allows us to easily update the view's scan results.
         let scan_results_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
@@ -50,14 +50,14 @@ impl ScanResultsViewModel {
         let cached_last_page_index = Arc::new(AtomicU64::new(0));
         let base_scan_results_collection = Arc::new(RwLock::new(vec![]));
 
-        let view: ScanResultsViewModel = ScanResultsViewModel {
+        let view = Arc::new(ScanResultsViewModel {
             view_binding: view_binding.clone(),
             base_scan_results_collection: base_scan_results_collection.clone(),
             scan_results_collection: scan_results_collection.clone(),
             engine_execution_context: engine_execution_context.clone(),
             current_page_index: current_page_index.clone(),
             cached_last_page_index: cached_last_page_index.clone(),
-        };
+        });
 
         create_view_bindings!(view_binding, {
             ScanResultsViewModelBindings => {

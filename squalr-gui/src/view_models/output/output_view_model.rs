@@ -17,11 +17,11 @@ impl OutputViewModel {
         view_binding: ViewBinding<MainWindowView>,
         engine_execution_context: Arc<EngineExecutionContext>,
         file_system_logger: Arc<FileSystemLogger>,
-    ) -> Self {
-        let view = OutputViewModel {
+    ) -> Arc<Self> {
+        let view = Arc::new(OutputViewModel {
             _view_binding: view_binding.clone(),
             _engine_execution_context: engine_execution_context,
-        };
+        });
 
         match file_system_logger.subscribe_to_logs() {
             Ok(receiver) => {

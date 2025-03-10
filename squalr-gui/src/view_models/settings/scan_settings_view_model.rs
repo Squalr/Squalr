@@ -12,11 +12,11 @@ impl ScanSettingsViewModel {
     pub fn new(
         view_binding: ViewBinding<MainWindowView>,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Self {
-        let view = ScanSettingsViewModel {
+    ) -> Arc<Self> {
+        let view = Arc::new(ScanSettingsViewModel {
             _view_binding: view_binding,
             _engine_execution_context: engine_execution_context,
-        };
+        });
 
         view
     }

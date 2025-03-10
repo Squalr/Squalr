@@ -48,12 +48,12 @@ impl DockRootViewModel {
         let view: DockRootViewModel = DockRootViewModel {
             view_binding: view_binding.clone(),
             _docking_manager: docking_manager.clone(),
-            manual_scan_view_model: Arc::new(ScannerViewModel::new(view_binding.clone(), engine_execution_context.clone())),
-            memory_settings_view_model: Arc::new(MemorySettingsViewModel::new(view_binding.clone(), engine_execution_context.clone())),
-            output_view_model: Arc::new(OutputViewModel::new(view_binding.clone(), engine_execution_context.clone(), file_system_logger)),
-            process_selector_view_model: Arc::new(ProcessSelectorViewModel::new(view_binding.clone(), engine_execution_context.clone())),
-            scan_settings_view_model: Arc::new(ScanSettingsViewModel::new(view_binding.clone(), engine_execution_context.clone())),
-            scan_results_view_model: Arc::new(ScanResultsViewModel::new(view_binding.clone(), engine_execution_context.clone())),
+            manual_scan_view_model: ScannerViewModel::new(view_binding.clone(), engine_execution_context.clone()),
+            memory_settings_view_model: MemorySettingsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
+            output_view_model: OutputViewModel::new(view_binding.clone(), engine_execution_context.clone(), file_system_logger),
+            process_selector_view_model: ProcessSelectorViewModel::new(view_binding.clone(), engine_execution_context.clone()),
+            scan_settings_view_model: ScanSettingsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
+            scan_results_view_model: ScanResultsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
         };
 
         // Initialize the dock root size.

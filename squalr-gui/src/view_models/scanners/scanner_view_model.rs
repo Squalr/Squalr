@@ -31,44 +31,47 @@ enum ScanViewModelState {
 }
 
 pub struct ScannerViewModel {
-    _view_binding: ViewBinding<MainWindowView>,
-    _engine_execution_context: Arc<EngineExecutionContext>,
-    scan_view_model_state: Arc<RwLock<ScanViewModelState>>,
+    view_binding: ViewBinding<MainWindowView>,
+    engine_execution_context: Arc<EngineExecutionContext>,
+    scan_view_model_state: RwLock<ScanViewModelState>,
 }
 
 impl ScannerViewModel {
     pub fn new(
         view_binding: ViewBinding<MainWindowView>,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Self {
-        let view: ScannerViewModel = ScannerViewModel {
-            _view_binding: view_binding.clone(),
-            _engine_execution_context: engine_execution_context.clone(),
-            scan_view_model_state: Arc::new(RwLock::new(ScanViewModelState::NoResults)),
-        };
-
-        let scan_view_model_state = view.scan_view_model_state.clone();
-
-        create_view_bindings!(view_binding, {
-            ScannerViewModelBindings => {
-                on_reset_scan() -> [engine_execution_context, scan_view_model_state] -> Self::on_reset_scan,
-                on_start_scan(data_type: DataTypeView, scan_constraint: ScanConstraintTypeView, scan_value: SharedString) -> [engine_execution_context, scan_view_model_state] -> Self::on_start_scan,
-            },
-            ValueCollectorViewModelBindings => {
-                on_collect_values() -> [engine_execution_context] -> Self::on_collect_values,
-            },
+    ) -> Arc<Self> {
+        let view = Arc::new(ScannerViewModel {
+            view_binding: view_binding.clone(),
+            engine_execution_context: engine_execution_context.clone(),
+            scan_view_model_state: RwLock::new(ScanViewModelState::NoResults),
         });
+
+        {
+            let view = view.clone();
+
+            create_view_bindings!(view.view_binding, {
+                ScannerViewModelBindings => {
+                    on_reset_scan() -> [view] -> Self::on_reset_scan,
+                    on_start_scan(data_type: DataTypeView, scan_constraint: ScanConstraintTypeView, scan_value: SharedString) -> [view] -> Self::on_start_scan,
+                },
+                ValueCollectorViewModelBindings => {
+                    on_collect_values() -> [view] -> Self::on_collect_values,
+                },
+            });
+        }
 
         view
     }
 
-    fn on_reset_scan(
-        engine_execution_context: Arc<EngineExecutionContext>,
-        scan_view_model_state: Arc<RwLock<ScanViewModelState>>,
-    ) {
+    fn on_reset_scan(scanner_view_model: Arc<ScannerViewModel>) {
         let scan_reset_request = ScanResetRequest {};
+        let engine_execution_context = &scanner_view_model.engine_execution_context;
+        let scanner_view_model = scanner_view_model.clone();
 
-        scan_reset_request.send(&engine_execution_context, move |scan_reset_response| {
+        scan_reset_request.send(engine_execution_context, move |scan_reset_response| {
+            let scan_view_model_state = &scanner_view_model.scan_view_model_state;
+
             if scan_reset_response.success {
                 if let Ok(mut scan_view_model_state) = scan_view_model_state.write() {
                     *scan_view_model_state = ScanViewModelState::NoResults;
@@ -78,12 +81,13 @@ impl ScannerViewModel {
     }
 
     fn on_start_scan(
-        engine_execution_context: Arc<EngineExecutionContext>,
-        scan_view_model_state: Arc<RwLock<ScanViewModelState>>,
+        scanner_view_model: Arc<ScannerViewModel>,
         data_type_view: DataTypeView,
         scan_constraint: ScanConstraintTypeView,
         scan_value: SharedString,
     ) {
+        let scan_view_model_state = &scanner_view_model.scan_view_model_state;
+
         let scan_view_model_state_value = {
             *match scan_view_model_state.read() {
                 Ok(guard) => guard,
@@ -96,10 +100,10 @@ impl ScannerViewModel {
 
         match scan_view_model_state_value {
             ScanViewModelState::HasResults => {
-                Self::start_scan(engine_execution_context, scan_view_model_state, scan_constraint, scan_value.into());
+                Self::start_scan(scanner_view_model, scan_constraint, scan_value.into());
             }
             ScanViewModelState::NoResults => match DataTypeRef::new(&data_type_view.data_type.to_string()) {
-                Some(data_type) => Self::new_scan(engine_execution_context, scan_view_model_state, data_type, scan_constraint, scan_value.into()),
+                Some(data_type) => Self::new_scan(scanner_view_model, data_type, scan_constraint, scan_value.into()),
                 None => log::error!("Failed to create data type for new scan."),
             },
             ScanViewModelState::ScanInProgress => {
@@ -108,40 +112,40 @@ impl ScannerViewModel {
         };
     }
 
-    fn on_collect_values(engine_execution_context: Arc<EngineExecutionContext>) {
+    fn on_collect_values(scanner_view_model: Arc<ScannerViewModel>) {
         let collect_values_request = ScanCollectValuesRequest {};
 
-        collect_values_request.send(&engine_execution_context, |_scan_collect_values_response| {});
+        collect_values_request.send(&scanner_view_model.engine_execution_context, |_scan_collect_values_response| {});
     }
 
     fn new_scan(
-        engine_execution_context: Arc<EngineExecutionContext>,
-        scan_view_model_state: Arc<RwLock<ScanViewModelState>>,
+        scanner_view_model: Arc<ScannerViewModel>,
         data_type: DataTypeRef,
         scan_constraint: ScanConstraintTypeView,
         scan_value: String,
     ) {
+        let engine_execution_context = &scanner_view_model.engine_execution_context;
+        let scanner_view_model = scanner_view_model.clone();
         let memory_alignment = Some(MemoryAlignment::Alignment4); // JIRA: Pull from settings
         let scan_parameters_local = vec![ScanParametersLocal::new(data_type, memory_alignment)];
         let scan_new_request = ScanNewRequest { scan_parameters_local };
 
         // Captured variables for scan once we create it.
         let scan_value = scan_value.into();
-        let engine_execution_context_clone = engine_execution_context.clone();
-        let scan_view_model_state = scan_view_model_state.clone();
 
         // Start a new scan, and recurse to start the scan once the new scan is made.
-        scan_new_request.send(&engine_execution_context, move |_scan_new_response| {
-            Self::start_scan(engine_execution_context_clone, scan_view_model_state, scan_constraint, scan_value);
+        scan_new_request.send(engine_execution_context, move |_scan_new_response| {
+            Self::start_scan(scanner_view_model, scan_constraint, scan_value);
         });
     }
 
     fn start_scan(
-        engine_execution_context: Arc<EngineExecutionContext>,
-        scan_view_model_state: Arc<RwLock<ScanViewModelState>>,
+        scanner_view_model: Arc<ScannerViewModel>,
         scan_constraint: ScanConstraintTypeView,
         scan_value: String,
     ) {
+        let engine_execution_context = &scanner_view_model.engine_execution_context;
+        let scanner_view_model = scanner_view_model.clone();
         let scan_value = AnonymousValue::new(&scan_value);
         let scan_execute_request = ScanExecuteRequest {
             scan_value: Some(scan_value),
@@ -150,6 +154,8 @@ impl ScannerViewModel {
         };
 
         scan_execute_request.send(&engine_execution_context, move |scan_execute_response| {
+            let scan_view_model_state = &scanner_view_model.scan_view_model_state;
+
             if let Ok(mut scan_view_model_state) = scan_view_model_state.write() {
                 *scan_view_model_state = ScanViewModelState::ScanInProgress;
             }

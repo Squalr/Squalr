@@ -31,7 +31,7 @@ impl ProcessSelectorViewModel {
     pub fn new(
         view_binding: ViewBinding<MainWindowView>,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Self {
+    ) -> Arc<Self> {
         // Create a binding that allows us to easily update the view's process list.
         let full_process_list_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
@@ -48,12 +48,12 @@ impl ProcessSelectorViewModel {
             ProcessInfoComparer -> [],
         );
 
-        let view = ProcessSelectorViewModel {
+        let view = Arc::new(ProcessSelectorViewModel {
             _view_binding: view_binding.clone(),
             _full_process_list_collection: full_process_list_collection.clone(),
             _windowed_process_list_collection: windowed_process_list_collection.clone(),
             engine_execution_context: engine_execution_context.clone(),
-        };
+        });
 
         // Route all view bindings to Rust.
         create_view_bindings!(view_binding, {

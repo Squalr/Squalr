@@ -2,7 +2,6 @@ use crate::MainWindowView;
 use crate::MemorySettingsViewModelBindings;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
-use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use std::sync::Arc;
 
@@ -15,11 +14,11 @@ impl MemorySettingsViewModel {
     pub fn new(
         view_binding: ViewBinding<MainWindowView>,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Self {
-        let view = MemorySettingsViewModel {
+    ) -> Arc<Self> {
+        let view = Arc::new(MemorySettingsViewModel {
             view_binding: view_binding.clone(),
             _engine_execution_context: engine_execution_context.clone(),
-        };
+        });
 
         // JIRA: Port to a command
         /*
