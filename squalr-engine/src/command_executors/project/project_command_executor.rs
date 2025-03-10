@@ -10,11 +10,11 @@ impl EngineCommandExecutor for ProjectCommand {
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandExecutor>::ResponseType {
         match self {
             ProjectCommand::List { project_list_request } => project_list_request
-                .execute(execution_context)
+                .execute(engine_privileged_state)
                 .to_engine_response(),
         }
     }

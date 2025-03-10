@@ -4,6 +4,7 @@ use crate::commands::project::project_command::ProjectCommand;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan_results::scan_results_command::ScanResultsCommand;
 use crate::commands::settings::settings_command::SettingsCommand;
+use crate::commands::trackable_tasks::trackable_tasks_command::TrackableTasksCommand;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -26,4 +27,7 @@ pub enum EngineCommand {
 
     #[structopt(alias = "set", alias = "st")]
     Settings(SettingsCommand),
+
+    #[structopt(alias = "set", alias = "st")]
+    TrackableTasks(TrackableTasksCommand),
 }

@@ -9,7 +9,7 @@ impl EngineCommandRequestExecutor for ProjectListRequest {
 
     fn execute(
         &self,
-        _execution_context: &Arc<EnginePrivilegedState>,
+        _engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         // JIRA: Implement me
         ProjectListResponse {}

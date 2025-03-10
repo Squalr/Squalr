@@ -14,6 +14,7 @@ impl TrackableTaskManager {
         }
     }
 
+    /// Registers a task for tracking.
     pub fn register_task(
         &self,
         trackable_task: Arc<TrackableTask>,
@@ -22,11 +23,24 @@ impl TrackableTaskManager {
             .insert(trackable_task.get_task_identifier(), trackable_task);
     }
 
+    /// Unregisters a task from tracking
     pub fn unregister_task(
         &self,
         task_identifier: &String,
     ) {
         self.tasks.remove(task_identifier);
+    }
+
+    /// Registers a task for tracking.
+    pub fn cancel_task(
+        &self,
+        task_identifier: &String,
+    ) {
+        if let Some(task) = self.tasks.get(task_identifier) {
+            task.cancel();
+        }
+
+        self.unregister_task(task_identifier);
     }
 
     pub fn get_task_handle(

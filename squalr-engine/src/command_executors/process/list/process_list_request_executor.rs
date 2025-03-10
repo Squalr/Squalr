@@ -11,7 +11,7 @@ impl EngineCommandRequestExecutor for ProcessListRequest {
 
     fn execute(
         &self,
-        _execution_context: &Arc<EnginePrivilegedState>,
+        _engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         log::info!(
             "Listing processes with options: require_windowed={}, search_name={:?}, match_case={}, limit={:?}",

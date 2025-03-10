@@ -31,7 +31,9 @@ impl EngineCommandRequestExecutor for ScanExecuteRequest {
             let engine_privileged_state = engine_privileged_state.clone();
             let progress_receiver = task.subscribe_to_progress_updates();
 
-            engine_privileged_state.register_task(task.clone());
+            engine_privileged_state
+                .get_trackable_task_manager()
+                .register_task(task.clone());
 
             // Spawn a thread to listen to progress updates.
             thread::spawn(move || {
@@ -42,7 +44,9 @@ impl EngineCommandRequestExecutor for ScanExecuteRequest {
 
             thread::spawn(move || {
                 task.wait_for_completion();
-                engine_privileged_state.unregister_task(&task.get_task_identifier());
+                engine_privileged_state
+                    .get_trackable_task_manager()
+                    .unregister_task(&task.get_task_identifier());
                 engine_privileged_state.emit_event(ScanResultsUpdatedEvent {});
             });
 

@@ -12,6 +12,6 @@ pub enum EngineIngress {
 pub trait ExecutableCommand {
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> EngineCommandResponse;
 }

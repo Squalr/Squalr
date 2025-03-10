@@ -10,18 +10,20 @@ impl EngineCommandExecutor for ScanCommand {
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandExecutor>::ResponseType {
         match self {
             ScanCommand::Reset { scan_reset_request } => scan_reset_request
-                .execute(execution_context)
+                .execute(engine_privileged_state)
                 .to_engine_response(),
-            ScanCommand::New { scan_new_request } => scan_new_request.execute(execution_context).to_engine_response(),
+            ScanCommand::New { scan_new_request } => scan_new_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
             ScanCommand::CollectValues { scan_value_collector_request } => scan_value_collector_request
-                .execute(execution_context)
+                .execute(engine_privileged_state)
                 .to_engine_response(),
             ScanCommand::Execute { scan_execute_request } => scan_execute_request
-                .execute(execution_context)
+                .execute(engine_privileged_state)
                 .to_engine_response(),
         }
     }

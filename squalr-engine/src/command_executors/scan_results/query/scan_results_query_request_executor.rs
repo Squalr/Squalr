@@ -10,7 +10,7 @@ impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         let results_page_size = ScanSettings::get_instance().get_results_page_size() as u64;
         let mut scan_results_list = vec![];
@@ -18,7 +18,7 @@ impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
         let mut result_count = 0;
         let mut total_size_in_bytes = 0;
 
-        if let Ok(snapshot) = execution_context.get_snapshot().read() {
+        if let Ok(snapshot) = engine_privileged_state.get_snapshot().read() {
             result_count = snapshot.get_number_of_results();
             last_page_index = result_count / results_page_size;
             total_size_in_bytes = snapshot.get_byte_count();

@@ -15,7 +15,7 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         let results_page_size = ScanSettings::get_instance().get_results_page_size() as u64;
         let mut scan_results_list = vec![];
@@ -24,13 +24,13 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
         let mut total_size_in_bytes = 0;
 
         // Collect modules if possible so that we can resolve whether individual addresses are static later.
-        let modules = if let Some(opened_process_info) = execution_context.get_opened_process() {
+        let modules = if let Some(opened_process_info) = engine_privileged_state.get_opened_process() {
             MemoryQueryer::get_instance().get_modules(&opened_process_info)
         } else {
             vec![]
         };
 
-        if let Ok(snapshot) = execution_context.get_snapshot().read() {
+        if let Ok(snapshot) = engine_privileged_state.get_snapshot().read() {
             result_count = snapshot.get_number_of_results();
             last_page_index = result_count / results_page_size;
             total_size_in_bytes = snapshot.get_byte_count();
@@ -50,7 +50,7 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
                 let mut module_offset = scan_result_base.address;
 
                 // Best-effort attempt to read the values for this scan result.
-                if let Some(opened_process_info) = execution_context.get_opened_process() {
+                if let Some(opened_process_info) = engine_privileged_state.get_opened_process() {
                     if let Some(mut data_value) = scan_result_base.data_type.get_default_value() {
                         if MemoryReader::get_instance().read(&opened_process_info, scan_result_base.address, &mut data_value) {
                             recently_read_value = Some(data_value);

@@ -12,7 +12,7 @@ impl EngineCommandRequestExecutor for ProcessOpenRequest {
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         if self.process_id.is_none() && self.search_name.is_none() {
             log::error!("Error: Neither PID nor search name provided. Cannot open process.");
@@ -35,7 +35,7 @@ impl EngineCommandRequestExecutor for ProcessOpenRequest {
         if let Some(process_info) = processes.first() {
             match ProcessQuery::open_process(&process_info) {
                 Ok(opened_process_info) => {
-                    execution_context.set_opened_process(opened_process_info.clone());
+                    engine_privileged_state.set_opened_process(opened_process_info.clone());
 
                     return ProcessOpenResponse {
                         opened_process_info: Some(opened_process_info),

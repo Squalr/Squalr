@@ -14,12 +14,12 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         let mut scan_results_list = vec![];
 
         // Collect modules if possible so that we can resolve whether individual addresses are static later.
-        let modules = if let Some(opened_process_info) = execution_context.get_opened_process() {
+        let modules = if let Some(opened_process_info) = engine_privileged_state.get_opened_process() {
             MemoryQueryer::get_instance().get_modules(&opened_process_info)
         } else {
             vec![]
@@ -32,7 +32,7 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
             let mut module_offset = scan_result_base.address;
 
             // Best-effort attempt to read the values for this scan result.
-            if let Some(opened_process_info) = execution_context.get_opened_process() {
+            if let Some(opened_process_info) = engine_privileged_state.get_opened_process() {
                 if let Some(mut data_value) = scan_result_base.data_type.get_default_value() {
                     if MemoryReader::get_instance().read(&opened_process_info, scan_result_base.address, &mut data_value) {
                         recently_read_value = Some(data_value);

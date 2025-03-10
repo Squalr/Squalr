@@ -10,14 +10,14 @@ impl EngineCommandExecutor for MemoryCommand {
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandExecutor>::ResponseType {
         match self {
             MemoryCommand::Write { memory_write_request } => memory_write_request
-                .execute(execution_context)
+                .execute(engine_privileged_state)
                 .to_engine_response(),
             MemoryCommand::Read { memory_read_request } => memory_read_request
-                .execute(execution_context)
+                .execute(engine_privileged_state)
                 .to_engine_response(),
         }
     }

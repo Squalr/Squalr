@@ -7,3 +7,4 @@ pub mod project;
 pub mod scan;
 pub mod scan_results;
 pub mod settings;
+pub mod trackable_tasks;

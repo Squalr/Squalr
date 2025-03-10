@@ -10,17 +10,17 @@ impl EngineCommandExecutor for ProcessCommand {
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandExecutor>::ResponseType {
         match self {
             ProcessCommand::Open { process_open_request } => process_open_request
-                .execute(execution_context)
+                .execute(engine_privileged_state)
                 .to_engine_response(),
             ProcessCommand::List { process_list_request } => process_list_request
-                .execute(execution_context)
+                .execute(engine_privileged_state)
                 .to_engine_response(),
             ProcessCommand::Close { process_close_request } => process_close_request
-                .execute(execution_context)
+                .execute(engine_privileged_state)
                 .to_engine_response(),
         }
     }

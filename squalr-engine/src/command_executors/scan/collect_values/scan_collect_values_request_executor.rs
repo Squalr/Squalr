@@ -12,16 +12,18 @@ impl EngineCommandRequestExecutor for ScanCollectValuesRequest {
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        if let Some(process_info) = execution_context.get_opened_process() {
-            let snapshot = execution_context.get_snapshot();
+        if let Some(process_info) = engine_privileged_state.get_opened_process() {
+            let snapshot = engine_privileged_state.get_snapshot();
             let task = ValueCollectorTask::start_task(process_info.clone(), snapshot, true);
             let task_handle = task.get_task_handle();
             let progress_receiver = task.subscribe_to_progress_updates();
-            let execution_context = execution_context.clone();
+            let engine_privileged_state = engine_privileged_state.clone();
 
-            execution_context.register_task(task.clone());
+            engine_privileged_state
+                .get_trackable_task_manager()
+                .register_task(task.clone());
 
             // Spawn a thread to listen to progress updates
             thread::spawn(move || {
@@ -32,8 +34,10 @@ impl EngineCommandRequestExecutor for ScanCollectValuesRequest {
 
             thread::spawn(move || {
                 task.wait_for_completion();
-                execution_context.unregister_task(&task.get_task_identifier());
-                execution_context.emit_event(ScanResultsUpdatedEvent {});
+                engine_privileged_state
+                    .get_trackable_task_manager()
+                    .unregister_task(&task.get_task_identifier());
+                engine_privileged_state.emit_event(ScanResultsUpdatedEvent {});
             });
 
             ScanCollectValuesResponse {

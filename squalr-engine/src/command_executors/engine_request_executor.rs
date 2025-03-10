@@ -11,7 +11,7 @@ pub trait EngineCommandRequestExecutor: EngineCommandRequest + Clone + Serialize
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType;
 
     fn send<F>(

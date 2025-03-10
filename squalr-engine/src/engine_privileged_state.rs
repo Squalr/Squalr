@@ -136,20 +136,8 @@ impl EnginePrivilegedState {
         }
     }
 
-    /// Registers a task handle to be tracked by the engine task manager.
-    pub fn register_task(
-        &self,
-        trackable_task: Arc<TrackableTask>,
-    ) {
-        self.task_manager.register_task(trackable_task);
-    }
-
-    /// Unregisters a task handle, after which the task manager no longer tracks it.
-    pub fn unregister_task(
-        &self,
-        task_identifier: &String,
-    ) {
-        self.task_manager.unregister_task(task_identifier);
+    pub fn get_trackable_task_manager(&self) -> &TrackableTaskManager {
+        &self.task_manager
     }
 
     /// Listens for the death of the currently opened process by polling for it repeatedly.

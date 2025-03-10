@@ -13,11 +13,11 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         let scan_parameters_local = self.scan_parameters_local.clone();
 
-        let opened_process_info = execution_context.get_opened_process();
+        let opened_process_info = engine_privileged_state.get_opened_process();
         let opened_process_info = match opened_process_info {
             Some(opened_process_info) => opened_process_info,
             None => {
@@ -27,7 +27,7 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
             }
         };
 
-        let snapshot = execution_context.get_snapshot();
+        let snapshot = engine_privileged_state.get_snapshot();
         let mut snapshot = match snapshot.write() {
             Ok(guard) => guard,
             Err(err) => {
@@ -73,7 +73,7 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
 
             // Update snapshot with new merged regions.
             snapshot.set_snapshot_regions(merged_snapshot_regions);
-            execution_context.emit_event(ScanResultsUpdatedEvent {});
+            engine_privileged_state.emit_event(ScanResultsUpdatedEvent {});
         }
 
         ScanNewResponse {}

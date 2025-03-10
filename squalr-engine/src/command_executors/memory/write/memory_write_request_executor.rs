@@ -11,9 +11,9 @@ impl EngineCommandRequestExecutor for MemoryWriteRequest {
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        if let Some(process_info) = execution_context.get_opened_process() {
+        if let Some(process_info) = engine_privileged_state.get_opened_process() {
             /*
             // Log the memory write operation
             log::info!("Writing value {:?} to address {}", self.value, self.address);

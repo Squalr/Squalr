@@ -4,6 +4,7 @@ use crate::commands::project::project_response::ProjectResponse;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
 use crate::commands::settings::settings_response::SettingsResponse;
+use crate::commands::trackable_tasks::trackable_tasks_response::TrackableTasksResponse;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -14,6 +15,7 @@ pub enum EngineCommandResponse {
     Project(ProjectResponse),
     Scan(ScanResponse),
     Settings(SettingsResponse),
+    TrackableTasks(TrackableTasksResponse),
 }
 
 pub trait TypedEngineCommandResponse: Sized {

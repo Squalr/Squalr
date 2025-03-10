@@ -10,15 +10,15 @@ impl EngineCommandRequestExecutor for ScanResetRequest {
 
     fn execute(
         &self,
-        execution_context: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let snapshot = execution_context.get_snapshot();
+        let snapshot = engine_privileged_state.get_snapshot();
 
         match snapshot.write() {
             Ok(mut snapshot) => {
                 // Clears snapshot regions to reset the scan.
                 snapshot.set_snapshot_regions(vec![]);
-                execution_context.emit_event(ScanResultsUpdatedEvent {});
+                engine_privileged_state.emit_event(ScanResultsUpdatedEvent {});
 
                 log::info!("Cleared scan data.");
 

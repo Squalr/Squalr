@@ -11,7 +11,7 @@ impl EngineCommandRequestExecutor for SettingsSetRequest {
 
     fn execute(
         &self,
-        _execution_context: &Arc<EnginePrivilegedState>,
+        _engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         // Parse the setting command
         let (domain_and_setting, new_value) = match self.setting_command.split_once('=') {
