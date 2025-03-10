@@ -3,6 +3,7 @@ use crate::MainWindowView;
 use crate::ScanConstraintTypeView;
 use crate::ScannerViewModelBindings;
 use crate::ValueCollectorViewModelBindings;
+use crate::models::audio::audio_player::AudioPlayer;
 use crate::view_models::scanners::scan_constraint_converter::ScanConstraintConverter;
 use slint::ComponentHandle;
 use slint::SharedString;

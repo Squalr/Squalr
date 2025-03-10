@@ -2,6 +2,7 @@ use crate::DockRootViewModelBindings;
 use crate::MainWindowView;
 use crate::RedockTarget;
 use crate::WindowViewModelBindings;
+use crate::models::audio::audio_player::AudioPlayer;
 use crate::models::docking::docking_manager::DockingManager;
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
@@ -44,6 +45,7 @@ impl DockRootViewModel {
     ) -> Self {
         let main_dock_root = DockableWindowSettings::get_instance().get_dock_layout_settings();
         let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));
+        let audio_player = Arc::new(AudioPlayer::new());
 
         let view: DockRootViewModel = DockRootViewModel {
             view_binding: view_binding.clone(),
@@ -53,7 +55,7 @@ impl DockRootViewModel {
             output_view_model: OutputViewModel::new(view_binding.clone(), engine_execution_context.clone(), file_system_logger),
             process_selector_view_model: ProcessSelectorViewModel::new(view_binding.clone(), engine_execution_context.clone()),
             scan_settings_view_model: ScanSettingsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
-            scan_results_view_model: ScanResultsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
+            scan_results_view_model: ScanResultsViewModel::new(view_binding.clone(), audio_player.clone(), engine_execution_context.clone()),
         };
 
         // Initialize the dock root size.
