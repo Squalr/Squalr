@@ -3,6 +3,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use crate::tasks::trackable_task::TrackableTask;
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest;
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_response::ScanCollectValuesResponse;
+use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_scanning::scanners::value_collector::ValueCollector;
 use std::sync::Arc;
 use std::thread;
@@ -38,6 +39,7 @@ impl EngineCommandRequestExecutor for ScanCollectValuesRequest {
             thread::spawn(move || {
                 task.wait_for_completion();
                 execution_context.unregister_task(&task.get_task_identifier());
+                execution_context.emit_event(ScanResultsUpdatedEvent {});
             });
 
             ScanCollectValuesResponse {

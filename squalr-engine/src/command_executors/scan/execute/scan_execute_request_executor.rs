@@ -3,6 +3,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use crate::tasks::trackable_task::TrackableTask;
 use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecuteRequest;
 use squalr_engine_api::commands::scan::execute::scan_execute_response::ScanExecuteResponse;
+use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_scanning::scan_settings::ScanSettings;
 use squalr_engine_scanning::scanners::scan_executor::ScanExecutor;
@@ -47,6 +48,7 @@ impl EngineCommandRequestExecutor for ScanExecuteRequest {
             thread::spawn(move || {
                 task.wait_for_completion();
                 execution_context.unregister_task(&task.get_task_identifier());
+                execution_context.emit_event(ScanResultsUpdatedEvent {});
             });
 
             ScanExecuteResponse {

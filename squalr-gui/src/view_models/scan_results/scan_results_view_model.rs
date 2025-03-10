@@ -13,6 +13,7 @@ use squalr_engine::command_executors::engine_request_executor::EngineCommandRequ
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
+use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
 use squalr_engine_common::conversions::Conversions;
@@ -82,29 +83,32 @@ impl ScanResultsViewModel {
         let current_page_index = self.current_page_index.clone();
         let cached_last_page_index = self.cached_last_page_index.clone();
 
+        // Requery all scan results if they update.
+        let engine_execution_context_clone = engine_execution_context.clone();
+
+        engine_execution_context_clone.listen_for_engine_event::<ScanResultsUpdatedEvent>(move |_scan_results_updated_event| {
+            Self::query_scan_results(
+                view_binding.clone(),
+                engine_execution_context.clone(),
+                base_scan_results_collection.clone(),
+                scan_results_collection.clone(),
+                current_page_index.clone(),
+                cached_last_page_index.clone(),
+            );
+        });
+
+        let engine_execution_context = self.engine_execution_context.clone();
+        let base_scan_results_collection = self.base_scan_results_collection.clone();
+        let scan_results_collection = self.scan_results_collection.clone();
+
         thread::spawn(move || {
             loop {
-                let has_scan_results = match base_scan_results_collection.read() {
-                    Ok(base_scan_results_collection) => base_scan_results_collection.len() > 0,
-                    Err(_) => false,
-                };
+                Self::refresh_scan_results(
+                    engine_execution_context.clone(),
+                    base_scan_results_collection.clone(),
+                    scan_results_collection.clone(),
+                );
 
-                if has_scan_results {
-                    Self::refresh_scan_results(
-                        engine_execution_context.clone(),
-                        base_scan_results_collection.clone(),
-                        scan_results_collection.clone(),
-                    );
-                } else {
-                    Self::query_scan_results(
-                        view_binding.clone(),
-                        engine_execution_context.clone(),
-                        base_scan_results_collection.clone(),
-                        scan_results_collection.clone(),
-                        current_page_index.clone(),
-                        cached_last_page_index.clone(),
-                    );
-                }
                 thread::sleep(Duration::from_millis(100));
             }
         });
@@ -196,18 +200,18 @@ impl ScanResultsViewModel {
 
         view_binding.execute_on_ui_thread(move |main_window_view, _| {
             let scan_results_bindings = main_window_view.global::<ScanResultsViewModelBindings>();
-            // If the new index is the same as the current one, do nothing
+            // If the new index is the same as the current one, do nothing.
             if new_page_index == current_page_index.load(Ordering::Acquire) {
                 return;
             }
 
             current_page_index.store(new_page_index, Ordering::Release);
 
-            // Update the view binding with the cleaned numeric string
+            // Update the view binding with the cleaned numeric string.
             scan_results_bindings.set_current_page_index_string(SharedString::from(new_page_index.to_string()));
         });
 
-        // Refresh scan results with the new page index
+        // Refresh scan results with the new page index.
         Self::query_scan_results(
             view_binding_clone,
             engine_execution_context,

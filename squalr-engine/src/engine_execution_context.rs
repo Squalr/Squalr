@@ -6,6 +6,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::engine_command_response::EngineCommandResponse;
 use squalr_engine_api::events::engine_event::EngineEventRequest;
 use squalr_engine_api::events::process::process_event::ProcessEvent;
+use squalr_engine_api::events::scan_results::scan_results_event::ScanResultsEvent;
 use squalr_engine_api::events::trackable_task::trackable_task_event::TrackableTaskEvent;
 use squalr_engine_api::{commands::engine_command::EngineCommand, events::engine_event::EngineEvent};
 use std::{
@@ -140,6 +141,11 @@ impl EngineExecutionContext {
             EngineEvent::Process(process_event) => match process_event {
                 ProcessEvent::ProcessChanged { process_changed_event } => {
                     Self::dispatch_engine_event(&event_listeners, process_changed_event);
+                }
+            },
+            EngineEvent::ScanResults(process_event) => match process_event {
+                ScanResultsEvent::ScanResultsUpdated { scan_results_updated_event } => {
+                    Self::dispatch_engine_event(&event_listeners, scan_results_updated_event);
                 }
             },
             EngineEvent::TrackableTask(trackable_task_event) => match trackable_task_event {
