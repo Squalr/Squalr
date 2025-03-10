@@ -4300,6 +4300,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "crossbeam-channel",
+ "dashmap",
  "interprocess",
  "log",
  "serde",
@@ -4320,6 +4321,7 @@ dependencies = [
 name = "squalr-engine-api"
 version = "0.1.0"
 dependencies = [
+ "crossbeam-channel",
  "dashmap",
  "log",
  "num-traits",
@@ -4328,6 +4330,7 @@ dependencies = [
  "squalr-engine-common",
  "structopt",
  "sysinfo 0.31.2",
+ "uuid",
 ]
 
 [[package]]

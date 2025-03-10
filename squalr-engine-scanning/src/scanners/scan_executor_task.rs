@@ -1,41 +1,46 @@
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::scan_dispatcher::ScanDispatcher;
-use crate::scanners::value_collector::ValueCollector;
+use crate::scanners::value_collector_task::ValueCollectorTask;
 use crate::snapshots::snapshot::Snapshot;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::scan_memory_read_mode::ScanMemoryReadMode;
 use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
-use squalr_engine_api::structures::tasks::engine_trackable_task_handle::EngineTrackableTaskHandle;
+use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use squalr_engine_common::conversions::Conversions;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Instant;
 
-pub struct ScanExecutor;
+pub struct ScanExecutorTask;
+
+const TASK_NAME: &'static str = "Scan Executor";
 
 /// Implementation of a task that performs a scan against the provided snapshot. Does not collect new values.
 /// Caller is assumed to have already done this if desired.
-impl ScanExecutor {
-    pub fn scan(
-        task_handle: EngineTrackableTaskHandle,
+impl ScanExecutorTask {
+    pub fn start_task(
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         scan_parameters_global: &ScanParametersGlobal,
         with_logging: bool,
-    ) {
-        let scan_parameters_clone = scan_parameters_global.clone();
+    ) -> Arc<TrackableTask> {
+        let task = TrackableTask::create(TASK_NAME.to_string(), None);
+        let task_clone = task.clone();
+        let scan_parameters_global_clone = scan_parameters_global.clone();
 
         thread::spawn(move || {
-            Self::scan_task(task_handle.clone(), process_info, snapshot, &scan_parameters_clone, with_logging);
+            Self::scan_task(&task_clone, process_info, snapshot, &scan_parameters_global_clone, with_logging);
 
-            task_handle.complete();
+            task_clone.complete();
         });
+
+        task
     }
 
     fn scan_task(
-        task_handle: EngineTrackableTaskHandle,
+        trackable_task: &Arc<TrackableTask>,
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         scan_parameters_global: &ScanParametersGlobal,
@@ -44,9 +49,7 @@ impl ScanExecutor {
         // If the parameter is set, first collect values before the scan.
         // This is slower overall than interleaving the reads, but better for capturing values that may soon change.
         if scan_parameters_global.get_memory_read_mode() == ScanMemoryReadMode::ReadBeforeScan {
-            let fix_me = 0;
-            // TODO: Some sort of child task function
-            // ValueCollector::collect_values(task_handle.clone(), process_info.clone(), snapshot.clone(), None, with_logging).wait_for_completion();
+            ValueCollectorTask::start_task(process_info.clone(), snapshot.clone(), with_logging).wait_for_completion();
         }
 
         if with_logging {
@@ -67,7 +70,7 @@ impl ScanExecutor {
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
         let total_region_count = snapshot.get_region_count();
-        let cancellation_token = task_handle.get_cancellation_token();
+        let cancellation_token = trackable_task.get_cancellation_token();
 
         // Iterate over every snapshot region, from which we will grab the existing snapshot filters to perform our next scan.
         snapshot
@@ -108,7 +111,7 @@ impl ScanExecutor {
                 // To reduce performance impact, only periodically send progress updates.
                 if processed % 32 == 0 {
                     let progress = (processed as f32 / total_region_count as f32) * 100.0;
-                    task_handle.set_progress(progress);
+                    trackable_task.set_progress(progress);
                 }
             });
 

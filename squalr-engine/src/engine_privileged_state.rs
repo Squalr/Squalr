@@ -6,7 +6,7 @@ use crossbeam_channel::Receiver;
 use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
 use squalr_engine_api::events::process::changed::process_changed_event::ProcessChangedEvent;
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
-use squalr_engine_api::structures::tasks::engine_trackable_task_handle::EngineTrackableTaskHandle;
+use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
@@ -139,9 +139,9 @@ impl EnginePrivilegedState {
     /// Registers a task handle to be tracked by the engine task manager.
     pub fn register_task(
         &self,
-        trackable_task_handle: EngineTrackableTaskHandle,
+        trackable_task: Arc<TrackableTask>,
     ) {
-        self.task_manager.register_task(trackable_task_handle);
+        self.task_manager.register_task(trackable_task);
     }
 
     /// Unregisters a task handle, after which the task manager no longer tracks it.

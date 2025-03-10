@@ -1,22 +1,22 @@
 use crossbeam_channel::{Receiver, Sender};
-use squalr_engine_api::structures::tasks::engine_trackable_task_handle::EngineTrackableTaskHandle;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use uuid::Uuid;
 
-pub struct TrackableTask<ResultType: Send + Sync> {
+use super::trackable_task_handle::TrackableTaskHandle;
+
+pub struct TrackableTask {
     name: String,
     progress: Arc<Mutex<f32>>,
     task_identifier: String,
     is_canceled: Arc<AtomicBool>,
     is_completed: Arc<AtomicBool>,
-    result: Mutex<Option<ResultType>>,
     completed_cv: Condvar,
     progress_sender: Sender<f32>,
     progress_receiver: Receiver<f32>,
 }
 
-impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
+impl TrackableTask {
     pub fn create(
         name: String,
         task_identifier: Option<String>,
@@ -30,7 +30,6 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
             task_identifier,
             is_canceled: Arc::new(AtomicBool::new(false)),
             is_completed: Arc::new(AtomicBool::new(false)),
-            result: Mutex::new(None),
             completed_cv: Condvar::new(),
             progress_sender,
             progress_receiver,
@@ -39,12 +38,11 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
         task
     }
 
-    pub fn get_task_handle(&self) -> EngineTrackableTaskHandle {
-        EngineTrackableTaskHandle {
+    pub fn get_task_handle(&self) -> TrackableTaskHandle {
+        TrackableTaskHandle {
             name: self.get_name().clone(),
             progress: self.get_progress(),
             task_identifier: self.get_task_identifier(),
-            cancellation_token: self.get_cancellation_token().clone(),
         }
     }
 
@@ -101,31 +99,26 @@ impl<ResultType: Send + Sync + 'static> TrackableTask<ResultType> {
 
     pub fn cancel(&self) {
         self.is_canceled.store(true, Ordering::SeqCst);
+        self.complete();
     }
 
-    pub fn complete(
-        &self,
-        result: ResultType,
-    ) {
-        if let Ok(mut result_lock) = self.result.lock() {
-            *result_lock = Some(result);
-        }
-
+    pub fn complete(&self) {
         self.is_completed.store(true, Ordering::SeqCst);
         self.completed_cv.notify_all();
     }
 
-    pub fn wait_for_completion(&self) -> Option<ResultType> {
-        if let Ok(mut result_lock) = self.result.lock() {
-            while result_lock.is_none() {
-                // This releases the lock until the result is complete.
-                result_lock = self.completed_cv.wait(result_lock).unwrap();
+    pub fn wait_for_completion(&self) {
+        let mutex = Mutex::new(());
+        let mut lock = match mutex.lock() {
+            Ok(lock) => lock,
+            Err(err) => {
+                log::error!("Error waiting for event completion: {}", err);
+                return;
             }
+        };
 
-            result_lock.take()
-        } else {
-            log::error!("Failed to wait for task completion.");
-            None
+        while !self.is_completed() {
+            lock = self.completed_cv.wait(lock).unwrap();
         }
     }
 }

@@ -1,40 +1,41 @@
-use squalr_engine_api::structures::tasks::engine_trackable_task_handle::EngineTrackableTaskHandle;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use dashmap::DashMap;
+use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
+use squalr_engine_api::structures::tasks::trackable_task_handle::TrackableTaskHandle;
+use std::sync::Arc;
 
 pub struct TrackableTaskManager {
-    tasks: Arc<Mutex<HashMap<String, EngineTrackableTaskHandle>>>,
+    tasks: Arc<DashMap<String, Arc<TrackableTask>>>,
 }
 
 impl TrackableTaskManager {
     pub fn new() -> Self {
         TrackableTaskManager {
-            tasks: Arc::new(Mutex::new(HashMap::new())),
+            tasks: Arc::new(DashMap::new()),
         }
     }
 
     pub fn register_task(
         &self,
-        trackable_task_handle: EngineTrackableTaskHandle,
+        trackable_task: Arc<TrackableTask>,
     ) {
-        if let Ok(mut tasks) = self.tasks.lock() {
-            tasks.insert(trackable_task_handle.task_identifier.clone(), trackable_task_handle);
-        }
+        self.tasks
+            .insert(trackable_task.get_task_identifier(), trackable_task);
     }
 
     pub fn unregister_task(
         &self,
         task_identifier: &String,
     ) {
-        if let Ok(mut tasks) = self.tasks.lock() {
-            tasks.remove(task_identifier);
-        }
+        self.tasks.remove(task_identifier);
     }
 
     pub fn get_task_handle(
         &self,
         task_identifier: &String,
-    ) -> Option<EngineTrackableTaskHandle> {
-        self.tasks.lock().ok()?.get(task_identifier).cloned()
+    ) -> Option<TrackableTaskHandle> {
+        match self.tasks.get(task_identifier) {
+            Some(task) => Some(task.get_task_handle()),
+            None => None,
+        }
     }
 }
