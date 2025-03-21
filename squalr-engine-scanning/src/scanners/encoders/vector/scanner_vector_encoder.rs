@@ -31,7 +31,7 @@ where
     ) -> Vec<SnapshotRegionFilter> {
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_parameters_local.get_data_type();
-        let data_type_size_bytes = data_type.get_size_in_bytes();
+        let memory_alignment = scan_parameters_local.get_memory_alignment_or_default() as u64;
         let vector_size_in_bytes = N;
         let iterations = region_size / vector_size_in_bytes as u64;
         let remainder_bytes = region_size % vector_size_in_bytes as u64;
@@ -49,14 +49,14 @@ where
                             let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
                             let compare_result = compare_func(current_value_pointer);
 
-                            self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
+                            self.encode_results(&compare_result, &mut run_length_encoder, memory_alignment, true_mask, false_mask);
                         }
 
                         // Handle remainder elements
                         if remainder_bytes > 0 {
                             let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
                             let compare_result = compare_func(current_value_pointer);
-                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
+                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment, remainder_bytes);
                         }
                     }
                 }
@@ -70,7 +70,7 @@ where
                             let previous_value_pointer = previous_value_pointer.add(index as usize * vector_size_in_bytes);
                             let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                            self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
+                            self.encode_results(&compare_result, &mut run_length_encoder, memory_alignment, true_mask, false_mask);
                         }
 
                         // Handle remainder elements
@@ -79,7 +79,7 @@ where
                             let previous_value_pointer = previous_value_pointer.add(remainder_ptr_offset);
                             let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
+                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment, remainder_bytes);
                         }
                     }
                 }
@@ -92,7 +92,7 @@ where
                             let previous_value_pointer = previous_value_pointer.add(index as usize * vector_size_in_bytes);
                             let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                            self.encode_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, true_mask, false_mask);
+                            self.encode_results(&compare_result, &mut run_length_encoder, memory_alignment, true_mask, false_mask);
                         }
 
                         // Handle remainder elements
@@ -100,7 +100,7 @@ where
                             let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
                             let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_bytes, remainder_bytes);
+                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment, remainder_bytes);
                         }
                     }
                 }
@@ -115,7 +115,7 @@ where
         &self,
         compare_result: &Simd<u8, N>,
         run_length_encoder: &mut SnapshotRegionFilterRunLengthEncoder,
-        data_type_size: u64,
+        memory_alignment: u64,
         true_mask: Simd<u8, N>,
         false_mask: Simd<u8, N>,
     ) {
@@ -127,11 +127,11 @@ where
             run_length_encoder.finalize_current_encode(N as u64);
         // Otherwise, there is a mix of true/false results that need to be processed manually.
         } else {
-            for byte_index in (0..N).step_by(data_type_size as usize) {
+            for byte_index in (0..N).step_by(memory_alignment as usize) {
                 if compare_result[byte_index] != 0 {
-                    run_length_encoder.encode_range(data_type_size);
+                    run_length_encoder.encode_range(memory_alignment);
                 } else {
-                    run_length_encoder.finalize_current_encode(data_type_size);
+                    run_length_encoder.finalize_current_encode(memory_alignment);
                 }
             }
         }
@@ -141,16 +141,16 @@ where
         &self,
         compare_result: &Simd<u8, N>,
         run_length_encoder: &mut SnapshotRegionFilterRunLengthEncoder,
-        data_type_size: u64,
+        memory_alignment: u64,
         remainder_bytes: u64,
     ) {
         let start_byte_index = N - remainder_bytes as usize;
 
-        for byte_index in (start_byte_index..N).step_by(data_type_size as usize) {
+        for byte_index in (start_byte_index..N).step_by(memory_alignment as usize) {
             if compare_result[byte_index] != 0 {
-                run_length_encoder.encode_range(data_type_size);
+                run_length_encoder.encode_range(memory_alignment);
             } else {
-                run_length_encoder.finalize_current_encode(data_type_size);
+                run_length_encoder.finalize_current_encode(memory_alignment);
             }
         }
     }
