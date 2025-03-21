@@ -75,8 +75,8 @@ impl DataValue {
 
         match registry.get(data_type.get_data_type_id()) {
             Some(data_type) => match data_type.create_display_value(value_bytes) {
-                Some(value_string) => value_string,
-                None => "??".to_string(),
+                Ok(value_string) => value_string,
+                Err(_) => "??".to_string(),
             },
             None => "??".to_string(),
         }
@@ -98,8 +98,8 @@ impl FromStr for DataValue {
                 let anonymous_value = AnonymousValue::new(parts[1]);
 
                 match data_type.deanonymize_value(&anonymous_value) {
-                    Some(value) => Ok(value),
-                    None => Err("Unable to parse value.".to_string()),
+                    Ok(value) => Ok(value),
+                    Err(err) => Err(format!("Unable to parse value: {}", err)),
                 }
             }
             None => Err("Data type not found.".to_string()),

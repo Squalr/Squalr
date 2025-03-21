@@ -15,6 +15,7 @@ serde = { version = ">=1.0.139", features = ["derive"] }
 serde_json = ">=1.0.139"
 structopt = ">=0.3.26"
 sysinfo = ">=0.31.2"
+thiserror = ">=2.0.12"
 uuid = { version = "1.15.1", features = ["v4"] }
 
 [build-dependencies]

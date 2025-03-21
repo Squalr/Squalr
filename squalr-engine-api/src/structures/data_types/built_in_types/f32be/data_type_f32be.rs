@@ -1,8 +1,10 @@
+use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
+use std::any::type_name;
 
 type PrimitiveType = f32;
 
@@ -35,23 +37,31 @@ impl DataType for DataTypeF32be {
     fn deanonymize_value(
         &self,
         anonymous_value: &AnonymousValue,
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, DataTypeError> {
         let value_string = anonymous_value.to_string();
 
         match value_string.parse::<PrimitiveType>() {
-            Ok(value) => Self::to_vec(value),
-            Err(_) => vec![],
+            Ok(value) => Ok(Self::to_vec(value)),
+            Err(err) => Err(DataTypeError::ParseError(format!(
+                "Failed to parse big-endian {} value '{}': {}",
+                type_name::<PrimitiveType>(),
+                value_string,
+                err
+            ))),
         }
     }
 
     fn create_display_value(
         &self,
         value_bytes: &[u8],
-    ) -> Option<String> {
-        if value_bytes.len() == self.get_default_size_in_bytes() as usize {
-            Some(PrimitiveType::from_be_bytes([value_bytes[0], value_bytes[1], value_bytes[2], value_bytes[3]]).to_string())
+    ) -> Result<String, DataTypeError> {
+        let expected = self.get_default_size_in_bytes() as usize;
+        let actual = value_bytes.len();
+
+        if actual == expected {
+            Ok(PrimitiveType::from_be_bytes([value_bytes[0], value_bytes[1], value_bytes[2], value_bytes[3]]).to_string())
         } else {
-            None
+            Err(DataTypeError::InvalidByteCount { expected, actual })
         }
     }
 

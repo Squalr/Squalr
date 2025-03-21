@@ -95,12 +95,19 @@ impl DataTypeRef {
     pub fn deanonymize_value(
         &self,
         anonymous_value: &AnonymousValue,
-    ) -> Option<DataValue> {
+    ) -> Result<DataValue, String> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(self.get_data_type_id()) {
-            Some(data_type) => Some(DataValue::new(self.clone(), data_type.deanonymize_value(anonymous_value))),
-            None => None,
+            Some(data_type) => {
+                let deanonymized_value = data_type.deanonymize_value(anonymous_value);
+
+                match deanonymized_value {
+                    Ok(value) => Ok(DataValue::new(self.clone(), value)),
+                    Err(err) => Err(err.to_string()),
+                }
+            }
+            None => Err("Cannot deanonymize value: data type is not registered.".into()),
         }
     }
 

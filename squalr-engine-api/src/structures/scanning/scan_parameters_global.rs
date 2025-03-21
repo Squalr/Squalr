@@ -39,7 +39,10 @@ impl ScanParametersGlobal {
         data_type: &DataTypeRef,
     ) -> Option<DataValue> {
         match &self.compare_immediate {
-            Some(anonymous_value) => data_type.deanonymize_value(&anonymous_value),
+            Some(anonymous_value) => match data_type.deanonymize_value(&anonymous_value) {
+                Ok(value) => Some(value),
+                Err(_) => None,
+            },
             None => None,
         }
     }

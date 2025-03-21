@@ -1,3 +1,4 @@
+use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::memory::endian::Endian;
@@ -29,29 +30,32 @@ impl DataType for DataTypeByteArray {
     fn deanonymize_value(
         &self,
         anonymous_value: &AnonymousValue,
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, DataTypeError> {
         let value_string = anonymous_value.to_string();
 
         value_string
             .split_whitespace()
-            .filter_map(|hex_str| u8::from_str_radix(hex_str, 16).ok())
+            .map(|hex_str| {
+                u8::from_str_radix(hex_str, 16).map_err(|err| DataTypeError::HexParseError {
+                    hex: hex_str.to_string(),
+                    source: err,
+                })
+            })
             .collect()
     }
 
     fn create_display_value(
         &self,
         value_bytes: &[u8],
-    ) -> Option<String> {
+    ) -> Result<String, DataTypeError> {
         if !value_bytes.is_empty() {
-            Some(
-                value_bytes
-                    .iter()
-                    .map(|byte| format!("{:02X}", byte))
-                    .collect::<Vec<String>>()
-                    .join(" "),
-            )
+            Ok(value_bytes
+                .iter()
+                .map(|byte| format!("{:02X}", byte))
+                .collect::<Vec<String>>()
+                .join(" "))
         } else {
-            None
+            Err(DataTypeError::NoBytes)
         }
     }
 

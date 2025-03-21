@@ -1,5 +1,6 @@
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
 use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
+use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
@@ -18,12 +19,12 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
     fn deanonymize_value(
         &self,
         anonymous_value: &AnonymousValue,
-    ) -> Vec<u8>;
+    ) -> Result<Vec<u8>, DataTypeError>;
 
     fn create_display_value(
         &self,
         value_bytes: &[u8],
-    ) -> Option<String>;
+    ) -> Result<String, DataTypeError>;
 
     fn get_endian(&self) -> Endian;
 
