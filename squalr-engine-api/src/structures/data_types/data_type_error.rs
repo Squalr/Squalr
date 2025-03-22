@@ -11,9 +11,10 @@ pub enum DataTypeError {
     #[error("No bytes provided")]
     NoBytes,
 
-    #[error("Invalid hex value '{hex}': {source}")]
-    HexParseError {
-        hex: String,
+    #[error("Invalid value '{value}', is_hex: {is_value_hex} => {source}")]
+    ValueParseError {
+        value: String,
+        is_value_hex: bool,
         #[source]
         source: std::num::ParseIntError,
     },

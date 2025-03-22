@@ -33,11 +33,15 @@ impl DataType for DataTypeByteArray {
     ) -> Result<Vec<u8>, DataTypeError> {
         let value_string = anonymous_value.to_string();
 
+        // anonymous_value.is_value_hex;
+
         value_string
             .split_whitespace()
-            .map(|hex_str| {
-                u8::from_str_radix(hex_str, 16).map_err(|err| DataTypeError::HexParseError {
-                    hex: hex_str.to_string(),
+            .map(|next_value| {
+                let base = if anonymous_value.is_value_hex { 16 } else { 10 };
+                u8::from_str_radix(next_value, base).map_err(|err| DataTypeError::ValueParseError {
+                    value: next_value.to_string(),
+                    is_value_hex: anonymous_value.is_value_hex,
                     source: err,
                 })
             })

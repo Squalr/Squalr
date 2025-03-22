@@ -3,7 +3,6 @@ use crate::MainWindowView;
 use crate::ScanConstraintTypeView;
 use crate::ScannerViewModelBindings;
 use crate::ValueCollectorViewModelBindings;
-use crate::models::audio::audio_player::AudioPlayer;
 use crate::view_models::scanners::scan_constraint_converter::ScanConstraintConverter;
 use slint::ComponentHandle;
 use slint::SharedString;
@@ -54,7 +53,7 @@ impl ScannerViewModel {
             create_view_bindings!(view.view_binding, {
                 ScannerViewModelBindings => {
                     on_reset_scan() -> [view] -> Self::on_reset_scan,
-                    on_start_scan(data_type: DataTypeView, scan_constraint: ScanConstraintTypeView, scan_value: SharedString) -> [view] -> Self::on_start_scan,
+                    on_start_scan(data_type: DataTypeView, scan_constraint: ScanConstraintTypeView, scan_value: SharedString, is_value_hex: bool) -> [view] -> Self::on_start_scan,
                 },
                 ValueCollectorViewModelBindings => {
                     on_collect_values() -> [view] -> Self::on_collect_values,
@@ -86,6 +85,7 @@ impl ScannerViewModel {
         data_type_view: DataTypeView,
         scan_constraint: ScanConstraintTypeView,
         scan_value: SharedString,
+        is_value_hex: bool,
     ) {
         let scan_view_model_state = &scanner_view_model.scan_view_model_state;
 
@@ -101,10 +101,10 @@ impl ScannerViewModel {
 
         match scan_view_model_state_value {
             ScanViewModelState::HasResults => {
-                Self::start_scan(scanner_view_model, scan_constraint, scan_value.into());
+                Self::start_scan(scanner_view_model, scan_constraint, AnonymousValue::new(&scan_value, is_value_hex));
             }
             ScanViewModelState::NoResults => match DataTypeRef::new(&data_type_view.data_type.to_string()) {
-                Some(data_type) => Self::new_scan(scanner_view_model, data_type, scan_constraint, scan_value.into()),
+                Some(data_type) => Self::new_scan(scanner_view_model, data_type, scan_constraint, AnonymousValue::new(&scan_value, is_value_hex)),
                 None => log::error!("Failed to create data type for new scan."),
             },
             ScanViewModelState::ScanInProgress => {
@@ -123,16 +123,13 @@ impl ScannerViewModel {
         scanner_view_model: Arc<ScannerViewModel>,
         data_type: DataTypeRef,
         scan_constraint: ScanConstraintTypeView,
-        scan_value: String,
+        scan_value: AnonymousValue,
     ) {
         let engine_execution_context = &scanner_view_model.engine_execution_context;
         let scanner_view_model = scanner_view_model.clone();
         let memory_alignment = Some(MemoryAlignment::Alignment4); // JIRA: Pull from settings
         let scan_parameters_local = vec![ScanParametersLocal::new(data_type, memory_alignment)];
         let scan_new_request = ScanNewRequest { scan_parameters_local };
-
-        // Captured variables for scan once we create it.
-        let scan_value = scan_value.into();
 
         // Start a new scan, and recurse to start the scan once the new scan is made.
         scan_new_request.send(engine_execution_context, move |_scan_new_response| {
@@ -143,11 +140,10 @@ impl ScannerViewModel {
     fn start_scan(
         scanner_view_model: Arc<ScannerViewModel>,
         scan_constraint: ScanConstraintTypeView,
-        scan_value: String,
+        scan_value: AnonymousValue,
     ) {
         let engine_execution_context = &scanner_view_model.engine_execution_context;
         let scanner_view_model = scanner_view_model.clone();
-        let scan_value = AnonymousValue::new(&scan_value);
         let scan_execute_request = ScanExecuteRequest {
             scan_value: Some(scan_value),
             compare_type: ScanConstraintConverter::new().convert_from_view_data(&scan_constraint),

@@ -68,6 +68,7 @@ export component ScanBarView inherits Rectangle {
 
         scan-value := DataValueBox {
             data_type <=> ScannerViewModelBindings.active_data_type;
+            is_value_hex <=> ScannerViewModelBindings.is_value_hex;
             height: bar-height;
             text-padding-top: 0px;
             text-padding-bottom: 0px;
@@ -85,7 +86,7 @@ export component ScanBarView inherits Rectangle {
             tooltip-text: @tr("Start Scan");
             click-sound: "";
             clicked => {
-                ScannerViewModelBindings.start_scan(ScannerViewModelBindings.active_data_type, ScannerViewModelBindings.active_scan_type, scan-value.get_value_text());
+                ScannerViewModelBindings.start_scan(ScannerViewModelBindings.active_data_type, ScannerViewModelBindings.active_scan_type, scan-value.get_value_text(), ScannerViewModelBindings.is_value_hex);
             }
             Image {
                 width: 16px;

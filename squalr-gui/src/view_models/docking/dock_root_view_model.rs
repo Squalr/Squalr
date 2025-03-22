@@ -8,6 +8,7 @@ use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
+use crate::view_models::conversions_view_model::conversions_view_model::ConversionsViewModel;
 use crate::view_models::docking::dock_target_converter::DocktargetConverter;
 use crate::view_models::docking::dock_window_converter::DockWindowConverter;
 use crate::view_models::output::output_view_model::OutputViewModel;
@@ -36,6 +37,7 @@ pub struct DockRootViewModel {
     process_selector_view_model: Arc<ProcessSelectorViewModel>,
     scan_settings_view_model: Arc<ScanSettingsViewModel>,
     scan_results_view_model: Arc<ScanResultsViewModel>,
+    conversions_view_model: Arc<ConversionsViewModel>,
     validation_view_model: Arc<ValidationViewModel>,
 }
 
@@ -58,6 +60,7 @@ impl DockRootViewModel {
             process_selector_view_model: ProcessSelectorViewModel::new(view_binding.clone(), engine_execution_context.clone()),
             scan_settings_view_model: ScanSettingsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
             scan_results_view_model: ScanResultsViewModel::new(view_binding.clone(), audio_player.clone(), engine_execution_context.clone()),
+            conversions_view_model: ConversionsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
             validation_view_model: ValidationViewModel::new(view_binding.clone(), engine_execution_context.clone()),
         };
 
@@ -149,6 +152,10 @@ impl DockRootViewModel {
 
     pub fn get_scan_results_view_model(&self) -> &Arc<ScanResultsViewModel> {
         &self.scan_results_view_model
+    }
+
+    pub fn get_conversions_view_model(&self) -> &Arc<ConversionsViewModel> {
+        &self.conversions_view_model
     }
 
     pub fn get_validation_view_model(&self) -> &Arc<ValidationViewModel> {

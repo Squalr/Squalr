@@ -4,7 +4,7 @@ import { Theme } from "../../theme.slint";
 
 import { ContextMenu } from "../context_menu/context_menu.slint";
 import { Button } from "../buttons/button.slint";
-import { TextCheckbox } from "../checkboxes/text_checkbox.slint";
+import { TextFakeCheckbox } from "../checkboxes/text_fake_checkbox.slint";
 import { HSeparator } from "../separator.slint";
 
 export enum ToolbarMenuCheckState {
@@ -77,12 +77,9 @@ export component ToolbarMenuItem inherits HorizontalLayout {
 
                             VerticalLayout {
                                 alignment: center;
-                                if(item.check-state != ToolbarMenuCheckState.none): TextCheckbox {
+                                if(item.check-state != ToolbarMenuCheckState.none): TextFakeCheckbox {
                                     text: item.text;
                                     is-checked: item.check-state == ToolbarMenuCheckState.checked;
-                                    check-changed => {
-                                        root.onItemClicked(item.id);
-                                    }
                                 }
                             }
                         }

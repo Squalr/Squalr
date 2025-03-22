@@ -1,3 +1,4 @@
+pub mod conversions_view_model;
 pub mod docking;
 pub mod main_window;
 pub mod output;

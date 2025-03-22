@@ -6,12 +6,19 @@ use std::str::FromStr;
 /// as many data types, and supporting values passed via command line.
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AnonymousValue {
-    value_str: String,
+    pub value_str: String,
+    pub is_value_hex: bool,
 }
 
 impl AnonymousValue {
-    pub fn new(value: &str) -> Self {
-        AnonymousValue { value_str: value.to_string() }
+    pub fn new(
+        value: &str,
+        is_value_hex: bool,
+    ) -> Self {
+        AnonymousValue {
+            value_str: value.to_string(),
+            is_value_hex,
+        }
     }
 }
 
@@ -25,6 +32,7 @@ impl FromStr for AnonymousValue {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        Ok(AnonymousValue::new(string))
+        let is_value_hex = string.starts_with("0x");
+        Ok(AnonymousValue::new(string, is_value_hex))
     }
 }

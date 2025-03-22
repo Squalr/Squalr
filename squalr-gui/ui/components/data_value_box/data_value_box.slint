@@ -1,13 +1,17 @@
-import { LineEdit } from "std-widgets.slint";
+import { LineEdit, HorizontalBox, VerticalBox } from "std-widgets.slint";
 
 import { Theme } from "../../theme.slint";
 
+import { Button } from "../../components/buttons/button.slint";
+import { ContextMenu } from "../context_menu/context_menu.slint";
 import { FocusTouchArea } from "../focus_touch_area.slint";
 import { StateLayer } from "../state_layer.slint";
-import { DataTypeView, ValidationViewModelBindings } from "../../view_model_bindings.slint";
+import { FakeCheckbox } from "../checkboxes/fake_checkbox.slint";
+import { DataTypeView, ConversionsViewModelBindings, ValidationViewModelBindings, ScannerViewModelBindings } from "../../view_model_bindings.slint";
 
 export component DataValueBox {
     in-out property <DataTypeView> data_type;
+    in-out property <bool> is_value_hex;
     in property <string> default-text;
     in property <string> preview-text;
     in property <length> text-padding-top: 4px;
@@ -18,6 +22,7 @@ export component DataValueBox {
     in property <TextVerticalAlignment> text-vertical-alignment: center;
     in property <color> background: Theme.background-primary;
     in property <color> foreground: Theme.foreground;
+    in property <color> foreground-hex: Theme.hex-green;
     in property <color> foreground-preview: Theme.foreground-preview;
     in property <color> border-color: Theme.submenu-border;
     in property <color> invalid-color: Theme.error-red;
@@ -26,7 +31,7 @@ export component DataValueBox {
     }
     public pure function is_value_valid(value: string) -> bool {
         // Empty string is OK, we dont want the cursor to go red for empty text.
-        return value == "" || ValidationViewModelBindings.validate_data_value(root.data_type, value);
+        return value == "" || ValidationViewModelBindings.validate_data_value(root.data_type, value, ScannerViewModelBindings.is_value_hex);
     }
     forward-focus: touch-area;
     touch-area := FocusTouchArea {
@@ -45,7 +50,7 @@ export component DataValueBox {
         has-hover: touch-area.has-hover;
     }
 
-    Rectangle {
+    input-border := Rectangle {
         background: root.background;
         border-color: root.border-color;
         border-radius: 2px;
@@ -55,16 +60,41 @@ export component DataValueBox {
             padding-bottom: root.text-padding-bottom;
             padding-left: root.text-padding-left;
             padding-right: root.text-padding-right;
+            alignment: start;
             line-edit := TextInput {
                 text: root.default-text;
                 horizontal-alignment: root.text-horizontal-alignment;
                 vertical-alignment: root.text-vertical-alignment;
-                color: root.is_value_valid(self.text) ? root.foreground : root.invalid-color;
+                color: root.is_value_valid(self.text) ? (root.is_value_hex ? root.foreground-hex : root.foreground) : root.invalid-color;
                 single-line: true;
             }
         }
-    }
 
+        HorizontalLayout {
+            alignment: end;
+            padding-right: 4px;
+            VerticalLayout {
+                alignment: center;
+                base-systems-button := Button {
+                    height: 24px;
+                    width: 24px;
+                    tooltip-text: @tr("Change base system...");
+                    click-sound: "";
+                    clicked => {
+                        context-menu.show();
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        source: @image-url("../../images/scans/convert_data_type.png");
+                    }
+                }
+            }
+        }
+    }
+            
     // Optional preview text to prompt the user with an input hint.
     preview-layer := HorizontalLayout {
         padding-top: root.text-padding-top;
@@ -76,6 +106,101 @@ export component DataValueBox {
             horizontal-alignment: root.text-horizontal-alignment;
             vertical-alignment: root.text-vertical-alignment;
             color: root.foreground-preview;
+        }
+    }
+
+    context-menu := ContextMenu {
+        x: line-edit.x;
+        y: line-edit.y + input-border.height;
+        width: root.width;
+        height: root.height;
+        close-policy: PopupClosePolicy.close-on-click-outside;
+        VerticalLayout {
+            VerticalBox {
+                padding: 0px;
+                spacing: 0px;
+                Button {
+                    clicked => {
+                        context-menu.close();
+                        root.is_value_hex = false;
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+                        padding: 8px;
+                        spacing: 4px;
+                        FakeCheckbox {
+                            is-checked: !root.is_value_hex;
+                        }
+
+                        Text {
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                            text: @tr("Dec");
+                            color: Theme.foreground;
+                        }
+                    }
+                }
+
+                Button {
+                    clicked => {
+                        context-menu.close();
+                        root.is_value_hex = true;
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+                        padding: 8px;
+                        spacing: 4px;
+                        FakeCheckbox {
+                            is-checked: root.is_value_hex;
+                        }
+
+                        Text {
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                            text: @tr("Hex");
+                            color: Theme.foreground;
+                        }
+                    }
+                }
+
+                Button {
+                    HorizontalLayout {
+                        alignment: start;
+                        padding: 8px;
+                        Text {
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                            text: @tr("Convert to dec");
+                            color: Theme.foreground;
+                        }
+                    }
+
+                    clicked => {
+                        root.is_value_hex = false;
+                        line-edit.text = ConversionsViewModelBindings.convert_dec_to_hex(line-edit.text);
+                        context-menu.close();
+                    }
+                }
+
+                Button {
+                    HorizontalLayout {
+                        alignment: start;
+                        padding: 8px;
+                        Text {
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                            text: @tr("Convert to hex");
+                            color: Theme.foreground;
+                        }
+                    }
+
+                    clicked => {
+                        root.is_value_hex = true;
+                        line-edit.text = ConversionsViewModelBindings.convert_dec_to_hex(line-edit.text);
+                        context-menu.close();
+                    }
+                }
+            }
         }
     }
 }

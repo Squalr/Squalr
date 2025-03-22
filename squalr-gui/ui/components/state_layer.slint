@@ -6,7 +6,7 @@ export component StateLayer {
     in property <length> border-bottom-right-radius: 0px;
     in property <length> border-top-left-radius: 0px;
     in property <length> border-top-right-radius: 0px;
-    in property <length> border-width: 2px;
+    in property <length> border-width: 0px;
     in property <brush> hover-color: Theme.hover-tint;
     in property <brush> pressed-color: Theme.pressed-tint;
     in property <brush> border-color: Theme.background-control-primary-dark;
@@ -15,7 +15,6 @@ export component StateLayer {
     in property <bool> pressed;
     in property <bool> has-hover;
     in property <bool> has-focus;
-
     state-layer := Rectangle {
         border-width <=> root.border-width;
         border-radius <=> root.border-radius;
@@ -23,7 +22,6 @@ export component StateLayer {
         border-bottom-right-radius: root.border-radius + root.border-bottom-right-radius;
         border-top-left-radius: root.border-radius + root.border-top-left-radius;
         border-top-right-radius: root.border-radius + root.border-top-right-radius;
-
         animate border-color { duration: AnimationSettings.color-duration; }
         animate background { duration: AnimationSettings.color-duration; }
     }

@@ -10,6 +10,7 @@ pub mod i32be;
 pub mod i64;
 pub mod i64be;
 pub mod i8;
+pub mod primitive_type;
 pub mod u16;
 pub mod u16be;
 pub mod u32;

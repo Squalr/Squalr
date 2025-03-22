@@ -4526,6 +4526,7 @@ dependencies = [
  "dirs",
  "log",
  "log4rs",
+ "num-traits",
  "serde",
  "serde_json",
 ]

@@ -132,9 +132,10 @@ export struct DataTypeView {
 
 export global ScannerViewModelBindings {
     in-out property <DataTypeView> active_data_type: { data_type: "i32", icon: DataTypeIconView.i32 };
+    in-out property <bool> is_value_hex: false;
     in-out property <ScanConstraintTypeView> active_scan_type: equal;
     callback reset_scan();
-    callback start_scan(data_type: DataTypeView, scan_constraint: ScanConstraintTypeView, scan_value: string);
+    callback start_scan(data_type: DataTypeView, scan_constraint: ScanConstraintTypeView, scan_value: string, is_value_hex: bool);
     callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
 }
 
@@ -212,6 +213,11 @@ export global PointerScanResultsViewModelBindings { }
 
 export global PropertyViewerViewModelBindings { }
 
+export global ConversionsViewModelBindings {
+    pure callback convert_hex_to_dec(data_value: string) -> string;
+    pure callback convert_dec_to_hex(data_value: string) -> string;
+}
+
 export global ValidationViewModelBindings {
-    pure callback validate_data_value(data_type: DataTypeView, data_value: string) -> bool;
+    pure callback validate_data_value(data_type: DataTypeView, data_value: string, is_value_hex: bool) -> bool;
 }

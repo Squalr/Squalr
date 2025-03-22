@@ -1,0 +1,23 @@
+import { Theme } from "./../../theme.slint";
+
+export component FakeCheckbox inherits Rectangle {
+    in-out property <bool> is-checked: false;
+    in property <image> checked-icon: @image-url("./../../images/app/close.png");
+    in property <length> icon-width: 16px;
+    in property <length> icon-height: 16px;
+    in property <string> tooltip-text;
+    width: 18px;
+    height: 18px;
+    background: Theme.background-control;
+    border-width: 1px;
+    border-color: Theme.submenu-border;
+    content-layer := HorizontalLayout {
+        alignment: center;
+        width: icon-width;
+        height: icon-height;
+        icon-image := Image {
+            source: root.checked-icon;
+            visible <=> root.is-checked;
+        }
+    }
+}

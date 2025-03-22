@@ -27,7 +27,7 @@ impl ValidationViewModel {
 
         create_view_bindings!(view_binding, {
             ValidationViewModelBindings => {
-                on_validate_data_value(data_type_view: DataTypeView, value: SharedString) -> [] -> Self::on_validate_data_value,
+                on_validate_data_value(data_type_view: DataTypeView, value: SharedString, is_value_hex: bool) -> [] -> Self::on_validate_data_value,
             }
         });
 
@@ -37,8 +37,9 @@ impl ValidationViewModel {
     fn on_validate_data_value(
         data_value_view: DataTypeView,
         value: SharedString,
+        is_value_hex: bool,
     ) -> bool {
-        let anonymous_value = AnonymousValue::new(&value);
+        let anonymous_value = AnonymousValue::new(&value, is_value_hex);
         let registry = DataTypeRegistry::get_instance().get_registry();
         let data_type = data_value_view.data_type.to_string();
 

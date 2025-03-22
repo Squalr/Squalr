@@ -95,7 +95,8 @@ impl FromStr for DataValue {
 
         match DataTypeRef::new(parts[0]) {
             Some(data_type) => {
-                let anonymous_value = AnonymousValue::new(parts[1]);
+                let is_value_hex = parts[1].starts_with("0x");
+                let anonymous_value = AnonymousValue::new(parts[1], is_value_hex);
 
                 match data_type.deanonymize_value(&anonymous_value) {
                     Ok(value) => Ok(value),

@@ -7,6 +7,7 @@ export component FocusTouchArea {
     out property <bool> enter-pressed;
     out property <bool> has-hover-exited: false;
     callback clicked(length, length);
+    callback right-clicked(length, length);
     callback moved();
     callback mouse-entered();
     callback mouse-exited();
@@ -49,9 +50,13 @@ export component FocusTouchArea {
                 root.mouse-exited();
             }
         }
-        clicked => {
-            if root.enabled {
-                root.clicked(touch-area.mouse-x, touch-area.mouse-y);
+        pointer-event(event) => {
+            if root.enabled && event.kind == PointerEventKind.down {
+                if (event.button == PointerEventButton.right) {
+                    root.right-clicked(touch-area.mouse-x, touch-area.mouse-y)
+                } else {
+                    root.clicked(touch-area.mouse-x, touch-area.mouse-y);
+                }
             }
         }
         moved => {
