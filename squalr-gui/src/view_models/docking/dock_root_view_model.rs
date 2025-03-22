@@ -16,6 +16,7 @@ use crate::view_models::scan_results::scan_results_view_model::ScanResultsViewMo
 use crate::view_models::scanners::scanner_view_model::ScannerViewModel;
 use crate::view_models::settings::memory_settings_view_model::MemorySettingsViewModel;
 use crate::view_models::settings::scan_settings_view_model::ScanSettingsViewModel;
+use crate::view_models::validation_view_model::validation_view_model::ValidationViewModel;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
@@ -35,6 +36,7 @@ pub struct DockRootViewModel {
     process_selector_view_model: Arc<ProcessSelectorViewModel>,
     scan_settings_view_model: Arc<ScanSettingsViewModel>,
     scan_results_view_model: Arc<ScanResultsViewModel>,
+    validation_view_model: Arc<ValidationViewModel>,
 }
 
 impl DockRootViewModel {
@@ -56,6 +58,7 @@ impl DockRootViewModel {
             process_selector_view_model: ProcessSelectorViewModel::new(view_binding.clone(), engine_execution_context.clone()),
             scan_settings_view_model: ScanSettingsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
             scan_results_view_model: ScanResultsViewModel::new(view_binding.clone(), audio_player.clone(), engine_execution_context.clone()),
+            validation_view_model: ValidationViewModel::new(view_binding.clone(), engine_execution_context.clone()),
         };
 
         // Initialize the dock root size.
@@ -146,6 +149,10 @@ impl DockRootViewModel {
 
     pub fn get_scan_results_view_model(&self) -> &Arc<ScanResultsViewModel> {
         &self.scan_results_view_model
+    }
+
+    pub fn get_validation_view_model(&self) -> &Arc<ValidationViewModel> {
+        &self.validation_view_model
     }
 
     fn on_minimize(view_binding: ViewBinding<MainWindowView>) {

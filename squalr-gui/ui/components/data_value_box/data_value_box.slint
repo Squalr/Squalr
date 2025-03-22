@@ -1,11 +1,13 @@
 import { LineEdit } from "std-widgets.slint";
 
-import { Theme } from "../theme.slint";
+import { Theme } from "../../theme.slint";
 
-import { FocusTouchArea } from "focus_touch_area.slint";
-import { StateLayer } from "state_layer.slint";
+import { FocusTouchArea } from "../focus_touch_area.slint";
+import { StateLayer } from "../state_layer.slint";
+import { DataTypeView, ValidationViewModelBindings } from "../../view_model_bindings.slint";
 
-export component HexDecBox {
+export component DataValueBox {
+    in-out property <DataTypeView> data_type;
     in property <string> default-text;
     in property <string> preview-text;
     in property <length> text-padding-top: 4px;
@@ -18,8 +20,13 @@ export component HexDecBox {
     in property <color> foreground: Theme.foreground;
     in property <color> foreground-preview: Theme.foreground-preview;
     in property <color> border-color: Theme.submenu-border;
+    in property <color> invalid-color: Theme.error-red;
     public pure function get_value_text() -> string {
         return line-edit.text;
+    }
+    public pure function is_value_valid(value: string) -> bool {
+        // Empty string is OK, we dont want the cursor to go red for empty text.
+        return value == "" || ValidationViewModelBindings.validate_data_value(root.data_type, value);
     }
     forward-focus: touch-area;
     touch-area := FocusTouchArea {
@@ -52,7 +59,7 @@ export component HexDecBox {
                 text: root.default-text;
                 horizontal-alignment: root.text-horizontal-alignment;
                 vertical-alignment: root.text-vertical-alignment;
-                color: root.foreground;
+                color: root.is_value_valid(self.text) ? root.foreground : root.invalid-color;
                 single-line: true;
             }
         }
