@@ -32,20 +32,46 @@ impl DataType for DataTypeByteArray {
         anonymous_value: &AnonymousValue,
     ) -> Result<Vec<u8>, DataTypeError> {
         let value_string = anonymous_value.to_string();
+        let base = if anonymous_value.is_value_hex { 16 } else { 10 };
 
-        // anonymous_value.is_value_hex;
+        if anonymous_value.is_value_hex {
+            // Clean input: remove whitespace, commas, and any 0x prefixes.
+            let cleaned = value_string
+                .replace(|next_char: char| next_char.is_whitespace() || next_char == ',', "")
+                .replace("0x", "")
+                .replace("0X", "");
 
-        value_string
-            .split_whitespace()
-            .map(|next_value| {
-                let base = if anonymous_value.is_value_hex { 16 } else { 10 };
-                u8::from_str_radix(next_value, base).map_err(|err| DataTypeError::ValueParseError {
-                    value: next_value.to_string(),
-                    is_value_hex: anonymous_value.is_value_hex,
-                    source: err,
+            if cleaned.len() % 2 != 0 {
+                return Err(DataTypeError::ParseError(format!("Hex string has an odd number of digits: '{}'", cleaned)));
+            }
+
+            // Group into bytes (2 hex digits each).
+            cleaned
+                .as_bytes()
+                .chunks(2)
+                .map(|chunk| {
+                    let hex_str = std::str::from_utf8(chunk).unwrap_or_default();
+                    u8::from_str_radix(hex_str, 16).map_err(|err| DataTypeError::ValueParseError {
+                        value: hex_str.to_string(),
+                        is_value_hex: true,
+                        source: err,
+                    })
                 })
-            })
-            .collect()
+                .collect()
+        } else {
+            // For decimal, allow space or comma separation.
+            value_string
+                .split(|next_char: char| next_char.is_whitespace() || next_char == ',')
+                .filter(|next_value| !next_value.is_empty())
+                .map(|next_value| {
+                    u8::from_str_radix(next_value, base).map_err(|err| DataTypeError::ValueParseError {
+                        value: next_value.to_string(),
+                        is_value_hex: false,
+                        source: err,
+                    })
+                })
+                .collect()
+        }
     }
 
     fn create_display_value(
@@ -67,8 +93,19 @@ impl DataType for DataTypeByteArray {
         Endian::Little
     }
 
-    fn get_default_value(&self) -> DataValue {
-        DataValue::new(self.get_ref(), vec![])
+    fn get_default_value(
+        &self,
+        data_type_meta_data: &DataTypeMetaData,
+    ) -> DataValue {
+        let array_size = match data_type_meta_data {
+            DataTypeMetaData::SizedContainer(size) => *size as usize,
+            _ => {
+                log::error!("Invalid metadata provided to byte array data type.");
+                0usize
+            }
+        };
+
+        DataValue::new(self.get_ref(), vec![0u8; array_size])
     }
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {

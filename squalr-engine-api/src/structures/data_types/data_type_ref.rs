@@ -115,7 +115,7 @@ impl DataTypeRef {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(self.get_data_type_id()) {
-            Some(data_type) => Some(data_type.get_default_value()),
+            Some(data_type) => Some(data_type.get_default_value(&self.data_type_meta_data)),
             None => None,
         }
     }

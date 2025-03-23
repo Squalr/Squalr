@@ -23,6 +23,7 @@ impl EngineCommandRequestExecutor for ScanExecuteRequest {
                 self.scan_value.to_owned(),
                 ScanSettings::get_instance().get_floating_point_tolerance(),
                 self.memory_read_mode,
+                true,
             );
 
             // Start the task to perform the scan.

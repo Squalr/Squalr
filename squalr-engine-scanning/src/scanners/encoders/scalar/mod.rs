@@ -1,2 +1,2 @@
 pub mod scanner_scalar_encoder;
-pub mod scanner_scalar_encoder_byte_array;
+pub mod scanner_scalar_encoder_byte_array_cascading;

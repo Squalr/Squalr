@@ -2,6 +2,7 @@ use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::scan_dispatcher::ScanDispatcher;
 use crate::scanners::value_collector_task::ValueCollectorTask;
 use crate::snapshots::snapshot::Snapshot;
+use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::scan_memory_read_mode::ScanMemoryReadMode;
@@ -71,49 +72,59 @@ impl ScanExecutorTask {
         let processed_region_count = Arc::new(AtomicUsize::new(0));
         let total_region_count = snapshot.get_region_count();
         let cancellation_token = trackable_task.get_cancellation_token();
+        let snapshot_regions = snapshot.get_snapshot_regions_mut();
 
-        // Iterate over every snapshot region, from which we will grab the existing snapshot filters to perform our next scan.
-        snapshot
-            .get_snapshot_regions_mut()
-            .par_iter_mut()
-            .for_each(|snapshot_region| {
-                if cancellation_token.load(Ordering::SeqCst) {
-                    return;
-                }
+        // Create an iterator that processes every snapshot region, from which we will grab the existing snapshot filters (previous results) to perform our next scan.
+        let snapshot_iterator = |snapshot_region: &mut SnapshotRegion| {
+            if cancellation_token.load(Ordering::SeqCst) {
+                return;
+            }
 
-                if scan_parameters_global.get_memory_read_mode() == ScanMemoryReadMode::ReadInterleavedWithScan {
-                    // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
-                    let _ = snapshot_region.read_all_memory(&process_info);
-                }
+            // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
+            if scan_parameters_global.get_memory_read_mode() == ScanMemoryReadMode::ReadInterleavedWithScan {
+                let _ = snapshot_region.read_all_memory(&process_info);
+            }
 
-                if !snapshot_region.can_compare_using_parameters(scan_parameters_global) {
-                    processed_region_count.fetch_add(1, Ordering::SeqCst);
-                    return;
-                }
+            // Skip the region if it is impossible to perform the scan (ie previous values are missing).
+            if !snapshot_region.can_compare_using_parameters(scan_parameters_global) {
+                processed_region_count.fetch_add(1, Ordering::SeqCst);
+                return;
+            }
 
-                // Iterate over each data type in the scan. Generally there is only 1, but multiple simultaneous scans are supported.
-                let scan_results = SnapshotRegionScanResults::new(
-                    snapshot_region
-                        .get_scan_results()
-                        .get_filter_collections()
-                        .par_iter()
-                        .map(|snapshot_region_filter_collection| {
-                            // Perform the scan.
-                            ScanDispatcher::dispatch_scan_parallel(snapshot_region, snapshot_region_filter_collection, scan_parameters_global)
-                        })
-                        .collect(),
-                );
+            // Create an iterator to select the best scanner implementation for the current region.
+            let scan_dispatcher = |snapshot_region_filter_collection| {
+                // Perform the scan.
+                ScanDispatcher::dispatch_scan_parallel(snapshot_region, snapshot_region_filter_collection, scan_parameters_global)
+            };
 
-                snapshot_region.set_scan_results(scan_results);
-
-                let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
-
-                // To reduce performance impact, only periodically send progress updates.
-                if processed % 32 == 0 {
-                    let progress = (processed as f32 / total_region_count as f32) * 100.0;
-                    trackable_task.set_progress(progress);
-                }
+            // Again, select the parallel or sequential iterator to iterate over each data type in the scan. Generally there is only 1, but multi-type scans are supported.
+            let scan_results_collection = snapshot_region.get_scan_results().get_filter_collections();
+            let scan_results = SnapshotRegionScanResults::new(if scan_parameters_global.is_single_thread_scan() {
+                scan_results_collection.iter().map(scan_dispatcher).collect()
+            } else {
+                scan_results_collection
+                    .par_iter()
+                    .map(scan_dispatcher)
+                    .collect()
             });
+
+            snapshot_region.set_scan_results(scan_results);
+
+            let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
+
+            // To reduce performance impact, only periodically send progress updates.
+            if processed % 32 == 0 {
+                let progress = (processed as f32 / total_region_count as f32) * 100.0;
+                trackable_task.set_progress(progress);
+            }
+        };
+
+        // Select either the parallel or sequential iterator. Sequential is really slow, but useful for debugging.
+        if scan_parameters_global.is_single_thread_scan() {
+            snapshot_regions.iter_mut().for_each(snapshot_iterator);
+        } else {
+            snapshot_regions.par_iter_mut().for_each(snapshot_iterator);
+        };
 
         snapshot.discard_empty_regions();
 

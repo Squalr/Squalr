@@ -69,7 +69,10 @@ impl DataType for DataTypeF64be {
         Endian::Little
     }
 
-    fn get_default_value(&self) -> DataValue {
+    fn get_default_value(
+        &self,
+        _data_type_meta_data: &DataTypeMetaData,
+    ) -> DataValue {
         DataValue::new(self.get_ref(), Self::to_vec(0.0))
     }
 

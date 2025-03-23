@@ -12,6 +12,7 @@ pub struct ScanParametersGlobal {
     compare_immediate: Option<AnonymousValue>,
     floating_point_tolerance: FloatingPointTolerance,
     memory_read_mode: ScanMemoryReadMode,
+    is_single_thread_scan: bool,
 }
 
 impl ScanParametersGlobal {
@@ -20,12 +21,14 @@ impl ScanParametersGlobal {
         value: Option<AnonymousValue>,
         floating_point_tolerance: FloatingPointTolerance,
         memory_read_mode: ScanMemoryReadMode,
+        is_single_thread_scan: bool,
     ) -> Self {
         Self {
             compare_type,
             compare_immediate: value,
             floating_point_tolerance,
             memory_read_mode,
+            is_single_thread_scan,
         }
     }
 
@@ -53,6 +56,10 @@ impl ScanParametersGlobal {
 
     pub fn get_memory_read_mode(&self) -> ScanMemoryReadMode {
         self.memory_read_mode
+    }
+
+    pub fn is_single_thread_scan(&self) -> bool {
+        self.is_single_thread_scan
     }
 
     pub fn get_compare_immediate(&self) -> Option<&AnonymousValue> {

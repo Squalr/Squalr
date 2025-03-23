@@ -7,11 +7,7 @@ use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParamete
 
 pub struct ScannerScalarIterative {}
 
-impl ScannerScalarIterative {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+impl ScannerScalarIterative {}
 
 /// Implements a scalar (ie CPU bound, non-SIMD) region scanning algorithm. This simply iterates over a region of memory,
 /// comparing each element based on the provided parameters. Elements that pass the scan are grouped into filter ranges and returned.

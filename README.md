@@ -46,12 +46,12 @@ Features:
 - [X] Float Scans.
 - [X] Big Endian Scans.
 - [X] Vector Aligned Scans.
-- [ ] HexDecBox support for entering scan values (similar to C# version).
-- [ ] Sparse Scans (probably done, needs testing).
+- [X] HexDecBox support for entering scan values (similar to C# version).
+- [X] Sparse Scans.
+- [ ] Array of byte scans.
 - [ ] Vectorized cascading scans (periodic).
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 - [ ] Freezing/deleting scan results directly from scan window.
-- [ ] Array of byte scans.
 - [ ] Property viewer.
 - [ ] String scans.
 
