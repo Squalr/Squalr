@@ -170,7 +170,7 @@ export component DataValueBox {
                         Text {
                             horizontal-alignment: center;
                             vertical-alignment: center;
-                            text: @tr("Convert to dec");
+                            text: @tr("Convert to Dec");
                             color: Theme.foreground;
                         }
                     }
@@ -189,14 +189,14 @@ export component DataValueBox {
                         Text {
                             horizontal-alignment: center;
                             vertical-alignment: center;
-                            text: @tr("Convert to hex");
+                            text: @tr("Convert to Hex");
                             color: Theme.foreground;
                         }
                     }
 
                     clicked => {
                         root.is_value_hex = true;
-                        line-edit.text = ConversionsViewModelBindings.convert_dec_to_hex(line-edit.text);
+                        line-edit.text = ConversionsViewModelBindings.convert_hex_to_dec(line-edit.text);
                         context-menu.close();
                     }
                 }

@@ -19,7 +19,7 @@ impl Conversions {
     ) -> Result<String, ParseIntError> {
         // Parse the decimal string to a u64 string.
         dec.parse::<u64>()
-            .map(|val| if prepend_prefix { format!("0x{:X}", val) } else { format!("{:X}", val) })
+            .map(|val| if prepend_prefix { format!("0x{:x}", val) } else { format!("{:x}", val) })
     }
 
     pub fn parse_hex_or_int(src: &str) -> Result<u64, std::num::ParseIntError> {
@@ -114,29 +114,23 @@ impl Conversions {
             return Ok(vec![0; std::mem::size_of::<T>()]);
         }
 
-        let required_size = std::mem::size_of::<T>();
-        let hex_len = hex.len();
-        let hex_half_len = hex_len / 2;
+        // Padding to an even number makes our algorithm a bit easier to manage.
+        let hex_zero_padded = if hex.len() % 2 == 1 { format!("0{}", hex) } else { hex };
+        let max_size = std::mem::size_of::<T>();
+        let used_size = hex_zero_padded.len() / 2;
 
-        if hex_len > required_size * 2 {
+        if used_size > max_size {
             return Err("Hex string length does not fit into the expected size of the primitive.");
         }
 
-        // Round up capacity.
-        let mut bytes: Vec<u8> = vec![0u8; required_size];
+        let mut bytes: Vec<u8> = vec![0u8; max_size];
 
-        for index in 0..hex_half_len {
-            let high_nibble = Self::hex_char_to_byte(hex.chars().nth(2 * index).unwrap_or_default() as u8)?;
-            let low_nibble = Self::hex_char_to_byte(hex.chars().nth(2 * index + 1).unwrap_or_default() as u8)?;
+        for index in 0..used_size {
+            let high_nibble = Self::hex_char_to_byte(hex_zero_padded.chars().nth(2 * index).unwrap_or_default() as u8)?;
+            let low_nibble = Self::hex_char_to_byte(hex_zero_padded.chars().nth(2 * index + 1).unwrap_or_default() as u8)?;
 
-            // Combine the high and low nibble to form a byte
-            bytes[index] = (high_nibble << 4) | low_nibble;
-        }
-
-        // Handle the last character explicitly if the length is odd.
-        if hex_len % 2 == 1 {
-            let high_nibble = Self::hex_char_to_byte(hex.chars().nth(hex_len - 1).unwrap_or_default() as u8)?;
-            bytes[hex_len / 2] = high_nibble << 4;
+            // Combine the high and low nibble to form the next byte.
+            bytes[used_size - index - 1] = (high_nibble << 4) | low_nibble;
         }
 
         // Finally handle endianness.
