@@ -10,6 +10,16 @@ use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::ParallelIterator;
 use squalr_engine_api::structures::data_types::built_in_types::byte_array::data_type_byte_array::DataTypeByteArray;
+use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
+use squalr_engine_api::structures::data_types::built_in_types::u16::data_type_u16::DataTypeU16;
+use squalr_engine_api::structures::data_types::built_in_types::u16be::data_type_u16be::DataTypeU16be;
+use squalr_engine_api::structures::data_types::built_in_types::u32::data_type_u32::DataTypeU32;
+use squalr_engine_api::structures::data_types::built_in_types::u32be::data_type_u32be::DataTypeU32be;
+use squalr_engine_api::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
+use squalr_engine_api::structures::data_types::built_in_types::u64be::data_type_u64be::DataTypeU64be;
+use squalr_engine_api::structures::data_types::data_type::DataType;
+use squalr_engine_api::structures::data_types::data_type_meta_data::DataTypeMetaData;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
 
@@ -24,53 +34,31 @@ impl ScanDispatcher {
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         scan_parameters_global: &ScanParametersGlobal,
     ) -> SnapshotRegionFilterCollection {
-        let scan_parameters_local = snapshot_region_filter_collection.get_scan_parameters_local();
-
-        let result_snapshot_region_filters = snapshot_region_filter_collection
-            .iter()
-            .filter_map(|snapshot_region_filter| {
-                let scanner_instance = Self::acquire_scanner_instance(snapshot_region_filter, scan_parameters_local);
-                let filters = scanner_instance.scan_region(
-                    snapshot_region,
-                    snapshot_region_filter,
-                    scan_parameters_global,
-                    snapshot_region_filter_collection.get_scan_parameters_local(),
-                );
-
-                if filters.len() > 0 { Some(filters) } else { None }
-            })
-            .collect();
-
-        SnapshotRegionFilterCollection::new(
-            result_snapshot_region_filters,
-            snapshot_region_filter_collection
+        // The main body of the scan.
+        let snapshot_region_scanner = |snapshot_region_filter| {
+            // Create mutable scan parameters, since we do optimizations to redirect certain scan types.
+            // For example, scanning for an array of byte of length 4 is equivalent to scanning for a u32, so we edit the scan parameters.
+            let mut scan_parameters_local = snapshot_region_filter_collection
                 .get_scan_parameters_local()
-                .clone(),
-        )
-    }
+                .clone();
+            let scanner_instance = Self::acquire_scanner_instance(snapshot_region_filter, &mut scan_parameters_local);
+            let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters_global, &scan_parameters_local);
 
-    /// Performs a parallelized scan over a provided filter collection, returning a new filter collection with the results.
-    pub fn dispatch_scan_parallel(
-        snapshot_region: &SnapshotRegion,
-        snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
-        scan_parameters_global: &ScanParametersGlobal,
-    ) -> SnapshotRegionFilterCollection {
-        let scan_parameters_local = snapshot_region_filter_collection.get_scan_parameters_local();
+            if filters.len() > 0 { Some(filters) } else { None }
+        };
 
-        let result_snapshot_region_filters = snapshot_region_filter_collection
-            .par_iter()
-            .filter_map(|snapshot_region_filter| {
-                let scanner_instance = Self::acquire_scanner_instance(snapshot_region_filter, scan_parameters_local);
-                let filters = scanner_instance.scan_region(
-                    snapshot_region,
-                    snapshot_region_filter,
-                    scan_parameters_global,
-                    snapshot_region_filter_collection.get_scan_parameters_local(),
-                );
-
-                if filters.len() > 0 { Some(filters) } else { None }
-            })
-            .collect();
+        // Run the scan either single-threaded or parallel based on settings. Single-thread is not advised unless debugging.
+        let result_snapshot_region_filters = if scan_parameters_global.is_single_thread_scan() {
+            snapshot_region_filter_collection
+                .iter()
+                .filter_map(snapshot_region_scanner)
+                .collect()
+        } else {
+            snapshot_region_filter_collection
+                .par_iter()
+                .filter_map(snapshot_region_scanner)
+                .collect()
+        };
 
         SnapshotRegionFilterCollection::new(
             result_snapshot_region_filters,
@@ -82,7 +70,7 @@ impl ScanDispatcher {
 
     fn acquire_scanner_instance(
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters_local: &mut ScanParametersLocal,
     ) -> &'static dyn Scanner {
         let data_type = scan_parameters_local.get_data_type();
         let memory_alignment = scan_parameters_local.get_memory_alignment_or_default();
@@ -99,14 +87,25 @@ impl ScanDispatcher {
         // Byte array scanners. Note that it's only worth using the specialized byte array scan if the byte arrays overlap.
         // If the byte arrays are sequential (back-to-back), or sparse (spaced out), then there is no need for an advanced algorithm.
         if data_type.get_data_type_id() == DataTypeByteArray::get_data_type_id() {
-            if memory_alignment_size < data_type_size {
-                return &ScannerScalarIterativeByteArrayCascading {};
-            } else {
-                // Here's the magic trick, we just use a normal iterative scalar scan for cascading and sparse scalar scans.
-                return &ScannerScalarIterative {};
-            }
+            // If applicable, try to map array of byte scans to any primitive types of the same size.
+            // These are much more efficient than array of byte scans, so for scans of these sizes performance will be improved greatly.
+            match data_type_size {
+                8 => scan_parameters_local.set_data_type(DataTypeRef::new(DataTypeU64be::get_data_type_id(), DataTypeMetaData::None)),
+                4 => scan_parameters_local.set_data_type(DataTypeRef::new(DataTypeU32be::get_data_type_id(), DataTypeMetaData::None)),
+                2 => scan_parameters_local.set_data_type(DataTypeRef::new(DataTypeU16be::get_data_type_id(), DataTypeMetaData::None)),
+                1 => scan_parameters_local.set_data_type(DataTypeRef::new(DataTypeU8::get_data_type_id(), DataTypeMetaData::None)),
+                // If we can't map onto a primitive, continue selecting the best array of byte scan algorithm.
+                _ => {
+                    if memory_alignment_size < data_type_size {
+                        return &ScannerScalarIterativeByteArrayCascading {};
+                    } else {
+                        // Here's the magic trick, we just use a normal iterative scalar scan for cascading and sparse scalar scans.
+                        return &ScannerScalarIterative {};
+                    }
 
-            // JIRA: Switch on sizes for vectorized version
+                    // JIRA: Switch on sizes for vectorized version
+                }
+            }
         }
 
         // We actually don't really care whether the processor supports AVX-512, AVX2, etc, PortableSimd is smart enough to

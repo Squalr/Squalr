@@ -74,7 +74,7 @@ impl ScanExecutorTask {
         let cancellation_token = trackable_task.get_cancellation_token();
         let snapshot_regions = snapshot.get_snapshot_regions_mut();
 
-        // Create an iterator that processes every snapshot region, from which we will grab the existing snapshot filters (previous results) to perform our next scan.
+        // Create a function that processes every snapshot region, from which we will grab the existing snapshot filters (previous results) to perform our next scan.
         let snapshot_iterator = |snapshot_region: &mut SnapshotRegion| {
             if cancellation_token.load(Ordering::SeqCst) {
                 return;
@@ -91,11 +91,9 @@ impl ScanExecutorTask {
                 return;
             }
 
-            // Create an iterator to select the best scanner implementation for the current region.
-            let scan_dispatcher = |snapshot_region_filter_collection| {
-                // Perform the scan.
-                ScanDispatcher::dispatch_scan_parallel(snapshot_region, snapshot_region_filter_collection, scan_parameters_global)
-            };
+            // Create a function to dispatch our scan to the best scanner implementation for the current region.
+            let scan_dispatcher =
+                |snapshot_region_filter_collection| ScanDispatcher::dispatch_scan(snapshot_region, snapshot_region_filter_collection, scan_parameters_global);
 
             // Again, select the parallel or sequential iterator to iterate over each data type in the scan. Generally there is only 1, but multi-type scans are supported.
             let scan_results_collection = snapshot_region.get_scan_results().get_filter_collections();
@@ -119,7 +117,7 @@ impl ScanExecutorTask {
             }
         };
 
-        // Select either the parallel or sequential iterator. Sequential is really slow, but useful for debugging.
+        // Select either the parallel or sequential iterator. Single-thread is not advised unless debugging.
         if scan_parameters_global.is_single_thread_scan() {
             snapshot_regions.iter_mut().for_each(snapshot_iterator);
         } else {

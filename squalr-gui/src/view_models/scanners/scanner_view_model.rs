@@ -135,7 +135,7 @@ impl ScannerViewModel {
     ) {
         let engine_execution_context = &scanner_view_model.engine_execution_context;
         let scanner_view_model = scanner_view_model.clone();
-        let memory_alignment = Some(MemoryAlignment::Alignment4); // JIRA: Pull from settings
+        let memory_alignment = Some(MemoryAlignment::Alignment8); // JIRA: Pull from settings
         let scan_parameters_local = vec![ScanParametersLocal::new(data_type, memory_alignment)];
         let scan_new_request = ScanNewRequest { scan_parameters_local };
 
