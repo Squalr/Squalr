@@ -1,3 +1,5 @@
+use crate::registries::data_types::data_type_registry::DataTypeRegistry;
+use crate::structures::data_values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -18,6 +20,25 @@ impl AnonymousValue {
         AnonymousValue {
             value_str: value.to_string(),
             is_value_hex,
+        }
+    }
+
+    pub fn deanonymize_value(
+        &self,
+        data_type_id: &str,
+    ) -> Result<DataValue, String> {
+        let registry = DataTypeRegistry::get_instance().get_registry();
+
+        match registry.get(data_type_id) {
+            Some(data_type) => {
+                let deanonymized_value = data_type.deanonymize_value(&self);
+
+                match deanonymized_value {
+                    Ok(value) => Ok(DataValue::new(data_type_id, value)),
+                    Err(err) => Err(err.to_string()),
+                }
+            }
+            None => Err("Cannot deanonymize value: data type is not registered.".into()),
         }
     }
 }

@@ -63,7 +63,7 @@ impl DataType for DataTypeU16 {
         &self,
         _data_type_meta_data: &DataTypeMetaData,
     ) -> DataValue {
-        DataValue::new(self.get_ref(), Self::to_vec(0))
+        DataValue::new(self.get_data_type_id(), Self::to_vec(0))
     }
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {

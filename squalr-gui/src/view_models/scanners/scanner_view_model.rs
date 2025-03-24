@@ -15,6 +15,7 @@ use squalr_engine_api::commands::scan::collect_values::scan_collect_values_reque
 use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecuteRequest;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::reset::scan_reset_request::ScanResetRequest;
+use squalr_engine_api::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
@@ -103,10 +104,17 @@ impl ScannerViewModel {
             ScanViewModelState::HasResults => {
                 Self::start_scan(scanner_view_model, scan_constraint, AnonymousValue::new(&scan_value, is_value_hex));
             }
-            ScanViewModelState::NoResults => match DataTypeRef::new(&data_type_view.data_type.to_string()) {
-                Some(data_type) => Self::new_scan(scanner_view_model, data_type, scan_constraint, AnonymousValue::new(&scan_value, is_value_hex)),
-                None => log::error!("Failed to create data type for new scan."),
-            },
+            ScanViewModelState::NoResults => {
+                let data_type_id = data_type_view.data_type.to_string();
+                let scan_value = AnonymousValue::new(&scan_value, is_value_hex);
+                let data_type_meta_data = match scan_value.deanonymize_value(&data_type_id) {
+                    Ok(value) => DataTypeMetaData::SizedContainer(value.get_size_in_bytes()),
+                    Err(_) => DataTypeMetaData::None,
+                };
+                let data_type = DataTypeRef::new(&data_type_id, data_type_meta_data);
+
+                Self::new_scan(scanner_view_model, data_type, scan_constraint, scan_value);
+            }
             ScanViewModelState::ScanInProgress => {
                 log::error!("Cannot start a new scan while a scan is in progress.");
             }

@@ -36,6 +36,6 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
     fn get_default_meta_data(&self) -> DataTypeMetaData;
 
     fn get_ref(&self) -> DataTypeRef {
-        DataTypeRef::new_with_meta_data(self.get_data_type_id(), self.get_default_meta_data())
+        DataTypeRef::new(self.get_data_type_id(), self.get_default_meta_data())
     }
 }

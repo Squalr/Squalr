@@ -32,17 +32,17 @@ impl DataType for DataTypeByteArray {
         anonymous_value: &AnonymousValue,
     ) -> Result<Vec<u8>, DataTypeError> {
         let value_string = anonymous_value.to_string();
-        let base = if anonymous_value.is_value_hex { 16 } else { 10 };
 
         if anonymous_value.is_value_hex {
             // Clean input: remove whitespace, commas, and any 0x prefixes.
-            let cleaned = value_string
+            let mut cleaned = value_string
                 .replace(|next_char: char| next_char.is_whitespace() || next_char == ',', "")
                 .replace("0x", "")
                 .replace("0X", "");
 
+            // Zero-pad odd numbered length to force the hex to be groups of two digits per byte.
             if cleaned.len() % 2 != 0 {
-                return Err(DataTypeError::ParseError(format!("Hex string has an odd number of digits: '{}'", cleaned)));
+                cleaned = format!("0{}", cleaned);
             }
 
             // Group into bytes (2 hex digits each).
@@ -64,7 +64,7 @@ impl DataType for DataTypeByteArray {
                 .split(|next_char: char| next_char.is_whitespace() || next_char == ',')
                 .filter(|next_value| !next_value.is_empty())
                 .map(|next_value| {
-                    u8::from_str_radix(next_value, base).map_err(|err| DataTypeError::ValueParseError {
+                    u8::from_str_radix(next_value, 10).map_err(|err| DataTypeError::ValueParseError {
                         value: next_value.to_string(),
                         is_value_hex: false,
                         source: err,
@@ -105,7 +105,7 @@ impl DataType for DataTypeByteArray {
             }
         };
 
-        DataValue::new(self.get_ref(), vec![0u8; array_size])
+        DataValue::new(self.get_data_type_id(), vec![0u8; array_size])
     }
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {

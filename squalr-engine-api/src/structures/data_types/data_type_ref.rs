@@ -32,21 +32,7 @@ pub struct DataTypeRef {
 impl DataTypeRef {
     /// Creates a new reference to a registered `DataType`. The type must be registered to collect important metadata.
     /// If the type is not yet registered, or does not exist, then this will return `None`.
-    pub fn new(data_type_id: &str) -> Option<Self> {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(data_type_id) {
-            Some(data_type) => Some(Self {
-                data_type_id: data_type.get_data_type_id().to_string(),
-                data_type_meta_data: data_type.get_default_meta_data(),
-            }),
-            None => None,
-        }
-    }
-
-    /// Creates a new reference to a registered `DataType`. The type must be registered to collect important metadata.
-    /// If the type is not yet registered, or does not exist, then this will return `None`.
-    pub fn new_with_meta_data(
+    pub fn new(
         data_type_id: &str,
         data_type_meta_data: DataTypeMetaData,
     ) -> Self {
@@ -103,7 +89,7 @@ impl DataTypeRef {
                 let deanonymized_value = data_type.deanonymize_value(anonymous_value);
 
                 match deanonymized_value {
-                    Ok(value) => Ok(DataValue::new(self.clone(), value)),
+                    Ok(value) => Ok(DataValue::new(self.get_data_type_id(), value)),
                     Err(err) => Err(err.to_string()),
                 }
             }
@@ -248,10 +234,25 @@ impl FromStr for DataTypeRef {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        match DataTypeRef::new(string) {
-            Some(data_type_ref) => Ok(data_type_ref),
-            None => Err("Unable to create data type ref.".to_string()),
+        let parts: Vec<&str> = string.split(';').collect();
+
+        if parts.len() <= 0 {
+            return Err("Invalid data type ref format, expected {data_type}{;optional_container_size}".into());
         }
+
+        // Parse out any sized container data if it was present.
+        let data_type_meta_data = if parts.len() < 2 {
+            DataTypeMetaData::None
+        } else {
+            DataTypeMetaData::SizedContainer(match parts[1].trim().parse::<u64>() {
+                Ok(container_size) => container_size,
+                Err(err) => {
+                    return Err(format!("Failed to parse address: {}", err));
+                }
+            })
+        };
+
+        Ok(DataTypeRef::new(parts[0], data_type_meta_data))
     }
 }
 
