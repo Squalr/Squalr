@@ -1,6 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::encoders::vector::scanner_vector_encoder::ScannerVectorEncoder;
 use crate::scanners::snapshot_scanner::Scanner;
+use crate::scanners::vector::encoders::scanner_vector_encoder::ScannerVectorEncoder;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use squalr_engine_api::structures::{data_types::generics::vector_comparer::VectorComparer, scanning::scan_parameters_global::ScanParametersGlobal};

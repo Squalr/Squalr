@@ -27,6 +27,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
         }
     }
 
+    /// Takes ownership of the resulting region filters from this encoder. Note that once this is called, the regions are emptied from this struct.
     pub fn take_result_regions(&mut self) -> Vec<SnapshotRegionFilter> {
         std::mem::take(&mut self.result_regions)
     }
