@@ -13,6 +13,14 @@ export component DataTypeSelector inherits Rectangle {
     border-color: Theme.submenu-border;
     border-width: 1px;
     width: 84px;
+    pure function to_display_string(data_type_id: string) -> string {
+        if data_type_id == "byte_array" {
+            return "u8 []";
+        } else if data_type_id == "bit_field" {
+            return "bits";
+        }
+        return data_type_id;
+    }
     data_type_icon_converter := DataTypeIconConverter { }
 
     data-type-button := Button {
@@ -46,7 +54,7 @@ export component DataTypeSelector inherits Rectangle {
                 VerticalLayout {
                     alignment: center;
                     Text {
-                        text: ScannerViewModelBindings.active_data_type.data_type;
+                        text: root.to_display_string(ScannerViewModelBindings.active_data_type.data_type);
                         color: Theme.foreground;
                         horizontal-alignment: left;
                         vertical-alignment: center;

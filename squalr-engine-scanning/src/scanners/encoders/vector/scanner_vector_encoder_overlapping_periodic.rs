@@ -7,12 +7,12 @@ use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParamete
 use std::simd::prelude::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
-pub struct ScannerVectorEncoderCascadingPeriodic<const N: usize>
+pub struct ScannerVectorEncoderOverlappingPeriodic<const N: usize>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>, {}
 
-/// Implements a memory region scanner to find cascading matches using "Periodicity Scans with RLE Discard".
-/// This is an algorithm that is optmized/specialized for data with repeating 1-8 byte patterns.
+/// Implements a memory region scanner to find overlapping matches using "periodicity scans with run length encoding discard".
+/// In plain English, this is an algorithm that is optmized/specialized for data with repeating 1-8 byte patterns.
 ///     For 1-periodic scans (all same byte A)
 ///         Just do a normal SIMD byte scan, and discard all RLEs < data type size
 ///     For 2-periodic scans (repeating 2 bytes A, B)
@@ -31,7 +31,7 @@ where
 ///
 /// Similarly, the same is true for byte array scans! If the array of bytes can be decomposed into periodic sequences, periodicty
 /// scans will results in substantial savings, given that the array fits into a hardware vector Simd<> type.
-impl<const N: usize> ScannerVectorEncoderCascadingPeriodic<N>
+impl<const N: usize> ScannerVectorEncoderOverlappingPeriodic<N>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
@@ -69,7 +69,7 @@ where
                                 let remainder_ptr_offset = iterations.saturating_sub(1) as usize * vector_size_in_bytes;
                                 let false_mask = Simd::<u8, N>::splat(0);
 
-                                // Compare as many full vectors as we can
+                                // Compare as many full vectors as we can.
                                 unsafe {
                                     for index in 0..iterations {
                                         let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
@@ -85,7 +85,7 @@ where
                                         );
                                     }
 
-                                    // Handle remainder elements
+                                    // Handle remainder elements.
                                     if remainder_bytes > 0 {
                                         let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
                                         let compare_result = compare_func(current_value_pointer);
@@ -104,19 +104,19 @@ where
 
                                 return run_length_encoder.take_result_regions();
                             }
-                            // JIRA: 2, 4, 8 if they are more efficient than byte array scans
+                            // JIRA: 2, 4, 8 if they are more efficient than byte array scans.
                             _ => {}
                         };
                     }
                 }
             }
             _ => {
-                log::error!("Unsupported comparison! Cascading periodic scans only work for immediate scans.");
+                log::error!("Unsupported comparison! Overlapping periodic scans only work for immediate scans.");
             }
         }
 
         // Default to an array of byte scan for unsupported periodicity lengths.
-        // ScannerScalarEncoderByteArray::encode_byte_array(current_value_pointer, immediate_value_ptr, data_type_size_bytes, base_address, region_size)
+        // ScannerScalarEncoderByteArray::encode_byte_array(current_value_pointer, immediate_value_ptr, data_type_size_bytes, base_address, region_size).
 
         vec![]
     }

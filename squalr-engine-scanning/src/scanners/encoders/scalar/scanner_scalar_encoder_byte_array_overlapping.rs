@@ -6,9 +6,9 @@ use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParamet
 use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use std::collections::HashMap;
 
-pub struct ScannerScalarEncoderByteArrayCascading {}
+pub struct ScannerScalarEncoderByteArrayOverlapping {}
 
-impl ScannerScalarEncoderByteArrayCascading {
+impl ScannerScalarEncoderByteArrayOverlapping {
     /// Scans a region of memory for an array of bytes defined by the given parameters. Comines the Boyer-Moore
     /// algorithm and a run length encoder to produce matches.
     ///
@@ -29,7 +29,7 @@ impl ScannerScalarEncoderByteArrayCascading {
                     if let Some(data_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
                         let array = data_value.get_value_bytes();
 
-                        return ScannerScalarEncoderByteArrayCascading::encode_byte_array(
+                        return ScannerScalarEncoderByteArrayOverlapping::encode_byte_array(
                             current_value_pointer,
                             array,
                             scan_parameters_local,

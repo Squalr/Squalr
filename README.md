@@ -10,9 +10,9 @@ This project is currently being ported from its former C# implementation to Rust
 
 Join us on our [Discord Channel](https://discord.gg/Pq2msTx)
 
-**Squalr** is performant Memory Editing software that allows users to create and share cheats in their windows desktop games. This includes memory scanning, pointers, x86/x64 assembly injection, and so on.
+**Squalr** is performant Memory Editing software that allows users to create and share cheats in their windows desktop games. This includes memory scanning, pointer mapping, x86/x64 assembly injection, and so on.
 
-Squalr achieves fast scans through multi-threading combined with SIMD instructions. To take advantage of these gains, your CPU needs to have support for SSE, AVX, or AVX-512.
+Squalr achieves fast scans through multi-threading combined with SIMD instructions. To take advantage of these gains, your CPU needs to have support for either SSE, AVX, or AVX-512.
 
 Additionally, Squalr has been rewritten from the ground up in Rust.
 
@@ -49,7 +49,7 @@ Features:
 - [X] HexDecBox support for entering scan values (similar to C# version).
 - [X] Sparse Scans.
 - [ ] Array of byte scans.
-- [ ] Vectorized cascading scans (periodic).
+- [ ] Vectorized overlapping scans (periodic).
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 - [ ] Freezing/deleting scan results directly from scan window.
 - [ ] Property viewer.
@@ -61,7 +61,7 @@ Lower priority features that we can defer, for now.
 Features:
 - [ ] Pointer Scans
 - [ ] Memory viewer
-- [ ] Vectorized cascading scans (non-periodic) -- not pre-launch required as we can just fall back to byte array scans for this.
+- [ ] Vectorized overlapping scans (non-periodic) -- not pre-launch required as we can just fall back to byte array scans for this.
 - [ ] Plugin system for new data types. The engine is already designed with this feature in mind, so actually this should be fairly easy.
 - [ ] Plugin system to support emulator middleware (ie filtering queried virtual memory, remapping virtual address space, etc).
 - [ ] Plugin system to support virtual modules. Very similar to above, but registering fake modules, with emulators again being the primary use case.

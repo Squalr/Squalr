@@ -1,3 +1,3 @@
 pub mod scanner_scalar_iterative;
-pub mod scanner_scalar_iterative_byte_array_cascading;
+pub mod scanner_scalar_iterative_byte_array_overlapping;
 pub mod scanner_scalar_single_element;
