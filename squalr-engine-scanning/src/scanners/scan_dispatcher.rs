@@ -90,7 +90,7 @@ impl ScanDispatcher {
         // If the byte arrays are sequential (back-to-back), or sparse (spaced out), then there is no need for an advanced algorithm.
         if data_type.get_data_type_id() == DataTypeByteArray::get_data_type_id() {
             if memory_alignment_size < data_type_size {
-                // return &ScannerScalarIterativeByteArrayOverlapping {};
+                // return &ScannerScalarByteArray {};
             } else {
                 // Here's the magic trick, we just use a normal iterative scalar scan for aligned and sparse scalar scans.
                 // This is because the arrays are spaced so far apart that they cannot possibly overlap, making the fancy algorithms useless.

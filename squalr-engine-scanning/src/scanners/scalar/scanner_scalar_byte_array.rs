@@ -1,62 +1,17 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::encoders::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
+use crate::scanners::snapshot_scanner::Scanner;
+use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
 use std::collections::HashMap;
 
-pub struct ScannerScalarEncoderByteArrayOverlapping {}
+pub struct ScannerScalarByteArray {}
 
-impl ScannerScalarEncoderByteArrayOverlapping {
-    /// Scans a region of memory for an array of bytes defined by the given parameters. Comines the Boyer-Moore
-    /// algorithm and a run length encoder to produce matches.
-    ///
-    /// This combination is important to efficiently capture repeated array of byte scans that are sequential in memory.
-    /// The run length encoder only produces scan results after encountering a false result (scan failure / mismatch),
-    /// or when no more bytes are present (and a full matching byte array was just encoded).
-    pub fn scalar_encode_byte_array(
-        current_value_pointer: *const u8,
-        _prevous_value_pointer: *const u8,
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
-        base_address: u64,
-        region_size: u64,
-    ) -> Vec<SnapshotRegionFilter> {
-        match scan_parameters_global.get_compare_type() {
-            ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
-                ScanCompareTypeImmediate::Equal => {
-                    if let Some(data_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
-                        let array = data_value.get_value_bytes();
-
-                        return ScannerScalarEncoderByteArrayOverlapping::encode_byte_array(
-                            current_value_pointer,
-                            array,
-                            scan_parameters_local,
-                            base_address,
-                            region_size,
-                        );
-                    } else {
-                        log::error!("Failed to deanonymize array of byte value.");
-                    }
-                }
-                _ => {
-                    log::error!("Unsupported immediate scan constraint. Only equality is supported for array of byte scans.");
-                }
-            },
-            ScanCompareType::Relative(_scan_compare_type_relative) => {
-                log::error!("Relative array of byte scans are not supported yet (or maybe ever).");
-            }
-            ScanCompareType::Delta(_scan_compare_type_delta) => {
-                log::error!("Delta array of byte scans are not supported yet (or maybe ever).");
-            }
-        }
-
-        vec![]
-    }
-
-    /// Public encoder without scan parameter and filter args to allow re-use by other scanners.
-    pub fn encode_byte_array(
+impl ScannerScalarByteArray {
+    fn encode_byte_array(
         current_value_pointer: *const u8,
         array: &Vec<u8>,
         scan_parameters_local: &ScanParametersLocal,
@@ -169,5 +124,48 @@ impl ScannerScalarEncoderByteArrayOverlapping {
         }
 
         length
+    }
+}
+
+/// Implements a scalar (ie CPU bound, non-SIMD) array of bytes region scanning algorithm. This works by using the Boyer-Moore
+/// algorithm to encode matches as they are discovered.
+impl Scanner for ScannerScalarByteArray {
+    /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
+    /// is used to generate new sub-regions as the scan progresses.
+    fn scan_region(
+        &self,
+        snapshot_region: &SnapshotRegion,
+        snapshot_region_filter: &SnapshotRegionFilter,
+        scan_parameters_global: &ScanParametersGlobal,
+        scan_parameters_local: &ScanParametersLocal,
+    ) -> Vec<SnapshotRegionFilter> {
+        let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
+        let base_address = snapshot_region_filter.get_base_address();
+        let region_size = snapshot_region_filter.get_region_size();
+
+        match scan_parameters_global.get_compare_type() {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
+                ScanCompareTypeImmediate::Equal => {
+                    if let Some(data_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+                        let array = data_value.get_value_bytes();
+
+                        return Self::encode_byte_array(current_value_pointer, array, scan_parameters_local, base_address, region_size);
+                    } else {
+                        log::error!("Failed to deanonymize array of byte value.");
+                    }
+                }
+                _ => {
+                    log::error!("Unsupported immediate scan constraint. Only equality is supported for array of byte scans.");
+                }
+            },
+            ScanCompareType::Relative(_scan_compare_type_relative) => {
+                log::error!("Relative array of byte scans are not supported yet (or maybe ever).");
+            }
+            ScanCompareType::Delta(_scan_compare_type_delta) => {
+                log::error!("Delta array of byte scans are not supported yet (or maybe ever).");
+            }
+        }
+
+        vec![]
     }
 }

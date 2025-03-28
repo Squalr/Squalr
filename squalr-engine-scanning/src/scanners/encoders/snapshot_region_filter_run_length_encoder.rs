@@ -21,7 +21,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
     pub fn new(run_length_current_address: u64) -> Self {
         Self {
             result_regions: vec![],
-            run_length_current_address: run_length_current_address,
+            run_length_current_address,
             is_encoding: false,
             run_length: 0,
         }
