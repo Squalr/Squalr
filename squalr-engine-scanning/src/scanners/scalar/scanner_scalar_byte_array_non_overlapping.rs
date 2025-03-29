@@ -52,14 +52,15 @@ impl Scanner for ScannerScalarByteArrayNonOverlapping {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
-        let memory_alignment = scan_parameters_local.get_memory_alignment_or_default() as u64;
+        let memory_alignment_size = scan_parameters_local.get_memory_alignment_or_default() as u64;
 
         let scan_pattern = data_value.get_value_bytes();
         let pattern_length = scan_pattern.len() as u64;
-        let boyer_moore_table = BoyerMooreTable::new(&scan_pattern, memory_alignment);
+        let boyer_moore_table = BoyerMooreTable::new(&scan_pattern, memory_alignment_size);
         let aligned_pattern_length = boyer_moore_table.get_aligned_pattern_length();
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let mut scan_index: u64 = 0;
+        let data_type_size_padding = pattern_length.saturating_sub(memory_alignment_size);
 
         // Main body of the Boyer-Moore algorithm, see https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string-search_algorithm for details.
         // Or honestly go watch a YouTube video, visuals are probably better for actually understanding. It's pretty simple actually.
@@ -79,25 +80,25 @@ impl Scanner for ScannerScalarByteArrayNonOverlapping {
 
                     let bad_char_shift = boyer_moore_table.get_mismatch_shift(current_byte);
                     let good_suffix_shift = boyer_moore_table.get_good_suffix_shift(inverse_pattern_index);
-                    shift_value = bad_char_shift.max(good_suffix_shift).max(memory_alignment);
+                    shift_value = bad_char_shift.max(good_suffix_shift).max(memory_alignment_size);
                     break;
                 }
             }
 
-            // Two key differences to vanilla Boyer-Moore. First, our run length encoder needs to advance every time our
-            // index advances. This is either going to be by aligned pattern length (for a match), or the shift length (for a mismatch).
-            // Note that the original algorithm advances by a full pattern length, but we may advance by a little bit more to keep alignment.
+            // A few key differences to vanilla Boyer-Moore. First, our run length encoder needs to advance every time our index advances.
+            // Second, we advance by memory alignment for matches, whereas in the original algorithm matches advance by the length of the pattern.
+            // For mismatches, we advance by the shift length
             if match_found {
-                scan_index = scan_index.saturating_add(aligned_pattern_length);
-                run_length_encoder.encode_range(aligned_pattern_length);
+                scan_index = scan_index.saturating_add(memory_alignment_size);
+                run_length_encoder.encode_range(memory_alignment_size);
             } else {
                 // Shift values should always be memory aligned, so no need to worry if not.
-                run_length_encoder.finalize_current_encode_with_minimum_size(shift_value, pattern_length);
+                run_length_encoder.finalize_current_encode_data_size_padded(shift_value, data_type_size_padding);
                 scan_index += shift_value;
             }
         }
 
-        run_length_encoder.finalize_current_encode_with_minimum_size(0, pattern_length);
+        run_length_encoder.finalize_current_encode_data_size_padded(0, data_type_size_padding);
         run_length_encoder.take_result_regions()
     }
 }

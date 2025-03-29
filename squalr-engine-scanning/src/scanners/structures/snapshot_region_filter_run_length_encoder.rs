@@ -36,7 +36,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
     pub fn encode_range(
         &mut self,
         // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
-        // For scalar scans, this is generally the size of the hardware vector.
+        // For scalar scans, this is generally the size of the memory alignment.
         byte_advance_count: u64,
     ) {
         self.run_length += byte_advance_count;
