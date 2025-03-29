@@ -186,6 +186,7 @@ impl ScanResultsViewModel {
         new_page_index: u64,
     ) {
         let view_binding = scan_results_view_model.view_binding.clone();
+        let scan_results_view_model_clone = scan_results_view_model.clone();
 
         view_binding.execute_on_ui_thread(move |main_window_view, _| {
             let cached_last_page_index = &scan_results_view_model.cached_last_page_index;
@@ -202,10 +203,10 @@ impl ScanResultsViewModel {
 
             // Update the view binding with the cleaned numeric string.
             scan_results_bindings.set_current_page_index_string(SharedString::from(new_page_index.to_string()));
-
-            // Refresh scan results with the new page index.
-            Self::query_scan_results(scan_results_view_model, false);
         });
+
+        // Refresh scan results with the new page index. // JIRA: Should happen in the loop technically, but we need to make the MVVM bindings deadlock resistant.
+        Self::query_scan_results(scan_results_view_model_clone, false);
     }
 
     fn on_add_result_range(

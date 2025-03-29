@@ -1,16 +1,23 @@
 pub struct BoyerMooreTable {
     mismatch_shift_table: Vec<u64>,
     matching_suffix_shift_table: Vec<u64>,
+    aligned_pattern_length: u64,
 }
 
 impl BoyerMooreTable {
-    pub fn new(scan_pattern: &[u8]) -> Self {
+    pub fn new(
+        scan_pattern: &[u8],
+        memory_alignment: u64,
+    ) -> Self {
+        let pattern_length = scan_pattern.len();
+
         let mut table = Self {
             mismatch_shift_table: vec![0u64; u8::MAX as usize + 1usize],
-            matching_suffix_shift_table: vec![0u64; scan_pattern.len()],
+            matching_suffix_shift_table: vec![0u64; pattern_length],
+            aligned_pattern_length: Self::round_up_to_alignment(pattern_length as u64, memory_alignment),
         };
 
-        table.build_table(scan_pattern);
+        table.build_table(scan_pattern, memory_alignment);
 
         table
     }
@@ -29,9 +36,14 @@ impl BoyerMooreTable {
         self.matching_suffix_shift_table[pattern_index]
     }
 
+    pub fn get_aligned_pattern_length(&self) -> u64 {
+        self.aligned_pattern_length
+    }
+
     fn build_table(
         &mut self,
         scan_pattern: &[u8],
+        memory_alignment: u64,
     ) {
         let pattern_length = scan_pattern.len();
 
@@ -41,9 +53,10 @@ impl BoyerMooreTable {
         for index in 0..pattern_length {
             let byte_value = scan_pattern[index];
             let shift_value = pattern_length - index - 1;
+            let aligned_shift = Self::round_up_to_alignment(shift_value as u64, memory_alignment);
 
             // JIRA: When we support masking, skip adding any elements that have a corresponding mask entry.
-            self.mismatch_shift_table[byte_value as usize] = shift_value as u64;
+            self.mismatch_shift_table[byte_value as usize] = aligned_shift;
         }
 
         // Build the Matching (good) Suffix Rule shift table.
@@ -62,7 +75,9 @@ impl BoyerMooreTable {
 
                 // Calculate the shift based on the suffix-prefix match.
                 let shift_for_position = longest_prefix_suffix_len + (pattern_length - 1 - pattern_index);
-                self.matching_suffix_shift_table[pattern_index] = shift_for_position as u64;
+                let aligned_shift = Self::round_up_to_alignment(shift_for_position as u64, memory_alignment);
+
+                self.matching_suffix_shift_table[pattern_index] = aligned_shift as u64;
             }
 
             // Second pass: calculate shifts based on actual suffix matches.
@@ -74,8 +89,9 @@ impl BoyerMooreTable {
 
                 // This shift helps when there's a partial suffix match.
                 let shift = (pattern_length - 1 - pattern_index + matching_suffix_len) as u64;
+                let aligned_shift = Self::round_up_to_alignment(shift as u64, memory_alignment);
 
-                self.matching_suffix_shift_table[shift_table_index] = shift;
+                self.matching_suffix_shift_table[shift_table_index] = aligned_shift;
             }
         }
     }
@@ -110,5 +126,14 @@ impl BoyerMooreTable {
         }
 
         length
+    }
+
+    fn round_up_to_alignment(
+        value: u64,
+        alignment: u64,
+    ) -> u64 {
+        let remainder = value % alignment;
+
+        value + (alignment - remainder) % alignment
     }
 }
