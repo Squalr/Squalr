@@ -1,5 +1,5 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::scanners::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
+use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
