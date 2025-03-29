@@ -78,7 +78,7 @@ impl ScanDispatcher {
 
         // Before selecting a scanner, attempt to remap the scan parameters onto a new data type if applicable for performance.
         if let Some(new_data_type) = Self::optimize_scan_parameters(scan_parameters_local) {
-            //   scan_parameters_local.set_data_type(new_data_type);
+            scan_parameters_local.set_data_type(new_data_type);
         }
 
         let data_type = scan_parameters_local.get_data_type();
@@ -93,17 +93,10 @@ impl ScanDispatcher {
             if memory_alignment_size < data_type_size {
                 return &ScannerScalarByteArrayBooyerMoore {};
             } else {
-                // Here's the magic trick, we just use a normal iterative scalar scan for aligned and sparse scalar scans.
-                // This is because the arrays are spaced so far apart that they cannot possibly overlap, making the fancy algorithms useless.
+                // The arrays are spaced so far apart that they cannot possibly overlap, making the fancy algorithms useless.
+                // Just use a normal iterative scalar scan for aligned and sparse scalar scans.
                 return &ScannerScalarIterative {};
             }
-
-            // JIRA: Switch on sizes for vectorized version
-            return &ScannerScalarIterative {};
-        }
-
-        if true {
-            //  return &ScannerScalarIterative {};
         }
 
         // We actually don't really care whether the processor supports AVX-512, AVX2, etc, PortableSimd is smart enough to

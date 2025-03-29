@@ -1,6 +1,5 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::snapshot_scanner::Scanner;
-use crate::scanners::vector::encoders::scanner_vector_encoder_overlapping_periodic::ScannerVectorEncoderOverlappingPeriodic;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
@@ -35,17 +34,7 @@ where
         // For immediate comparisons, we can use a overlapping periodic scan.
         match scan_parameters_global.get_compare_type() {
             ScanCompareType::Immediate(_scan_compare_type_immediate) => {
-                let vector_encoder = ScannerVectorEncoderOverlappingPeriodic::<N>::new();
-
-                results = vector_encoder.vector_encode(
-                    snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter),
-                    snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter),
-                    scan_parameters_global,
-                    scan_parameters_local,
-                    snapshot_region_filter.get_base_address(),
-                    snapshot_region_filter.get_region_size(),
-                    simd_all_true_mask,
-                );
+                panic!("Relative overlapping scans are not implemented yet");
             }
             ScanCompareType::Relative(_scan_compare_type_relative) => {
                 panic!("Relative overlapping scans are not implemented yet");

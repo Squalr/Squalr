@@ -1,2 +1,0 @@
-pub mod scanner_vector_encoder;
-pub mod scanner_vector_encoder_overlapping_periodic;

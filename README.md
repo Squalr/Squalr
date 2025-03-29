@@ -48,8 +48,9 @@ Features:
 - [X] Vector Aligned Scans.
 - [X] HexDecBox support for entering scan values (similar to C# version).
 - [X] Sparse Scans.
-- [ ] Array of byte scans.
-- [ ] Vectorized overlapping scans (periodic).
+- [X] Array of byte scans.
+- [ ] Vectorized overlapping scans.
+- [ ] Periodic Vectorized overlapping scans.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 - [ ] Freezing/deleting scan results directly from scan window.
 - [ ] Property viewer.

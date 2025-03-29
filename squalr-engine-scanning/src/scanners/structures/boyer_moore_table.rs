@@ -142,28 +142,6 @@ impl BoyerMooreTable {
             pattern_end_index = pattern_end_index.saturating_sub(1);
         }
 
-        let old_length = Self::suffix_length_old(array, match_pos, pattern_length);
-
-        debug_assert!(length == old_length);
-
-        length
-    }
-
-    fn suffix_length_old(
-        array: &[u8],
-        match_pos: usize,
-        pattern_length: usize,
-    ) -> usize {
-        let mut length = 0;
-        let mut suffix_index = match_pos as isize;
-        let mut pattern_end_index = pattern_length as isize - 1;
-
-        while suffix_index >= 0 && array[suffix_index as usize] == array[pattern_end_index as usize] {
-            length += 1;
-            suffix_index -= 1;
-            pattern_end_index -= 1;
-        }
-
         length
     }
 
