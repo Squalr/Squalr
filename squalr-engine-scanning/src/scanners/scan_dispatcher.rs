@@ -1,6 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
-use crate::scanners::scalar::scanner_scalar_byte_array::ScannerScalarByteArray;
+use crate::scanners::scalar::scanner_scalar_byte_array_booyer_moore::ScannerScalarByteArrayBooyerMoore;
 use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::snapshot_scanner::Scanner;
@@ -91,7 +91,7 @@ impl ScanDispatcher {
         // If the byte arrays are sequential (back-to-back), or sparse (spaced out), then there is no need for an advanced algorithm.
         if data_type.get_data_type_id() == DataTypeByteArray::get_data_type_id() {
             if memory_alignment_size < data_type_size {
-                return &ScannerScalarByteArray {};
+                return &ScannerScalarByteArrayBooyerMoore {};
             } else {
                 // Here's the magic trick, we just use a normal iterative scalar scan for aligned and sparse scalar scans.
                 // This is because the arrays are spaced so far apart that they cannot possibly overlap, making the fancy algorithms useless.

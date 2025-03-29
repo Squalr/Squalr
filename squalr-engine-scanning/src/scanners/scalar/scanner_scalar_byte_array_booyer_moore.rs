@@ -8,14 +8,14 @@ use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_imme
 use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
 
-pub struct ScannerScalarByteArray {}
+pub struct ScannerScalarByteArrayBooyerMoore {}
 
-impl ScannerScalarByteArray {}
+impl ScannerScalarByteArrayBooyerMoore {}
 
 /// Implements a scalar (ie CPU bound, non-SIMD) array of bytes region scanning algorithm. This works by using a modified version
 /// of the Boyer-Moore algorithm to encode matches as they are discovered. This algorithm was adapted to support overlapping results.
 /// Boyer-Moore speeds up scans through use of pre-made shifting tables, allowing for skipping multiple elements on failed matches.
-impl Scanner for ScannerScalarByteArray {
+impl Scanner for ScannerScalarByteArrayBooyerMoore {
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
     /// is used to generate new sub-regions as the scan progresses.
     fn scan_region(
@@ -64,7 +64,7 @@ impl Scanner for ScannerScalarByteArray {
 
         // Main body of the Boyer-Moore algorithm, see https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string-search_algorithm for details.
         // Or honestly go watch a YouTube video, visuals are probably better for actually understanding. It's pretty simple actually.
-        while scan_index <= region_size - pattern_length {
+        while scan_index <= region_size.saturating_sub(pattern_length) {
             let mut match_found = true;
             let mut shift_value = memory_alignment_size;
 
@@ -80,6 +80,9 @@ impl Scanner for ScannerScalarByteArray {
 
                     let bad_char_shift = boyer_moore_table.get_mismatch_shift(current_byte);
                     let good_suffix_shift = boyer_moore_table.get_good_suffix_shift(inverse_pattern_index + 1);
+
+                    // Unlike classic Booyer-Moore we don't take the max of the shifts. Instead we prioritize a set good shift over the bad shift.
+                    // This reduces some skipping, but allows us to safely handle overlapping results.
                     shift_value = (if good_suffix_shift > 0 { good_suffix_shift } else { bad_char_shift }).max(memory_alignment_size);
                     break;
                 }
