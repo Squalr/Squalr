@@ -1,6 +1,7 @@
 pub struct BoyerMooreTable {
     mismatch_shift_table: Vec<u64>,
     matching_suffix_shift_table: Vec<u64>,
+    pattern_length: u64,
     aligned_pattern_length: u64,
 }
 
@@ -10,11 +11,13 @@ impl BoyerMooreTable {
         memory_alignment: u64,
     ) -> Self {
         let pattern_length = scan_pattern.len();
+        let aligned_pattern_length = Self::round_up_to_alignment(pattern_length as u64, memory_alignment);
 
         let mut table = Self {
-            mismatch_shift_table: vec![0u64; u8::MAX as usize + 1usize],
+            mismatch_shift_table: vec![aligned_pattern_length; u8::MAX as usize + 1usize],
             matching_suffix_shift_table: vec![0u64; pattern_length],
-            aligned_pattern_length: Self::round_up_to_alignment(pattern_length as u64, memory_alignment),
+            pattern_length: pattern_length as u64,
+            aligned_pattern_length,
         };
 
         table.build_table(scan_pattern, memory_alignment);
@@ -33,7 +36,11 @@ impl BoyerMooreTable {
         &self,
         pattern_index: usize,
     ) -> u64 {
-        self.matching_suffix_shift_table[pattern_index]
+        if pattern_index + 1 < self.pattern_length as usize {
+            self.matching_suffix_shift_table[pattern_index]
+        } else {
+            0
+        }
     }
 
     pub fn get_aligned_pattern_length(&self) -> u64 {
@@ -50,50 +57,52 @@ impl BoyerMooreTable {
 
         // Build the Mismatch (Bad Character Rule) shift table.
         // This dictates how far we shift our comparison window if a byte match fails.
-        // Populated as mismatch_shift_table[byte_value] => length_of_array - byte_index - 1.
-        for index in 0..pattern_length {
-            let byte_value = scan_pattern[index];
-            let shift_value = pattern_length_minus_one.saturating_sub(index);
-            let aligned_shift = Self::round_up_to_alignment(shift_value as u64, memory_alignment);
+        {
+            // Build the table from right to left.
+            for index in (0..pattern_length).rev() {
+                let byte_value = scan_pattern[index];
+                let shift_value = pattern_length_minus_one.saturating_sub(index).max(1);
+                let aligned_shift = Self::round_up_to_alignment(shift_value as u64, memory_alignment);
 
-            // JIRA: When we support masking, skip adding any elements that have a corresponding mask entry.
-            self.mismatch_shift_table[byte_value as usize] = aligned_shift;
+                // Only set if not already set (this ensures rightmost occurrence is used).
+                if self.mismatch_shift_table[byte_value as usize] == self.aligned_pattern_length {
+                    self.mismatch_shift_table[byte_value as usize] = aligned_shift;
+                }
+            }
         }
 
-        // Build the Matching (good) Suffix Rule shift table.
-        // This is an optimization used to more optimally shift when there are partial matches.
+        // Build the Matching (good) Suffix Rule shift table. This is an optimization used to more optimally shift when there are partial matches.
         {
-            // First pass: identify positions where a suffix of the pattern is also a prefix.
-            let mut longest_prefix_suffix_len = 0;
+            let default_good_suffix_shift = Self::round_up_to_alignment(pattern_length as u64, memory_alignment);
 
-            for pattern_index in (0..pattern_length).rev() {
-                // Check if the pattern from this index onward is a prefix of the full pattern.
-                let is_suffix_prefix = Self::is_prefix(&scan_pattern, pattern_index, pattern_length);
+            for pattern_index in 0..pattern_length {
+                self.matching_suffix_shift_table[pattern_index] = default_good_suffix_shift;
+            }
 
-                if is_suffix_prefix {
-                    longest_prefix_suffix_len = pattern_length_minus_one.saturating_sub(pattern_index);
+            // First pass: If the suffix from 'start_index' is also a prefix, shift = pattern_length - start_index.
+            for start_index in (0..pattern_length).rev() {
+                if Self::is_prefix(scan_pattern, start_index, pattern_length) {
+                    let raw_shift = (pattern_length.saturating_sub(start_index)) as u64;
+                    let aligned_shift = Self::round_up_to_alignment(raw_shift, memory_alignment);
+
+                    self.matching_suffix_shift_table[start_index] = self.matching_suffix_shift_table[start_index].min(aligned_shift);
                 }
-
-                // Calculate the shift based on the suffix-prefix match.
-                let shift_for_position = longest_prefix_suffix_len.saturating_add(pattern_length_minus_one.saturating_sub(pattern_index));
-                let aligned_shift = Self::round_up_to_alignment(shift_for_position as u64, memory_alignment);
-
-                self.matching_suffix_shift_table[pattern_index] = aligned_shift as u64;
             }
 
             // Second pass: calculate shifts based on actual suffix matches.
             for pattern_index in 0..pattern_length_minus_one {
-                let matching_suffix_len = Self::suffix_length(&scan_pattern, pattern_index, pattern_length);
+                let matching_suffix_len = Self::suffix_length(scan_pattern, pattern_index, pattern_length);
+                let shift_table_index = pattern_length_minus_one.saturating_sub(matching_suffix_len);
 
-                // Avoid index overflow by clamping to valid range.
-                let shift_table_index = matching_suffix_len.min(pattern_length_minus_one);
+                // Option A: shift = entire pattern length minus the matched suffix.
+                let option_a = (pattern_length as u64).saturating_sub(matching_suffix_len as u64);
 
-                // This shift helps when there's a partial suffix match.
-                let shift = pattern_length_minus_one
-                    .saturating_sub(pattern_index)
-                    .saturating_add(matching_suffix_len);
-                let aligned_shift = Self::round_up_to_alignment(shift as u64, memory_alignment);
+                // Option B: shift = (pattern_length_minus_one - pattern_index) + matching_suffix_len.
+                let option_b = (pattern_length_minus_one.saturating_sub(pattern_index) + matching_suffix_len) as u64;
 
+                // Take whichever shift is smaller.
+                let shift = option_a.min(option_b);
+                let aligned_shift = Self::round_up_to_alignment(shift, memory_alignment);
                 self.matching_suffix_shift_table[shift_table_index] = self.matching_suffix_shift_table[shift_table_index].min(aligned_shift);
             }
         }

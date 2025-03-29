@@ -1,6 +1,6 @@
 use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
-use crate::scanners::scalar::scanner_scalar_byte_array_non_overlapping::ScannerScalarByteArrayNonOverlapping;
+use crate::scanners::scalar::scanner_scalar_byte_array::ScannerScalarByteArray;
 use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::snapshot_scanner::Scanner;
@@ -78,7 +78,7 @@ impl ScanDispatcher {
 
         // Before selecting a scanner, attempt to remap the scan parameters onto a new data type if applicable for performance.
         if let Some(new_data_type) = Self::optimize_scan_parameters(scan_parameters_local) {
-            // scan_parameters_local.set_data_type(new_data_type);
+            //   scan_parameters_local.set_data_type(new_data_type);
         }
 
         let data_type = scan_parameters_local.get_data_type();
@@ -91,7 +91,7 @@ impl ScanDispatcher {
         // If the byte arrays are sequential (back-to-back), or sparse (spaced out), then there is no need for an advanced algorithm.
         if data_type.get_data_type_id() == DataTypeByteArray::get_data_type_id() {
             if memory_alignment_size < data_type_size {
-                return &ScannerScalarByteArrayNonOverlapping {};
+                return &ScannerScalarByteArray {};
             } else {
                 // Here's the magic trick, we just use a normal iterative scalar scan for aligned and sparse scalar scans.
                 // This is because the arrays are spaced so far apart that they cannot possibly overlap, making the fancy algorithms useless.
@@ -100,6 +100,10 @@ impl ScanDispatcher {
 
             // JIRA: Switch on sizes for vectorized version
             return &ScannerScalarIterative {};
+        }
+
+        if true {
+            //  return &ScannerScalarIterative {};
         }
 
         // We actually don't really care whether the processor supports AVX-512, AVX2, etc, PortableSimd is smart enough to

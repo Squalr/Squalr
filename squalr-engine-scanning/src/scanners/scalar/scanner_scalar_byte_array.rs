@@ -8,37 +8,14 @@ use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_imme
 use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
 
-pub struct ScannerScalarByteArrayNonOverlapping {}
+pub struct ScannerScalarByteArray {}
 
-impl ScannerScalarByteArrayNonOverlapping {
-    /// Extracts a smaller pattern from a large one. For example, 00 00 00 01 01 01 00 00 00 becomes 00 00 00 01 01 01.
-    /// The length returned however is the original length, so this returns a length of 9.
-    fn extract_sub_pattern(scan_pattern: &[u8]) -> &[u8] {
-        let pattern_length = scan_pattern.len();
+impl ScannerScalarByteArray {}
 
-        for candidate_len in 1..=pattern_length {
-            let candidate_pattern = &scan_pattern[..candidate_len];
-            let mut generated_pattern = Vec::with_capacity(pattern_length);
-
-            while generated_pattern.len() < pattern_length {
-                generated_pattern.extend_from_slice(candidate_pattern);
-            }
-
-            generated_pattern.truncate(pattern_length);
-
-            if generated_pattern == scan_pattern {
-                return candidate_pattern;
-            }
-        }
-
-        // No repeating sub-pattern found, return the full pattern.
-        scan_pattern
-    }
-}
-
-/// Implements a scalar (ie CPU bound, non-SIMD) array of bytes region scanning algorithm. This works by using a modified version of
-/// the Boyer-Moore algorithm to encode matches as they are discovered. This algorithm has been adapted to support overlapping results.
-impl Scanner for ScannerScalarByteArrayNonOverlapping {
+/// Implements a scalar (ie CPU bound, non-SIMD) array of bytes region scanning algorithm. This works by using a modified version
+/// of the Boyer-Moore algorithm to encode matches as they are discovered. This algorithm was adapted to support overlapping results.
+/// Boyer-Moore speeds up scans through use of pre-made shifting tables, allowing for skipping multiple elements on failed matches.
+impl Scanner for ScannerScalarByteArray {
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
     /// is used to generate new sub-regions as the scan progresses.
     fn scan_region(
@@ -76,62 +53,52 @@ impl Scanner for ScannerScalarByteArrayNonOverlapping {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
-        let memory_alignment = scan_parameters_local.get_memory_alignment_or_default() as u64;
+        let memory_alignment_size = scan_parameters_local.get_memory_alignment_or_default() as u64;
 
-        let original_pattern = data_value.get_value_bytes();
-        let full_pattern_length = original_pattern.len() as u64;
-
-        let scan_pattern = Self::extract_sub_pattern(original_pattern);
+        let scan_pattern = data_value.get_value_bytes();
         let pattern_length = scan_pattern.len() as u64;
-        let boyer_moore_table = BoyerMooreTable::new(&scan_pattern, memory_alignment);
+        let boyer_moore_table = BoyerMooreTable::new(&scan_pattern, memory_alignment_size);
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let mut scan_index: u64 = 0;
+        let data_type_size_padding = pattern_length.saturating_sub(memory_alignment_size);
 
         // Main body of the Boyer-Moore algorithm, see https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore_string-search_algorithm for details.
         // Or honestly go watch a YouTube video, visuals are probably better for actually understanding. It's pretty simple actually.
         while scan_index <= region_size - pattern_length {
-            let mut is_mismatch = false;
-            let mut mismatch_index = 0;
-            let mut shift_value = pattern_length;
+            let mut match_found = true;
+            let mut shift_value = memory_alignment_size;
 
             for inverse_pattern_index in (0..pattern_length as usize).rev() {
                 let current_byte = unsafe { *current_value_pointer.add((scan_index + inverse_pattern_index as u64) as usize) };
                 let pattern_byte = scan_pattern[inverse_pattern_index];
 
                 // JIRA: Also check masking table when we decide to support masking.
-                is_mismatch = current_byte != pattern_byte;
+                let is_mismatch = current_byte != pattern_byte;
 
                 if is_mismatch {
-                    mismatch_index = inverse_pattern_index;
+                    match_found = false;
 
                     let bad_char_shift = boyer_moore_table.get_mismatch_shift(current_byte);
-                    let good_suffix_shift = boyer_moore_table.get_good_suffix_shift(inverse_pattern_index);
-                    shift_value = bad_char_shift.max(good_suffix_shift).max(memory_alignment);
+                    let good_suffix_shift = boyer_moore_table.get_good_suffix_shift(inverse_pattern_index + 1);
+                    shift_value = (if good_suffix_shift > 0 { good_suffix_shift } else { bad_char_shift }).max(memory_alignment_size);
                     break;
                 }
             }
 
-            // Two key differences to vanilla Boyer-Moore. First, our run length encoder needs to advance every time our
-            // index advances. This is either going to be by 1 (for a match), or the shift length (for a mismatch).
-            // Note that the original algorithm advances by a full pattern length.
-            // However, instead we have to take special care to advance by an amount that:
-            // A) Respects alignment.
-            // B) Supports overlapping patterns -- ie the end of the pattern could be the start of the next.
-            if is_mismatch {
-                let partial_match_size = pattern_length.saturating_sub(mismatch_index as u64);
-                let mismatch_size = pattern_length.saturating_sub(partial_match_size);
-
-                run_length_encoder.encode_range(partial_match_size);
-                run_length_encoder.finalize_current_encode_with_minimum_size(mismatch_size, full_pattern_length);
-
-                scan_index += partial_match_size.saturating_add(mismatch_size);
+            // A few key differences to vanilla Boyer-Moore. First, our run length encoder needs to advance every time our index advances.
+            // Second, we advance by memory alignment for matches, whereas in the original algorithm matches advance by the length of the pattern.
+            // This allows us to capture overlapping matches, which is not supported in classic Boyer-Moore. For mismatches, we advance by the shift length.
+            if match_found {
+                scan_index = scan_index.saturating_add(memory_alignment_size);
+                run_length_encoder.encode_range(memory_alignment_size);
             } else {
-                run_length_encoder.encode_range(shift_value);
+                // Shift values should always be memory aligned, so no need to worry if not.
+                run_length_encoder.finalize_current_encode_data_size_padded(shift_value, data_type_size_padding);
                 scan_index += shift_value;
             }
         }
 
-        run_length_encoder.finalize_current_encode_with_minimum_size(0, pattern_length);
+        run_length_encoder.finalize_current_encode_data_size_padded(0, data_type_size_padding);
         run_length_encoder.take_result_regions()
     }
 }
