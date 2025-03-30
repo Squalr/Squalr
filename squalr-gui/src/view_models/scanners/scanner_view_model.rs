@@ -102,11 +102,11 @@ impl ScannerViewModel {
 
         match scan_view_model_state_value {
             ScanViewModelState::HasResults => {
-                Self::start_scan(scanner_view_model, scan_constraint, AnonymousValue::new(&scan_value, is_value_hex));
+                Self::start_scan(scanner_view_model, scan_constraint, AnonymousValue::new_string(&scan_value, is_value_hex));
             }
             ScanViewModelState::NoResults => {
                 let data_type_id = data_type_view.data_type.to_string();
-                let scan_value = AnonymousValue::new(&scan_value, is_value_hex);
+                let scan_value = AnonymousValue::new_string(&scan_value, is_value_hex);
                 let data_type_meta_data = match scan_value.deanonymize_value(&data_type_id) {
                     Ok(value) => DataTypeMetaData::SizedContainer(value.get_size_in_bytes()),
                     Err(_) => DataTypeMetaData::None,

@@ -66,7 +66,7 @@ impl SnapshotRegionFilterRunLengthEncoder {
     }
 
     /// Completes the current run length encoding, creating a region filter from the result, padding it for a given data size.
-    pub fn finalize_current_encode_data_size_padded(
+    pub fn finalize_current_encode_with_padding(
         &mut self,
         // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
         // For vector scans, this is generally the size of the hardware vector.

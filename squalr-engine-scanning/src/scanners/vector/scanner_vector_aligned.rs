@@ -32,13 +32,7 @@ where
             run_length_encoder.finalize_current_encode(N as u64);
         // Otherwise, there is a mix of true/false results that need to be processed manually.
         } else {
-            for byte_index in (0..N).step_by(memory_alignment as usize) {
-                if compare_result[byte_index] != 0 {
-                    run_length_encoder.encode_range(memory_alignment);
-                } else {
-                    run_length_encoder.finalize_current_encode(memory_alignment);
-                }
-            }
+            self.encode_remainder_results(compare_result, run_length_encoder, memory_alignment, N as u64);
         }
     }
 
@@ -85,7 +79,7 @@ where
         let iterations = region_size / vector_size_in_bytes as u64;
         let remainder_bytes = region_size % vector_size_in_bytes as u64;
         let remainder_ptr_offset = iterations.saturating_sub(1) as usize * vector_size_in_bytes;
-        let false_mask = Simd::<u8, N>::splat(0);
+        let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
 
         unsafe {

@@ -96,12 +96,12 @@ impl Scanner for ScannerScalarByteArrayBooyerMoore {
                 run_length_encoder.encode_range(memory_alignment_size);
             } else {
                 // Shift values should always be memory aligned, so no need to worry if not.
-                run_length_encoder.finalize_current_encode_data_size_padded(shift_value, data_type_size_padding);
+                run_length_encoder.finalize_current_encode_with_padding(shift_value, data_type_size_padding);
                 scan_index += shift_value;
             }
         }
 
-        run_length_encoder.finalize_current_encode_data_size_padded(0, data_type_size_padding);
+        run_length_encoder.finalize_current_encode_with_padding(0, data_type_size_padding);
         run_length_encoder.take_result_regions()
     }
 }

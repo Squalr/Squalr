@@ -1,6 +1,6 @@
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
-use crate::structures::data_values::anonymous_value::AnonymousValue;
+use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
@@ -31,46 +31,49 @@ impl DataType for DataTypeByteArray {
         &self,
         anonymous_value: &AnonymousValue,
     ) -> Result<Vec<u8>, DataTypeError> {
-        let value_string = anonymous_value.to_string();
+        match anonymous_value.get_value() {
+            AnonymousValueContainer::StringValue(value_string, is_value_hex) => {
+                if *is_value_hex {
+                    // Clean input: remove whitespace, commas, and any 0x prefixes.
+                    let mut cleaned = value_string
+                        .replace(|next_char: char| next_char.is_whitespace() || next_char == ',', "")
+                        .replace("0x", "")
+                        .replace("0X", "");
 
-        if anonymous_value.is_value_hex {
-            // Clean input: remove whitespace, commas, and any 0x prefixes.
-            let mut cleaned = value_string
-                .replace(|next_char: char| next_char.is_whitespace() || next_char == ',', "")
-                .replace("0x", "")
-                .replace("0X", "");
+                    // Zero-pad odd numbered length to force the hex to be groups of two digits per byte.
+                    if cleaned.len() % 2 != 0 {
+                        cleaned = format!("0{}", cleaned);
+                    }
 
-            // Zero-pad odd numbered length to force the hex to be groups of two digits per byte.
-            if cleaned.len() % 2 != 0 {
-                cleaned = format!("0{}", cleaned);
+                    // Group into bytes (2 hex digits each).
+                    cleaned
+                        .as_bytes()
+                        .chunks(2)
+                        .map(|chunk| {
+                            let hex_str = std::str::from_utf8(chunk).unwrap_or_default();
+                            u8::from_str_radix(hex_str, 16).map_err(|err| DataTypeError::ValueParseError {
+                                value: hex_str.to_string(),
+                                is_value_hex: true,
+                                source: err,
+                            })
+                        })
+                        .collect()
+                } else {
+                    // For decimal, allow space or comma separation.
+                    value_string
+                        .split(|next_char: char| next_char.is_whitespace() || next_char == ',')
+                        .filter(|next_value| !next_value.is_empty())
+                        .map(|next_value| {
+                            u8::from_str_radix(next_value, 10).map_err(|err| DataTypeError::ValueParseError {
+                                value: next_value.to_string(),
+                                is_value_hex: false,
+                                source: err,
+                            })
+                        })
+                        .collect()
+                }
             }
-
-            // Group into bytes (2 hex digits each).
-            cleaned
-                .as_bytes()
-                .chunks(2)
-                .map(|chunk| {
-                    let hex_str = std::str::from_utf8(chunk).unwrap_or_default();
-                    u8::from_str_radix(hex_str, 16).map_err(|err| DataTypeError::ValueParseError {
-                        value: hex_str.to_string(),
-                        is_value_hex: true,
-                        source: err,
-                    })
-                })
-                .collect()
-        } else {
-            // For decimal, allow space or comma separation.
-            value_string
-                .split(|next_char: char| next_char.is_whitespace() || next_char == ',')
-                .filter(|next_value| !next_value.is_empty())
-                .map(|next_value| {
-                    u8::from_str_radix(next_value, 10).map_err(|err| DataTypeError::ValueParseError {
-                        value: next_value.to_string(),
-                        is_value_hex: false,
-                        source: err,
-                    })
-                })
-                .collect()
+            AnonymousValueContainer::ByteArray(value_bytes) => Ok(value_bytes.clone()),
         }
     }
 

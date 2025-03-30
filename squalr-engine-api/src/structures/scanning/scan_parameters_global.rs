@@ -50,6 +50,13 @@ impl ScanParametersGlobal {
         }
     }
 
+    pub fn set_compare_immediate(
+        &mut self,
+        compare_immediate: Option<AnonymousValue>,
+    ) {
+        self.compare_immediate = compare_immediate;
+    }
+
     pub fn get_floating_point_tolerance(&self) -> FloatingPointTolerance {
         self.floating_point_tolerance
     }

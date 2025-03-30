@@ -39,7 +39,7 @@ impl Scanner for ScannerScalarIterative {
                 if compare_result {
                     run_length_encoder.encode_range(memory_alignment_size);
                 } else {
-                    run_length_encoder.finalize_current_encode_data_size_padded(memory_alignment_size, data_type_size_padding);
+                    run_length_encoder.finalize_current_encode_with_padding(memory_alignment_size, data_type_size_padding);
                 }
             };
 
@@ -84,7 +84,7 @@ impl Scanner for ScannerScalarIterative {
             }
         }
 
-        run_length_encoder.finalize_current_encode_data_size_padded(memory_alignment_size, data_type_size_padding);
+        run_length_encoder.finalize_current_encode_with_padding(memory_alignment_size, data_type_size_padding);
         run_length_encoder.take_result_regions()
     }
 }

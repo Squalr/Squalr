@@ -39,7 +39,7 @@ impl ValidationViewModel {
         value: SharedString,
         is_value_hex: bool,
     ) -> bool {
-        let anonymous_value = AnonymousValue::new(&value, is_value_hex);
+        let anonymous_value = AnonymousValue::new_string(&value, is_value_hex);
         let registry = DataTypeRegistry::get_instance().get_registry();
         let data_type = data_value_view.data_type.to_string();
 

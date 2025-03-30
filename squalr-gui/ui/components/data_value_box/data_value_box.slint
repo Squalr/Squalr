@@ -177,7 +177,7 @@ export component DataValueBox {
 
                     clicked => {
                         root.is_value_hex = false;
-                        line-edit.text = ConversionsViewModelBindings.convert_dec_to_hex(line-edit.text);
+                        line-edit.text = ConversionsViewModelBindings.convert_hex_to_dec(line-edit.text);
                         context-menu.close();
                     }
                 }
@@ -196,7 +196,7 @@ export component DataValueBox {
 
                     clicked => {
                         root.is_value_hex = true;
-                        line-edit.text = ConversionsViewModelBindings.convert_hex_to_dec(line-edit.text);
+                        line-edit.text = ConversionsViewModelBindings.convert_dec_to_hex(line-edit.text);
                         context-menu.close();
                     }
                 }
