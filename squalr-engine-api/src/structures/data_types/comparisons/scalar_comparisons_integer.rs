@@ -1,19 +1,14 @@
-use num_traits::{WrappingAdd, WrappingSub};
-
 use crate::structures::data_types::comparisons::scalar_comparable::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
-use crate::structures::scanning::scan_parameters_global::ScanParametersGlobal;
-use crate::structures::scanning::scan_parameters_local::ScanParametersLocal;
+use crate::structures::scanning::parameters::scan_parameters::ScanParameters;
+use num_traits::{WrappingAdd, WrappingSub};
 use std::ops::{Add, Sub};
 use std::ptr;
 
 pub struct ScalarComparisonsInteger {}
 
 impl ScalarComparisonsInteger {
-    pub fn get_compare_equal<PrimitiveType: PartialEq + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
-    ) -> Option<ScalarCompareFnImmediate> {
-        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+    pub fn get_compare_equal<PrimitiveType: PartialEq + 'static>(scan_parameters: &ScanParameters) -> Option<ScalarCompareFnImmediate> {
+        if let Some(immediate_value) = scan_parameters.get_data_value() {
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType);
@@ -29,11 +24,8 @@ impl ScalarComparisonsInteger {
         }
     }
 
-    pub fn get_compare_not_equal<PrimitiveType: PartialEq + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
-    ) -> Option<ScalarCompareFnImmediate> {
-        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+    pub fn get_compare_not_equal<PrimitiveType: PartialEq + 'static>(scan_parameters: &ScanParameters) -> Option<ScalarCompareFnImmediate> {
+        if let Some(immediate_value) = scan_parameters.get_data_value() {
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType);
@@ -49,11 +41,8 @@ impl ScalarComparisonsInteger {
         }
     }
 
-    pub fn get_compare_greater_than<PrimitiveType: PartialOrd + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
-    ) -> Option<ScalarCompareFnImmediate> {
-        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+    pub fn get_compare_greater_than<PrimitiveType: PartialOrd + 'static>(scan_parameters: &ScanParameters) -> Option<ScalarCompareFnImmediate> {
+        if let Some(immediate_value) = scan_parameters.get_data_value() {
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType);
@@ -69,11 +58,8 @@ impl ScalarComparisonsInteger {
         }
     }
 
-    pub fn get_compare_greater_than_or_equal<PrimitiveType: PartialOrd + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
-    ) -> Option<ScalarCompareFnImmediate> {
-        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+    pub fn get_compare_greater_than_or_equal<PrimitiveType: PartialOrd + 'static>(scan_parameters: &ScanParameters) -> Option<ScalarCompareFnImmediate> {
+        if let Some(immediate_value) = scan_parameters.get_data_value() {
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType);
@@ -89,11 +75,8 @@ impl ScalarComparisonsInteger {
         }
     }
 
-    pub fn get_compare_less_than<PrimitiveType: PartialOrd + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
-    ) -> Option<ScalarCompareFnImmediate> {
-        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+    pub fn get_compare_less_than<PrimitiveType: PartialOrd + 'static>(scan_parameters: &ScanParameters) -> Option<ScalarCompareFnImmediate> {
+        if let Some(immediate_value) = scan_parameters.get_data_value() {
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType);
@@ -109,11 +92,8 @@ impl ScalarComparisonsInteger {
         }
     }
 
-    pub fn get_compare_less_than_or_equal<PrimitiveType: PartialOrd + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
-    ) -> Option<ScalarCompareFnImmediate> {
-        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+    pub fn get_compare_less_than_or_equal<PrimitiveType: PartialOrd + 'static>(scan_parameters: &ScanParameters) -> Option<ScalarCompareFnImmediate> {
+        if let Some(immediate_value) = scan_parameters.get_data_value() {
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType);
@@ -129,10 +109,7 @@ impl ScalarComparisonsInteger {
         }
     }
 
-    pub fn get_compare_changed<PrimitiveType: PartialEq + 'static>(
-        _scan_parameters_global: &ScanParametersGlobal,
-        _scan_parameters_local: &ScanParametersLocal,
-    ) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_changed<PrimitiveType: PartialEq + 'static>(_scan_parameters: &ScanParameters) -> Option<ScalarCompareFnRelative> {
         Some(Box::new(move |current_value_ptr, previous_value_ptr| unsafe {
             let current_value = ptr::read_unaligned(current_value_ptr as *const PrimitiveType);
             let previous_value = ptr::read_unaligned(previous_value_ptr as *const PrimitiveType);
@@ -141,10 +118,7 @@ impl ScalarComparisonsInteger {
         }))
     }
 
-    pub fn get_compare_unchanged<PrimitiveType: PartialEq + 'static>(
-        _scan_parameters_global: &ScanParametersGlobal,
-        _scan_parameters_local: &ScanParametersLocal,
-    ) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_unchanged<PrimitiveType: PartialEq + 'static>(_scan_parameters: &ScanParameters) -> Option<ScalarCompareFnRelative> {
         Some(Box::new(move |current_value_ptr, previous_value_ptr| unsafe {
             let current_value = ptr::read_unaligned(current_value_ptr as *const PrimitiveType);
             let previous_value = ptr::read_unaligned(previous_value_ptr as *const PrimitiveType);
@@ -153,10 +127,7 @@ impl ScalarComparisonsInteger {
         }))
     }
 
-    pub fn get_compare_increased<PrimitiveType: PartialOrd + 'static>(
-        _scan_parameters_global: &ScanParametersGlobal,
-        _scan_parameters_local: &ScanParametersLocal,
-    ) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_increased<PrimitiveType: PartialOrd + 'static>(_scan_parameters: &ScanParameters) -> Option<ScalarCompareFnRelative> {
         Some(Box::new(move |current_value_ptr, previous_value_ptr| unsafe {
             let current_value = ptr::read_unaligned(current_value_ptr as *const PrimitiveType);
             let previous_value = ptr::read_unaligned(previous_value_ptr as *const PrimitiveType);
@@ -165,10 +136,7 @@ impl ScalarComparisonsInteger {
         }))
     }
 
-    pub fn get_compare_decreased<PrimitiveType: PartialOrd + 'static>(
-        _scan_parameters_global: &ScanParametersGlobal,
-        _scan_parameters_local: &ScanParametersLocal,
-    ) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_decreased<PrimitiveType: PartialOrd + 'static>(_scan_parameters: &ScanParameters) -> Option<ScalarCompareFnRelative> {
         Some(Box::new(move |current_value_ptr, previous_value_ptr| unsafe {
             let current_value = ptr::read_unaligned(current_value_ptr as *const PrimitiveType);
             let previous_value = ptr::read_unaligned(previous_value_ptr as *const PrimitiveType);
@@ -178,10 +146,9 @@ impl ScalarComparisonsInteger {
     }
 
     pub fn get_compare_increased_by<PrimitiveType: Copy + PartialEq + Add<Output = PrimitiveType> + WrappingAdd + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters
     ) -> Option<ScalarCompareFnDelta> {
-        if let Some(delta_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+        if let Some(delta_value) = scan_parameters.get_data_value() {
             unsafe {
                 let delta_value_ptr = delta_value.as_ptr();
                 let delta_value: PrimitiveType = ptr::read_unaligned(delta_value_ptr as *const PrimitiveType);
@@ -200,10 +167,9 @@ impl ScalarComparisonsInteger {
     }
 
     pub fn get_compare_decreased_by<PrimitiveType: Copy + PartialEq + Sub<Output = PrimitiveType> + WrappingSub + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters
     ) -> Option<ScalarCompareFnDelta> {
-        if let Some(delta_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+        if let Some(delta_value) = scan_parameters.get_data_value() {
             unsafe {
                 let delta_value_ptr = delta_value.as_ptr();
                 let delta_value: PrimitiveType = ptr::read_unaligned(delta_value_ptr as *const PrimitiveType);

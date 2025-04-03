@@ -3,8 +3,7 @@ use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
-use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
+use squalr_engine_api::structures::scanning::parameters::scan_parameters::ScanParameters;
 
 pub struct ScannerScalarIterative {}
 
@@ -19,13 +18,12 @@ impl Scanner for ScannerScalarIterative {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let base_address = snapshot_region_filter.get_base_address();
-        let memory_alignment = scan_parameters_local.get_memory_alignment_or_default();
+        let memory_alignment = scan_parameters.get_memory_alignment_or_default();
         let memory_alignment_size = memory_alignment as u64;
-        let data_type = scan_parameters_local.get_data_type();
+        let data_type = scan_parameters.get_original_data_type();
         let data_type_size = data_type.get_size_in_bytes();
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment_size);
         let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
@@ -43,13 +41,11 @@ impl Scanner for ScannerScalarIterative {
                 }
             };
 
-            match scan_parameters_global.get_compare_type() {
+            match scan_parameters.get_compare_type() {
                 ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                    if let Some(compare_func) =
-                        data_type.get_scalar_compare_func_immediate(&scan_compare_type_immediate, scan_parameters_global, scan_parameters_local)
-                    {
+                    if let Some(compare_func) = data_type.get_scalar_compare_func_immediate(&scan_compare_type_immediate, scan_parameters) {
                         for index in 0..element_count {
-                            let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
+                            let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment_size as usize);
                             let result = compare_func(current_value_pointer);
 
                             encode_results(result);
@@ -57,12 +53,10 @@ impl Scanner for ScannerScalarIterative {
                     }
                 }
                 ScanCompareType::Relative(scan_compare_type_relative) => {
-                    if let Some(compare_func) =
-                        data_type.get_scalar_compare_func_relative(&scan_compare_type_relative, scan_parameters_global, scan_parameters_local)
-                    {
+                    if let Some(compare_func) = data_type.get_scalar_compare_func_relative(&scan_compare_type_relative, scan_parameters) {
                         for index in 0..element_count {
-                            let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
-                            let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment as usize);
+                            let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment_size as usize);
+                            let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment_size as usize);
                             let result = compare_func(current_value_pointer, previous_value_pointer);
 
                             encode_results(result);
@@ -70,11 +64,10 @@ impl Scanner for ScannerScalarIterative {
                     }
                 }
                 ScanCompareType::Delta(scan_compare_type_delta) => {
-                    if let Some(compare_func) = data_type.get_scalar_compare_func_delta(&scan_compare_type_delta, scan_parameters_global, scan_parameters_local)
-                    {
+                    if let Some(compare_func) = data_type.get_scalar_compare_func_delta(&scan_compare_type_delta, scan_parameters) {
                         for index in 0..element_count {
-                            let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment as usize);
-                            let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment as usize);
+                            let current_value_pointer = current_value_pointer.add(index as usize * memory_alignment_size as usize);
+                            let previous_value_pointer = previous_value_pointer.add(index as usize * memory_alignment_size as usize);
                             let result = compare_func(current_value_pointer, previous_value_pointer);
 
                             encode_results(result);

@@ -1,6 +1,5 @@
 use crate::structures::data_types::generics::vector_generics::VectorGenerics;
-use crate::structures::scanning::scan_parameters_global::ScanParametersGlobal;
-use crate::structures::scanning::scan_parameters_local::ScanParametersLocal;
+use crate::structures::scanning::parameters::scan_parameters::ScanParameters;
 use num_traits::Float;
 use std::ops::{Add, Sub};
 use std::ptr;
@@ -12,21 +11,16 @@ pub struct VectorComparisonsFloat {}
 
 impl VectorComparisonsFloat {
     pub fn get_vector_compare_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat + SimdPartialOrd + Sub<Output = Simd<PrimitiveType, E>>,
     {
-        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+        if let Some(immediate_value) = scan_parameters.get_data_value() {
             unsafe {
-                let tolerance: Simd<PrimitiveType, E> = Simd::splat(
-                    scan_parameters_global
-                        .get_floating_point_tolerance()
-                        .get_value(),
-                );
+                let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = Simd::splat(ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType));
 
@@ -43,21 +37,16 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_not_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat + SimdPartialOrd + Sub<Output = Simd<PrimitiveType, E>>,
     {
-        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+        if let Some(immediate_value) = scan_parameters.get_data_value() {
             unsafe {
-                let tolerance: Simd<PrimitiveType, E> = Simd::splat(
-                    scan_parameters_global
-                        .get_floating_point_tolerance()
-                        .get_value(),
-                );
+                let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = Simd::splat(ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType));
 
@@ -74,15 +63,14 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_greater_than<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
-        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+        if let Some(immediate_value) = scan_parameters.get_data_value() {
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = Simd::splat(ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType));
@@ -100,15 +88,14 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_greater_than_or_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
-        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+        if let Some(immediate_value) = scan_parameters.get_data_value() {
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = Simd::splat(ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType));
@@ -126,15 +113,14 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_less_than<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
-        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+        if let Some(immediate_value) = scan_parameters.get_data_value() {
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = Simd::splat(ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType));
@@ -152,15 +138,14 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_less_than_or_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
-        if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+        if let Some(immediate_value) = scan_parameters.get_data_value() {
             unsafe {
                 let immediate_value_ptr = immediate_value.as_ptr();
                 let immediate_value = Simd::splat(ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType));
@@ -178,8 +163,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_changed<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters_global: &ScanParametersGlobal,
-        _scan_parameters_local: &ScanParametersLocal,
+        _scan_parameters: &ScanParameters
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -196,8 +180,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_unchanged<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters_global: &ScanParametersGlobal,
-        _scan_parameters_local: &ScanParametersLocal,
+        _scan_parameters: &ScanParameters
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -214,8 +197,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_increased<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters_global: &ScanParametersGlobal,
-        _scan_parameters_local: &ScanParametersLocal,
+        _scan_parameters: &ScanParameters
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -232,8 +214,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_decreased<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters_global: &ScanParametersGlobal,
-        _scan_parameters_local: &ScanParametersLocal,
+        _scan_parameters: &ScanParameters
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -250,8 +231,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_increased_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -261,13 +241,9 @@ impl VectorComparisonsFloat {
             + Add<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>
             + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
-        if let Some(delta_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+        if let Some(delta_value) = scan_parameters.get_data_value() {
             unsafe {
-                let tolerance: Simd<PrimitiveType, E> = Simd::splat(
-                    scan_parameters_global
-                        .get_floating_point_tolerance()
-                        .get_value(),
-                );
+                let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
                 let delta_value_ptr = delta_value.as_ptr();
                 let delta_value = Simd::splat(ptr::read_unaligned(delta_value_ptr as *const PrimitiveType));
 
@@ -286,21 +262,16 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_decreased_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + 'static>(
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat + SimdPartialOrd + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
-        if let Some(delta_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+        if let Some(delta_value) = scan_parameters.get_data_value() {
             unsafe {
-                let tolerance: Simd<PrimitiveType, E> = Simd::splat(
-                    scan_parameters_global
-                        .get_floating_point_tolerance()
-                        .get_value(),
-                );
+                let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
                 let delta_value_ptr = delta_value.as_ptr();
                 let delta_value = Simd::splat(ptr::read_unaligned(delta_value_ptr as *const PrimitiveType));
 

@@ -2,7 +2,7 @@ use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::scan::new::scan_new_response::ScanNewResponse;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::{engine_command::EngineCommand, scan::scan_command::ScanCommand};
-use crate::structures::scanning::scan_parameters_local::ScanParametersLocal;
+use crate::structures::scanning::parameters::scan_parameters_local::ScanParametersLocal;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 

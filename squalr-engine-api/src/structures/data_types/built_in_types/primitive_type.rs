@@ -21,9 +21,9 @@ impl PrimitiveDataType {
                 if *is_value_hex {
                     match Conversions::hex_to_primitive_bytes::<T>(&value_string, is_big_endian) {
                         Ok(bytes) => {
-                            if bytes.len() != size_of::<T>() {
+                            if bytes.len() < size_of::<T>() {
                                 return Err(DataTypeError::ParseError(format!(
-                                    "Failed to decode hex bytes '{}'. Length is {} bytes, but expected {} bytes for {}.",
+                                    "Failed to decode hex bytes '{}'. Length is {} bytes, but expected at least {} bytes for {}.",
                                     value_string,
                                     bytes.len(),
                                     size_of::<T>(),

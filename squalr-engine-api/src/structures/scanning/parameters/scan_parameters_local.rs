@@ -36,13 +36,6 @@ impl ScanParametersLocal {
     pub fn get_data_type(&self) -> &DataTypeRef {
         &self.data_type
     }
-
-    pub fn set_data_type(
-        &mut self,
-        data_type: DataTypeRef,
-    ) {
-        self.data_type = data_type
-    }
 }
 
 #[derive(Debug)]

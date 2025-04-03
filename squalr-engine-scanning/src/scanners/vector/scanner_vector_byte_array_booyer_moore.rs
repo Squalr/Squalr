@@ -5,8 +5,7 @@ use crate::scanners::structures::snapshot_region_filter_run_length_encoder::Snap
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
-use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
-use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
+use squalr_engine_api::structures::scanning::parameters::scan_parameters::ScanParameters;
 
 pub struct ScannerVectorByteArrayBooyerMoore {}
 
@@ -22,13 +21,12 @@ impl Scanner for ScannerVectorByteArrayBooyerMoore {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_value = match scan_parameters_global.get_compare_type() {
+        let data_value = match scan_parameters.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
                 ScanCompareTypeImmediate::Equal => {
-                    if let Some(data_value) = scan_parameters_global.deanonymize_immediate(scan_parameters_local.get_data_type()) {
+                    if let Some(data_value) = scan_parameters.get_data_value() {
                         data_value
                     } else {
                         log::error!("Failed to deanonymize array of byte value.");
@@ -53,7 +51,7 @@ impl Scanner for ScannerVectorByteArrayBooyerMoore {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
-        let memory_alignment_size = scan_parameters_local.get_memory_alignment_or_default() as u64;
+        let memory_alignment_size = scan_parameters.get_memory_alignment_or_default() as u64;
 
         let scan_pattern = data_value.get_value_bytes();
         let pattern_length = scan_pattern.len() as u64;

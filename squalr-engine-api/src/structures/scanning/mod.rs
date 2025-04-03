@@ -1,4 +1,3 @@
 pub mod comparisons;
+pub mod parameters;
 pub mod scan_memory_read_mode;
-pub mod scan_parameters_global;
-pub mod scan_parameters_local;

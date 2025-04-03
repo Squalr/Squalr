@@ -2,12 +2,11 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
-use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
-use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
-use squalr_engine_api::structures::{data_types::generics::vector_comparer::VectorComparer, scanning::comparisons::scan_compare_type::ScanCompareType};
+use squalr_engine_api::structures::scanning::parameters::scan_parameters::ScanParameters;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
@@ -111,24 +110,24 @@ where
 
         period as u64
     }
-
+    /*
     fn build_immediate_comparers(
         &self,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters,
     ) -> Vec<Box<dyn Fn(*const u8) -> Simd<u8, N>>> {
-        let data_type = scan_parameters_local.get_data_type();
-        let parameters = self.build_rotated_global_parameters(scan_parameters_global, scan_parameters_local);
+        let data_type = scan_parameters.get_data_type();
+        let parameters = self.build_rotated_global_parameters(scan_parameters);
         let mut results = Vec::with_capacity(parameters.len());
 
         for parameter in parameters {
-            let comparer =
-                if let Some(compare_func) = data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate, &parameter, scan_parameters_local) {
-                    compare_func
-                } else {
-                    return vec![];
-                };
+            let comparer = if let Some(compare_func) =
+                data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate, &parameter, scan_parameters_local, scan_parameter_optimizations)
+            {
+                compare_func
+            } else {
+                return vec![];
+            };
 
             results.push(comparer);
         }
@@ -137,6 +136,7 @@ where
     }
 
     /// Rotates immediate compare values in the global parameters, producing a new set of global parameters containing the rotated values.
+
     fn build_rotated_global_parameters(
         &self,
         original_global: &ScanParametersGlobal,
@@ -146,7 +146,10 @@ where
         let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment = scan_parameters_local.get_memory_alignment_or_default() as usize;
         let num_rotations = data_type_size as usize / memory_alignment;
-        let Some(immediate_value) = original_global.deanonymize_immediate(data_type) else {
+        let Some(compare_immediate) = original_global.get_compare_immediate() else {
+            return vec![];
+        };
+        let Ok(immediate_value) = data_type.deanonymize_value(compare_immediate) else {
             return vec![];
         };
         let original_bytes = immediate_value.get_value_bytes();
@@ -162,7 +165,7 @@ where
                 rotated_global
             })
             .collect()
-    }
+    } */
 }
 
 /// Implements a memory region scanner to find overlapping matches using "periodicity scans with run length encoding discard".
@@ -193,8 +196,7 @@ where
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
@@ -202,9 +204,9 @@ where
         let region_size = snapshot_region_filter.get_region_size();
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type = scan_parameters_local.get_data_type();
+        let data_type = scan_parameters.get_optimized_data_type();
         let data_type_size = data_type.get_size_in_bytes();
-        let memory_alignment_size = scan_parameters_local.get_memory_alignment_or_default() as u64;
+        let memory_alignment_size = scan_parameters.get_memory_alignment_or_default() as u64;
         let vector_size_in_bytes = N;
         let iterations = region_size / vector_size_in_bytes as u64;
         let remainder_bytes = region_size % vector_size_in_bytes as u64;

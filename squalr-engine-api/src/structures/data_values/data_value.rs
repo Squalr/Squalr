@@ -4,6 +4,7 @@ use crate::structures::data_values::anonymous_value::AnonymousValue;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{self, Debug},
+    mem,
     str::FromStr,
 };
 
@@ -56,6 +57,10 @@ impl DataValue {
 
     pub fn get_value_bytes(&self) -> &Vec<u8> {
         &self.value_bytes
+    }
+
+    pub fn take_value_bytes(&mut self) -> Vec<u8> {
+        mem::take(&mut self.value_bytes)
     }
 
     pub fn get_value_string(&self) -> &str {

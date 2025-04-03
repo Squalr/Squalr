@@ -3,7 +3,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecuteRequest;
 use squalr_engine_api::commands::scan::execute::scan_execute_response::ScanExecuteResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
-use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_api::structures::scanning::parameters::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_scanning::scan_settings::ScanSettings;
 use squalr_engine_scanning::scanners::scan_executor_task::ScanExecutorTask;
 use std::sync::Arc;

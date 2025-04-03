@@ -2,9 +2,8 @@ use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_api::structures::scanning::scan_parameters_global::ScanParametersGlobal;
-use squalr_engine_api::structures::scanning::scan_parameters_local::ScanParametersLocal;
-use squalr_engine_api::structures::{data_types::generics::vector_comparer::VectorComparer, scanning::comparisons::scan_compare_type::ScanCompareType};
+use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
+use squalr_engine_api::structures::scanning::parameters::scan_parameters::ScanParameters;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
@@ -111,8 +110,7 @@ where
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters_global: &ScanParametersGlobal,
-        scan_parameters_local: &ScanParametersLocal,
+        scan_parameters: &ScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
@@ -121,6 +119,7 @@ where
         let simd_all_true_mask = Simd::<u8, N>::splat(0xFF);
 
         // For immediate comparisons, we can use a overlapping periodic scan.
+        /*
         match scan_parameters_global.get_compare_type() {
             ScanCompareType::Immediate(_scan_compare_type_immediate) => {
                 let data_type = scan_parameters_local.get_data_type();
@@ -128,9 +127,12 @@ where
 
                 match scan_parameters_global.get_compare_type() {
                     ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                        if let Some(compare_func) =
-                            data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate, scan_parameters_global, scan_parameters_local)
-                        {
+                        if let Some(compare_func) = data_type.get_vector_compare_func_immediate(
+                            &scan_compare_type_immediate,
+                            scan_parameters_global,
+                            scan_parameters_local,
+                            scan_parameter_optimizations,
+                        ) {
                             if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(data_type) {
                                 let periodicity = Self::calculate_periodicity(immediate_value.get_value_bytes(), data_type_size_bytes);
 
@@ -198,7 +200,7 @@ where
             ScanCompareType::Delta(_scan_compare_type_delta) => {
                 panic!("Delta overlapping scans are not implemented yet");
             }
-        }
+        }*/
 
         vec![]
     }
