@@ -43,7 +43,7 @@ where
         memory_alignment: u64,
         remainder_bytes: u64,
     ) {
-        let start_byte_index = N - remainder_bytes as usize;
+        let start_byte_index = N.saturating_sub(remainder_bytes as usize);
 
         for byte_index in (start_byte_index..N).step_by(memory_alignment as usize) {
             if compare_result[byte_index] != 0 {
