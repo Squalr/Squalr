@@ -2,6 +2,7 @@ pub mod scanner_vector_aligned;
 pub mod scanner_vector_byte_array_booyer_moore;
 pub mod scanner_vector_overlapping;
 pub mod scanner_vector_overlapping_1_periodic;
+pub mod scanner_vector_overlapping_2_periodic;
 pub mod scanner_vector_overlapping_periodic;
 pub mod scanner_vector_overlapping_periodic_old;
 pub mod scanner_vector_sparse;

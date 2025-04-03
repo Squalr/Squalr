@@ -16,6 +16,8 @@ use squalr_engine_api::structures::scanning::parameters::scan_parameters::ScanPa
 use squalr_engine_api::structures::scanning::parameters::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_api::structures::scanning::parameters::scan_parameters_local::ScanParametersLocal;
 
+use super::vector::scanner_vector_overlapping_2_periodic::ScannerVectorOverlapping2Periodic;
+
 pub struct ScanDispatcher {}
 
 /// Implements a scan dispatcher, which picks the best scanner based on the scan constraints and the region being scanned.
@@ -35,13 +37,13 @@ impl ScanDispatcher {
             let scan_parameter_optimizations = ScanParameterOptimizations::new(scan_parameters_global, &scan_parameters_local);
 
             // Combine the global, local, and optimization parameters into a single container type.
-            let scan_parameters = ScanParameters::new(scan_parameters_global, scan_parameters_local, &scan_parameter_optimizations);
+            let mut scan_parameters = ScanParameters::new(scan_parameters_global, scan_parameters_local, &scan_parameter_optimizations);
 
             // Choose the best scanner given the provided parameters.
             let scanner_instance = Self::acquire_scanner_instance(snapshot_region_filter, scan_parameters_local, &scan_parameter_optimizations);
 
             // Finally do the actual scan.
-            let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, &scan_parameters);
+            let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, &mut scan_parameters);
 
             if filters.len() > 0 { Some(filters) } else { None }
         };
@@ -116,6 +118,14 @@ impl ScanDispatcher {
                     return &ScannerVectorOverlapping1Periodic::<32> {};
                 } else if region_size >= 16 {
                     return &ScannerVectorOverlapping1Periodic::<16> {};
+                }
+            } else if periodicity == 2 {
+                if region_size >= 64 {
+                    return &ScannerVectorOverlapping2Periodic::<64> {};
+                } else if region_size >= 32 {
+                    return &ScannerVectorOverlapping2Periodic::<32> {};
+                } else if region_size >= 16 {
+                    return &ScannerVectorOverlapping2Periodic::<16> {};
                 }
             }
         }

@@ -344,6 +344,7 @@ where
                                // Handle remainder elements.
                                if remainder_bytes > 0 {
                                    let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
+                                    let previous_value_pointer = previous_value_pointer.add(remainder_ptr_offset);
                                    let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
                                    // self.encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment_size, remainder_bytes);
