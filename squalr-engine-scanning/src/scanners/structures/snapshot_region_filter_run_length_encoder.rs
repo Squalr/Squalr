@@ -32,6 +32,18 @@ impl SnapshotRegionFilterRunLengthEncoder {
         std::mem::take(&mut self.result_regions)
     }
 
+    pub fn get_current_address(&self) -> u64 {
+        self.run_length_current_address
+    }
+
+    pub fn get_current_run_length(&self) -> u64 {
+        self.run_length
+    }
+
+    pub fn is_encoding(&self) -> bool {
+        self.is_encoding
+    }
+
     /// Encodes the next N bytes as true (ie passing the scan).
     pub fn encode_range(
         &mut self,
@@ -43,8 +55,18 @@ impl SnapshotRegionFilterRunLengthEncoder {
         self.is_encoding = true;
     }
 
-    pub fn is_encoding(&self) -> bool {
-        self.is_encoding
+    pub fn unshift_current_encode(
+        &mut self,
+        shift_amount: u64,
+    ) {
+        self.run_length_current_address = self.run_length_current_address.saturating_sub(shift_amount);
+    }
+
+    pub fn shift_current_encode(
+        &mut self,
+        shift_amount: u64,
+    ) {
+        self.run_length_current_address = self.run_length_current_address.saturating_add(shift_amount);
     }
 
     /// Completes the current run length encoding, creating a region filter from the result.
@@ -71,12 +93,14 @@ impl SnapshotRegionFilterRunLengthEncoder {
         // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
         // For vector scans, this is generally the size of the hardware vector.
         byte_advance_count: u64,
-        // The data size of the values being encoded for which we need to pad the encoded region.
-        data_size_padding: u64,
+        // The padding to add to the length of the values being encoded in the current run length.
+        length_padding: u64,
     ) {
         if self.is_encoding && self.run_length > 0 {
-            self.result_regions
-                .push(SnapshotRegionFilter::new(self.run_length_current_address, self.run_length + data_size_padding));
+            self.result_regions.push(SnapshotRegionFilter::new(
+                self.run_length_current_address,
+                self.run_length.saturating_add(length_padding),
+            ));
             self.run_length_current_address += self.run_length;
             self.run_length = 0;
             self.is_encoding = false;
@@ -99,6 +123,76 @@ impl SnapshotRegionFilterRunLengthEncoder {
                 self.result_regions
                     .push(SnapshotRegionFilter::new(self.run_length_current_address, self.run_length));
             }
+            self.run_length_current_address += self.run_length;
+            self.run_length = 0;
+            self.is_encoding = false;
+        }
+
+        self.run_length_current_address += byte_advance_count;
+    }
+
+    /// Completes the current run length encoding, creating a region filter from the result. Discards regions below the minimum size.
+    pub fn finalize_current_encode_with_minimum_size_with_padding(
+        &mut self,
+        // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
+        // For vector scans, this is generally the size of the hardware vector.
+        byte_advance_count: u64,
+        // The minimum size allowed to create a region.
+        minimum_size: u64,
+        // The data size of the values being encoded for which we need to pad the encoded region.
+        data_size_padding: u64,
+    ) {
+        if self.is_encoding && self.run_length > 0 {
+            if self.run_length >= minimum_size {
+                self.result_regions
+                    .push(SnapshotRegionFilter::new(self.run_length_current_address, self.run_length + data_size_padding));
+            }
+            self.run_length_current_address += self.run_length;
+            self.run_length = 0;
+            self.is_encoding = false;
+        }
+
+        self.run_length_current_address += byte_advance_count;
+    }
+
+    /// Completes the current run length encoding, creating a region filter from the result, padding it for a given data size.
+    pub fn finalize_current_encode_with_inverse_padding(
+        &mut self,
+        // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
+        // For vector scans, this is generally the size of the hardware vector.
+        byte_advance_count: u64,
+        // The padding to subtract to the length of the values being encoded in the current run length.
+        inverse_length_padding: u64,
+    ) {
+        if self.is_encoding && self.run_length > inverse_length_padding {
+            self.result_regions.push(SnapshotRegionFilter::new(
+                self.run_length_current_address,
+                self.run_length.saturating_sub(inverse_length_padding),
+            ));
+            self.run_length_current_address += self.run_length;
+            self.run_length = 0;
+            self.is_encoding = false;
+        }
+
+        self.run_length_current_address += byte_advance_count;
+    }
+
+    /// Completes the current run length encoding, creating a region filter from the result, padding it for a given data size.
+    pub fn finalize_current_encode_with_minimum_size_with_inverse_padding(
+        &mut self,
+        // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
+        // For vector scans, this is generally the size of the hardware vector.
+        byte_advance_count: u64,
+        // The minimum size allowed to create a region.
+        minimum_size: u64,
+        // The padding to subtract to the length of the values being encoded in the current run length.
+        inverse_length_padding: u64,
+    ) {
+        if self.is_encoding && self.run_length > inverse_length_padding + minimum_size {
+            self.result_regions.push(SnapshotRegionFilter::new(
+                self.run_length_current_address,
+                self.run_length.saturating_sub(inverse_length_padding),
+            ));
             self.run_length_current_address += self.run_length;
             self.run_length = 0;
             self.is_encoding = false;
