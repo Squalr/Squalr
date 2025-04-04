@@ -125,7 +125,7 @@ where
         if compare_result.simd_eq(true_mask).all() {
             run_length_encoder.encode_range(N as u64);
         // Optimization: Check if all scan results are false. This is also a very common result, and speeds up scans.
-        } else if compare_result.simd_ne(false_mask).all() {
+        } else if compare_result.simd_eq(false_mask).all() {
             run_length_encoder.finalize_current_encode(N as u64);
         // Otherwise, there is a mix of true/false results that need to be processed manually.
         } else {

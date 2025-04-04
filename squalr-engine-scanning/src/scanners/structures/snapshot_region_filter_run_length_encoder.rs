@@ -17,6 +17,8 @@ pub struct SnapshotRegionFilterRunLengthEncoder {
 ///
 /// This can be parallelized by the caller by simply creating N run length encoders over a snapshot region filter that has been divided into N chunks.
 /// This requires a post-step of map-reducing the gathered regions and stitching together boundary regions once the run length encoders are complete.
+/// Additionally, some care would need to be taken to avoid discarding any small regions at the start or end of the encoder.
+/// For this reason, we currently do not try to parallelize them, as we can get high CPU utilization by parallelizing in other ways.
 impl SnapshotRegionFilterRunLengthEncoder {
     pub fn new(run_length_current_address: u64) -> Self {
         Self {
@@ -133,22 +135,25 @@ impl SnapshotRegionFilterRunLengthEncoder {
 
     /// Completes the current run length encoding, creating a region filter from the result. Discards regions below the minimum size.
     /// Additionally this takes a range adjustor to allow custom tweaks before finalizing an encoding.
-    pub fn finalize_current_encode_with_range_adjustor(
+    pub fn finalize_current_encode_periodic(
         &mut self,
         // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
         // For vector scans, this is generally the size of the hardware vector.
         byte_advance_count: u64,
-        // The minimum size allowed to create a region.
-        minimum_size: u64,
+        // The size at which a periodic region is split into multiple-filters. This also serves as the minimum possible filter size.
+        split_size: u64,
         // A custom adjustor to the current address and run length.
         range_adjustor: &dyn Fn(u64, u64) -> (u64, u64),
     ) {
         if self.is_encoding && self.run_length > 0 {
-            if self.run_length >= minimum_size {
+            if self.run_length >= split_size {
+                // Allow the callera to adjust the range of our run length encoding to meet periodicity requirements.
                 let (new_current_address, new_run_length) = range_adjustor(self.run_length_current_address, self.run_length);
-                if new_run_length >= minimum_size {
+                let filter_count = new_run_length / split_size;
+
+                for index in 0..filter_count {
                     self.result_regions
-                        .push(SnapshotRegionFilter::new(new_current_address, new_run_length));
+                        .push(SnapshotRegionFilter::new(new_current_address.saturating_add(index * split_size), split_size));
                 }
             }
             self.run_length_current_address += self.run_length;

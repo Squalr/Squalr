@@ -27,7 +27,7 @@ where
         if compare_result.simd_eq(true_mask).all() {
             run_length_encoder.encode_range(N as u64);
         // Optimization: Check if all scan results are false. This is also a very common result, and speeds up scans.
-        } else if compare_result.simd_ne(false_mask).all() {
+        } else if compare_result.simd_eq(false_mask).all() {
             run_length_encoder.finalize_current_encode_with_minimum_size(N as u64, original_data_type_size);
         // Otherwise, there is a mix of true/false results that need to be processed manually.
         } else {
@@ -55,6 +55,7 @@ where
 }
 
 /// Implements a memory region scanner that is optmized/specialized for a repeated immediate value of the same byte.
+/// For example, scanning for an i32 of value 00 00 00 00 can actually be greatly optimized by simply searching for the byte 0!
 impl<const N: usize> Scanner for ScannerVectorOverlapping1Periodic<N>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
@@ -66,7 +67,6 @@ where
         scan_parameters: &ScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
-        let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
 
@@ -81,70 +81,36 @@ where
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
 
-        unsafe {
-            match scan_parameters.get_compare_type() {
-                ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                    if let Some(compare_func) = optimized_data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate, scan_parameters) {
-                        // Compare as many full vectors as we can.
-                        for index in 0..iterations {
-                            let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
-                            let compare_result = compare_func(current_value_pointer);
-
-                            self.encode_results(&compare_result, &mut run_length_encoder, original_data_type_size, true_mask, false_mask);
-                        }
-
-                        // Handle remainder elements.
-                        if remainder_bytes > 0 {
-                            let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                            let compare_result = compare_func(current_value_pointer);
-
-                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, original_data_type_size, remainder_bytes);
-                        }
-                    }
-                }
-                ScanCompareType::Relative(scan_compare_type_relative) => {
-                    if let Some(compare_func) = optimized_data_type.get_vector_compare_func_relative(&scan_compare_type_relative, scan_parameters) {
-                        // Compare as many full vectors as we can.
-                        for index in 0..iterations {
-                            let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
-                            let previous_value_pointer = previous_value_pointer.add(index as usize * vector_size_in_bytes);
-                            let compare_result = compare_func(current_value_pointer, previous_value_pointer);
-
-                            self.encode_results(&compare_result, &mut run_length_encoder, original_data_type_size, true_mask, false_mask);
-                        }
-
-                        // Handle remainder elements.
-                        if remainder_bytes > 0 {
-                            let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                            let previous_value_pointer = previous_value_pointer.add(remainder_ptr_offset);
-                            let compare_result = compare_func(current_value_pointer, previous_value_pointer);
-
-                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, original_data_type_size, remainder_bytes);
-                        }
-                    }
-                }
-                ScanCompareType::Delta(scan_compare_type_delta) => {
-                    if let Some(compare_func) = optimized_data_type.get_vector_compare_func_delta(&scan_compare_type_delta, scan_parameters) {
-                        // Compare as many full vectors as we can.
-                        for index in 0..iterations {
-                            let current_value_pointer = current_value_pointer.add(index as usize * vector_size_in_bytes);
-                            let previous_value_pointer = previous_value_pointer.add(index as usize * vector_size_in_bytes);
-                            let compare_result = compare_func(current_value_pointer, previous_value_pointer);
-
-                            self.encode_results(&compare_result, &mut run_length_encoder, original_data_type_size, true_mask, false_mask);
-                        }
-
-                        // Handle remainder elements.
-                        if remainder_bytes > 0 {
-                            let current_value_pointer = current_value_pointer.add(remainder_ptr_offset);
-                            let previous_value_pointer = previous_value_pointer.add(remainder_ptr_offset);
-                            let compare_result = compare_func(current_value_pointer, previous_value_pointer);
-
-                            self.encode_remainder_results(&compare_result, &mut run_length_encoder, original_data_type_size, remainder_bytes);
-                        }
-                    }
-                }
+        let scan_compare_type_immediate = match scan_parameters.get_compare_type() {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => scan_compare_type_immediate,
+            _ => {
+                log::error!("Unsupported compare type provdied to 1-periodic scan.");
+                return vec![];
             }
+        };
+
+        let compare_func = match optimized_data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate, scan_parameters) {
+            Some(compare_func) => compare_func,
+            None => {
+                log::error!("Failed to get compare function for 1-periodic scan.");
+                return vec![];
+            }
+        };
+
+        // Compare as many full vectors as we can.
+        for index in 0..iterations {
+            let current_value_pointer = unsafe { current_value_pointer.add(index as usize * vector_size_in_bytes) };
+            let compare_result = compare_func(current_value_pointer);
+
+            self.encode_results(&compare_result, &mut run_length_encoder, original_data_type_size, true_mask, false_mask);
+        }
+
+        // Handle remainder elements.
+        if remainder_bytes > 0 {
+            let current_value_pointer = unsafe { current_value_pointer.add(remainder_ptr_offset) };
+            let compare_result = compare_func(current_value_pointer);
+
+            self.encode_remainder_results(&compare_result, &mut run_length_encoder, original_data_type_size, remainder_bytes);
         }
 
         run_length_encoder.finalize_current_encode_with_minimum_size(0, original_data_type_size);

@@ -7,6 +7,7 @@ use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::vector::scanner_vector_aligned::ScannerVectorAligned;
 use crate::scanners::vector::scanner_vector_overlapping::ScannerVectorOverlapping;
 use crate::scanners::vector::scanner_vector_overlapping_1_periodic::ScannerVectorOverlapping1Periodic;
+use crate::scanners::vector::scanner_vector_overlapping_n_periodic::ScannerVectorOverlappingNPeriodic;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::ParallelIterator;
@@ -15,8 +16,6 @@ use squalr_engine_api::structures::scanning::parameters::scan_parameter_optimiza
 use squalr_engine_api::structures::scanning::parameters::scan_parameters::ScanParameters;
 use squalr_engine_api::structures::scanning::parameters::scan_parameters_global::ScanParametersGlobal;
 use squalr_engine_api::structures::scanning::parameters::scan_parameters_local::ScanParametersLocal;
-
-use super::vector::scanner_vector_overlapping_2_periodic::ScannerVectorOverlapping2Periodic;
 
 pub struct ScanDispatcher {}
 
@@ -121,11 +120,11 @@ impl ScanDispatcher {
                 }
             } else if periodicity == 2 {
                 if region_size >= 64 {
-                    return &ScannerVectorOverlapping2Periodic::<64> {};
+                    return &ScannerVectorOverlappingNPeriodic::<64> {};
                 } else if region_size >= 32 {
-                    return &ScannerVectorOverlapping2Periodic::<32> {};
+                    return &ScannerVectorOverlappingNPeriodic::<32> {};
                 } else if region_size >= 16 {
-                    return &ScannerVectorOverlapping2Periodic::<16> {};
+                    return &ScannerVectorOverlappingNPeriodic::<16> {};
                 }
             }
         }
