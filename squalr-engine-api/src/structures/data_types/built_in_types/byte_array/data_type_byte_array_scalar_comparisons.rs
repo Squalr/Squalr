@@ -3,7 +3,7 @@ use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompara
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnDelta;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnImmediate;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnRelative;
-use crate::structures::scanning::parameters::mapped_scan_parameters::ScanParametersCommon;
+use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use std::cmp::Ordering;
 
 /// Scalar comparison functions for comparing byte arrays. Note that these functions operate on single array values.
@@ -13,7 +13,7 @@ use std::cmp::Ordering;
 impl ScalarComparable for DataTypeByteArray {
     fn get_compare_equal(
         &self,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
@@ -27,7 +27,7 @@ impl ScalarComparable for DataTypeByteArray {
 
     fn get_compare_not_equal(
         &self,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
@@ -41,7 +41,7 @@ impl ScalarComparable for DataTypeByteArray {
 
     fn get_compare_greater_than(
         &self,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
@@ -58,7 +58,7 @@ impl ScalarComparable for DataTypeByteArray {
 
     fn get_compare_greater_than_or_equal(
         &self,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
@@ -73,7 +73,7 @@ impl ScalarComparable for DataTypeByteArray {
 
     fn get_compare_less_than(
         &self,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
@@ -88,7 +88,7 @@ impl ScalarComparable for DataTypeByteArray {
 
     fn get_compare_less_than_or_equal(
         &self,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
@@ -103,7 +103,7 @@ impl ScalarComparable for DataTypeByteArray {
 
     fn get_compare_changed(
         &self,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
         let len = scan_parameters.get_data_type().get_size_in_bytes() as usize;
 
@@ -116,7 +116,7 @@ impl ScalarComparable for DataTypeByteArray {
 
     fn get_compare_unchanged(
         &self,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
         let len = scan_parameters.get_data_type().get_size_in_bytes() as usize;
 
@@ -130,7 +130,7 @@ impl ScalarComparable for DataTypeByteArray {
 
     fn get_compare_increased(
         &self,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
         let len = scan_parameters.get_data_type().get_size_in_bytes() as usize;
 
@@ -147,7 +147,7 @@ impl ScalarComparable for DataTypeByteArray {
 
     fn get_compare_decreased(
         &self,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
         let len = scan_parameters.get_data_type().get_size_in_bytes() as usize;
 
@@ -164,7 +164,7 @@ impl ScalarComparable for DataTypeByteArray {
 
     fn get_compare_increased_by(
         &self,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
@@ -184,7 +184,7 @@ impl ScalarComparable for DataTypeByteArray {
 
     fn get_compare_decreased_by(
         &self,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();

@@ -1,5 +1,5 @@
 use crate::structures::data_types::generics::vector_generics::VectorGenerics;
-use crate::structures::scanning::parameters::mapped_scan_parameters::ScanParametersCommon;
+use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use num_traits::Float;
 use std::ops::{Add, Sub};
 use std::ptr;
@@ -11,7 +11,7 @@ pub struct VectorComparisonsFloat {}
 
 impl VectorComparisonsFloat {
     pub fn get_vector_compare_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + 'static>(
-        scan_parameters: &ScanParametersCommon
+        scan_parameters: &MappedScanParameters
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -32,7 +32,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_not_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + 'static>(
-        scan_parameters: &ScanParametersCommon
+        scan_parameters: &MappedScanParameters
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -53,7 +53,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_greater_than<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        scan_parameters: &ScanParametersCommon
+        scan_parameters: &MappedScanParameters
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -73,7 +73,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_greater_than_or_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        scan_parameters: &ScanParametersCommon
+        scan_parameters: &MappedScanParameters
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -93,7 +93,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_less_than<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        scan_parameters: &ScanParametersCommon
+        scan_parameters: &MappedScanParameters
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -113,7 +113,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_less_than_or_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        scan_parameters: &ScanParametersCommon
+        scan_parameters: &MappedScanParameters
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -133,7 +133,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_changed<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &ScanParametersCommon
+        _scan_parameters: &MappedScanParameters
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -150,7 +150,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_unchanged<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &ScanParametersCommon
+        _scan_parameters: &MappedScanParameters
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -167,7 +167,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_increased<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &ScanParametersCommon
+        _scan_parameters: &MappedScanParameters
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -184,7 +184,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_decreased<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &ScanParametersCommon
+        _scan_parameters: &MappedScanParameters
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -201,7 +201,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_increased_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + 'static>(
-        scan_parameters: &ScanParametersCommon
+        scan_parameters: &MappedScanParameters
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,
@@ -227,7 +227,7 @@ impl VectorComparisonsFloat {
     }
 
     pub fn get_vector_compare_decreased_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + 'static>(
-        scan_parameters: &ScanParametersCommon
+        scan_parameters: &MappedScanParameters
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount,

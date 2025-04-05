@@ -9,7 +9,7 @@ use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
-use crate::structures::scanning::parameters::mapped_scan_parameters::ScanParametersCommon;
+use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use serde::{Deserialize, Serialize};
 use std::simd::LaneCount;
 use std::simd::Simd;
@@ -117,7 +117,7 @@ impl DataTypeRef {
     pub fn get_scalar_compare_func_immediate(
         &self,
         scan_compare_type: &ScanCompareTypeImmediate,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
@@ -137,7 +137,7 @@ impl DataTypeRef {
     pub fn get_scalar_compare_func_relative(
         &self,
         scan_compare_type: &ScanCompareTypeRelative,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
@@ -155,7 +155,7 @@ impl DataTypeRef {
     pub fn get_scalar_compare_func_delta(
         &self,
         scan_compare_type: &ScanCompareTypeDelta,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
@@ -171,7 +171,7 @@ impl DataTypeRef {
     pub fn get_vector_compare_func_immediate<const N: usize>(
         &self,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
@@ -189,7 +189,7 @@ impl DataTypeRef {
     pub fn get_vector_compare_func_relative<const N: usize>(
         &self,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
@@ -205,7 +205,7 @@ impl DataTypeRef {
     pub fn get_vector_compare_func_delta<const N: usize>(
         &self,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,

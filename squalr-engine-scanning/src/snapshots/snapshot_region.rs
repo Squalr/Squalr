@@ -8,8 +8,8 @@ use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
-use squalr_engine_api::structures::scanning::parameters::user_scan_parameters_global::UserScanParametersGlobal;
-use squalr_engine_api::structures::scanning::parameters::user_scan_parameters_local::UserScanParametersLocal;
+use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters_global::UserScanParametersGlobal;
+use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters_local::UserScanParametersLocal;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 

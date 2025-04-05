@@ -6,30 +6,110 @@ use crate::structures::data_types::built_in_types::u64be::data_type_u64be::DataT
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
+use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::structures::scanning::parameters::user_scan_parameters_global::UserScanParametersGlobal;
-use crate::structures::scanning::parameters::user_scan_parameters_local::UserScanParametersLocal;
+use crate::structures::scanning::parameters::mapped::mapped_scan_type::MappedScanType;
+use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParametersByteArray;
+use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParametersScalar;
+use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParametersVector;
+use crate::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
+use crate::structures::scanning::parameters::user::user_scan_parameters_global::UserScanParametersGlobal;
+use crate::structures::scanning::parameters::user::user_scan_parameters_local::UserScanParametersLocal;
 
+/// Represents processed scan parameters derived from user provided scan parameters.
 #[derive(Debug, Clone)]
-pub enum VectorizationSize {
-    Vector16,
-    Vector32,
-    Vector64,
-}
-
-#[derive(Debug, Clone)]
-pub struct ScanParametersCommon {
+pub struct MappedScanParameters {
     data_type: DataTypeRef,
     data_value: DataValue,
     memory_alignment: MemoryAlignment,
     scan_compare_type: ScanCompareType,
     floating_point_tolerance: FloatingPointTolerance,
+    vectorization_size: VectorizationSize,
+    periodicity: u64,
+    mapped_scan_type: MappedScanType,
 }
 
-impl ScanParametersCommon {
+impl MappedScanParameters {
+    /// Creates optimized scan paramaters for a given snapshot region filter, given user provided global/local scan parameters.
+    /// Internally, the user parameters are processed into more optimal parameters that help select the most optimal scan implementation.
+    pub fn new(
+        snapshot_region_filter: &SnapshotRegionFilter,
+        user_scan_parameters_global: &UserScanParametersGlobal,
+        user_scan_parameters_local: &UserScanParametersLocal,
+    ) -> Self {
+        let mut mapped_params = Self {
+            data_type: user_scan_parameters_local.get_data_type().clone(),
+            data_value: Self::deanonymize_data_value(user_scan_parameters_global, user_scan_parameters_local),
+            memory_alignment: user_scan_parameters_local.get_memory_alignment_or_default(),
+            scan_compare_type: user_scan_parameters_global.get_compare_type(),
+            floating_point_tolerance: user_scan_parameters_global.get_floating_point_tolerance(),
+            vectorization_size: VectorizationSize::default(),
+            periodicity: 0,
+            mapped_scan_type: MappedScanType::Scalar(ScanParametersScalar::SingleElement),
+        };
+
+        // First try a single element scanner. This is valid even for cases like array of byte scans, as all data types support basic equality checks.
+        if Self::is_single_element_scan(snapshot_region_filter, user_scan_parameters_local) {
+            return mapped_params;
+        }
+
+        // Next handle byte array scans. These can potentially be remapped to primitive scans for performance gains.
+        if mapped_params.data_type.get_data_type_id() == DataTypeByteArray::get_data_type_id() {
+            match Self::try_map_byte_array_to_primitive(&mapped_params.data_type) {
+                None => {
+                    // Perform a standard byte array scan, since we were unable to map the byte array to a primitive type.
+                    mapped_params.mapped_scan_type = MappedScanType::ByteArray(ScanParametersByteArray::ByteArrayBooyerMoore);
+
+                    return mapped_params;
+                }
+                Some(mapped_data_type) => {
+                    // primitive type map was successful. Update our new internal data type, and proceed with this as the new type.
+                    mapped_params.data_value = Self::remap_data_value(&mapped_data_type, &mapped_params.data_value);
+                    mapped_params.data_type = mapped_data_type;
+                }
+            }
+        }
+
+        // Now we decide whether to use a scalar or SIMD scan based on filter region size.
+        mapped_params.vectorization_size = match Self::create_vectorization_size(snapshot_region_filter) {
+            None => {
+                // The filter cannot fit into a vector! Revert to scalar scan.
+                mapped_params.mapped_scan_type = MappedScanType::Scalar(ScanParametersScalar::ScalarIterative);
+
+                return mapped_params;
+            }
+            Some(vectorization_size) => vectorization_size,
+        };
+
+        // For discrete types (non-floating point), we can fall back on optimized scans.
+        if mapped_params.data_type.is_discrete() {
+            if let Some(periodicity) = Self::calculate_periodicity(user_scan_parameters_global, &mapped_params.data_type, &mapped_params.scan_compare_type) {
+                mapped_params.periodicity = periodicity;
+
+                match periodicity {
+                    1 => {
+                        mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::OverlappingBytewisePeriodic);
+
+                        return mapped_params;
+                    }
+                    2 | 4 | 8 => {
+                        mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::OverlappingBytewiseStaggered);
+
+                        return mapped_params;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // Default to scalar iterative if no specialized scan was selected.
+        mapped_params.mapped_scan_type = MappedScanType::Scalar(ScanParametersScalar::ScalarIterative);
+        mapped_params
+    }
+
     pub fn get_data_value(&self) -> &DataValue {
         &self.data_value
     }
@@ -49,186 +129,55 @@ impl ScanParametersCommon {
     pub fn get_floating_point_tolerance(&self) -> FloatingPointTolerance {
         self.floating_point_tolerance
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct ScanParametersCommonVector {
-    parameters: ScanParametersCommon,
-    vectorization_size: VectorizationSize,
-}
-
-impl ScanParametersCommonVector {
-    pub fn get_common_params(&self) -> &ScanParametersCommon {
-        &self.parameters
-    }
-
-    pub fn get_data_value(&self) -> &DataValue {
-        self.parameters.get_data_value()
-    }
-
-    pub fn get_data_type(&self) -> &DataTypeRef {
-        self.parameters.get_data_type()
-    }
-
-    pub fn get_memory_alignment(&self) -> MemoryAlignment {
-        self.parameters.get_memory_alignment()
-    }
-
-    pub fn get_compare_type(&self) -> &ScanCompareType {
-        self.parameters.get_compare_type()
-    }
-
-    pub fn get_floating_point_tolerance(&self) -> FloatingPointTolerance {
-        self.parameters.get_floating_point_tolerance()
-    }
 
     pub fn get_vectorization_size(&self) -> &VectorizationSize {
         &self.vectorization_size
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ScanParametersVectorPeriodic {
-    parameters: ScanParametersCommonVector,
-    periodicity: u64,
-}
-
-impl ScanParametersVectorPeriodic {
-    pub fn get_common_params(&self) -> &ScanParametersCommon {
-        self.parameters.get_common_params()
-    }
-
-    pub fn get_data_value(&self) -> &DataValue {
-        self.parameters.get_data_value()
-    }
-
-    pub fn get_data_type(&self) -> &DataTypeRef {
-        self.parameters.get_data_type()
-    }
-
-    pub fn get_memory_alignment(&self) -> MemoryAlignment {
-        self.parameters.get_memory_alignment()
-    }
-
-    pub fn get_compare_type(&self) -> &ScanCompareType {
-        self.parameters.get_compare_type()
-    }
-
-    pub fn get_floating_point_tolerance(&self) -> FloatingPointTolerance {
-        self.parameters.get_floating_point_tolerance()
-    }
-
-    pub fn get_vectorization_size(&self) -> &VectorizationSize {
-        self.parameters.get_vectorization_size()
     }
 
     pub fn get_periodicity(&self) -> u64 {
         self.periodicity
     }
-}
 
-#[derive(Debug, Clone)]
-pub enum ScanParametersScalar {
-    SingleElement(ScanParametersCommon),
-    ScalarIterative(ScanParametersCommon),
-}
-
-#[derive(Debug, Clone)]
-pub enum ScanParametersVector {
-    Aligned(ScanParametersCommonVector),
-    Sparse(ScanParametersCommonVector),
-    OverlappingBytewiseStaggered(ScanParametersCommonVector),
-    OverlappingBytewisePeriodic(ScanParametersVectorPeriodic),
-}
-
-#[derive(Debug, Clone)]
-pub enum ScanParametersByteArray {
-    ByteArrayBooyerMoore(ScanParametersCommon),
-}
-
-/// Contains processed parameters that define a scan over a region of memory.
-/// These transform user input to ensure that the scan is performed as efficiently as possible.
-#[derive(Debug, Clone)]
-pub enum MappedScanParameters {
-    Scalar(ScanParametersScalar),
-    Vector(ScanParametersVector),
-    ByteArray(ScanParametersByteArray),
-}
-
-impl MappedScanParameters {
-    /// Creates optimized scan paramaters for a given snapshot region filter, given user provided global/local scan parameters.
-    /// Internally, the user parameters are processed into more optimal parameters that help select the most optimal scan implementation.
-    pub fn new(
-        snapshot_region_filter: &SnapshotRegionFilter,
-        user_scan_parameters_global: &UserScanParametersGlobal,
-        user_scan_parameters_local: &UserScanParametersLocal,
-    ) -> Self {
-        let mut common_params = ScanParametersCommon {
-            data_type: user_scan_parameters_local.get_data_type().clone(),
-            data_value: Self::get_data_value(user_scan_parameters_global, user_scan_parameters_local),
-            memory_alignment: user_scan_parameters_local.get_memory_alignment_or_default(),
-            scan_compare_type: user_scan_parameters_global.get_compare_type(),
-            floating_point_tolerance: user_scan_parameters_global.get_floating_point_tolerance(),
-        };
-
-        // First try a single element scanner. This is valid even for cases like array of byte scans, as all data types support basic equality checks.
-        if Self::is_single_element_scan(snapshot_region_filter, user_scan_parameters_local) {
-            return MappedScanParameters::Scalar(ScanParametersScalar::SingleElement(common_params));
-        }
-
-        // Next handle byte array scans. These can potentially be remapped to primitive scans for performance gains.
-        if common_params.data_type.get_data_type_id() == DataTypeByteArray::get_data_type_id() {
-            if let Some(mapped_data_type) = Self::try_map_byte_array_to_primitive(&common_params.data_type) {
-                common_params.data_type = mapped_data_type;
-            } else {
-                return MappedScanParameters::ByteArray(ScanParametersByteArray::ByteArrayBooyerMoore(common_params));
-            }
-        }
-
-        // Now we decide whether to use a scalar or SIMD scan based on filter region size.
-        let vectorization_size = match Self::get_vectorization_size(snapshot_region_filter) {
-            None => {
-                // The filter cannot fit into a vector! Revert to scalar scan.
-                return MappedScanParameters::Scalar(ScanParametersScalar::ScalarIterative(common_params));
-            }
-            Some(vectorization_size) => vectorization_size,
-        };
-
-        // For discrete types (non-floating point), we can fall back on optimized scans.
-        if common_params.data_type.is_discrete() {
-            if let Some(periodicity) = Self::calculate_periodicity(user_scan_parameters_global, &common_params.data_type, &common_params.scan_compare_type) {
-                match periodicity {
-                    1 => {
-                        return MappedScanParameters::Vector(ScanParametersVector::OverlappingBytewisePeriodic(ScanParametersVectorPeriodic {
-                            parameters: ScanParametersCommonVector {
-                                parameters: common_params,
-                                vectorization_size,
-                            },
-                            periodicity,
-                        }));
-                    }
-                    2 | 4 | 8 => {
-                        return MappedScanParameters::Vector(ScanParametersVector::OverlappingBytewiseStaggered(ScanParametersCommonVector {
-                            parameters: common_params,
-                            vectorization_size,
-                        }));
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        MappedScanParameters::Scalar(ScanParametersScalar::ScalarIterative(common_params))
+    pub fn get_mapped_scan_type(&self) -> &MappedScanType {
+        &self.mapped_scan_type
     }
 
-    fn get_data_value(
+    // JIRA: Is this really even necessary any more? Does this not just always result in the same bytes? Why not just truncate to match
+    // the data type size? I don't really see this as being a valuable operation.
+    fn remap_data_value(
+        new_data_type: &DataTypeRef,
+        data_value: &DataValue,
+    ) -> DataValue {
+        // The current data value is a set of bytes in the context of the original data type!
+        // For example, if we wanted to remap 00 00 00 00 as a u32 into 00 00 as a u16, first we extract the bytes.
+        let reanonymized_value = AnonymousValue::new_bytes(data_value.get_value_bytes().clone());
+
+        // Next, we take those bytes and convert them back into a data value in the context of the new type.
+        // This ensures that the data value matches in length to the target type.
+        match new_data_type.deanonymize_value(&reanonymized_value) {
+            Ok(data_value) => data_value,
+            Err(_) => DataValue::new("", vec![]),
+        }
+    }
+
+    fn deanonymize_data_value(
         user_scan_parameters_global: &UserScanParametersGlobal,
         user_scan_parameters_local: &UserScanParametersLocal,
     ) -> DataValue {
-        match user_scan_parameters_global.get_data_value(user_scan_parameters_local) {
-            Some(data_value) => data_value,
-            None => DataValue::new("", vec![]),
+        let data_type = user_scan_parameters_local.get_data_type();
+        // First, parse the anonymous value into the original data type.
+        match user_scan_parameters_global.get_compare_immediate() {
+            Some(anonymous_value) => match data_type.deanonymize_value(&anonymous_value) {
+                Ok(value) => {
+                    return value;
+                }
+                Err(_) => {}
+            },
+            None => {}
         }
+
+        // Fall back to an empty data type.
+        DataValue::new("", vec![])
     }
 
     fn is_single_element_scan(
@@ -257,7 +206,7 @@ impl MappedScanParameters {
         }
     }
 
-    fn get_vectorization_size(snapshot_region_filter: &SnapshotRegionFilter) -> Option<VectorizationSize> {
+    fn create_vectorization_size(snapshot_region_filter: &SnapshotRegionFilter) -> Option<VectorizationSize> {
         let filter_region_size = snapshot_region_filter.get_region_size();
 
         if filter_region_size >= 64 {

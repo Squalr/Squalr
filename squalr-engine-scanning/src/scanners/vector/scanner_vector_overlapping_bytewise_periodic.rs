@@ -5,7 +5,7 @@ use squalr_engine_api::structures::data_types::generics::vector_comparer::Vector
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
-use squalr_engine_api::structures::scanning::parameters::mapped_scan_parameters::ScanParametersVectorPeriodic;
+use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use std::ptr;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
@@ -57,14 +57,14 @@ where
 
 /// Implements a memory region scanner that is optmized/specialized for a repeated immediate value of the same byte.
 /// For example, scanning for an i32 of value 00 00 00 00 can actually be greatly optimized by simply searching for the byte 0!
-impl<const N: usize> Scanner<ScanParametersVectorPeriodic> for ScannerVectorOverlappingBytewisePeriodic<N>
+impl<const N: usize> Scanner for ScannerVectorOverlappingBytewisePeriodic<N>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
     fn scan_region(
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &ScanParametersVectorPeriodic,
+        scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();

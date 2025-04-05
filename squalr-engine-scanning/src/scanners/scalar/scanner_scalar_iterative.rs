@@ -3,7 +3,7 @@ use crate::scanners::structures::snapshot_region_filter_run_length_encoder::Snap
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
-use squalr_engine_api::structures::scanning::parameters::mapped_scan_parameters::ScanParametersCommon;
+use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 
 pub struct ScannerScalarIterative {}
 
@@ -11,13 +11,13 @@ impl ScannerScalarIterative {}
 
 /// Implements a scalar (ie CPU bound, non-SIMD) region scanning algorithm. This simply iterates over a region of memory,
 /// comparing each element based on the provided parameters. Elements that pass the scan are grouped into filter ranges and returned.
-impl Scanner<ScanParametersCommon> for ScannerScalarIterative {
+impl Scanner for ScannerScalarIterative {
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
     /// is used to generate new sub-regions as the scan progresses.
     fn scan_region(
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let base_address = snapshot_region_filter.get_base_address();
         let memory_alignment = scan_parameters.get_memory_alignment();

@@ -1,10 +1,6 @@
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use crate::structures::scanning::parameters::user_scan_parameters_local::UserScanParametersLocal;
 use crate::structures::scanning::scan_memory_read_mode::ScanMemoryReadMode;
-use crate::structures::{
-    data_types::floating_point_tolerance::FloatingPointTolerance,
-    data_values::{anonymous_value::AnonymousValue, data_value::DataValue},
-};
+use crate::structures::{data_types::floating_point_tolerance::FloatingPointTolerance, data_values::anonymous_value::AnonymousValue};
 
 /// Represents the global scan arguments that are used by all current scans, regardless of `DataType`.
 #[derive(Debug, Clone)]
@@ -35,22 +31,6 @@ impl UserScanParametersGlobal {
 
     pub fn get_compare_type(&self) -> ScanCompareType {
         self.compare_type.clone()
-    }
-
-    /// Tries to deanonymizes the scan arg into a usable `DataValue` based on the provided `DataType`.
-    pub fn get_data_value(
-        &self,
-        user_scan_parameters_local: &UserScanParametersLocal,
-    ) -> Option<DataValue> {
-        let data_type = user_scan_parameters_local.get_data_type();
-        // First, parse the anonymous value into the original data type.
-        match &self.compare_immediate {
-            Some(anonymous_value) => match data_type.deanonymize_value(&anonymous_value) {
-                Ok(value) => Some(value),
-                Err(_) => None,
-            },
-            None => None,
-        }
     }
 
     pub fn set_compare_immediate(

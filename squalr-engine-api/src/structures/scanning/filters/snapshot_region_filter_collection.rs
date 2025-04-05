@@ -1,5 +1,5 @@
 use crate::structures::memory::memory_alignment::MemoryAlignment;
-use crate::structures::scanning::parameters::user_scan_parameters_local::UserScanParametersLocal;
+use crate::structures::scanning::parameters::user::user_scan_parameters_local::UserScanParametersLocal;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, scanning::filters::snapshot_region_filter::SnapshotRegionFilter};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 

@@ -9,10 +9,12 @@ use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::ParallelIterator;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
-use squalr_engine_api::structures::scanning::parameters::mapped_scan_parameters::{
-    MappedScanParameters, ScanParametersByteArray, ScanParametersScalar, ScanParametersVector, VectorizationSize,
+use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
+use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_type::{
+    MappedScanType, ScanParametersByteArray, ScanParametersScalar, ScanParametersVector,
 };
-use squalr_engine_api::structures::scanning::parameters::user_scan_parameters_global::UserScanParametersGlobal;
+use squalr_engine_api::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
+use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters_global::UserScanParametersGlobal;
 
 pub struct ScanDispatcher {}
 
@@ -33,27 +35,23 @@ impl ScanDispatcher {
             let scan_parameters = MappedScanParameters::new(snapshot_region_filter, user_scan_parameters_global, user_scan_parameters_local);
 
             // Execute the scanner that corresponds to the mapped parameters.
-            let filters = match scan_parameters {
-                MappedScanParameters::Scalar(scan_parameters_scalar) => match scan_parameters_scalar {
-                    ScanParametersScalar::SingleElement(scan_parameters) => {
-                        ScannerScalarSingleElement::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
-                    }
-                    ScanParametersScalar::ScalarIterative(scan_parameters) => {
-                        ScannerScalarIterative::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
-                    }
+            let filters = match scan_parameters.get_mapped_scan_type() {
+                MappedScanType::Scalar(scan_parameters_scalar) => match scan_parameters_scalar {
+                    ScanParametersScalar::SingleElement => ScannerScalarSingleElement::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
+                    ScanParametersScalar::ScalarIterative => ScannerScalarIterative::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
                 },
-                MappedScanParameters::Vector(scan_parameters_vector) => match scan_parameters_vector {
-                    ScanParametersVector::Aligned(scan_parameters) => match scan_parameters.get_vectorization_size() {
+                MappedScanType::Vector(scan_parameters_vector) => match scan_parameters_vector {
+                    ScanParametersVector::Aligned => match scan_parameters.get_vectorization_size() {
                         VectorizationSize::Vector16 => ScannerVectorAligned::<16>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
                         VectorizationSize::Vector32 => ScannerVectorAligned::<32>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
                         VectorizationSize::Vector64 => ScannerVectorAligned::<64>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
                     },
-                    ScanParametersVector::Sparse(scan_parameters) => match scan_parameters.get_vectorization_size() {
+                    ScanParametersVector::Sparse => match scan_parameters.get_vectorization_size() {
                         VectorizationSize::Vector16 => ScannerVectorSparse::<16>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
                         VectorizationSize::Vector32 => ScannerVectorSparse::<32>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
                         VectorizationSize::Vector64 => ScannerVectorSparse::<64>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
                     },
-                    ScanParametersVector::OverlappingBytewiseStaggered(scan_parameters) => match scan_parameters.get_vectorization_size() {
+                    ScanParametersVector::OverlappingBytewiseStaggered => match scan_parameters.get_vectorization_size() {
                         VectorizationSize::Vector16 => {
                             ScannerVectorOverlappingBytewiseStaggered::<16>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
                         }
@@ -64,7 +62,7 @@ impl ScanDispatcher {
                             ScannerVectorOverlappingBytewiseStaggered::<64>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
                         }
                     },
-                    ScanParametersVector::OverlappingBytewisePeriodic(scan_parameters) => match scan_parameters.get_vectorization_size() {
+                    ScanParametersVector::OverlappingBytewisePeriodic => match scan_parameters.get_vectorization_size() {
                         VectorizationSize::Vector16 => {
                             ScannerVectorOverlappingBytewisePeriodic::<16>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
                         }
@@ -76,8 +74,8 @@ impl ScanDispatcher {
                         }
                     },
                 },
-                MappedScanParameters::ByteArray(scan_parameters_byte_array) => match scan_parameters_byte_array {
-                    ScanParametersByteArray::ByteArrayBooyerMoore(scan_parameters) => {
+                MappedScanType::ByteArray(scan_parameters_byte_array) => match scan_parameters_byte_array {
+                    ScanParametersByteArray::ByteArrayBooyerMoore => {
                         ScannerScalarByteArrayBooyerMoore::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
                     }
                 },

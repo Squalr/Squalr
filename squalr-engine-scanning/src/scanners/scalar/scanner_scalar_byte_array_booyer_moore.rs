@@ -5,7 +5,7 @@ use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
-use squalr_engine_api::structures::scanning::parameters::mapped_scan_parameters::ScanParametersCommon;
+use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 
 pub struct ScannerScalarByteArrayBooyerMoore {}
 
@@ -14,13 +14,13 @@ impl ScannerScalarByteArrayBooyerMoore {}
 /// Implements a scalar (ie CPU bound, non-SIMD) array of bytes region scanning algorithm. This works by using a modified version
 /// of the Boyer-Moore algorithm to encode matches as they are discovered. This algorithm was adapted to support overlapping results.
 /// Boyer-Moore speeds up scans through use of pre-made shifting tables, allowing for skipping multiple elements on failed matches.
-impl Scanner<ScanParametersCommon> for ScannerScalarByteArrayBooyerMoore {
+impl Scanner for ScannerScalarByteArrayBooyerMoore {
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
     /// is used to generate new sub-regions as the scan progresses.
     fn scan_region(
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &ScanParametersCommon,
+        scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let data_value = match scan_parameters.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {

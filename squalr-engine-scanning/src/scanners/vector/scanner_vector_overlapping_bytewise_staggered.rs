@@ -5,7 +5,7 @@ use squalr_engine_api::structures::data_types::generics::vector_comparer::Vector
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
-use squalr_engine_api::structures::scanning::parameters::mapped_scan_parameters::ScanParametersCommonVector;
+use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use std::ptr;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
@@ -65,14 +65,14 @@ where
 
 /// Implements a memory region scanner that is optmized for scanning for an overlapping sequence of N bytes.
 /// For example, even scanning for something like `00 01 02 03`
-impl<const N: usize> Scanner<ScanParametersCommonVector> for ScannerVectorOverlappingBytewiseStaggered<N>
+impl<const N: usize> Scanner for ScannerVectorOverlappingBytewiseStaggered<N>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
     fn scan_region(
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &ScanParametersCommonVector,
+        scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();

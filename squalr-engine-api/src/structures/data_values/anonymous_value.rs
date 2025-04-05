@@ -62,7 +62,7 @@ impl AnonymousValue {
 impl ToString for AnonymousValue {
     fn to_string(&self) -> String {
         match &self.value {
-            AnonymousValueContainer::StringValue(string, is_value_hex) => string.clone(),
+            AnonymousValueContainer::StringValue(string, _is_value_hex) => string.clone(),
             AnonymousValueContainer::ByteArray(bytes) => String::from_utf8_lossy(bytes).to_string(),
         }
     }

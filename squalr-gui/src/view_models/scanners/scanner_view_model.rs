@@ -19,7 +19,7 @@ use squalr_engine_api::structures::data_types::data_type_meta_data::DataTypeMeta
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
-use squalr_engine_api::structures::scanning::parameters::user_scan_parameters_local::UserScanParametersLocal;
+use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters_local::UserScanParametersLocal;
 use squalr_engine_api::structures::scanning::scan_memory_read_mode::ScanMemoryReadMode;
 use std::sync::Arc;
 use std::sync::RwLock;
