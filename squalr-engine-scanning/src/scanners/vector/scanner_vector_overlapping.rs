@@ -1,10 +1,10 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
+use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
-use squalr_engine_api::structures::scanning::parameters::scan_parameters::ScanParameters;
+use squalr_engine_api::structures::scanning::parameters::mapped_scan_parameters::ScanParametersCommonVector;
 use squalr_engine_api::structures::{data_types::generics::vector_comparer::VectorComparer, scanning::comparisons::scan_compare_type::ScanCompareType};
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
@@ -158,10 +158,10 @@ where
     fn build_immediate_comparers(
         &self,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Vec<Box<dyn Fn(*const u8) -> Simd<u8, N>>> {
         let data_type = scan_parameters.get_data_type();
-        let parameters = self.build_rotated_global_parameters(scan_parameters_global, scan_parameters);
+        let parameters = self.build_rotated_global_parameters(user_scan_parameters_global, scan_parameters);
         let mut results = Vec::with_capacity(parameters.len());
 
         for parameter in parameters {
@@ -180,9 +180,9 @@ where
     /// Rotates immediate compare values in the global parameters, producing a new set of global parameters containing the rotated values.
     fn build_rotated_global_parameters(
         &self,
-        original_global: &ScanParametersGlobal,
-        scan_parameters: &ScanParametersLocal,
-    ) -> Vec<ScanParametersGlobal> {
+        original_global: &UserScanParametersGlobal,
+        scan_parameters: &UserScanParametersLocal,
+    ) -> Vec<UserScanParametersGlobal> {
         let data_type = scan_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment = scan_parameters.get_memory_alignment_or_default() as usize;
@@ -227,15 +227,14 @@ where
 /// tells us if "a data-size aligned address contains one of the rotated values" -- but it does not tell us which one.
 /// That said, if the entire vector is true or false, we do not care, and can encode the entire range of results.
 /// However, if the scan result has a partial match, we need to do extra work to pull out which rotated immediate matched.
-impl<const N: usize> Scanner for ScannerVectorOverlapping<N>
+impl<const N: usize> Scanner<ScanParametersCommonVector> for ScannerVectorOverlapping<N>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
     fn scan_region(
-        &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommonVector,
     ) -> Vec<SnapshotRegionFilter> {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
@@ -243,9 +242,9 @@ where
         let region_size = snapshot_region_filter.get_region_size();
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type = scan_parameters.get_optimized_data_type();
+        let data_type = scan_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
-        let memory_alignment_size = scan_parameters.get_memory_alignment_or_default() as u64;
+        let memory_alignment_size = scan_parameters.get_memory_alignment() as u64;
         let vector_size_in_bytes = N;
         let iterations = region_size / vector_size_in_bytes as u64;
         let remainder_bytes = region_size % vector_size_in_bytes as u64;
@@ -258,7 +257,7 @@ where
                    match scan_parameters.get_compare_type() {
                        ScanCompareType::Immediate(scan_compare_type_immediate) => {
                            /*
-                           let periodicity = if let Some(immediate_value) = scan_parameters_global.deanonymize_immediate(data_type) {
+                           let periodicity = if let Some(immediate_value) = user_scan_parameters_global.deanonymize_immediate(data_type) {
                                self.calculate_periodicity(immediate_value.get_value_bytes(), data_type_size)
                            } else {
                                0

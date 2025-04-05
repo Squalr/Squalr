@@ -5,7 +5,7 @@ use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
-use squalr_engine_api::structures::scanning::parameters::scan_parameters_global::ScanParametersGlobal;
+use squalr_engine_api::structures::scanning::parameters::user_scan_parameters_global::UserScanParametersGlobal;
 use squalr_engine_api::structures::scanning::scan_memory_read_mode::ScanMemoryReadMode;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use squalr_engine_common::conversions::Conversions;
@@ -24,15 +24,15 @@ impl ScanExecutorTask {
     pub fn start_task(
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        scan_parameters_global: &ScanParametersGlobal,
+        user_scan_parameters_global: &UserScanParametersGlobal,
         with_logging: bool,
     ) -> Arc<TrackableTask> {
         let task = TrackableTask::create(TASK_NAME.to_string(), None);
         let task_clone = task.clone();
-        let scan_parameters_global_clone = scan_parameters_global.clone();
+        let user_scan_parameters_global_clone = user_scan_parameters_global.clone();
 
         thread::spawn(move || {
-            Self::scan_task(&task_clone, process_info, snapshot, &scan_parameters_global_clone, with_logging);
+            Self::scan_task(&task_clone, process_info, snapshot, &user_scan_parameters_global_clone, with_logging);
 
             task_clone.complete();
         });
@@ -44,12 +44,12 @@ impl ScanExecutorTask {
         trackable_task: &Arc<TrackableTask>,
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        scan_parameters_global: &ScanParametersGlobal,
+        user_scan_parameters_global: &UserScanParametersGlobal,
         with_logging: bool,
     ) {
         // If the parameter is set, first collect values before the scan.
         // This is slower overall than interleaving the reads, but better for capturing values that may soon change.
-        if scan_parameters_global.get_memory_read_mode() == ScanMemoryReadMode::ReadBeforeScan {
+        if user_scan_parameters_global.get_memory_read_mode() == ScanMemoryReadMode::ReadBeforeScan {
             ValueCollectorTask::start_task(process_info.clone(), snapshot.clone(), with_logging).wait_for_completion();
         }
 
@@ -81,23 +81,24 @@ impl ScanExecutorTask {
             }
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
-            if scan_parameters_global.get_memory_read_mode() == ScanMemoryReadMode::ReadInterleavedWithScan {
+            if user_scan_parameters_global.get_memory_read_mode() == ScanMemoryReadMode::ReadInterleavedWithScan {
                 let _ = snapshot_region.read_all_memory(&process_info);
             }
 
             // Skip the region if it is impossible to perform the scan (ie previous values are missing).
-            if !snapshot_region.can_compare_using_parameters(scan_parameters_global) {
+            if !snapshot_region.can_compare_using_parameters(user_scan_parameters_global) {
                 processed_region_count.fetch_add(1, Ordering::SeqCst);
                 return;
             }
 
             // Create a function to dispatch our scan to the best scanner implementation for the current region.
-            let scan_dispatcher =
-                |snapshot_region_filter_collection| ScanDispatcher::dispatch_scan(snapshot_region, snapshot_region_filter_collection, scan_parameters_global);
+            let scan_dispatcher = |snapshot_region_filter_collection| {
+                ScanDispatcher::dispatch_scan(snapshot_region, snapshot_region_filter_collection, user_scan_parameters_global)
+            };
 
             // Again, select the parallel or sequential iterator to iterate over each data type in the scan. Generally there is only 1, but multi-type scans are supported.
             let scan_results_collection = snapshot_region.get_scan_results().get_filter_collections();
-            let scan_results = SnapshotRegionScanResults::new(if scan_parameters_global.is_single_thread_scan() {
+            let scan_results = SnapshotRegionScanResults::new(if user_scan_parameters_global.is_single_thread_scan() {
                 scan_results_collection.iter().map(scan_dispatcher).collect()
             } else {
                 scan_results_collection
@@ -118,7 +119,7 @@ impl ScanExecutorTask {
         };
 
         // Select either the parallel or sequential iterator. Single-thread is not advised unless debugging.
-        if scan_parameters_global.is_single_thread_scan() {
+        if user_scan_parameters_global.is_single_thread_scan() {
             snapshot_regions.iter_mut().for_each(snapshot_iterator);
         } else {
             snapshot_regions.par_iter_mut().for_each(snapshot_iterator);

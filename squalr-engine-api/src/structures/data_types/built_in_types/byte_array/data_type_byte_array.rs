@@ -92,6 +92,10 @@ impl DataType for DataTypeByteArray {
         }
     }
 
+    fn is_discrete(&self) -> bool {
+        true
+    }
+
     fn get_endian(&self) -> Endian {
         Endian::Little
     }

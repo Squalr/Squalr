@@ -1,11 +1,11 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::boyer_moore_table::BoyerMooreTable;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
-use squalr_engine_api::structures::scanning::parameters::scan_parameters::ScanParameters;
+use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
+use squalr_engine_api::structures::scanning::parameters::mapped_scan_parameters::ScanParametersCommon;
 
 pub struct ScannerScalarByteArrayBooyerMoore {}
 
@@ -14,25 +14,17 @@ impl ScannerScalarByteArrayBooyerMoore {}
 /// Implements a scalar (ie CPU bound, non-SIMD) array of bytes region scanning algorithm. This works by using a modified version
 /// of the Boyer-Moore algorithm to encode matches as they are discovered. This algorithm was adapted to support overlapping results.
 /// Boyer-Moore speeds up scans through use of pre-made shifting tables, allowing for skipping multiple elements on failed matches.
-impl Scanner for ScannerScalarByteArrayBooyerMoore {
+impl Scanner<ScanParametersCommon> for ScannerScalarByteArrayBooyerMoore {
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
     /// is used to generate new sub-regions as the scan progresses.
     fn scan_region(
-        &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Vec<SnapshotRegionFilter> {
         let data_value = match scan_parameters.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
-                ScanCompareTypeImmediate::Equal => {
-                    if let Some(data_value) = scan_parameters.get_data_value() {
-                        data_value
-                    } else {
-                        log::error!("Failed to deanonymize array of byte value.");
-                        return vec![];
-                    }
-                }
+                ScanCompareTypeImmediate::Equal => scan_parameters.get_data_value(),
                 _ => {
                     log::error!("Unsupported immediate scan constraint. Only equality is supported for array of byte scans.");
                     return vec![];
@@ -51,7 +43,7 @@ impl Scanner for ScannerScalarByteArrayBooyerMoore {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
-        let memory_alignment_size = scan_parameters.get_memory_alignment_or_default() as u64;
+        let memory_alignment_size = scan_parameters.get_memory_alignment() as u64;
 
         let scan_pattern = data_value.get_value_bytes();
         let pattern_length = scan_pattern.len() as u64;

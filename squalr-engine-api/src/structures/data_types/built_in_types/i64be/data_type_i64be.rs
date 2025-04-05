@@ -69,6 +69,10 @@ impl DataType for DataTypeI64be {
         Endian::Little
     }
 
+    fn is_discrete(&self) -> bool {
+        true
+    }
+
     fn get_default_value(
         &self,
         _data_type_meta_data: &DataTypeMetaData,

@@ -1,4 +1,3 @@
-pub mod scan_parameter_optimizations;
-pub mod scan_parameters;
-pub mod scan_parameters_global;
-pub mod scan_parameters_local;
+pub mod mapped_scan_parameters;
+pub mod user_scan_parameters_global;
+pub mod user_scan_parameters_local;

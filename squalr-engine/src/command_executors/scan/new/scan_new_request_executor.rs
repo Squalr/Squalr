@@ -15,7 +15,7 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let scan_parameters_local = self.scan_parameters_local.clone();
+        let user_scan_parameters_local = self.user_scan_parameters_local.clone();
 
         let opened_process_info = engine_privileged_state.get_opened_process();
         let opened_process_info = match opened_process_info {
@@ -62,14 +62,14 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
                     merged_snapshot_regions.push(SnapshotRegion::new(
                         current_region,
                         std::mem::take(&mut page_boundaries),
-                        &scan_parameters_local,
+                        &user_scan_parameters_local,
                     ));
                     current_region = region;
                 }
             }
 
             // Push the last region.
-            merged_snapshot_regions.push(SnapshotRegion::new(current_region, page_boundaries, &scan_parameters_local));
+            merged_snapshot_regions.push(SnapshotRegion::new(current_region, page_boundaries, &user_scan_parameters_local));
 
             // Update snapshot with new merged regions.
             snapshot.set_snapshot_regions(merged_snapshot_regions);

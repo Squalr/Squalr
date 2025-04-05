@@ -19,7 +19,7 @@ use squalr_engine_api::structures::data_types::data_type_meta_data::DataTypeMeta
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
-use squalr_engine_api::structures::scanning::parameters::scan_parameters_local::ScanParametersLocal;
+use squalr_engine_api::structures::scanning::parameters::user_scan_parameters_local::UserScanParametersLocal;
 use squalr_engine_api::structures::scanning::scan_memory_read_mode::ScanMemoryReadMode;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -136,8 +136,8 @@ impl ScannerViewModel {
         let engine_execution_context = &scanner_view_model.engine_execution_context;
         let scanner_view_model = scanner_view_model.clone();
         let memory_alignment = Some(MemoryAlignment::Alignment1); // JIRA: Pull from settings
-        let scan_parameters_local = vec![ScanParametersLocal::new(data_type, memory_alignment)];
-        let scan_new_request = ScanNewRequest { scan_parameters_local };
+        let user_scan_parameters_local = vec![UserScanParametersLocal::new(data_type, memory_alignment)];
+        let scan_new_request = ScanNewRequest { user_scan_parameters_local };
 
         // Start a new scan, and recurse to start the scan once the new scan is made.
         scan_new_request.send(engine_execution_context, move |_scan_new_response| {

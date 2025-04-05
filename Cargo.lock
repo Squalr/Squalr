@@ -4500,6 +4500,7 @@ dependencies = [
  "dashmap",
  "log",
  "num-traits",
+ "rayon",
  "serde",
  "serde_json",
  "squalr-engine-common",

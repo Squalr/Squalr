@@ -5,7 +5,7 @@ use crate::structures::data_types::comparisons::vector_comparable::{
     VectorCompareFnRelative16, VectorCompareFnRelative32, VectorCompareFnRelative64,
 };
 use crate::structures::data_types::comparisons::vector_comparisons_float::VectorComparisonsFloat;
-use crate::structures::scanning::parameters::scan_parameters::ScanParameters;
+use crate::structures::scanning::parameters::mapped_scan_parameters::ScanParametersCommon;
 
 type PrimitiveType = f64;
 
@@ -21,252 +21,252 @@ const ELEMENT_COUNT_16: usize = BYTE_COUNT_64 / size_of::<PrimitiveType>();
 impl VectorComparable for DataTypeF64 {
     fn get_vector_compare_equal_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate64> {
         VectorComparisonsFloat::get_vector_compare_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_equal_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate32> {
         VectorComparisonsFloat::get_vector_compare_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_equal_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate16> {
         VectorComparisonsFloat::get_vector_compare_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_not_equal_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate64> {
         VectorComparisonsFloat::get_vector_compare_not_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_not_equal_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate32> {
         VectorComparisonsFloat::get_vector_compare_not_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_not_equal_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate16> {
         VectorComparisonsFloat::get_vector_compare_not_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_greater_than_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate64> {
         VectorComparisonsFloat::get_vector_compare_greater_than::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_greater_than_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate32> {
         VectorComparisonsFloat::get_vector_compare_greater_than::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_greater_than_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate16> {
         VectorComparisonsFloat::get_vector_compare_greater_than::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_greater_than_or_equal_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate64> {
         VectorComparisonsFloat::get_vector_compare_greater_than_or_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_greater_than_or_equal_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate32> {
         VectorComparisonsFloat::get_vector_compare_greater_than_or_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_greater_than_or_equal_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate16> {
         VectorComparisonsFloat::get_vector_compare_greater_than_or_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_less_than_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate64> {
         VectorComparisonsFloat::get_vector_compare_less_than::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_less_than_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate32> {
         VectorComparisonsFloat::get_vector_compare_less_than::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_less_than_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate16> {
         VectorComparisonsFloat::get_vector_compare_less_than::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_less_than_or_equal_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate64> {
         VectorComparisonsFloat::get_vector_compare_less_than_or_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_less_than_or_equal_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate32> {
         VectorComparisonsFloat::get_vector_compare_less_than_or_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_less_than_or_equal_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnImmediate16> {
         VectorComparisonsFloat::get_vector_compare_less_than_or_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_changed_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnRelative64> {
         VectorComparisonsFloat::get_vector_compare_changed::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_changed_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnRelative32> {
         VectorComparisonsFloat::get_vector_compare_changed::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_changed_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnRelative16> {
         VectorComparisonsFloat::get_vector_compare_changed::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_unchanged_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnRelative64> {
         VectorComparisonsFloat::get_vector_compare_unchanged::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_unchanged_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnRelative32> {
         VectorComparisonsFloat::get_vector_compare_unchanged::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_unchanged_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnRelative16> {
         VectorComparisonsFloat::get_vector_compare_unchanged::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_increased_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnRelative64> {
         VectorComparisonsFloat::get_vector_compare_increased::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_increased_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnRelative32> {
         VectorComparisonsFloat::get_vector_compare_increased::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_increased_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnRelative16> {
         VectorComparisonsFloat::get_vector_compare_increased::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_decreased_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnRelative64> {
         VectorComparisonsFloat::get_vector_compare_decreased::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_decreased_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnRelative32> {
         VectorComparisonsFloat::get_vector_compare_decreased::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_decreased_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnRelative16> {
         VectorComparisonsFloat::get_vector_compare_decreased::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_increased_by_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnDelta64> {
         VectorComparisonsFloat::get_vector_compare_increased_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_increased_by_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnDelta32> {
         VectorComparisonsFloat::get_vector_compare_increased_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_increased_by_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnDelta16> {
         VectorComparisonsFloat::get_vector_compare_increased_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_decreased_by_64(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnDelta64> {
         VectorComparisonsFloat::get_vector_compare_decreased_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_decreased_by_32(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnDelta32> {
         VectorComparisonsFloat::get_vector_compare_decreased_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
     }
 
     fn get_vector_compare_decreased_by_16(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<VectorCompareFnDelta16> {
         VectorComparisonsFloat::get_vector_compare_decreased_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }

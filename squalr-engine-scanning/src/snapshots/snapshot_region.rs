@@ -1,17 +1,17 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
-use crate::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
+use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use squalr_engine_api::structures::scanning::parameters::scan_parameters_global::ScanParametersGlobal;
-use squalr_engine_api::structures::scanning::parameters::scan_parameters_local::ScanParametersLocal;
+use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
+use squalr_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
+use squalr_engine_api::structures::scanning::parameters::user_scan_parameters_global::UserScanParametersGlobal;
+use squalr_engine_api::structures::scanning::parameters::user_scan_parameters_local::UserScanParametersLocal;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
-use squalr_engine_memory::normalized_region::NormalizedRegion;
 
 /// Defines a contiguous region of memory within a snapshot.
 pub struct SnapshotRegion {
@@ -35,18 +35,18 @@ impl SnapshotRegion {
     pub fn new(
         normalized_region: NormalizedRegion,
         page_boundaries: Vec<u64>,
-        scan_parameters_local_collection: &Vec<ScanParametersLocal>,
+        user_scan_parameters_local_collection: &Vec<UserScanParametersLocal>,
     ) -> Self {
         // Create an initial filter, spanning the entire region, for each data type that the scan results will represent.
-        let scan_filter_collections = scan_parameters_local_collection
+        let scan_filter_collections = user_scan_parameters_local_collection
             .iter()
-            .map(|scan_parameters_local| {
+            .map(|user_scan_parameters_local| {
                 let initial_filter = vec![vec![SnapshotRegionFilter::new(
                     normalized_region.get_base_address(),
                     normalized_region.get_region_size(),
                 )]];
 
-                SnapshotRegionFilterCollection::new(initial_filter, scan_parameters_local.clone())
+                SnapshotRegionFilterCollection::new(initial_filter, user_scan_parameters_local.clone())
             })
             .collect();
 
@@ -218,12 +218,12 @@ impl SnapshotRegion {
 
     pub fn can_compare_using_parameters(
         &self,
-        scan_parameters_global: &ScanParametersGlobal,
+        user_scan_parameters_global: &UserScanParametersGlobal,
     ) -> bool {
-        if !scan_parameters_global.is_valid() || !self.has_current_values() {
+        if !user_scan_parameters_global.is_valid() || !self.has_current_values() {
             false
         } else {
-            match scan_parameters_global.get_compare_type() {
+            match user_scan_parameters_global.get_compare_type() {
                 ScanCompareType::Immediate(_) => true,
                 ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => self.has_previous_values(),
             }

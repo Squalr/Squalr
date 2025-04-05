@@ -7,12 +7,12 @@ use std::str::FromStr;
 
 /// Defines a unique pair of `DataType` and `MemoryAlignment` used in a scan within a larger scan job.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScanParametersLocal {
+pub struct UserScanParametersLocal {
     data_type: DataTypeRef,
     alignment: Option<MemoryAlignment>,
 }
 
-impl ScanParametersLocal {
+impl UserScanParametersLocal {
     pub fn new(
         data_type: DataTypeRef,
         alignment: Option<MemoryAlignment>,
@@ -39,47 +39,47 @@ impl ScanParametersLocal {
 }
 
 #[derive(Debug)]
-pub enum ScanParametersLocalParseError {
+pub enum UserScanParametersLocalParseError {
     InvalidFormat,
     InvalidAlignment(ParseIntError),
     InvalidDataType,
 }
 
-impl fmt::Display for ScanParametersLocalParseError {
+impl fmt::Display for UserScanParametersLocalParseError {
     fn fmt(
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            ScanParametersLocalParseError::InvalidFormat => write!(formatter, "Invalid format"),
-            ScanParametersLocalParseError::InvalidAlignment(err) => write!(formatter, "Invalid alignment: {}", err),
-            ScanParametersLocalParseError::InvalidDataType => write!(formatter, "Invalid data type"),
+            UserScanParametersLocalParseError::InvalidFormat => write!(formatter, "Invalid format"),
+            UserScanParametersLocalParseError::InvalidAlignment(err) => write!(formatter, "Invalid alignment: {}", err),
+            UserScanParametersLocalParseError::InvalidDataType => write!(formatter, "Invalid data type"),
         }
     }
 }
 
-impl From<ParseIntError> for ScanParametersLocalParseError {
+impl From<ParseIntError> for UserScanParametersLocalParseError {
     fn from(e: ParseIntError) -> Self {
-        ScanParametersLocalParseError::InvalidAlignment(e)
+        UserScanParametersLocalParseError::InvalidAlignment(e)
     }
 }
 
-impl FromStr for ScanParametersLocal {
-    type Err = ScanParametersLocalParseError;
+impl FromStr for UserScanParametersLocal {
+    type Err = UserScanParametersLocalParseError;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = string.split('=').collect();
 
         // Check if there is at least one part, and at most two.
         if parts.len() < 1 || parts.len() > 2 {
-            return Err(ScanParametersLocalParseError::InvalidFormat);
+            return Err(UserScanParametersLocalParseError::InvalidFormat);
         }
 
         // Parse the data type from the first part.
         let data_type = parts[0]
             .trim()
             .parse::<DataTypeRef>()
-            .map_err(|_| ScanParametersLocalParseError::InvalidDataType)?;
+            .map_err(|_| UserScanParametersLocalParseError::InvalidDataType)?;
 
         // Handle the optional alignment part.
         let alignment = if parts.len() == 2 {
@@ -95,7 +95,7 @@ impl FromStr for ScanParametersLocal {
             None
         };
 
-        // Create a new ScanParametersLocal with the parsed values.
-        Ok(ScanParametersLocal::new(data_type, alignment))
+        // Create a new UserScanParametersLocal with the parsed values.
+        Ok(UserScanParametersLocal::new(data_type, alignment))
     }
 }

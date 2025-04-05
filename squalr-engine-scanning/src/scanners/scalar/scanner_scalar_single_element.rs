@@ -1,21 +1,20 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use squalr_engine_api::structures::scanning::parameters::scan_parameters::ScanParameters;
+use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
+use squalr_engine_api::structures::scanning::parameters::mapped_scan_parameters::ScanParametersCommon;
 
 pub struct ScannerScalarSingleElement {}
 
 /// Implements a scalar (ie CPU bound, non-SIMD) scanner which only scans a single element of memory (ie only containing 1 data type).
-impl Scanner for ScannerScalarSingleElement {
+impl Scanner<ScanParametersCommon> for ScannerScalarSingleElement {
     fn scan_region(
-        &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Vec<SnapshotRegionFilter> {
         let mut compare_result = false;
-        let data_type = scan_parameters.get_original_data_type();
+        let data_type = scan_parameters.get_data_type();
 
         match scan_parameters.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {

@@ -59,6 +59,10 @@ impl DataType for DataTypeF32 {
         Endian::Little
     }
 
+    fn is_discrete(&self) -> bool {
+        false
+    }
+
     fn get_default_value(
         &self,
         _data_type_meta_data: &DataTypeMetaData,

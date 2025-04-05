@@ -1,4 +1,4 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
+use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 
 pub struct SnapshotRegionFilterRunLengthEncoder {
     result_regions: Vec<SnapshotRegionFilter>,

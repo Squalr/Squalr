@@ -2,14 +2,14 @@ use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::scan::new::scan_new_response::ScanNewResponse;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::{engine_command::EngineCommand, scan::scan_command::ScanCommand};
-use crate::structures::scanning::parameters::scan_parameters_local::ScanParametersLocal;
+use crate::structures::scanning::parameters::user_scan_parameters_local::UserScanParametersLocal;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ScanNewRequest {
     #[structopt(short = "d", long, use_delimiter = true)]
-    pub scan_parameters_local: Vec<ScanParametersLocal>,
+    pub user_scan_parameters_local: Vec<UserScanParametersLocal>,
 }
 
 impl EngineCommandRequest for ScanNewRequest {

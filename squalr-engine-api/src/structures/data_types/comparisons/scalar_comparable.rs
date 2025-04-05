@@ -1,4 +1,4 @@
-use crate::structures::scanning::parameters::scan_parameters::ScanParameters;
+use crate::structures::scanning::parameters::mapped_scan_parameters::ScanParametersCommon;
 
 /// Defines a compare function that operates on an immediate (ie all inequalities).
 /// Parameters: current value pointer.
@@ -15,52 +15,52 @@ pub type ScalarCompareFnDelta = Box<dyn Fn(*const u8, *const u8) -> bool + 'stat
 pub trait ScalarComparable {
     fn get_compare_equal(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<ScalarCompareFnImmediate>;
     fn get_compare_not_equal(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<ScalarCompareFnImmediate>;
     fn get_compare_greater_than(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<ScalarCompareFnImmediate>;
     fn get_compare_greater_than_or_equal(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<ScalarCompareFnImmediate>;
     fn get_compare_less_than(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<ScalarCompareFnImmediate>;
     fn get_compare_less_than_or_equal(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<ScalarCompareFnImmediate>;
 
     fn get_compare_changed(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<ScalarCompareFnRelative>;
     fn get_compare_unchanged(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<ScalarCompareFnRelative>;
     fn get_compare_increased(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<ScalarCompareFnRelative>;
     fn get_compare_decreased(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<ScalarCompareFnRelative>;
 
     fn get_compare_increased_by(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<ScalarCompareFnDelta>;
     fn get_compare_decreased_by(
         &self,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommon,
     ) -> Option<ScalarCompareFnDelta>;
 }

@@ -28,6 +28,8 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
 
     fn get_endian(&self) -> Endian;
 
+    fn is_discrete(&self) -> bool;
+
     fn get_default_value(
         &self,
         data_type_meta_data: &DataTypeMetaData,

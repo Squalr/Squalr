@@ -1,5 +1,7 @@
-use squalr_engine_api::structures::{data_types::data_type_ref::DataTypeRef, memory::memory_alignment::MemoryAlignment};
-use squalr_engine_memory::normalized_region::NormalizedRegion;
+use crate::structures::{
+    data_types::data_type_ref::DataTypeRef,
+    memory::{memory_alignment::MemoryAlignment, normalized_region::NormalizedRegion},
+};
 use std::cmp::max;
 
 /// Defines a range of filtered memory within a snapshot region. These filters are created by

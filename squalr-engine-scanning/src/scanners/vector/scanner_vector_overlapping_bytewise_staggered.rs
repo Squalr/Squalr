@@ -1,25 +1,24 @@
-use crate::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
-use squalr_engine_api::structures::scanning::parameters::scan_parameters::ScanParameters;
+use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
+use squalr_engine_api::structures::scanning::parameters::mapped_scan_parameters::ScanParametersCommonVector;
 use std::ptr;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
-pub struct ScannerVectorOverlappingNPeriodic<const N: usize>
+pub struct ScannerVectorOverlappingBytewiseStaggered<const N: usize>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>, {}
 
-impl<const N: usize> ScannerVectorOverlappingNPeriodic<N>
+impl<const N: usize> ScannerVectorOverlappingBytewiseStaggered<N>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
     fn encode_results(
-        &self,
         compare_result: &Simd<u8, N>,
         run_length_encoder: &mut SnapshotRegionFilterRunLengthEncoder,
         data_type_size_padding: u64,
@@ -35,7 +34,7 @@ where
             run_length_encoder.finalize_current_encode_with_padding(vector_compare_size, data_type_size_padding);
         // Otherwise, there is a mix of true/false results that need to be processed manually.
         } else {
-            self.encode_remainder_results(
+            Self::encode_remainder_results(
                 &compare_result,
                 run_length_encoder,
                 data_type_size_padding,
@@ -46,7 +45,6 @@ where
     }
 
     fn encode_remainder_results(
-        &self,
         compare_result: &Simd<u8, N>,
         run_length_encoder: &mut SnapshotRegionFilterRunLengthEncoder,
         data_type_size_padding: u64,
@@ -67,26 +65,25 @@ where
 
 /// Implements a memory region scanner that is optmized for scanning for an overlapping sequence of N bytes.
 /// For example, even scanning for something like `00 01 02 03`
-impl<const N: usize> Scanner for ScannerVectorOverlappingNPeriodic<N>
+impl<const N: usize> Scanner<ScanParametersCommonVector> for ScannerVectorOverlappingBytewiseStaggered<N>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
     fn scan_region(
-        &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &ScanParameters,
+        scan_parameters: &ScanParametersCommonVector,
     ) -> Vec<SnapshotRegionFilter> {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let original_data_type = scan_parameters.get_original_data_type();
-        let original_data_type_size = original_data_type.get_size_in_bytes();
-        let data_type_size_padding = original_data_type_size.saturating_sub(scan_parameters.get_memory_alignment_or_default() as u64);
+        let data_type = scan_parameters.get_data_type();
+        let data_type_size = data_type.get_size_in_bytes();
+        let data_type_size_padding = data_type_size.saturating_sub(scan_parameters.get_memory_alignment() as u64);
         let vector_size_in_bytes = N;
-        let vector_underflow = original_data_type_size as usize;
+        let vector_underflow = data_type_size as usize;
         let vector_compare_size = vector_size_in_bytes.saturating_sub(vector_underflow) as u64;
         let iterations = region_size / vector_compare_size;
         let remainder_bytes = region_size % vector_compare_size;
@@ -94,13 +91,7 @@ where
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
 
-        let scan_immedate = match scan_parameters.get_data_value() {
-            Some(scan_immediate) => scan_immediate,
-            None => {
-                log::error!("Failed to get compare immediate for 2-periodic scan.");
-                return vec![];
-            }
-        };
+        let scan_immedate = scan_parameters.get_data_value();
 
         let load_nth_byte_vec = |scan_immedate: &DataValue, byte_index: usize| {
             let byte_vec = Simd::<u8, N>::splat(scan_immedate.get_value_bytes()[byte_index]);
@@ -111,7 +102,7 @@ where
             })
         };
 
-        match original_data_type_size {
+        match data_type_size {
             2 => {
                 let compare_func_byte_0 = load_nth_byte_vec(&scan_immedate, 0);
                 let compare_func_byte_1 = load_nth_byte_vec(&scan_immedate, 1);
@@ -123,7 +114,7 @@ where
                     let compare_results_1 = compare_func_byte_1(current_value_pointer).rotate_elements_left::<1>();
                     let compare_result = compare_results_0 & compare_results_1;
 
-                    self.encode_results(
+                    Self::encode_results(
                         &compare_result,
                         &mut run_length_encoder,
                         data_type_size_padding,
@@ -139,7 +130,7 @@ where
                     let compare_results_1 = unsafe { compare_func_byte_1(current_value_pointer.add(remainder_ptr_offset)).rotate_elements_left::<1>() };
                     let compare_result = compare_results_0 & compare_results_1;
 
-                    self.encode_remainder_results(
+                    Self::encode_remainder_results(
                         &compare_result,
                         &mut run_length_encoder,
                         data_type_size_padding,
@@ -163,7 +154,7 @@ where
                     let compare_results_3 = compare_func_byte_3(current_value_pointer).rotate_elements_left::<3>();
                     let compare_result = compare_results_0 & compare_results_1 & compare_results_2 & compare_results_3;
 
-                    self.encode_results(
+                    Self::encode_results(
                         &compare_result,
                         &mut run_length_encoder,
                         data_type_size_padding,
@@ -182,7 +173,7 @@ where
                     let compare_results_3 = compare_func_byte_3(remainder_value_pointer).rotate_elements_left::<3>();
                     let compare_result = compare_results_0 & compare_results_1 & compare_results_2 & compare_results_3;
 
-                    self.encode_remainder_results(
+                    Self::encode_remainder_results(
                         &compare_result,
                         &mut run_length_encoder,
                         data_type_size_padding,
@@ -221,7 +212,7 @@ where
                         & compare_results_6
                         & compare_results_7;
 
-                    self.encode_results(
+                    Self::encode_results(
                         &compare_result,
                         &mut run_length_encoder,
                         data_type_size_padding,
@@ -251,7 +242,7 @@ where
                         & compare_results_6
                         & compare_results_7;
 
-                    self.encode_remainder_results(
+                    Self::encode_remainder_results(
                         &compare_result,
                         &mut run_length_encoder,
                         data_type_size_padding,

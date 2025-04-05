@@ -2,11 +2,12 @@ use crate::memory_queryer::memory_protection_enum::MemoryProtectionEnum;
 use crate::memory_queryer::memory_queryer_trait::IMemoryQueryer;
 use crate::memory_queryer::memory_type_enum::MemoryTypeEnum;
 use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
-use crate::normalized_module::NormalizedModule;
-use crate::normalized_region::NormalizedRegion;
+
 use core::ffi::c_void;
 use core::mem::size_of;
 use squalr_engine_api::structures::memory::bitness::Bitness;
+use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
+use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
 use std::ffi::OsStr;
 use std::path::Path;
