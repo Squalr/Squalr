@@ -10,6 +10,7 @@ use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
+use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::MappedScanType;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParametersByteArray;
@@ -66,7 +67,7 @@ impl MappedScanParameters {
                     return mapped_params;
                 }
                 Some(mapped_data_type) => {
-                    // primitive type map was successful. Update our new internal data type, and proceed with this as the new type.
+                    // Mapping onto a primitive type map was successful. Update our new internal data type, and proceed with this as the new type.
                     mapped_params.data_value = Self::remap_data_value(&mapped_data_type, &mapped_params.data_value);
                     mapped_params.data_type = mapped_data_type;
                 }
@@ -84,14 +85,21 @@ impl MappedScanParameters {
             Some(vectorization_size) => vectorization_size,
         };
 
-        // For discrete types (non-floating point), we can fall back on optimized scans.
-        if mapped_params.data_type.is_discrete() {
+        // For discrete, multi-byte, primitive types (non-floating point), we can fall back on optimized scans if explicitly performing == or != scans.
+        if mapped_params.data_type.is_discrete()
+            && mapped_params.data_value.get_size_in_bytes() > 1
+            && Self::is_checking_equal_or_not_equal(&mapped_params.scan_compare_type)
+        {
             if let Some(periodicity) = Self::calculate_periodicity(user_scan_parameters_global, &mapped_params.data_type, &mapped_params.scan_compare_type) {
                 mapped_params.periodicity = periodicity;
 
                 match periodicity {
                     1 => {
-                        mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::OverlappingBytewisePeriodic);
+                        // Better for debug mode.
+                        // mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::OverlappingBytewisePeriodic);
+
+                        // Better for release mode.
+                        mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::OverlappingBytewiseStaggered);
 
                         return mapped_params;
                     }
@@ -105,9 +113,19 @@ impl MappedScanParameters {
             }
         }
 
-        // Default to scalar iterative if no specialized scan was selected.
-        mapped_params.mapped_scan_type = MappedScanType::Scalar(ScanParametersScalar::ScalarIterative);
-        mapped_params
+        let data_type_size = mapped_params.get_data_type().get_size_in_bytes();
+        let memory_alignment_size = mapped_params.get_memory_alignment() as u64;
+
+        if data_type_size < memory_alignment_size {
+            mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::Overlapping);
+            mapped_params
+        } else if data_type_size > memory_alignment_size {
+            mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::Sparse);
+            mapped_params
+        } else {
+            mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::Aligned);
+            mapped_params
+        }
     }
 
     pub fn get_data_value(&self) -> &DataValue {
@@ -217,6 +235,17 @@ impl MappedScanParameters {
             Some(VectorizationSize::Vector16)
         } else {
             None
+        }
+    }
+
+    fn is_checking_equal_or_not_equal(scan_compare_type: &ScanCompareType) -> bool {
+        match scan_compare_type {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
+                ScanCompareTypeImmediate::Equal => true,
+                ScanCompareTypeImmediate::NotEqual => true,
+                _ => false,
+            },
+            _ => false,
         }
     }
 

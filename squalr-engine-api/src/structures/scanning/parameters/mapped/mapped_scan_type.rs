@@ -8,6 +8,7 @@ pub enum ScanParametersScalar {
 pub enum ScanParametersVector {
     Aligned,
     Sparse,
+    Overlapping,
     OverlappingBytewiseStaggered,
     OverlappingBytewisePeriodic,
 }

@@ -41,6 +41,12 @@ impl ScanDispatcher {
                     ScanParametersScalar::ScalarIterative => ScannerScalarIterative::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
                 },
                 MappedScanType::Vector(scan_parameters_vector) => match scan_parameters_vector {
+                    ScanParametersVector::Overlapping => match scan_parameters.get_vectorization_size() {
+                        // JIRA: Use overlapping scans once implemented.
+                        VectorizationSize::Vector16 => ScannerVectorAligned::<16>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
+                        VectorizationSize::Vector32 => ScannerVectorAligned::<32>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
+                        VectorizationSize::Vector64 => ScannerVectorAligned::<64>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
+                    },
                     ScanParametersVector::Aligned => match scan_parameters.get_vectorization_size() {
                         VectorizationSize::Vector16 => ScannerVectorAligned::<16>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
                         VectorizationSize::Vector32 => ScannerVectorAligned::<32>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),

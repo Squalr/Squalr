@@ -4,6 +4,8 @@ use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
+use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
+use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use std::ptr;
@@ -81,14 +83,35 @@ where
         let true_mask = Simd::<u8, N>::splat(0xFF);
 
         let scan_immedate = scan_parameters.get_data_value();
+        let check_equal = match scan_parameters.get_compare_type() {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
+                ScanCompareTypeImmediate::Equal => true,
+                ScanCompareTypeImmediate::NotEqual => false,
+                _ => {
+                    log::error!("Invalid scan compare immediate type provided to bytewise periodic scan.");
+                    return vec![];
+                }
+            },
+            _ => {
+                log::error!("Invalid scan compare type provided to bytewise periodic scan.");
+                return vec![];
+            }
+        };
 
-        let load_nth_byte_vec = |scan_immedate: &DataValue, byte_index: usize| {
+        let load_nth_byte_vec = |scan_immedate: &DataValue, byte_index: usize| -> Box<dyn Fn(*const u8) -> Simd<u8, N>> {
             let byte_vec = Simd::<u8, N>::splat(scan_immedate.get_value_bytes()[byte_index]);
 
-            Box::new(move |current_values_ptr| {
-                let current_values = unsafe { Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [u8; N])) };
-                VectorGenerics::transmute_mask::<u8, N, N>(current_values.simd_eq(byte_vec))
-            })
+            if check_equal {
+                Box::new(move |current_values_ptr| {
+                    let current_values = unsafe { Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [u8; N])) };
+                    VectorGenerics::transmute_mask::<u8, N, N>(current_values.simd_eq(byte_vec))
+                })
+            } else {
+                Box::new(move |current_values_ptr| {
+                    let current_values = unsafe { Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [u8; N])) };
+                    VectorGenerics::transmute_mask::<u8, N, N>(current_values.simd_ne(byte_vec))
+                })
+            }
         };
 
         let periodicity = scan_parameters.get_periodicity();
@@ -223,7 +246,7 @@ where
                 }
             }
             _ => {
-                log::error!("Unsupported data type size provided to 2-periodic scan!");
+                log::error!("Unsupported data type size provided to bytewise periodic scan!");
                 return vec![];
             }
         }

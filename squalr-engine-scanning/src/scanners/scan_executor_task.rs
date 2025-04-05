@@ -47,6 +47,8 @@ impl ScanExecutorTask {
         user_scan_parameters_global: &UserScanParametersGlobal,
         with_logging: bool,
     ) {
+        let total_start_time = Instant::now();
+
         // If the parameter is set, first collect values before the scan.
         // This is slower overall than interleaving the reads, but better for capturing values that may soon change.
         if user_scan_parameters_global.get_memory_read_mode() == ScanMemoryReadMode::ReadBeforeScan {
@@ -130,9 +132,11 @@ impl ScanExecutorTask {
         if with_logging {
             let byte_count = snapshot.get_byte_count();
             let duration = start_time.elapsed();
+            let total_duration = total_start_time.elapsed();
 
             log::info!("Results: {} bytes", Conversions::value_to_metric_size(byte_count));
             log::info!("Scan complete in: {:?}", duration);
+            log::info!("Total scan time: {:?}", total_duration);
         }
     }
 }
