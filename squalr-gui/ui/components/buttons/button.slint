@@ -48,11 +48,15 @@ export component Button {
         mouse-entered() => {
             if (root.enabled) {
                 root.mouse-entered();
+                if tooltip-text != "" {
+                    // tooltip.show();
+                }
             }
         }
         mouse-exited() => {
             if (root.enabled) {
                 root.mouse-exited();
+                // tooltip.close();
             }
         }
     }
@@ -77,12 +81,6 @@ export component Button {
     }
 
     @children
-
-    // JIRA
-    // if tooltip-text != "" {
-        //  tooltip.show();
-    // }
-
     tooltip := Tooltip {
         x: root.x;
         y: root.y + root.height;
