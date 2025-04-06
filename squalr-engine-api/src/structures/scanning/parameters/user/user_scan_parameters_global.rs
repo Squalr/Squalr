@@ -42,9 +42,8 @@ impl UserScanParametersGlobal {
 
     pub fn get_compare_immediate(&self) -> Option<&AnonymousValue> {
         match self.get_compare_type() {
-            ScanCompareType::Immediate(_) => self.compare_immediate.as_ref(),
+            ScanCompareType::Immediate(_) | ScanCompareType::Delta(_) => self.compare_immediate.as_ref(),
             ScanCompareType::Relative(_) => None,
-            ScanCompareType::Delta(_) => None,
         }
     }
 

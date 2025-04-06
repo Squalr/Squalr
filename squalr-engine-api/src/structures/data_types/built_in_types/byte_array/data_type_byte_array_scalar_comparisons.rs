@@ -5,6 +5,14 @@ use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompare
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnRelative;
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use std::cmp::Ordering;
+use std::ops::BitAnd;
+use std::ops::BitOr;
+use std::ops::BitXor;
+use std::ops::Div;
+use std::ops::Mul;
+use std::ops::Rem;
+use std::ops::Shl;
+use std::ops::Shr;
 
 /// Scalar comparison functions for comparing byte arrays. Note that these functions operate on single array values.
 /// For performance-critical scans, specialized algorithms are implemented elsewhere.
@@ -199,6 +207,174 @@ impl ScalarComparable for DataTypeByteArray {
                 .zip(previous_values.iter())
                 .zip(delta_values.iter())
                 .all(|((current_value, previous_value), delta_value)| current_value.wrapping_sub(*delta_value) == *previous_value)
+        }))
+    }
+
+    fn get_compare_multiplied_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_parameters.get_data_value();
+        let delta_values = immediate_values.get_value_bytes().clone();
+        let len = delta_values.len();
+
+        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+            let current_values = std::slice::from_raw_parts(current_values_ptr, len);
+            let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
+
+            current_values
+                .iter()
+                .zip(previous_values.iter())
+                .zip(delta_values.iter())
+                .all(|((current_value, previous_value), delta_value)| current_value.mul(*delta_value) == *previous_value)
+        }))
+    }
+
+    fn get_compare_divided_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_parameters.get_data_value();
+        let delta_values = immediate_values.get_value_bytes().clone();
+        let len = delta_values.len();
+
+        if delta_values.iter().any(|value| *value == 0) {
+            return None;
+        }
+
+        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+            let current_values = std::slice::from_raw_parts(current_values_ptr, len);
+            let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
+
+            current_values
+                .iter()
+                .zip(previous_values.iter())
+                .zip(delta_values.iter())
+                .all(|((current_value, previous_value), delta_value)| current_value.div(*delta_value) == *previous_value)
+        }))
+    }
+
+    fn get_compare_modulo_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_parameters.get_data_value();
+        let delta_values = immediate_values.get_value_bytes().clone();
+        let len = delta_values.len();
+
+        if delta_values.iter().any(|value| *value == 0) {
+            return None;
+        }
+
+        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+            let current_values = std::slice::from_raw_parts(current_values_ptr, len);
+            let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
+
+            current_values
+                .iter()
+                .zip(previous_values.iter())
+                .zip(delta_values.iter())
+                .all(|((current_value, previous_value), delta_value)| current_value.rem(*delta_value) == *previous_value)
+        }))
+    }
+
+    fn get_compare_shift_left_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_parameters.get_data_value();
+        let delta_values = immediate_values.get_value_bytes().clone();
+        let len = delta_values.len();
+
+        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+            let current_values = std::slice::from_raw_parts(current_values_ptr, len);
+            let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
+
+            current_values
+                .iter()
+                .zip(previous_values.iter())
+                .zip(delta_values.iter())
+                .all(|((current_value, previous_value), delta_value)| current_value.shl(*delta_value) == *previous_value)
+        }))
+    }
+
+    fn get_compare_shift_right_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_parameters.get_data_value();
+        let delta_values = immediate_values.get_value_bytes().clone();
+        let len = delta_values.len();
+
+        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+            let current_values = std::slice::from_raw_parts(current_values_ptr, len);
+            let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
+
+            current_values
+                .iter()
+                .zip(previous_values.iter())
+                .zip(delta_values.iter())
+                .all(|((current_value, previous_value), delta_value)| current_value.shr(*delta_value) == *previous_value)
+        }))
+    }
+
+    fn get_compare_logical_and_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_parameters.get_data_value();
+        let delta_values = immediate_values.get_value_bytes().clone();
+        let len = delta_values.len();
+
+        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+            let current_values = std::slice::from_raw_parts(current_values_ptr, len);
+            let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
+
+            current_values
+                .iter()
+                .zip(previous_values.iter())
+                .zip(delta_values.iter())
+                .all(|((current_value, previous_value), delta_value)| current_value.bitand(*delta_value) == *previous_value)
+        }))
+    }
+
+    fn get_compare_logical_or_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_parameters.get_data_value();
+        let delta_values = immediate_values.get_value_bytes().clone();
+        let len = delta_values.len();
+
+        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+            let current_values = std::slice::from_raw_parts(current_values_ptr, len);
+            let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
+
+            current_values
+                .iter()
+                .zip(previous_values.iter())
+                .zip(delta_values.iter())
+                .all(|((current_value, previous_value), delta_value)| current_value.bitor(*delta_value) == *previous_value)
+        }))
+    }
+
+    fn get_compare_logical_xor_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_parameters.get_data_value();
+        let delta_values = immediate_values.get_value_bytes().clone();
+        let len = delta_values.len();
+
+        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+            let current_values = std::slice::from_raw_parts(current_values_ptr, len);
+            let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
+
+            current_values
+                .iter()
+                .zip(previous_values.iter())
+                .zip(delta_values.iter())
+                .all(|((current_value, previous_value), delta_value)| current_value.bitxor(*delta_value) == *previous_value)
         }))
     }
 }

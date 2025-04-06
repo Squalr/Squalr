@@ -1,8 +1,7 @@
-use num_traits::Float;
-
 use crate::structures::data_types::generics::vector_generics::VectorGenerics;
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
-use std::ops::{Add, Sub};
+use num_traits::Float;
+use std::ops::{Add, Div, Mul, Rem, Sub};
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
 use std::simd::num::{SimdFloat, SimdUint};
 use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
@@ -280,6 +279,84 @@ impl VectorComparisonsFloatBigEndian {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
             let previous_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(previous_values_ptr);
             let target_values = previous_values.sub(delta_value);
+
+            // Equality between the current and target value is determined by being within the given tolerance.
+            VectorGenerics::transmute_mask(current_values.sub(target_values).abs().simd_le(tolerance))
+        }))
+    }
+
+    pub fn get_vector_compare_multiplied_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + 'static>(
+        scan_parameters: &MappedScanParameters
+    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    where
+        LaneCount<N>: SupportedLaneCount,
+        LaneCount<E>: SupportedLaneCount,
+        Simd<PrimitiveType, E>: SimdFloat
+            + SimdPartialOrd
+            + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>
+            + Mul<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
+    {
+        let immediate_value = scan_parameters.get_data_value();
+        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
+        let delta_value_ptr = immediate_value.as_ptr();
+        let delta_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(delta_value_ptr));
+
+        Some(Box::new(move |current_values_ptr, previous_values_ptr| {
+            let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
+            let previous_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(previous_values_ptr);
+            let target_values = previous_values.mul(delta_value);
+
+            // Equality between the current and target value is determined by being within the given tolerance.
+            VectorGenerics::transmute_mask(current_values.sub(target_values).abs().simd_le(tolerance))
+        }))
+    }
+
+    pub fn get_vector_compare_divided_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + 'static>(
+        scan_parameters: &MappedScanParameters
+    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    where
+        LaneCount<N>: SupportedLaneCount,
+        LaneCount<E>: SupportedLaneCount,
+        Simd<PrimitiveType, E>: SimdFloat
+            + SimdPartialOrd
+            + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>
+            + Div<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
+    {
+        let immediate_value = scan_parameters.get_data_value();
+        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
+        let delta_value_ptr = immediate_value.as_ptr();
+        let delta_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(delta_value_ptr));
+
+        Some(Box::new(move |current_values_ptr, previous_values_ptr| {
+            let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
+            let previous_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(previous_values_ptr);
+            let target_values = previous_values.div(delta_value);
+
+            // Equality between the current and target value is determined by being within the given tolerance.
+            VectorGenerics::transmute_mask(current_values.sub(target_values).abs().simd_le(tolerance))
+        }))
+    }
+
+    pub fn get_vector_compare_modulo_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + 'static>(
+        scan_parameters: &MappedScanParameters
+    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    where
+        LaneCount<N>: SupportedLaneCount,
+        LaneCount<E>: SupportedLaneCount,
+        Simd<PrimitiveType, E>: SimdFloat
+            + SimdPartialOrd
+            + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>
+            + Rem<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
+    {
+        let immediate_value = scan_parameters.get_data_value();
+        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
+        let delta_value_ptr = immediate_value.as_ptr();
+        let delta_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(delta_value_ptr));
+
+        Some(Box::new(move |current_values_ptr, previous_values_ptr| {
+            let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
+            let previous_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(previous_values_ptr);
+            let target_values = previous_values.rem(delta_value);
 
             // Equality between the current and target value is determined by being within the given tolerance.
             VectorGenerics::transmute_mask(current_values.sub(target_values).abs().simd_le(tolerance))

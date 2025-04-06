@@ -270,4 +270,172 @@ impl VectorComparable for DataTypeF32be {
     ) -> Option<VectorCompareFnDelta16> {
         VectorComparisonsFloatBigEndian::get_vector_compare_decreased_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
     }
+
+    fn get_vector_compare_multiplied_by_64(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        VectorComparisonsFloatBigEndian::get_vector_compare_multiplied_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
+    }
+
+    fn get_vector_compare_multiplied_by_32(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        VectorComparisonsFloatBigEndian::get_vector_compare_multiplied_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
+    }
+
+    fn get_vector_compare_multiplied_by_16(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        VectorComparisonsFloatBigEndian::get_vector_compare_multiplied_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
+    }
+
+    fn get_vector_compare_divided_by_64(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        VectorComparisonsFloatBigEndian::get_vector_compare_divided_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
+    }
+
+    fn get_vector_compare_divided_by_32(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        VectorComparisonsFloatBigEndian::get_vector_compare_divided_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
+    }
+
+    fn get_vector_compare_divided_by_16(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        VectorComparisonsFloatBigEndian::get_vector_compare_divided_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
+    }
+
+    fn get_vector_compare_modulo_by_64(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        VectorComparisonsFloatBigEndian::get_vector_compare_modulo_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(scan_parameters)
+    }
+
+    fn get_vector_compare_modulo_by_32(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        VectorComparisonsFloatBigEndian::get_vector_compare_modulo_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(scan_parameters)
+    }
+
+    fn get_vector_compare_modulo_by_16(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        VectorComparisonsFloatBigEndian::get_vector_compare_modulo_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_parameters)
+    }
+
+    fn get_vector_compare_shift_left_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_shift_left_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_shift_left_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
+
+    fn get_vector_compare_shift_right_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_shift_right_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_shift_right_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
+
+    fn get_vector_compare_logical_and_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_logical_and_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_logical_and_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
+
+    fn get_vector_compare_logical_or_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_logical_or_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_logical_or_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
+
+    fn get_vector_compare_logical_xor_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_logical_xor_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_logical_xor_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
 }

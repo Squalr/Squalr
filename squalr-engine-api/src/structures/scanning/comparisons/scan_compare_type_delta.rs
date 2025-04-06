@@ -4,4 +4,12 @@ use serde::{Deserialize, Serialize};
 pub enum ScanCompareTypeDelta {
     IncreasedByX,
     DecreasedByX,
+    MultipliedByX,
+    DividedByX,
+    ModuloByX,
+    ShiftLeftByX,
+    ShiftRightByX,
+    LogicalAndByX,
+    LogicalOrByX,
+    LogicalXorByX,
 }

@@ -166,4 +166,58 @@ impl ScalarComparisonsFloat {
             current_value.sub(target_value).abs() <= tolerance
         }))
     }
+
+    pub fn get_compare_multiplied_by<PrimitiveType: Copy + PartialEq + Float + Add<Output = PrimitiveType> + Sub<Output = PrimitiveType> + 'static>(
+        scan_parameters: &MappedScanParameters
+    ) -> Option<ScalarCompareFnDelta> {
+        let immediate_value = scan_parameters.get_data_value();
+        let tolerance = scan_parameters.get_floating_point_tolerance().get_value();
+        let delta_value_ptr = immediate_value.as_ptr();
+        let delta_value = unsafe { ptr::read_unaligned(delta_value_ptr as *const PrimitiveType) };
+
+        Some(Box::new(move |current_value_ptr, previous_value_ptr| {
+            let current_value = unsafe { ptr::read_unaligned(current_value_ptr as *const PrimitiveType) };
+            let previous_value = unsafe { ptr::read_unaligned(previous_value_ptr as *const PrimitiveType) };
+            let target_value = previous_value.mul(delta_value);
+
+            // Equality between the current and target value is determined by being within the given tolerance.
+            current_value.sub(target_value).abs() <= tolerance
+        }))
+    }
+
+    pub fn get_compare_divided_by<PrimitiveType: Copy + PartialEq + Float + Add<Output = PrimitiveType> + Sub<Output = PrimitiveType> + 'static>(
+        scan_parameters: &MappedScanParameters
+    ) -> Option<ScalarCompareFnDelta> {
+        let immediate_value = scan_parameters.get_data_value();
+        let tolerance = scan_parameters.get_floating_point_tolerance().get_value();
+        let delta_value_ptr = immediate_value.as_ptr();
+        let delta_value = unsafe { ptr::read_unaligned(delta_value_ptr as *const PrimitiveType) };
+
+        Some(Box::new(move |current_value_ptr, previous_value_ptr| {
+            let current_value = unsafe { ptr::read_unaligned(current_value_ptr as *const PrimitiveType) };
+            let previous_value = unsafe { ptr::read_unaligned(previous_value_ptr as *const PrimitiveType) };
+            let target_value = previous_value.div(delta_value);
+
+            // Equality between the current and target value is determined by being within the given tolerance.
+            current_value.sub(target_value).abs() <= tolerance
+        }))
+    }
+
+    pub fn get_compare_modulo_by<PrimitiveType: Copy + PartialEq + Float + Add<Output = PrimitiveType> + Sub<Output = PrimitiveType> + 'static>(
+        scan_parameters: &MappedScanParameters
+    ) -> Option<ScalarCompareFnDelta> {
+        let immediate_value = scan_parameters.get_data_value();
+        let tolerance = scan_parameters.get_floating_point_tolerance().get_value();
+        let delta_value_ptr = immediate_value.as_ptr();
+        let delta_value = unsafe { ptr::read_unaligned(delta_value_ptr as *const PrimitiveType) };
+
+        Some(Box::new(move |current_value_ptr, previous_value_ptr| {
+            let current_value = unsafe { ptr::read_unaligned(current_value_ptr as *const PrimitiveType) };
+            let previous_value = unsafe { ptr::read_unaligned(previous_value_ptr as *const PrimitiveType) };
+            let target_value = previous_value.rem(delta_value);
+
+            // Equality between the current and target value is determined by being within the given tolerance.
+            current_value.sub(target_value).abs() <= tolerance
+        }))
+    }
 }

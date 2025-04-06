@@ -91,4 +91,60 @@ impl ScalarComparable for DataTypeF32 {
     ) -> Option<ScalarCompareFnRelative> {
         ScalarComparisonsFloat::get_compare_decreased_by::<PrimitiveType>(scan_parameters)
     }
+
+    fn get_compare_multiplied_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnRelative> {
+        ScalarComparisonsFloat::get_compare_multiplied_by::<PrimitiveType>(scan_parameters)
+    }
+
+    fn get_compare_divided_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnRelative> {
+        ScalarComparisonsFloat::get_compare_divided_by::<PrimitiveType>(scan_parameters)
+    }
+
+    fn get_compare_modulo_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnRelative> {
+        ScalarComparisonsFloat::get_compare_modulo_by::<PrimitiveType>(scan_parameters)
+    }
+
+    fn get_compare_shift_left_by(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnRelative> {
+        None
+    }
+
+    fn get_compare_shift_right_by(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnRelative> {
+        None
+    }
+
+    fn get_compare_logical_and_by(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnRelative> {
+        None
+    }
+
+    fn get_compare_logical_or_by(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnRelative> {
+        None
+    }
+
+    fn get_compare_logical_xor_by(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnRelative> {
+        None
+    }
 }

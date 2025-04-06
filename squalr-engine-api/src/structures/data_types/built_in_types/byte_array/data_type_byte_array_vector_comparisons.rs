@@ -259,4 +259,169 @@ impl VectorComparable for DataTypeByteArray {
     ) -> Option<VectorCompareFnDelta16> {
         None
     }
+
+    fn get_vector_compare_multiplied_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_multiplied_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_multiplied_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
+
+    fn get_vector_compare_divided_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_divided_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_divided_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
+
+    fn get_vector_compare_modulo_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_modulo_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_modulo_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
+
+    fn get_vector_compare_shift_left_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_shift_left_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_shift_left_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
+    fn get_vector_compare_shift_right_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_shift_right_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_shift_right_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
+
+    fn get_vector_compare_logical_and_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_logical_and_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_logical_and_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
+    fn get_vector_compare_logical_or_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_logical_or_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_logical_or_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
+    fn get_vector_compare_logical_xor_by_64(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64> {
+        None
+    }
+
+    fn get_vector_compare_logical_xor_by_32(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32> {
+        None
+    }
+
+    fn get_vector_compare_logical_xor_by_16(
+        &self,
+        _scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16> {
+        None
+    }
 }

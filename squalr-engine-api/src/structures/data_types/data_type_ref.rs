@@ -163,6 +163,14 @@ impl DataTypeRef {
             Some(data_type) => match scan_compare_type {
                 ScanCompareTypeDelta::IncreasedByX => data_type.get_compare_increased_by(scan_parameters),
                 ScanCompareTypeDelta::DecreasedByX => data_type.get_compare_decreased_by(scan_parameters),
+                ScanCompareTypeDelta::MultipliedByX => data_type.get_compare_multiplied_by(scan_parameters),
+                ScanCompareTypeDelta::DividedByX => data_type.get_compare_divided_by(scan_parameters),
+                ScanCompareTypeDelta::ModuloByX => data_type.get_compare_modulo_by(scan_parameters),
+                ScanCompareTypeDelta::ShiftLeftByX => data_type.get_compare_shift_left_by(scan_parameters),
+                ScanCompareTypeDelta::ShiftRightByX => data_type.get_compare_shift_right_by(scan_parameters),
+                ScanCompareTypeDelta::LogicalAndByX => data_type.get_compare_logical_and_by(scan_parameters),
+                ScanCompareTypeDelta::LogicalOrByX => data_type.get_compare_logical_or_by(scan_parameters),
+                ScanCompareTypeDelta::LogicalXorByX => data_type.get_compare_logical_xor_by(scan_parameters),
             },
             None => None,
         }

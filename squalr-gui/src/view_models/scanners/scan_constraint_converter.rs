@@ -46,6 +46,14 @@ impl ViewDataConverter<ScanCompareType, ScanConstraintTypeView> for ScanConstrai
             ScanCompareType::Delta(scan_compare_type_delta) => match scan_compare_type_delta {
                 ScanCompareTypeDelta::IncreasedByX => ScanConstraintTypeView::IncreasedByX,
                 ScanCompareTypeDelta::DecreasedByX => ScanConstraintTypeView::DecreasedByX,
+                ScanCompareTypeDelta::MultipliedByX => ScanConstraintTypeView::MultipliedByX,
+                ScanCompareTypeDelta::DividedByX => ScanConstraintTypeView::DividedByX,
+                ScanCompareTypeDelta::ModuloByX => ScanConstraintTypeView::ModuloByX,
+                ScanCompareTypeDelta::ShiftLeftByX => ScanConstraintTypeView::ShiftLeftByX,
+                ScanCompareTypeDelta::ShiftRightByX => ScanConstraintTypeView::ShiftRightByX,
+                ScanCompareTypeDelta::LogicalAndByX => ScanConstraintTypeView::LogicalAndByX,
+                ScanCompareTypeDelta::LogicalOrByX => ScanConstraintTypeView::LogicalOrByX,
+                ScanCompareTypeDelta::LogicalXorByX => ScanConstraintTypeView::LogicalXorByX,
             },
         }
     }
@@ -67,6 +75,14 @@ impl ViewDataConverter<ScanCompareType, ScanConstraintTypeView> for ScanConstrai
             ScanConstraintTypeView::Decreased => ScanCompareType::Relative(ScanCompareTypeRelative::Decreased),
             ScanConstraintTypeView::IncreasedByX => ScanCompareType::Delta(ScanCompareTypeDelta::IncreasedByX),
             ScanConstraintTypeView::DecreasedByX => ScanCompareType::Delta(ScanCompareTypeDelta::DecreasedByX),
+            ScanConstraintTypeView::MultipliedByX => ScanCompareType::Delta(ScanCompareTypeDelta::MultipliedByX),
+            ScanConstraintTypeView::DividedByX => ScanCompareType::Delta(ScanCompareTypeDelta::DividedByX),
+            ScanConstraintTypeView::ModuloByX => ScanCompareType::Delta(ScanCompareTypeDelta::ModuloByX),
+            ScanConstraintTypeView::ShiftLeftByX => ScanCompareType::Delta(ScanCompareTypeDelta::ShiftLeftByX),
+            ScanConstraintTypeView::ShiftRightByX => ScanCompareType::Delta(ScanCompareTypeDelta::ShiftRightByX),
+            ScanConstraintTypeView::LogicalAndByX => ScanCompareType::Delta(ScanCompareTypeDelta::LogicalAndByX),
+            ScanConstraintTypeView::LogicalOrByX => ScanCompareType::Delta(ScanCompareTypeDelta::LogicalOrByX),
+            ScanConstraintTypeView::LogicalXorByX => ScanCompareType::Delta(ScanCompareTypeDelta::LogicalXorByX),
         }
     }
 }

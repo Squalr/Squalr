@@ -169,6 +169,102 @@ pub trait VectorComparable {
         &self,
         scan_parameters: &MappedScanParameters,
     ) -> Option<VectorCompareFnDelta16>;
+    fn get_vector_compare_multiplied_by_64(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64>;
+    fn get_vector_compare_multiplied_by_32(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32>;
+    fn get_vector_compare_multiplied_by_16(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16>;
+    fn get_vector_compare_divided_by_64(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64>;
+    fn get_vector_compare_divided_by_32(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32>;
+    fn get_vector_compare_divided_by_16(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16>;
+    fn get_vector_compare_modulo_by_64(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64>;
+    fn get_vector_compare_modulo_by_32(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32>;
+    fn get_vector_compare_modulo_by_16(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16>;
+    fn get_vector_compare_shift_left_by_64(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64>;
+    fn get_vector_compare_shift_left_by_32(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32>;
+    fn get_vector_compare_shift_left_by_16(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16>;
+    fn get_vector_compare_shift_right_by_64(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64>;
+    fn get_vector_compare_shift_right_by_32(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32>;
+    fn get_vector_compare_shift_right_by_16(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16>;
+    fn get_vector_compare_logical_and_by_64(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64>;
+    fn get_vector_compare_logical_and_by_32(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32>;
+    fn get_vector_compare_logical_and_by_16(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16>;
+    fn get_vector_compare_logical_or_by_64(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64>;
+    fn get_vector_compare_logical_or_by_32(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32>;
+    fn get_vector_compare_logical_or_by_16(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16>;
+    fn get_vector_compare_logical_xor_by_64(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta64>;
+    fn get_vector_compare_logical_xor_by_32(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta32>;
+    fn get_vector_compare_logical_xor_by_16(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<VectorCompareFnDelta16>;
 
     fn get_vector_compare_func_immediate_64(
         &self,
@@ -262,6 +358,14 @@ pub trait VectorComparable {
         match scan_compare_type {
             ScanCompareTypeDelta::IncreasedByX => self.get_vector_compare_increased_by_64(scan_parameters),
             ScanCompareTypeDelta::DecreasedByX => self.get_vector_compare_decreased_by_64(scan_parameters),
+            ScanCompareTypeDelta::MultipliedByX => self.get_vector_compare_multiplied_by_64(scan_parameters),
+            ScanCompareTypeDelta::DividedByX => self.get_vector_compare_divided_by_64(scan_parameters),
+            ScanCompareTypeDelta::ModuloByX => self.get_vector_compare_modulo_by_64(scan_parameters),
+            ScanCompareTypeDelta::ShiftLeftByX => self.get_vector_compare_shift_left_by_64(scan_parameters),
+            ScanCompareTypeDelta::ShiftRightByX => self.get_vector_compare_shift_right_by_64(scan_parameters),
+            ScanCompareTypeDelta::LogicalAndByX => self.get_vector_compare_logical_and_by_64(scan_parameters),
+            ScanCompareTypeDelta::LogicalOrByX => self.get_vector_compare_logical_or_by_64(scan_parameters),
+            ScanCompareTypeDelta::LogicalXorByX => self.get_vector_compare_logical_xor_by_64(scan_parameters),
         }
     }
 
@@ -273,6 +377,14 @@ pub trait VectorComparable {
         match scan_compare_type {
             ScanCompareTypeDelta::IncreasedByX => self.get_vector_compare_increased_by_32(scan_parameters),
             ScanCompareTypeDelta::DecreasedByX => self.get_vector_compare_decreased_by_32(scan_parameters),
+            ScanCompareTypeDelta::MultipliedByX => self.get_vector_compare_multiplied_by_32(scan_parameters),
+            ScanCompareTypeDelta::DividedByX => self.get_vector_compare_divided_by_32(scan_parameters),
+            ScanCompareTypeDelta::ModuloByX => self.get_vector_compare_modulo_by_32(scan_parameters),
+            ScanCompareTypeDelta::ShiftLeftByX => self.get_vector_compare_shift_left_by_32(scan_parameters),
+            ScanCompareTypeDelta::ShiftRightByX => self.get_vector_compare_shift_right_by_32(scan_parameters),
+            ScanCompareTypeDelta::LogicalAndByX => self.get_vector_compare_logical_and_by_32(scan_parameters),
+            ScanCompareTypeDelta::LogicalOrByX => self.get_vector_compare_logical_or_by_32(scan_parameters),
+            ScanCompareTypeDelta::LogicalXorByX => self.get_vector_compare_logical_xor_by_32(scan_parameters),
         }
     }
 
@@ -284,6 +396,14 @@ pub trait VectorComparable {
         match scan_compare_type {
             ScanCompareTypeDelta::IncreasedByX => self.get_vector_compare_increased_by_16(scan_parameters),
             ScanCompareTypeDelta::DecreasedByX => self.get_vector_compare_decreased_by_16(scan_parameters),
+            ScanCompareTypeDelta::MultipliedByX => self.get_vector_compare_multiplied_by_16(scan_parameters),
+            ScanCompareTypeDelta::DividedByX => self.get_vector_compare_divided_by_16(scan_parameters),
+            ScanCompareTypeDelta::ModuloByX => self.get_vector_compare_modulo_by_16(scan_parameters),
+            ScanCompareTypeDelta::ShiftLeftByX => self.get_vector_compare_shift_left_by_16(scan_parameters),
+            ScanCompareTypeDelta::ShiftRightByX => self.get_vector_compare_shift_right_by_16(scan_parameters),
+            ScanCompareTypeDelta::LogicalAndByX => self.get_vector_compare_logical_and_by_16(scan_parameters),
+            ScanCompareTypeDelta::LogicalOrByX => self.get_vector_compare_logical_or_by_16(scan_parameters),
+            ScanCompareTypeDelta::LogicalXorByX => self.get_vector_compare_logical_xor_by_16(scan_parameters),
         }
     }
 }

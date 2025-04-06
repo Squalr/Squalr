@@ -49,12 +49,13 @@ Features:
 - [X] HexDecBox support for entering scan values (similar to C# version).
 - [X] Sparse Scans.
 - [X] Array of byte scans.
-- [ ] Vectorized overlapping scans.
-- [ ] Periodic Vectorized overlapping scans.
+- [X] Vectorized overlapping scans.
+- [X] Periodic Vectorized overlapping scans.
+- [ ] String scans.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 - [ ] Freezing/deleting scan results directly from scan window.
 - [ ] Property viewer.
-- [ ] String scans.
+- [ ] Settings system that respects command/response, IPC, etc.
 
 ## Post-launch tasklist
 Lower priority features that we can defer, for now.
@@ -62,7 +63,8 @@ Lower priority features that we can defer, for now.
 Features:
 - [ ] Pointer Scans
 - [ ] Memory viewer
-- [ ] Vectorized overlapping scans (non-periodic) -- not pre-launch required as we can just fall back to byte array scans for this.
+- [ ] Masked byte scans.
+- [ ] Bitfield scans.
 - [ ] Plugin system for new data types. The engine is already designed with this feature in mind, so actually this should be fairly easy.
 - [ ] Plugin system to support emulator middleware (ie filtering queried virtual memory, remapping virtual address space, etc).
 - [ ] Plugin system to support virtual modules. Very similar to above, but registering fake modules, with emulators again being the primary use case.

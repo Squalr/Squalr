@@ -63,4 +63,36 @@ pub trait ScalarComparable {
         &self,
         scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta>;
+    fn get_compare_multiplied_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta>;
+    fn get_compare_divided_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta>;
+    fn get_compare_modulo_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta>;
+    fn get_compare_shift_left_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta>;
+    fn get_compare_shift_right_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta>;
+    fn get_compare_logical_and_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta>;
+    fn get_compare_logical_or_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta>;
+    fn get_compare_logical_xor_by(
+        &self,
+        scan_parameters: &MappedScanParameters,
+    ) -> Option<ScalarCompareFnDelta>;
 }

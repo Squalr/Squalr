@@ -35,111 +35,277 @@ export component ScanConstraintTypeSelector inherits Rectangle {
     context-menu := ContextMenu {
         x: select-scan-constraint-button.x;
         y: select-scan-constraint-button.y + select-scan-constraint-button.height;
-        constraint-changed := ScanConstraintButton {
-            text: @tr("Changed");
-            icon: @image-url("./../images/scans/scan_changed.png");
-            tooltip-text: "Scan for values that have changed since the previous scan.";
-            clicked => {
-                ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.changed;
-            }
-        }
+        content := Rectangle {
+            border-color: Theme.submenu-border;
+            border-width: 2px;
+            grid-layout := GridLayout {
+                padding: parent.border-width;
+                spacing: 0px;
+                Rectangle {
+                    colspan: 2;
+                    background: Theme.background-panel;
+                    HorizontalLayout {
+                        alignment: start;
+                        padding: 2px;
+                        padding-left: 8px;
+                        Text {
+                            text: @tr("Relative");
+                            color: Theme.foreground;
+                            font-size: Theme.font-size-h5;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
 
-        constraint-unchanged := ScanConstraintButton {
-            text: @tr("Unchanged");
-            icon: @image-url("./../images/scans/scan_unchanged.png");
-            tooltip-text: "Scan for values that have not changed since the previous scan.";
-            clicked => {
-                ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.unchanged;
-            }
-        }
+                Row {
+                    constraint-changed := ScanConstraintButton {
+                        text: @tr("Changed");
+                        icon: @image-url("./../images/scans/scan_relative_changed.png");
+                        tooltip-text: "Scan for values that have changed since the previous scan.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.changed;
+                        }
+                    }
 
-        constraint-increased := ScanConstraintButton {
-            text: @tr("Increased");
-            icon: @image-url("./../images/scans/scan_increased.png");
-            tooltip-text: "Scan for values that have increased since the previous scan.";
-            clicked => {
-                ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.increased;
-            }
-        }
+                    constraint-unchanged := ScanConstraintButton {
+                        text: @tr("Unchanged");
+                        icon: @image-url("./../images/scans/scan_relative_unchanged.png");
+                        tooltip-text: "Scan for values that have not changed since the previous scan.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.unchanged;
+                        }
+                    }
+                }
 
-        constraint-decreased := ScanConstraintButton {
-            text: @tr("Decreased");
-            icon: @image-url("./../images/scans/scan_decreased.png");
-            tooltip-text: "Scan for values that have decreased since the previous scan.";
-            clicked => {
-                ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.decreased;
-            }
-        }
+                Row {
+                    constraint-increased := ScanConstraintButton {
+                        text: @tr("Increased");
+                        icon: @image-url("./../images/scans/scan_relative_increased.png");
+                        tooltip-text: "Scan for values that have increased since the previous scan.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.increased;
+                        }
+                    }
 
-        constraint-equal := ScanConstraintButton {
-            text: @tr("Equal");
-            icon: @image-url("./../images/scans/scan_equal.png");
-            tooltip-text: "Scan for values that are equal to the entered value.";
-            clicked => {
-                ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.equal;
-            }
-        }
+                    constraint-decreased := ScanConstraintButton {
+                        text: @tr("Decreased");
+                        icon: @image-url("./../images/scans/scan_relative_decreased.png");
+                        tooltip-text: "Scan for values that have decreased since the previous scan.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.decreased;
+                        }
+                    }
+                }
 
-        constraint-not-equal := ScanConstraintButton {
-            text: @tr("Not Equal");
-            icon: @image-url("./../images/scans/scan_not_equal.png");
-            tooltip-text: "Scan for values that are not equal to the entered value.";
-            clicked => {
-                ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.not_equal;
-            }
-        }
+                Rectangle {
+                    colspan: 2;
+                    background: Theme.background-panel;
+                    HorizontalLayout {
+                        alignment: start;
+                        padding: 2px;
+                        padding-left: 8px;
+                        Text {
+                            text: @tr("Immediate");
+                            color: Theme.foreground;
+                            font-size: Theme.font-size-h5;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
 
-        constraint-increased-by-x := ScanConstraintButton {
-            text: @tr("Increased by");
-            icon: @image-url("./../images/scans/scan_increased_by_x.png");
-            tooltip-text: "Scan for values that have increased by the entered value.";
-            clicked => {
-                ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.increased_by_x;
-            }
-        }
+                Row {
+                    constraint-equal := ScanConstraintButton {
+                        text: @tr("Equal");
+                        icon: @image-url("./../images/scans/scan_immediate_equal.png");
+                        tooltip-text: "Scan for values that are equal to the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.equal;
+                        }
+                    }
 
-        constraint-decreased-by-x := ScanConstraintButton {
-            text: @tr("Decreased by");
-            icon: @image-url("./../images/scans/scan_decreased_by_x.png");
-            tooltip-text: "Scan for values that have decreased by the entered value.";
-            clicked => {
-                ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.decreased_by_x;
-            }
-        }
+                    constraint-not-equal := ScanConstraintButton {
+                        text: @tr("Not Equal");
+                        icon: @image-url("./../images/scans/scan_immediate_not_equal.png");
+                        tooltip-text: "Scan for values that are not equal to the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.not_equal;
+                        }
+                    }
+                }
 
-        constraint-greater-than := ScanConstraintButton {
-            text: @tr("Greater Than");
-            icon: @image-url("./../images/scans/scan_greater_than.png");
-            tooltip-text: "Scan for values that are greater than the entered value.";
-            clicked => {
-                ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.greater_than;
-            }
-        }
+                Row {
+                    constraint-greater-than := ScanConstraintButton {
+                        text: @tr("Greater Than");
+                        icon: @image-url("./../images/scans/scan_immediate_greater_than.png");
+                        tooltip-text: "Scan for values that are greater than the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.greater_than;
+                        }
+                    }
 
-        constraint-greater-than-or-equal := ScanConstraintButton {
-            text: @tr("Greater Than or Equal to");
-            icon: @image-url("./../images/scans/scan_greater_than_or_equal.png");
-            tooltip-text: "Scan for values that are greater than or equal to the entered value.";
-            clicked => {
-                ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.greater_than_or_equal;
-            }
-        }
+                    constraint-greater-than-or-equal := ScanConstraintButton {
+                        text: @tr("Greater Than or Equal to");
+                        icon: @image-url("./../images/scans/scan_immediate_greater_than_or_equal.png");
+                        tooltip-text: "Scan for values that are greater than or equal to the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.greater_than_or_equal;
+                        }
+                    }
+                }
 
-        constraint-less-than := ScanConstraintButton {
-            text: @tr("Less Than");
-            icon: @image-url("./../images/scans/scan_less_than.png");
-            tooltip-text: "Scan for values that are less than the entered value.";
-            clicked => {
-                ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.less-than;
-            }
-        }
+                Row {
+                    constraint-less-than := ScanConstraintButton {
+                        text: @tr("Less Than");
+                        icon: @image-url("./../images/scans/scan_immediate_less_than.png");
+                        tooltip-text: "Scan for values that are less than the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.less-than;
+                        }
+                    }
 
-        constraint-less-than-or-equal := ScanConstraintButton {
-            text: @tr("Less Than or Equal to");
-            icon: @image-url("./../images/scans/scan_less_than_or_equal.png");
-            tooltip-text: "Scan for values that are less than or equal to the entered value.";
-            clicked => {
-                ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.less_than_or_equal;
+                    constraint-less-than-or-equal := ScanConstraintButton {
+                        text: @tr("Less Than or Equal to");
+                        icon: @image-url("./../images/scans/scan_immediate_less_than_or_equal.png");
+                        tooltip-text: "Scan for values that are less than or equal to the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.less_than_or_equal;
+                        }
+                    }
+                }
+
+                Rectangle {
+                    colspan: 2;
+                    background: Theme.background-panel;
+                    HorizontalLayout {
+                        alignment: start;
+                        padding: 2px;
+                        padding-left: 8px;
+                        Text {
+                            text: @tr("Delta");
+                            color: Theme.foreground;
+                            font-size: Theme.font-size-h5;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+
+                Row {
+                    constraint-increased-by-x := ScanConstraintButton {
+                        text: @tr("Increased by x");
+                        icon: @image-url("./../images/scans/scan_delta_increased_by_x.png");
+                        tooltip-text: "Scan for values that have increased by the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.increased_by_x;
+                        }
+                    }
+
+                    constraint-decreased-by-x := ScanConstraintButton {
+                        text: @tr("Decreased by x");
+                        icon: @image-url("./../images/scans/scan_delta_decreased_by_x.png");
+                        tooltip-text: "Scan for values that have decreased by the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.decreased_by_x;
+                        }
+                    }
+                }
+
+                Row {
+                    constraint-multiplied-by-x := ScanConstraintButton {
+                        text: @tr("Multiplied by x");
+                        icon: @image-url("./../images/scans/scan_delta_multiplied_by_x.png");
+                        tooltip-text: "Scan for values that have been multiplied by the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.multiplied_by_x;
+                        }
+                    }
+
+                    constraint-divided-by-x := ScanConstraintButton {
+                        text: @tr("Divided by x");
+                        icon: @image-url("./../images/scans/scan_delta_divided_by_x.png");
+                        tooltip-text: "Scan for values that have been divided by the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.divided_by_x;
+                        }
+                    }
+                }
+
+                Row {
+                    constraint-modulo-by-x := ScanConstraintButton {
+                        text: @tr("Modulo by x");
+                        icon: @image-url("./../images/scans/scan_delta_modulo_by_x.png");
+                        tooltip-text: "Scan for the remainder of values that have been divided by the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.modulo-by-x;
+                        }
+                    }
+                }
+
+                Rectangle {
+                    colspan: 2;
+                    background: Theme.background-panel;
+                    HorizontalLayout {
+                        alignment: start;
+                        padding: 2px;
+                        padding-left: 8px;
+                        Text {
+                            text: @tr("Binary");
+                            color: Theme.foreground;
+                            font-size: Theme.font-size-h5;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+
+                Row {
+                    constraint-shift-left-by-x := ScanConstraintButton {
+                        text: @tr("Shifted left by x");
+                        icon: @image-url("./../images/scans/scan_delta_shift_left_by_x.png");
+                        tooltip-text: "Scan for values that have been shifted left by the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.shift-left-by-x;
+                        }
+                    }
+
+                    constraint-shift-right-by-x := ScanConstraintButton {
+                        text: @tr("Shifted right by x");
+                        icon: @image-url("./../images/scans/scan_delta_shift_right_by_x.png");
+                        tooltip-text: "Scan for values that have been shifted right by the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.shift-right-by-x;
+                        }
+                    }
+                }
+
+                Row {
+                    constraint-logical-and-by-x := ScanConstraintButton {
+                        text: @tr("Logical AND'd by x");
+                        icon: @image-url("./../images/scans/scan_delta_logical_and_by_x.png");
+                        tooltip-text: "Scan for values that have been logical AND'd by the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.logical-and-by-x;
+                        }
+                    }
+
+                    constraint-logical-or-by-x := ScanConstraintButton {
+                        text: @tr("Logical OR'd by x");
+                        icon: @image-url("./../images/scans/scan_delta_logical_or_by_x.png");
+                        tooltip-text: "Scan for values that have been logical OR'd by the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.logical-or-by-x;
+                        }
+                    }
+                }
+
+                Row {
+                    constraint-logical-xor-by-x := ScanConstraintButton {
+                        text: @tr("Logical XOR'd by x");
+                        icon: @image-url("./../images/scans/scan_delta_logical_xor_by_x.png");
+                        tooltip-text: "Scan for values that have been logical XOR'd by the entered value.";
+                        clicked => {
+                            ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.logical-xor-by-x;
+                        }
+                    }
+                }
             }
         }
     }
