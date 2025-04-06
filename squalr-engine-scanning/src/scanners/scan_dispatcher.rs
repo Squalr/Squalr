@@ -28,10 +28,15 @@ impl ScanDispatcher {
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         user_scan_parameters_global: &UserScanParametersGlobal,
     ) -> SnapshotRegionFilterCollection {
+        let user_scan_parameters_local = snapshot_region_filter_collection.get_user_scan_parameters_local();
+
+        if !user_scan_parameters_global.is_valid() {
+            log::error!("Error in provided scan parameters, unable to start scan!");
+            return SnapshotRegionFilterCollection::new(vec![], user_scan_parameters_local.clone());
+        }
+
         // The main body of the scan routine performed on a given filter.
         let snapshot_region_scanner = |snapshot_region_filter| {
-            let user_scan_parameters_local = snapshot_region_filter_collection.get_user_scan_parameters_local();
-
             // Combine the global and local parameters into a single container that optimizes the parameters for selecting the best scanner implementation.
             let scan_parameters = MappedScanParameters::new(snapshot_region_filter, user_scan_parameters_global, user_scan_parameters_local);
 
