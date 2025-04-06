@@ -3,6 +3,7 @@ use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::vector::scanner_vector_aligned::ScannerVectorAligned;
+use crate::scanners::vector::scanner_vector_overlapping::ScannerVectorOverlapping;
 use crate::scanners::vector::scanner_vector_overlapping_bytewise_periodic::ScannerVectorOverlappingBytewisePeriodic;
 use crate::scanners::vector::scanner_vector_overlapping_bytewise_staggered::ScannerVectorOverlappingBytewiseStaggered;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
@@ -35,57 +36,7 @@ impl ScanDispatcher {
             let scan_parameters = MappedScanParameters::new(snapshot_region_filter, user_scan_parameters_global, user_scan_parameters_local);
 
             // Execute the scanner that corresponds to the mapped parameters.
-            let filters = match scan_parameters.get_mapped_scan_type() {
-                MappedScanType::Scalar(scan_parameters_scalar) => match scan_parameters_scalar {
-                    ScanParametersScalar::SingleElement => ScannerScalarSingleElement::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
-                    ScanParametersScalar::ScalarIterative => ScannerScalarIterative::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
-                },
-                MappedScanType::Vector(scan_parameters_vector) => match scan_parameters_vector {
-                    ScanParametersVector::Overlapping => match scan_parameters.get_vectorization_size() {
-                        // JIRA: Use overlapping scans once implemented.
-                        VectorizationSize::Vector16 => ScannerVectorAligned::<16>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
-                        VectorizationSize::Vector32 => ScannerVectorAligned::<32>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
-                        VectorizationSize::Vector64 => ScannerVectorAligned::<64>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
-                    },
-                    ScanParametersVector::Aligned => match scan_parameters.get_vectorization_size() {
-                        VectorizationSize::Vector16 => ScannerVectorAligned::<16>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
-                        VectorizationSize::Vector32 => ScannerVectorAligned::<32>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
-                        VectorizationSize::Vector64 => ScannerVectorAligned::<64>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
-                    },
-                    ScanParametersVector::Sparse => match scan_parameters.get_vectorization_size() {
-                        VectorizationSize::Vector16 => ScannerVectorSparse::<16>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
-                        VectorizationSize::Vector32 => ScannerVectorSparse::<32>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
-                        VectorizationSize::Vector64 => ScannerVectorSparse::<64>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters),
-                    },
-                    ScanParametersVector::OverlappingBytewiseStaggered => match scan_parameters.get_vectorization_size() {
-                        VectorizationSize::Vector16 => {
-                            ScannerVectorOverlappingBytewiseStaggered::<16>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
-                        }
-                        VectorizationSize::Vector32 => {
-                            ScannerVectorOverlappingBytewiseStaggered::<32>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
-                        }
-                        VectorizationSize::Vector64 => {
-                            ScannerVectorOverlappingBytewiseStaggered::<64>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
-                        }
-                    },
-                    ScanParametersVector::OverlappingBytewisePeriodic => match scan_parameters.get_vectorization_size() {
-                        VectorizationSize::Vector16 => {
-                            ScannerVectorOverlappingBytewisePeriodic::<16>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
-                        }
-                        VectorizationSize::Vector32 => {
-                            ScannerVectorOverlappingBytewisePeriodic::<32>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
-                        }
-                        VectorizationSize::Vector64 => {
-                            ScannerVectorOverlappingBytewisePeriodic::<64>::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
-                        }
-                    },
-                },
-                MappedScanType::ByteArray(scan_parameters_byte_array) => match scan_parameters_byte_array {
-                    ScanParametersByteArray::ByteArrayBooyerMoore => {
-                        ScannerScalarByteArrayBooyerMoore::scan_region(snapshot_region, snapshot_region_filter, &scan_parameters)
-                    }
-                },
-            };
+            let filters = Self::aquire_scanner_instance(&scan_parameters).scan_region(snapshot_region, snapshot_region_filter, &scan_parameters);
 
             if filters.len() > 0 { Some(filters) } else { None }
         };
@@ -109,5 +60,45 @@ impl ScanDispatcher {
                 .get_user_scan_parameters_local()
                 .clone(),
         )
+    }
+
+    fn aquire_scanner_instance(scan_parameters: &MappedScanParameters) -> &'static dyn Scanner {
+        // Execute the scanner that corresponds to the mapped parameters.
+        match scan_parameters.get_mapped_scan_type() {
+            MappedScanType::Scalar(scan_parameters_scalar) => match scan_parameters_scalar {
+                ScanParametersScalar::SingleElement => &ScannerScalarSingleElement {},
+                ScanParametersScalar::ScalarIterative => &ScannerScalarIterative {},
+            },
+            MappedScanType::Vector(scan_parameters_vector) => match scan_parameters_vector {
+                ScanParametersVector::Overlapping => match scan_parameters.get_vectorization_size() {
+                    VectorizationSize::Vector16 => &ScannerVectorOverlapping::<16> {},
+                    VectorizationSize::Vector32 => &ScannerVectorOverlapping::<32> {},
+                    VectorizationSize::Vector64 => &ScannerVectorOverlapping::<64> {},
+                },
+                ScanParametersVector::Aligned => match scan_parameters.get_vectorization_size() {
+                    VectorizationSize::Vector16 => &ScannerVectorAligned::<16> {},
+                    VectorizationSize::Vector32 => &ScannerVectorAligned::<32> {},
+                    VectorizationSize::Vector64 => &ScannerVectorAligned::<64> {},
+                },
+                ScanParametersVector::Sparse => match scan_parameters.get_vectorization_size() {
+                    VectorizationSize::Vector16 => &ScannerVectorSparse::<16> {},
+                    VectorizationSize::Vector32 => &ScannerVectorSparse::<32> {},
+                    VectorizationSize::Vector64 => &ScannerVectorSparse::<64> {},
+                },
+                ScanParametersVector::OverlappingBytewiseStaggered => match scan_parameters.get_vectorization_size() {
+                    VectorizationSize::Vector16 => &ScannerVectorOverlappingBytewiseStaggered::<16> {},
+                    VectorizationSize::Vector32 => &ScannerVectorOverlappingBytewiseStaggered::<32> {},
+                    VectorizationSize::Vector64 => &ScannerVectorOverlappingBytewiseStaggered::<64> {},
+                },
+                ScanParametersVector::OverlappingBytewisePeriodic => match scan_parameters.get_vectorization_size() {
+                    VectorizationSize::Vector16 => &ScannerVectorOverlappingBytewisePeriodic::<16> {},
+                    VectorizationSize::Vector32 => &ScannerVectorOverlappingBytewisePeriodic::<32> {},
+                    VectorizationSize::Vector64 => &ScannerVectorOverlappingBytewisePeriodic::<64> {},
+                },
+            },
+            MappedScanType::ByteArray(scan_parameters_byte_array) => match scan_parameters_byte_array {
+                ScanParametersByteArray::ByteArrayBooyerMoore => &ScannerScalarByteArrayBooyerMoore {},
+            },
+        }
     }
 }

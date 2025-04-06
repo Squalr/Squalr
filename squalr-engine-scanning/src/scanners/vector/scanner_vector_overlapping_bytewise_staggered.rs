@@ -72,11 +72,12 @@ where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
     fn scan_region(
+        &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
-        let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
+        let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
 
@@ -132,9 +133,9 @@ where
 
                 // Compare as many full vectors as we can.
                 for index in 0..iterations {
-                    let current_value_pointer = unsafe { current_value_pointer.add((index * vector_compare_size) as usize) };
-                    let compare_results_0 = compare_func_byte_0(current_value_pointer);
-                    let compare_results_1 = compare_func_byte_1(current_value_pointer).rotate_elements_left::<1>();
+                    let current_values_pointer = unsafe { current_values_pointer.add((index * vector_compare_size) as usize) };
+                    let compare_results_0 = compare_func_byte_0(current_values_pointer);
+                    let compare_results_1 = compare_func_byte_1(current_values_pointer).rotate_elements_left::<1>();
                     let compare_result = compare_results_0 & compare_results_1;
 
                     Self::encode_results(
@@ -149,8 +150,8 @@ where
 
                 // Handle remainder elements.
                 if remainder_bytes > 0 {
-                    let compare_results_0 = unsafe { compare_func_byte_0(current_value_pointer.add(remainder_ptr_offset)) };
-                    let compare_results_1 = unsafe { compare_func_byte_1(current_value_pointer.add(remainder_ptr_offset)).rotate_elements_left::<1>() };
+                    let compare_results_0 = unsafe { compare_func_byte_0(current_values_pointer.add(remainder_ptr_offset)) };
+                    let compare_results_1 = unsafe { compare_func_byte_1(current_values_pointer.add(remainder_ptr_offset)).rotate_elements_left::<1>() };
                     let compare_result = compare_results_0 & compare_results_1;
 
                     Self::encode_remainder_results(
@@ -170,11 +171,11 @@ where
 
                 // Compare as many full vectors as we can.
                 for index in 0..iterations {
-                    let current_value_pointer = unsafe { current_value_pointer.add((index * vector_compare_size) as usize) };
-                    let compare_results_0 = compare_func_byte_0(current_value_pointer);
-                    let compare_results_1 = compare_func_byte_1(current_value_pointer).rotate_elements_left::<1>();
-                    let compare_results_2 = compare_func_byte_2(current_value_pointer).rotate_elements_left::<2>();
-                    let compare_results_3 = compare_func_byte_3(current_value_pointer).rotate_elements_left::<3>();
+                    let current_values_pointer = unsafe { current_values_pointer.add((index * vector_compare_size) as usize) };
+                    let compare_results_0 = compare_func_byte_0(current_values_pointer);
+                    let compare_results_1 = compare_func_byte_1(current_values_pointer).rotate_elements_left::<1>();
+                    let compare_results_2 = compare_func_byte_2(current_values_pointer).rotate_elements_left::<2>();
+                    let compare_results_3 = compare_func_byte_3(current_values_pointer).rotate_elements_left::<3>();
                     let compare_result = compare_results_0 & compare_results_1 & compare_results_2 & compare_results_3;
 
                     Self::encode_results(
@@ -189,7 +190,7 @@ where
 
                 // Handle remainder elements.
                 if remainder_bytes > 0 {
-                    let remainder_value_pointer = unsafe { current_value_pointer.add(remainder_ptr_offset) };
+                    let remainder_value_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset) };
                     let compare_results_0 = compare_func_byte_0(remainder_value_pointer);
                     let compare_results_1 = compare_func_byte_1(remainder_value_pointer).rotate_elements_left::<1>();
                     let compare_results_2 = compare_func_byte_2(remainder_value_pointer).rotate_elements_left::<2>();
@@ -217,15 +218,15 @@ where
 
                 // Compare as many full vectors as we can.
                 for index in 0..iterations {
-                    let current_value_pointer = unsafe { current_value_pointer.add((index * vector_compare_size) as usize) };
-                    let compare_results_0 = compare_func_byte_0(current_value_pointer);
-                    let compare_results_1 = compare_func_byte_1(current_value_pointer).rotate_elements_left::<1>();
-                    let compare_results_2 = compare_func_byte_2(current_value_pointer).rotate_elements_left::<2>();
-                    let compare_results_3 = compare_func_byte_3(current_value_pointer).rotate_elements_left::<3>();
-                    let compare_results_4 = compare_func_byte_4(current_value_pointer).rotate_elements_left::<4>();
-                    let compare_results_5 = compare_func_byte_5(current_value_pointer).rotate_elements_left::<5>();
-                    let compare_results_6 = compare_func_byte_6(current_value_pointer).rotate_elements_left::<6>();
-                    let compare_results_7 = compare_func_byte_7(current_value_pointer).rotate_elements_left::<7>();
+                    let current_values_pointer = unsafe { current_values_pointer.add((index * vector_compare_size) as usize) };
+                    let compare_results_0 = compare_func_byte_0(current_values_pointer);
+                    let compare_results_1 = compare_func_byte_1(current_values_pointer).rotate_elements_left::<1>();
+                    let compare_results_2 = compare_func_byte_2(current_values_pointer).rotate_elements_left::<2>();
+                    let compare_results_3 = compare_func_byte_3(current_values_pointer).rotate_elements_left::<3>();
+                    let compare_results_4 = compare_func_byte_4(current_values_pointer).rotate_elements_left::<4>();
+                    let compare_results_5 = compare_func_byte_5(current_values_pointer).rotate_elements_left::<5>();
+                    let compare_results_6 = compare_func_byte_6(current_values_pointer).rotate_elements_left::<6>();
+                    let compare_results_7 = compare_func_byte_7(current_values_pointer).rotate_elements_left::<7>();
                     let compare_result = compare_results_0
                         & compare_results_1
                         & compare_results_2
@@ -247,7 +248,7 @@ where
 
                 // Handle remainder elements.
                 if remainder_bytes > 0 {
-                    let remainder_value_pointer = unsafe { current_value_pointer.add(remainder_ptr_offset) };
+                    let remainder_value_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset) };
                     let compare_results_0 = compare_func_byte_0(remainder_value_pointer);
                     let compare_results_1 = compare_func_byte_1(remainder_value_pointer).rotate_elements_left::<1>();
                     let compare_results_2 = compare_func_byte_2(remainder_value_pointer).rotate_elements_left::<2>();

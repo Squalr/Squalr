@@ -53,7 +53,7 @@ impl Default for Config {
 
             start_address: 0,
             end_address: u64::MAX,
-            only_query_usermode: true,
+            only_query_usermode: false,
         }
     }
 }

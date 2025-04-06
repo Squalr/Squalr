@@ -60,10 +60,9 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         let required_flags = self.get_protection_flags(&required_protection);
         let excluded_flags = self.get_protection_flags(&excluded_protection);
         let mut regions = vec![];
-        let mut address = start_address;
-        let mut wrapped_around = false;
+        let mut current_region = NormalizedRegion::new(start_address, 0);
 
-        // Return empty regions if start_address is greater than or equal to end_address
+        // Return empty regions if the start or end address is invalid.
         if start_address >= end_address {
             return regions;
         }
@@ -71,57 +70,45 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         // If partial matches are supported, we need to enumerate all memory regions.
         // A small optimization may be possible here if we start from the max(0, startAddress - max page size) instead.
         if region_bounds_handling == RegionBoundsHandling::Include || region_bounds_handling == RegionBoundsHandling::Resize {
-            address = 0;
+            current_region.set_base_address(0);
         }
 
-        // Enumerate the memory pages
-        while address < end_address && !wrapped_around {
+        // Start off as a single point at our starting location.
+        current_region.set_end_address(current_region.get_base_address());
+
+        // Loop over the entire virtual memory space, advancing by chunks of either allocated or unallocated memory pages.
+        while current_region.get_end_address() < end_address {
+            // Each iteration, move the base address to the end of the region being searched.
+            // For the first iteration, this does nothing. For all other iterations, this advances our search window.
+            current_region.set_base_address(current_region.get_end_address());
+
+            // At the current address, query the page of memory at this location.
             let mut mbi: MEMORY_BASIC_INFORMATION64 = unsafe { std::mem::zeroed() };
             let result = unsafe {
                 VirtualQueryEx(
                     process_info.handle as *mut c_void,
-                    address as *const _,
+                    current_region.get_base_address() as *const c_void,
                     &mut mbi as *mut _ as *mut _,
                     size_of::<MEMORY_BASIC_INFORMATION64>(),
                 )
             };
 
-            if result == 0 {
+            if result == 0 || mbi.RegionSize <= 0 {
                 break;
             }
 
-            // Increment the starting address with the size of the page
-            let next_address = address + mbi.RegionSize as u64;
+            debug_assert!(mbi.BaseAddress == current_region.get_base_address());
+            current_region.set_region_size(mbi.RegionSize as u64);
 
-            // Check for address overflow
-            if address > next_address {
-                wrapped_around = true;
-            }
-
-            address = next_address;
-
-            // Ignore free memory. These are unallocated memory regions.
-            if mbi.State == windows_sys::Win32::System::Memory::MEM_FREE {
-                continue;
-            }
-
-            // At least one readable memory flag is required
-            if (mbi.Protect & PAGE_READWRITE == 0)
-                && (mbi.Protect & PAGE_EXECUTE_READ == 0)
-                && (mbi.Protect & PAGE_EXECUTE_READWRITE == 0)
-                && (mbi.Protect & PAGE_EXECUTE_WRITECOPY == 0)
-                && (mbi.Protect & PAGE_READWRITE == 0)
-                && (mbi.Protect & PAGE_WRITECOPY == 0)
+            // Ensure that the memory is not free (unallocated), not reserved (ie no physical memory assigned yet), and that the memory is committed (allocated and usable).
+            if mbi.State == windows_sys::Win32::System::Memory::MEM_FREE
+                || mbi.State == windows_sys::Win32::System::Memory::MEM_RESERVE
+                || mbi.State != windows_sys::Win32::System::Memory::MEM_COMMIT
             {
                 continue;
             }
 
-            // Do not bother with this memory, as it is not worth scanning
-            if (mbi.Protect & windows_sys::Win32::System::Memory::PAGE_NOACCESS != 0) || (mbi.Protect & windows_sys::Win32::System::Memory::PAGE_GUARD != 0) {
-                continue;
-            }
-
-            // Enforce allowed types
+            // Enforce allowed types.
             if mbi.Type == 0 && !allowed_types.contains(MemoryTypeEnum::NONE) {
                 continue;
             } else if mbi.Type == windows_sys::Win32::System::Memory::MEM_PRIVATE && !allowed_types.contains(MemoryTypeEnum::PRIVATE) {
@@ -132,34 +119,29 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
                 continue;
             }
 
-            // Ensure at least one required protection flag is set
+            // Ensure at least one required protection flag is set.
             if required_flags != 0 && (mbi.Protect & required_flags) == 0 {
                 continue;
             }
 
-            // Ensure no ignored protection flags are set
+            // Ensure no ignored protection flags are set.
             if excluded_flags != 0 && (mbi.Protect & excluded_flags) != 0 {
                 continue;
             }
 
-            let region_start_address = mbi.BaseAddress as u64;
-            let region_end_address = region_start_address + mbi.RegionSize as u64;
-
-            // Handle regions that are partially in the provided bounds based on given bounds handling method
-            if region_start_address < start_address || region_end_address > end_address {
+            // Handle regions that are partially in the provided bounds based on given bounds handling method.
+            if current_region.get_base_address() < start_address || current_region.get_end_address() > end_address {
                 match region_bounds_handling {
                     RegionBoundsHandling::Exclude => continue,
                     RegionBoundsHandling::Include => {}
                     RegionBoundsHandling::Resize => {
-                        let new_start_address = start_address.max(region_start_address);
-                        let new_end_address = end_address.min(region_end_address);
-                        mbi.BaseAddress = new_start_address;
-                        mbi.RegionSize = (new_end_address - new_start_address) as u64;
+                        current_region.set_end_address(end_address.min(current_region.get_end_address()));
+                        current_region.set_base_address_retain_end_address(start_address.max(current_region.get_base_address()));
                     }
                 }
             }
 
-            // Return the memory page
+            // Return the memory page.
             regions.push(NormalizedRegion::new(mbi.BaseAddress as u64, mbi.RegionSize as u64));
         }
 
@@ -190,20 +172,18 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
     ) -> bool {
         let start_address = address;
         let end_address = address;
+        let virtual_pages_in_bounds = self.get_virtual_pages(
+            process_info,
+            MemoryProtectionEnum::WRITE,
+            MemoryProtectionEnum::NONE,
+            MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE | MemoryTypeEnum::MAPPED,
+            start_address,
+            end_address,
+            RegionBoundsHandling::Include,
+        );
 
         // Check for writability by searching for a page that includes the target address that is writable.
-        return self
-            .get_virtual_pages(
-                process_info,
-                MemoryProtectionEnum::WRITE,
-                MemoryProtectionEnum::NONE,
-                MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE | MemoryTypeEnum::MAPPED,
-                start_address,
-                end_address,
-                RegionBoundsHandling::Include,
-            )
-            .len()
-            > 0;
+        virtual_pages_in_bounds.len() > 0
     }
 
     fn get_maximum_address(

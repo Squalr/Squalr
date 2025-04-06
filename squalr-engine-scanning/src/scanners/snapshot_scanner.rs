@@ -5,6 +5,7 @@ use squalr_engine_api::structures::scanning::{
 
 pub trait Scanner: Send + Sync {
     fn scan_region(
+        &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &MappedScanParameters,

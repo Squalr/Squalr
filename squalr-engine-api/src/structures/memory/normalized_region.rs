@@ -1,7 +1,6 @@
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use std::cmp::{Ord, Ordering};
 use std::hash::{Hash, Hasher};
-use std::ops::Add;
 
 /// Defines a generic range of addresses, with no extra information.
 /// This is the base type for many more specialized regions.
@@ -15,15 +14,12 @@ impl NormalizedRegion {
         base_address: u64,
         region_size: u64,
     ) -> Self {
-        Self {
-            base_address: base_address,
-            region_size: region_size,
-        }
+        Self { base_address, region_size }
     }
 
     /// Gets the base/start address of this region.
     pub fn get_base_address(&self) -> u64 {
-        return self.base_address;
+        self.base_address
     }
 
     /// Sets the base/start address of this region.
@@ -34,9 +30,19 @@ impl NormalizedRegion {
         self.base_address = base_address;
     }
 
+    /// Sets the base/start address of this region.
+    pub fn set_base_address_retain_end_address(
+        &mut self,
+        base_address: u64,
+    ) {
+        let end_address = self.get_end_address();
+        self.base_address = base_address;
+        self.set_end_address(end_address);
+    }
+
     /// Gets the size of this region.
     pub fn get_region_size(&self) -> u64 {
-        return self.region_size;
+        self.region_size
     }
 
     /// Sets the size of this region.
@@ -49,7 +55,7 @@ impl NormalizedRegion {
 
     /// Gets the end address of this region.
     pub fn get_end_address(&self) -> u64 {
-        return self.base_address.add(self.region_size as u64);
+        self.base_address.saturating_add(self.region_size as u64)
     }
 
     /// Sets the end address of this region.
@@ -57,7 +63,7 @@ impl NormalizedRegion {
         &mut self,
         end_address: u64,
     ) {
-        self.region_size = (end_address - self.base_address) as u64;
+        self.region_size = end_address.saturating_sub(self.base_address) as u64;
     }
 
     pub fn set_alignment(
@@ -81,7 +87,7 @@ impl NormalizedRegion {
         &self,
         address: u64,
     ) -> bool {
-        return address >= self.base_address && address <= self.get_end_address();
+        address >= self.base_address && address <= self.get_end_address()
     }
 
     /// Expands this snapshot region in both directions, saturating, in both directions. For example,
@@ -100,7 +106,7 @@ impl PartialEq for NormalizedRegion {
         &self,
         other: &Self,
     ) -> bool {
-        return self.base_address == other.base_address;
+        self.base_address == other.base_address
     }
 }
 
@@ -111,7 +117,7 @@ impl PartialOrd for NormalizedRegion {
         &self,
         other: &Self,
     ) -> Option<Ordering> {
-        return Some(self.cmp(other));
+        Some(self.cmp(other))
     }
 }
 
@@ -120,7 +126,7 @@ impl Ord for NormalizedRegion {
         &self,
         other: &Self,
     ) -> Ordering {
-        return self.base_address.cmp(&other.base_address);
+        self.base_address.cmp(&other.base_address)
     }
 }
 

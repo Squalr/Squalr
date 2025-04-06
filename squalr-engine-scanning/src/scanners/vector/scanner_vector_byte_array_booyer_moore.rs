@@ -18,6 +18,7 @@ impl Scanner for ScannerVectorByteArrayBooyerMoore {
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
     /// is used to generate new sub-regions as the scan progresses.
     fn scan_region(
+        &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         scan_parameters: &MappedScanParameters,
@@ -40,7 +41,7 @@ impl Scanner for ScannerVectorByteArrayBooyerMoore {
             }
         };
 
-        let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
+        let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
         let memory_alignment_size = scan_parameters.get_memory_alignment() as u64;
@@ -59,7 +60,7 @@ impl Scanner for ScannerVectorByteArrayBooyerMoore {
             let mut shift_value = memory_alignment_size;
 
             for inverse_pattern_index in (0..pattern_length as usize).rev() {
-                let current_byte = unsafe { *current_value_pointer.add((scan_index + inverse_pattern_index as u64) as usize) };
+                let current_byte = unsafe { *current_values_pointer.add((scan_index + inverse_pattern_index as u64) as usize) };
                 let pattern_byte = scan_pattern[inverse_pattern_index];
 
                 // JIRA: Also check masking table when we decide to support masking.
