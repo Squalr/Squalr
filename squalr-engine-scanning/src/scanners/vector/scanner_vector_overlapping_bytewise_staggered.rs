@@ -71,6 +71,10 @@ impl<const N: usize> Scanner for ScannerVectorOverlappingBytewiseStaggered<N>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
+    fn get_scanner_name(&self) -> &'static str {
+        &"Vector Overlapping (Bytewise Staggered)"
+    }
+
     fn scan_region(
         &self,
         snapshot_region: &SnapshotRegion,
@@ -82,30 +86,36 @@ where
         let region_size = snapshot_region_filter.get_region_size();
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type = scan_parameters.get_data_type();
-        let data_type_size = data_type.get_size_in_bytes();
-        let data_type_size_padding = data_type_size.saturating_sub(scan_parameters.get_memory_alignment() as u64);
-        let vector_size_in_bytes = N;
-        let vector_underflow = data_type_size as usize;
-        let vector_compare_size = vector_size_in_bytes.saturating_sub(vector_underflow) as u64;
-        let iterations = region_size / vector_compare_size;
-        let remainder_bytes = region_size % vector_compare_size;
-        let remainder_ptr_offset = (iterations.saturating_sub(1) * vector_compare_size) as usize;
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
 
+        let data_type = scan_parameters.get_data_type();
+        let data_type_size = data_type.get_size_in_bytes();
+        let data_type_size_padding = data_type_size.saturating_sub(scan_parameters.get_memory_alignment() as u64);
+        let memory_alignment = scan_parameters.get_memory_alignment();
+        let memory_alignment_size = memory_alignment as u64;
+        let vector_size_in_bytes = N;
+        let vector_underflow = data_type_size as usize;
+        let vector_compare_size = vector_size_in_bytes.saturating_sub(vector_underflow) as u64;
+        let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
+        let vectorizable_iterations = region_size / vector_compare_size; // JIRA: Memory alignment!
+        let remainder_bytes = region_size % vector_compare_size;
+        let remainder_element_count: u64 = (remainder_bytes / memory_alignment_size).saturating_sub(data_type_size.saturating_sub(1));
+        let vectorizable_element_count = element_count.saturating_sub(remainder_element_count);
+
         let scan_immedate = scan_parameters.get_data_value();
-        let check_equal = match scan_parameters.get_compare_type() {
-            ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
-                ScanCompareTypeImmediate::Equal => true,
-                ScanCompareTypeImmediate::NotEqual => false,
-                _ => {
-                    log::error!("Invalid scan compare immediate type provided to bytewise staggered scan.");
-                    return vec![];
-                }
-            },
+        let scan_compare_type_immediate = match scan_parameters.get_compare_type() {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => scan_compare_type_immediate,
             _ => {
                 log::error!("Invalid scan compare type provided to bytewise staggered scan.");
+                return vec![];
+            }
+        };
+        let check_equal = match scan_compare_type_immediate {
+            ScanCompareTypeImmediate::Equal => true,
+            ScanCompareTypeImmediate::NotEqual => false,
+            _ => {
+                log::error!("Invalid scan compare immediate type provided to bytewise staggered scan.");
                 return vec![];
             }
         };
@@ -126,16 +136,17 @@ where
             }
         };
 
+        // JIRA: Memory alignment!
         match data_type_size {
             2 => {
                 let compare_func_byte_0 = load_nth_byte_vec(&scan_immedate, 0);
                 let compare_func_byte_1 = load_nth_byte_vec(&scan_immedate, 1);
 
                 // Compare as many full vectors as we can.
-                for index in 0..iterations {
+                for index in 0..vectorizable_iterations {
                     let current_values_pointer = unsafe { current_values_pointer.add((index * vector_compare_size) as usize) };
                     let compare_results_0 = compare_func_byte_0(current_values_pointer);
-                    let compare_results_1 = compare_func_byte_1(current_values_pointer).rotate_elements_left::<1>();
+                    let compare_results_1 = VectorGenerics::rotate_left_with_discard::<N, 1>(compare_func_byte_1(current_values_pointer));
                     let compare_result = compare_results_0 & compare_results_1;
 
                     Self::encode_results(
@@ -144,21 +155,6 @@ where
                         data_type_size_padding,
                         true_mask,
                         false_mask,
-                        vector_compare_size,
-                    );
-                }
-
-                // Handle remainder elements.
-                if remainder_bytes > 0 {
-                    let compare_results_0 = unsafe { compare_func_byte_0(current_values_pointer.add(remainder_ptr_offset)) };
-                    let compare_results_1 = unsafe { compare_func_byte_1(current_values_pointer.add(remainder_ptr_offset)).rotate_elements_left::<1>() };
-                    let compare_result = compare_results_0 & compare_results_1;
-
-                    Self::encode_remainder_results(
-                        &compare_result,
-                        &mut run_length_encoder,
-                        data_type_size_padding,
-                        remainder_bytes,
                         vector_compare_size,
                     );
                 }
@@ -170,12 +166,12 @@ where
                 let compare_func_byte_3 = load_nth_byte_vec(&scan_immedate, 3);
 
                 // Compare as many full vectors as we can.
-                for index in 0..iterations {
+                for index in 0..vectorizable_iterations {
                     let current_values_pointer = unsafe { current_values_pointer.add((index * vector_compare_size) as usize) };
                     let compare_results_0 = compare_func_byte_0(current_values_pointer);
-                    let compare_results_1 = compare_func_byte_1(current_values_pointer).rotate_elements_left::<1>();
-                    let compare_results_2 = compare_func_byte_2(current_values_pointer).rotate_elements_left::<2>();
-                    let compare_results_3 = compare_func_byte_3(current_values_pointer).rotate_elements_left::<3>();
+                    let compare_results_1 = VectorGenerics::rotate_left_with_discard::<N, 1>(compare_func_byte_1(current_values_pointer));
+                    let compare_results_2 = VectorGenerics::rotate_left_with_discard::<N, 2>(compare_func_byte_2(current_values_pointer));
+                    let compare_results_3 = VectorGenerics::rotate_left_with_discard::<N, 3>(compare_func_byte_3(current_values_pointer));
                     let compare_result = compare_results_0 & compare_results_1 & compare_results_2 & compare_results_3;
 
                     Self::encode_results(
@@ -184,24 +180,6 @@ where
                         data_type_size_padding,
                         true_mask,
                         false_mask,
-                        vector_compare_size,
-                    );
-                }
-
-                // Handle remainder elements.
-                if remainder_bytes > 0 {
-                    let remainder_value_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset) };
-                    let compare_results_0 = compare_func_byte_0(remainder_value_pointer);
-                    let compare_results_1 = compare_func_byte_1(remainder_value_pointer).rotate_elements_left::<1>();
-                    let compare_results_2 = compare_func_byte_2(remainder_value_pointer).rotate_elements_left::<2>();
-                    let compare_results_3 = compare_func_byte_3(remainder_value_pointer).rotate_elements_left::<3>();
-                    let compare_result = compare_results_0 & compare_results_1 & compare_results_2 & compare_results_3;
-
-                    Self::encode_remainder_results(
-                        &compare_result,
-                        &mut run_length_encoder,
-                        data_type_size_padding,
-                        remainder_bytes,
                         vector_compare_size,
                     );
                 }
@@ -217,16 +195,16 @@ where
                 let compare_func_byte_7 = load_nth_byte_vec(&scan_immedate, 7);
 
                 // Compare as many full vectors as we can.
-                for index in 0..iterations {
+                for index in 0..vectorizable_iterations {
                     let current_values_pointer = unsafe { current_values_pointer.add((index * vector_compare_size) as usize) };
                     let compare_results_0 = compare_func_byte_0(current_values_pointer);
-                    let compare_results_1 = compare_func_byte_1(current_values_pointer).rotate_elements_left::<1>();
-                    let compare_results_2 = compare_func_byte_2(current_values_pointer).rotate_elements_left::<2>();
-                    let compare_results_3 = compare_func_byte_3(current_values_pointer).rotate_elements_left::<3>();
-                    let compare_results_4 = compare_func_byte_4(current_values_pointer).rotate_elements_left::<4>();
-                    let compare_results_5 = compare_func_byte_5(current_values_pointer).rotate_elements_left::<5>();
-                    let compare_results_6 = compare_func_byte_6(current_values_pointer).rotate_elements_left::<6>();
-                    let compare_results_7 = compare_func_byte_7(current_values_pointer).rotate_elements_left::<7>();
+                    let compare_results_1 = VectorGenerics::rotate_left_with_discard::<N, 1>(compare_func_byte_1(current_values_pointer));
+                    let compare_results_2 = VectorGenerics::rotate_left_with_discard::<N, 2>(compare_func_byte_2(current_values_pointer));
+                    let compare_results_3 = VectorGenerics::rotate_left_with_discard::<N, 3>(compare_func_byte_3(current_values_pointer));
+                    let compare_results_4 = VectorGenerics::rotate_left_with_discard::<N, 4>(compare_func_byte_4(current_values_pointer));
+                    let compare_results_5 = VectorGenerics::rotate_left_with_discard::<N, 5>(compare_func_byte_5(current_values_pointer));
+                    let compare_results_6 = VectorGenerics::rotate_left_with_discard::<N, 6>(compare_func_byte_6(current_values_pointer));
+                    let compare_results_7 = VectorGenerics::rotate_left_with_discard::<N, 7>(compare_func_byte_7(current_values_pointer));
                     let compare_result = compare_results_0
                         & compare_results_1
                         & compare_results_2
@@ -245,39 +223,24 @@ where
                         vector_compare_size,
                     );
                 }
-
-                // Handle remainder elements.
-                if remainder_bytes > 0 {
-                    let remainder_value_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset) };
-                    let compare_results_0 = compare_func_byte_0(remainder_value_pointer);
-                    let compare_results_1 = compare_func_byte_1(remainder_value_pointer).rotate_elements_left::<1>();
-                    let compare_results_2 = compare_func_byte_2(remainder_value_pointer).rotate_elements_left::<2>();
-                    let compare_results_3 = compare_func_byte_3(remainder_value_pointer).rotate_elements_left::<3>();
-                    let compare_results_4 = compare_func_byte_4(remainder_value_pointer).rotate_elements_left::<4>();
-                    let compare_results_5 = compare_func_byte_5(remainder_value_pointer).rotate_elements_left::<5>();
-                    let compare_results_6 = compare_func_byte_6(remainder_value_pointer).rotate_elements_left::<6>();
-                    let compare_results_7 = compare_func_byte_7(remainder_value_pointer).rotate_elements_left::<7>();
-                    let compare_result = compare_results_0
-                        & compare_results_1
-                        & compare_results_2
-                        & compare_results_3
-                        & compare_results_4
-                        & compare_results_5
-                        & compare_results_6
-                        & compare_results_7;
-
-                    Self::encode_remainder_results(
-                        &compare_result,
-                        &mut run_length_encoder,
-                        data_type_size_padding,
-                        remainder_bytes,
-                        vector_compare_size,
-                    );
-                }
             }
             _ => {
                 log::error!("Unsupported data type size provided to 2-periodic scan!");
                 return vec![];
+            }
+        }
+
+        // Handle remainder elements.
+        if let Some(compare_func) = data_type.get_scalar_compare_func_immediate(&scan_compare_type_immediate, scan_parameters) {
+            for index in vectorizable_element_count..element_count {
+                let current_value_pointer = unsafe { current_values_pointer.add(index as usize * memory_alignment_size as usize) };
+                let compare_result = compare_func(current_value_pointer);
+
+                if compare_result {
+                    run_length_encoder.encode_range(memory_alignment_size);
+                } else {
+                    run_length_encoder.finalize_current_encode_with_padding(memory_alignment_size, data_type_size_padding);
+                }
             }
         }
 

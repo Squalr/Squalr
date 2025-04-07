@@ -52,10 +52,17 @@ where
         }
     }
 }
+
+/// Implements a CPU-bound SIMD memory region scanner that is optmized for scanning for a sequence of N bytes.
+/// In other words, this scan efficiently handles searching for values where the data type size is exactly equal to the memory alignment.
 impl<const N: usize> Scanner for ScannerVectorAligned<N>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
+    fn get_scanner_name(&self) -> &'static str {
+        &"Vector (Aligned)"
+    }
+
     /// Performs a sequential iteration over a region of memory, performing the scan comparison.
     /// A run-length encoding algorithm is used to generate new sub-regions as the scan progresses.
     fn scan_region(

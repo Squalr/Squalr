@@ -88,3 +88,12 @@ impl SnapshotRegionFilter {
         (alignment.saturating_sub(misalignment)) % alignment
     }
 }
+
+impl PartialEq for SnapshotRegionFilter {
+    fn eq(
+        &self,
+        other: &Self,
+    ) -> bool {
+        self.filter_range == other.filter_range
+    }
+}

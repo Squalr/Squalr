@@ -15,6 +15,10 @@ impl ScannerVectorByteArrayBooyerMoore {}
 /// of the Boyer-Moore algorithm to encode matches as they are discovered. This algorithm was adapted to support overlapping results.
 /// Boyer-Moore speeds up scans through use of pre-made shifting tables, allowing for skipping multiple elements on failed matches.
 impl Scanner for ScannerVectorByteArrayBooyerMoore {
+    fn get_scanner_name(&self) -> &'static str {
+        &"Vector Byte Array (Booyer Moore)"
+    }
+
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
     /// is used to generate new sub-regions as the scan progresses.
     fn scan_region(

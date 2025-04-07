@@ -8,6 +8,10 @@ pub struct ScannerScalarSingleElement {}
 
 /// Implements a scalar (ie CPU bound, non-SIMD) scanner which only scans a single element of memory (ie only containing 1 data type).
 impl Scanner for ScannerScalarSingleElement {
+    fn get_scanner_name(&self) -> &'static str {
+        &"Single Element"
+    }
+
     fn scan_region(
         &self,
         snapshot_region: &SnapshotRegion,

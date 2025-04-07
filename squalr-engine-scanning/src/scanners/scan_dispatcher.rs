@@ -1,3 +1,5 @@
+use std::cmp;
+
 use crate::scanners::scalar::scanner_scalar_byte_array_booyer_moore::ScannerScalarByteArrayBooyerMoore;
 use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
@@ -9,6 +11,7 @@ use crate::scanners::vector::scanner_vector_overlapping_bytewise_staggered::Scan
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::ParallelIterator;
+use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_type::{
@@ -41,7 +44,13 @@ impl ScanDispatcher {
             let scan_parameters = MappedScanParameters::new(snapshot_region_filter, user_scan_parameters_global, user_scan_parameters_local);
 
             // Execute the scanner that corresponds to the mapped parameters.
-            let filters = Self::aquire_scanner_instance(&scan_parameters).scan_region(snapshot_region, snapshot_region_filter, &scan_parameters);
+            let scanner_instance = Self::aquire_scanner_instance(&scan_parameters);
+            let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, &scan_parameters);
+
+            // If the debug flag is provided, perform a scalar scan to ensure that our specialized scanner has the same results.
+            if user_scan_parameters_global.get_perform_debug_shadow_scan() {
+                Self::perform_debug_scan(scanner_instance, &filters, snapshot_region, snapshot_region_filter, &scan_parameters);
+            }
 
             if filters.len() > 0 { Some(filters) } else { None }
         };
@@ -91,19 +100,73 @@ impl ScanDispatcher {
                     VectorizationSize::Vector64 => &ScannerVectorSparse::<64> {},
                 },
                 ScanParametersVector::OverlappingBytewiseStaggered => match scan_parameters.get_vectorization_size() {
+                    VectorizationSize::Vector16 => &ScannerVectorOverlapping::<16> {},
+                    VectorizationSize::Vector32 => &ScannerVectorOverlapping::<32> {},
+                    VectorizationSize::Vector64 => &ScannerVectorOverlapping::<64> {},
+                    /*
                     VectorizationSize::Vector16 => &ScannerVectorOverlappingBytewiseStaggered::<16> {},
                     VectorizationSize::Vector32 => &ScannerVectorOverlappingBytewiseStaggered::<32> {},
-                    VectorizationSize::Vector64 => &ScannerVectorOverlappingBytewiseStaggered::<64> {},
+                    VectorizationSize::Vector64 => &ScannerVectorOverlappingBytewiseStaggered::<64> {},*/
                 },
                 ScanParametersVector::OverlappingBytewisePeriodic => match scan_parameters.get_vectorization_size() {
+                    VectorizationSize::Vector16 => &ScannerVectorOverlapping::<16> {},
+                    VectorizationSize::Vector32 => &ScannerVectorOverlapping::<32> {},
+                    VectorizationSize::Vector64 => &ScannerVectorOverlapping::<64> {},
+                    /*
                     VectorizationSize::Vector16 => &ScannerVectorOverlappingBytewisePeriodic::<16> {},
                     VectorizationSize::Vector32 => &ScannerVectorOverlappingBytewisePeriodic::<32> {},
-                    VectorizationSize::Vector64 => &ScannerVectorOverlappingBytewisePeriodic::<64> {},
+                    VectorizationSize::Vector64 => &ScannerVectorOverlappingBytewisePeriodic::<64> {},*/
                 },
             },
             MappedScanType::ByteArray(scan_parameters_byte_array) => match scan_parameters_byte_array {
                 ScanParametersByteArray::ByteArrayBooyerMoore => &ScannerScalarByteArrayBooyerMoore {},
             },
+        }
+    }
+
+    /// Performs a second scan over the provided snapshot region filter to ensure that the results of a specialized scan match
+    /// the results of the scalar scan. This is a way to unit test complex scanner implementations on real world data.
+    fn perform_debug_scan(
+        scanner_instance: &dyn Scanner,
+        filters: &Vec<SnapshotRegionFilter>,
+        snapshot_region: &SnapshotRegion,
+        snapshot_region_filter: &SnapshotRegionFilter,
+        scan_parameters: &MappedScanParameters,
+    ) {
+        let debug_scanner_instance = &ScannerScalarIterative {};
+        let debug_filters = debug_scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters);
+        let has_length_match = debug_filters.len() == filters.len();
+
+        if !has_length_match {
+            log::error!(
+                "{}",
+                format!(
+                    "Specialized scanner produced incorrect number of results: {}",
+                    scanner_instance.get_scanner_name()
+                )
+            );
+        }
+
+        for index in 0..(cmp::min(debug_filters.len(), filters.len())) {
+            let debug_filter = &debug_filters[index];
+            let filter = &filters[index];
+
+            if debug_filter != filter {
+                log::error!(
+                    "{}",
+                    format!(
+                        "Scanner {} produced mismatch at index: {}. Expected {}:{}, found {}:{}",
+                        scanner_instance.get_scanner_name(),
+                        index,
+                        filter.get_base_address(),
+                        filter.get_region_size(),
+                        debug_filter.get_base_address(),
+                        debug_filter.get_region_size()
+                    )
+                );
+
+                break;
+            }
         }
     }
 }

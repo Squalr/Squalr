@@ -88,10 +88,18 @@ where
     }
 }
 
+/// Implements a CPU-bound SIMD memory region scanner that is optmized for scanning for a spaced out sequence of N bytes.
+/// In other words, this scan efficiently handles searching for values where the data type size is smaller than the memory alignment.
 impl<const N: usize> Scanner for ScannerVectorSparse<N>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
+    fn get_scanner_name(&self) -> &'static str {
+        &"Vector Sparse"
+    }
+
+    /// Performs a sequential iteration over a region of memory, performing the scan comparison.
+    /// A run-length encoding algorithm is used to generate new sub-regions as the scan progresses.
     fn scan_region(
         &self,
         snapshot_region: &SnapshotRegion,

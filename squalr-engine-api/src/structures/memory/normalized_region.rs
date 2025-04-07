@@ -106,7 +106,7 @@ impl PartialEq for NormalizedRegion {
         &self,
         other: &Self,
     ) -> bool {
-        self.base_address == other.base_address
+        self.base_address == other.base_address && self.region_size == other.region_size
     }
 }
 

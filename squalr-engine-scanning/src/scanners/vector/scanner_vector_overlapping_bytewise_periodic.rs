@@ -63,6 +63,10 @@ impl<const N: usize> Scanner for ScannerVectorOverlappingBytewisePeriodic<N>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
+    fn get_scanner_name(&self) -> &'static str {
+        &"Vector Overlapping (Bytewise Periodic)"
+    }
+
     fn scan_region(
         &self,
         snapshot_region: &SnapshotRegion,

@@ -5,6 +5,35 @@ use std::{mem, ptr};
 pub struct VectorGenerics {}
 
 impl VectorGenerics {
+    /// Rotates left and sets the last `OFFSET` elements to 0.
+    pub fn rotate_left_with_discard<const N: usize, const OFFSET: usize>(vector: Simd<u8, N>) -> Simd<u8, N>
+    where
+        LaneCount<N>: SupportedLaneCount,
+    {
+        let mut rotated = vector.rotate_elements_left::<OFFSET>();
+        let zero_start = N.saturating_sub(OFFSET.min(N));
+
+        for index in zero_start..N {
+            rotated[index] = 0;
+        }
+
+        rotated
+    }
+
+    /// Rotates right and sets the first `OFFSET` elements to 0.
+    pub fn rotate_right_with_discard<const N: usize, const OFFSET: usize>(vector: Simd<u8, N>) -> Simd<u8, N>
+    where
+        LaneCount<N>: SupportedLaneCount,
+    {
+        let mut rotated = vector.rotate_elements_right::<OFFSET>();
+
+        for index in 0..OFFSET.min(N) {
+            rotated[index] = 0;
+        }
+
+        rotated
+    }
+
     /// Reinterprets a `Simd` vector as a different type.
     pub fn transmute<SourceType, TargetType, const N: usize>(value: Simd<SourceType, N>) -> Simd<TargetType, N>
     where

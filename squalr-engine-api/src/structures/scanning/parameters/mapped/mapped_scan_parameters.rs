@@ -85,41 +85,41 @@ impl MappedScanParameters {
             Some(vectorization_size) => vectorization_size,
         };
 
-        // For discrete, multi-byte, primitive types (non-floating point), we can fall back on optimized scans if explicitly performing == or != scans.
-        if mapped_params.data_type.is_discrete()
-            && mapped_params.data_value.get_size_in_bytes() > 1
-            && Self::is_checking_equal_or_not_equal(&mapped_params.scan_compare_type)
-        {
-            if let Some(periodicity) = Self::calculate_periodicity(user_scan_parameters_global, &mapped_params.data_type, &mapped_params.scan_compare_type) {
-                mapped_params.periodicity = periodicity;
-
-                match periodicity {
-                    1 => {
-                        // Better for debug mode.
-                        // mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::OverlappingBytewisePeriodic);
-
-                        // Better for release mode.
-                        mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::OverlappingBytewiseStaggered);
-
-                        return mapped_params;
-                    }
-                    2 | 4 | 8 => {
-                        mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::OverlappingBytewiseStaggered);
-
-                        return mapped_params;
-                    }
-                    _ => {}
-                }
-            }
-        }
-
         let data_type_size = mapped_params.get_data_type().get_size_in_bytes();
         let memory_alignment_size = mapped_params.get_memory_alignment() as u64;
 
-        if data_type_size < memory_alignment_size {
+        if data_type_size > memory_alignment_size {
+            // For discrete, multi-byte, primitive types (non-floating point), we can fall back on optimized scans if explicitly performing == or != scans.
+            if mapped_params.data_type.is_discrete()
+                && mapped_params.data_value.get_size_in_bytes() > 1
+                && Self::is_checking_equal_or_not_equal(&mapped_params.scan_compare_type)
+            {
+                if let Some(periodicity) = Self::calculate_periodicity(user_scan_parameters_global, &mapped_params.data_type, &mapped_params.scan_compare_type)
+                {
+                    mapped_params.periodicity = periodicity;
+
+                    match periodicity {
+                        1 => {
+                            // Better for debug mode.
+                            // mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::OverlappingBytewisePeriodic);
+
+                            // Better for release mode.
+                            mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::OverlappingBytewiseStaggered);
+
+                            return mapped_params;
+                        }
+                        2 | 4 | 8 => {
+                            mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::OverlappingBytewiseStaggered);
+
+                            return mapped_params;
+                        }
+                        _ => {}
+                    }
+                }
+            }
             mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::Overlapping);
             mapped_params
-        } else if data_type_size > memory_alignment_size {
+        } else if data_type_size < memory_alignment_size {
             mapped_params.mapped_scan_type = MappedScanType::Vector(ScanParametersVector::Sparse);
             mapped_params
         } else {
