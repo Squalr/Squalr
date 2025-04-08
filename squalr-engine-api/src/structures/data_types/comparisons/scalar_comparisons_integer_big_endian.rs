@@ -1,4 +1,4 @@
-use crate::structures::data_types::comparisons::scalar_comparable::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
+use crate::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use num_traits::{PrimInt, WrappingAdd, WrappingMul, WrappingSub};
 use std::ops::{BitAnd, BitOr, BitXor, Div, Rem, Shl, Shr};

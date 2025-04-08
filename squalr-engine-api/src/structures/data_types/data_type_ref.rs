@@ -1,7 +1,4 @@
 use crate::registries::data_types::data_type_registry::DataTypeRegistry;
-use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnDelta;
-use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnImmediate;
-use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnRelative;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::generics::vector_comparer::VectorComparer;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
@@ -9,6 +6,8 @@ use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
+use crate::structures::scanning::comparisons::scan_function_scalar::ScalarCompareFnImmediate;
+use crate::structures::scanning::comparisons::scan_function_scalar::ScalarCompareFnRelative;
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use serde::{Deserialize, Serialize};
 use std::simd::LaneCount;
@@ -156,7 +155,7 @@ impl DataTypeRef {
         &self,
         scan_compare_type: &ScanCompareTypeDelta,
         scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnDelta> {
+    ) -> Option<ScalarCompareFnRelative> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(self.get_data_type_id()) {

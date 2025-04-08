@@ -57,20 +57,6 @@ impl SnapshotRegionFilterRunLengthEncoder {
         self.is_encoding = true;
     }
 
-    pub fn unshift_current_encode(
-        &mut self,
-        shift_amount: u64,
-    ) {
-        self.run_length_current_address = self.run_length_current_address.saturating_sub(shift_amount);
-    }
-
-    pub fn shift_current_encode(
-        &mut self,
-        shift_amount: u64,
-    ) {
-        self.run_length_current_address = self.run_length_current_address.saturating_add(shift_amount);
-    }
-
     /// Completes the current run length encoding, creating a region filter from the result.
     pub fn finalize_current_encode(
         &mut self,
@@ -111,26 +97,6 @@ impl SnapshotRegionFilterRunLengthEncoder {
         self.run_length_current_address += byte_advance_count;
     }
 
-    /// Completes the current run length encoding, creating a region filter from the result, increasing the run length size if below the given threshold.
-    pub fn finalize_current_encode_with_minimum_size(
-        &mut self,
-        // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
-        // For vector scans, this is generally the size of the hardware vector.
-        byte_advance_count: u64,
-        // The minimum size of the run length. Run lengths below this are increased to this size.
-        minimum_size: u64,
-    ) {
-        if self.is_encoding && self.run_length > 0 {
-            self.result_regions
-                .push(SnapshotRegionFilter::new(self.run_length_current_address, self.run_length.max(minimum_size)));
-            self.run_length_current_address += self.run_length;
-            self.run_length = 0;
-            self.is_encoding = false;
-        }
-
-        self.run_length_current_address += byte_advance_count;
-    }
-
     /// Completes the current run length encoding, creating a region filter from the result. Discards regions below the minimum size.
     pub fn finalize_current_encode_with_minimum_size_filtering(
         &mut self,
@@ -144,37 +110,6 @@ impl SnapshotRegionFilterRunLengthEncoder {
             if self.run_length >= minimum_size {
                 self.result_regions
                     .push(SnapshotRegionFilter::new(self.run_length_current_address, self.run_length));
-            }
-            self.run_length_current_address += self.run_length;
-            self.run_length = 0;
-            self.is_encoding = false;
-        }
-
-        self.run_length_current_address += byte_advance_count;
-    }
-
-    /// Completes the current run length encoding, creating a region filter from the result. Discards regions below the minimum size.
-    /// Additionally this takes a range adjustor to allow custom tweaks before finalizing an encoding.
-    pub fn finalize_current_encode_periodic(
-        &mut self,
-        // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
-        // For vector scans, this is generally the size of the hardware vector.
-        byte_advance_count: u64,
-        // The size at which a periodic region is split into multiple-filters. This also serves as the minimum possible filter size.
-        split_size: u64,
-        // A custom adjustor to the current address and run length.
-        range_adjustor: &dyn Fn(u64, u64) -> (u64, u64),
-    ) {
-        if self.is_encoding && self.run_length > 0 {
-            if self.run_length >= split_size {
-                // Allow the callera to adjust the range of our run length encoding to meet periodicity requirements.
-                let (new_current_address, new_run_length) = range_adjustor(self.run_length_current_address, self.run_length);
-                let filter_count = new_run_length / split_size;
-
-                for index in 0..filter_count {
-                    self.result_regions
-                        .push(SnapshotRegionFilter::new(new_current_address.saturating_add(index * split_size), split_size));
-                }
             }
             self.run_length_current_address += self.run_length;
             self.run_length = 0;

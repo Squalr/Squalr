@@ -1,3 +1,6 @@
+use std::simd::LaneCount;
+use std::simd::SupportedLaneCount;
+
 use crate::structures::data_types::built_in_types::byte_array::data_type_byte_array::DataTypeByteArray;
 use crate::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
 use crate::structures::data_types::built_in_types::u16be::data_type_u16be::DataTypeU16be;
@@ -6,11 +9,14 @@ use crate::structures::data_types::built_in_types::u64be::data_type_u64be::DataT
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
+use crate::structures::data_types::generics::vector_comparer::VectorComparer;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
+use crate::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
+use crate::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::MappedScanType;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParametersByteArray;
@@ -158,6 +164,71 @@ impl MappedScanParameters {
 
     pub fn get_mapped_scan_type(&self) -> &MappedScanType {
         &self.mapped_scan_type
+    }
+
+    pub fn get_scan_function_scalar(&self) -> Option<ScanFunctionScalar> {
+        match self.get_compare_type() {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => {
+                if let Some(compare_func) = self
+                    .get_data_type()
+                    .get_scalar_compare_func_immediate(&scan_compare_type_immediate, &self)
+                {
+                    return Some(ScanFunctionScalar::Immediate(compare_func));
+                }
+            }
+            ScanCompareType::Relative(scan_compare_type_relative) => {
+                if let Some(compare_func) = self
+                    .get_data_type()
+                    .get_scalar_compare_func_relative(&scan_compare_type_relative, &self)
+                {
+                    return Some(ScanFunctionScalar::RelativeOrDelta(compare_func));
+                }
+            }
+            ScanCompareType::Delta(scan_compare_type_delta) => {
+                if let Some(compare_func) = self
+                    .get_data_type()
+                    .get_scalar_compare_func_delta(&scan_compare_type_delta, &self)
+                {
+                    return Some(ScanFunctionScalar::RelativeOrDelta(compare_func));
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn get_scan_function_vector<const N: usize>(&self) -> Option<ScanFunctionVector<N>>
+    where
+        LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
+    {
+        match self.get_compare_type() {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => {
+                if let Some(compare_func) = self
+                    .get_data_type()
+                    .get_vector_compare_func_immediate(&scan_compare_type_immediate, &self)
+                {
+                    return Some(ScanFunctionVector::Immediate(compare_func));
+                }
+            }
+            ScanCompareType::Relative(scan_compare_type_relative) => {
+                if let Some(compare_func) = self
+                    .get_data_type()
+                    .get_vector_compare_func_relative(&scan_compare_type_relative, &self)
+                {
+                    return Some(ScanFunctionVector::RelativeOrDelta(compare_func));
+                }
+            }
+            ScanCompareType::Delta(scan_compare_type_delta) => {
+                if let Some(compare_func) = self
+                    .get_data_type()
+                    .get_vector_compare_func_delta(&scan_compare_type_delta, &self)
+                {
+                    return Some(ScanFunctionVector::RelativeOrDelta(compare_func));
+                }
+            }
+        }
+
+        None
     }
 
     // JIRA: Is this really even necessary any more? Does this not just always result in the same bytes? Why not just truncate to match

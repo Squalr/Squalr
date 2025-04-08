@@ -116,9 +116,8 @@ impl VectorGenerics {
             8 => vector.rotate_elements_right::<8>(),
             _ => vector,
         };
-        let zero_start = N.saturating_sub((rotation as usize).min(N));
 
-        for index in zero_start..N {
+        for index in 0..(rotation as usize).min(N) {
             rotated[index] = 0;
         }
 

@@ -1,8 +1,6 @@
 use crate::structures::data_types::built_in_types::byte_array::data_type_byte_array::DataTypeByteArray;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
-use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnDelta;
-use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnImmediate;
-use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnRelative;
+use crate::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use std::cmp::Ordering;
 use std::ops::BitAnd;

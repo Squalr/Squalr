@@ -1,9 +1,7 @@
 use crate::structures::data_types::built_in_types::u16be::data_type_u16be::DataTypeU16be;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
-use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnDelta;
-use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnImmediate;
-use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompareFnRelative;
 use crate::structures::data_types::comparisons::scalar_comparisons_integer_big_endian::ScalarComparisonsIntegerBigEndian;
+use crate::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 
 type PrimitiveType = u16;
@@ -96,56 +94,56 @@ impl ScalarComparable for DataTypeU16be {
     fn get_compare_multiplied_by(
         &self,
         scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnRelative> {
+    ) -> Option<ScalarCompareFnDelta> {
         ScalarComparisonsIntegerBigEndian::get_compare_multiplied_by::<PrimitiveType>(scan_parameters)
     }
 
     fn get_compare_divided_by(
         &self,
         scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnRelative> {
+    ) -> Option<ScalarCompareFnDelta> {
         ScalarComparisonsIntegerBigEndian::get_compare_divided_by::<PrimitiveType>(scan_parameters)
     }
 
     fn get_compare_modulo_by(
         &self,
         scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnRelative> {
+    ) -> Option<ScalarCompareFnDelta> {
         ScalarComparisonsIntegerBigEndian::get_compare_modulo_by::<PrimitiveType>(scan_parameters)
     }
 
     fn get_compare_shift_left_by(
         &self,
         scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnRelative> {
+    ) -> Option<ScalarCompareFnDelta> {
         ScalarComparisonsIntegerBigEndian::get_compare_shift_left_by::<PrimitiveType>(scan_parameters)
     }
 
     fn get_compare_shift_right_by(
         &self,
         scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnRelative> {
+    ) -> Option<ScalarCompareFnDelta> {
         ScalarComparisonsIntegerBigEndian::get_compare_shift_right_by::<PrimitiveType>(scan_parameters)
     }
 
     fn get_compare_logical_and_by(
         &self,
         scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnRelative> {
+    ) -> Option<ScalarCompareFnDelta> {
         ScalarComparisonsIntegerBigEndian::get_compare_logical_and_by::<PrimitiveType>(scan_parameters)
     }
 
     fn get_compare_logical_or_by(
         &self,
         scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnRelative> {
+    ) -> Option<ScalarCompareFnDelta> {
         ScalarComparisonsIntegerBigEndian::get_compare_logical_or_by::<PrimitiveType>(scan_parameters)
     }
 
     fn get_compare_logical_xor_by(
         &self,
         scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnRelative> {
+    ) -> Option<ScalarCompareFnDelta> {
         ScalarComparisonsIntegerBigEndian::get_compare_logical_xor_by::<PrimitiveType>(scan_parameters)
     }
 }

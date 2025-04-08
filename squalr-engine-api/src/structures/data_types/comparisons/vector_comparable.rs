@@ -1,26 +1,11 @@
 use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
+use crate::structures::scanning::comparisons::scan_function_vector::{
+    VectorCompareFnDelta16, VectorCompareFnDelta32, VectorCompareFnDelta64, VectorCompareFnImmediate16, VectorCompareFnImmediate32, VectorCompareFnImmediate64,
+    VectorCompareFnRelative16, VectorCompareFnRelative32, VectorCompareFnRelative64,
+};
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
-use std::simd::Simd;
-
-/// Defines a compare function that operates on an immediate (ie all inequalities).
-/// Parameters: current value pointer.
-pub type VectorCompareFnImmediate64 = Box<dyn Fn(*const u8) -> Simd<u8, 64>>;
-pub type VectorCompareFnImmediate32 = Box<dyn Fn(*const u8) -> Simd<u8, 32>>;
-pub type VectorCompareFnImmediate16 = Box<dyn Fn(*const u8) -> Simd<u8, 16>>;
-
-/// Defines a compare function that operates on current and previous values (ie changed, unchanged, increased, decreased).
-/// Parameters: current value pointer, previous value pointer.
-pub type VectorCompareFnRelative64 = Box<dyn Fn(*const u8, *const u8) -> Simd<u8, 64>>;
-pub type VectorCompareFnRelative32 = Box<dyn Fn(*const u8, *const u8) -> Simd<u8, 32>>;
-pub type VectorCompareFnRelative16 = Box<dyn Fn(*const u8, *const u8) -> Simd<u8, 16>>;
-
-/// Defines a compare function that operates on current and previous values, with a delta arg (ie +x, -x).
-/// Parameters: current value pointer, previous value pointer.
-pub type VectorCompareFnDelta64 = Box<dyn Fn(*const u8, *const u8) -> Simd<u8, 64>>;
-pub type VectorCompareFnDelta32 = Box<dyn Fn(*const u8, *const u8) -> Simd<u8, 32>>;
-pub type VectorCompareFnDelta16 = Box<dyn Fn(*const u8, *const u8) -> Simd<u8, 16>>;
 
 pub trait VectorComparable {
     fn get_vector_compare_equal_64(

@@ -2,7 +2,7 @@ use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
-use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
+use squalr_engine_api::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use std::simd::cmp::SimdPartialEq;
@@ -80,70 +80,47 @@ where
         let data_type = scan_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment_size = scan_parameters.get_memory_alignment() as u64;
-        let vector_size_in_bytes = N;
-        let iterations = region_size / vector_size_in_bytes as u64;
+        let vector_size_in_bytes = N as u64;
+        let vectorizable_iterations = region_size / vector_size_in_bytes as u64;
         let remainder_bytes = region_size % vector_size_in_bytes as u64;
-        let remainder_ptr_offset = iterations.saturating_sub(1) as usize * vector_size_in_bytes;
+        let remainder_ptr_offset = vectorizable_iterations * vector_size_in_bytes;
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
 
         debug_assert!(data_type_size == memory_alignment_size);
 
-        match scan_parameters.get_compare_type() {
-            ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                if let Some(compare_func) = data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate, scan_parameters) {
+        if let Some(vector_compare_func) = scan_parameters.get_scan_function_vector() {
+            match vector_compare_func {
+                ScanFunctionVector::Immediate(compare_func) => {
                     // Compare as many full vectors as we can.
-                    for index in 0..iterations {
-                        let current_value_pointer = unsafe { current_value_pointer.add(index as usize * vector_size_in_bytes) };
+                    for index in 0..vectorizable_iterations {
+                        let current_value_pointer = unsafe { current_value_pointer.add((index * vector_size_in_bytes) as usize) };
                         let compare_result = compare_func(current_value_pointer);
 
                         Self::encode_results(&compare_result, &mut run_length_encoder, memory_alignment_size, true_mask, false_mask);
                     }
 
                     // Handle remainder elements.
-                    if remainder_bytes > 0 {
-                        let current_value_pointer = unsafe { current_value_pointer.add(remainder_ptr_offset) };
+                    if remainder_bytes >= data_type_size {
+                        let current_value_pointer = unsafe { current_value_pointer.add(remainder_ptr_offset as usize) };
                         let compare_result = compare_func(current_value_pointer);
                         Self::encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment_size, remainder_bytes);
                     }
                 }
-            }
-            ScanCompareType::Relative(scan_compare_type_relative) => {
-                if let Some(compare_func) = data_type.get_vector_compare_func_relative(&scan_compare_type_relative, scan_parameters) {
+                ScanFunctionVector::RelativeOrDelta(compare_func) => {
                     // Compare as many full vectors as we can.
-                    for index in 0..iterations {
-                        let current_value_pointer = unsafe { current_value_pointer.add(index as usize * vector_size_in_bytes) };
-                        let previous_value_pointer = unsafe { previous_value_pointer.add(index as usize * vector_size_in_bytes) };
+                    for index in 0..vectorizable_iterations {
+                        let current_value_pointer = unsafe { current_value_pointer.add((index * vector_size_in_bytes) as usize) };
+                        let previous_value_pointer = unsafe { previous_value_pointer.add((index * vector_size_in_bytes) as usize) };
                         let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
                         Self::encode_results(&compare_result, &mut run_length_encoder, memory_alignment_size, true_mask, false_mask);
                     }
 
                     // Handle remainder elements.
-                    if remainder_bytes > 0 {
-                        let current_value_pointer = unsafe { current_value_pointer.add(remainder_ptr_offset) };
-                        let previous_value_pointer = unsafe { previous_value_pointer.add(remainder_ptr_offset) };
-                        let compare_result = compare_func(current_value_pointer, previous_value_pointer);
-
-                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment_size, remainder_bytes);
-                    }
-                }
-            }
-            ScanCompareType::Delta(scan_compare_type_delta) => {
-                if let Some(compare_func) = data_type.get_vector_compare_func_delta(&scan_compare_type_delta, scan_parameters) {
-                    // Compare as many full vectors as we can.
-                    for index in 0..iterations {
-                        let current_value_pointer = unsafe { current_value_pointer.add(index as usize * vector_size_in_bytes) };
-                        let previous_value_pointer = unsafe { previous_value_pointer.add(index as usize * vector_size_in_bytes) };
-                        let compare_result = compare_func(current_value_pointer, previous_value_pointer);
-
-                        Self::encode_results(&compare_result, &mut run_length_encoder, memory_alignment_size, true_mask, false_mask);
-                    }
-
-                    // Handle remainder elements.
-                    if remainder_bytes > 0 {
-                        let current_value_pointer = unsafe { current_value_pointer.add(remainder_ptr_offset) };
-                        let previous_value_pointer = unsafe { previous_value_pointer.add(remainder_ptr_offset) };
+                    if remainder_bytes >= data_type_size {
+                        let current_value_pointer = unsafe { current_value_pointer.add(remainder_ptr_offset as usize) };
+                        let previous_value_pointer = unsafe { previous_value_pointer.add(remainder_ptr_offset as usize) };
                         let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
                         Self::encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment_size, remainder_bytes);

@@ -1,7 +1,7 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
+use squalr_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 
@@ -35,9 +35,9 @@ impl Scanner for ScannerScalarIterative {
         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
 
-        match scan_parameters.get_compare_type() {
-            ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                if let Some(compare_func) = data_type.get_scalar_compare_func_immediate(&scan_compare_type_immediate, scan_parameters) {
+        if let Some(scalar_compare_func) = scan_parameters.get_scan_function_scalar() {
+            match scalar_compare_func {
+                ScanFunctionScalar::Immediate(compare_func) => {
                     for index in 0..element_count {
                         let current_value_pointer = unsafe { current_value_pointer.add(index as usize * memory_alignment_size as usize) };
                         let compare_result = compare_func(current_value_pointer);
@@ -49,24 +49,7 @@ impl Scanner for ScannerScalarIterative {
                         }
                     }
                 }
-            }
-            ScanCompareType::Relative(scan_compare_type_relative) => {
-                if let Some(compare_func) = data_type.get_scalar_compare_func_relative(&scan_compare_type_relative, scan_parameters) {
-                    for index in 0..element_count {
-                        let current_value_pointer = unsafe { current_value_pointer.add(index as usize * memory_alignment_size as usize) };
-                        let previous_value_pointer = unsafe { previous_value_pointer.add(index as usize * memory_alignment_size as usize) };
-                        let compare_result = compare_func(current_value_pointer, previous_value_pointer);
-
-                        if compare_result {
-                            run_length_encoder.encode_range(memory_alignment_size);
-                        } else {
-                            run_length_encoder.finalize_current_encode_with_padding(memory_alignment_size, data_type_size_padding);
-                        }
-                    }
-                }
-            }
-            ScanCompareType::Delta(scan_compare_type_delta) => {
-                if let Some(compare_func) = data_type.get_scalar_compare_func_delta(&scan_compare_type_delta, scan_parameters) {
+                ScanFunctionScalar::RelativeOrDelta(compare_func) => {
                     for index in 0..element_count {
                         let current_value_pointer = unsafe { current_value_pointer.add(index as usize * memory_alignment_size as usize) };
                         let previous_value_pointer = unsafe { previous_value_pointer.add(index as usize * memory_alignment_size as usize) };

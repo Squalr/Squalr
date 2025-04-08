@@ -1,11 +1,11 @@
-use crate::structures::data_types::comparisons::vector_comparable::{
-    VectorCompareFnDelta16, VectorCompareFnDelta32, VectorCompareFnDelta64, VectorCompareFnImmediate16, VectorCompareFnImmediate32, VectorCompareFnImmediate64,
-    VectorCompareFnRelative16, VectorCompareFnRelative32, VectorCompareFnRelative64,
-};
 use crate::structures::data_types::data_type::DataType;
 use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
+use crate::structures::scanning::comparisons::scan_function_vector::{
+    VectorCompareFnDelta16, VectorCompareFnDelta32, VectorCompareFnDelta64, VectorCompareFnImmediate16, VectorCompareFnImmediate32, VectorCompareFnImmediate64,
+    VectorCompareFnRelative16, VectorCompareFnRelative32, VectorCompareFnRelative64,
+};
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 use std::sync::Arc;

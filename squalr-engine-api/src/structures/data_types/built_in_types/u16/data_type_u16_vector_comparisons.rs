@@ -1,10 +1,10 @@
 use crate::structures::data_types::built_in_types::u16::data_type_u16::DataTypeU16;
 use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
-use crate::structures::data_types::comparisons::vector_comparable::{
+use crate::structures::data_types::comparisons::vector_comparisons_integer::VectorComparisonsInteger;
+use crate::structures::scanning::comparisons::scan_function_vector::{
     VectorCompareFnDelta16, VectorCompareFnDelta32, VectorCompareFnDelta64, VectorCompareFnImmediate16, VectorCompareFnImmediate32, VectorCompareFnImmediate64,
     VectorCompareFnRelative16, VectorCompareFnRelative32, VectorCompareFnRelative64,
 };
-use crate::structures::data_types::comparisons::vector_comparisons_integer::VectorComparisonsInteger;
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 
 type PrimitiveType = u16;

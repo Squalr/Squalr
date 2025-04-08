@@ -1,6 +1,6 @@
 use crate::structures::data_types::built_in_types::byte_array::data_type_byte_array::DataTypeByteArray;
 use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
-use crate::structures::data_types::comparisons::vector_comparable::{
+use crate::structures::scanning::comparisons::scan_function_vector::{
     VectorCompareFnDelta16, VectorCompareFnDelta32, VectorCompareFnDelta64, VectorCompareFnImmediate16, VectorCompareFnImmediate32, VectorCompareFnImmediate64,
     VectorCompareFnRelative16, VectorCompareFnRelative32, VectorCompareFnRelative64,
 };
