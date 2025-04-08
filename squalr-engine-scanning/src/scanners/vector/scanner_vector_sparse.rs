@@ -113,6 +113,7 @@ where
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_parameters.get_data_type();
+        let data_type_size = data_type.get_size_in_bytes();
         let memory_alignment = scan_parameters.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
         let vector_size_in_bytes = N;
@@ -121,6 +122,8 @@ where
         let remainder_ptr_offset = iterations.saturating_sub(1) as usize * vector_size_in_bytes;
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Self::get_sparse_mask(memory_alignment);
+
+        debug_assert!(data_type_size < memory_alignment_size);
 
         match scan_parameters.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {

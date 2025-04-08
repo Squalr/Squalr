@@ -20,26 +20,26 @@ where
     fn encode_results(
         compare_result: &Simd<u8, N>,
         run_length_encoder: &mut SnapshotRegionFilterRunLengthEncoder,
-        data_type_size_padding: u64,
+        data_type_size: u64,
         true_mask: Simd<u8, N>,
         false_mask: Simd<u8, N>,
     ) {
         // Optimization: Check if all scan results are true. This helps substantially when scanning for common values like 0.
         if compare_result.simd_eq(true_mask).all() {
             run_length_encoder.encode_range(N as u64);
-            // Optimization: Check if all scan results are false. This is also a very common result, and speeds up scans.
+        // Optimization: Check if all scan results are false. This is also a very common result, and speeds up scans.
         } else if compare_result.simd_eq(false_mask).all() {
-            run_length_encoder.finalize_current_encode_with_padding(N as u64, data_type_size_padding);
+            run_length_encoder.finalize_current_encode_with_minimum_size(N as u64, data_type_size);
         // Otherwise, there is a mix of true/false results that need to be processed manually.
         } else {
-            Self::encode_remainder_results(&compare_result, run_length_encoder, data_type_size_padding, N as u64);
+            Self::encode_remainder_results(&compare_result, run_length_encoder, data_type_size, N as u64);
         }
     }
 
     fn encode_remainder_results(
         compare_result: &Simd<u8, N>,
         run_length_encoder: &mut SnapshotRegionFilterRunLengthEncoder,
-        data_type_size_padding: u64,
+        data_type_size: u64,
         remainder_bytes: u64,
     ) {
         let start_byte_index = (N as u64).saturating_sub(remainder_bytes);
@@ -48,7 +48,7 @@ where
             if compare_result[byte_index as usize] != 0 {
                 run_length_encoder.encode_range(1);
             } else {
-                run_length_encoder.finalize_current_encode_with_padding(1, data_type_size_padding);
+                run_length_encoder.finalize_current_encode_with_minimum_size(1, data_type_size);
             }
         }
     }
@@ -80,48 +80,49 @@ where
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
-        let data_type_size_padding = data_type_size.saturating_sub(scan_parameters.get_memory_alignment() as u64);
         let memory_alignment = scan_parameters.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
-        let vector_size_in_bytes = N;
-        let vector_overflow = data_type_size as usize;
-        let vector_compare_size = vector_size_in_bytes.saturating_add(vector_overflow) as u64;
-        let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
-        let vectorizable_iterations = region_size / vector_compare_size; // JIRA: Memory alignment!
-        let remainder_bytes = region_size % vector_compare_size;
-        let remainder_element_count: u64 = (remainder_bytes / memory_alignment_size).saturating_sub(data_type_size.saturating_sub(1));
-        let vectorizable_element_count = element_count.saturating_sub(remainder_element_count);
-        let remainder_ptr_offset = (vectorizable_iterations.saturating_sub(1) * vector_compare_size) as usize;
+        let vector_size_in_bytes = N as u64;
+        let vectorizable_iterations = region_size.saturating_sub(data_type_size.saturating_sub(1)) / vector_size_in_bytes;
+        let remainder_bytes = region_size % vector_size_in_bytes;
+        let remainder_ptr_offset = (vectorizable_iterations.saturating_sub(1) * vector_size_in_bytes).saturating_sub(data_type_size.saturating_sub(1)) as usize;
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
+
+        debug_assert!(data_type_size > memory_alignment_size);
+        debug_assert!(memory_alignment_size == 1 || memory_alignment_size == 2 || memory_alignment_size == 4);
+
+        // TODO: For this scan we need to ensure that each encode <actually> only encodes 1 byte, not a full match length
+        // We probably <actually> want a staggered true mask? Or idk think about this.
+        // But essentially we want the encode to be at an ELEMENT level, not a byte level (to allow us to right-shift elements out of bounds).
 
         match scan_parameters.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
                 if let Some(compare_func) = data_type.get_vector_compare_func_immediate(&scan_compare_type_immediate, scan_parameters) {
                     // Compare as many full vectors as we can.
                     for index in 0..vectorizable_iterations {
-                        let mut current_values_pointer = unsafe { current_values_pointer.add((index * vector_compare_size) as usize) };
+                        let current_values_pointer = unsafe { current_values_pointer.add((index * vector_size_in_bytes) as usize) };
                         let mut compare_result = compare_func(current_values_pointer);
 
-                        for _overlap_index in (memory_alignment_size as usize..data_type_size as usize).step_by(memory_alignment_size as usize) {
-                            current_values_pointer = unsafe { current_values_pointer.add(1) };
-                            compare_result &= VectorGenerics::rotate_left_with_discard::<N, 1>(compare_func(current_values_pointer));
+                        for overlap_index in (memory_alignment_size..data_type_size).step_by(memory_alignment_size as usize) {
+                            let current_values_pointer = unsafe { current_values_pointer.add(overlap_index as usize) };
+                            compare_result |= VectorGenerics::rotate_right_with_discard_max_8::<N>(compare_func(current_values_pointer), overlap_index);
                         }
 
-                        Self::encode_results(&compare_result, &mut run_length_encoder, data_type_size_padding, true_mask, false_mask);
+                        Self::encode_results(&compare_result, &mut run_length_encoder, data_type_size, true_mask, false_mask);
                     }
 
                     // Handle remainder elements.
                     if remainder_bytes > 0 {
-                        let mut current_values_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset) };
+                        let current_values_pointer = unsafe { current_values_pointer.add((remainder_ptr_offset) as usize) };
                         let mut compare_result = compare_func(current_values_pointer);
 
-                        for _overlap_index in (memory_alignment_size as usize..data_type_size as usize).step_by(memory_alignment_size as usize) {
-                            current_values_pointer = unsafe { current_values_pointer.add(1) };
-                            compare_result &= VectorGenerics::rotate_left_with_discard::<N, 1>(compare_func(current_values_pointer));
+                        for overlap_index in (memory_alignment_size..data_type_size).step_by(memory_alignment_size as usize) {
+                            let current_values_pointer = unsafe { current_values_pointer.add(overlap_index as usize) };
+                            compare_result |= VectorGenerics::rotate_right_with_discard_max_8::<N>(compare_func(current_values_pointer), overlap_index);
                         }
 
-                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_padding, remainder_bytes);
+                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_bytes);
                     }
                 }
             }
@@ -129,32 +130,38 @@ where
                 if let Some(compare_func) = data_type.get_vector_compare_func_relative(&scan_compare_type_relative, scan_parameters) {
                     // Compare as many full vectors as we can.
                     for index in 0..vectorizable_iterations {
-                        let mut current_values_pointer = unsafe { current_values_pointer.add((index * vector_compare_size) as usize) };
-                        let mut previous_values_pointer = unsafe { previous_values_pointer.add((index * vector_compare_size) as usize) };
+                        let current_values_pointer = unsafe { current_values_pointer.add((index * vector_size_in_bytes) as usize) };
+                        let previous_values_pointer = unsafe { previous_values_pointer.add((index * vector_size_in_bytes) as usize) };
                         let mut compare_result = compare_func(current_values_pointer, previous_values_pointer);
 
-                        for _overlap_index in (memory_alignment_size as usize..data_type_size as usize).step_by(memory_alignment_size as usize) {
-                            current_values_pointer = unsafe { current_values_pointer.add(1) };
-                            previous_values_pointer = unsafe { previous_values_pointer.add(1) };
-                            compare_result &= VectorGenerics::rotate_left_with_discard::<N, 1>(compare_func(current_values_pointer, previous_values_pointer));
+                        for overlap_index in (memory_alignment_size..data_type_size).step_by(memory_alignment_size as usize) {
+                            let current_values_pointer = unsafe { current_values_pointer.add(overlap_index as usize) };
+                            let previous_values_pointer = unsafe { previous_values_pointer.add(overlap_index as usize) };
+                            compare_result |= VectorGenerics::rotate_right_with_discard_max_8::<N>(
+                                compare_func(current_values_pointer, previous_values_pointer),
+                                overlap_index,
+                            );
                         }
 
-                        Self::encode_results(&compare_result, &mut run_length_encoder, data_type_size_padding, true_mask, false_mask);
+                        Self::encode_results(&compare_result, &mut run_length_encoder, data_type_size, true_mask, false_mask);
                     }
 
                     // Handle remainder elements.
                     if remainder_bytes > 0 {
-                        let mut current_values_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset) };
-                        let mut previous_values_pointer = unsafe { previous_values_pointer.add(remainder_ptr_offset) };
+                        let current_values_pointer = unsafe { current_values_pointer.add((remainder_ptr_offset) as usize) };
+                        let previous_values_pointer = unsafe { previous_values_pointer.add((remainder_ptr_offset) as usize) };
                         let mut compare_result = compare_func(current_values_pointer, previous_values_pointer);
 
-                        for _overlap_index in (memory_alignment_size as usize..data_type_size as usize).step_by(memory_alignment_size as usize) {
-                            current_values_pointer = unsafe { current_values_pointer.add(1) };
-                            previous_values_pointer = unsafe { previous_values_pointer.add(1) };
-                            compare_result &= VectorGenerics::rotate_left_with_discard::<N, 1>(compare_func(current_values_pointer, previous_values_pointer));
+                        for overlap_index in (memory_alignment_size..data_type_size).step_by(memory_alignment_size as usize) {
+                            let current_values_pointer = unsafe { current_values_pointer.add(overlap_index as usize) };
+                            let previous_values_pointer = unsafe { previous_values_pointer.add(overlap_index as usize) };
+                            compare_result |= VectorGenerics::rotate_right_with_discard_max_8::<N>(
+                                compare_func(current_values_pointer, previous_values_pointer),
+                                overlap_index,
+                            );
                         }
 
-                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_padding, remainder_bytes);
+                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_bytes);
                     }
                 }
             }
@@ -162,38 +169,44 @@ where
                 if let Some(compare_func) = data_type.get_vector_compare_func_delta(&scan_compare_type_delta, scan_parameters) {
                     // Compare as many full vectors as we can.
                     for index in 0..vectorizable_iterations {
-                        let mut current_values_pointer = unsafe { current_values_pointer.add((index * vector_compare_size) as usize) };
-                        let mut previous_values_pointer = unsafe { previous_values_pointer.add((index * vector_compare_size) as usize) };
+                        let current_values_pointer = unsafe { current_values_pointer.add((index * vector_size_in_bytes) as usize) };
+                        let previous_values_pointer = unsafe { previous_values_pointer.add((index * vector_size_in_bytes) as usize) };
                         let mut compare_result = compare_func(current_values_pointer, previous_values_pointer);
 
-                        for _overlap_index in (memory_alignment_size as usize..data_type_size as usize).step_by(memory_alignment_size as usize) {
-                            current_values_pointer = unsafe { current_values_pointer.add(1) };
-                            previous_values_pointer = unsafe { previous_values_pointer.add(1) };
-                            compare_result &= VectorGenerics::rotate_left_with_discard::<N, 1>(compare_func(current_values_pointer, previous_values_pointer));
+                        for overlap_index in (memory_alignment_size..data_type_size).step_by(memory_alignment_size as usize) {
+                            let current_values_pointer = unsafe { current_values_pointer.add(overlap_index as usize) };
+                            let previous_values_pointer = unsafe { previous_values_pointer.add(overlap_index as usize) };
+                            compare_result |= VectorGenerics::rotate_right_with_discard_max_8::<N>(
+                                compare_func(current_values_pointer, previous_values_pointer),
+                                overlap_index,
+                            );
                         }
 
-                        Self::encode_results(&compare_result, &mut run_length_encoder, data_type_size_padding, true_mask, false_mask);
+                        Self::encode_results(&compare_result, &mut run_length_encoder, data_type_size, true_mask, false_mask);
                     }
 
                     // Handle remainder elements.
                     if remainder_bytes > 0 {
-                        let mut current_values_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset) };
-                        let mut previous_values_pointer = unsafe { previous_values_pointer.add(remainder_ptr_offset) };
+                        let current_values_pointer = unsafe { current_values_pointer.add((remainder_ptr_offset) as usize) };
+                        let previous_values_pointer = unsafe { previous_values_pointer.add((remainder_ptr_offset) as usize) };
                         let mut compare_result = compare_func(current_values_pointer, previous_values_pointer);
 
-                        for _overlap_index in (memory_alignment_size as usize..data_type_size as usize).step_by(memory_alignment_size as usize) {
-                            current_values_pointer = unsafe { current_values_pointer.add(1) };
-                            previous_values_pointer = unsafe { previous_values_pointer.add(1) };
-                            compare_result &= VectorGenerics::rotate_left_with_discard::<N, 1>(compare_func(current_values_pointer, previous_values_pointer));
+                        for overlap_index in (memory_alignment_size..data_type_size).step_by(memory_alignment_size as usize) {
+                            let current_values_pointer = unsafe { current_values_pointer.add(overlap_index as usize) };
+                            let previous_values_pointer = unsafe { previous_values_pointer.add(overlap_index as usize) };
+                            compare_result |= VectorGenerics::rotate_right_with_discard_max_8::<N>(
+                                compare_func(current_values_pointer, previous_values_pointer),
+                                overlap_index,
+                            );
                         }
 
-                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size_padding, remainder_bytes);
+                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_bytes);
                     }
                 }
             }
         };
 
-        run_length_encoder.finalize_current_encode_with_padding(0, data_type_size_padding);
+        run_length_encoder.finalize_current_encode_with_minimum_size(0, data_type_size);
         run_length_encoder.take_result_regions()
     }
 }

@@ -32,7 +32,7 @@ where
             run_length_encoder.encode_range(N as u64);
         // Optimization: Check if all scan results are false. This is also a very common result, and speeds up scans.
         } else if compare_result.simd_eq(false_mask).all() {
-            run_length_encoder.finalize_current_encode_with_minimum_size(N as u64, data_type_size);
+            run_length_encoder.finalize_current_encode_with_minimum_size_filtering(N as u64, data_type_size);
         // Otherwise, there is a mix of true/false results that need to be processed manually.
         } else {
             Self::encode_remainder_results(&compare_result, run_length_encoder, data_type_size, N as u64);
@@ -51,7 +51,7 @@ where
             if compare_result[byte_index] != 0 {
                 run_length_encoder.encode_range(1);
             } else {
-                run_length_encoder.finalize_current_encode_with_minimum_size(1, data_type_size);
+                run_length_encoder.finalize_current_encode_with_minimum_size_filtering(1, data_type_size);
             }
         }
     }
@@ -259,7 +259,7 @@ where
             }
         }
 
-        run_length_encoder.finalize_current_encode_with_minimum_size(0, data_type_size);
+        run_length_encoder.finalize_current_encode_with_minimum_size_filtering(0, data_type_size);
         run_length_encoder.take_result_regions()
     }
 }

@@ -5,35 +5,6 @@ use std::{mem, ptr};
 pub struct VectorGenerics {}
 
 impl VectorGenerics {
-    /// Rotates left and sets the last `OFFSET` elements to 0.
-    pub fn rotate_left_with_discard<const N: usize, const OFFSET: usize>(vector: Simd<u8, N>) -> Simd<u8, N>
-    where
-        LaneCount<N>: SupportedLaneCount,
-    {
-        let mut rotated = vector.rotate_elements_left::<OFFSET>();
-        let zero_start = N.saturating_sub(OFFSET.min(N));
-
-        for index in zero_start..N {
-            rotated[index] = 0;
-        }
-
-        rotated
-    }
-
-    /// Rotates right and sets the first `OFFSET` elements to 0.
-    pub fn rotate_right_with_discard<const N: usize, const OFFSET: usize>(vector: Simd<u8, N>) -> Simd<u8, N>
-    where
-        LaneCount<N>: SupportedLaneCount,
-    {
-        let mut rotated = vector.rotate_elements_right::<OFFSET>();
-
-        for index in 0..OFFSET.min(N) {
-            rotated[index] = 0;
-        }
-
-        rotated
-    }
-
     /// Reinterprets a `Simd` vector as a different type.
     pub fn transmute<SourceType, TargetType, const N: usize>(value: Simd<SourceType, N>) -> Simd<TargetType, N>
     where
@@ -68,5 +39,89 @@ impl VectorGenerics {
         }
 
         Simd::<u8, N>::from_array(result_array)
+    }
+    /// Rotates left and sets the last `OFFSET` elements to 0.
+    pub fn rotate_left_with_discard<const N: usize, const OFFSET: usize>(vector: Simd<u8, N>) -> Simd<u8, N>
+    where
+        LaneCount<N>: SupportedLaneCount,
+    {
+        let mut rotated = vector.rotate_elements_left::<OFFSET>();
+        let zero_start = N.saturating_sub(OFFSET.min(N));
+
+        for index in zero_start..N {
+            rotated[index] = 0;
+        }
+
+        rotated
+    }
+
+    /// Rotates right and sets the first `OFFSET` elements to 0.
+    pub fn rotate_right_with_discard<const N: usize, const OFFSET: usize>(vector: Simd<u8, N>) -> Simd<u8, N>
+    where
+        LaneCount<N>: SupportedLaneCount,
+    {
+        let mut rotated = vector.rotate_elements_right::<OFFSET>();
+
+        for index in 0..OFFSET.min(N) {
+            rotated[index] = 0;
+        }
+
+        rotated
+    }
+
+    /// Rotates left and sets the last `OFFSET` elements to 0, up to 8 rotations.
+    pub fn rotate_left_with_discard_max_8<const N: usize>(
+        vector: Simd<u8, N>,
+        rotation: u64,
+    ) -> Simd<u8, N>
+    where
+        LaneCount<N>: SupportedLaneCount,
+    {
+        let mut rotated = match rotation {
+            1 => vector.rotate_elements_left::<1>(),
+            2 => vector.rotate_elements_left::<2>(),
+            3 => vector.rotate_elements_left::<3>(),
+            4 => vector.rotate_elements_left::<4>(),
+            5 => vector.rotate_elements_left::<5>(),
+            6 => vector.rotate_elements_left::<6>(),
+            7 => vector.rotate_elements_left::<7>(),
+            8 => vector.rotate_elements_left::<8>(),
+            _ => vector,
+        };
+        let zero_start = N.saturating_sub((rotation as usize).min(N));
+
+        for index in zero_start..N {
+            rotated[index] = 0;
+        }
+
+        rotated
+    }
+
+    /// Rotates right and sets the last `OFFSET` elements to 0, up to 8 rotations.
+    pub fn rotate_right_with_discard_max_8<const N: usize>(
+        vector: Simd<u8, N>,
+        rotation: u64,
+    ) -> Simd<u8, N>
+    where
+        LaneCount<N>: SupportedLaneCount,
+    {
+        let mut rotated = match rotation {
+            1 => vector.rotate_elements_right::<1>(),
+            2 => vector.rotate_elements_right::<2>(),
+            3 => vector.rotate_elements_right::<3>(),
+            4 => vector.rotate_elements_right::<4>(),
+            5 => vector.rotate_elements_right::<5>(),
+            6 => vector.rotate_elements_right::<6>(),
+            7 => vector.rotate_elements_right::<7>(),
+            8 => vector.rotate_elements_right::<8>(),
+            _ => vector,
+        };
+        let zero_start = N.saturating_sub((rotation as usize).min(N));
+
+        for index in zero_start..N {
+            rotated[index] = 0;
+        }
+
+        rotated
     }
 }

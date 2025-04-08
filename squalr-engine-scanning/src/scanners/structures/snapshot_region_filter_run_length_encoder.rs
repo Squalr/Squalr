@@ -111,8 +111,28 @@ impl SnapshotRegionFilterRunLengthEncoder {
         self.run_length_current_address += byte_advance_count;
     }
 
-    /// Completes the current run length encoding, creating a region filter from the result. Discards regions below the minimum size.
+    /// Completes the current run length encoding, creating a region filter from the result, increasing the run length size if below the given threshold.
     pub fn finalize_current_encode_with_minimum_size(
+        &mut self,
+        // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
+        // For vector scans, this is generally the size of the hardware vector.
+        byte_advance_count: u64,
+        // The minimum size of the run length. Run lengths below this are increased to this size.
+        minimum_size: u64,
+    ) {
+        if self.is_encoding && self.run_length > 0 {
+            self.result_regions
+                .push(SnapshotRegionFilter::new(self.run_length_current_address, self.run_length.max(minimum_size)));
+            self.run_length_current_address += self.run_length;
+            self.run_length = 0;
+            self.is_encoding = false;
+        }
+
+        self.run_length_current_address += byte_advance_count;
+    }
+
+    /// Completes the current run length encoding, creating a region filter from the result. Discards regions below the minimum size.
+    pub fn finalize_current_encode_with_minimum_size_filtering(
         &mut self,
         // The number of bytes to advance the run length. For scalar scans, this is the memory alignment.
         // For vector scans, this is generally the size of the hardware vector.

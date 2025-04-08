@@ -78,13 +78,16 @@ where
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_parameters.get_data_type();
-        let memory_alignment = scan_parameters.get_memory_alignment() as u64;
+        let data_type_size = data_type.get_size_in_bytes();
+        let memory_alignment_size = scan_parameters.get_memory_alignment() as u64;
         let vector_size_in_bytes = N;
         let iterations = region_size / vector_size_in_bytes as u64;
         let remainder_bytes = region_size % vector_size_in_bytes as u64;
         let remainder_ptr_offset = iterations.saturating_sub(1) as usize * vector_size_in_bytes;
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
+
+        debug_assert!(data_type_size == memory_alignment_size);
 
         match scan_parameters.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
@@ -94,14 +97,14 @@ where
                         let current_value_pointer = unsafe { current_value_pointer.add(index as usize * vector_size_in_bytes) };
                         let compare_result = compare_func(current_value_pointer);
 
-                        Self::encode_results(&compare_result, &mut run_length_encoder, memory_alignment, true_mask, false_mask);
+                        Self::encode_results(&compare_result, &mut run_length_encoder, memory_alignment_size, true_mask, false_mask);
                     }
 
                     // Handle remainder elements.
                     if remainder_bytes > 0 {
                         let current_value_pointer = unsafe { current_value_pointer.add(remainder_ptr_offset) };
                         let compare_result = compare_func(current_value_pointer);
-                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment, remainder_bytes);
+                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment_size, remainder_bytes);
                     }
                 }
             }
@@ -113,7 +116,7 @@ where
                         let previous_value_pointer = unsafe { previous_value_pointer.add(index as usize * vector_size_in_bytes) };
                         let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                        Self::encode_results(&compare_result, &mut run_length_encoder, memory_alignment, true_mask, false_mask);
+                        Self::encode_results(&compare_result, &mut run_length_encoder, memory_alignment_size, true_mask, false_mask);
                     }
 
                     // Handle remainder elements.
@@ -122,7 +125,7 @@ where
                         let previous_value_pointer = unsafe { previous_value_pointer.add(remainder_ptr_offset) };
                         let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment, remainder_bytes);
+                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment_size, remainder_bytes);
                     }
                 }
             }
@@ -134,7 +137,7 @@ where
                         let previous_value_pointer = unsafe { previous_value_pointer.add(index as usize * vector_size_in_bytes) };
                         let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                        Self::encode_results(&compare_result, &mut run_length_encoder, memory_alignment, true_mask, false_mask);
+                        Self::encode_results(&compare_result, &mut run_length_encoder, memory_alignment_size, true_mask, false_mask);
                     }
 
                     // Handle remainder elements.
@@ -143,7 +146,7 @@ where
                         let previous_value_pointer = unsafe { previous_value_pointer.add(remainder_ptr_offset) };
                         let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
-                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment, remainder_bytes);
+                        Self::encode_remainder_results(&compare_result, &mut run_length_encoder, memory_alignment_size, remainder_bytes);
                     }
                 }
             }
