@@ -39,7 +39,7 @@ impl Scanner for ScannerScalarIterative {
             match scalar_compare_func {
                 ScanFunctionScalar::Immediate(compare_func) => {
                     for index in 0..element_count {
-                        let current_value_pointer = unsafe { current_value_pointer.add(index as usize * memory_alignment_size as usize) };
+                        let current_value_pointer = unsafe { current_value_pointer.add((index * memory_alignment_size) as usize) };
                         let compare_result = compare_func(current_value_pointer);
 
                         if compare_result {
@@ -51,8 +51,8 @@ impl Scanner for ScannerScalarIterative {
                 }
                 ScanFunctionScalar::RelativeOrDelta(compare_func) => {
                     for index in 0..element_count {
-                        let current_value_pointer = unsafe { current_value_pointer.add(index as usize * memory_alignment_size as usize) };
-                        let previous_value_pointer = unsafe { previous_value_pointer.add(index as usize * memory_alignment_size as usize) };
+                        let current_value_pointer = unsafe { current_value_pointer.add((index * memory_alignment_size) as usize) };
+                        let previous_value_pointer = unsafe { previous_value_pointer.add((index * memory_alignment_size) as usize) };
                         let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
                         if compare_result {

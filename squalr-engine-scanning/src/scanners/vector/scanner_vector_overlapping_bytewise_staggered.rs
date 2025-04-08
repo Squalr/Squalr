@@ -94,6 +94,7 @@ where
         let data_type_size_padding = data_type_size.saturating_sub(scan_parameters.get_memory_alignment() as u64);
         let memory_alignment = scan_parameters.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
+
         let vector_size_in_bytes = N;
         let vector_underflow = data_type_size as usize;
         let vector_compare_size = vector_size_in_bytes.saturating_sub(vector_underflow) as u64;

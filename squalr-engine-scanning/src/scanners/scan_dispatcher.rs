@@ -158,10 +158,10 @@ impl ScanDispatcher {
                         "Scanner {} produced mismatch at index: {}. Expected {}:{}, found {}:{}",
                         scanner_instance.get_scanner_name(),
                         index,
+                        debug_filter.get_base_address(),
+                        debug_filter.get_region_size(),
                         filter.get_base_address(),
                         filter.get_region_size(),
-                        debug_filter.get_base_address(),
-                        debug_filter.get_region_size()
                     )
                 );
 

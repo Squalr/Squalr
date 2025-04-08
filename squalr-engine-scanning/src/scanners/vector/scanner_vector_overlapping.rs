@@ -18,11 +18,20 @@ impl<const N: usize> ScannerVectorOverlapping<N>
 where
     LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
 {
-    pub fn get_element_wise_mask(data_type_size: u64) -> Simd<u8, N> {
+    /// Produces a mask chunked up into `data_type_size` chunks, with the first N bytes of each chunk set to 0xFF up to the `memory_alignment_size`.
+    /// 4-byte align 1 -> 0xFF 0x00 0x00 0x00..
+    /// 4-byte align 2 -> 0xFF 0xFF 0x00 0x00..
+    /// 2-byte align 1 -> 0xFF 0x00..
+    pub fn get_element_wise_mask(
+        data_type_size: u64,
+        memory_alignment_size: u64,
+    ) -> Simd<u8, N> {
         let mut mask = [0u8; N];
 
-        for index in (0..N).step_by(data_type_size as usize) {
-            mask[index] = 0xFF;
+        for start_index in (0..N).step_by(data_type_size as usize) {
+            for align_index in 0..memory_alignment_size {
+                mask[start_index + align_index as usize] = 0xFF;
+            }
         }
 
         Simd::from_array(mask)
@@ -43,7 +52,7 @@ where
             run_length_encoder.finalize_current_encode_with_padding(N as u64, data_type_size_padding);
         // Otherwise, there is a mix of true/false results that need to be processed manually.
         } else {
-            Self::encode_remainder_results(&compare_result, run_length_encoder, data_type_size_padding, N as u64);
+            Self::encode_remainder_results(&compare_result, run_length_encoder, data_type_size_padding, 0);
         }
     }
 
@@ -51,10 +60,8 @@ where
         compare_result: &Simd<u8, N>,
         run_length_encoder: &mut SnapshotRegionFilterRunLengthEncoder,
         data_type_size_padding: u64,
-        remainder_bytes: u64,
+        start_byte_index: u64,
     ) {
-        let start_byte_index = (N as u64).saturating_sub(remainder_bytes);
-
         for byte_index in start_byte_index..(N as u64) {
             if compare_result[byte_index as usize] != 0 {
                 run_length_encoder.encode_range(1);
@@ -86,24 +93,25 @@ where
         let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_values_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
-        let region_size = snapshot_region_filter.get_region_size();
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
-        let data_type_size_padding = data_type_size.saturating_sub(1);
-        let effective_region_size = region_size.saturating_sub(data_type_size_padding);
         let memory_alignment = scan_parameters.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
+        let data_type_size_padding = data_type_size.saturating_sub(memory_alignment_size);
+
         let vector_size_in_bytes = N as u64;
-        let vectorizable_iterations = effective_region_size / vector_size_in_bytes;
-        let elements_per_vector = vector_size_in_bytes / memory_alignment_size;
-        let vector_element_count = vectorizable_iterations * elements_per_vector;
         let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
+        let elements_per_vector = vector_size_in_bytes / memory_alignment_size;
+        let vectorizable_iterations = element_count / elements_per_vector;
+        let vector_element_count = vectorizable_iterations * elements_per_vector;
+
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
-        let element_wise_mask = Self::get_element_wise_mask(data_type_size);
+        let element_wise_mask = Self::get_element_wise_mask(data_type_size, memory_alignment_size);
 
+        debug_assert!(vectorizable_iterations > 0);
         debug_assert!(data_type_size > memory_alignment_size);
         debug_assert!(memory_alignment_size == 1 || memory_alignment_size == 2 || memory_alignment_size == 4);
 
@@ -151,7 +159,7 @@ where
                 ScanFunctionScalar::Immediate(compare_func) => {
                     // Handle remainder elements (reverting to scalar comparisons.)
                     for index in vector_element_count..element_count {
-                        let current_value_pointer = unsafe { current_values_pointer.add(index as usize * memory_alignment_size as usize) };
+                        let current_value_pointer = unsafe { current_values_pointer.add((index * memory_alignment_size) as usize) };
                         let compare_result = compare_func(current_value_pointer);
 
                         if compare_result {
@@ -164,8 +172,8 @@ where
                 ScanFunctionScalar::RelativeOrDelta(compare_func) => {
                     // Handle remainder elements (reverting to scalar comparisons.)
                     for index in vector_element_count..element_count {
-                        let current_value_pointer = unsafe { current_values_pointer.add(index as usize * memory_alignment_size as usize) };
-                        let previous_value_pointer = unsafe { previous_values_pointer.add(index as usize * memory_alignment_size as usize) };
+                        let current_value_pointer = unsafe { current_values_pointer.add((index * memory_alignment_size) as usize) };
+                        let previous_value_pointer = unsafe { previous_values_pointer.add((index * memory_alignment_size) as usize) };
                         let compare_result = compare_func(current_value_pointer, previous_value_pointer);
 
                         if compare_result {

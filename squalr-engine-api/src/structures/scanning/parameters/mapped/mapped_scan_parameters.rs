@@ -81,15 +81,16 @@ impl MappedScanParameters {
         }
 
         // Now we decide whether to use a scalar or SIMD scan based on filter region size.
-        mapped_params.vectorization_size = match Self::create_vectorization_size(snapshot_region_filter) {
-            None => {
-                // The filter cannot fit into a vector! Revert to scalar scan.
-                mapped_params.mapped_scan_type = MappedScanType::Scalar(ScanParametersScalar::ScalarIterative);
+        mapped_params.vectorization_size =
+            match Self::create_vectorization_size(snapshot_region_filter, &mapped_params.data_type, mapped_params.memory_alignment) {
+                None => {
+                    // The filter cannot fit into a vector! Revert to scalar scan.
+                    mapped_params.mapped_scan_type = MappedScanType::Scalar(ScanParametersScalar::ScalarIterative);
 
-                return mapped_params;
-            }
-            Some(vectorization_size) => vectorization_size,
-        };
+                    return mapped_params;
+                }
+                Some(vectorization_size) => vectorization_size,
+            };
 
         let data_type_size = mapped_params.get_data_type().get_size_in_bytes();
         let memory_alignment_size = mapped_params.get_memory_alignment() as u64;
@@ -295,14 +296,24 @@ impl MappedScanParameters {
         }
     }
 
-    fn create_vectorization_size(snapshot_region_filter: &SnapshotRegionFilter) -> Option<VectorizationSize> {
-        let filter_region_size = snapshot_region_filter.get_region_size();
+    fn create_vectorization_size(
+        snapshot_region_filter: &SnapshotRegionFilter,
+        data_type: &DataTypeRef,
+        memory_alignment: MemoryAlignment,
+    ) -> Option<VectorizationSize> {
+        // Rather than using the snapshot_region_filter.get_region_size() directly, we try to be smart about ensuring
+        // There is enough space to actually read a full vector of elements.
+        // For example, if scanning for i32, 1-byte aligned, a single region of 64 bytes is not actually very helpful.
+        // This is because we would actually want to overlap based on alignment, and thus would need at least 67 bytes.
+        // This is derived from scanning for four i32 values at alignments 0, 1, 2, and 3.
+        let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
+        let usable_region_size = element_count * (memory_alignment as u64);
 
-        if filter_region_size >= 64 {
+        if usable_region_size >= 64 {
             Some(VectorizationSize::Vector64)
-        } else if filter_region_size >= 32 {
+        } else if usable_region_size >= 32 {
             Some(VectorizationSize::Vector32)
-        } else if filter_region_size >= 16 {
+        } else if usable_region_size >= 16 {
             Some(VectorizationSize::Vector16)
         } else {
             None

@@ -80,10 +80,12 @@ where
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = scan_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
+
         let vector_size_in_bytes = N as u64;
         let iterations = region_size / vector_size_in_bytes as u64;
         let remainder_bytes = region_size % vector_size_in_bytes as u64;
         let remainder_ptr_offset = (iterations.saturating_sub(1) * vector_size_in_bytes) as usize;
+
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
 
