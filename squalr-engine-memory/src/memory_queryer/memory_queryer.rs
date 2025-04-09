@@ -1,9 +1,9 @@
-use crate::memory_queryer::MemoryQueryerImpl;
 use crate::memory_queryer::memory_protection_enum::MemoryProtectionEnum;
+use crate::memory_queryer::memory_queryer_trait::IMemoryQueryer;
 use crate::memory_queryer::memory_type_enum::MemoryTypeEnum;
 use crate::memory_queryer::page_retrieval_mode::PageRetrievalMode;
 use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
-use crate::{memory_queryer::memory_queryer_trait::IMemoryQueryer, memory_settings::MemorySettings};
+use crate::{config::memory_settings_config::MemorySettingsConfig, memory_queryer::MemoryQueryerImpl};
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
 use std::{collections::HashSet, sync::Once};
@@ -86,13 +86,10 @@ impl MemoryQueryer {
         let excluded_page_flags = MemoryQueryer::get_excluded_protection_settings();
         let allowed_type_flags = MemoryQueryer::get_allowed_type_settings();
 
-        let (start_address, end_address) = if MemorySettings::get_instance().get_only_query_usermode() {
+        let (start_address, end_address) = if MemorySettingsConfig::get_only_query_usermode() {
             (0, MemoryQueryer::get_instance().get_max_usermode_address(process_info))
         } else {
-            (
-                MemorySettings::get_instance().get_start_address(),
-                MemorySettings::get_instance().get_end_address(),
-            )
+            (MemorySettingsConfig::get_start_address(), MemorySettingsConfig::get_end_address())
         };
 
         let normalized_regions = MemoryQueryer::get_instance().get_virtual_pages(
@@ -155,19 +152,19 @@ impl MemoryQueryer {
     fn get_allowed_type_settings() -> MemoryTypeEnum {
         let mut result = MemoryTypeEnum::empty();
 
-        if MemorySettings::get_instance().get_memory_type_none() {
+        if MemorySettingsConfig::get_memory_type_none() {
             result |= MemoryTypeEnum::NONE;
         }
 
-        if MemorySettings::get_instance().get_memory_type_private() {
+        if MemorySettingsConfig::get_memory_type_private() {
             result |= MemoryTypeEnum::PRIVATE;
         }
 
-        if MemorySettings::get_instance().get_memory_type_image() {
+        if MemorySettingsConfig::get_memory_type_image() {
             result |= MemoryTypeEnum::IMAGE;
         }
 
-        if MemorySettings::get_instance().get_memory_type_mapped() {
+        if MemorySettingsConfig::get_memory_type_mapped() {
             result |= MemoryTypeEnum::MAPPED;
         }
 
@@ -177,15 +174,15 @@ impl MemoryQueryer {
     fn get_required_protection_settings() -> MemoryProtectionEnum {
         let mut result = MemoryProtectionEnum::empty();
 
-        if MemorySettings::get_instance().get_required_write() {
+        if MemorySettingsConfig::get_required_write() {
             result |= MemoryProtectionEnum::WRITE;
         }
 
-        if MemorySettings::get_instance().get_required_execute() {
+        if MemorySettingsConfig::get_required_execute() {
             result |= MemoryProtectionEnum::EXECUTE;
         }
 
-        if MemorySettings::get_instance().get_required_copy_on_write() {
+        if MemorySettingsConfig::get_required_copy_on_write() {
             result |= MemoryProtectionEnum::COPY_ON_WRITE;
         }
 
@@ -195,15 +192,15 @@ impl MemoryQueryer {
     fn get_excluded_protection_settings() -> MemoryProtectionEnum {
         let mut result = MemoryProtectionEnum::empty();
 
-        if MemorySettings::get_instance().get_excluded_write() {
+        if MemorySettingsConfig::get_excluded_write() {
             result |= MemoryProtectionEnum::WRITE;
         }
 
-        if MemorySettings::get_instance().get_excluded_execute() {
+        if MemorySettingsConfig::get_excluded_execute() {
             result |= MemoryProtectionEnum::EXECUTE;
         }
 
-        if MemorySettings::get_instance().get_excluded_copy_on_write() {
+        if MemorySettingsConfig::get_excluded_copy_on_write() {
             result |= MemoryProtectionEnum::COPY_ON_WRITE;
         }
 

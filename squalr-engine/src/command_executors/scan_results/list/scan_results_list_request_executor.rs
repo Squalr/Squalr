@@ -7,7 +7,7 @@ use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
-use squalr_engine_scanning::scan_settings::ScanSettings;
+use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use std::sync::Arc;
 
 impl EngineCommandRequestExecutor for ScanResultsListRequest {
@@ -17,7 +17,7 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let results_page_size = (ScanSettings::get_instance().get_results_page_size() as u64).max(1);
+        let results_page_size = (ScanSettingsConfig::get_results_page_size() as u64).max(1);
         let mut scan_results_list = vec![];
         let mut last_page_index = 0;
         let mut result_count = 0;

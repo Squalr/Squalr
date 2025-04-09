@@ -2,8 +2,8 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::settings::set::settings_set_request::SettingsSetRequest;
 use squalr_engine_api::commands::settings::set::settings_set_response::SettingsSetResponse;
-use squalr_engine_memory::memory_settings::MemorySettings;
-use squalr_engine_scanning::scan_settings::ScanSettings;
+use squalr_engine_memory::config::memory_settings_config::MemorySettingsConfig;
+use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use std::sync::Arc;
 
 impl EngineCommandRequestExecutor for SettingsSetRequest {
@@ -35,12 +35,10 @@ impl EngineCommandRequestExecutor for SettingsSetRequest {
         // Dispatch to the appropriate domain handler
         match domain {
             "memory" => {
-                let memory_settings = MemorySettings::get_instance();
-                memory_settings.update_config_field(setting_name, new_value);
+                MemorySettingsConfig::update_config_field(setting_name, new_value);
             }
             "scan" => {
-                let scan_settings = ScanSettings::get_instance();
-                scan_settings.update_config_field(setting_name, new_value);
+                ScanSettingsConfig::update_config_field(setting_name, new_value);
             }
             _ => {
                 log::error!("Unknown domain");

@@ -40,7 +40,7 @@ impl MemoryWriter {
             });
 
             #[allow(static_mut_refs)]
-            return INSTANCE.as_ref().unwrap_unchecked();
+            INSTANCE.as_ref().unwrap_unchecked()
         }
     }
 }

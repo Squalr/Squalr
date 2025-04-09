@@ -6,7 +6,6 @@ use crossbeam_channel::Receiver;
 use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
 use squalr_engine_api::events::process::changed::process_changed_event::ProcessChangedEvent;
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
-use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;

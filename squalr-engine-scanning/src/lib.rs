@@ -2,6 +2,6 @@
 #![feature(portable_simd)]
 
 pub mod results;
-pub mod scan_settings;
+pub mod scan_settings_config;
 pub mod scanners;
 pub mod snapshots;

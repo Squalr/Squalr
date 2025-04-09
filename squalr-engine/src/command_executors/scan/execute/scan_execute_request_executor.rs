@@ -4,7 +4,7 @@ use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecut
 use squalr_engine_api::commands::scan::execute::scan_execute_response::ScanExecuteResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters_global::UserScanParametersGlobal;
-use squalr_engine_scanning::scan_settings::ScanSettings;
+use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_scanning::scanners::scan_executor_task::ScanExecutorTask;
 use std::sync::Arc;
 use std::thread;
@@ -21,7 +21,7 @@ impl EngineCommandRequestExecutor for ScanExecuteRequest {
             let scan_parameters = UserScanParametersGlobal::new(
                 self.compare_type.to_owned(),
                 self.scan_value.to_owned(),
-                ScanSettings::get_instance().get_floating_point_tolerance(),
+                ScanSettingsConfig::get_floating_point_tolerance(),
                 self.memory_read_mode,
                 false,
                 false,

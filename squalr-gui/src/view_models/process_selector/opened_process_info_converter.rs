@@ -17,10 +17,10 @@ impl ViewDataConverter<OpenedProcessInfo, ProcessViewData> for OpenedProcessInfo
         &self,
         process_info_list: &Vec<OpenedProcessInfo>,
     ) -> Vec<ProcessViewData> {
-        return process_info_list
+        process_info_list
             .into_iter()
             .map(|item| self.convert_to_view_data(item))
-            .collect();
+            .collect()
     }
 
     fn convert_to_view_data(
@@ -28,13 +28,13 @@ impl ViewDataConverter<OpenedProcessInfo, ProcessViewData> for OpenedProcessInfo
         process_info: &OpenedProcessInfo,
     ) -> ProcessViewData {
         let icon = if let Some(icon_data) = &process_info.icon {
-            // Create new buffer and copy the data
+            // Create new buffer and copy the data.
             let mut icon_buffer = SharedPixelBuffer::new(icon_data.width, icon_data.height);
             let icon_buffer_bytes = icon_buffer.make_mut_bytes();
             icon_buffer_bytes.copy_from_slice(&icon_data.bytes_rgba);
             Image::from_rgba8(icon_buffer)
         } else {
-            // Create 1x1 transparent image as fallback
+            // Create 1x1 transparent image as fallback.
             let mut icon_data = SharedPixelBuffer::new(1, 1);
             let icon_data_bytes = icon_data.make_mut_bytes();
             icon_data_bytes.copy_from_slice(&[0, 0, 0, 0]);

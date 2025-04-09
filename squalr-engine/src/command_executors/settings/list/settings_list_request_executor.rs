@@ -2,8 +2,8 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::settings::list::settings_list_request::SettingsListRequest;
 use squalr_engine_api::commands::settings::list::settings_list_response::SettingsListResponse;
-use squalr_engine_memory::memory_settings::MemorySettings;
-use squalr_engine_scanning::scan_settings::ScanSettings;
+use squalr_engine_memory::config::memory_settings_config::MemorySettingsConfig;
+use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use std::sync::Arc;
 
 impl EngineCommandRequestExecutor for SettingsListRequest {
@@ -17,13 +17,15 @@ impl EngineCommandRequestExecutor for SettingsListRequest {
         let memory = self.memory | self.list_all;
 
         if scan {
-            let scan_config = ScanSettings::get_instance().get_full_config().read().unwrap();
-            log::info!("{:?}", scan_config);
+            if let Ok(scan_config) = ScanSettingsConfig::get_full_config().read() {
+                log::info!("{:?}", scan_config);
+            }
         }
 
         if memory {
-            let memory_config = MemorySettings::get_instance().get_full_config().read().unwrap();
-            log::info!("{:?}", memory_config);
+            if let Ok(memory_config) = MemorySettingsConfig::get_full_config().read() {
+                log::info!("{:?}", memory_config);
+            }
         }
 
         SettingsListResponse {}
