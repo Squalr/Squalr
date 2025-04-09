@@ -100,7 +100,8 @@ impl ScanExecutorTask {
 
             // Again, select the parallel or sequential iterator to iterate over each data type in the scan. Generally there is only 1, but multi-type scans are supported.
             let scan_results_collection = snapshot_region.get_scan_results().get_filter_collections();
-            let scan_results = SnapshotRegionScanResults::new(if user_scan_parameters_global.is_single_thread_scan() {
+            let single_thread_scan = user_scan_parameters_global.is_single_thread_scan() || scan_results_collection.len() == 1;
+            let scan_results = SnapshotRegionScanResults::new(if single_thread_scan {
                 scan_results_collection.iter().map(scan_dispatcher).collect()
             } else {
                 scan_results_collection
@@ -121,7 +122,8 @@ impl ScanExecutorTask {
         };
 
         // Select either the parallel or sequential iterator. Single-thread is not advised unless debugging.
-        if user_scan_parameters_global.is_single_thread_scan() {
+        let single_thread_scan = user_scan_parameters_global.is_single_thread_scan() || snapshot_regions.len() == 1;
+        if single_thread_scan {
             snapshot_regions.iter_mut().for_each(snapshot_iterator);
         } else {
             snapshot_regions.par_iter_mut().for_each(snapshot_iterator);

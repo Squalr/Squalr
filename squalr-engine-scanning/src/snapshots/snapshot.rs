@@ -1,3 +1,5 @@
+use std::cmp;
+
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
 
@@ -37,6 +39,12 @@ impl Snapshot {
     pub fn discard_empty_regions(&mut self) {
         self.snapshot_regions
             .retain(|region| region.get_region_size() > 0);
+    }
+
+    /// Sorts all snapshot regions by base address ascending.
+    pub fn sort_regions_for_read(&mut self) {
+        self.snapshot_regions
+            .sort_by_key(|region| cmp::Reverse(region.get_region_size()));
     }
 
     /// Sorts all snapshot regions by base address ascending.

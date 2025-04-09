@@ -155,7 +155,7 @@ impl ScannerViewModel {
         let scan_execute_request = ScanExecuteRequest {
             scan_value: Some(scan_value),
             compare_type: ScanConstraintConverter::new().convert_from_view_data(&scan_constraint),
-            memory_read_mode: ScanMemoryReadMode::ReadInterleavedWithScan, // JIRA: Setting for this
+            memory_read_mode: ScanMemoryReadMode::ReadBeforeScan, // JIRA: Setting for this
         };
 
         scan_execute_request.send(&engine_execution_context, move |scan_execute_response| {

@@ -1,6 +1,5 @@
 use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
@@ -150,6 +149,8 @@ impl SnapshotRegion {
     ) -> Result<(), String> {
         let region_size = self.get_region_size() as usize;
 
+        debug_assert!(region_size > 0);
+
         // Move current_values to be the previous_values. This is a very efficient way to move these, as instead of
         // discarding the old previous values, we recycle that array for use in the next scan to create new current_values.
         std::mem::swap(&mut self.current_values, &mut self.previous_values);
@@ -175,6 +176,9 @@ impl SnapshotRegion {
                 let range_size = next_boundary_address.saturating_sub(next_range_start_address) as usize;
                 let (slice, remaining) = current_slice.split_at_mut(range_size);
 
+                debug_assert!(range_size > 0);
+                debug_assert!(slice.len() > 0);
+
                 read_ranges.push((next_range_start_address, slice));
                 current_slice = remaining;
                 next_range_start_address = next_boundary_address;
@@ -182,12 +186,14 @@ impl SnapshotRegion {
 
             // Last slice after final boundary.
             if !current_slice.is_empty() {
+                debug_assert!(current_slice.len() > 0);
+
                 read_ranges.push((next_range_start_address, current_slice));
             }
 
             // And finally parallel read using the obtained non-overlapping mutable slices.
             read_ranges.into_par_iter().for_each(|(address, buffer)| {
-                MemoryReader::get_instance().read_bytes(process_info, address, buffer);
+                let _success = MemoryReader::get_instance().read_bytes(process_info, address, buffer);
             });
         }
 

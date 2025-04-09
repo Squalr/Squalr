@@ -56,7 +56,8 @@ impl ScanDispatcher {
         };
 
         // Run the scan either single-threaded or parallel based on settings. Single-thread is not advised unless debugging.
-        let result_snapshot_region_filters = if user_scan_parameters_global.is_single_thread_scan() {
+        let single_thread_scan = user_scan_parameters_global.is_single_thread_scan();
+        let result_snapshot_region_filters = if single_thread_scan {
             snapshot_region_filter_collection
                 .iter()
                 .filter_map(snapshot_region_scanner)

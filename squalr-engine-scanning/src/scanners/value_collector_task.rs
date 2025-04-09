@@ -1,5 +1,7 @@
 use crate::snapshots::snapshot::Snapshot;
-use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+use crate::snapshots::snapshot_region::SnapshotRegion;
+use rayon::iter::IntoParallelRefMutIterator;
+use rayon::iter::ParallelIterator;
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use squalr_engine_common::conversions::Conversions;
@@ -58,11 +60,11 @@ impl ValueCollectorTask {
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
         let total_region_count = snapshot.get_region_count();
+
         let snapshot_regions = snapshot.get_snapshot_regions_mut();
         let cancellation_token = trackable_task.get_cancellation_token();
 
-        // Collect values for each snapshot region in parallel.
-        snapshot_regions.par_iter_mut().for_each(|snapshot_region| {
+        let read_memory_iterator = |snapshot_region: &mut SnapshotRegion| {
             if cancellation_token.load(Ordering::SeqCst) {
                 return;
             }
@@ -78,7 +80,10 @@ impl ValueCollectorTask {
                 let progress = (processed as f32 / total_region_count as f32) * 100.0;
                 trackable_task.set_progress(progress);
             }
-        });
+        };
+
+        // Collect values for each snapshot region in parallel.
+        snapshot_regions.par_iter_mut().for_each(read_memory_iterator);
 
         if with_logging {
             let duration = start_time.elapsed();
