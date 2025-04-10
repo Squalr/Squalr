@@ -1,5 +1,5 @@
 use serde_json::to_string_pretty;
-use squalr_engine_api::settings::memory_settings::MemorySettings;
+use squalr_engine_api::structures::settings::memory_settings::MemorySettings;
 use squalr_engine_common::config::serialized_config_updater;
 use std::fs;
 use std::path::{Path, PathBuf};

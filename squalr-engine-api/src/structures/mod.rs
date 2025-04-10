@@ -5,4 +5,5 @@ pub mod memory;
 pub mod processes;
 pub mod scan_results;
 pub mod scanning;
+pub mod settings;
 pub mod tasks;

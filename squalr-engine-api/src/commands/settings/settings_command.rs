@@ -1,16 +1,16 @@
-use crate::commands::settings::list::settings_list_request::SettingsListRequest;
-use crate::commands::settings::set::settings_set_request::SettingsSetRequest;
+use crate::commands::settings::memory::memory_settings_command::MemorySettingsCommand;
+use crate::commands::settings::scan::scan_settings_command::ScanSettingsCommand;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub enum SettingsCommand {
-    List {
+    Memory {
         #[structopt(flatten)]
-        settings_list_request: SettingsListRequest,
+        memory_settings_command: MemorySettingsCommand,
     },
-    Set {
+    Scan {
         #[structopt(flatten)]
-        settings_set_request: SettingsSetRequest,
+        scan_settings_command: ScanSettingsCommand,
     },
 }

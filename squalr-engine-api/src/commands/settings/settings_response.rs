@@ -1,9 +1,9 @@
-use crate::commands::settings::list::settings_list_response::SettingsListResponse;
-use crate::commands::settings::set::settings_set_response::SettingsSetResponse;
+use crate::commands::settings::memory::memory_settings_response::MemorySettingsResponse;
+use crate::commands::settings::scan::scan_settings_response::ScanSettingsResponse;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SettingsResponse {
-    Set { settings_set_response: SettingsSetResponse },
-    List { settings_list_response: SettingsListResponse },
+    Memory { memory_settings_response: MemorySettingsResponse },
+    Scan { scan_settings_response: ScanSettingsResponse },
 }

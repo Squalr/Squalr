@@ -1,13 +1,13 @@
 use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
-use squalr_engine_api::commands::settings::set::settings_set_request::SettingsSetRequest;
-use squalr_engine_api::commands::settings::set::settings_set_response::SettingsSetResponse;
+use squalr_engine_api::commands::settings::scan::set::scan_settings_set_request::ScanSettingsSetRequest;
+use squalr_engine_api::commands::settings::scan::set::scan_settings_set_response::ScanSettingsSetResponse;
 use squalr_engine_memory::config::memory_settings_config::MemorySettingsConfig;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use std::sync::Arc;
 
-impl EngineCommandRequestExecutor for SettingsSetRequest {
-    type ResponseType = SettingsSetResponse;
+impl EngineCommandRequestExecutor for ScanSettingsSetRequest {
+    type ResponseType = ScanSettingsSetResponse;
 
     fn execute(
         &self,
@@ -18,7 +18,7 @@ impl EngineCommandRequestExecutor for SettingsSetRequest {
             Some(parts) => parts,
             None => {
                 log::error!("Invalid command format. Expected format: domain.setting=value");
-                return SettingsSetResponse {};
+                return ScanSettingsSetResponse {};
             }
         };
 
@@ -26,7 +26,7 @@ impl EngineCommandRequestExecutor for SettingsSetRequest {
             Some(parts) => parts,
             None => {
                 log::error!("Invalid setting format. Expected format: domain.setting");
-                return SettingsSetResponse {};
+                return ScanSettingsSetResponse {};
             }
         };
 
@@ -42,10 +42,10 @@ impl EngineCommandRequestExecutor for SettingsSetRequest {
             }
             _ => {
                 log::error!("Unknown domain");
-                return SettingsSetResponse {};
+                return ScanSettingsSetResponse {};
             }
         }
 
-        SettingsSetResponse {}
+        ScanSettingsSetResponse {}
     }
 }

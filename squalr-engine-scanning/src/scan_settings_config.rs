@@ -1,7 +1,7 @@
 use serde_json::to_string_pretty;
-use squalr_engine_api::settings::scan_settings::ScanSettings;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
+use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
 use squalr_engine_common::config::serialized_config_updater;
 use std::fs;
 use std::path::{Path, PathBuf};
