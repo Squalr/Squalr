@@ -12,10 +12,14 @@ impl EngineCommandRequestExecutor for ScanSettingsListRequest {
         &self,
         _engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        if let Ok(scan_config) = ScanSettingsConfig::get_full_config().read() {
-            log::info!("{:?}", scan_config);
+        if let Ok(scan_settings) = ScanSettingsConfig::get_full_config().read() {
+            ScanSettingsListResponse {
+                scan_settings: Ok(scan_settings.clone()),
+            }
+        } else {
+            ScanSettingsListResponse {
+                scan_settings: Err("Failed to read settings".to_string()),
+            }
         }
-
-        ScanSettingsListResponse {}
     }
 }

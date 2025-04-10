@@ -12,10 +12,14 @@ impl EngineCommandRequestExecutor for MemorySettingsListRequest {
         &self,
         _engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        if let Ok(memory_config) = MemorySettingsConfig::get_full_config().read() {
-            log::info!("{:?}", memory_config);
+        if let Ok(memory_settings) = MemorySettingsConfig::get_full_config().read() {
+            MemorySettingsListResponse {
+                memory_settings: Ok(memory_settings.clone()),
+            }
+        } else {
+            MemorySettingsListResponse {
+                memory_settings: Err("Failed to read settings".to_string()),
+            }
         }
-
-        MemorySettingsListResponse {}
     }
 }

@@ -2,7 +2,6 @@ use serde_json::to_string_pretty;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
-use squalr_engine_common::config::serialized_config_updater;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Once;
@@ -98,17 +97,17 @@ impl ScanSettingsConfig {
         Self::save_config();
     }
 
-    pub fn get_table_read_interval() -> u32 {
+    pub fn get_project_read_interval() -> u32 {
         if let Ok(config) = Self::get_instance().config.read() {
-            config.table_read_interval
+            config.project_read_interval
         } else {
-            ScanSettings::default().table_read_interval
+            ScanSettings::default().project_read_interval
         }
     }
 
-    pub fn set_table_read_interval(value: u32) {
+    pub fn set_project_read_interval(value: u32) {
         if let Ok(mut config) = Self::get_instance().config.write() {
-            config.table_read_interval = value;
+            config.project_read_interval = value;
         }
 
         Self::save_config();
@@ -157,17 +156,6 @@ impl ScanSettingsConfig {
     pub fn set_floating_point_tolerance(value: FloatingPointTolerance) {
         if let Ok(mut config) = Self::get_instance().config.write() {
             config.floating_point_tolerance = value;
-        }
-
-        Self::save_config();
-    }
-
-    pub fn update_config_field(
-        field: &str,
-        value: &str,
-    ) {
-        if let Ok(mut config) = Self::get_instance().config.write() {
-            serialized_config_updater::update_config_field(&mut *config, field, value);
         }
 
         Self::save_config();

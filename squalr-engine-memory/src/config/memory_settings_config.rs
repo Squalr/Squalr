@@ -1,6 +1,5 @@
 use serde_json::to_string_pretty;
 use squalr_engine_api::structures::settings::memory_settings::MemorySettings;
-use squalr_engine_common::config::serialized_config_updater;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Once;
@@ -267,17 +266,6 @@ impl MemorySettingsConfig {
     pub fn set_only_query_usermode(value: bool) {
         if let Ok(mut config) = Self::get_instance().config.write() {
             config.only_query_usermode = value;
-        }
-
-        Self::save_config();
-    }
-
-    pub fn update_config_field(
-        field: &str,
-        value: &str,
-    ) {
-        if let Ok(mut config) = Self::get_instance().config.write() {
-            serialized_config_updater::update_config_field(&mut *config, field, value);
         }
 
         Self::save_config();

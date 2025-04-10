@@ -30,10 +30,9 @@ Unsolved architectural challenges:
 - Registry architecture needs work. It would be nice if this was 0 latency (ie exists on unprivileged GUI for mobile), but then this breaks our command/response pattern. Then again, this doesn't need privileges, so perhaps this could just live on both sides. But two sources of truth is pain. So alas, still need to dwell on this.
 - Task management system is similarly annoying. Tasks are spawned and tracked by the engine, but the client needs to be able to cancel them, track their progress, and potentially get their result objects. Unclear what the simplest approach is that is still easy to reason about.
 - Defining all ways that information goes to and from the engine needs work. Right now we have Commands/Responses (call engine, get a response), and Events (listen for broadcasts from engine). This is technically enough, but these alone make it hard to implement things like the task system mentioned above. ie how does a task send progress updates? It dispatches an event, and then every single event handle gets the events for all other task handles? This can be solved by having yet another task handle manager on the client side, but building more infra to solve infra problems may indicate that the problem needs to be solved at a lower level.
-- Where do settings live? Obviously these are backed by serialized files, but again, we find ourselves wrestling command/response again. Two copies that must be kept in sync? Query the settings from the engine on boot? One source of truth is generally preferred, but now a simple settings look-up can end up being a command. Tedious. Currently these live exclusively on the engine side, and the client is not using settings directly.
 - Can engine events be hooked? If we support plugins later, this might prove valuable. But lambdas are stored almost exclusively as FnOnce for easier stack capture.
 
-Note the pattern above -- the command/response architecture, primarily inflicted upon us by Android, repeatedly gives rise to the same problem. Task management, Registry, and settings all have the same issue of both the privileged/unprivileged processes needing access to shared state.
+Note the pattern above -- the command/response architecture, primarily inflicted upon us by Android, repeatedly gives rise to the same problem. Task management & registry have the same issue of both the privileged/unprivileged processes needing access to shared state.
 
 I would prefer not to have to solve this problem 3 separate times.
 
@@ -55,7 +54,7 @@ Features:
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 - [ ] Freezing/deleting scan results directly from scan window.
 - [ ] Property viewer.
-- [ ] Settings system that respects command/response, IPC, etc.
+- [X] Settings system that respects command/response, IPC, etc.
 
 ## Post-launch tasklist
 Lower priority features that we can defer, for now.

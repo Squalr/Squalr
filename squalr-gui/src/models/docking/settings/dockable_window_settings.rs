@@ -3,9 +3,8 @@ use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
-use squalr_engine_common::config::serialized_config_updater;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Once;
 use std::sync::{Arc, RwLock};
 
@@ -100,7 +99,7 @@ impl DockableWindowSettings {
         }
     }
 
-    pub fn get_instance() -> &'static DockableWindowSettings {
+    fn get_instance() -> &'static DockableWindowSettings {
         static mut INSTANCE: Option<DockableWindowSettings> = None;
         static ONCE: Once = Once::new();
 
@@ -117,42 +116,37 @@ impl DockableWindowSettings {
 
     fn default_config_path() -> PathBuf {
         std::env::current_exe()
-            .unwrap()
+            .unwrap_or_default()
             .parent()
-            .unwrap()
+            .unwrap_or(&Path::new(""))
             .join("docking_settings.json")
     }
 
-    fn save_config(&self) {
-        let config = self.config.read().unwrap();
-        if let Ok(json) = to_string_pretty(&*config) {
-            let _ = fs::write(&self.config_file, json);
+    fn save_config() {
+        if let Ok(config) = Self::get_instance().config.read() {
+            if let Ok(json) = to_string_pretty(&*config) {
+                let _ = fs::write(&Self::get_instance().config_file, json);
+            }
         }
     }
 
-    pub fn get_full_config(&self) -> &Arc<RwLock<DockSettingsConfig>> {
-        &self.config
+    pub fn get_full_config() -> &'static Arc<RwLock<DockSettingsConfig>> {
+        &Self::get_instance().config
     }
 
-    pub fn get_dock_layout_settings(&self) -> DockNode {
-        self.config.read().unwrap().dock_root.clone()
+    pub fn get_dock_layout_settings() -> DockNode {
+        if let Ok(config) = Self::get_instance().config.read() {
+            config.dock_root.clone()
+        } else {
+            DockNode::default()
+        }
     }
 
-    pub fn set_dock_layout_settings(
-        &self,
-        settings: &DockNode,
-    ) {
-        self.config.write().unwrap().dock_root = settings.clone();
-        self.save_config();
-    }
+    pub fn set_dock_layout_settings(settings: &DockNode) {
+        if let Ok(mut config) = Self::get_instance().config.write() {
+            config.dock_root = settings.clone();
+        }
 
-    pub fn update_config_field(
-        &self,
-        field: &str,
-        value: &str,
-    ) {
-        let mut config = self.config.write().unwrap();
-        serialized_config_updater::update_config_field(&mut *config, field, value);
-        self.save_config();
+        Self::save_config();
     }
 }

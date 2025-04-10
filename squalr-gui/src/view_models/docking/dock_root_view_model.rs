@@ -47,7 +47,7 @@ impl DockRootViewModel {
         engine_execution_context: Arc<EngineExecutionContext>,
         file_system_logger: Arc<FileSystemLogger>,
     ) -> Self {
-        let main_dock_root = DockableWindowSettings::get_instance().get_dock_layout_settings();
+        let main_dock_root = DockableWindowSettings::get_dock_layout_settings();
         let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));
         let audio_player = Arc::new(AudioPlayer::new());
 
@@ -420,7 +420,7 @@ impl DockRootViewModel {
 
         // Optionally save changes.
         if save_layout {
-            DockableWindowSettings::get_instance().set_dock_layout_settings(layout_guard.get_root());
+            DockableWindowSettings::set_dock_layout_settings(layout_guard.get_root());
         }
 
         drop(layout_guard);

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum MemoryAlignment {
@@ -22,6 +23,20 @@ impl From<i32> for MemoryAlignment {
             4 => MemoryAlignment::Alignment4,
             8 => MemoryAlignment::Alignment8,
             _ => MemoryAlignment::Alignment1,
+        }
+    }
+}
+
+impl FromStr for MemoryAlignment {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "1" => Ok(MemoryAlignment::Alignment1),
+            "2" => Ok(MemoryAlignment::Alignment2),
+            "4" => Ok(MemoryAlignment::Alignment4),
+            "8" => Ok(MemoryAlignment::Alignment8),
+            _ => Err(format!("Invalid memory alignment: '{}'", s)),
         }
     }
 }

@@ -2,10 +2,13 @@ use crate::commands::engine_command_response::EngineCommandResponse;
 use crate::commands::engine_command_response::TypedEngineCommandResponse;
 use crate::commands::settings::memory::memory_settings_response::MemorySettingsResponse;
 use crate::commands::settings::settings_response::SettingsResponse;
+use crate::structures::settings::memory_settings::MemorySettings;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct MemorySettingsListResponse {}
+pub struct MemorySettingsListResponse {
+    pub memory_settings: Result<MemorySettings, String>,
+}
 
 impl TypedEngineCommandResponse for MemorySettingsListResponse {
     fn to_engine_response(&self) -> EngineCommandResponse {

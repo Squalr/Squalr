@@ -1,7 +1,7 @@
 use num_traits::Float;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 #[derive(Clone, Copy, Deserialize, PartialEq, Eq, Serialize)]
 pub enum FloatingPointTolerance {
@@ -54,6 +54,22 @@ impl fmt::Debug for FloatingPointTolerance {
         match to_string_pretty(&self) {
             Ok(json) => write!(formatter, "{}", json),
             Err(_) => write!(formatter, "FloatingPointTolerance {{ could not serialize to JSON }}"),
+        }
+    }
+}
+
+impl FromStr for FloatingPointTolerance {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "exact" => Ok(FloatingPointTolerance::ExactMatch),
+            "0.1" => Ok(FloatingPointTolerance::Tolerance10E1),
+            "0.01" => Ok(FloatingPointTolerance::Tolerance10E2),
+            "0.001" => Ok(FloatingPointTolerance::Tolerance10E3),
+            "0.0001" => Ok(FloatingPointTolerance::Tolerance10E4),
+            "0.00001" => Ok(FloatingPointTolerance::Tolerance10E5),
+            _ => Err(format!("Invalid tolerance string: '{}'", s)),
         }
     }
 }

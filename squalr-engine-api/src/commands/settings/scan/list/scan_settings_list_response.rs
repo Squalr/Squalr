@@ -2,10 +2,13 @@ use crate::commands::engine_command_response::EngineCommandResponse;
 use crate::commands::engine_command_response::TypedEngineCommandResponse;
 use crate::commands::settings::scan::scan_settings_response::ScanSettingsResponse;
 use crate::commands::settings::settings_response::SettingsResponse;
+use crate::structures::settings::scan_settings::ScanSettings;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ScanSettingsListResponse {}
+pub struct ScanSettingsListResponse {
+    pub scan_settings: Result<ScanSettings, String>,
+}
 
 impl TypedEngineCommandResponse for ScanSettingsListResponse {
     fn to_engine_response(&self) -> EngineCommandResponse {
