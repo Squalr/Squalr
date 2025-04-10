@@ -48,7 +48,7 @@ impl ScanDispatcher {
             let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, &scan_parameters);
 
             // If the debug flag is provided, perform a scalar scan to ensure that our specialized scanner has the same results.
-            if user_scan_parameters_global.get_perform_debug_shadow_scan() {
+            if user_scan_parameters_global.get_debug_perform_validation_scan() {
                 Self::perform_debug_scan(scanner_instance, &filters, snapshot_region, snapshot_region_filter, &scan_parameters);
             }
 

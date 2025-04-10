@@ -13,7 +13,7 @@ pub struct UserScanParametersGlobal {
 
     /// If this debug flag is provided, the scan will be performed twice. Once with a specialized scan, and once with the default scan.
     /// An assertion will be made that the default scan produced the exact same result as the specialized scan.
-    perform_debug_shadow_scan: bool,
+    debug_perform_validation_scan: bool,
 }
 
 impl UserScanParametersGlobal {
@@ -23,7 +23,7 @@ impl UserScanParametersGlobal {
         floating_point_tolerance: FloatingPointTolerance,
         memory_read_mode: ScanMemoryReadMode,
         is_single_thread_scan: bool,
-        perform_debug_shadow_scan: bool,
+        debug_perform_validation_scan: bool,
     ) -> Self {
         Self {
             compare_type,
@@ -31,7 +31,7 @@ impl UserScanParametersGlobal {
             floating_point_tolerance,
             memory_read_mode,
             is_single_thread_scan,
-            perform_debug_shadow_scan,
+            debug_perform_validation_scan,
         }
     }
 
@@ -65,8 +65,8 @@ impl UserScanParametersGlobal {
         self.is_single_thread_scan
     }
 
-    pub fn get_perform_debug_shadow_scan(&self) -> bool {
-        self.perform_debug_shadow_scan
+    pub fn get_debug_perform_validation_scan(&self) -> bool {
+        self.debug_perform_validation_scan
     }
 
     pub fn is_valid(&self) -> bool {

@@ -160,4 +160,20 @@ impl ScanSettingsConfig {
 
         Self::save_config();
     }
+
+    pub fn get_is_single_threaded_scan() -> bool {
+        if let Ok(config) = Self::get_instance().config.read() {
+            config.is_single_threaded_scan
+        } else {
+            ScanSettings::default().is_single_threaded_scan
+        }
+    }
+
+    pub fn get_debug_perform_validation_scan() -> bool {
+        if let Ok(config) = Self::get_instance().config.read() {
+            config.debug_perform_validation_scan
+        } else {
+            ScanSettings::default().debug_perform_validation_scan
+        }
+    }
 }

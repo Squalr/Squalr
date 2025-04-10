@@ -1,5 +1,5 @@
-use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
+use crate::structures::{data_types::floating_point_tolerance::FloatingPointTolerance, scanning::scan_memory_read_mode::ScanMemoryReadMode};
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use std::fmt;
@@ -12,6 +12,9 @@ pub struct ScanSettings {
     pub freeze_interval: u32,
     pub memory_alignment: Option<MemoryAlignment>,
     pub floating_point_tolerance: FloatingPointTolerance,
+    pub memory_read_mode: ScanMemoryReadMode,
+    pub is_single_threaded_scan: bool,
+    pub debug_perform_validation_scan: bool,
 }
 
 impl fmt::Debug for ScanSettings {
@@ -30,11 +33,14 @@ impl Default for ScanSettings {
     fn default() -> Self {
         Self {
             results_page_size: 22,
-            results_read_interval: 2500,
-            project_read_interval: 2500,
+            results_read_interval: 200,
+            project_read_interval: 200,
             freeze_interval: 50,
             memory_alignment: None,
             floating_point_tolerance: FloatingPointTolerance::default(),
+            memory_read_mode: ScanMemoryReadMode::ReadBeforeScan,
+            is_single_threaded_scan: false,
+            debug_perform_validation_scan: false,
         }
     }
 }

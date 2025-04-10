@@ -1,0 +1,158 @@
+import { HorizontalBox, VerticalBox } from "std-widgets.slint";
+
+import { Theme } from "../../theme.slint";
+
+import { ScanSettingsViewModelBindings, MemorySettingsViewModelBindings } from "../../view_model_bindings.slint";
+
+import { GroupBox } from "../../components/groupbox.slint";
+import { Button } from "../../components/buttons/button.slint";
+import { TextField } from "../../components/input/text_field.slint";
+import { Checkbox } from "../../components/checkboxes/checkbox.slint";
+import { TextCheckbox } from "../../components/checkboxes/text_checkbox.slint";
+import { BevelButton } from "../../components/buttons/bevel_button.slint";
+
+export component TabMemorySettings inherits Rectangle {
+    GridLayout {
+        padding: 8px;
+        spacing: 8px;
+        Row {
+            GroupBox {
+                header-text: "Required Protection Flags";
+                VerticalBox {
+                    alignment: start;
+                    padding: 0px;
+                    spacing: 6px;
+                    TextCheckbox {
+                        text: @tr("Write");
+                        is-checked <=> MemorySettingsViewModelBindings.required_write;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.required_write_changed(value);
+                        }
+                    }
+
+                    TextCheckbox {
+                        text: @tr("Execute");
+                        is-checked <=> MemorySettingsViewModelBindings.required_execute;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.required_execute_changed(value);
+                        }
+                    }
+
+                    TextCheckbox {
+                        text: @tr("Copy on Write");
+                        is-checked <=> MemorySettingsViewModelBindings.required_copy_on_write;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.required_copy_on_write_changed(value);
+                        }
+                    }
+                }
+            }
+
+            GroupBox {
+                header-text: "Excluded Protection Flags";
+                VerticalBox {
+                    alignment: start;
+                    padding: 0px;
+                    spacing: 6px;
+                    TextCheckbox {
+                        text: @tr("Write");
+                        is-checked <=> MemorySettingsViewModelBindings.excluded_write;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.excluded_write_changed(value);
+                        }
+                    }
+
+                    TextCheckbox {
+                        text: @tr("Execute");
+                        is-checked <=> MemorySettingsViewModelBindings.excluded_execute;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.excluded_execute_changed(value);
+                        }
+                    }
+
+                    TextCheckbox {
+                        text: @tr("Copy on Write");
+                        is-checked <=> MemorySettingsViewModelBindings.excluded_copy_on_write;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.excluded_copy_on_write_changed(value);
+                        }
+                    }
+                }
+            }
+        }
+
+        Row {
+            GroupBox {
+                header-text: "Memory Types";
+                VerticalBox {
+                    alignment: start;
+                    padding: 0px;
+                    spacing: 6px;
+                    TextCheckbox {
+                        text: @tr("None");
+                        is-checked <=> MemorySettingsViewModelBindings.memory_type_none;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.memory_type_none_changed(value);
+                        }
+                    }
+
+                    TextCheckbox {
+                        text: @tr("Image");
+                        is-checked <=> MemorySettingsViewModelBindings.memory_type_image;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.memory_type_image_changed(value);
+                        }
+                    }
+
+                    TextCheckbox {
+                        text: @tr("Private");
+                        is-checked <=> MemorySettingsViewModelBindings.memory_type_private;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.memory_type_private_changed(value);
+                        }
+                    }
+
+                    TextCheckbox {
+                        text: @tr("Mapped");
+                        is-checked <=> MemorySettingsViewModelBindings.memory_type_mapped;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.memory_type_mapped_changed(value);
+                        }
+                    }
+                }
+            }
+
+            GroupBox {
+                header-text: "Virtual Memory Querying";
+                VerticalBox {
+                    alignment: start;
+                    padding: 0px;
+                    spacing: 6px;
+                    TextCheckbox {
+                        text: @tr("Query All Memory");
+                        is-checked <=> MemorySettingsViewModelBindings.only_query_usermode;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.only_query_usermode_changed(value);
+                        }
+                    }
+
+                    TextCheckbox {
+                        text: @tr("Query All Usermode Memory");
+                        is-checked <=> MemorySettingsViewModelBindings.only_query_usermode;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.only_query_usermode_changed(value);
+                        }
+                    }
+
+                    TextCheckbox {
+                        text: @tr("Query Custom Range");
+                        is-checked <=> MemorySettingsViewModelBindings.only_query_usermode;
+                        check-changed(value) => {
+                            MemorySettingsViewModelBindings.only_query_usermode_changed(value);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

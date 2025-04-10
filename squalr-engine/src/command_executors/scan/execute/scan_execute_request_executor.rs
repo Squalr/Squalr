@@ -23,8 +23,8 @@ impl EngineCommandRequestExecutor for ScanExecuteRequest {
                 self.scan_value.to_owned(),
                 ScanSettingsConfig::get_floating_point_tolerance(),
                 self.memory_read_mode,
-                false,
-                false,
+                ScanSettingsConfig::get_is_single_threaded_scan(),
+                ScanSettingsConfig::get_debug_perform_validation_scan(),
             );
 
             // Start the task to perform the scan.
