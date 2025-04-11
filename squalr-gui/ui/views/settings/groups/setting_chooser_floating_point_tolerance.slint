@@ -2,7 +2,7 @@ import { HorizontalBox, VerticalBox } from "std-widgets.slint";
 
 import { Theme } from "../../../theme.slint";
 
-import { ScanSettingsViewModelBindings, FloatingPointTolerance } from "../../../view_model_bindings.slint";
+import { ScanSettingsViewModelBindings, FloatingPointToleranceView } from "../../../view_model_bindings.slint";
 
 import { GroupBox } from "../../../components/groupbox.slint";
 import { Button } from "../../../components/buttons/button.slint";
@@ -75,7 +75,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                 Button {
                     height: 24px;
                     clicked => {
-                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e1);
+                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointToleranceView.tolerance_10e1);
                     }
                     VerticalLayout {
                         alignment: center;
@@ -106,7 +106,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                 Button {
                     height: 24px;
                     clicked => {
-                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e2);
+                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointToleranceView.tolerance_10e2);
                     }
                     VerticalLayout {
                         alignment: center;
@@ -137,7 +137,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                 Button {
                     height: 24px;
                     clicked => {
-                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e3);
+                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointToleranceView.tolerance_10e3);
                     }
                     VerticalLayout {
                         alignment: center;
@@ -167,7 +167,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
 
                 Button {
                     clicked => {
-                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e4);
+                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointToleranceView.tolerance_10e4);
                     }
                     height: 24px;
                     VerticalLayout {
@@ -199,7 +199,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                 Button {
                     height: 24px;
                     clicked => {
-                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e5);
+                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointToleranceView.tolerance_10e5);
                     }
                     VerticalLayout {
                         alignment: center;
@@ -230,7 +230,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                 Button {
                     height: 24px;
                     clicked => {
-                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_epsilon);
+                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointToleranceView.tolerance_epsilon);
                     }
                     VerticalLayout {
                         alignment: center;
