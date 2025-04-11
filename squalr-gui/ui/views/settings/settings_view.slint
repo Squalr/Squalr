@@ -4,8 +4,8 @@ import { Theme } from "../../theme.slint";
 
 import { ScanSettingsViewModelBindings, MemorySettingsViewModelBindings } from "../../view_model_bindings.slint";
 
-import { TabMemorySettings } from "tab_memory_settings.slint";
-import { TabScanSettings } from "tab_scan_settings.slint";
+import { SettingsTabMemory } from "settings_tab_memory.slint";
+import { SettingsTabScan } from "settings_tab_scan.slint";
 import { GroupBox } from "../../components/groupbox.slint";
 import { Button } from "../../components/buttons/button.slint";
 import { TextField } from "../../components/input/text_field.slint";
@@ -123,9 +123,9 @@ export component SettingsView inherits Rectangle {
         Rectangle {
             general-content := VerticalBox { }
 
-            memory-content := TabMemorySettings { }
+            memory-content := SettingsTabMemory { }
 
-            scans-content := TabScanSettings { }
+            scans-content := SettingsTabScan { }
 
             middleware-content := VerticalBox { }
         }

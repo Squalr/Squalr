@@ -1,0 +1,202 @@
+import { HorizontalBox, VerticalBox } from "std-widgets.slint";
+
+import { Theme } from "../../../theme.slint";
+
+import { ScanSettingsViewModelBindings, MemoryAlignment } from "../../../view_model_bindings.slint";
+
+import { GroupBox } from "../../../components/groupbox.slint";
+import { Button } from "../../../components/buttons/button.slint";
+import { TextField } from "../../../components/input/text_field.slint";
+import { Checkbox } from "../../../components/checkboxes/checkbox.slint";
+import { TextCheckbox } from "../../../components/checkboxes/text_checkbox.slint";
+import { BevelButton } from "../../../components/buttons/bevel_button.slint";
+import { ContextMenu } from "../../../components/context_menu/context_menu.slint";
+
+export component SettingChooserMemoryAlignment inherits Rectangle {
+    min-width: 96px;
+    HorizontalLayout {
+        padding: 0px;
+        spacing: 0px;
+        memory-alignment-dropdown-button := Button {
+            height: 24px;
+            clicked => {
+                memory-alignment-context-menu.show();
+            }
+            Rectangle {
+                background: Theme.background-control;
+                border-color: Theme.submenu-border;
+                border-width: 1px;
+                border-radius: 1px;
+                VerticalLayout {
+                    alignment: center;
+                    HorizontalLayout {
+                        padding-left: 4px;
+                        alignment: start;
+                        Text {
+                            color: Theme.foreground;
+                            horizontal-alignment: left;
+                            vertical-alignment: center;
+                            text: "{Align}";
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                padding-right: 4px;
+                Image {
+                    source: @image-url("../../../images/navigation/down_arrow_small.png");
+                }
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                padding-right: 24px;
+                Rectangle {
+                    background: Theme.submenu-border;
+                    width: 1px;
+                }
+            }
+        }
+    }
+
+    memory-alignment-context-menu := ContextMenu {
+        close-policy: close-on-click-outside;
+        x: memory-alignment-dropdown-button.x;
+        y: memory-alignment-dropdown-button.y + memory-alignment-dropdown-button.height;
+        Rectangle {
+            background: Theme.background-control;
+            border-color: Theme.submenu-border;
+            border-width: 1px;
+            min-width: memory-alignment-dropdown-button.width - self.border-width * 2;
+            VerticalBox {
+                padding: 0px;
+                spacing: 0px;
+                Button {
+                    height: 24px;
+                    clicked => {
+                        ScanSettingsViewModelBindings.memory_alignment_changed(MemoryAlignment.alignment_1);
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            padding-left: 4px;
+                            alignment: start;
+                            HorizontalBox {
+                                padding: 0px;
+                                Image {
+                                    width: 16px;
+                                    height: 16px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    source: @image-url("../../../images/data_types/purple_blocks_1.png");
+                                }
+
+                                Text {
+                                    color: Theme.foreground;
+                                    horizontal-alignment: left;
+                                    vertical-alignment: center;
+                                    text: "1";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    height: 24px;
+                    clicked => {
+                        ScanSettingsViewModelBindings.memory_alignment_changed(MemoryAlignment.alignment_2);
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            padding-left: 4px;
+                            alignment: start;
+                            HorizontalBox {
+                                padding: 0px;
+                                Image {
+                                    width: 16px;
+                                    height: 16px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    source: @image-url("../../../images/data_types/purple_blocks_2.png");
+                                }
+
+                                Text {
+                                    color: Theme.foreground;
+                                    horizontal-alignment: left;
+                                    vertical-alignment: center;
+                                    text: "2";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    height: 24px;
+                    clicked => {
+                        ScanSettingsViewModelBindings.memory_alignment_changed(MemoryAlignment.alignment_4);
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            padding-left: 4px;
+                            alignment: start;
+                            HorizontalBox {
+                                padding: 0px;
+                                Image {
+                                    width: 16px;
+                                    height: 16px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    source: @image-url("../../../images/data_types/purple_blocks_4.png");
+                                }
+
+                                Text {
+                                    color: Theme.foreground;
+                                    horizontal-alignment: left;
+                                    vertical-alignment: center;
+                                    text: "4";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    height: 24px;
+                    clicked => {
+                        ScanSettingsViewModelBindings.memory_alignment_changed(MemoryAlignment.alignment_8);
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            padding-left: 4px;
+                            alignment: start;
+                            HorizontalBox {
+                                padding: 0px;
+                                Image {
+                                    width: 16px;
+                                    height: 16px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    source: @image-url("../../../images/data_types/purple_blocks_8.png");
+                                }
+
+                                Text {
+                                    color: Theme.foreground;
+                                    horizontal-alignment: left;
+                                    vertical-alignment: center;
+                                    text: "8";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

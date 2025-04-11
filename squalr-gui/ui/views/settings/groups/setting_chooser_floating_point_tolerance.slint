@@ -1,0 +1,263 @@
+import { HorizontalBox, VerticalBox } from "std-widgets.slint";
+
+import { Theme } from "../../../theme.slint";
+
+import { ScanSettingsViewModelBindings, FloatingPointTolerance } from "../../../view_model_bindings.slint";
+
+import { GroupBox } from "../../../components/groupbox.slint";
+import { Button } from "../../../components/buttons/button.slint";
+import { TextField } from "../../../components/input/text_field.slint";
+import { Checkbox } from "../../../components/checkboxes/checkbox.slint";
+import { TextCheckbox } from "../../../components/checkboxes/text_checkbox.slint";
+import { BevelButton } from "../../../components/buttons/bevel_button.slint";
+import { ContextMenu } from "../../../components/context_menu/context_menu.slint";
+
+export component SettingChooserFloatingPointTolerance inherits Rectangle {
+    HorizontalLayout {
+        padding: 0px;
+        spacing: 0px;
+        floating-point-tolerance-dropdown-button := Button {
+            height: 24px;
+            clicked => {
+                floating-point-tolerance-context-menu.show();
+            }
+            Rectangle {
+                background: Theme.background-control;
+                border-color: Theme.submenu-border;
+                border-width: 1px;
+                border-radius: 1px;
+                VerticalLayout {
+                    alignment: center;
+                    HorizontalLayout {
+                        padding-left: 4px;
+                        alignment: start;
+                        Text {
+                            color: Theme.foreground;
+                            horizontal-alignment: left;
+                            vertical-alignment: center;
+                            text: "{Tolerance}";
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                padding-right: 4px;
+                Image {
+                    source: @image-url("../../../images/navigation/down_arrow_small.png");
+                }
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                padding-right: 24px;
+                Rectangle {
+                    background: Theme.submenu-border;
+                    width: 1px;
+                }
+            }
+        }
+    }
+
+    floating-point-tolerance-context-menu := ContextMenu {
+        close-policy: close-on-click-outside;
+        x: floating-point-tolerance-dropdown-button.x;
+        y: floating-point-tolerance-dropdown-button.y + floating-point-tolerance-dropdown-button.height;
+        Rectangle {
+            background: Theme.background-control;
+            border-color: Theme.submenu-border;
+            border-width: 1px;
+            min-width: floating-point-tolerance-dropdown-button.width - self.border-width * 2 + 8px;
+            VerticalBox {
+                padding: 0px;
+                spacing: 0px;
+                Button {
+                    height: 24px;
+                    clicked => {
+                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e1);
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            padding-left: 4px;
+                            alignment: start;
+                            HorizontalBox {
+                                padding: 0px;
+                                Image {
+                                    width: 16px;
+                                    height: 16px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    source: @image-url("../../../images/settings/tolerance_1.png");
+                                }
+
+                                Text {
+                                    color: Theme.foreground;
+                                    horizontal-alignment: left;
+                                    vertical-alignment: center;
+                                    text: "0.1";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    height: 24px;
+                    clicked => {
+                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e2);
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            padding-left: 4px;
+                            alignment: start;
+                            HorizontalBox {
+                                padding: 0px;
+                                Image {
+                                    width: 16px;
+                                    height: 16px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    source: @image-url("../../../images/settings/tolerance_2.png");
+                                }
+
+                                Text {
+                                    color: Theme.foreground;
+                                    horizontal-alignment: left;
+                                    vertical-alignment: center;
+                                    text: "0.01";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    height: 24px;
+                    clicked => {
+                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e3);
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            padding-left: 4px;
+                            alignment: start;
+                            HorizontalBox {
+                                padding: 0px;
+                                Image {
+                                    width: 16px;
+                                    height: 16px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    source: @image-url("../../../images/settings/tolerance_3.png");
+                                }
+
+                                Text {
+                                    color: Theme.foreground;
+                                    horizontal-alignment: left;
+                                    vertical-alignment: center;
+                                    text: "0.001";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    clicked => {
+                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e4);
+                    }
+                    height: 24px;
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            padding-left: 4px;
+                            alignment: start;
+                            HorizontalBox {
+                                padding: 0px;
+                                Image {
+                                    width: 16px;
+                                    height: 16px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    source: @image-url("../../../images/settings/tolerance_4.png");
+                                }
+
+                                Text {
+                                    color: Theme.foreground;
+                                    horizontal-alignment: left;
+                                    vertical-alignment: center;
+                                    text: "0.0001";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    height: 24px;
+                    clicked => {
+                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e5);
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            padding-left: 4px;
+                            alignment: start;
+                            HorizontalBox {
+                                padding: 0px;
+                                Image {
+                                    width: 16px;
+                                    height: 16px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    source: @image-url("../../../images/settings/tolerance_5.png");
+                                }
+
+                                Text {
+                                    color: Theme.foreground;
+                                    horizontal-alignment: left;
+                                    vertical-alignment: center;
+                                    text: "0.00001";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    height: 24px;
+                    clicked => {
+                        ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_epsilon);
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            padding-left: 4px;
+                            alignment: start;
+                            HorizontalBox {
+                                padding: 0px;
+                                Image {
+                                    width: 16px;
+                                    height: 16px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    source: @image-url("../../../images/settings/tolerance_6.png");
+                                }
+
+                                Text {
+                                    color: Theme.foreground;
+                                    horizontal-alignment: left;
+                                    vertical-alignment: center;
+                                    text: "Epsilon";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
