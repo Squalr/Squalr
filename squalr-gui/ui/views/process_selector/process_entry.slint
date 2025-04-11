@@ -8,25 +8,25 @@ import { Button } from "../../components/buttons/button.slint";
 
 export component ProcessEntry inherits Button {
     in property <ProcessViewData> process_view_data;
-    callback on-click();
+    callback on_click();
     clicked => {
-        ProcessSelectorViewModelBindings.select-process(root.process_view_data);
-        root.on-click();
+        ProcessSelectorViewModelBindings.select_process(root.process_view_data);
+        root.on_click();
     }
     HorizontalLayout {
         HorizontalBox {
             Image {
                 width: 16px;
                 height: 16px;
-                horizontal-alignment: center;
-                vertical-alignment: center;
+                horizontal_alignment: center;
+                vertical_alignment: center;
                 source: process_view_data.icon;
             }
 
             Text {
                 color: Theme.foreground;
-                horizontal-alignment: left;
-                vertical-alignment: center;
+                horizontal_alignment: left;
+                vertical_alignment: center;
                 text: process_view_data.name;
             }
         }

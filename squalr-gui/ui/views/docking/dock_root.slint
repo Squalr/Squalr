@@ -12,51 +12,51 @@ import { DockRootViewModelBindings } from "./../../view_model_bindings.slint";
 export component DockRoot inherits Rectangle {
     // JIRA: These fail to fire until the window is done being dragged. It would be nice if we had real time.
     changed width => {
-        DockRootViewModelBindings.update-dock-root-width(root.width);
+        DockRootViewModelBindings.update_dock_root_width(root.width);
     }
     changed height => {
-        DockRootViewModelBindings.update-dock-root-height(root.height);
+        DockRootViewModelBindings.update_dock_root_height(root.height);
     }
-    background: Theme.background-primary;
+    background: Theme.background_primary;
     init => {
         // These may no longer be needed.
-        DockRootViewModelBindings.initial-dock-root-width = root.width;
-        DockRootViewModelBindings.initial-dock-root-height = root.height;
+        DockRootViewModelBindings.initial_dock_root_width = root.width;
+        DockRootViewModelBindings.initial_dock_root_height = root.height;
     }
 
     // 'Settings' window
-    settings-window := DockedWindowView {
-        docked-window-data <=> DockRootViewModelBindings.settings-window;
+    settings_window := DockedWindowView {
+        docked_window_data <=> DockRootViewModelBindings.settings_window;
         SettingsView { }
     }
 
     // 'ScanResults' window
-    scan-results-window := DockedWindowView {
-        docked-window-data <=> DockRootViewModelBindings.scan-results-window;
+    scan_results_window := DockedWindowView {
+        docked_window_data <=> DockRootViewModelBindings.scan_results_window;
         ScanResultsView { }
     }
 
     // 'Output' window
-    output-window := DockedWindowView {
-        docked-window-data <=> DockRootViewModelBindings.output-window;
+    output_window := DockedWindowView {
+        docked_window_data <=> DockRootViewModelBindings.output_window;
         OutputView { }
     }
 
     // 'ProcessSelector' window
-    process-selector-window := DockedWindowView {
-        docked-window-data <=> DockRootViewModelBindings.process-selector-window;
+    process_selector_window := DockedWindowView {
+        docked_window_data <=> DockRootViewModelBindings.process_selector_window;
         ProcessSelectorView { }
     }
 
     // 'PropertyViewer' window
-    property-viewer-window := DockedWindowView {
-        docked-window-data <=> DockRootViewModelBindings.property-viewer-window;
+    property_viewer_window := DockedWindowView {
+        docked_window_data <=> DockRootViewModelBindings.property_viewer_window;
         PropertyViewerView { }
     }
 
     // 'ProjectExplorer' window
-    project-explorer-window := DockedWindowView {
-        docked-window-data <=> DockRootViewModelBindings.project-explorer-window;
+    project_explorer_window := DockedWindowView {
+        docked_window_data <=> DockRootViewModelBindings.project_explorer_window;
         ProjectExplorerView { }
     }
 }

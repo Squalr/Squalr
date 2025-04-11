@@ -12,88 +12,88 @@ export component ScanResultsNavigationBar inherits Rectangle {
     height: 32px;
     HorizontalBox {
         alignment: center;
-        padding-top: 4px;
-        padding-bottom: 4px;
+        padding_top: 4px;
+        padding_bottom: 4px;
         spacing: 4px;
-        first-page-button := Button {
+        first_page_button := Button {
             width: 36px;
-            tooltip-text: @tr("Navigate to the first page");
-            click-sound: "";
+            tooltip_text: @tr("Navigate to the first page");
+            click_sound: "";
             clicked => {
                 ScanResultsViewModelBindings.navigate_first_page();
             }
             Image {
                 width: 16px;
                 height: 16px;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                source: @image-url("../../images/navigation/left_arrows.png");
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../images/navigation/left_arrows.png");
             }
         }
 
-        previous-page-button := Button {
+        previous_page_button := Button {
             width: 36px;
-            tooltip-text: @tr("Navigate to the previous page");
-            click-sound: "";
+            tooltip_text: @tr("Navigate to the previous page");
+            click_sound: "";
             clicked => {
                 ScanResultsViewModelBindings.navigate_previous_page();
             }
             Image {
                 width: 16px;
                 height: 16px;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                source: @image-url("../../images/navigation/left_arrow.png");
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../images/navigation/left_arrow.png");
             }
         }
 
         Rectangle {
-            background: Theme.background-primary;
-            border-color: Theme.submenu-border;
-            border-radius: 2px;
-            border-width: 1px;
+            background: Theme.background_primary;
+            border_color: Theme.submenu_border;
+            border_radius: 2px;
+            border_width: 1px;
             width: 128px;
-            page-number-input := TextInput {
+            page_number_input := TextInput {
                 text <=> ScanResultsViewModelBindings.current_page_index_string;
-                horizontal-alignment: center;
-                vertical-alignment: center;
+                horizontal_alignment: center;
+                vertical_alignment: center;
                 color: Theme.foreground;
-                single-line: true;
+                single_line: true;
                 changed text => {
-                    ScanResultsViewModelBindings.page_index_text_changed(page-number-input.text);
+                    ScanResultsViewModelBindings.page_index_text_changed(page_number_input.text);
                 }
             }
         }
 
-        next-page-button := Button {
+        next_page_button := Button {
             width: 36px;
-            tooltip-text: @tr("Navigate to the next page");
-            click-sound: "";
+            tooltip_text: @tr("Navigate to the next page");
+            click_sound: "";
             clicked => {
                 ScanResultsViewModelBindings.navigate_next_page();
             }
             Image {
                 width: 16px;
                 height: 16px;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                source: @image-url("../../images/navigation/right_arrow.png");
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../images/navigation/right_arrow.png");
             }
         }
 
-        last-page-button := Button {
+        last_page_button := Button {
             width: 36px;
-            tooltip-text: @tr("Navigate to the last page");
-            click-sound: "";
+            tooltip_text: @tr("Navigate to the last page");
+            click_sound: "";
             clicked => {
                 ScanResultsViewModelBindings.navigate_last_page();
             }
             Image {
                 width: 16px;
                 height: 16px;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                source: @image-url("../../images/navigation/right_arrows.png");
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../images/navigation/right_arrows.png");
             }
         }
     }

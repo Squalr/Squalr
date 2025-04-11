@@ -18,36 +18,36 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
     HorizontalLayout {
         padding: 0px;
         spacing: 0px;
-        floating-point-tolerance-dropdown-button := Button {
+        floating_point_tolerance_dropdown_button := Button {
             height: 24px;
             clicked => {
-                floating-point-tolerance-context-menu.show();
+                floating_point_tolerance_context_menu.show();
             }
             Rectangle {
-                background: Theme.background-control;
-                border-color: Theme.submenu-border;
-                border-width: 1px;
-                border-radius: 1px;
+                background: Theme.background_control;
+                border_color: Theme.submenu_border;
+                border_width: 1px;
+                border_radius: 1px;
                 VerticalLayout {
                     alignment: center;
                     HorizontalLayout {
-                        padding-left: 4px;
+                        padding_left: 4px;
                         alignment: start;
                         HorizontalBox {
                             padding: 0px;
-                            padding-right: 8px;
+                            padding_right: 8px;
                             Image {
                                 width: 16px;
                                 height: 16px;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
                                 source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(ScanSettingsViewModelBindings.floating_point_tolerance);
                             }
 
                             Text {
                                 color: Theme.foreground;
-                                horizontal-alignment: left;
-                                vertical-alignment: center;
+                                horizontal_alignment: left;
+                                vertical_alignment: center;
                                 text: "{Tolerance}";
                             }
                         }
@@ -57,32 +57,32 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
 
             HorizontalLayout {
                 alignment: end;
-                padding-right: 4px;
+                padding_right: 4px;
                 Image {
-                    source: @image-url("../../../images/navigation/down_arrow_small.png");
+                    source: @image_url("../../../images/navigation/down_arrow_small.png");
                 }
             }
 
             HorizontalLayout {
                 alignment: end;
-                padding-right: 24px;
+                padding_right: 24px;
                 Rectangle {
-                    background: Theme.submenu-border;
+                    background: Theme.submenu_border;
                     width: 1px;
                 }
             }
         }
     }
 
-    floating-point-tolerance-context-menu := ContextMenu {
-        close-policy: close-on-click-outside;
-        x: floating-point-tolerance-dropdown-button.x;
-        y: floating-point-tolerance-dropdown-button.y + floating-point-tolerance-dropdown-button.height;
+    floating_point_tolerance_context_menu := ContextMenu {
+        close_policy: close_on_click_outside;
+        x: floating_point_tolerance_dropdown_button.x;
+        y: floating_point_tolerance_dropdown_button.y + floating_point_tolerance_dropdown_button.height;
         Rectangle {
-            background: Theme.background-control;
-            border-color: Theme.submenu-border;
-            border-width: 1px;
-            min-width: floating-point-tolerance-dropdown-button.width - self.border-width * 2 + 8px;
+            background: Theme.background_control;
+            border_color: Theme.submenu_border;
+            border_width: 1px;
+            min_width: floating_point_tolerance_dropdown_button.width - self.border_width * 2 + 8px;
             VerticalBox {
                 padding: 0px;
                 spacing: 0px;
@@ -94,23 +94,23 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
                         HorizontalLayout {
-                            padding-left: 4px;
+                            padding_left: 4px;
                             alignment: start;
                             HorizontalBox {
                                 padding: 0px;
-                                padding-right: 8px;
+                                padding_right: 8px;
                                 Image {
                                     width: 16px;
                                     height: 16px;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: center;
+                                    vertical_alignment: center;
                                     source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e1);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
-                                    horizontal-alignment: left;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: left;
+                                    vertical_alignment: center;
                                     text: "0.1";
                                 }
                             }
@@ -126,23 +126,23 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
                         HorizontalLayout {
-                            padding-left: 4px;
+                            padding_left: 4px;
                             alignment: start;
                             HorizontalBox {
                                 padding: 0px;
-                                padding-right: 8px;
+                                padding_right: 8px;
                                 Image {
                                     width: 16px;
                                     height: 16px;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: center;
+                                    vertical_alignment: center;
                                     source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e2);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
-                                    horizontal-alignment: left;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: left;
+                                    vertical_alignment: center;
                                     text: "0.01";
                                 }
                             }
@@ -158,23 +158,23 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
                         HorizontalLayout {
-                            padding-left: 4px;
+                            padding_left: 4px;
                             alignment: start;
                             HorizontalBox {
                                 padding: 0px;
-                                padding-right: 8px;
+                                padding_right: 8px;
                                 Image {
                                     width: 16px;
                                     height: 16px;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: center;
+                                    vertical_alignment: center;
                                     source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e3);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
-                                    horizontal-alignment: left;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: left;
+                                    vertical_alignment: center;
                                     text: "0.001";
                                 }
                             }
@@ -190,23 +190,23 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
                         HorizontalLayout {
-                            padding-left: 4px;
+                            padding_left: 4px;
                             alignment: start;
                             HorizontalBox {
                                 padding: 0px;
-                                padding-right: 8px;
+                                padding_right: 8px;
                                 Image {
                                     width: 16px;
                                     height: 16px;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: center;
+                                    vertical_alignment: center;
                                     source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e4);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
-                                    horizontal-alignment: left;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: left;
+                                    vertical_alignment: center;
                                     text: "0.0001";
                                 }
                             }
@@ -222,23 +222,23 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
                         HorizontalLayout {
-                            padding-left: 4px;
+                            padding_left: 4px;
                             alignment: start;
                             HorizontalBox {
                                 padding: 0px;
-                                padding-right: 8px;
+                                padding_right: 8px;
                                 Image {
                                     width: 16px;
                                     height: 16px;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: center;
+                                    vertical_alignment: center;
                                     source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e5);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
-                                    horizontal-alignment: left;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: left;
+                                    vertical_alignment: center;
                                     text: "0.00001";
                                 }
                             }
@@ -254,23 +254,23 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
                         HorizontalLayout {
-                            padding-left: 4px;
+                            padding_left: 4px;
                             alignment: start;
                             HorizontalBox {
                                 padding: 0px;
-                                padding-right: 8px;
+                                padding_right: 8px;
                                 Image {
                                     width: 16px;
                                     height: 16px;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: center;
+                                    vertical_alignment: center;
                                     source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_epsilon);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
-                                    horizontal-alignment: left;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: left;
+                                    vertical_alignment: center;
                                     text: "Epsilon";
                                 }
                             }

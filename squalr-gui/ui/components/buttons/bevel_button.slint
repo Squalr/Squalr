@@ -6,55 +6,55 @@ import { Button } from "./button.slint";
 
 export component BevelButton {
     in property <bool> enabled: true;
-    in property <length> border-radius: 4px;
-    in property <length> border-bottom-left-radius: 0px;
-    in property <length> border-bottom-right-radius: 0px;
-    in property <length> border-top-left-radius: 0px;
-    in property <length> border-top-right-radius: 0px;
-    in property <length> border-width: 2px;
-    in property <brush> background-color: Theme.background-control-primary;
-    in property <brush> bevel-color: Theme.background-control-primary-dark;
-    in property <brush> border-color: Theme.background-control-border;
-    in property <string> tooltip-text;
-    in property <length> bevel-height: 0px;
-    in property <string> click-sound;
-    in property <MouseCursor> mouse-cursor: pointer;
+    in property <length> border_radius: 4px;
+    in property <length> border_bottom_left_radius: 0px;
+    in property <length> border_bottom_right_radius: 0px;
+    in property <length> border_top_left_radius: 0px;
+    in property <length> border_top_right_radius: 0px;
+    in property <length> border_width: 2px;
+    in property <brush> background_color: Theme.background_control_primary;
+    in property <brush> bevel_color: Theme.background_control_primary_dark;
+    in property <brush> border_color: Theme.background_control_border;
+    in property <string> tooltip_text;
+    in property <length> bevel_height: 0px;
+    in property <string> click_sound;
+    in property <MouseCursor> mouse_cursor: pointer;
     callback clicked();
     callback moved();
-    out property <bool> is-pressed: button.is-pressed;
-    button-bottom := Rectangle {
-        background <=> bevel-color;
-        border-color <=> border-color;
-        y: bevel-height;
-        border-radius: root.border-radius;
-        border-bottom-left-radius: root.border-radius + root.border-bottom-left-radius;
-        border-bottom-right-radius: root.border-radius + root.border-bottom-right-radius;
-        border-top-left-radius: root.border-radius + root.border-top-left-radius;
-        border-top-right-radius: root.border-radius + root.border-top-right-radius;
+    out property <bool> is_pressed: button.is_pressed;
+    button_bottom := Rectangle {
+        background <=> bevel_color;
+        border_color <=> border_color;
+        y: bevel_height;
+        border_radius: root.border_radius;
+        border_bottom_left_radius: root.border_radius + root.border_bottom_left_radius;
+        border_bottom_right_radius: root.border_radius + root.border_bottom_right_radius;
+        border_top_left_radius: root.border_radius + root.border_top_left_radius;
+        border_top_right_radius: root.border_radius + root.border_top_right_radius;
     }
 
-    button-top := Rectangle {
-        background <=> root.background-color;
-        border-color <=> root.border-color;
-        border-radius: root.border-radius;
-        border-bottom-left-radius: root.border-radius + root.border-bottom-left-radius;
-        border-bottom-right-radius: root.border-radius + root.border-bottom-right-radius;
-        border-top-left-radius: root.border-radius + root.border-top-left-radius;
-        border-top-right-radius: root.border-radius + root.border-top-right-radius;
-        border-width <=> root.border-width;
+    button_top := Rectangle {
+        background <=> root.background_color;
+        border_color <=> root.border_color;
+        border_radius: root.border_radius;
+        border_bottom_left_radius: root.border_radius + root.border_bottom_left_radius;
+        border_bottom_right_radius: root.border_radius + root.border_bottom_right_radius;
+        border_top_left_radius: root.border_radius + root.border_top_left_radius;
+        border_top_right_radius: root.border_radius + root.border_top_right_radius;
+        border_width <=> root.border_width;
         button := Button {
             enabled <=> root.enabled;
-            border-radius <=> root.border-radius;
-            border-width <=> root.border-width;
-            border-bottom-left-radius <=> root.border-bottom-left-radius;
-            border-bottom-right-radius <=> root.border-bottom-right-radius;
-            border-top-left-radius <=> root.border-top-left-radius;
-            border-top-right-radius <=> root.border-top-right-radius;
-            border-color <=> root.bevel-color;
-            border-color-focused <=> root.bevel-color;
-            tooltip-text <=> root.tooltip-text;
-            click-sound <=> root.click-sound;
-            mouse-cursor <=> root.mouse-cursor;
+            border_radius <=> root.border_radius;
+            border_width <=> root.border_width;
+            border_bottom_left_radius <=> root.border_bottom_left_radius;
+            border_bottom_right_radius <=> root.border_bottom_right_radius;
+            border_top_left_radius <=> root.border_top_left_radius;
+            border_top_right_radius <=> root.border_top_right_radius;
+            border_color <=> root.bevel_color;
+            border_color_focused <=> root.bevel_color;
+            tooltip_text <=> root.tooltip_text;
+            click_sound <=> root.click_sound;
+            mouse_cursor <=> root.mouse_cursor;
             width: 100%;
             height: 100%;
             clicked => {

@@ -15,40 +15,40 @@ import { ContextMenu } from "../../../components/context_menu/context_menu.slint
 export component SettingChooserMemoryAlignment inherits Rectangle {
     memory_alignment_icon_converter := MemoryAlignmentIconConverter { }
 
-    min-width: 96px;
+    min_width: 96px;
     HorizontalLayout {
         padding: 0px;
         spacing: 0px;
-        memory-alignment-dropdown-button := Button {
+        memory_alignment_dropdown_button := Button {
             height: 24px;
             clicked => {
-                memory-alignment-context-menu.show();
+                memory_alignment_context_menu.show();
             }
             Rectangle {
-                background: Theme.background-control;
-                border-color: Theme.submenu-border;
-                border-width: 1px;
-                border-radius: 1px;
+                background: Theme.background_control;
+                border_color: Theme.submenu_border;
+                border_width: 1px;
+                border_radius: 1px;
                 VerticalLayout {
                     alignment: center;
                     HorizontalLayout {
-                        padding-left: 4px;
+                        padding_left: 4px;
                         alignment: start;
                         HorizontalBox {
                             padding: 0px;
-                            padding-right: 8px;
+                            padding_right: 8px;
                             Image {
                                 width: 16px;
                                 height: 16px;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
                                 source: memory_alignment_icon_converter.memory_alignment_source(ScanSettingsViewModelBindings.memory_alignment);
                             }
 
                             Text {
                                 color: Theme.foreground;
-                                horizontal-alignment: left;
-                                vertical-alignment: center;
+                                horizontal_alignment: left;
+                                vertical_alignment: center;
                                 text: "{Align}";
                             }
                         }
@@ -58,32 +58,32 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
 
             HorizontalLayout {
                 alignment: end;
-                padding-right: 4px;
+                padding_right: 4px;
                 Image {
-                    source: @image-url("../../../images/navigation/down_arrow_small.png");
+                    source: @image_url("../../../images/navigation/down_arrow_small.png");
                 }
             }
 
             HorizontalLayout {
                 alignment: end;
-                padding-right: 24px;
+                padding_right: 24px;
                 Rectangle {
-                    background: Theme.submenu-border;
+                    background: Theme.submenu_border;
                     width: 1px;
                 }
             }
         }
     }
 
-    memory-alignment-context-menu := ContextMenu {
-        close-policy: close-on-click-outside;
-        x: memory-alignment-dropdown-button.x;
-        y: memory-alignment-dropdown-button.y + memory-alignment-dropdown-button.height;
+    memory_alignment_context_menu := ContextMenu {
+        close_policy: close_on_click_outside;
+        x: memory_alignment_dropdown_button.x;
+        y: memory_alignment_dropdown_button.y + memory_alignment_dropdown_button.height;
         Rectangle {
-            background: Theme.background-control;
-            border-color: Theme.submenu-border;
-            border-width: 1px;
-            min-width: memory-alignment-dropdown-button.width - self.border-width * 2;
+            background: Theme.background_control;
+            border_color: Theme.submenu_border;
+            border_width: 1px;
+            min_width: memory_alignment_dropdown_button.width - self.border_width * 2;
             VerticalBox {
                 padding: 0px;
                 spacing: 0px;
@@ -95,23 +95,23 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
                         HorizontalLayout {
-                            padding-left: 4px;
+                            padding_left: 4px;
                             alignment: start;
                             HorizontalBox {
                                 padding: 0px;
-                                padding-right: 8px;
+                                padding_right: 8px;
                                 Image {
                                     width: 16px;
                                     height: 16px;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: center;
+                                    vertical_alignment: center;
                                     source: memory_alignment_icon_converter.memory_alignment_source(MemoryAlignmentView.alignment_1);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
-                                    horizontal-alignment: left;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: left;
+                                    vertical_alignment: center;
                                     text: "1";
                                 }
                             }
@@ -127,23 +127,23 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
                         HorizontalLayout {
-                            padding-left: 4px;
+                            padding_left: 4px;
                             alignment: start;
                             HorizontalBox {
                                 padding: 0px;
-                                padding-right: 8px;
+                                padding_right: 8px;
                                 Image {
                                     width: 16px;
                                     height: 16px;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: center;
+                                    vertical_alignment: center;
                                     source: memory_alignment_icon_converter.memory_alignment_source(MemoryAlignmentView.alignment_2);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
-                                    horizontal-alignment: left;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: left;
+                                    vertical_alignment: center;
                                     text: "2";
                                 }
                             }
@@ -159,23 +159,23 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
                         HorizontalLayout {
-                            padding-left: 4px;
+                            padding_left: 4px;
                             alignment: start;
                             HorizontalBox {
                                 padding: 0px;
-                                padding-right: 8px;
+                                padding_right: 8px;
                                 Image {
                                     width: 16px;
                                     height: 16px;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: center;
+                                    vertical_alignment: center;
                                     source: memory_alignment_icon_converter.memory_alignment_source(MemoryAlignmentView.alignment_4);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
-                                    horizontal-alignment: left;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: left;
+                                    vertical_alignment: center;
                                     text: "4";
                                 }
                             }
@@ -191,23 +191,23 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                     VerticalLayout {
                         alignment: center;
                         HorizontalLayout {
-                            padding-left: 4px;
+                            padding_left: 4px;
                             alignment: start;
                             HorizontalBox {
                                 padding: 0px;
-                                padding-right: 8px;
+                                padding_right: 8px;
                                 Image {
                                     width: 16px;
                                     height: 16px;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: center;
+                                    vertical_alignment: center;
                                     source: memory_alignment_icon_converter.memory_alignment_source(MemoryAlignmentView.alignment_8);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
-                                    horizontal-alignment: left;
-                                    vertical-alignment: center;
+                                    horizontal_alignment: left;
+                                    vertical_alignment: center;
                                     text: "8";
                                 }
                             }

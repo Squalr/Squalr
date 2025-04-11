@@ -17,31 +17,31 @@ export component SettingsTabMemory inherits Rectangle {
         spacing: 8px;
         Row {
             GroupBox {
-                header-text: "Required Protection Flags";
+                header_text: "Required Protection Flags";
                 VerticalBox {
                     alignment: start;
                     padding: 0px;
                     spacing: 6px;
                     TextCheckbox {
                         text: @tr("Write");
-                        is-checked <=> MemorySettingsViewModelBindings.required_write;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.required_write;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.required_write_changed(value);
                         }
                     }
 
                     TextCheckbox {
                         text: @tr("Execute");
-                        is-checked <=> MemorySettingsViewModelBindings.required_execute;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.required_execute;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.required_execute_changed(value);
                         }
                     }
 
                     TextCheckbox {
                         text: @tr("Copy on Write");
-                        is-checked <=> MemorySettingsViewModelBindings.required_copy_on_write;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.required_copy_on_write;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.required_copy_on_write_changed(value);
                         }
                     }
@@ -49,31 +49,31 @@ export component SettingsTabMemory inherits Rectangle {
             }
 
             GroupBox {
-                header-text: "Excluded Protection Flags";
+                header_text: "Excluded Protection Flags";
                 VerticalBox {
                     alignment: start;
                     padding: 0px;
                     spacing: 6px;
                     TextCheckbox {
                         text: @tr("Write");
-                        is-checked <=> MemorySettingsViewModelBindings.excluded_write;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.excluded_write;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.excluded_write_changed(value);
                         }
                     }
 
                     TextCheckbox {
                         text: @tr("Execute");
-                        is-checked <=> MemorySettingsViewModelBindings.excluded_execute;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.excluded_execute;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.excluded_execute_changed(value);
                         }
                     }
 
                     TextCheckbox {
                         text: @tr("Copy on Write");
-                        is-checked <=> MemorySettingsViewModelBindings.excluded_copy_on_write;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.excluded_copy_on_write;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.excluded_copy_on_write_changed(value);
                         }
                     }
@@ -83,39 +83,39 @@ export component SettingsTabMemory inherits Rectangle {
 
         Row {
             GroupBox {
-                header-text: "Memory Types";
+                header_text: "Memory Types";
                 VerticalBox {
                     alignment: start;
                     padding: 0px;
                     spacing: 6px;
                     TextCheckbox {
                         text: @tr("None");
-                        is-checked <=> MemorySettingsViewModelBindings.memory_type_none;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.memory_type_none;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.memory_type_none_changed(value);
                         }
                     }
 
                     TextCheckbox {
                         text: @tr("Image");
-                        is-checked <=> MemorySettingsViewModelBindings.memory_type_image;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.memory_type_image;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.memory_type_image_changed(value);
                         }
                     }
 
                     TextCheckbox {
                         text: @tr("Private");
-                        is-checked <=> MemorySettingsViewModelBindings.memory_type_private;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.memory_type_private;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.memory_type_private_changed(value);
                         }
                     }
 
                     TextCheckbox {
                         text: @tr("Mapped");
-                        is-checked <=> MemorySettingsViewModelBindings.memory_type_mapped;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.memory_type_mapped;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.memory_type_mapped_changed(value);
                         }
                     }
@@ -123,31 +123,31 @@ export component SettingsTabMemory inherits Rectangle {
             }
 
             GroupBox {
-                header-text: "Virtual Memory Querying";
+                header_text: "Virtual Memory Querying";
                 VerticalBox {
                     alignment: start;
                     padding: 0px;
                     spacing: 6px;
                     TextCheckbox {
                         text: @tr("Query All Memory");
-                        is-checked <=> MemorySettingsViewModelBindings.only_query_usermode;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.only_query_usermode;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.only_query_usermode_changed(value);
                         }
                     }
 
                     TextCheckbox {
                         text: @tr("Query All Usermode Memory");
-                        is-checked <=> MemorySettingsViewModelBindings.only_query_usermode;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.only_query_usermode;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.only_query_usermode_changed(value);
                         }
                     }
 
                     TextCheckbox {
                         text: @tr("Query Custom Range");
-                        is-checked <=> MemorySettingsViewModelBindings.only_query_usermode;
-                        check-changed(value) => {
+                        is_checked <=> MemorySettingsViewModelBindings.only_query_usermode;
+                        check_changed(value) => {
                             MemorySettingsViewModelBindings.only_query_usermode_changed(value);
                         }
                     }

@@ -10,10 +10,10 @@ export component OutputView inherits Rectangle {
         HorizontalLayout {
             padding: 4px;
             alignment: start;
-            output-text-display := Text {
-                text <=> OutputViewModelBindings.output-text;
-                horizontal-alignment: left;
-                vertical-alignment: top;
+            output_text_display := Text {
+                text <=> OutputViewModelBindings.output_text;
+                horizontal_alignment: left;
+                vertical_alignment: top;
                 color: Theme.foreground;
             }
         }

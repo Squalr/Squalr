@@ -26,36 +26,36 @@ export component ScanResultEntry inherits Button {
             Image {
                 width: 16px;
                 height: 16px;
-                horizontal-alignment: center;
-                vertical-alignment: center;
+                horizontal_alignment: center;
+                vertical_alignment: center;
                 source: data_type_icon_converter.data_type_source(scan_result_view_data.data_type);
             }
         }
 
         Text {
-            color: Theme.hex-green;
-            horizontal-alignment: left;
-            vertical-alignment: center;
+            color: Theme.hex_green;
+            horizontal_alignment: left;
+            vertical_alignment: center;
             text: scan_result_view_data.address;
-            font-family: Theme.mono-font-family;
+            font_family: Theme.mono_font_family;
         }
     }
 
     Text {
         x: current_values_splitter_location + 8px;
         color: Theme.foreground;
-        horizontal-alignment: left;
-        vertical-alignment: center;
+        horizontal_alignment: left;
+        vertical_alignment: center;
         text: scan_result_view_data.current_value;
-        font-family: Theme.mono-font-family;
+        font_family: Theme.mono_font_family;
     }
 
     Text {
         x: previous_values_splitter_location + 8px;
         color: Theme.foreground;
-        horizontal-alignment: left;
-        vertical-alignment: center;
+        horizontal_alignment: left;
+        vertical_alignment: center;
         text: scan_result_view_data.previous_value;
-        font-family: Theme.mono-font-family;
+        font_family: Theme.mono_font_family;
     }
 }

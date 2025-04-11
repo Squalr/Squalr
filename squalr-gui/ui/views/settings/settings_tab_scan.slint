@@ -20,7 +20,7 @@ export component SettingsTabScan inherits Rectangle {
         spacing: 8px;
         Row {
             GroupBox {
-                header-text: "Memory Read Intervals";
+                header_text: "Memory Read Intervals";
                 VerticalBox {
                     alignment: start;
                     padding: 0px;
@@ -39,14 +39,14 @@ export component SettingsTabScan inherits Rectangle {
 
                                 Text {
                                     width: 32px;
-                                    horizontal-alignment: center;
+                                    horizontal_alignment: center;
                                     color: Theme.foreground;
                                     text: round(page_size_slider.value);
                                 }
                             }
 
                             Text {
-                                vertical-alignment: center;
+                                vertical_alignment: center;
                                 text: @tr("Results page size");
                                 color: Theme.foreground;
                             }
@@ -63,14 +63,14 @@ export component SettingsTabScan inherits Rectangle {
                                 }
 
                                 Text {
-                                    horizontal-alignment: center;
+                                    horizontal_alignment: center;
                                     color: Theme.foreground;
                                     text: round(freeze_interval_slider.value);
                                 }
                             }
 
                             Text {
-                                vertical-alignment: center;
+                                vertical_alignment: center;
                                 text: @tr("Freeze interval (ms)");
                                 color: Theme.foreground;
                             }
@@ -90,14 +90,14 @@ export component SettingsTabScan inherits Rectangle {
                                 }
 
                                 Text {
-                                    horizontal-alignment: center;
+                                    horizontal_alignment: center;
                                     color: Theme.foreground;
                                     text: round(project_read_interval_slider.value);
                                 }
                             }
 
                             Text {
-                                vertical-alignment: center;
+                                vertical_alignment: center;
                                 text: @tr("Project read interval (ms)");
                                 color: Theme.foreground;
                             }
@@ -117,14 +117,14 @@ export component SettingsTabScan inherits Rectangle {
                                 }
 
                                 Text {
-                                    horizontal-alignment: center;
+                                    horizontal_alignment: center;
                                     color: Theme.foreground;
                                     text: round(result_read_interval_slider.value);
                                 }
                             }
 
                             Text {
-                                vertical-alignment: center;
+                                vertical_alignment: center;
                                 text: @tr("Result read interval (ms)");
                                 color: Theme.foreground;
                             }
@@ -135,7 +135,7 @@ export component SettingsTabScan inherits Rectangle {
         }
 
         GroupBox {
-            header-text: "Scan Params";
+            header_text: "Scan Params";
             VerticalBox {
                 alignment: start;
                 padding: 0px;
@@ -146,7 +146,7 @@ export component SettingsTabScan inherits Rectangle {
                         SettingChooserMemoryAlignment { }
 
                         Text {
-                            vertical-alignment: center;
+                            vertical_alignment: center;
                             text: @tr("Memory Alignment");
                             color: Theme.foreground;
                         }
@@ -156,7 +156,7 @@ export component SettingsTabScan inherits Rectangle {
                         SettingChooserFloatingPointTolerance { }
 
                         Text {
-                            vertical-alignment: center;
+                            vertical_alignment: center;
                             text: @tr("Floating Point Tolerance");
                             color: Theme.foreground;
                         }
@@ -166,7 +166,7 @@ export component SettingsTabScan inherits Rectangle {
                         SettingChooserMemoryReadMode { }
 
                         Text {
-                            vertical-alignment: center;
+                            vertical_alignment: center;
                             text: @tr("Memory Read Mode");
                             color: Theme.foreground;
                         }
@@ -177,23 +177,23 @@ export component SettingsTabScan inherits Rectangle {
 
         Row {
             GroupBox {
-                header-text: "Scan Internals";
+                header_text: "Scan Internals";
                 VerticalBox {
                     alignment: start;
                     padding: 0px;
                     spacing: 6px;
                     TextCheckbox {
-                        text: @tr("Single-Threaded Scan");
-                        is-checked <=> ScanSettingsViewModelBindings.is_single_threaded_scan;
-                        check-changed(value) => {
+                        text: @tr("Single_Threaded Scan");
+                        is_checked <=> ScanSettingsViewModelBindings.is_single_threaded_scan;
+                        check_changed(value) => {
                             ScanSettingsViewModelBindings.is_single_threaded_scan_changed(value);
                         }
                     }
 
                     TextCheckbox {
                         text: @tr("Perform Extra Debug Scan");
-                        is-checked <=> ScanSettingsViewModelBindings.debug_perform_validation_scan;
-                        check-changed(value) => {
+                        is_checked <=> ScanSettingsViewModelBindings.debug_perform_validation_scan;
+                        check_changed(value) => {
                             ScanSettingsViewModelBindings.debug_perform_validation_scan_changed(value);
                         }
                     }

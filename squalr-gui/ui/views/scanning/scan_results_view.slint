@@ -52,7 +52,7 @@ export component ScanResultsView inherits Rectangle {
                             for scan_result_entry in ScanResultsViewModelBindings.scan_results: ScanResultEntry {
                                 current_values_splitter_location: root.get_current_value_splitter_location() + resizer_size;
                                 previous_values_splitter_location: root.get_previous_value_splitter_location() + resizer_size;
-                                scan_result_view_data: scan-result-entry;
+                                scan_result_view_data: scan_result_entry;
                                 on_click => {
                                 }
                             }
@@ -66,9 +66,9 @@ export component ScanResultsView inherits Rectangle {
                 x: root.get_current_value_splitter_location();
                 y: 0;
                 width: root.resizer_size;
-                background: Theme.background-control;
+                background: Theme.background_control;
                 TouchArea {
-                    mouse-cursor: ew-resize;
+                    mouse_cursor: ew_resize;
                     moved => {
                         if (self.pressed && self.enabled) {
                         }
@@ -80,9 +80,9 @@ export component ScanResultsView inherits Rectangle {
                 x: get_previous_value_splitter_location();
                 y: 0;
                 width: root.resizer_size;
-                background: Theme.background-control;
+                background: Theme.background_control;
                 TouchArea {
-                    mouse-cursor: ew-resize;
+                    mouse_cursor: ew_resize;
                     moved => {
                         if (self.pressed && self.enabled) {
                         }
@@ -94,7 +94,7 @@ export component ScanResultsView inherits Rectangle {
         Rectangle {
             width: parent.width;
             height: 4px;
-            background: Theme.background-control;
+            background: Theme.background_control;
         }
 
         // Nav bar buttons

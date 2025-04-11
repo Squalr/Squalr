@@ -1,39 +1,39 @@
 import { Theme, AnimationSettings } from "../theme.slint";
 
 export component StateLayer {
-    in property <length> border-radius: 4px;
-    in property <length> border-bottom-left-radius: 0px;
-    in property <length> border-bottom-right-radius: 0px;
-    in property <length> border-top-left-radius: 0px;
-    in property <length> border-top-right-radius: 0px;
-    in property <length> border-width: 0px;
-    in property <brush> hover-color: Theme.hover-tint;
-    in property <brush> pressed-color: Theme.pressed-tint;
-    in property <brush> border-color: Theme.background-control-primary-dark;
-    in property <brush> border-color-focused: Theme.background-control-primary-dark;
+    in property <length> border_radius: 4px;
+    in property <length> border_bottom_left_radius: 0px;
+    in property <length> border_bottom_right_radius: 0px;
+    in property <length> border_top_left_radius: 0px;
+    in property <length> border_top_right_radius: 0px;
+    in property <length> border_width: 0px;
+    in property <brush> hover_color: Theme.hover_tint;
+    in property <brush> pressed_color: Theme.pressed_tint;
+    in property <brush> border_color: Theme.background_control_primary_dark;
+    in property <brush> border_color_focused: Theme.background_control_primary_dark;
     in property <bool> enabled;
     in property <bool> pressed;
-    in property <bool> has-hover;
-    in property <bool> has-focus;
-    state-layer := Rectangle {
-        border-width <=> root.border-width;
-        border-radius <=> root.border-radius;
-        border-bottom-left-radius: root.border-radius + root.border-bottom-left-radius;
-        border-bottom-right-radius: root.border-radius + root.border-bottom-right-radius;
-        border-top-left-radius: root.border-radius + root.border-top-left-radius;
-        border-top-right-radius: root.border-radius + root.border-top-right-radius;
-        animate border-color { duration: AnimationSettings.color-duration; }
-        animate background { duration: AnimationSettings.color-duration; }
+    in property <bool> has_hover;
+    in property <bool> has_focus;
+    state_layer := Rectangle {
+        border_width <=> root.border_width;
+        border_radius <=> root.border_radius;
+        border_bottom_left_radius: root.border_radius + root.border_bottom_left_radius;
+        border_bottom_right_radius: root.border_radius + root.border_bottom_right_radius;
+        border_top_left_radius: root.border_radius + root.border_top_left_radius;
+        border_top_right_radius: root.border_radius + root.border_top_right_radius;
+        animate border_color { duration: AnimationSettings.color_duration; }
+        animate background { duration: AnimationSettings.color_duration; }
     }
 
     states [
         pressed when root.pressed: {
-            state-layer.background: root.pressed-color;
-            state-layer.border-color: root.border-color;
+            state_layer.background: root.pressed_color;
+            state_layer.border_color: root.border_color;
         }
-        hovered when root.has-hover || !root.enabled: {
-            state-layer.background: root.hover-color;
-            state-layer.border-color: root.border-color;
+        hovered when root.has_hover || !root.enabled: {
+            state_layer.background: root.hover_color;
+            state_layer.border_color: root.border_color;
         }
     ]
 }

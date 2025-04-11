@@ -10,66 +10,66 @@ import { DockedWindowSplitters } from "docked_window_splitters.slint";
 import { DockFocusCatcher } from "drag_and_drop/dock_focus_catcher.slint";
 
 export component DockedWindowView inherits Rectangle {
-    in-out property <DockedWindowViewData> docked-window-data;
-    property <length> resize-padding: 2px;
-    x: root.docked-window-data.position-x;
-    y: root.docked-window-data.position-y;
-    width: root.docked-window-data.width;
-    height: root.docked-window-data.height;
-    visible: root.docked-window-data.is-visible && (docked-window-data.tab-ids.length <= 1 || docked-window-data.active-tab-id == docked-window-data.identifier);
-    function is-being-dragged() -> bool {
-        return docked-window-data.identifier == DockRootViewModelBindings.active-dragged-window-id;
+    in_out property <DockedWindowViewData> docked_window_data;
+    property <length> resize_padding: 2px;
+    x: root.docked_window_data.position_x;
+    y: root.docked_window_data.position_y;
+    width: root.docked_window_data.width;
+    height: root.docked_window_data.height;
+    visible: root.docked_window_data.is_visible && (docked_window_data.tab_ids.length <= 1 || docked_window_data.active_tab_id == docked_window_data.identifier);
+    function is_being_dragged() -> bool {
+        return docked_window_data.identifier == DockRootViewModelBindings.active_dragged_window_id;
     }
-    function is-drop-area-visible() -> bool {
-        return DockRootViewModelBindings.active-dragged-window-id != "" //
-            && (DockRootViewModelBindings.active-dragged-window-id != root.docked-window-data.identifier || root.docked-window-data.active-tab-id != "");
+    function is_drop_area_visible() -> bool {
+        return DockRootViewModelBindings.active_dragged_window_id != "" //
+            && (DockRootViewModelBindings.active_dragged_window_id != root.docked_window_data.identifier || root.docked_window_data.active_tab_id != "");
     }
     VerticalLayout {
-        x: resize-padding;
-        y: resize-padding;
-        width: root.docked-window-data.width - resize-padding * 2;
-        height: root.docked-window-data.height - resize-padding * 2;
+        x: resize_padding;
+        y: resize_padding;
+        width: root.docked_window_data.width - resize_padding * 2;
+        height: root.docked_window_data.height - resize_padding * 2;
         spacing: 0px;
         padding: 0px;
         VerticalBox {
             padding: 0px;
             spacing: 0px;
             DockedWindowTitleBarView {
-                docked-window-data <=> root.docked-window-data;
+                docked_window_data <=> root.docked_window_data;
             }
 
             // Main content area
             Rectangle {
-                background: root.is-being-dragged() && !root.is-drop-area-visible() ? Theme.selected-background : Theme.background-panel;
-                border-color: Theme.submenu-border;
-                border-radius: 2px;
-                border-width: 1px;
+                background: root.is_being_dragged() && !root.is_drop_area_visible() ? Theme.selected_background : Theme.background_panel;
+                border_color: Theme.submenu_border;
+                border_radius: 2px;
+                border_width: 1px;
                 @children
             }
 
             footer := DockedWindowFooter {
-                docked-window-data <=> root.docked-window-data;
+                docked_window_data <=> root.docked_window_data;
             }
         }
     }
 
     // Splitters
     splitters := DockedWindowSplitters {
-        docked-window-data <=> root.docked-window-data;
-        resize-padding <=> root.resize-padding;
+        docked_window_data <=> root.docked_window_data;
+        resize_padding <=> root.resize_padding;
     }
 
     DockFocusCatcher { }
 
     // Drop Area
-    drop-area := DockedWindowDropAreas {
-        docked-window-data <=> root.docked-window-data;
-        resize-padding <=> root.resize-padding;
-        footer-padding: footer.height;
+    drop_area := DockedWindowDropAreas {
+        docked_window_data <=> root.docked_window_data;
+        resize_padding <=> root.resize_padding;
+        footer_padding: footer.height;
         // Visible if:
-        // - We are dragging something AND
-        //   - We are not the same window being dragged UNLESS we are part of a tab group
+        // _ We are dragging something AND
+        //   _ We are not the same window being dragged UNLESS we are part of a tab group
         //     (as we could be dropping onto ourself to move the window from a tab to a split).
-        visible: root.is-drop-area-visible();
+        visible: root.is_drop_area_visible();
     }
 }

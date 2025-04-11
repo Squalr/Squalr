@@ -6,17 +6,17 @@ import { Tooltip } from "../tooltips/tooltip.slint";
 import { FakeCheckbox } from "fake_checkbox.slint";
 
 export component TextFakeCheckbox {
-    in-out property <bool> is-checked: false;
+    in_out property <bool> is_checked: false;
     in property <string> text;
-    callback check-changed(bool);
+    callback check_changed(bool);
     Rectangle {
         container := HorizontalBox {
-            padding-top: root.padding-top;
-            padding-bottom: root.padding-bottom;
-            padding-left: root.padding-left;
-            padding-right: root.padding-right;
+            padding_top: root.padding_top;
+            padding_bottom: root.padding_bottom;
+            padding_left: root.padding_left;
+            padding_right: root.padding_right;
             checkbox := FakeCheckbox {
-                is-checked <=> root.is-checked;
+                is_checked <=> root.is_checked;
             }
 
             text := Text {

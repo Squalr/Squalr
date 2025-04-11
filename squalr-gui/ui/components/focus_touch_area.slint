@@ -1,61 +1,61 @@
 export component FocusTouchArea {
     in property <bool> enabled: true;
-    in property <MouseCursor> mouse-cursor <=> touch-area.mouse-cursor;
-    out property <bool> has-focus <=> focus-scope.has-focus;
-    out property <bool> is-pressed <=> touch-area.pressed;
-    out property <bool> has-hover <=> touch-area.has-hover;
-    out property <bool> enter-pressed;
-    out property <bool> has-hover-exited: false;
+    in property <MouseCursor> mouse_cursor <=> touch_area.mouse_cursor;
+    out property <bool> has_focus <=> focus_scope.has_focus;
+    out property <bool> is_pressed <=> touch_area.pressed;
+    out property <bool> has_hover <=> touch_area.has_hover;
+    out property <bool> enter_pressed;
+    out property <bool> has_hover_exited: false;
     callback clicked(length, length);
-    callback right-clicked(length, length);
+    callback right_clicked(length, length);
     callback moved();
-    callback mouse-entered();
-    callback mouse-exited();
-    forward-focus: focus-scope;
-    focus-scope := FocusScope {
+    callback mouse_entered();
+    callback mouse_exited();
+    forward_focus: focus_scope;
+    focus_scope := FocusScope {
         x: 0;
         width: 0px;
         enabled: root.enabled;
-        key-pressed(event) => {
+        key_pressed(event) => {
             if !root.enabled {
                 return reject;
             }
-            if (event.text == " " || event.text == "\n") && !root.enter-pressed {
-                root.enter-pressed = true;
-                touch-area.clicked();
+            if (event.text == " " || event.text == "\n") && !root.enter_pressed {
+                root.enter_pressed = true;
+                touch_area.clicked();
                 return accept;
             }
             return reject;
         }
-        key-released(event) => {
+        key_released(event) => {
             if !root.enabled {
                 return reject;
             }
-            if (event.text == " " || event.text == "\n") && root.enter-pressed {
-                root.enter-pressed = false;
+            if (event.text == " " || event.text == "\n") && root.enter_pressed {
+                root.enter_pressed = false;
                 return accept;
             }
             return reject;
         }
     }
 
-    touch-area := TouchArea {
+    touch_area := TouchArea {
         enabled: root.enabled;
         width: 100%;
         height: 100%;
-        changed has-hover => {
-            if (has-hover) {
-                root.mouse-entered();
+        changed has_hover => {
+            if (has_hover) {
+                root.mouse_entered();
             } else {
-                root.mouse-exited();
+                root.mouse_exited();
             }
         }
-        pointer-event(event) => {
+        pointer_event(event) => {
             if root.enabled && event.kind == PointerEventKind.down {
                 if (event.button == PointerEventButton.right) {
-                    root.right-clicked(touch-area.mouse-x, touch-area.mouse-y)
+                    root.right_clicked(touch_area.mouse_x, touch_area.mouse_y)
                 } else {
-                    root.clicked(touch-area.mouse-x, touch-area.mouse-y);
+                    root.clicked(touch_area.mouse_x, touch_area.mouse_y);
                 }
             }
         }

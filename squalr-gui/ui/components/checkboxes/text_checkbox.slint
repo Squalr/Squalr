@@ -6,19 +6,19 @@ import { Tooltip } from "../tooltips/tooltip.slint";
 import { Checkbox } from "checkbox.slint";
 
 export component TextCheckbox {
-    in-out property <bool> is-checked: false;
+    in_out property <bool> is_checked: false;
     in property <string> text;
-    callback check-changed(bool);
+    callback check_changed(bool);
     Rectangle {
         container := HorizontalBox {
-            padding-top: root.padding-top;
-            padding-bottom: root.padding-bottom;
-            padding-left: root.padding-left;
-            padding-right: root.padding-right;
+            padding_top: root.padding_top;
+            padding_bottom: root.padding_bottom;
+            padding_left: root.padding_left;
+            padding_right: root.padding_right;
             checkbox := Checkbox {
-                is-checked <=> root.is-checked;
-                check-changed(value) => {
-                    root.check-changed(value);
+                is_checked <=> root.is_checked;
+                check_changed(value) => {
+                    root.check_changed(value);
                 }
             }
 

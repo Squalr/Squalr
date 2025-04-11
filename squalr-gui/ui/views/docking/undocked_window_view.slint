@@ -1,12 +1,12 @@
 import { UndockedWindowTitleBarView } from "./undocked_window_title_bar_view.slint";
 
 export component UndockedWindowView inherits Window {
-    preferred-width: 480px;
-    preferred-height: 320px;
-    no-frame: true;
+    preferred_width: 480px;
+    preferred_height: 320px;
+    no_frame: true;
     title: @tr("Tool");
     VerticalLayout {
-        title-bar := UndockedWindowTitleBarView {
+        title_bar := UndockedWindowTitleBarView {
             title: @tr("Tool");
         }
     }

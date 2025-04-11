@@ -3,13 +3,13 @@ import { VerticalBox } from "std-widgets.slint";
 import { Theme } from "./../../theme.slint";
 
 export component ContextMenu inherits PopupWindow {
-    in property <color> background: Theme.background-primary;
-    in property <color> border-color: Theme.submenu-border;
+    in property <color> background: Theme.background_primary;
+    in property <color> border_color: Theme.submenu_border;
     Rectangle {
         background: root.background;
-        border-color: root.border-color;
-        border-radius: 2px;
-        border-width: 1px;
+        border_color: root.border_color;
+        border_radius: 2px;
+        border_width: 1px;
         VerticalLayout {
             content := VerticalBox {
                 padding: 0px;

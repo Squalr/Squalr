@@ -16,44 +16,44 @@ export enum ToolbarMenuCheckState {
 export struct ToolbarMenuItemData {
     id: string,
     text: string,
-    has-separator: bool,
-    check-state: ToolbarMenuCheckState,
+    has_separator: bool,
+    check_state: ToolbarMenuCheckState,
 }
 
 export component ToolbarMenuItem inherits HorizontalLayout {
     in property <string> text;
-    in property <length> parent-toolbar-size;
-    in-out property <[ToolbarMenuItemData]> items;
+    in property <length> parent_toolbar_size;
+    in_out property <[ToolbarMenuItemData]> items;
     callback onItemClicked(string);
-    text-button := Button {
+    text_button := Button {
         clicked => {
-            context-menu.show();
+            context_menu.show();
         }
         HorizontalLayout {
-            padding-left: 8px;
-            padding-right: 8px;
+            padding_left: 8px;
+            padding_right: 8px;
             Text {
-                horizontal-alignment: center;
-                vertical-alignment: center;
+                horizontal_alignment: center;
+                vertical_alignment: center;
                 text: root.text;
                 color: Theme.foreground;
             }
         }
     }
 
-    context-menu := ContextMenu {
-        x: text-button.x;
-        y: text-button.y + text-button.height;
+    context_menu := ContextMenu {
+        x: text_button.x;
+        y: text_button.y + text_button.height;
         content := VerticalBox {
             padding: 0px;
             spacing: 0px;
             for item in items: VerticalLayout {
                 VerticalBox {
                     padding: 0px;
-                    padding-top: item.has-separator ? 4px : 0px;
-                    spacing: item.has-separator ? 4px : 0px;
+                    padding_top: item.has_separator ? 4px : 0px;
+                    spacing: item.has_separator ? 4px : 0px;
                     HSeparator {
-                        is-collapsed: !item.has-separator;
+                        is_collapsed: !item.has_separator;
                     }
 
                     Button {
@@ -63,13 +63,13 @@ export component ToolbarMenuItem inherits HorizontalLayout {
                         }
                         HorizontalLayout {
                             alignment: start;
-                            padding-left: 8px;
-                            padding-right: 8px;
+                            padding_left: 8px;
+                            padding_right: 8px;
                             VerticalLayout {
                                 alignment: center;
-                                if(item.check-state == ToolbarMenuCheckState.none): Text {
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                if(item.check_state == ToolbarMenuCheckState.none): Text {
+                                    horizontal_alignment: center;
+                                    vertical_alignment: center;
                                     text: item.text;
                                     color: Theme.foreground;
                                 }
@@ -77,9 +77,9 @@ export component ToolbarMenuItem inherits HorizontalLayout {
 
                             VerticalLayout {
                                 alignment: center;
-                                if(item.check-state != ToolbarMenuCheckState.none): TextFakeCheckbox {
+                                if(item.check_state != ToolbarMenuCheckState.none): TextFakeCheckbox {
                                     text: item.text;
-                                    is-checked: item.check-state == ToolbarMenuCheckState.checked;
+                                    is_checked: item.check_state == ToolbarMenuCheckState.checked;
                                 }
                             }
                         }

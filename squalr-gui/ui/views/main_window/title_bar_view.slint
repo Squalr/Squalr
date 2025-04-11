@@ -8,21 +8,21 @@ import { DockFocusCatcher } from "../docking/drag_and_drop/dock_focus_catcher.sl
 
 export component TitleBarView inherits Rectangle {
     in property <string> title <=> title.text;
-    in property <length> bottom-padding: 4px;
-    height: 28px + root.bottom-padding;
+    in property <length> bottom_padding: 4px;
+    height: 28px + root.bottom_padding;
     Rectangle {
-        border-top-left-radius: 8px;
-        border-top-right-radius: 8px;
-        background: Theme.background-primary;
-        title-drag := TouchArea {
-            double-clicked => {
+        border_top_left_radius: 8px;
+        border_top_right_radius: 8px;
+        background: Theme.background_primary;
+        title_drag := TouchArea {
+            double_clicked => {
                 if (self.pressed && self.enabled) {
-                    WindowViewModelBindings.double-clicked();
+                    WindowViewModelBindings.double_clicked();
                 }
             }
             moved => {
                 if (self.pressed && self.enabled) {
-                    WindowViewModelBindings.drag((title-drag.mouse-x - title-drag.pressed-x) / 1px, (title-drag.mouse-y - title-drag.pressed-y) / 1px);
+                    WindowViewModelBindings.drag((title_drag.mouse_x - title_drag.pressed_x) / 1px, (title_drag.mouse_y - title_drag.pressed_y) / 1px);
                 }
             }
         }
@@ -31,18 +31,18 @@ export component TitleBarView inherits Rectangle {
             // Title
             HorizontalBox {
                 alignment: start;
-                padding-left: 4px;
-                padding-right: 0px;
-                padding-top: 0px;
-                padding-bottom: root.bottom-padding;
+                padding_left: 4px;
+                padding_right: 0px;
+                padding_top: 0px;
+                padding_bottom: root.bottom_padding;
                 spacing: 4px;
                 app_icon := Image {
-                    source: @image-url("../../images/app/app_icon.png");
+                    source: @image_url("../../images/app/app_icon.png");
                     width: 24px;
                 }
 
                 title := Text {
-                    vertical-alignment: center;
+                    vertical_alignment: center;
                     color: Theme.foreground;
                 }
             }
@@ -52,51 +52,51 @@ export component TitleBarView inherits Rectangle {
                 alignment: end;
                 padding: 0px;
                 spacing: 0px;
-                minimize-button := Button {
+                minimize_button := Button {
                     width: 36px;
-                    tooltip-text: @tr("Minimize");
-                    click-sound: "";
+                    tooltip_text: @tr("Minimize");
+                    click_sound: "";
                     clicked => {
                         WindowViewModelBindings.minimize();
                     }
                     Image {
                         width: 16px;
                         height: 16px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        source: @image-url("../../images/app/minimize.png");
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        source: @image_url("../../images/app/minimize.png");
                     }
                 }
 
-                maximize-button := Button {
+                maximize_button := Button {
                     width: 36px;
-                    tooltip-text: @tr("Maximize");
-                    click-sound: "";
+                    tooltip_text: @tr("Maximize");
+                    click_sound: "";
                     clicked => {
                         WindowViewModelBindings.maximize();
                     }
                     Image {
                         width: 16px;
                         height: 16px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        source: @image-url("../../images/app/maximize.png");
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        source: @image_url("../../images/app/maximize.png");
                     }
                 }
 
-                close-button := Button {
+                close_button := Button {
                     width: 36px;
-                    tooltip-text: @tr("Close");
-                    click-sound: "";
+                    tooltip_text: @tr("Close");
+                    click_sound: "";
                     clicked => {
                         WindowViewModelBindings.close();
                     }
                     Image {
                         width: 16px;
                         height: 16px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        source: @image-url("../../images/app/close.png");
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        source: @image_url("../../images/app/close.png");
                     }
                 }
             }

@@ -11,58 +11,58 @@ import { DockFocusCatcher } from "../docking/drag_and_drop/dock_focus_catcher.sl
 import { DockRootViewModelBindings, ValueCollectorViewModelBindings, ScannerViewModelBindings } from "../../view_model_bindings.slint";
 
 export component ShortcutBarView inherits Rectangle {
-    property <length> bar-height: 28px;
-    property <length> bar-spacing: 4px;
-    property <length> bottom-padding: 4px;
-    property <length> flow-break-point: 800px;
-    height: bar-height + root.bottom-padding;
-    background: Theme.background-primary;
+    property <length> bar_height: 28px;
+    property <length> bar_spacing: 4px;
+    property <length> bottom_padding: 4px;
+    property <length> flow_break_point: 800px;
+    height: bar_height + root.bottom_padding;
+    background: Theme.background_primary;
     // Shortcut
-    top-bar := HorizontalBox {
+    top_bar := HorizontalBox {
         x: 0px;
         y: 0px;
         alignment: start;
-        height: bar-height;
-        padding-left: 4px;
-        padding-right: 0px;
-        padding-top: 0px;
+        height: bar_height;
+        padding_left: 4px;
+        padding_right: 0px;
+        padding_top: 0px;
         spacing: 4px;
-        select-process-button := Button {
-            height: bar-height;
+        select_process_button := Button {
+            height: bar_height;
             width: 36px;
-            tooltip-text: @tr("Select Process");
-            click-sound: "";
+            tooltip_text: @tr("Select Process");
+            click_sound: "";
             clicked => {
-                DockRootViewModelBindings.toggle-visibility(DockRootViewModelBindings.process-selector-window.identifier);
+                DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.process_selector_window.identifier);
             }
             Image {
                 width: 16px;
                 height: 16px;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                source: @image-url("../../images/select_process.png");
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../images/select_process.png");
             }
         }
 
-        open-project-button := Button {
-            height: bar-height;
+        open_project_button := Button {
+            height: bar_height;
             width: 36px;
-            tooltip-text: @tr("Open Project");
-            click-sound: "";
+            tooltip_text: @tr("Open Project");
+            click_sound: "";
             clicked => {
                 // WindowViewModelBindings.minimize();
             }
             Image {
                 width: 16px;
                 height: 16px;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                source: @image-url("../../images/file_system/open_folder.png");
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../images/file_system/open_folder.png");
             }
         }
 
-        process-quick-selector := ProcessQuickSelector {
-            height: bar-height;
+        process_quick_selector := ProcessQuickSelector {
+            height: bar_height;
         }
     }
 

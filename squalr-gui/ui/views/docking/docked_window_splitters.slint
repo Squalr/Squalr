@@ -5,23 +5,23 @@ import { Theme } from "./../../theme.slint";
 import { DockRootViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
 
 export component DockedWindowSplitters inherits Rectangle {
-    in-out property <DockedWindowViewData> docked-window-data;
-    in property <length> resize-padding;
+    in_out property <DockedWindowViewData> docked_window_data;
+    in property <length> resize_padding;
     // Left border splitter
     Rectangle {
         x: 0;
         y: 0;
-        width: root.resize-padding;
-        height: root.docked-window-data.height;
-        background: Theme.background-control;
+        width: root.resize_padding;
+        height: root.docked_window_data.height;
+        background: Theme.background_control;
         TouchArea {
-            mouse-cursor: ew-resize;
+            mouse_cursor: ew_resize;
             moved => {
                 if (self.pressed && self.enabled) {
-                    DockRootViewModelBindings.drag-left(
-                        root.docked-window-data.identifier,
-                        (self.mouse-x - self.pressed-x) / 1px,
-                        (self.mouse-y - self.pressed-y) / 1px);
+                    DockRootViewModelBindings.drag_left(
+                        root.docked_window_data.identifier,
+                        (self.mouse_x - self.pressed_x) / 1px,
+                        (self.mouse_y - self.pressed_y) / 1px);
                 }
             }
         }
@@ -29,19 +29,19 @@ export component DockedWindowSplitters inherits Rectangle {
 
     // Right border splitter
     Rectangle {
-        x: root.docked-window-data.width - root.resize-padding;
+        x: root.docked_window_data.width - root.resize_padding;
         y: 0;
-        width: root.resize-padding;
-        height: root.docked-window-data.height;
-        background: Theme.background-control;
+        width: root.resize_padding;
+        height: root.docked_window_data.height;
+        background: Theme.background_control;
         TouchArea {
-            mouse-cursor: ew-resize;
+            mouse_cursor: ew_resize;
             moved => {
                 if (self.pressed && self.enabled) {
-                    DockRootViewModelBindings.drag-right(
-                        root.docked-window-data.identifier,
-                        (self.mouse-x - self.pressed-x) / 1px,
-                        (self.mouse-y - self.pressed-y) / 1px);
+                    DockRootViewModelBindings.drag_right(
+                        root.docked_window_data.identifier,
+                        (self.mouse_x - self.pressed_x) / 1px,
+                        (self.mouse_y - self.pressed_y) / 1px);
                 }
             }
         }
@@ -51,17 +51,17 @@ export component DockedWindowSplitters inherits Rectangle {
     Rectangle {
         x: 0;
         y: 0;
-        width: root.docked-window-data.width;
-        height: root.resize-padding;
-        background: Theme.background-control;
+        width: root.docked_window_data.width;
+        height: root.resize_padding;
+        background: Theme.background_control;
         TouchArea {
-            mouse-cursor: ns-resize;
+            mouse_cursor: ns_resize;
             moved => {
                 if (self.pressed && self.enabled) {
-                    DockRootViewModelBindings.drag-top(
-                        root.docked-window-data.identifier,
-                        (self.mouse-x - self.pressed-x) / 1px,
-                        (self.mouse-y - self.pressed-y) / 1px);
+                    DockRootViewModelBindings.drag_top(
+                        root.docked_window_data.identifier,
+                        (self.mouse_x - self.pressed_x) / 1px,
+                        (self.mouse_y - self.pressed_y) / 1px);
                 }
             }
         }
@@ -70,18 +70,18 @@ export component DockedWindowSplitters inherits Rectangle {
     // Bottom border splitter
     Rectangle {
         x: 0;
-        y: root.docked-window-data.height - root.resize-padding;
-        width: root.docked-window-data.width;
-        height: root.resize-padding;
-        background: Theme.background-control;
+        y: root.docked_window_data.height - root.resize_padding;
+        width: root.docked_window_data.width;
+        height: root.resize_padding;
+        background: Theme.background_control;
         TouchArea {
-            mouse-cursor: ns-resize;
+            mouse_cursor: ns_resize;
             moved => {
                 if (self.pressed && self.enabled) {
-                    DockRootViewModelBindings.drag-bottom(
-                        root.docked-window-data.identifier,
-                        (self.mouse-x - self.pressed-x) / 1px,
-                        (self.mouse-y - self.pressed-y) / 1px);
+                    DockRootViewModelBindings.drag_bottom(
+                        root.docked_window_data.identifier,
+                        (self.mouse_x - self.pressed_x) / 1px,
+                        (self.mouse_y - self.pressed_y) / 1px);
                 }
             }
         }

@@ -10,27 +10,27 @@ export component ScanResultsHeader inherits Rectangle {
     Text {
         x: header_entry_padding;
         color: Theme.foreground;
-        horizontal-alignment: left;
-        vertical-alignment: center;
+        horizontal_alignment: left;
+        vertical_alignment: center;
         text: @tr("Address");
-        font-family: Theme.mono-font-family;
+        font_family: Theme.mono_font_family;
     }
 
     Text {
         x: root.current_value_header_start + header_entry_padding;
         color: Theme.foreground;
-        horizontal-alignment: left;
-        vertical-alignment: center;
+        horizontal_alignment: left;
+        vertical_alignment: center;
         text: @tr("Value");
-        font-family: Theme.mono-font-family;
+        font_family: Theme.mono_font_family;
     }
 
     Text {
         x: root.previous_value_header_start + header_entry_padding;
         color: Theme.foreground;
-        horizontal-alignment: left;
-        vertical-alignment: center;
+        horizontal_alignment: left;
+        vertical_alignment: center;
         text: @tr("Previous Value");
-        font-family: Theme.mono-font-family;
+        font_family: Theme.mono_font_family;
     }
 }

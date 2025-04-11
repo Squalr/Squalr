@@ -1,23 +1,21 @@
 import { Theme } from "../theme.slint";
 
 export component HSeparator {
-    in-out property <bool> is-collapsed;
+    in_out property <bool> is_collapsed;
     callback clicked;
-
     Rectangle {
-        height: is-collapsed ? 0px : 1px;
+        height: is_collapsed ? 0px : 1px;
         width: 100%;
-        background: Theme.submenu-border;
+        background: Theme.submenu_border;
     }
 }
 
 export component VSeparator {
-    in-out property <bool> is-collapsed;
+    in_out property <bool> is_collapsed;
     callback clicked;
-
     Rectangle {
         height: 100%;
-        width: is-collapsed ? 0px : 1px;
-        background: Theme.submenu-border;
+        width: is_collapsed ? 0px : 1px;
+        background: Theme.submenu_border;
     }
 }

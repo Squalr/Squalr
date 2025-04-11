@@ -9,34 +9,34 @@ import { WindowViewModelBindings } from "../../view_model_bindings.slint";
 
 export component Button {
     in property <bool> enabled: true;
-    in property <length> border-radius: 4px;
-    in property <length> border-bottom-left-radius: 0px;
-    in property <length> border-bottom-right-radius: 0px;
-    in property <length> border-top-left-radius: 0px;
-    in property <length> border-top-right-radius: 0px;
-    in property <length> border-width: 0px;
-    in property <brush> hover-color: Theme.hover-tint;
-    in property <brush> pressed-color: Theme.pressed-tint;
-    in property <brush> border-color: Theme.background-control-primary-dark;
-    in property <brush> border-color-focused: Theme.background-control-primary-dark;
-    in property <string> tooltip-text;
-    in property <MouseCursor> mouse-cursor: pointer;
-    in property <string> click-sound: "click_1.mp3";
-    out property <bool> has-hover: touch-area.has-hover;
-    out property <bool> is-pressed: touch-area.is-pressed;
+    in property <length> border_radius: 4px;
+    in property <length> border_bottom_left_radius: 0px;
+    in property <length> border_bottom_right_radius: 0px;
+    in property <length> border_top_left_radius: 0px;
+    in property <length> border_top_right_radius: 0px;
+    in property <length> border_width: 0px;
+    in property <brush> hover_color: Theme.hover_tint;
+    in property <brush> pressed_color: Theme.pressed_tint;
+    in property <brush> border_color: Theme.background_control_primary_dark;
+    in property <brush> border_color_focused: Theme.background_control_primary_dark;
+    in property <string> tooltip_text;
+    in property <MouseCursor> mouse_cursor: pointer;
+    in property <string> click_sound: "click_1.mp3";
+    out property <bool> has_hover: touch_area.has_hover;
+    out property <bool> is_pressed: touch_area.is_pressed;
     callback clicked(length, length);
     callback moved();
-    callback mouse-entered();
-    callback mouse-exited();
-    forward-focus: touch-area;
-    touch-area := FocusTouchArea {
+    callback mouse_entered();
+    callback mouse_exited();
+    forward_focus: touch_area;
+    touch_area := FocusTouchArea {
         enabled <=> root.enabled;
-        mouse-cursor: root.mouse-cursor;
+        mouse_cursor: root.mouse_cursor;
         width: 100%;
         height: 100%;
         clicked(x, y) => {
             if (root.enabled) {
-                WindowViewModelBindings.play-sound(click-sound);
+                WindowViewModelBindings.play_sound(click_sound);
                 root.clicked(x,y);
             }
         }
@@ -45,45 +45,45 @@ export component Button {
                 root.moved();
             }
         }
-        mouse-entered() => {
+        mouse_entered() => {
             if (root.enabled) {
-                root.mouse-entered();
-                if tooltip-text != "" {
+                root.mouse_entered();
+                if tooltip_text != "" {
                     // tooltip.show();
                 }
             }
         }
-        mouse-exited() => {
+        mouse_exited() => {
             if (root.enabled) {
-                root.mouse-exited();
+                root.mouse_exited();
                 // tooltip.close();
             }
         }
     }
 
-    state-layer := StateLayer {
+    state_layer := StateLayer {
         enabled <=> root.enabled;
-        border-width <=> root.border-width;
-        border-radius <=> root.border-radius;
-        border-bottom-left-radius <=> root.border-bottom-left-radius;
-        border-bottom-right-radius <=> root.border-bottom-right-radius;
-        border-top-left-radius <=> root.border-top-left-radius;
-        border-top-right-radius <=> root.border-top-right-radius;
-        hover-color <=> root.hover-color;
-        pressed-color <=> root.pressed-color;
-        border-color <=> root.border-color;
-        border-color-focused <=> root.border-color-focused;
+        border_width <=> root.border_width;
+        border_radius <=> root.border_radius;
+        border_bottom_left_radius <=> root.border_bottom_left_radius;
+        border_bottom_right_radius <=> root.border_bottom_right_radius;
+        border_top_left_radius <=> root.border_top_left_radius;
+        border_top_right_radius <=> root.border_top_right_radius;
+        hover_color <=> root.hover_color;
+        pressed_color <=> root.pressed_color;
+        border_color <=> root.border_color;
+        border_color_focused <=> root.border_color_focused;
         width: 100%;
         height: 100%;
-        pressed: touch-area.is-pressed || touch-area.enter-pressed;
-        has-focus: touch-area.has-focus;
-        has-hover: touch-area.has-hover;
+        pressed: touch_area.is_pressed || touch_area.enter_pressed;
+        has_focus: touch_area.has_focus;
+        has_hover: touch_area.has_hover;
     }
 
     @children
     tooltip := Tooltip {
         x: root.x;
         y: root.y + root.height;
-        text: root.tooltip-text;
+        text: root.tooltip_text;
     }
 }

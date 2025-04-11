@@ -8,37 +8,37 @@ import { ContextMenu } from "../../components/context_menu/context_menu.slint";
 import { Button } from "../../components/buttons/button.slint";
 
 export component ProcessQuickSelector inherits Rectangle {
-    background: Theme.background-control;
-    border-color: Theme.submenu-border;
-    border-width: 1px;
+    background: Theme.background_control;
+    border_color: Theme.submenu_border;
+    border_width: 1px;
     width: 192px;
-    dropdown-button := Button {
+    dropdown_button := Button {
         width: 100%;
         height: 24px;
         clicked => {
-            ProcessSelectorViewModelBindings.refresh-windowed-process-list();
-            context-menu.show();
+            ProcessSelectorViewModelBindings.refresh_windowed_process_list();
+            context_menu.show();
         }
         VerticalLayout {
             alignment: center;
             HorizontalLayout {
-                padding-left: 4px;
+                padding_left: 4px;
                 alignment: start;
                 HorizontalBox {
                     padding: 0px;
                     Image {
                         width: 16px;
                         height: 16px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        source: ProcessSelectorViewModelBindings.selected-process.icon;
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        source: ProcessSelectorViewModelBindings.selected_process.icon;
                     }
 
                     Text {
                         color: Theme.foreground;
-                        horizontal-alignment: left;
-                        vertical-alignment: center;
-                        text: ProcessSelectorViewModelBindings.selected-process.name;
+                        horizontal_alignment: left;
+                        vertical_alignment: center;
+                        text: ProcessSelectorViewModelBindings.selected_process.name;
                     }
                 }
             }
@@ -46,41 +46,41 @@ export component ProcessQuickSelector inherits Rectangle {
 
         HorizontalLayout {
             alignment: end;
-            padding-right: 4px;
+            padding_right: 4px;
             Image {
-                source: @image-url("../../images/navigation/down_arrow_small.png");
+                source: @image_url("../../images/navigation/down_arrow_small.png");
             }
         }
 
         HorizontalLayout {
             alignment: end;
-            padding-right: 24px;
+            padding_right: 24px;
             Rectangle {
-                background: Theme.submenu-border;
+                background: Theme.submenu_border;
                 width: 1px;
             }
         }
     }
 
-    context-menu := ContextMenu {
-        close-policy: close-on-click-outside;
-        x: dropdown-button.x;
-        y: dropdown-button.y + dropdown-button.height;
-        min-height: 512px;
+    context_menu := ContextMenu {
+        close_policy: close_on_click_outside;
+        x: dropdown_button.x;
+        y: dropdown_button.y + dropdown_button.height;
+        min_height: 512px;
         Rectangle {
-            background: Theme.background-control;
-            border-color: Theme.submenu-border;
-            border-width: 1px;
+            background: Theme.background_control;
+            border_color: Theme.submenu_border;
+            border_width: 1px;
             width: 312px;
             ScrollView {
                 padding: 0px;
                 VerticalBox {
                     padding: 0px;
                     spacing: 0px;
-                    for process-entry in ProcessSelectorViewModelBindings.windowed-processes: ProcessEntry {
-                        process_view_data: process-entry;
-                        on-click => {
-                            context-menu.close();
+                    for process_entry in ProcessSelectorViewModelBindings.windowed_processes: ProcessEntry {
+                        process_view_data: process_entry;
+                        on_click => {
+                            context_menu.close();
                         }
                     }
                 }

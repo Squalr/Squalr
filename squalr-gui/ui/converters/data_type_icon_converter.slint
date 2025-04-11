@@ -3,50 +3,50 @@ import { DataTypeIconView } from "../view_model_bindings.slint";
 export component DataTypeIconConverter {
     public pure function data_type_source(data_type_view: DataTypeIconView) -> image {
         if (data_type_view == DataTypeIconView.i8) {
-            return @image-url("./../images/data_types/blue_blocks_1.png");
+            return @image_url("./../images/data_types/blue_blocks_1.png");
         } else if (data_type_view == DataTypeIconView.i8be) {
-            return @image-url("./../images/data_types/blue_blocks_reverse_1.png");
+            return @image_url("./../images/data_types/blue_blocks_reverse_1.png");
         } else if (data_type_view == DataTypeIconView.u8) {
-            return @image-url("./../images/data_types/purple_blocks_1.png");
+            return @image_url("./../images/data_types/purple_blocks_1.png");
         } else if (data_type_view == DataTypeIconView.u8be) {
-            return @image-url("./../images/data_types/purple_blocks_reverse_1.png");
+            return @image_url("./../images/data_types/purple_blocks_reverse_1.png");
         } else if (data_type_view == DataTypeIconView.i16) {
-            return @image-url("./../images/data_types/blue_blocks_2.png");
+            return @image_url("./../images/data_types/blue_blocks_2.png");
         } else if (data_type_view == DataTypeIconView.i16be) {
-            return @image-url("./../images/data_types/blue_blocks_reverse_2.png");
+            return @image_url("./../images/data_types/blue_blocks_reverse_2.png");
         } else if (data_type_view == DataTypeIconView.u16) {
-            return @image-url("./../images/data_types/purple_blocks_2.png");
+            return @image_url("./../images/data_types/purple_blocks_2.png");
         } else if (data_type_view == DataTypeIconView.u16be) {
-            return @image-url("./../images/data_types/purple_blocks_reverse_2.png");
+            return @image_url("./../images/data_types/purple_blocks_reverse_2.png");
         } else if (data_type_view == DataTypeIconView.i32) {
-            return @image-url("./../images/data_types/blue_blocks_4.png");
+            return @image_url("./../images/data_types/blue_blocks_4.png");
         } else if (data_type_view == DataTypeIconView.i32be) {
-            return @image-url("./../images/data_types/blue_blocks_reverse_4.png");
+            return @image_url("./../images/data_types/blue_blocks_reverse_4.png");
         } else if (data_type_view == DataTypeIconView.u32) {
-            return @image-url("./../images/data_types/purple_blocks_4.png");
+            return @image_url("./../images/data_types/purple_blocks_4.png");
         } else if (data_type_view == DataTypeIconView.u32be) {
-            return @image-url("./../images/data_types/purple_blocks_reverse_4.png");
+            return @image_url("./../images/data_types/purple_blocks_reverse_4.png");
         } else if (data_type_view == DataTypeIconView.i64) {
-            return @image-url("./../images/data_types/blue_blocks_8.png");
+            return @image_url("./../images/data_types/blue_blocks_8.png");
         } else if (data_type_view == DataTypeIconView.i64be) {
-            return @image-url("./../images/data_types/blue_blocks_reverse_8.png");
+            return @image_url("./../images/data_types/blue_blocks_reverse_8.png");
         } else if (data_type_view == DataTypeIconView.u64) {
-            return @image-url("./../images/data_types/purple_blocks_8.png");
+            return @image_url("./../images/data_types/purple_blocks_8.png");
         } else if (data_type_view == DataTypeIconView.u64be) {
-            return @image-url("./../images/data_types/purple_blocks_reverse_8.png");
+            return @image_url("./../images/data_types/purple_blocks_reverse_8.png");
         } else if (data_type_view == DataTypeIconView.f32) {
-            return @image-url("./../images/data_types/orange_blocks_4.png");
+            return @image_url("./../images/data_types/orange_blocks_4.png");
         } else if (data_type_view == DataTypeIconView.f32be) {
-            return @image-url("./../images/data_types/orange_blocks_reverse_4.png");
+            return @image_url("./../images/data_types/orange_blocks_reverse_4.png");
         } else if (data_type_view == DataTypeIconView.f64) {
-            return @image-url("./../images/data_types/orange_blocks_8.png");
+            return @image_url("./../images/data_types/orange_blocks_8.png");
         } else if (data_type_view == DataTypeIconView.f64be) {
-            return @image-url("./../images/data_types/orange_blocks_reverse_8.png");
+            return @image_url("./../images/data_types/orange_blocks_reverse_8.png");
         } else if (data_type_view == DataTypeIconView.bytes) {
-            return @image-url("./../images/data_types/purple_blocks_array.png");
+            return @image_url("./../images/data_types/purple_blocks_array.png");
         } else if (data_type_view == DataTypeIconView.string) {
-            return @image-url("./../images/data_types/string.png");
+            return @image_url("./../images/data_types/string.png");
         }
-        return @image-url("./../images/unknown.png");
+        return @image_url("./../images/unknown.png");
     }
 }
