@@ -1,0 +1,2 @@
+[unstable]
+profile-rustflags = true

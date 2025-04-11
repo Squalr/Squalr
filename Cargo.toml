@@ -1,3 +1,5 @@
+#![feature(profile-rustflags)]
+
 [workspace]
 members = [
     "squalr-engine",
@@ -15,6 +17,16 @@ members = [
     "squalr",
 ]
 resolver = "3"
+
+[profile.dev]
+# Slint can be pretty aggressive with stack allocations, extend stack size to 8MB.
+# rustflags = ["-C", "link-args=/STACK:8388608"]
+rustflags = ["-C", "link-args=-Wl,--stack,8388608"]
+
+[profile.release]
+# Slint can be pretty aggressive with stack allocations, extend stack size to 8MB.
+# rustflags = ["-C", "link-args=/STACK:8388608"]
+rustflags = ["-C", "link-args=-Wl,--stack,8388608"]
 
 [profile.release-with-debug]
 inherits = "release"
