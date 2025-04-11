@@ -1,0 +1,20 @@
+import { FloatingPointToleranceView } from "../view_model_bindings.slint";
+
+export component FloatingPointToleranceIconConverter {
+    public pure function floating_point_tolerance_source(floating_point_tolerance_view: FloatingPointToleranceView) -> image {
+        if (floating_point_tolerance_view == FloatingPointToleranceView.tolerance_10e1) {
+            return @image-url("./../images/settings/tolerance_1.png");
+        } else if (floating_point_tolerance_view == FloatingPointToleranceView.tolerance_10e2) {
+            return @image-url("./../images/settings/tolerance_2.png");
+        } else if (floating_point_tolerance_view == FloatingPointToleranceView.tolerance_10e3) {
+            return @image-url("./../images/settings/tolerance_3.png");
+        } else if (floating_point_tolerance_view == FloatingPointToleranceView.tolerance_10e4) {
+            return @image-url("./../images/settings/tolerance_4.png");
+        } else if (floating_point_tolerance_view == FloatingPointToleranceView.tolerance_10e5) {
+            return @image-url("./../images/settings/tolerance_5.png");
+        } else if (floating_point_tolerance_view == FloatingPointToleranceView.tolerance-epsilon) {
+            return @image-url("./../images/settings/tolerance_6.png");
+        }
+        return @image-url("./../images/unknown.png");
+    }
+}

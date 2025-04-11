@@ -5,6 +5,7 @@ import { Theme } from "../../theme.slint";
 import { ScanSettingsViewModelBindings } from "../../view_model_bindings.slint";
 import { SettingChooserFloatingPointTolerance } from "groups/setting_chooser_floating_point_tolerance.slint";
 import { SettingChooserMemoryAlignment } from "groups/setting_chooser_memory_alignment.slint";
+import { SettingChooserMemoryReadMode } from "groups/setting_chooser_memory_read_mode.slint";
 import { GroupBox } from "../../components/groupbox.slint";
 import { Button } from "../../components/buttons/button.slint";
 import { TextField } from "../../components/input/text_field.slint";
@@ -162,110 +163,7 @@ export component SettingsTabScan inherits Rectangle {
                     }
 
                     Row {
-                        Rectangle {
-                            HorizontalLayout {
-                                padding: 0px;
-                                spacing: 0px;
-                                memory-read-mode-dropdown-button := Button {
-                                    height: 24px;
-                                    clicked => {
-                                        memory-read-mode-context-menu.show();
-                                    }
-                                    Rectangle {
-                                        background: Theme.background-control;
-                                        border-color: Theme.submenu-border;
-                                        border-width: 1px;
-                                        border-radius: 1px;
-                                        VerticalLayout {
-                                            alignment: center;
-                                            HorizontalLayout {
-                                                padding-left: 4px;
-                                                alignment: start;
-                                                Text {
-                                                    color: Theme.foreground;
-                                                    horizontal-alignment: left;
-                                                    vertical-alignment: center;
-                                                    text: "{Mode}";
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    HorizontalLayout {
-                                        alignment: end;
-                                        padding-right: 4px;
-                                        Image {
-                                            source: @image-url("../../images/navigation/down_arrow_small.png");
-                                        }
-                                    }
-
-                                    HorizontalLayout {
-                                        alignment: end;
-                                        padding-right: 24px;
-                                        Rectangle {
-                                            background: Theme.submenu-border;
-                                            width: 1px;
-                                        }
-                                    }
-                                }
-                            }
-
-                            memory-read-mode-context-menu := ContextMenu {
-                                close-policy: close-on-click-outside;
-                                x: memory-read-mode-dropdown-button.x;
-                                y: memory-read-mode-dropdown-button.y + memory-read-mode-dropdown-button.height;
-                                Rectangle {
-                                    background: Theme.background-control;
-                                    border-color: Theme.submenu-border;
-                                    border-width: 1px;
-                                    VerticalBox {
-                                        padding: 0px;
-                                        spacing: 0px;
-                                        Button {
-                                            height: 24px;
-                                            HorizontalBox {
-                                                padding-left: 8px;
-                                                spacing: 0px;
-                                                alignment: start;
-                                                Text {
-                                                    vertical-alignment: center;
-                                                    text: @tr("Skip");
-                                                    color: Theme.foreground;
-                                                }
-                                            }
-                                        }
-
-                                        Button {
-                                            height: 24px;
-                                            HorizontalBox {
-                                                padding-left: 8px;
-                                                spacing: 0px;
-                                                alignment: start;
-                                                Text {
-                                                    vertical-alignment: center;
-                                                    text: @tr("Interleave (fastest scan)");
-                                                    color: Theme.foreground;
-                                                }
-                                            }
-                                        }
-
-                                        Button {
-                                            height: 24px;
-                                            HorizontalBox {
-                                                padding-left: 8px;
-                                                spacing: 0px;
-                                                alignment: start;
-                                                Text {
-                                                    vertical-alignment: center;
-                                                    text: @tr("Prior (fastest collection)");
-                                                    color: Theme.foreground;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        SettingChooserMemoryReadMode { }
 
                         Text {
                             vertical-alignment: center;
