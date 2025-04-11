@@ -21,15 +21,15 @@ pub enum FloatingPointTolerance {
     #[serde(rename = "0.00001")]
     Tolerance10E5,
     /// Represents a tolerance of epsilon (ie essentially an exact match).
-    #[serde(rename = "exact")]
-    ExactMatch,
+    #[serde(rename = "epsilon")]
+    ToleranceEpsilon,
 }
 
 impl FloatingPointTolerance {
     pub fn get_value<PrimitiveType: Float>(&self) -> PrimitiveType {
         unsafe {
             match self {
-                FloatingPointTolerance::ExactMatch => PrimitiveType::epsilon(),
+                FloatingPointTolerance::ToleranceEpsilon => PrimitiveType::epsilon(),
                 FloatingPointTolerance::Tolerance10E1 => PrimitiveType::from(0.1).unwrap_unchecked(),
                 FloatingPointTolerance::Tolerance10E2 => PrimitiveType::from(0.01).unwrap_unchecked(),
                 FloatingPointTolerance::Tolerance10E3 => PrimitiveType::from(0.001).unwrap_unchecked(),
@@ -68,7 +68,7 @@ impl FromStr for FloatingPointTolerance {
             "0.001" => Ok(FloatingPointTolerance::Tolerance10E3),
             "0.0001" => Ok(FloatingPointTolerance::Tolerance10E4),
             "0.00001" => Ok(FloatingPointTolerance::Tolerance10E5),
-            "exact" => Ok(FloatingPointTolerance::ExactMatch),
+            "epsilon" => Ok(FloatingPointTolerance::ToleranceEpsilon),
             _ => Err(format!("Invalid tolerance string: '{}'", s)),
         }
     }

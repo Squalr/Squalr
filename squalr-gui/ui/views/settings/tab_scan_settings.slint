@@ -1,8 +1,8 @@
-import { HorizontalBox, VerticalBox, ScrollView } from "std-widgets.slint";
+import { HorizontalBox, VerticalBox, ScrollView, Slider } from "std-widgets.slint";
 
 import { Theme } from "../../theme.slint";
 
-import { ScanSettingsViewModelBindings, MemorySettingsViewModelBindings } from "../../view_model_bindings.slint";
+import { ScanSettingsViewModelBindings, MemoryAlignment, FloatingPointTolerance } from "../../view_model_bindings.slint";
 
 import { GroupBox } from "../../components/groupbox.slint";
 import { Button } from "../../components/buttons/button.slint";
@@ -26,41 +26,104 @@ export component TabScanSettings inherits Rectangle {
                     GridLayout {
                         spacing: 8px;
                         Row {
-                            TextField {
-                                height: 24px;
-                                width: 72px;
-                                default-text: "50";
+                            HorizontalBox {
+                                page_size_slider := Slider {
+                                    width: 128px;
+                                    minimum: 8;
+                                    maximum: 128;
+                                    value: 22;
+                                    step: 1;
+                                }
+
+                                Text {
+                                    width: 32px;
+                                    horizontal-alignment: center;
+                                    color: Theme.foreground;
+                                    text: round(page_size_slider.value);
+                                }
                             }
 
                             Text {
                                 vertical-alignment: center;
-                                text: @tr("Freeze Interval (ms)");
+                                text: @tr("Results page size");
                                 color: Theme.foreground;
                             }
                         }
 
                         Row {
-                            TextField {
-                                height: 24px;
-                                default-text: "100";
+                            HorizontalBox {
+                                freeze_interval_slider := Slider {
+                                    width: 128px;
+                                    minimum: 0;
+                                    maximum: 2000;
+                                    value: 200;
+                                    step: 1;
+                                }
+
+                                Text {
+                                    horizontal-alignment: center;
+                                    color: Theme.foreground;
+                                    text: round(freeze_interval_slider.value);
+                                }
                             }
 
                             Text {
                                 vertical-alignment: center;
-                                text: @tr("Project Read Interval (ms)");
+                                text: @tr("Freeze interval (ms)");
                                 color: Theme.foreground;
                             }
                         }
 
                         Row {
-                            TextField {
-                                height: 24px;
-                                default-text: "100";
+                            HorizontalBox {
+                                project_read_interval_slider := Slider {
+                                    width: 128px;
+                                    minimum: 0;
+                                    maximum: 2000;
+                                    value: ScanSettingsViewModelBindings.project_read_interval;
+                                    step: 1;
+                                    changed(value) => {
+                                        ScanSettingsViewModelBindings.project_read_interval_changed(value);
+                                    }
+                                }
+
+                                Text {
+                                    horizontal-alignment: center;
+                                    color: Theme.foreground;
+                                    text: round(project_read_interval_slider.value);
+                                }
                             }
 
                             Text {
                                 vertical-alignment: center;
-                                text: @tr("Result Read Interval (ms)");
+                                text: @tr("Project read interval (ms)");
+                                color: Theme.foreground;
+                            }
+                        }
+
+                        Row {
+                            HorizontalBox {
+                                result_read_interval_slider := Slider {
+                                    width: 128px;
+                                    minimum: 0;
+                                    maximum: 2000;
+                                    value: ScanSettingsViewModelBindings.results_read_interval;
+                                    step: 1;
+                                    changed(value) => {
+                                        ScanSettingsViewModelBindings.results_read_interval_changed(value);
+                                    }
+                                }
+
+                                Text {
+                                    horizontal-alignment: center;
+                                    color: Theme.foreground;
+                                    text: round(result_read_interval_slider.value);
+                                }
+                            }
+
+                            Text {
+                                vertical-alignment: center;
+                                text: @tr("Result read interval (ms)");
                                 color: Theme.foreground;
                             }
                         }
@@ -76,17 +139,17 @@ export component TabScanSettings inherits Rectangle {
                     spacing: 6px;
                     TextCheckbox {
                         text: @tr("Single-Threaded Scan");
-                        is-checked <=> MemorySettingsViewModelBindings.required_write;
+                        is-checked <=> ScanSettingsViewModelBindings.is_single_threaded_scan;
                         check-changed(value) => {
-                            MemorySettingsViewModelBindings.required_write_changed(value);
+                            ScanSettingsViewModelBindings.is_single_threaded_scan_changed(value);
                         }
                     }
 
                     TextCheckbox {
                         text: @tr("Perform Extra Debug Scan");
-                        is-checked <=> MemorySettingsViewModelBindings.required_execute;
+                        is-checked <=> ScanSettingsViewModelBindings.debug_perform_validation_scan;
                         check-changed(value) => {
-                            MemorySettingsViewModelBindings.required_execute_changed(value);
+                            ScanSettingsViewModelBindings.debug_perform_validation_scan_changed(value);
                         }
                     }
                 }
@@ -112,16 +175,22 @@ export component TabScanSettings inherits Rectangle {
                                     clicked => {
                                         memory-alignment-context-menu.show();
                                     }
-                                    VerticalLayout {
-                                        alignment: center;
-                                        HorizontalLayout {
-                                            padding-left: 4px;
-                                            alignment: start;
-                                            Text {
-                                                color: Theme.foreground;
-                                                horizontal-alignment: left;
-                                                vertical-alignment: center;
-                                                text: "{Align}";
+                                    Rectangle {
+                                        background: Theme.background-control;
+                                        border-color: Theme.submenu-border;
+                                        border-width: 1px;
+                                        border-radius: 1px;
+                                        VerticalLayout {
+                                            alignment: center;
+                                            HorizontalLayout {
+                                                padding-left: 4px;
+                                                alignment: start;
+                                                Text {
+                                                    color: Theme.foreground;
+                                                    horizontal-alignment: left;
+                                                    vertical-alignment: center;
+                                                    text: "{Align}";
+                                                }
                                             }
                                         }
                                     }
@@ -159,6 +228,9 @@ export component TabScanSettings inherits Rectangle {
                                         spacing: 0px;
                                         Button {
                                             height: 24px;
+                                            clicked => {
+                                                ScanSettingsViewModelBindings.memory_alignment_changed(MemoryAlignment.alignment_1);
+                                            }
                                             VerticalLayout {
                                                 alignment: center;
                                                 HorizontalLayout {
@@ -187,6 +259,9 @@ export component TabScanSettings inherits Rectangle {
 
                                         Button {
                                             height: 24px;
+                                            clicked => {
+                                                ScanSettingsViewModelBindings.memory_alignment_changed(MemoryAlignment.alignment_2);
+                                            }
                                             VerticalLayout {
                                                 alignment: center;
                                                 HorizontalLayout {
@@ -215,6 +290,9 @@ export component TabScanSettings inherits Rectangle {
 
                                         Button {
                                             height: 24px;
+                                            clicked => {
+                                                ScanSettingsViewModelBindings.memory_alignment_changed(MemoryAlignment.alignment_4);
+                                            }
                                             VerticalLayout {
                                                 alignment: center;
                                                 HorizontalLayout {
@@ -243,6 +321,9 @@ export component TabScanSettings inherits Rectangle {
 
                                         Button {
                                             height: 24px;
+                                            clicked => {
+                                                ScanSettingsViewModelBindings.memory_alignment_changed(MemoryAlignment.alignment_8);
+                                            }
                                             VerticalLayout {
                                                 alignment: center;
                                                 HorizontalLayout {
@@ -290,16 +371,22 @@ export component TabScanSettings inherits Rectangle {
                                     clicked => {
                                         floating-point-tolerance-context-menu.show();
                                     }
-                                    VerticalLayout {
-                                        alignment: center;
-                                        HorizontalLayout {
-                                            padding-left: 4px;
-                                            alignment: start;
-                                            Text {
-                                                color: Theme.foreground;
-                                                horizontal-alignment: left;
-                                                vertical-alignment: center;
-                                                text: "{Tolerance}";
+                                    Rectangle {
+                                        background: Theme.background-control;
+                                        border-color: Theme.submenu-border;
+                                        border-width: 1px;
+                                        border-radius: 1px;
+                                        VerticalLayout {
+                                            alignment: center;
+                                            HorizontalLayout {
+                                                padding-left: 4px;
+                                                alignment: start;
+                                                Text {
+                                                    color: Theme.foreground;
+                                                    horizontal-alignment: left;
+                                                    vertical-alignment: center;
+                                                    text: "{Tolerance}";
+                                                }
                                             }
                                         }
                                     }
@@ -337,6 +424,9 @@ export component TabScanSettings inherits Rectangle {
                                         spacing: 0px;
                                         Button {
                                             height: 24px;
+                                            clicked => {
+                                                ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e1);
+                                            }
                                             VerticalLayout {
                                                 alignment: center;
                                                 HorizontalLayout {
@@ -365,6 +455,9 @@ export component TabScanSettings inherits Rectangle {
 
                                         Button {
                                             height: 24px;
+                                            clicked => {
+                                                ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e2);
+                                            }
                                             VerticalLayout {
                                                 alignment: center;
                                                 HorizontalLayout {
@@ -393,6 +486,9 @@ export component TabScanSettings inherits Rectangle {
 
                                         Button {
                                             height: 24px;
+                                            clicked => {
+                                                ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e3);
+                                            }
                                             VerticalLayout {
                                                 alignment: center;
                                                 HorizontalLayout {
@@ -420,6 +516,9 @@ export component TabScanSettings inherits Rectangle {
                                         }
 
                                         Button {
+                                            clicked => {
+                                                ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e4);
+                                            }
                                             height: 24px;
                                             VerticalLayout {
                                                 alignment: center;
@@ -449,6 +548,9 @@ export component TabScanSettings inherits Rectangle {
 
                                         Button {
                                             height: 24px;
+                                            clicked => {
+                                                ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_10e5);
+                                            }
                                             VerticalLayout {
                                                 alignment: center;
                                                 HorizontalLayout {
@@ -477,6 +579,9 @@ export component TabScanSettings inherits Rectangle {
 
                                         Button {
                                             height: 24px;
+                                            clicked => {
+                                                ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointTolerance.tolerance_epsilon);
+                                            }
                                             VerticalLayout {
                                                 alignment: center;
                                                 HorizontalLayout {
@@ -524,16 +629,22 @@ export component TabScanSettings inherits Rectangle {
                                     clicked => {
                                         memory-read-mode-context-menu.show();
                                     }
-                                    VerticalLayout {
-                                        alignment: center;
-                                        HorizontalLayout {
-                                            padding-left: 4px;
-                                            alignment: start;
-                                            Text {
-                                                color: Theme.foreground;
-                                                horizontal-alignment: left;
-                                                vertical-alignment: center;
-                                                text: "{Mode}";
+                                    Rectangle {
+                                        background: Theme.background-control;
+                                        border-color: Theme.submenu-border;
+                                        border-width: 1px;
+                                        border-radius: 1px;
+                                        VerticalLayout {
+                                            alignment: center;
+                                            HorizontalLayout {
+                                                padding-left: 4px;
+                                                alignment: start;
+                                                Text {
+                                                    color: Theme.foreground;
+                                                    horizontal-alignment: left;
+                                                    vertical-alignment: center;
+                                                    text: "{Mode}";
+                                                }
                                             }
                                         }
                                     }

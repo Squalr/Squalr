@@ -176,21 +176,47 @@ export global MemorySettingsViewModelBindings {
     callback only_query_usermode_changed(only_query_usermode: bool);
 }
 
+export enum MemoryAlignment {
+    alignment_1,
+    alignment_2,
+    alignment_4,
+    alignment_8,
+}
+
+export enum FloatingPointTolerance {
+    tolerance_10e1,
+    tolerance_10e2,
+    tolerance_10e3,
+    tolerance_10e4,
+    tolerance_10e5,
+    tolerance_epsilon
+}
+
+export enum ScanMemoryReadMode {
+    skip,
+    interleave,
+    prior,
+}
+
 export global ScanSettingsViewModelBindings {
     in-out property <int> results_page_size;
     callback results_page_size_changed(page_size: int);
     in-out property <int> results_read_interval;
     callback results_read_interval_changed(result_read_interval: int);
-    in-out property <int> table_read_interval;
-    callback table_read_interval_changed(table_read_interval: int);
+    in-out property <int> project_read_interval;
+    callback project_read_interval_changed(project_read_interval: int);
     in-out property <int> freeze_interval;
     callback freeze_interval_changed(freeze_interval: int);
-    // Option<MemoryAlignment>,
-    in-out property <int> memory_alignment;
-    callback memory_alignment_changed(memory_alignment: int);
-    // FloatingPointTolerance,
-    in-out property <int> floating_point_tolerance;
-    callback floating_point_tolerance_changed(floating_point_tolerance: int);
+    in-out property <MemoryAlignment> memory_alignment;
+    callback memory_alignment_changed(memory_alignment: MemoryAlignment);
+    in-out property <FloatingPointTolerance> floating_point_tolerance;
+    callback floating_point_tolerance_changed(floating_point_tolerance: FloatingPointTolerance);
+    in-out property <ScanMemoryReadMode> memory_read_mode;
+    callback memory_read_mode_changed(memory_read_mode: ScanMemoryReadMode);
+    in-out property <bool> is_single_threaded_scan;
+    callback is_single_threaded_scan_changed(is_single_threaded_scan: bool);
+    in-out property <bool> debug_perform_validation_scan;
+    callback debug_perform_validation_scan_changed(debug_perform_validation_scan: bool);
 }
 
 export global ProjectExplorerViewModelBindings { }
