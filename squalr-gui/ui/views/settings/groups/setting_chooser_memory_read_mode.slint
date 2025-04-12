@@ -2,7 +2,7 @@ import { HorizontalBox, VerticalBox } from "std-widgets.slint";
 
 import { Theme } from "../../../theme.slint";
 
-import { ScanSettingsViewModelBindings, ScanMemoryReadModeView } from "../../../view_model_bindings.slint";
+import { ConversionsViewModelBindings, ScanSettingsViewModelBindings, MemoryReadModeView } from "../../../view_model_bindings.slint";
 import { GroupBox } from "../../../components/groupbox.slint";
 import { Button } from "../../../components/buttons/button.slint";
 import { TextField } from "../../../components/input/text_field.slint";
@@ -19,7 +19,7 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
         memory_alignment_dropdown_button := Button {
             height: 24px;
             clicked => {
-                memory_alignment_context_menu.show();
+                memory_read_mode_context_menu.show();
             }
             Rectangle {
                 background: Theme.background_control;
@@ -44,7 +44,7 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                                 color: Theme.foreground;
                                 horizontal_alignment: left;
                                 vertical_alignment: center;
-                                text: "{ Mode }";
+                                text: ConversionsViewModelBindings.get_memory_read_mode_string(ScanSettingsViewModelBindings.memory_read_mode);
                             }
                         }
                     }
@@ -70,7 +70,7 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
         }
     }
 
-    memory_alignment_context_menu := ContextMenu {
+    memory_read_mode_context_menu := ContextMenu {
         close_policy: close_on_click_outside;
         x: memory_alignment_dropdown_button.x;
         y: memory_alignment_dropdown_button.y + memory_alignment_dropdown_button.height;
@@ -85,7 +85,8 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                 Button {
                     height: 24px;
                     clicked => {
-                        ScanSettingsViewModelBindings.memory_read_mode_changed(ScanMemoryReadModeView.skip);
+                        ScanSettingsViewModelBindings.memory_read_mode_changed(MemoryReadModeView.skip);
+                        memory_read_mode_context_menu.close();
                     }
                     VerticalLayout {
                         alignment: center;
@@ -116,7 +117,8 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                 Button {
                     height: 24px;
                     clicked => {
-                        ScanSettingsViewModelBindings.memory_read_mode_changed(ScanMemoryReadModeView.interleave);
+                        ScanSettingsViewModelBindings.memory_read_mode_changed(MemoryReadModeView.interleave);
+                        memory_read_mode_context_menu.close();
                     }
                     VerticalLayout {
                         alignment: center;
@@ -147,7 +149,8 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                 Button {
                     height: 24px;
                     clicked => {
-                        ScanSettingsViewModelBindings.memory_read_mode_changed(ScanMemoryReadModeView.prior);
+                        ScanSettingsViewModelBindings.memory_read_mode_changed(MemoryReadModeView.prior);
+                        memory_read_mode_context_menu.close();
                     }
                     VerticalLayout {
                         alignment: center;

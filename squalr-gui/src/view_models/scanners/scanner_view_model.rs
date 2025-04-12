@@ -19,8 +19,8 @@ use squalr_engine_api::structures::data_types::data_type_meta_data::DataTypeMeta
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
+use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters_local::UserScanParametersLocal;
-use squalr_engine_api::structures::scanning::scan_memory_read_mode::ScanMemoryReadMode;
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -155,7 +155,7 @@ impl ScannerViewModel {
         let scan_execute_request = ScanExecuteRequest {
             scan_value: Some(scan_value),
             compare_type: ScanConstraintConverter::new().convert_from_view_data(&scan_constraint),
-            memory_read_mode: ScanMemoryReadMode::ReadBeforeScan, // JIRA: Setting for this
+            memory_read_mode: MemoryReadMode::ReadBeforeScan, // JIRA: Setting for this
         };
 
         scan_execute_request.send(&engine_execution_context, move |scan_execute_response| {

@@ -4,7 +4,7 @@ use crate::commands::scan::execute::scan_execute_response::ScanExecuteResponse;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use crate::structures::{data_values::anonymous_value::AnonymousValue, scanning::scan_memory_read_mode::ScanMemoryReadMode};
+use crate::structures::{data_values::anonymous_value::AnonymousValue, scanning::memory_read_mode::MemoryReadMode};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -15,7 +15,7 @@ pub struct ScanExecuteRequest {
     #[structopt(short = "c", long)]
     pub compare_type: ScanCompareType,
     #[structopt(short = "m", long)]
-    pub memory_read_mode: ScanMemoryReadMode,
+    pub memory_read_mode: MemoryReadMode,
 }
 
 impl EngineCommandRequest for ScanExecuteRequest {

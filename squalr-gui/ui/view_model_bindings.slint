@@ -192,7 +192,7 @@ export enum FloatingPointToleranceView {
     tolerance_epsilon
 }
 
-export enum ScanMemoryReadModeView {
+export enum MemoryReadModeView {
     skip,
     interleave,
     prior,
@@ -211,8 +211,8 @@ export global ScanSettingsViewModelBindings {
     callback memory_alignment_changed(memory_alignment: MemoryAlignmentView);
     in_out property <FloatingPointToleranceView> floating_point_tolerance;
     callback floating_point_tolerance_changed(floating_point_tolerance: FloatingPointToleranceView);
-    in_out property <ScanMemoryReadModeView> memory_read_mode;
-    callback memory_read_mode_changed(memory_read_mode: ScanMemoryReadModeView);
+    in_out property <MemoryReadModeView> memory_read_mode;
+    callback memory_read_mode_changed(memory_read_mode: MemoryReadModeView);
     in_out property <bool> is_single_threaded_scan;
     callback is_single_threaded_scan_changed(is_single_threaded_scan: bool);
     in_out property <bool> debug_perform_validation_scan;
@@ -250,6 +250,9 @@ export global PropertyViewerViewModelBindings { }
 export global ConversionsViewModelBindings {
     pure callback convert_hex_to_dec(data_value: string) -> string;
     pure callback convert_dec_to_hex(data_value: string) -> string;
+    pure callback get_memory_alignment_string(memory_alignment: MemoryAlignmentView) -> string;
+    pure callback get_memory_read_mode_string(memory_read_mode: MemoryReadModeView) -> string;
+    pure callback get_floating_point_tolerance_string(floating_point_tolerance: FloatingPointToleranceView) -> string;
 }
 
 export global ValidationViewModelBindings {

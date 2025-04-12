@@ -2,7 +2,7 @@ import { HorizontalBox, VerticalBox } from "std-widgets.slint";
 
 import { Theme } from "../../../theme.slint";
 
-import { ScanSettingsViewModelBindings, MemoryAlignmentView } from "../../../view_model_bindings.slint";
+import { ConversionsViewModelBindings, ScanSettingsViewModelBindings, MemoryAlignmentView } from "../../../view_model_bindings.slint";
 import { MemoryAlignmentIconConverter } from "../../../converters/memory_alignment_icon_converter.slint";
 import { GroupBox } from "../../../components/groupbox.slint";
 import { Button } from "../../../components/buttons/button.slint";
@@ -49,7 +49,7 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                                 color: Theme.foreground;
                                 horizontal_alignment: left;
                                 vertical_alignment: center;
-                                text: "{Align}";
+                                text: ConversionsViewModelBindings.get_memory_alignment_string(ScanSettingsViewModelBindings.memory_alignment);
                             }
                         }
                     }
@@ -91,6 +91,7 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                     height: 24px;
                     clicked => {
                         ScanSettingsViewModelBindings.memory_alignment_changed(MemoryAlignmentView.alignment_1);
+                        memory_alignment_context_menu.close();
                     }
                     VerticalLayout {
                         alignment: center;
@@ -112,7 +113,7 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "1";
+                                    text: ConversionsViewModelBindings.get_memory_alignment_string(MemoryAlignmentView.alignment_1);
                                 }
                             }
                         }
@@ -123,6 +124,7 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                     height: 24px;
                     clicked => {
                         ScanSettingsViewModelBindings.memory_alignment_changed(MemoryAlignmentView.alignment_2);
+                        memory_alignment_context_menu.close();
                     }
                     VerticalLayout {
                         alignment: center;
@@ -144,7 +146,7 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "2";
+                                    text: ConversionsViewModelBindings.get_memory_alignment_string(MemoryAlignmentView.alignment_2);
                                 }
                             }
                         }
@@ -155,6 +157,7 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                     height: 24px;
                     clicked => {
                         ScanSettingsViewModelBindings.memory_alignment_changed(MemoryAlignmentView.alignment_4);
+                        memory_alignment_context_menu.close();
                     }
                     VerticalLayout {
                         alignment: center;
@@ -176,7 +179,7 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "4";
+                                    text: ConversionsViewModelBindings.get_memory_alignment_string(MemoryAlignmentView.alignment_4);
                                 }
                             }
                         }
@@ -187,6 +190,7 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                     height: 24px;
                     clicked => {
                         ScanSettingsViewModelBindings.memory_alignment_changed(MemoryAlignmentView.alignment_8);
+                        memory_alignment_context_menu.close();
                     }
                     VerticalLayout {
                         alignment: center;
@@ -208,7 +212,7 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "8";
+                                    text: ConversionsViewModelBindings.get_memory_alignment_string(MemoryAlignmentView.alignment_8);
                                 }
                             }
                         }

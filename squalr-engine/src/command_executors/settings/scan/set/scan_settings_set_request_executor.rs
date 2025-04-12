@@ -29,7 +29,7 @@ impl EngineCommandRequestExecutor for ScanSettingsSetRequest {
         }
 
         if let Some(memory_alignment) = self.memory_alignment {
-            ScanSettingsConfig::set_memory_alignment(memory_alignment);
+            ScanSettingsConfig::set_memory_alignment(Some(memory_alignment));
         }
 
         if let Some(floating_point_tolerance) = self.floating_point_tolerance {

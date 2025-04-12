@@ -1,5 +1,5 @@
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use crate::structures::scanning::scan_memory_read_mode::ScanMemoryReadMode;
+use crate::structures::scanning::memory_read_mode::MemoryReadMode;
 use crate::structures::{data_types::floating_point_tolerance::FloatingPointTolerance, data_values::anonymous_value::AnonymousValue};
 
 /// Represents the global scan arguments that are used by all current scans, regardless of `DataType`.
@@ -8,7 +8,7 @@ pub struct UserScanParametersGlobal {
     compare_type: ScanCompareType,
     compare_immediate: Option<AnonymousValue>,
     floating_point_tolerance: FloatingPointTolerance,
-    memory_read_mode: ScanMemoryReadMode,
+    memory_read_mode: MemoryReadMode,
     is_single_thread_scan: bool,
 
     /// If this debug flag is provided, the scan will be performed twice. Once with a specialized scan, and once with the default scan.
@@ -21,7 +21,7 @@ impl UserScanParametersGlobal {
         compare_type: ScanCompareType,
         value: Option<AnonymousValue>,
         floating_point_tolerance: FloatingPointTolerance,
-        memory_read_mode: ScanMemoryReadMode,
+        memory_read_mode: MemoryReadMode,
         is_single_thread_scan: bool,
         debug_perform_validation_scan: bool,
     ) -> Self {
@@ -57,7 +57,7 @@ impl UserScanParametersGlobal {
         self.floating_point_tolerance
     }
 
-    pub fn get_memory_read_mode(&self) -> ScanMemoryReadMode {
+    pub fn get_memory_read_mode(&self) -> MemoryReadMode {
         self.memory_read_mode
     }
 

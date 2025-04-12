@@ -5,8 +5,8 @@ use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters_global::UserScanParametersGlobal;
-use squalr_engine_api::structures::scanning::scan_memory_read_mode::ScanMemoryReadMode;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use squalr_engine_common::conversions::Conversions;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -51,7 +51,7 @@ impl ScanExecutorTask {
 
         // If the parameter is set, first collect values before the scan.
         // This is slower overall than interleaving the reads, but better for capturing values that may soon change.
-        if user_scan_parameters_global.get_memory_read_mode() == ScanMemoryReadMode::ReadBeforeScan {
+        if user_scan_parameters_global.get_memory_read_mode() == MemoryReadMode::ReadBeforeScan {
             ValueCollectorTask::start_task(process_info.clone(), snapshot.clone(), with_logging).wait_for_completion();
         }
 
@@ -83,7 +83,7 @@ impl ScanExecutorTask {
             }
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
-            if user_scan_parameters_global.get_memory_read_mode() == ScanMemoryReadMode::ReadInterleavedWithScan {
+            if user_scan_parameters_global.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
                 let _ = snapshot_region.read_all_memory(&process_info);
             }
 

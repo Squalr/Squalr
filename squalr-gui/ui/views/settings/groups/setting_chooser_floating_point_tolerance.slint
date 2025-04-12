@@ -2,7 +2,7 @@ import { HorizontalBox, VerticalBox } from "std-widgets.slint";
 
 import { Theme } from "../../../theme.slint";
 
-import { ScanSettingsViewModelBindings, FloatingPointToleranceView } from "../../../view_model_bindings.slint";
+import { ConversionsViewModelBindings, ScanSettingsViewModelBindings, FloatingPointToleranceView } from "../../../view_model_bindings.slint";
 import { FloatingPointToleranceIconConverter } from "../../../converters/floating_point_tolerance_icon_converter.slint";
 import { GroupBox } from "../../../components/groupbox.slint";
 import { Button } from "../../../components/buttons/button.slint";
@@ -48,7 +48,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                                 color: Theme.foreground;
                                 horizontal_alignment: left;
                                 vertical_alignment: center;
-                                text: "{Tolerance}";
+                                text: ConversionsViewModelBindings.get_memory_alignment_string(ScanSettingsViewModelBindings.memory_alignment);
                             }
                         }
                     }
@@ -90,6 +90,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                     height: 24px;
                     clicked => {
                         ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointToleranceView.tolerance_10e1);
+                        floating_point_tolerance_context_menu.close();
                     }
                     VerticalLayout {
                         alignment: center;
@@ -111,7 +112,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "0.1";
+                                    text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e1);
                                 }
                             }
                         }
@@ -122,6 +123,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                     height: 24px;
                     clicked => {
                         ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointToleranceView.tolerance_10e2);
+                        floating_point_tolerance_context_menu.close();
                     }
                     VerticalLayout {
                         alignment: center;
@@ -143,7 +145,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "0.01";
+                                    text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e2);
                                 }
                             }
                         }
@@ -154,6 +156,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                     height: 24px;
                     clicked => {
                         ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointToleranceView.tolerance_10e3);
+                        floating_point_tolerance_context_menu.close();
                     }
                     VerticalLayout {
                         alignment: center;
@@ -175,7 +178,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "0.001";
+                                    text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e3);
                                 }
                             }
                         }
@@ -185,6 +188,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                 Button {
                     clicked => {
                         ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointToleranceView.tolerance_10e4);
+                        floating_point_tolerance_context_menu.close();
                     }
                     height: 24px;
                     VerticalLayout {
@@ -207,7 +211,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "0.0001";
+                                    text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e4);
                                 }
                             }
                         }
@@ -218,6 +222,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                     height: 24px;
                     clicked => {
                         ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointToleranceView.tolerance_10e5);
+                        floating_point_tolerance_context_menu.close();
                     }
                     VerticalLayout {
                         alignment: center;
@@ -239,7 +244,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "0.00001";
+                                    text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e5);
                                 }
                             }
                         }
@@ -250,6 +255,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                     height: 24px;
                     clicked => {
                         ScanSettingsViewModelBindings.floating_point_tolerance_changed(FloatingPointToleranceView.tolerance_epsilon);
+                        floating_point_tolerance_context_menu.close();
                     }
                     VerticalLayout {
                         alignment: center;
@@ -271,7 +277,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "Epsilon";
+                                    text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_epsilon);
                                 }
                             }
                         }

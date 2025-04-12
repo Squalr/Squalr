@@ -8,7 +8,7 @@ use crate::{commands::engine_command::EngineCommand, structures::memory::memory_
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, StructOpt, Debug, Default, Serialize, Deserialize)]
 pub struct ScanSettingsSetRequest {
     #[structopt(short = "psize", long)]
     pub results_page_size: Option<u32>,
@@ -19,9 +19,13 @@ pub struct ScanSettingsSetRequest {
     #[structopt(short = "f_interval", long)]
     pub freeze_interval: Option<u32>,
     #[structopt(short = "m_align", long)]
-    pub memory_alignment: Option<Option<MemoryAlignment>>,
+    pub memory_alignment: Option<MemoryAlignment>,
     #[structopt(short = "f_tol", long)]
     pub floating_point_tolerance: Option<FloatingPointTolerance>,
+    #[structopt(short = "st", long)]
+    pub is_single_threaded_scan: bool,
+    #[structopt(short = "dbg", long)]
+    pub debug_perform_validation_scan: bool,
 }
 
 impl EngineCommandRequest for ScanSettingsSetRequest {
