@@ -1,10 +1,10 @@
 import { HorizontalBox, VerticalBox, Palette, GridBox } from "std-widgets.slint";
 
-import { Theme } from "./../theme.slint";
+import { Theme } from "../theme.slint";
 
-import { ContextMenu } from "./../components/context_menu/context_menu.slint";
+import { ContextMenu } from "../components/context_menu/context_menu.slint";
 import { Button } from "../components/buttons/button.slint";
-import { ScanConstraintButton } from "./scan_constraint_button.slint";
+import { ScanConstraintButton } from "scan_constraint_button.slint";
 import { ScanConstraintTypeIconConverter } from "../converters/scan_constraint_type_icon_converter.slint";
 import { ScannerViewModelBindings, ScanConstraintTypeView } from "../view_model_bindings.slint";
 
@@ -60,7 +60,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
                 Row {
                     constraint_changed := ScanConstraintButton {
                         text: @tr("Changed");
-                        icon: @image_url("./../images/scans/scan_relative_changed.png");
+                        icon: @image_url("../images/scans/scan_relative_changed.png");
                         tooltip_text: "Scan for values that have changed since the previous scan.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.changed;
@@ -69,7 +69,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
 
                     constraint_unchanged := ScanConstraintButton {
                         text: @tr("Unchanged");
-                        icon: @image_url("./../images/scans/scan_relative_unchanged.png");
+                        icon: @image_url("../images/scans/scan_relative_unchanged.png");
                         tooltip_text: "Scan for values that have not changed since the previous scan.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.unchanged;
@@ -80,7 +80,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
                 Row {
                     constraint_increased := ScanConstraintButton {
                         text: @tr("Increased");
-                        icon: @image_url("./../images/scans/scan_relative_increased.png");
+                        icon: @image_url("../images/scans/scan_relative_increased.png");
                         tooltip_text: "Scan for values that have increased since the previous scan.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.increased;
@@ -89,7 +89,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
 
                     constraint_decreased := ScanConstraintButton {
                         text: @tr("Decreased");
-                        icon: @image_url("./../images/scans/scan_relative_decreased.png");
+                        icon: @image_url("../images/scans/scan_relative_decreased.png");
                         tooltip_text: "Scan for values that have decreased since the previous scan.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.decreased;
@@ -116,7 +116,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
                 Row {
                     constraint_equal := ScanConstraintButton {
                         text: @tr("Equal");
-                        icon: @image_url("./../images/scans/scan_immediate_equal.png");
+                        icon: @image_url("../images/scans/scan_immediate_equal.png");
                         tooltip_text: "Scan for values that are equal to the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.equal;
@@ -125,7 +125,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
 
                     constraint_not_equal := ScanConstraintButton {
                         text: @tr("Not Equal");
-                        icon: @image_url("./../images/scans/scan_immediate_not_equal.png");
+                        icon: @image_url("../images/scans/scan_immediate_not_equal.png");
                         tooltip_text: "Scan for values that are not equal to the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.not_equal;
@@ -136,7 +136,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
                 Row {
                     constraint_greater_than := ScanConstraintButton {
                         text: @tr("Greater Than");
-                        icon: @image_url("./../images/scans/scan_immediate_greater_than.png");
+                        icon: @image_url("../images/scans/scan_immediate_greater_than.png");
                         tooltip_text: "Scan for values that are greater than the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.greater_than;
@@ -145,7 +145,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
 
                     constraint_greater_than_or_equal := ScanConstraintButton {
                         text: @tr("Greater Than or Equal to");
-                        icon: @image_url("./../images/scans/scan_immediate_greater_than_or_equal.png");
+                        icon: @image_url("../images/scans/scan_immediate_greater_than_or_equal.png");
                         tooltip_text: "Scan for values that are greater than or equal to the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.greater_than_or_equal;
@@ -156,7 +156,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
                 Row {
                     constraint_less_than := ScanConstraintButton {
                         text: @tr("Less Than");
-                        icon: @image_url("./../images/scans/scan_immediate_less_than.png");
+                        icon: @image_url("../images/scans/scan_immediate_less_than.png");
                         tooltip_text: "Scan for values that are less than the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.less_than;
@@ -165,7 +165,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
 
                     constraint_less_than_or_equal := ScanConstraintButton {
                         text: @tr("Less Than or Equal to");
-                        icon: @image_url("./../images/scans/scan_immediate_less_than_or_equal.png");
+                        icon: @image_url("../images/scans/scan_immediate_less_than_or_equal.png");
                         tooltip_text: "Scan for values that are less than or equal to the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.less_than_or_equal;
@@ -192,7 +192,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
                 Row {
                     constraint_increased_by_x := ScanConstraintButton {
                         text: @tr("Increased by x");
-                        icon: @image_url("./../images/scans/scan_delta_increased_by_x.png");
+                        icon: @image_url("../images/scans/scan_delta_increased_by_x.png");
                         tooltip_text: "Scan for values that have increased by the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.increased_by_x;
@@ -201,7 +201,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
 
                     constraint_decreased_by_x := ScanConstraintButton {
                         text: @tr("Decreased by x");
-                        icon: @image_url("./../images/scans/scan_delta_decreased_by_x.png");
+                        icon: @image_url("../images/scans/scan_delta_decreased_by_x.png");
                         tooltip_text: "Scan for values that have decreased by the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.decreased_by_x;
@@ -212,7 +212,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
                 Row {
                     constraint_multiplied_by_x := ScanConstraintButton {
                         text: @tr("Multiplied by x");
-                        icon: @image_url("./../images/scans/scan_delta_multiplied_by_x.png");
+                        icon: @image_url("../images/scans/scan_delta_multiplied_by_x.png");
                         tooltip_text: "Scan for values that have been multiplied by the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.multiplied_by_x;
@@ -221,7 +221,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
 
                     constraint_divided_by_x := ScanConstraintButton {
                         text: @tr("Divided by x");
-                        icon: @image_url("./../images/scans/scan_delta_divided_by_x.png");
+                        icon: @image_url("../images/scans/scan_delta_divided_by_x.png");
                         tooltip_text: "Scan for values that have been divided by the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.divided_by_x;
@@ -232,7 +232,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
                 Row {
                     constraint_modulo_by_x := ScanConstraintButton {
                         text: @tr("Modulo by x");
-                        icon: @image_url("./../images/scans/scan_delta_modulo_by_x.png");
+                        icon: @image_url("../images/scans/scan_delta_modulo_by_x.png");
                         tooltip_text: "Scan for the remainder of values that have been divided by the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.modulo_by_x;
@@ -259,7 +259,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
                 Row {
                     constraint_shift_left_by_x := ScanConstraintButton {
                         text: @tr("Shifted left by x");
-                        icon: @image_url("./../images/scans/scan_delta_shift_left_by_x.png");
+                        icon: @image_url("../images/scans/scan_delta_shift_left_by_x.png");
                         tooltip_text: "Scan for values that have been shifted left by the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.shift_left_by_x;
@@ -268,7 +268,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
 
                     constraint_shift_right_by_x := ScanConstraintButton {
                         text: @tr("Shifted right by x");
-                        icon: @image_url("./../images/scans/scan_delta_shift_right_by_x.png");
+                        icon: @image_url("../images/scans/scan_delta_shift_right_by_x.png");
                         tooltip_text: "Scan for values that have been shifted right by the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.shift_right_by_x;
@@ -279,7 +279,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
                 Row {
                     constraint_logical_and_by_x := ScanConstraintButton {
                         text: @tr("Logical AND'd by x");
-                        icon: @image_url("./../images/scans/scan_delta_logical_and_by_x.png");
+                        icon: @image_url("../images/scans/scan_delta_logical_and_by_x.png");
                         tooltip_text: "Scan for values that have been logical AND'd by the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.logical_and_by_x;
@@ -288,7 +288,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
 
                     constraint_logical_or_by_x := ScanConstraintButton {
                         text: @tr("Logical OR'd by x");
-                        icon: @image_url("./../images/scans/scan_delta_logical_or_by_x.png");
+                        icon: @image_url("../images/scans/scan_delta_logical_or_by_x.png");
                         tooltip_text: "Scan for values that have been logical OR'd by the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.logical_or_by_x;
@@ -299,7 +299,7 @@ export component ScanConstraintTypeSelector inherits Rectangle {
                 Row {
                     constraint_logical_xor_by_x := ScanConstraintButton {
                         text: @tr("Logical XOR'd by x");
-                        icon: @image_url("./../images/scans/scan_delta_logical_xor_by_x.png");
+                        icon: @image_url("../images/scans/scan_delta_logical_xor_by_x.png");
                         tooltip_text: "Scan for values that have been logical XOR'd by the entered value.";
                         clicked => {
                             ScannerViewModelBindings.active_scan_type = ScanConstraintTypeView.logical_xor_by_x;

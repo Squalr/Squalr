@@ -3,12 +3,23 @@ import { HorizontalBox, VerticalBox, Palette, ScrollView } from "std-widgets.sli
 import { Theme } from "../../theme.slint";
 
 export component ScanResultsHeader inherits Rectangle {
-    in property <length> header_entry_padding;
+    in_out property <length> header_entry_padding;
+    in property <length> address_header_start;
     in property <length> current_value_header_start;
     in property <length> previous_value_header_start;
+    out property <length> freeze_padding: 24px;
     height: 32px;
+    Image {
+        x: root.header_entry_padding;
+        width: 16px;
+        height: 16px;
+        horizontal_alignment: center;
+        vertical_alignment: center;
+        source: @image_url("../../images/projects/freeze.png");
+    }
+
     Text {
-        x: header_entry_padding;
+        x: root.address_header_start + root.header_entry_padding;
         color: Theme.foreground;
         horizontal_alignment: left;
         vertical_alignment: center;
@@ -17,7 +28,7 @@ export component ScanResultsHeader inherits Rectangle {
     }
 
     Text {
-        x: root.current_value_header_start + header_entry_padding;
+        x: root.current_value_header_start + root.header_entry_padding;
         color: Theme.foreground;
         horizontal_alignment: left;
         vertical_alignment: center;
@@ -26,7 +37,7 @@ export component ScanResultsHeader inherits Rectangle {
     }
 
     Text {
-        x: root.previous_value_header_start + header_entry_padding;
+        x: root.previous_value_header_start + root.header_entry_padding;
         color: Theme.foreground;
         horizontal_alignment: left;
         vertical_alignment: center;

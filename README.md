@@ -50,11 +50,11 @@ Features:
 - [X] Array of byte scans.
 - [X] Vectorized overlapping scans.
 - [X] Periodic Vectorized overlapping scans.
-- [ ] String scans.
-- [ ] Projects with a per-file backing. Freezable addresses. Sortable.
-- [ ] Freezing/deleting scan results directly from scan window.
-- [ ] Property viewer.
 - [X] Settings system that respects command/response, IPC, etc.
+- [ ] String scans.
+- [ ] Freezing/deleting scan results directly from scan window.
+- [ ] Projects with a per-file backing. Freezable addresses. Sortable.
+- [ ] Property viewer.
 
 ## Post-launch tasklist
 Lower priority features that we can defer, for now.

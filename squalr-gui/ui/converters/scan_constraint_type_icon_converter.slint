@@ -3,46 +3,46 @@ import { ScanConstraintTypeView } from "../view_model_bindings.slint";
 export component ScanConstraintTypeIconConverter {
     public pure function scan_constraint_type_source(scan_constraint_type_view: ScanConstraintTypeView) -> image {
         if (scan_constraint_type_view == ScanConstraintTypeView.changed) {
-            return @image_url("./../images/scans/scan_relative_changed.png");
+            return @image_url("../images/scans/scan_relative_changed.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.unchanged) {
-            return @image_url("./../images/scans/scan_relative_unchanged.png");
+            return @image_url("../images/scans/scan_relative_unchanged.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.increased) {
-            return @image_url("./../images/scans/scan_relative_increased.png");
+            return @image_url("../images/scans/scan_relative_increased.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.decreased) {
-            return @image_url("./../images/scans/scan_relative_decreased.png");
+            return @image_url("../images/scans/scan_relative_decreased.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.equal) {
-            return @image_url("./../images/scans/scan_immediate_equal.png");
+            return @image_url("../images/scans/scan_immediate_equal.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.not_equal) {
-            return @image_url("./../images/scans/scan_immediate_not_equal.png");
+            return @image_url("../images/scans/scan_immediate_not_equal.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.greater_than) {
-            return @image_url("./../images/scans/scan_immediate_greater_than.png");
+            return @image_url("../images/scans/scan_immediate_greater_than.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.greater_than_or_equal) {
-            return @image_url("./../images/scans/scan_immediate_greater_than_or_equal.png");
+            return @image_url("../images/scans/scan_immediate_greater_than_or_equal.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.less_than) {
-            return @image_url("./../images/scans/scan_immediate_less_than.png");
+            return @image_url("../images/scans/scan_immediate_less_than.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.less_than_or_equal) {
-            return @image_url("./../images/scans/scan_immediate_less_than_or_equal.png");
+            return @image_url("../images/scans/scan_immediate_less_than_or_equal.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.increased_by_x) {
-            return @image_url("./../images/scans/scan_delta_increased_by_x.png");
+            return @image_url("../images/scans/scan_delta_increased_by_x.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.decreased_by_x) {
-            return @image_url("./../images/scans/scan_delta_decreased_by_x.png");
+            return @image_url("../images/scans/scan_delta_decreased_by_x.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.multiplied_by_x) {
-            return @image_url("./../images/scans/scan_delta_multiplied_by_x.png");
+            return @image_url("../images/scans/scan_delta_multiplied_by_x.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.divided_by_x) {
-            return @image_url("./../images/scans/scan_delta_divided_by_x.png");
+            return @image_url("../images/scans/scan_delta_divided_by_x.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.modulo_by_x) {
-            return @image_url("./../images/scans/scan_delta_modulo_by_x.png");
+            return @image_url("../images/scans/scan_delta_modulo_by_x.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.shift_left_by_x) {
-            return @image_url("./../images/scans/scan_delta_shift_left_by_x.png");
+            return @image_url("../images/scans/scan_delta_shift_left_by_x.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.shift_right_by_x) {
-            return @image_url("./../images/scans/scan_delta_shift_right_by_x.png");
+            return @image_url("../images/scans/scan_delta_shift_right_by_x.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.logical_and_by_x) {
-            return @image_url("./../images/scans/scan_delta_logical_and_by_x.png");
+            return @image_url("../images/scans/scan_delta_logical_and_by_x.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.logical_or_by_x) {
-            return @image_url("./../images/scans/scan_delta_logical_or_by_x.png");
+            return @image_url("../images/scans/scan_delta_logical_or_by_x.png");
         } else if (scan_constraint_type_view == ScanConstraintTypeView.logical_xor_by_x) {
-            return @image_url("./../images/scans/scan_delta_logical_xor_by_x.png");
+            return @image_url("../images/scans/scan_delta_logical_xor_by_x.png");
         }
-        return @image_url("./../images/unknown.png");
+        return @image_url("../images/unknown.png");
     }
 }

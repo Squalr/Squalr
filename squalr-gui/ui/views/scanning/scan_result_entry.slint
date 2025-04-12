@@ -8,6 +8,7 @@ import { Button } from "../../components/buttons/button.slint";
 
 export component ScanResultEntry inherits Button {
     in property <ScanResultViewData> scan_result_view_data;
+    in property <length> address_splitter_location;
     in property <length> current_values_splitter_location;
     in property <length> previous_values_splitter_location;
     callback on_click();
@@ -18,7 +19,7 @@ export component ScanResultEntry inherits Button {
         root.on_click();
     }
     HorizontalBox {
-        x: 8px;
+        x: root.address_splitter_location + 8px;
         padding: 0px;
         spacing: 4px;
         VerticalLayout {

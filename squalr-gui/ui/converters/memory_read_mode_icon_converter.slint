@@ -3,12 +3,12 @@ import { MemoryReadModeView } from "../view_model_bindings.slint";
 export component MemoryReadModeIconConverter {
     public pure function memory_read_mode_source(memory_alignment_view: MemoryReadModeView) -> image {
         if (memory_alignment_view == MemoryReadModeView.skip) {
-            return @image_url("./../images/navigation/cancel.png");
+            return @image_url("../images/navigation/cancel.png");
         } else if (memory_alignment_view == MemoryReadModeView.read_interleaved_with_scan) {
-            return @image_url("./../images/navigation/double_right_overlapped_arrows.png");
+            return @image_url("../images/navigation/double_right_overlapped_arrows.png");
         } else if (memory_alignment_view == MemoryReadModeView.read_before_scan) {
-            return @image_url("./../images/navigation/left_arrow_small.png");
+            return @image_url("../images/navigation/left_arrow_small.png");
         }
-        return @image_url("./../images/unknown.png");
+        return @image_url("../images/unknown.png");
     }
 }
