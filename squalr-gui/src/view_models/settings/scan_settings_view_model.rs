@@ -1,3 +1,7 @@
+use crate::view_models::settings::{
+    floating_point_tolerance_converter::FloatingPointToleranceConverter, memory_alignment_converter::MemoryAlignmentConverter,
+    memory_read_mode_converter::MemoryReadModeConverter,
+};
 use crate::{FloatingPointToleranceView, MemoryAlignmentView};
 use crate::{MainWindowView, ScanSettingsViewModelBindings};
 use slint::ComponentHandle;
@@ -9,11 +13,6 @@ use squalr_engine_api::{
     commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest, structures::memory::memory_alignment::MemoryAlignment,
 };
 use std::sync::Arc;
-
-use super::{
-    floating_point_tolerance_converter::FloatingPointToleranceConverter, memory_alignment_converter::MemoryAlignmentConverter,
-    memory_read_mode_converter::MemoryReadModeConverter,
-};
 
 pub struct ScanSettingsViewModel {
     view_binding: ViewBinding<MainWindowView>,

@@ -1,4 +1,4 @@
-use super::normalized_region::NormalizedRegion;
+use crate::structures::memory::normalized_region::NormalizedRegion;
 use std::hash::{Hash, Hasher};
 
 pub struct NormalizedModule {

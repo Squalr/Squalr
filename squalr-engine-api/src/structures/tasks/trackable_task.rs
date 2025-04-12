@@ -1,9 +1,8 @@
+use crate::structures::tasks::trackable_task_handle::TrackableTaskHandle;
 use crossbeam_channel::{Receiver, Sender};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use uuid::Uuid;
-
-use super::trackable_task_handle::TrackableTaskHandle;
 
 pub struct TrackableTask {
     name: String,

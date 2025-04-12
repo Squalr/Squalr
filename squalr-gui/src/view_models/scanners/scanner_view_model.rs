@@ -1,9 +1,11 @@
 use crate::DataTypeView;
 use crate::MainWindowView;
+use crate::MemoryAlignmentView;
 use crate::ScanConstraintTypeView;
 use crate::ScannerViewModelBindings;
 use crate::ValueCollectorViewModelBindings;
 use crate::view_models::scanners::scan_constraint_converter::ScanConstraintConverter;
+use crate::view_models::settings::memory_alignment_converter::MemoryAlignmentConverter;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
@@ -54,7 +56,7 @@ impl ScannerViewModel {
             create_view_bindings!(view.view_binding, {
                 ScannerViewModelBindings => {
                     on_reset_scan() -> [view] -> Self::on_reset_scan,
-                    on_start_scan(data_type: DataTypeView, scan_constraint: ScanConstraintTypeView, scan_value: SharedString, is_value_hex: bool) -> [view] -> Self::on_start_scan,
+                    on_start_scan(data_type: DataTypeView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView, scan_value: SharedString, is_value_hex: bool) -> [view] -> Self::on_start_scan,
                 },
                 ValueCollectorViewModelBindings => {
                     on_collect_values() -> [view] -> Self::on_collect_values,
@@ -84,6 +86,7 @@ impl ScannerViewModel {
     fn on_start_scan(
         scanner_view_model: Arc<ScannerViewModel>,
         data_type_view: DataTypeView,
+        memory_alignment_view: MemoryAlignmentView,
         scan_constraint: ScanConstraintTypeView,
         scan_value: SharedString,
         is_value_hex: bool,
@@ -112,8 +115,9 @@ impl ScannerViewModel {
                     Err(_) => DataTypeMetaData::None,
                 };
                 let data_type = DataTypeRef::new(&data_type_id, data_type_meta_data);
+                let memory_alignment = MemoryAlignmentConverter {}.convert_from_view_data(&memory_alignment_view);
 
-                Self::new_scan(scanner_view_model, data_type, scan_constraint, scan_value);
+                Self::new_scan(scanner_view_model, data_type, memory_alignment, scan_constraint, scan_value);
             }
             ScanViewModelState::ScanInProgress => {
                 log::error!("Cannot start a new scan while a scan is in progress.");
@@ -130,13 +134,13 @@ impl ScannerViewModel {
     fn new_scan(
         scanner_view_model: Arc<ScannerViewModel>,
         data_type: DataTypeRef,
+        memory_alignment: MemoryAlignment,
         scan_constraint: ScanConstraintTypeView,
         scan_value: AnonymousValue,
     ) {
         let engine_execution_context = &scanner_view_model.engine_execution_context;
         let scanner_view_model = scanner_view_model.clone();
-        let memory_alignment = Some(MemoryAlignment::Alignment1); // JIRA: Pull from settings
-        let user_scan_parameters_local = vec![UserScanParametersLocal::new(data_type, memory_alignment)];
+        let user_scan_parameters_local = vec![UserScanParametersLocal::new(data_type, Some(memory_alignment))];
         let scan_new_request = ScanNewRequest { user_scan_parameters_local };
 
         // Start a new scan, and recurse to start the scan once the new scan is made.

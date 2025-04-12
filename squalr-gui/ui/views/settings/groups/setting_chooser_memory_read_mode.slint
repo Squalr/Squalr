@@ -3,6 +3,7 @@ import { HorizontalBox, VerticalBox } from "std-widgets.slint";
 import { Theme } from "../../../theme.slint";
 
 import { ConversionsViewModelBindings, ScanSettingsViewModelBindings, MemoryReadModeView } from "../../../view_model_bindings.slint";
+import { MemoryReadModeIconConverter } from "../../../converters/memory_read_mode_icon_converter.slint";
 import { GroupBox } from "../../../components/groupbox.slint";
 import { Button } from "../../../components/buttons/button.slint";
 import { TextField } from "../../../components/input/text_field.slint";
@@ -12,6 +13,8 @@ import { BevelButton } from "../../../components/buttons/bevel_button.slint";
 import { ContextMenu } from "../../../components/context_menu/context_menu.slint";
 
 export component SettingChooserMemoryReadMode inherits Rectangle {
+    memory_read_mode_icon_converter := MemoryReadModeIconConverter { }
+
     min_width: 96px;
     HorizontalLayout {
         padding: 0px;
@@ -38,6 +41,7 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                                 height: 16px;
                                 horizontal_alignment: center;
                                 vertical_alignment: center;
+                                source: memory_read_mode_icon_converter.memory_read_mode_source(ScanSettingsViewModelBindings.memory_read_mode);
                             }
 
                             Text {
@@ -85,6 +89,7 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                 Button {
                     height: 24px;
                     clicked => {
+                        ScanSettingsViewModelBindings.memory_read_mode = MemoryReadModeView.skip;
                         ScanSettingsViewModelBindings.memory_read_mode_changed(MemoryReadModeView.skip);
                         memory_read_mode_context_menu.close();
                     }
@@ -101,13 +106,14 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                                     height: 16px;
                                     horizontal_alignment: center;
                                     vertical_alignment: center;
+                                    source: memory_read_mode_icon_converter.memory_read_mode_source(MemoryReadModeView.skip);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "Skip";
+                                    text: ConversionsViewModelBindings.get_memory_read_mode_string(MemoryReadModeView.skip);
                                 }
                             }
                         }
@@ -117,7 +123,8 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                 Button {
                     height: 24px;
                     clicked => {
-                        ScanSettingsViewModelBindings.memory_read_mode_changed(MemoryReadModeView.interleave);
+                        ScanSettingsViewModelBindings.memory_read_mode = MemoryReadModeView.read_interleaved_with_scan;
+                        ScanSettingsViewModelBindings.memory_read_mode_changed(MemoryReadModeView.read_interleaved_with_scan);
                         memory_read_mode_context_menu.close();
                     }
                     VerticalLayout {
@@ -133,13 +140,14 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                                     height: 16px;
                                     horizontal_alignment: center;
                                     vertical_alignment: center;
+                                    source: memory_read_mode_icon_converter.memory_read_mode_source(MemoryReadModeView.read_interleaved_with_scan);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "Interleave (fast scan)";
+                                    text: ConversionsViewModelBindings.get_memory_read_mode_string(MemoryReadModeView.read_interleaved_with_scan);
                                 }
                             }
                         }
@@ -149,7 +157,8 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                 Button {
                     height: 24px;
                     clicked => {
-                        ScanSettingsViewModelBindings.memory_read_mode_changed(MemoryReadModeView.prior);
+                        ScanSettingsViewModelBindings.memory_read_mode = MemoryReadModeView.read_before_scan;
+                        ScanSettingsViewModelBindings.memory_read_mode_changed(MemoryReadModeView.read_before_scan);
                         memory_read_mode_context_menu.close();
                     }
                     VerticalLayout {
@@ -165,13 +174,14 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                                     height: 16px;
                                     horizontal_alignment: center;
                                     vertical_alignment: center;
+                                    source: memory_read_mode_icon_converter.memory_read_mode_source(MemoryReadModeView.read_before_scan);
                                 }
 
                                 Text {
                                     color: Theme.foreground;
                                     horizontal_alignment: left;
                                     vertical_alignment: center;
-                                    text: "Prior (fast collection)";
+                                    text: ConversionsViewModelBindings.get_memory_read_mode_string(MemoryReadModeView.read_before_scan);
                                 }
                             }
                         }

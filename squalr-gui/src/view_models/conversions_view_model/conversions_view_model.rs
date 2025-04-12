@@ -57,18 +57,18 @@ impl ConversionsViewModel {
 
     fn on_get_memory_alignment_string(memory_alignment: MemoryAlignmentView) -> SharedString {
         match memory_alignment {
-            MemoryAlignmentView::Alignment1 => "1".into(),
-            MemoryAlignmentView::Alignment2 => "2".into(),
-            MemoryAlignmentView::Alignment4 => "4".into(),
-            MemoryAlignmentView::Alignment8 => "8".into(),
+            MemoryAlignmentView::Alignment1 => "1-byte aligned".into(),
+            MemoryAlignmentView::Alignment2 => "2-byte aligned".into(),
+            MemoryAlignmentView::Alignment4 => "4-byte aligned".into(),
+            MemoryAlignmentView::Alignment8 => "8-byte aligned".into(),
         }
     }
 
     fn on_get_memory_read_mode_string(memory_read_mode: MemoryReadModeView) -> SharedString {
         match memory_read_mode {
-            MemoryReadModeView::Skip => "skip".into(),
-            MemoryReadModeView::Interleave => "interleaved".into(),
-            MemoryReadModeView::Prior => "prior".into(),
+            MemoryReadModeView::Skip => "Skip reading".into(),
+            MemoryReadModeView::ReadInterleavedWithScan => "Interleaved (fast scans)".into(),
+            MemoryReadModeView::ReadBeforeScan => "Prior (fast collection)".into(),
         }
     }
 

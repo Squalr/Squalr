@@ -2,7 +2,7 @@ use crate::{DataTypeIconView, ScanResultViewData};
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 
-pub struct ScanResultConverter;
+pub struct ScanResultConverter {}
 
 impl ScanResultConverter {
     pub fn new() -> Self {

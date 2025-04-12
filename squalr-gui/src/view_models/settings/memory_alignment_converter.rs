@@ -3,7 +3,7 @@ use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 
 use crate::MemoryAlignmentView;
 
-pub struct MemoryAlignmentConverter;
+pub struct MemoryAlignmentConverter {}
 
 impl MemoryAlignmentConverter {
     pub fn new() -> Self {

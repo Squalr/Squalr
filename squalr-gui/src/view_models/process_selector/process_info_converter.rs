@@ -4,7 +4,7 @@ use slint::SharedPixelBuffer;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 
-pub struct ProcessInfoConverter;
+pub struct ProcessInfoConverter {}
 
 impl ProcessInfoConverter {
     pub fn new() -> Self {

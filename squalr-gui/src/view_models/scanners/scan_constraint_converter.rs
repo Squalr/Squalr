@@ -5,7 +5,7 @@ use squalr_engine_api::structures::scanning::comparisons::{
     scan_compare_type_relative::ScanCompareTypeRelative,
 };
 
-pub struct ScanConstraintConverter;
+pub struct ScanConstraintConverter {}
 
 impl ScanConstraintConverter {
     pub fn new() -> Self {

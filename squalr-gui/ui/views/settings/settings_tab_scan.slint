@@ -85,7 +85,8 @@ export component SettingsTabScan inherits Rectangle {
                                     value: ScanSettingsViewModelBindings.project_read_interval;
                                     step: 1;
                                     changed(value) => {
-                                        ScanSettingsViewModelBindings.project_read_interval_changed(value);
+                                        ScanSettingsViewModelBindings.project_read_interval = round(value);
+                                        ScanSettingsViewModelBindings.project_read_interval_changed(round(value));
                                     }
                                 }
 
@@ -112,7 +113,8 @@ export component SettingsTabScan inherits Rectangle {
                                     value: ScanSettingsViewModelBindings.results_read_interval;
                                     step: 1;
                                     changed(value) => {
-                                        ScanSettingsViewModelBindings.results_read_interval_changed(value);
+                                        ScanSettingsViewModelBindings.results_read_interval = round(value);
+                                        ScanSettingsViewModelBindings.results_read_interval_changed(round(value));
                                     }
                                 }
 
@@ -183,17 +185,19 @@ export component SettingsTabScan inherits Rectangle {
                     padding: 0px;
                     spacing: 6px;
                     TextCheckbox {
-                        text: @tr("Single_Threaded Scan");
+                        text: @tr("Force single threaded scan");
                         is_checked <=> ScanSettingsViewModelBindings.is_single_threaded_scan;
                         check_changed(value) => {
+                            ScanSettingsViewModelBindings.is_single_threaded_scan = value;
                             ScanSettingsViewModelBindings.is_single_threaded_scan_changed(value);
                         }
                     }
 
                     TextCheckbox {
-                        text: @tr("Perform Extra Debug Scan");
+                        text: @tr("Perform extra debug validation scan");
                         is_checked <=> ScanSettingsViewModelBindings.debug_perform_validation_scan;
                         check_changed(value) => {
+                            ScanSettingsViewModelBindings.debug_perform_validation_scan = value;
                             ScanSettingsViewModelBindings.debug_perform_validation_scan_changed(value);
                         }
                     }

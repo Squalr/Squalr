@@ -9,7 +9,7 @@ import { DataTypeSelector } from "../../controls/data_type_selector.slint";
 import { ScanConstraintTypeSelector } from "../../controls/scan_constraint_selector.slint";
 import { DockFocusCatcher } from "../docking/drag_and_drop/dock_focus_catcher.slint";
 import { DataValueBox } from "../../components/data_value_box/data_value_box.slint";
-import { DataTypeView, ValueCollectorViewModelBindings, ScannerViewModelBindings } from "../../view_model_bindings.slint";
+import { DataTypeView, ValueCollectorViewModelBindings, ScannerViewModelBindings, ScanSettingsViewModelBindings } from "../../view_model_bindings.slint";
 
 export component ScanBarView inherits Rectangle {
     property <length> bar_height: 28px;
@@ -86,7 +86,7 @@ export component ScanBarView inherits Rectangle {
             tooltip_text: @tr("Start Scan");
             click_sound: "";
             clicked => {
-                ScannerViewModelBindings.start_scan(ScannerViewModelBindings.active_data_type, ScannerViewModelBindings.active_scan_type, scan_value.get_value_text(), ScannerViewModelBindings.is_value_hex);
+                ScannerViewModelBindings.start_scan(ScannerViewModelBindings.active_data_type, ScanSettingsViewModelBindings.memory_alignment, ScannerViewModelBindings.active_scan_type, scan_value.get_value_text(), ScannerViewModelBindings.is_value_hex);
             }
             Image {
                 width: 16px;

@@ -3,7 +3,7 @@ use squalr_engine_api::structures::data_types::floating_point_tolerance::Floatin
 
 use crate::FloatingPointToleranceView;
 
-pub struct FloatingPointToleranceConverter;
+pub struct FloatingPointToleranceConverter {}
 
 impl FloatingPointToleranceConverter {
     pub fn new() -> Self {

@@ -26,6 +26,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Write");
                         is_checked <=> MemorySettingsViewModelBindings.required_write;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.required_write = value;
                             MemorySettingsViewModelBindings.required_write_changed(value);
                         }
                     }
@@ -42,6 +43,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Copy on Write");
                         is_checked <=> MemorySettingsViewModelBindings.required_copy_on_write;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.required_copy_on_write = value;
                             MemorySettingsViewModelBindings.required_copy_on_write_changed(value);
                         }
                     }
@@ -58,6 +60,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Write");
                         is_checked <=> MemorySettingsViewModelBindings.excluded_write;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.excluded_copy_on_write = value;
                             MemorySettingsViewModelBindings.excluded_write_changed(value);
                         }
                     }
@@ -66,6 +69,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Execute");
                         is_checked <=> MemorySettingsViewModelBindings.excluded_execute;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.excluded_execute = value;
                             MemorySettingsViewModelBindings.excluded_execute_changed(value);
                         }
                     }
@@ -74,6 +78,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Copy on Write");
                         is_checked <=> MemorySettingsViewModelBindings.excluded_copy_on_write;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.excluded_copy_on_write = value;
                             MemorySettingsViewModelBindings.excluded_copy_on_write_changed(value);
                         }
                     }
@@ -92,6 +97,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("None");
                         is_checked <=> MemorySettingsViewModelBindings.memory_type_none;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.memory_type_none = value;
                             MemorySettingsViewModelBindings.memory_type_none_changed(value);
                         }
                     }
@@ -100,6 +106,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Image");
                         is_checked <=> MemorySettingsViewModelBindings.memory_type_image;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.memory_type_image = value;
                             MemorySettingsViewModelBindings.memory_type_image_changed(value);
                         }
                     }
@@ -108,6 +115,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Private");
                         is_checked <=> MemorySettingsViewModelBindings.memory_type_private;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.memory_type_private = value;
                             MemorySettingsViewModelBindings.memory_type_private_changed(value);
                         }
                     }
@@ -116,6 +124,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Mapped");
                         is_checked <=> MemorySettingsViewModelBindings.memory_type_mapped;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.memory_type_mapped = value;
                             MemorySettingsViewModelBindings.memory_type_mapped_changed(value);
                         }
                     }
@@ -132,6 +141,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Query All Memory");
                         is_checked <=> MemorySettingsViewModelBindings.only_query_usermode;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.only_query_usermode = value;
                             MemorySettingsViewModelBindings.only_query_usermode_changed(value);
                         }
                     }
@@ -140,6 +150,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Query All Usermode Memory");
                         is_checked <=> MemorySettingsViewModelBindings.only_query_usermode;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.only_query_usermode = value;
                             MemorySettingsViewModelBindings.only_query_usermode_changed(value);
                         }
                     }
@@ -148,6 +159,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Query Custom Range");
                         is_checked <=> MemorySettingsViewModelBindings.only_query_usermode;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.only_query_usermode = value;
                             MemorySettingsViewModelBindings.only_query_usermode_changed(value);
                         }
                     }

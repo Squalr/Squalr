@@ -138,12 +138,34 @@ export struct DataTypeView {
     icon: DataTypeIconView,
 }
 
+export enum MemoryAlignmentView {
+    alignment_1,
+    alignment_2,
+    alignment_4,
+    alignment_8,
+}
+
+export enum FloatingPointToleranceView {
+    tolerance_10e1,
+    tolerance_10e2,
+    tolerance_10e3,
+    tolerance_10e4,
+    tolerance_10e5,
+    tolerance_epsilon
+}
+
+export enum MemoryReadModeView {
+    skip,
+    read_interleaved_with_scan,
+    read_before_scan,
+}
+
 export global ScannerViewModelBindings {
     in_out property <DataTypeView> active_data_type: { data_type: "i32", icon: DataTypeIconView.i32 };
     in_out property <bool> is_value_hex: false;
     in_out property <ScanConstraintTypeView> active_scan_type: equal;
     callback reset_scan();
-    callback start_scan(data_type: DataTypeView, scan_constraint: ScanConstraintTypeView, scan_value: string, is_value_hex: bool);
+    callback start_scan(data_type: DataTypeView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView, scan_value: string, is_value_hex: bool);
     callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
 }
 
@@ -174,28 +196,6 @@ export global MemorySettingsViewModelBindings {
     callback end_address_changed(end_address: string);
     in_out property <bool> only_query_usermode;
     callback only_query_usermode_changed(only_query_usermode: bool);
-}
-
-export enum MemoryAlignmentView {
-    alignment_1,
-    alignment_2,
-    alignment_4,
-    alignment_8,
-}
-
-export enum FloatingPointToleranceView {
-    tolerance_10e1,
-    tolerance_10e2,
-    tolerance_10e3,
-    tolerance_10e4,
-    tolerance_10e5,
-    tolerance_epsilon
-}
-
-export enum MemoryReadModeView {
-    skip,
-    interleave,
-    prior,
 }
 
 export global ScanSettingsViewModelBindings {

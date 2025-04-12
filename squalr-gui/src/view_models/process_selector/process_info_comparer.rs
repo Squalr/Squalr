@@ -1,7 +1,7 @@
 use crate::ProcessViewData;
 use slint_mvvm::view_data_comparer::ViewDataComparer;
 
-pub struct ProcessInfoComparer;
+pub struct ProcessInfoComparer {}
 
 impl ProcessInfoComparer {
     pub fn new() -> Self {

@@ -1,7 +1,7 @@
 use crate::ScanResultViewData;
 use slint_mvvm::view_data_comparer::ViewDataComparer;
 
-pub struct ScanResultComparer;
+pub struct ScanResultComparer {}
 
 impl ScanResultComparer {
     pub fn new() -> Self {

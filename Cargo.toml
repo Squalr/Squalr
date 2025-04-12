@@ -20,13 +20,11 @@ resolver = "3"
 
 [profile.dev]
 # Slint can be pretty aggressive with stack allocations, extend stack size to 8MB.
+# Note this only matters for dev, release optimizations reduce stack usage safely.
 # rustflags = ["-C", "link-args=/STACK:8388608"]
 rustflags = ["-C", "link-args=-Wl,--stack,8388608"]
 
 [profile.release]
-# Slint can be pretty aggressive with stack allocations, extend stack size to 8MB.
-# rustflags = ["-C", "link-args=/STACK:8388608"]
-rustflags = ["-C", "link-args=-Wl,--stack,8388608"]
 
 [profile.release-with-debug]
 inherits = "release"
