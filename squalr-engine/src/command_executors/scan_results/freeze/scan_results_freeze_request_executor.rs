@@ -13,8 +13,10 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        if let Ok(snapshot) = engine_privileged_state.get_snapshot().read() {
-            let snapshot_scan_result_freeze_list = snapshot.get_snapshot_scan_result_freeze_list();
+        if let Ok(snapshot_scan_result_freeze_list) = engine_privileged_state
+            .get_snapshot_scan_result_freeze_list()
+            .read()
+        {
             let address = self.scan_result.get_address();
             if self.is_frozen {
                 if let Some(opened_process_info) = engine_privileged_state.get_opened_process() {

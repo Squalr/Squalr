@@ -1,5 +1,5 @@
 use crate::memory_reader::memory_reader_trait::IMemoryReader;
-use squalr_engine_api::structures::{data_values::data_value::DataValue, processes::process_info::OpenedProcessInfo};
+use squalr_engine_api::structures::{data_values::data_value::DataValue, processes::opened_process_info::OpenedProcessInfo};
 use std::os::raw::c_void;
 use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 
@@ -26,7 +26,7 @@ impl IMemoryReader for WindowsMemoryReader {
             let mut bytes_read = 0;
 
             let result = ReadProcessMemory(
-                process_info.handle as *mut c_void,
+                process_info.get_handle() as *mut c_void,
                 address as *const c_void,
                 buffer.as_mut_ptr() as *mut c_void,
                 size,
@@ -76,7 +76,7 @@ impl IMemoryReader for WindowsMemoryReader {
             let mut bytes_read = 0;
 
             let result = ReadProcessMemory(
-                process_info.handle as *mut c_void,
+                process_info.get_handle() as *mut c_void,
                 address as *const c_void,
                 values.as_mut_ptr() as *mut c_void,
                 size,

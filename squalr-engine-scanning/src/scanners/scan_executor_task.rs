@@ -4,7 +4,7 @@ use crate::scanners::value_collector_task::ValueCollectorTask;
 use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
-use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters_global::UserScanParametersGlobal;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;

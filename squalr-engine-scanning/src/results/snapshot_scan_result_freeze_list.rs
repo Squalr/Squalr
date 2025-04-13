@@ -1,8 +1,8 @@
-use dashmap::DashMap;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
+use std::{collections::HashMap, sync::RwLock};
 
 pub struct SnapshotScanResultFreezeList {
-    frozen_indicies: DashMap<u64, DataValue>,
+    frozen_indicies: RwLock<HashMap<u64, DataValue>>,
 }
 
 /// Contains all indicies that the user has marked as frozen in the scan results list.
@@ -10,11 +10,11 @@ pub struct SnapshotScanResultFreezeList {
 impl SnapshotScanResultFreezeList {
     pub fn new() -> Self {
         Self {
-            frozen_indicies: DashMap::new(),
+            frozen_indicies: RwLock::new(HashMap::new()),
         }
     }
 
-    pub fn get_frozen_indicies(&self) -> &DashMap<u64, DataValue> {
+    pub fn get_frozen_indicies(&self) -> &RwLock<HashMap<u64, DataValue>> {
         &self.frozen_indicies
     }
 
@@ -22,15 +22,23 @@ impl SnapshotScanResultFreezeList {
         &self,
         address: u64,
     ) -> bool {
-        self.frozen_indicies.contains_key(&address)
+        if let Ok(frozen_indicies) = self.frozen_indicies.read() {
+            frozen_indicies.contains_key(&address)
+        } else {
+            false
+        }
     }
 
     pub fn get_address_frozen_data_value(
         &self,
         address: u64,
     ) -> Option<DataValue> {
-        if let Some(data_value) = self.frozen_indicies.get(&address) {
-            Some(data_value.clone())
+        if let Ok(frozen_indicies) = self.frozen_indicies.read() {
+            if let Some(data_value) = frozen_indicies.get(&address) {
+                Some(data_value.clone())
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -41,17 +49,23 @@ impl SnapshotScanResultFreezeList {
         address: u64,
         data_value: DataValue,
     ) {
-        self.frozen_indicies.insert(address, data_value);
+        if let Ok(mut frozen_indicies) = self.frozen_indicies.write() {
+            frozen_indicies.insert(address, data_value);
+        }
     }
 
     pub fn set_address_unfrozen(
         &self,
         address: u64,
     ) {
-        self.frozen_indicies.remove(&address);
+        if let Ok(mut frozen_indicies) = self.frozen_indicies.write() {
+            frozen_indicies.remove(&address);
+        }
     }
 
     pub fn clear(&self) {
-        self.frozen_indicies.clear();
+        if let Ok(mut frozen_indicies) = self.frozen_indicies.write() {
+            frozen_indicies.clear();
+        }
     }
 }

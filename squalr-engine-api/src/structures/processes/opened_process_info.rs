@@ -1,26 +1,30 @@
+use crate::structures::memory::bitness::Bitness;
 use crate::structures::processes::process_icon::ProcessIcon;
 use serde::{Deserialize, Serialize};
 use sysinfo::Pid;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ProcessInfo {
+pub struct OpenedProcessInfo {
     process_id: u32,
     name: String,
-    is_windowed: bool,
+    handle: u64,
+    bitness: Bitness,
     icon: Option<ProcessIcon>,
 }
 
-impl ProcessInfo {
+impl OpenedProcessInfo {
     pub fn new(
         process_id: u32,
         name: String,
-        is_windowed: bool,
+        handle: u64,
+        bitness: Bitness,
         icon: Option<ProcessIcon>,
     ) -> Self {
         Self {
             process_id,
             name,
-            is_windowed,
+            handle,
+            bitness,
             icon,
         }
     }
@@ -37,18 +41,15 @@ impl ProcessInfo {
         &self.name
     }
 
-    pub fn get_is_windowed(&self) -> bool {
-        self.is_windowed
+    pub fn get_handle(&self) -> u64 {
+        self.handle
+    }
+
+    pub fn get_bitness(&self) -> Bitness {
+        self.bitness
     }
 
     pub fn get_icon(&self) -> &Option<ProcessIcon> {
         &self.icon
-    }
-
-    pub fn set_icon(
-        &mut self,
-        icon: Option<ProcessIcon>,
-    ) {
-        self.icon = icon;
     }
 }

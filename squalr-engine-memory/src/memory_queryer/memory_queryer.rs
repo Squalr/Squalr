@@ -5,7 +5,7 @@ use crate::memory_queryer::page_retrieval_mode::PageRetrievalMode;
 use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
 use crate::{config::memory_settings_config::MemorySettingsConfig, memory_queryer::MemoryQueryerImpl};
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
-use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use std::{collections::HashSet, sync::Once};
 
 pub struct MemoryQueryer;

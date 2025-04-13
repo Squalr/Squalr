@@ -16,7 +16,7 @@ use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::process::list::process_list_request::ProcessListRequest;
 use squalr_engine_api::commands::process::open::process_open_request::ProcessOpenRequest;
 use squalr_engine_api::events::process::changed::process_changed_event::ProcessChangedEvent;
-use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use std::sync::Arc;
 

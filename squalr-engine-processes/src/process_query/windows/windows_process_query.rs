@@ -4,8 +4,9 @@ use crate::process_query::windows::windows_icon_handle::{DcHandle, IconHandle};
 use crate::process_query::windows::windows_process_monitor::WindowsProcessMonitor;
 use once_cell::sync::Lazy;
 use squalr_engine_api::structures::memory::bitness::Bitness;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
-use squalr_engine_api::structures::processes::process_info::{OpenedProcessInfo, ProcessInfo};
+use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -182,12 +183,7 @@ impl WindowsProcessQuery {
         icon: Option<ProcessIcon>,
     ) {
         if let Ok(mut cache) = PROCESS_CACHE.write() {
-            cache.insert(process_id, ProcessInfo {
-                process_id: process_id.as_u32(),
-                name,
-                is_windowed,
-                icon,
-            });
+            cache.insert(process_id, ProcessInfo::new(process_id.as_u32(), name, is_windowed, icon));
         }
     }
 
@@ -222,17 +218,17 @@ impl ProcessQueryer for WindowsProcessQuery {
 
     fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
         unsafe {
-            let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.process_id);
+            let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.get_process_id_raw());
             if handle == std::ptr::null_mut() {
                 Err("Failed to open process".to_string())
             } else {
-                let opened_process_info = OpenedProcessInfo {
-                    process_id: process_info.process_id,
-                    name: process_info.name.clone(),
-                    bitness: Self::get_process_bitness(&handle),
-                    handle: handle as u64,
-                    icon: process_info.icon.clone(),
-                };
+                let opened_process_info = OpenedProcessInfo::new(
+                    process_info.get_process_id_raw(),
+                    process_info.get_name().to_string(),
+                    handle as u64,
+                    Self::get_process_bitness(&handle),
+                    process_info.get_icon().clone(),
+                );
 
                 Ok(opened_process_info)
             }
@@ -275,28 +271,39 @@ impl ProcessQueryer for WindowsProcessQuery {
                 // Try to get from cache first
                 let process_info = if let Some(cached_info) = Self::get_from_cache(process_id) {
                     // If icons are required but not in cache, update the icon
-                    if process_query_options.fetch_icons && cached_info.icon.is_none() {
+                    if process_query_options.fetch_icons && cached_info.get_icon().is_none() {
                         let mut updated_info = cached_info.clone();
-                        updated_info.icon = Self::get_icon(process_id);
+                        updated_info.set_icon(Self::get_icon(process_id));
                         // Update cache with new icon
-                        Self::update_cache(*process_id, updated_info.name.clone(), updated_info.is_windowed, updated_info.icon.clone());
+                        Self::update_cache(
+                            *process_id,
+                            updated_info.get_name().to_string(),
+                            updated_info.get_is_windowed(),
+                            updated_info.get_icon().clone(),
+                        );
                         updated_info
                     } else {
                         cached_info
                     }
                 } else {
-                    // Create new ProcessInfo and cache it
-                    let new_info = ProcessInfo {
-                        process_id: process_id.as_u32(),
-                        name: process.name().to_string_lossy().into_owned(),
-                        is_windowed: Self::is_process_windowed(process_id),
-                        icon: if process_query_options.fetch_icons {
-                            Self::get_icon(process_id)
-                        } else {
-                            None
-                        },
+                    // Create new ProcessInfo and cache it.
+                    let icon = if process_query_options.fetch_icons {
+                        Self::get_icon(process_id)
+                    } else {
+                        None
                     };
-                    Self::update_cache(*process_id, new_info.name.clone(), new_info.is_windowed, new_info.icon.clone());
+                    let new_info = ProcessInfo::new(
+                        process_id.as_u32(),
+                        process.name().to_string_lossy().into_owned(),
+                        Self::is_process_windowed(process_id),
+                        icon,
+                    );
+                    Self::update_cache(
+                        *process_id,
+                        new_info.get_name().to_string(),
+                        new_info.get_is_windowed(),
+                        new_info.get_icon().clone(),
+                    );
                     new_info
                 };
 
@@ -304,19 +311,22 @@ impl ProcessQueryer for WindowsProcessQuery {
 
                 // Apply filters
                 if process_query_options.require_windowed {
-                    matches &= process_info.is_windowed;
+                    matches &= process_info.get_is_windowed();
                 }
 
                 if let Some(ref term) = process_query_options.search_name {
                     if process_query_options.match_case {
-                        matches &= process_info.name.contains(term);
+                        matches &= process_info.get_name().contains(term);
                     } else {
-                        matches &= process_info.name.to_lowercase().contains(&term.to_lowercase());
+                        matches &= process_info
+                            .get_name()
+                            .to_lowercase()
+                            .contains(&term.to_lowercase());
                     }
                 }
 
                 if let Some(required_process_id) = process_query_options.required_process_id {
-                    matches &= process_info.process_id == required_process_id.as_u32();
+                    matches &= process_info.get_process_id_raw() == required_process_id.as_u32();
                 }
 
                 matches.then_some(process_info)

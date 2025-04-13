@@ -73,6 +73,19 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
 
             // Update snapshot with new merged regions.
             snapshot.set_snapshot_regions(merged_snapshot_regions);
+
+            let snapshot_scan_result_freeze_list = engine_privileged_state.get_snapshot_scan_result_freeze_list();
+
+            // Best-effort to clear the freeze list.
+            match snapshot_scan_result_freeze_list.read() {
+                Ok(snapshot_scan_result_freeze_list) => {
+                    snapshot_scan_result_freeze_list.clear();
+                }
+                Err(err) => {
+                    log::error!("Failed to acquire write lock on snapshot: {}", err);
+                }
+            }
+
             engine_privileged_state.emit_event(ScanResultsUpdatedEvent {});
         }
 

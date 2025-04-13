@@ -47,10 +47,11 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
                 module_offset = address;
             }
 
-            let is_frozen = if let Ok(snapshot) = engine_privileged_state.get_snapshot().read() {
-                snapshot
-                    .get_snapshot_scan_result_freeze_list()
-                    .is_address_frozen(address)
+            let is_frozen = if let Ok(snapshot_scan_result_freeze_list) = engine_privileged_state
+                .get_snapshot_scan_result_freeze_list()
+                .read()
+            {
+                snapshot_scan_result_freeze_list.is_address_frozen(address)
             } else {
                 false
             };

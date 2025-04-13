@@ -64,7 +64,7 @@ impl ScanSettingsViewModel {
         value: i32,
     ) {
         let scan_settings_set_request = ScanSettingsSetRequest {
-            results_read_interval: Some(value as u32),
+            results_read_interval: Some(value as u64),
             ..Default::default()
         };
 
@@ -76,7 +76,7 @@ impl ScanSettingsViewModel {
         value: i32,
     ) {
         let scan_settings_set_request = ScanSettingsSetRequest {
-            project_read_interval: Some(value as u32),
+            project_read_interval: Some(value as u64),
             ..Default::default()
         };
 
@@ -88,7 +88,7 @@ impl ScanSettingsViewModel {
         value: i32,
     ) {
         let scan_settings_set_request = ScanSettingsSetRequest {
-            freeze_interval: Some(value as u32),
+            freeze_interval: Some(value as u64),
             ..Default::default()
         };
 

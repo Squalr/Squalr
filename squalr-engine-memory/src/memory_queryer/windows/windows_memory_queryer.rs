@@ -8,7 +8,7 @@ use core::mem::size_of;
 use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
-use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use std::ffi::OsStr;
 use std::path::Path;
 use windows_sys::Win32::Foundation::HMODULE;
@@ -86,7 +86,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
             let mut mbi: MEMORY_BASIC_INFORMATION64 = unsafe { std::mem::zeroed() };
             let result = unsafe {
                 VirtualQueryEx(
-                    process_info.handle as *mut c_void,
+                    process_info.get_handle() as *mut c_void,
                     current_region.get_base_address() as *const c_void,
                     &mut mbi as *mut _ as *mut _,
                     size_of::<MEMORY_BASIC_INFORMATION64>(),
@@ -190,7 +190,11 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         &self,
         process_info: &OpenedProcessInfo,
     ) -> u64 {
-        if process_info.bitness == Bitness::Bit32 { u32::MAX as u64 } else { u64::MAX }
+        if process_info.get_bitness() == Bitness::Bit32 {
+            u32::MAX as u64
+        } else {
+            u64::MAX
+        }
     }
 
     fn get_min_usermode_address(
@@ -205,7 +209,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         &self,
         process_info: &OpenedProcessInfo,
     ) -> u64 {
-        if process_info.bitness == Bitness::Bit32 {
+        if process_info.get_bitness() == Bitness::Bit32 {
             // For 32-bit applications, the usermode memory is generally the first 2GB of process RAM.
             // JIRA: Large Address Aware support? This is incredibly rare, but would be more correct to support.
             0x7FFF_FFFF
@@ -225,7 +229,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
         let result = unsafe {
             K32EnumProcessModulesEx(
-                process_info.handle as *mut c_void,
+                process_info.get_handle() as *mut c_void,
                 module_handles.as_mut_ptr(),
                 std::mem::size_of_val(&module_handles) as u32,
                 &mut cb_needed,
@@ -243,7 +247,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
             let mut module_path_bytes = vec![0u8; 1024];
             let result = unsafe {
                 K32GetModuleFileNameExA(
-                    process_info.handle as *mut c_void,
+                    process_info.get_handle() as *mut c_void,
                     module_handles[index],
                     module_path_bytes.as_mut_ptr(),
                     module_path_bytes.len() as u32,
@@ -267,7 +271,7 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
 
             let result = unsafe {
                 K32GetModuleInformation(
-                    process_info.handle as *mut c_void,
+                    process_info.get_handle() as *mut c_void,
                     module_handles[index],
                     &mut module_info,
                     std::mem::size_of::<MODULEINFO>() as u32,

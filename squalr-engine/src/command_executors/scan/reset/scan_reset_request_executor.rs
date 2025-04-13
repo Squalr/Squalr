@@ -13,12 +13,23 @@ impl EngineCommandRequestExecutor for ScanResetRequest {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         let snapshot = engine_privileged_state.get_snapshot();
+        let snapshot_scan_result_freeze_list = engine_privileged_state.get_snapshot_scan_result_freeze_list();
 
         match snapshot.write() {
             Ok(mut snapshot) => {
                 // Clears snapshot regions to reset the scan.
                 snapshot.set_snapshot_regions(vec![]);
                 engine_privileged_state.emit_event(ScanResultsUpdatedEvent {});
+
+                // Best-effort to clear the freeze list.
+                match snapshot_scan_result_freeze_list.read() {
+                    Ok(snapshot_scan_result_freeze_list) => {
+                        snapshot_scan_result_freeze_list.clear();
+                    }
+                    Err(err) => {
+                        log::error!("Failed to acquire write lock on snapshot: {}", err);
+                    }
+                }
 
                 log::info!("Cleared scan data.");
 

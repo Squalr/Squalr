@@ -13,11 +13,11 @@ pub struct ScanSettingsSetRequest {
     #[structopt(short = "psize", long)]
     pub results_page_size: Option<u32>,
     #[structopt(short = "r_read_interval", long)]
-    pub results_read_interval: Option<u32>,
+    pub results_read_interval: Option<u64>,
     #[structopt(short = "p_read_interval", long)]
-    pub project_read_interval: Option<u32>,
+    pub project_read_interval: Option<u64>,
     #[structopt(short = "f_interval", long)]
-    pub freeze_interval: Option<u32>,
+    pub freeze_interval: Option<u64>,
     #[structopt(short = "m_align", long)]
     pub memory_alignment: Option<MemoryAlignment>,
     #[structopt(short = "f_tol", long)]

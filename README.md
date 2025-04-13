@@ -52,7 +52,7 @@ Features:
 - [X] Periodic Vectorized overlapping scans.
 - [X] Settings system that respects command/response, IPC, etc.
 - [ ] String scans.
-- [ ] Freezing/deleting scan results directly from scan window.
+- [X] Freezing/deleting scan results directly from scan window.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 - [ ] Property viewer.
 

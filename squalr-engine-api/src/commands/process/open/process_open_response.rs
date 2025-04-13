@@ -1,7 +1,7 @@
 use crate::commands::engine_command_response::EngineCommandResponse;
 use crate::commands::engine_command_response::TypedEngineCommandResponse;
 use crate::commands::process::process_response::ProcessResponse;
-use crate::structures::processes::process_info::OpenedProcessInfo;
+use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

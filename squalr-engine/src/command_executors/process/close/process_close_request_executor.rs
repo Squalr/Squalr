@@ -11,14 +11,18 @@ impl EngineCommandRequestExecutor for ProcessCloseRequest {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         if let Some(process_info) = engine_privileged_state.get_opened_process() {
-            log::info!("Closing process {} with handle {}", process_info.process_id, process_info.handle);
+            log::info!(
+                "Closing process {} with handle {}",
+                process_info.get_process_id_raw(),
+                process_info.get_handle()
+            );
 
-            match ProcessQuery::close_process(process_info.handle) {
+            match ProcessQuery::close_process(process_info.get_handle()) {
                 Ok(_) => {
                     engine_privileged_state.clear_opened_process();
                 }
                 Err(err) => {
-                    log::error!("Failed to close process handle {}: {}", process_info.handle, err);
+                    log::error!("Failed to close process handle {}: {}", process_info.get_handle(), err);
                 }
             }
 

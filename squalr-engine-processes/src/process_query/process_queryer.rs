@@ -1,5 +1,5 @@
 use crate::process_query::process_query_options::ProcessQueryOptions;
-use squalr_engine_api::structures::processes::process_info::{OpenedProcessInfo, ProcessInfo};
+use squalr_engine_api::structures::processes::{opened_process_info::OpenedProcessInfo, process_info::ProcessInfo};
 
 pub(crate) trait ProcessQueryer {
     fn start_monitoring() -> Result<(), String>;

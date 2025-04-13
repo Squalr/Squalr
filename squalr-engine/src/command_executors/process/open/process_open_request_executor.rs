@@ -42,7 +42,7 @@ impl EngineCommandRequestExecutor for ProcessOpenRequest {
                     };
                 }
                 Err(err) => {
-                    log::info!("Failed to open process {}: {}", process_info.process_id, err);
+                    log::info!("Failed to open process {}: {}", process_info.get_process_id_raw(), err);
                 }
             }
         } else {

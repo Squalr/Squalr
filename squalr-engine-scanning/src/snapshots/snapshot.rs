@@ -1,12 +1,9 @@
-use crate::{results::snapshot_scan_result_freeze_list::SnapshotScanResultFreezeList, snapshots::snapshot_region::SnapshotRegion};
+use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scan_results::scan_result_valued::ScanResultValued;
 use std::cmp;
 
 pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,
-
-    // The list of frozen scan results.
-    snapshot_scan_result_freeze_list: SnapshotScanResultFreezeList,
 }
 
 /// Represents a snapshot of memory in an external process that contains current and previous values of memory pages.
@@ -14,10 +11,7 @@ impl Snapshot {
     /// Creates a new snapshot from the given collection of snapshot regions.
     /// This will automatically sort and remove invalid regions.
     pub fn new() -> Self {
-        Self {
-            snapshot_regions: vec![],
-            snapshot_scan_result_freeze_list: SnapshotScanResultFreezeList::new(),
-        }
+        Self { snapshot_regions: vec![] }
     }
 
     /// Assigns new snapshot regions to this snapshot.
@@ -28,7 +22,6 @@ impl Snapshot {
         self.snapshot_regions = snapshot_regions;
         self.discard_empty_regions();
         self.sort_regions();
-        self.snapshot_scan_result_freeze_list.clear();
     }
 
     /// Gets a reference to the snapshot regions contained by this snapshot.
@@ -100,10 +93,5 @@ impl Snapshot {
             .iter()
             .map(|snapshot_region| snapshot_region.get_scan_results().get_number_of_results())
             .sum()
-    }
-
-    /// Gets the list of scan results that have been marked as frozen.
-    pub fn get_snapshot_scan_result_freeze_list(&self) -> &SnapshotScanResultFreezeList {
-        &self.snapshot_scan_result_freeze_list
     }
 }

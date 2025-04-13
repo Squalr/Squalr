@@ -27,7 +27,7 @@ impl ViewDataConverter<ProcessInfo, ProcessViewData> for ProcessInfoConverter {
         &self,
         process_info: &ProcessInfo,
     ) -> ProcessViewData {
-        let icon = if let Some(icon_data) = &process_info.icon {
+        let icon = if let Some(icon_data) = &process_info.get_icon() {
             // Create new buffer and copy the data
             let mut icon_buffer = SharedPixelBuffer::new(icon_data.width, icon_data.height);
             let icon_buffer_bytes = icon_buffer.make_mut_bytes();
@@ -42,9 +42,9 @@ impl ViewDataConverter<ProcessInfo, ProcessViewData> for ProcessInfoConverter {
         };
 
         ProcessViewData {
-            process_id_str: process_info.process_id.to_string().into(),
-            process_id: process_info.process_id as i32,
-            name: process_info.name.to_string().into(),
+            process_id_str: process_info.get_process_id_raw().to_string().into(),
+            process_id: process_info.get_process_id_raw() as i32,
+            name: process_info.get_name().to_string().into(),
             icon,
         }
     }

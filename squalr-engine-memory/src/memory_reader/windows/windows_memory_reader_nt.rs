@@ -1,6 +1,6 @@
 use crate::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
-use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use std::ffi::c_void;
 use std::mem;
 use windows_sys::Win32::Foundation::GetLastError;
@@ -86,7 +86,7 @@ impl IMemoryReader for WindowsMemoryReaderNt {
             let mut bytes_read = 0;
 
             let _unused_result = (self.nt_read_virtual_memory)(
-                process_info.handle as isize,
+                process_info.get_handle() as isize,
                 address as *const c_void,
                 values.as_mut_ptr() as *mut c_void,
                 size,

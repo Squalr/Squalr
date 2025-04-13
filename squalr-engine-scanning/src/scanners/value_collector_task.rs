@@ -2,7 +2,7 @@ use crate::snapshots::snapshot::Snapshot;
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
-use squalr_engine_api::structures::processes::process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use squalr_engine_common::conversions::Conversions;
 use std::sync::Arc;
@@ -43,7 +43,7 @@ impl ValueCollectorTask {
         with_logging: bool,
     ) {
         if with_logging {
-            log::info!("Reading values from memory (process {})...", process_info.process_id);
+            log::info!("Reading values from memory (process {})...", process_info.get_process_id_raw());
         }
 
         let mut snapshot = match snapshot.write() {

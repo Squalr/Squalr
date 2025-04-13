@@ -3,7 +3,7 @@ use crate::{
         engine_event::{EngineEvent, EngineEventRequest},
         process::process_event::ProcessEvent,
     },
-    structures::processes::process_info::OpenedProcessInfo,
+    structures::processes::opened_process_info::OpenedProcessInfo,
 };
 use serde::{Deserialize, Serialize};
 

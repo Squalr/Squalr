@@ -81,7 +81,7 @@ impl ScanSettingsConfig {
         Self::save_config();
     }
 
-    pub fn get_results_read_interval() -> u32 {
+    pub fn get_results_read_interval() -> u64 {
         if let Ok(config) = Self::get_instance().config.read() {
             config.results_read_interval
         } else {
@@ -89,7 +89,7 @@ impl ScanSettingsConfig {
         }
     }
 
-    pub fn set_results_read_interval(value: u32) {
+    pub fn set_results_read_interval(value: u64) {
         if let Ok(mut config) = Self::get_instance().config.write() {
             config.results_read_interval = value;
         }
@@ -97,7 +97,7 @@ impl ScanSettingsConfig {
         Self::save_config();
     }
 
-    pub fn get_project_read_interval() -> u32 {
+    pub fn get_project_read_interval() -> u64 {
         if let Ok(config) = Self::get_instance().config.read() {
             config.project_read_interval
         } else {
@@ -105,7 +105,7 @@ impl ScanSettingsConfig {
         }
     }
 
-    pub fn set_project_read_interval(value: u32) {
+    pub fn set_project_read_interval(value: u64) {
         if let Ok(mut config) = Self::get_instance().config.write() {
             config.project_read_interval = value;
         }
@@ -113,7 +113,7 @@ impl ScanSettingsConfig {
         Self::save_config();
     }
 
-    pub fn get_freeze_interval() -> u32 {
+    pub fn get_freeze_interval() -> u64 {
         if let Ok(config) = Self::get_instance().config.read() {
             config.freeze_interval
         } else {
@@ -121,7 +121,7 @@ impl ScanSettingsConfig {
         }
     }
 
-    pub fn set_freeze_interval(value: u32) {
+    pub fn set_freeze_interval(value: u64) {
         if let Ok(mut config) = Self::get_instance().config.write() {
             config.freeze_interval = value;
         }
