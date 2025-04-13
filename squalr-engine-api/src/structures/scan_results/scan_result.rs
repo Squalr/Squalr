@@ -1,38 +1,41 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::data_value::DataValue;
-use crate::structures::scan_results::scan_result_base::ScanResultBase;
+use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ScanResult {
-    base_result: ScanResultBase,
+    valued_result: ScanResultValued,
     module: String,
     module_offset: u64,
     recently_read_value: Option<DataValue>,
+    is_frozen: bool,
 }
 
 impl ScanResult {
     pub fn new(
-        base_result: ScanResultBase,
+        valued_result: ScanResultValued,
         module: String,
         module_offset: u64,
         recently_read_value: Option<DataValue>,
+        is_frozen: bool,
     ) -> Self {
         Self {
-            base_result,
+            valued_result,
             module,
             module_offset,
             recently_read_value,
+            is_frozen,
         }
     }
 
-    pub fn get_data_type(&self) -> &DataTypeRef {
-        &self.base_result.data_type
+    pub fn get_address(&self) -> u64 {
+        self.valued_result.get_address()
     }
 
-    pub fn get_address(&self) -> u64 {
-        self.base_result.address
+    pub fn get_data_type(&self) -> &DataTypeRef {
+        &self.valued_result.get_data_type()
     }
 
     pub fn is_module(&self) -> bool {
@@ -52,11 +55,15 @@ impl ScanResult {
     }
 
     pub fn get_current_value(&self) -> &Option<DataValue> {
-        &self.base_result.previous_value
+        &self.valued_result.get_current_value()
     }
 
     pub fn get_previous_value(&self) -> &Option<DataValue> {
-        &self.base_result.previous_value
+        &self.valued_result.get_previous_value()
+    }
+
+    pub fn get_is_frozen(&self) -> bool {
+        self.is_frozen
     }
 }
 
@@ -66,7 +73,7 @@ impl fmt::Debug for ScanResult {
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         if self.module.is_empty() {
-            write!(formatter, "ScanResult {{ address: 0x{:X} }}", self.base_result.address)
+            write!(formatter, "ScanResult {{ address: 0x{:X} }}", self.get_address())
         } else {
             write!(
                 formatter,

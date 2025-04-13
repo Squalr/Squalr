@@ -5,12 +5,14 @@ import { ScanResultsViewModelBindings, ScanResultViewData } from "../../view_mod
 import { DataTypeIconConverter } from "../../converters/data_type_icon_converter.slint";
 
 import { Button } from "../../components/buttons/button.slint";
+import { Checkbox } from "../../components/checkboxes/checkbox.slint";
 
 export component ScanResultEntry inherits Button {
     in property <ScanResultViewData> scan_result_view_data;
     in property <length> address_splitter_location;
     in property <length> current_values_splitter_location;
     in property <length> previous_values_splitter_location;
+    in property <int> index;
     callback on_click();
     height: 24px;
     data_type_icon_converter := DataTypeIconConverter { }
@@ -18,6 +20,14 @@ export component ScanResultEntry inherits Button {
     clicked => {
         root.on_click();
     }
+    Checkbox {
+        x: 8px;
+        is_checked: scan_result_view_data.is_frozen;
+        check_changed(value) => {
+            ScanResultsViewModelBindings.set_scan_result_frozen(root.index, value);
+        }
+    }
+
     HorizontalBox {
         x: root.address_splitter_location + 8px;
         padding: 0px;

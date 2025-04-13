@@ -116,6 +116,7 @@ impl SnapshotRegion {
         }
     }
 
+    /// Gets a pointer to the first current value element in the specified filter contained within this snapshot region.
     pub fn get_current_values_filter_pointer(
         &self,
         snapshot_region_filter: &SnapshotRegionFilter,
@@ -129,6 +130,7 @@ impl SnapshotRegion {
         }
     }
 
+    /// Gets a pointer to the first previous value element in the specified filter contained within this snapshot region.
     pub fn get_previous_values_filter_pointer(
         &self,
         snapshot_region_filter: &SnapshotRegionFilter,

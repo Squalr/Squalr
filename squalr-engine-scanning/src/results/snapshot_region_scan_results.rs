@@ -1,6 +1,6 @@
 use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::{
-    data_types::data_type_ref::DataTypeRef, scan_results::scan_result_base::ScanResultBase,
+    data_types::data_type_ref::DataTypeRef, scan_results::scan_result_valued::ScanResultValued,
     scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection,
 };
 use std::{cmp::Reverse, collections::BinaryHeap};
@@ -25,6 +25,7 @@ impl SnapshotRegionScanResults {
         }
     }
 
+    /// Gets the scan results (as a snapshot region filter collection) corresponding to the provided data type.
     pub fn get_scan_results_by_data_type(
         &self,
         data_type: &DataTypeRef,
@@ -38,11 +39,12 @@ impl SnapshotRegionScanResults {
         None
     }
 
+    /// Performs a binary search to find the specified scan result by index.
     pub fn get_scan_result(
         &self,
         snapshot_region: &SnapshotRegion,
         mut scan_result_index: u64,
-    ) -> Option<ScanResultBase> {
+    ) -> Option<ScanResultValued> {
         let mut heap: BinaryHeap<Reverse<(usize, usize)>> = BinaryHeap::new();
 
         // Each entry in heap is (address, collection_index, filter_index).
@@ -71,12 +73,12 @@ impl SnapshotRegionScanResults {
             if scan_result_index < result_count {
                 // The desired result is within this filter.
                 let scan_result_address = filter.get_base_address() + scan_result_index * memory_alignment as u64;
-                return Some(ScanResultBase {
-                    address: scan_result_address,
-                    data_type: data_type.clone(),
-                    current_value: snapshot_region.get_current_value(scan_result_address, data_type),
-                    previous_value: snapshot_region.get_previous_value(scan_result_address, data_type),
-                });
+                return Some(ScanResultValued::new(
+                    scan_result_address,
+                    data_type.clone(),
+                    snapshot_region.get_current_value(scan_result_address, data_type),
+                    snapshot_region.get_previous_value(scan_result_address, data_type),
+                ));
             }
 
             // Decrease the index as we've skipped this entire filter's elements.
@@ -94,17 +96,19 @@ impl SnapshotRegionScanResults {
 
     /// Gets the number of results contained in this lookup table.
     pub fn get_number_of_results(&self) -> u64 {
-        // Just sum the results for each collection. At most we would expect about 10 collections, so this is fine.
+        // Just sum the results for each collection. At most we would expect about ~10 collections, so this is fine.
         self.snapshot_region_filter_collections
             .iter()
             .map(|collection| collection.get_number_of_results())
             .sum()
     }
 
+    /// Gets the collections of snapshot filters contained by this snapshot region. Generally one collection per data type scanned.
     pub fn get_filter_collections(&self) -> &Vec<SnapshotRegionFilterCollection> {
         &self.snapshot_region_filter_collections
     }
 
+    /// Gets the minimum and maximum bounds across every filter contained by this snapshot region.
     pub fn get_filter_bounds(&self) -> (u64, u64) {
         let mut filter_min_address = u64::MAX;
         let mut filter_max_address = 0u64;

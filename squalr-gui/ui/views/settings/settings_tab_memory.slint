@@ -35,6 +35,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Execute");
                         is_checked <=> MemorySettingsViewModelBindings.required_execute;
                         check_changed(value) => {
+                            MemorySettingsViewModelBindings.required_execute = value;
                             MemorySettingsViewModelBindings.required_execute_changed(value);
                         }
                     }
@@ -60,7 +61,7 @@ export component SettingsTabMemory inherits Rectangle {
                         text: @tr("Write");
                         is_checked <=> MemorySettingsViewModelBindings.excluded_write;
                         check_changed(value) => {
-                            MemorySettingsViewModelBindings.excluded_copy_on_write = value;
+                            MemorySettingsViewModelBindings.excluded_write = value;
                             MemorySettingsViewModelBindings.excluded_write_changed(value);
                         }
                     }

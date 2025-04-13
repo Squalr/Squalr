@@ -1,2 +1,3 @@
 pub mod scan_result;
 pub mod scan_result_base;
+pub mod scan_result_valued;

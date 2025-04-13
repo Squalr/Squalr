@@ -13,11 +13,12 @@ use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
-use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
+use squalr_engine_api::structures::scan_results::scan_result_valued::ScanResultValued;
 use squalr_engine_common::conversions::Conversions;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -29,7 +30,7 @@ use std::time::Duration;
 pub struct ScanResultsViewModel {
     view_binding: ViewBinding<MainWindowView>,
     audio_player: Arc<AudioPlayer>,
-    base_scan_results_collection: Arc<RwLock<Vec<ScanResultBase>>>,
+    base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
     scan_results_collection: ViewCollectionBinding<ScanResultViewData, ScanResult, MainWindowView>,
     engine_execution_context: Arc<EngineExecutionContext>,
     current_page_index: Arc<AtomicU64>,
@@ -73,8 +74,10 @@ impl ScanResultsViewModel {
                     on_navigate_last_page() -> [view] -> Self::on_navigate_last_page,
                     on_navigate_previous_page() -> [view] -> Self::on_navigate_previous_page,
                     on_navigate_next_page() -> [view] -> Self::on_navigate_next_page,
-                    on_add_result_range(start_index: i32, end_index: i32) -> [] -> Self::on_add_result_range,
+                    on_add_result_range(local_start_index: i32, local_end_index: i32) -> [] -> Self::on_add_result_range,
                     on_page_index_text_changed(new_page_index_text: SharedString) -> [view] -> Self::on_page_index_text_changed,
+                    on_delete_scan_result(local_scan_result_index: i32) -> [engine_execution_context] -> Self::on_delete_scan_result,
+                    on_set_scan_result_frozen(local_scan_result_index: i32, is_frozen: bool) -> [engine_execution_context, base_scan_results_collection] -> Self::on_set_scan_result_frozen,
                 },
             });
         }
@@ -96,7 +99,7 @@ impl ScanResultsViewModel {
             });
         }
 
-        // Refresh scan values on a loop.
+        // Refresh scan values on a loop. JIRA: This should be coming from settings. We can probably cache, and have some mechanism for getting latest val.
         thread::spawn(move || {
             loop {
                 Self::refresh_scan_results(scan_results_view_model.clone());
@@ -253,5 +256,32 @@ impl ScanResultsViewModel {
         let new_page_index = Self::load_current_page_index(&scan_results_view_model).saturating_add(1);
 
         Self::set_page_index(scan_results_view_model, new_page_index);
+    }
+
+    fn on_delete_scan_result(
+        engine_execution_context: Arc<EngineExecutionContext>,
+        scan_result_index: i32,
+    ) {
+    }
+
+    fn on_set_scan_result_frozen(
+        engine_execution_context: Arc<EngineExecutionContext>,
+        base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
+        local_scan_result_index: i32,
+        is_frozen: bool,
+    ) {
+        // Gather the current/incomplete scan results.
+        let scan_results_to_refresh = match base_scan_results_collection.read() {
+            Ok(base_scan_results_collection) => base_scan_results_collection.clone(),
+            Err(_) => vec![],
+        };
+        if let Some(scan_result) = scan_results_to_refresh
+            .get(local_scan_result_index as usize)
+            .map(|scan_result| scan_result.get_scan_result_base().clone())
+        {
+            let scan_results_freeze_request = ScanResultsFreezeRequest { scan_result, is_frozen };
+
+            scan_results_freeze_request.send(&engine_execution_context, |_scan_results_freeze_response| {});
+        }
     }
 }

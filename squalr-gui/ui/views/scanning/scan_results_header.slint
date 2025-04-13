@@ -8,7 +8,8 @@ export component ScanResultsHeader inherits Rectangle {
     in property <length> current_value_header_start;
     in property <length> previous_value_header_start;
     out property <length> freeze_padding: 24px;
-    height: 32px;
+    out property <length> header_height: 32px;
+    height: root.header_height;
     Image {
         x: root.header_entry_padding;
         width: 16px;

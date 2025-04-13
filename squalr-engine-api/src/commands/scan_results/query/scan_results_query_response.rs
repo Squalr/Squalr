@@ -1,12 +1,12 @@
 use crate::commands::engine_command_response::EngineCommandResponse;
 use crate::commands::engine_command_response::TypedEngineCommandResponse;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
-use crate::structures::scan_results::scan_result_base::ScanResultBase;
+use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanResultsQueryResponse {
-    pub scan_results: Vec<ScanResultBase>,
+    pub scan_results: Vec<ScanResultValued>,
     pub page_index: u64,
     pub last_page_index: u64,
     pub page_size: u64,

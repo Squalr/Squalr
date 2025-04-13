@@ -22,6 +22,9 @@ impl EngineCommandExecutor for ScanResultsCommand {
             ScanResultsCommand::Refresh { results_refresh_request } => results_refresh_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
+            ScanResultsCommand::Freeze { results_freeze_request } => results_freeze_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
         }
     }
 }

@@ -29,24 +29,33 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
         for scan_result_base in self.scan_results.clone().into_iter() {
             let mut recently_read_value = None;
             let mut module_name = String::default();
-            let mut module_offset = scan_result_base.address;
+            let address = scan_result_base.get_address();
+            let mut module_offset = scan_result_base.get_address();
 
             // Best-effort attempt to read the values for this scan result.
             if let Some(opened_process_info) = engine_privileged_state.get_opened_process() {
-                if let Some(mut data_value) = scan_result_base.data_type.get_default_value() {
-                    if MemoryReader::get_instance().read(&opened_process_info, scan_result_base.address, &mut data_value) {
+                if let Some(mut data_value) = scan_result_base.get_data_type().get_default_value() {
+                    if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
                         recently_read_value = Some(data_value);
                     }
                 }
             }
 
             // Check whether this scan result belongs to a module (ie check if the address is static).
-            if let Some((found_module_name, address)) = MemoryQueryer::get_instance().address_to_module(scan_result_base.address, &modules) {
+            if let Some((found_module_name, address)) = MemoryQueryer::get_instance().address_to_module(address, &modules) {
                 module_name = found_module_name;
                 module_offset = address;
             }
 
-            scan_results_list.push(ScanResult::new(scan_result_base, module_name, module_offset, recently_read_value));
+            let is_frozen = if let Ok(snapshot) = engine_privileged_state.get_snapshot().read() {
+                snapshot
+                    .get_snapshot_scan_result_freeze_list()
+                    .is_address_frozen(address)
+            } else {
+                false
+            };
+
+            scan_results_list.push(ScanResult::new(scan_result_base, module_name, module_offset, recently_read_value, is_frozen));
         }
 
         ScanResultsRefreshResponse {

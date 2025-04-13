@@ -1,4 +1,4 @@
-import { Theme } from "../../theme.slint";
+import { Theme } from "./../../theme.slint";
 
 import { DockedWindowView } from "../../views/docking/docked_window_view.slint";
 import { OutputView } from "../../views/output/output_view.slint";
@@ -7,7 +7,7 @@ import { ProcessSelectorView } from "../../views/process_selector/process_select
 import { ProjectExplorerView } from "../../views/project_explorer/project_explorer_view.slint";
 import { ScanResultsView } from "../../views/scanning/scan_results_view.slint";
 import { SettingsView } from "../../views/settings/settings_view.slint";
-import { DockRootViewModelBindings } from "../../view_model_bindings.slint";
+import { DockRootViewModelBindings } from "./../../view_model_bindings.slint";
 
 export component DockRoot inherits Rectangle {
     // JIRA: These fail to fire until the window is done being dragged. It would be nice if we had real time.

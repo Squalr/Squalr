@@ -78,6 +78,7 @@ impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
             data_type: data_type_view,
             current_value: current_value_string.into(),
             previous_value: previous_value_string.into(),
+            is_frozen: scan_result.get_is_frozen(),
         }
     }
 

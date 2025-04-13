@@ -226,6 +226,7 @@ export struct ScanResultViewData {
     address: string,
     current_value: string,
     previous_value: string,
+    is_frozen: bool,
 }
 
 export global ScanResultsViewModelBindings {
@@ -239,8 +240,10 @@ export global ScanResultsViewModelBindings {
     callback navigate_last_page();
     callback navigate_next_page();
     callback navigate_previous_page();
-    callback add_result_range(start_index: int, end_index: int);
+    callback add_result_range(local_start_index: int, local_end_index: int);
     callback page_index_text_changed(new_page_index_text: string);
+    callback delete_scan_result(local_scan_result_index: int);
+    callback set_scan_result_frozen(local_scan_result_index: int, is_frozen: bool);
 }
 
 export global PointerScanResultsViewModelBindings { }
