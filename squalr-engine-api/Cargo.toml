@@ -9,6 +9,8 @@ edition = "2024"
 squalr-engine-common = { path = "../squalr-engine-common" }
 crossbeam-channel = ">=0.5.14"
 dashmap = ">=6.1.0"
+encoding = ">=0.2.33"
+encoding_rs = ">=0.8.35"
 log = ">=0.4.26"
 rayon = "1.10.0"
 num-traits = { version = ">=0.2.19" }

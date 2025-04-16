@@ -1,6 +1,7 @@
 use crate::structures::data_types::built_in_types::primitive_type::PrimitiveDataType;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
+use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
@@ -12,8 +13,10 @@ type PrimitiveType = u64;
 pub struct DataTypeU64 {}
 
 impl DataTypeU64 {
+    pub const DATA_TYPE_ID: &str = "u64";
+
     pub fn get_data_type_id() -> &'static str {
-        &"u64"
+        Self::DATA_TYPE_ID
     }
 
     fn to_vec(value: PrimitiveType) -> Vec<u8> {
@@ -34,16 +37,30 @@ impl DataType for DataTypeU64 {
         size_of::<PrimitiveType>() as u64
     }
 
+    fn validate_value(
+        &self,
+        anonymous_value: &AnonymousValue,
+    ) -> bool {
+        let data_type_ref = DataTypeRef::new(self.get_data_type_id(), DataTypeMetaData::None);
+
+        match self.deanonymize_value(anonymous_value, data_type_ref) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
+
     fn deanonymize_value(
         &self,
         anonymous_value: &AnonymousValue,
-    ) -> Result<Vec<u8>, DataTypeError> {
-        PrimitiveDataType::deanonymize_primitive::<PrimitiveType>(anonymous_value, false)
+        data_type_ref: DataTypeRef,
+    ) -> Result<DataValue, DataTypeError> {
+        PrimitiveDataType::deanonymize_primitive::<PrimitiveType>(anonymous_value, data_type_ref, false)
     }
 
     fn create_display_value(
         &self,
         value_bytes: &[u8],
+        _data_type_meta_data: &DataTypeMetaData,
     ) -> Result<String, DataTypeError> {
         let expected = self.get_default_size_in_bytes() as usize;
         let actual = value_bytes.len();
@@ -75,9 +92,9 @@ impl DataType for DataTypeU64 {
 
     fn get_default_value(
         &self,
-        _data_type_meta_data: &DataTypeMetaData,
+        data_type_ref: DataTypeRef,
     ) -> DataValue {
-        DataValue::new(self.get_data_type_id(), Self::to_vec(0))
+        DataValue::new(data_type_ref, Self::to_vec(0))
     }
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {

@@ -44,11 +44,7 @@ impl ValidationViewModel {
         let data_type = data_value_view.data_type.to_string();
 
         if let Some(data_type) = registry.get(&data_type) {
-            if let Ok(_) = data_type.deanonymize_value(&anonymous_value) {
-                true
-            } else {
-                false
-            }
+            data_type.validate_value(&anonymous_value)
         } else {
             false
         }

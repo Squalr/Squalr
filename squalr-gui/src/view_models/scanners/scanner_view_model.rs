@@ -108,16 +108,13 @@ impl ScannerViewModel {
                 Self::start_scan(scanner_view_model, scan_constraint, AnonymousValue::new_string(&scan_value, is_value_hex));
             }
             ScanViewModelState::NoResults => {
-                let data_type_id = data_type_view.data_type.to_string();
-                let scan_value = AnonymousValue::new_string(&scan_value, is_value_hex);
-                let data_type_meta_data = match scan_value.deanonymize_value(&data_type_id) {
-                    Ok(value) => DataTypeMetaData::SizedContainer(value.get_size_in_bytes()),
-                    Err(_) => DataTypeMetaData::None,
-                };
-                let data_type = DataTypeRef::new(&data_type_id, data_type_meta_data);
                 let memory_alignment = MemoryAlignmentConverter {}.convert_from_view_data(&memory_alignment_view);
+                let data_type_id = data_type_view.data_type.to_string();
+                let data_type_meta_data = DataTypeMetaData::None;
+                let data_type_ref = DataTypeRef::new(&data_type_id, data_type_meta_data);
+                let scan_value = AnonymousValue::new_string(&scan_value, is_value_hex);
 
-                Self::new_scan(scanner_view_model, data_type, memory_alignment, scan_constraint, scan_value);
+                Self::new_scan(scanner_view_model, data_type_ref, memory_alignment, scan_constraint, scan_value);
             }
             ScanViewModelState::ScanInProgress => {
                 log::error!("Cannot start a new scan while a scan is in progress.");

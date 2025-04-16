@@ -1,5 +1,5 @@
-use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_values::data_value::DataValue;
+use crate::{registries::data_types::data_type_registry::DataTypeRegistry, structures::data_types::data_type_ref::DataTypeRef};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -37,16 +37,16 @@ impl AnonymousValue {
 
     pub fn deanonymize_value(
         &self,
-        data_type_id: &str,
+        data_type_ref: DataTypeRef,
     ) -> Result<DataValue, String> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        match registry.get(data_type_id) {
+        match registry.get(data_type_ref.get_data_type_id()) {
             Some(data_type) => {
-                let deanonymized_value = data_type.deanonymize_value(&self);
+                let deanonymized_value = data_type.deanonymize_value(&self, data_type_ref);
 
                 match deanonymized_value {
-                    Ok(value) => Ok(DataValue::new(data_type_id, value)),
+                    Ok(value) => Ok(value),
                     Err(err) => Err(err.to_string()),
                 }
             }

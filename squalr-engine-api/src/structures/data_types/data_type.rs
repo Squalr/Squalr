@@ -16,14 +16,21 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
 
     fn get_default_size_in_bytes(&self) -> u64;
 
+    fn validate_value(
+        &self,
+        anonymous_value: &AnonymousValue,
+    ) -> bool;
+
     fn deanonymize_value(
         &self,
         anonymous_value: &AnonymousValue,
-    ) -> Result<Vec<u8>, DataTypeError>;
+        data_type_ref: DataTypeRef,
+    ) -> Result<DataValue, DataTypeError>;
 
     fn create_display_value(
         &self,
         value_bytes: &[u8],
+        data_type_meta_data: &DataTypeMetaData,
     ) -> Result<String, DataTypeError>;
 
     fn get_endian(&self) -> Endian;
@@ -32,7 +39,7 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
 
     fn get_default_value(
         &self,
-        data_type_meta_data: &DataTypeMetaData,
+        data_type_ref: DataTypeRef,
     ) -> DataValue;
 
     fn get_default_meta_data(&self) -> DataTypeMetaData;

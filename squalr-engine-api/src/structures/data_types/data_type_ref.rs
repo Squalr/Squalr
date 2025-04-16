@@ -18,6 +18,10 @@ use std::{
     str::FromStr,
 };
 
+use super::built_in_types::byte_array::data_type_byte_array::DataTypeByteArray;
+use super::built_in_types::string::data_type_string::DataTypeString;
+use super::built_in_types::string::string_encodings::StringEncoding;
+
 /// Represents a handle to a data type. This is kept as a weak reference, as DataTypes can be registered/unregistered by plugins.
 /// As such, `DataType` is a `Box<dyn>` type, so it is much easier to abstract them behind `DataTypeRef` and just pass around handles.
 /// This is also important for serialization/deserialization, as if a plugin that defines a type is disabled, we can still deserialize it.
@@ -51,6 +55,10 @@ impl DataTypeRef {
         &self.data_type_id
     }
 
+    pub fn get_meta_data(&self) -> &DataTypeMetaData {
+        &self.data_type_meta_data
+    }
+
     pub fn get_icon_id(&self) -> String {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
@@ -61,7 +69,7 @@ impl DataTypeRef {
     }
 
     pub fn get_size_in_bytes(&self) -> u64 {
-        match self.data_type_meta_data {
+        match &self.data_type_meta_data {
             // For standard types, return the default / primitive size from the data type in the registry.
             DataTypeMetaData::None => {
                 let registry = DataTypeRegistry::get_instance().get_registry();
@@ -72,7 +80,9 @@ impl DataTypeRef {
                 }
             }
             // For container types, return the size of the container.
-            DataTypeMetaData::SizedContainer(size) => size,
+            DataTypeMetaData::SizedContainer(size) => *size,
+            // For string types, return the size of the container.
+            DataTypeMetaData::EncodedString(size, _encoding) => *size,
         }
     }
 
@@ -84,10 +94,10 @@ impl DataTypeRef {
 
         match registry.get(self.get_data_type_id()) {
             Some(data_type) => {
-                let deanonymized_value = data_type.deanonymize_value(anonymous_value);
+                let deanonymized_value = data_type.deanonymize_value(anonymous_value, self.clone());
 
                 match deanonymized_value {
-                    Ok(value) => Ok(DataValue::new(self.get_data_type_id(), value)),
+                    Ok(value) => Ok(value),
                     Err(err) => Err(err.to_string()),
                 }
             }
@@ -108,7 +118,7 @@ impl DataTypeRef {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(self.get_data_type_id()) {
-            Some(data_type) => Some(data_type.get_default_value(&self.data_type_meta_data)),
+            Some(data_type) => Some(data_type.get_default_value(self.clone())),
             None => None,
         }
     }
@@ -233,22 +243,40 @@ impl FromStr for DataTypeRef {
         let parts: Vec<&str> = string.split(';').collect();
 
         if parts.len() <= 0 {
-            return Err("Invalid data type ref format, expected {data_type}{;optional_container_size}".into());
+            return Err("Invalid data type ref format, expected {data_type}{;optional_data_type_meta_data}".into());
         }
+
+        let data_type_id = parts[0];
 
         // Parse out any sized container data if it was present.
         let data_type_meta_data = if parts.len() < 2 {
             DataTypeMetaData::None
         } else {
-            DataTypeMetaData::SizedContainer(match parts[1].trim().parse::<u64>() {
-                Ok(container_size) => container_size,
-                Err(err) => {
-                    return Err(format!("Failed to parse address: {}", err));
-                }
-            })
+            if data_type_id == DataTypeByteArray::get_data_type_id() {
+                let container_size = match parts[1].trim().parse::<u64>() {
+                    Ok(container_size) => container_size,
+                    Err(err) => {
+                        return Err(format!("Failed to parse container size: {}", err));
+                    }
+                };
+                DataTypeMetaData::SizedContainer(container_size)
+            } else if data_type_id == DataTypeString::get_data_type_id() {
+                let string_size = match parts[1].trim().parse::<u64>() {
+                    Ok(string_size) => string_size,
+                    Err(err) => {
+                        return Err(format!("Failed to parse string size: {}", err));
+                    }
+                };
+                let encoding_string = if parts.len() >= 2 { parts[2].trim() } else { "" };
+                let encoding = encoding_string.parse().unwrap_or(StringEncoding::Utf8);
+
+                DataTypeMetaData::EncodedString(string_size, encoding)
+            } else {
+                return Err("Failed to parse meta data for given data type.".into());
+            }
         };
 
-        Ok(DataTypeRef::new(parts[0], data_type_meta_data))
+        Ok(DataTypeRef::new(data_type_id, data_type_meta_data))
     }
 }
 

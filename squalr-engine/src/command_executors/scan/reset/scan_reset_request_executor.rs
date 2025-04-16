@@ -17,10 +17,6 @@ impl EngineCommandRequestExecutor for ScanResetRequest {
 
         match snapshot.write() {
             Ok(mut snapshot) => {
-                // Clears snapshot regions to reset the scan.
-                snapshot.set_snapshot_regions(vec![]);
-                engine_privileged_state.emit_event(ScanResultsUpdatedEvent {});
-
                 // Best-effort to clear the freeze list.
                 match snapshot_scan_result_freeze_list.read() {
                     Ok(snapshot_scan_result_freeze_list) => {
@@ -30,6 +26,10 @@ impl EngineCommandRequestExecutor for ScanResetRequest {
                         log::error!("Failed to acquire write lock on snapshot: {}", err);
                     }
                 }
+
+                // Clears snapshot regions to reset the scan.
+                snapshot.set_snapshot_regions(vec![]);
+                engine_privileged_state.emit_event(ScanResultsUpdatedEvent {});
 
                 log::info!("Cleared scan data.");
 

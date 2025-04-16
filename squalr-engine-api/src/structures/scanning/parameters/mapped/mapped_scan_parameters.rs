@@ -246,7 +246,7 @@ impl MappedScanParameters {
         // This ensures that the data value matches in length to the target type.
         match new_data_type.deanonymize_value(&reanonymized_value) {
             Ok(data_value) => data_value,
-            Err(_) => DataValue::new("", vec![]),
+            Err(_) => DataValue::new(new_data_type.clone(), vec![]),
         }
     }
 
@@ -267,7 +267,7 @@ impl MappedScanParameters {
         }
 
         // Fall back to an empty data type.
-        DataValue::new("", vec![])
+        DataValue::new(data_type.clone(), vec![])
     }
 
     fn is_single_element_scan(
