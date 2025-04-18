@@ -7,17 +7,17 @@ use std::str::FromStr;
 
 /// Defines a unique pair of `DataType` and `MemoryAlignment` used in a scan within a larger scan job.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserScanParametersLocal {
-    data_type: DataTypeRef,
+pub struct DataTypeAndAlignment {
+    data_type_ref: DataTypeRef,
     alignment: Option<MemoryAlignment>,
 }
 
-impl UserScanParametersLocal {
+impl DataTypeAndAlignment {
     pub fn new(
-        data_type: DataTypeRef,
+        data_type_ref: DataTypeRef,
         alignment: Option<MemoryAlignment>,
     ) -> Self {
-        Self { data_type, alignment }
+        Self { data_type_ref, alignment }
     }
 
     pub fn get_memory_alignment(&self) -> &Option<MemoryAlignment> {
@@ -28,58 +28,58 @@ impl UserScanParametersLocal {
         if let Some(alignment) = self.alignment {
             alignment
         } else {
-            // Squalr is fast, so we can just default to an alignment of 1 to prevent missing anything important.
+            // Default to an alignment of 1 to prevent missing anything important.
             MemoryAlignment::Alignment1
         }
     }
 
     pub fn get_data_type(&self) -> &DataTypeRef {
-        &self.data_type
+        &self.data_type_ref
     }
 }
 
 #[derive(Debug)]
-pub enum UserScanParametersLocalParseError {
+pub enum DataTypeAndAlignmentParseError {
     InvalidFormat,
     InvalidAlignment(ParseIntError),
     InvalidDataType,
 }
 
-impl fmt::Display for UserScanParametersLocalParseError {
+impl fmt::Display for DataTypeAndAlignmentParseError {
     fn fmt(
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            UserScanParametersLocalParseError::InvalidFormat => write!(formatter, "Invalid format"),
-            UserScanParametersLocalParseError::InvalidAlignment(err) => write!(formatter, "Invalid alignment: {}", err),
-            UserScanParametersLocalParseError::InvalidDataType => write!(formatter, "Invalid data type"),
+            DataTypeAndAlignmentParseError::InvalidFormat => write!(formatter, "Invalid format"),
+            DataTypeAndAlignmentParseError::InvalidAlignment(err) => write!(formatter, "Invalid alignment: {}", err),
+            DataTypeAndAlignmentParseError::InvalidDataType => write!(formatter, "Invalid data type"),
         }
     }
 }
 
-impl From<ParseIntError> for UserScanParametersLocalParseError {
+impl From<ParseIntError> for DataTypeAndAlignmentParseError {
     fn from(e: ParseIntError) -> Self {
-        UserScanParametersLocalParseError::InvalidAlignment(e)
+        DataTypeAndAlignmentParseError::InvalidAlignment(e)
     }
 }
 
-impl FromStr for UserScanParametersLocal {
-    type Err = UserScanParametersLocalParseError;
+impl FromStr for DataTypeAndAlignment {
+    type Err = DataTypeAndAlignmentParseError;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = string.split('=').collect();
 
         // Check if there is at least one part, and at most two.
         if parts.len() < 1 || parts.len() > 2 {
-            return Err(UserScanParametersLocalParseError::InvalidFormat);
+            return Err(DataTypeAndAlignmentParseError::InvalidFormat);
         }
 
         // Parse the data type from the first part.
         let data_type = parts[0]
             .trim()
             .parse::<DataTypeRef>()
-            .map_err(|_| UserScanParametersLocalParseError::InvalidDataType)?;
+            .map_err(|_| DataTypeAndAlignmentParseError::InvalidDataType)?;
 
         // Handle the optional alignment part.
         let alignment = if parts.len() == 2 {
@@ -95,7 +95,7 @@ impl FromStr for UserScanParametersLocal {
             None
         };
 
-        // Create a new UserScanParametersLocal with the parsed values.
-        Ok(UserScanParametersLocal::new(data_type, alignment))
+        // Create a new DataTypeAndAlignment with the parsed values.
+        Ok(DataTypeAndAlignment::new(data_type, alignment))
     }
 }

@@ -37,7 +37,7 @@ impl EngineCommandRequestExecutor for ScanCollectValuesRequest {
                 engine_privileged_state
                     .get_trackable_task_manager()
                     .unregister_task(&task.get_task_identifier());
-                engine_privileged_state.emit_event(ScanResultsUpdatedEvent {});
+                engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: false });
             });
 
             ScanCollectValuesResponse {

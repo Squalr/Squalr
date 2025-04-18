@@ -1,4 +1,4 @@
-use crate::structures::{data_types::data_type_ref::DataTypeRef, data_values::data_value::DataValue};
+use crate::structures::data_types::data_type_ref::DataTypeRef;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -7,15 +7,15 @@ use std::str::FromStr;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanResultBase {
     address: u64,
-    data_type: DataTypeRef,
+    data_type_ref: DataTypeRef,
 }
 
 impl ScanResultBase {
     pub fn new(
         address: u64,
-        data_type: DataTypeRef,
+        data_type_ref: DataTypeRef,
     ) -> Self {
-        Self { address, data_type }
+        Self { address, data_type_ref }
     }
 
     pub fn get_address(&self) -> u64 {
@@ -23,7 +23,7 @@ impl ScanResultBase {
     }
 
     pub fn get_data_type(&self) -> &DataTypeRef {
-        &self.data_type
+        &self.data_type_ref
     }
 }
 
@@ -43,20 +43,8 @@ impl FromStr for ScanResultBase {
             }
         };
 
-        let data_type = parts[1].trim().parse::<DataTypeRef>()?;
+        let data_type_ref = parts[1].trim().parse::<DataTypeRef>()?;
 
-        let current_value = if parts.len() > 2 && !parts[2].trim().is_empty() {
-            Some(parts[2].trim().parse::<DataValue>()?)
-        } else {
-            None
-        };
-
-        let previous_value = if parts.len() > 3 && !parts[3].trim().is_empty() {
-            Some(parts[3].trim().parse::<DataValue>()?)
-        } else {
-            None
-        };
-
-        Ok(ScanResultBase { address, data_type })
+        Ok(ScanResultBase { address, data_type_ref })
     }
 }

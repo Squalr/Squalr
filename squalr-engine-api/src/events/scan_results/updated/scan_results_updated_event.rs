@@ -5,7 +5,9 @@ use crate::events::{
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ScanResultsUpdatedEvent {}
+pub struct ScanResultsUpdatedEvent {
+    pub is_new_scan: bool,
+}
 
 impl EngineEventRequest for ScanResultsUpdatedEvent {
     fn to_engine_event(&self) -> EngineEvent {

@@ -1,5 +1,4 @@
 use crate::structures::memory::memory_alignment::MemoryAlignment;
-use crate::structures::scanning::parameters::user::user_scan_parameters_local::UserScanParametersLocal;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, scanning::filters::snapshot_region_filter::SnapshotRegionFilter};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
@@ -8,8 +7,11 @@ pub struct SnapshotRegionFilterCollection {
     /// The filters contained in this collection. This is kept as a vector of vectors for better parallelization.
     snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
 
-    // The data type and memory alignment of all elements in this filter.
-    user_scan_parameters_local: UserScanParametersLocal,
+    // The data type of all elements in this filter.
+    data_type_ref: DataTypeRef,
+
+    // The memory alignment of all elements in this filter.
+    memory_alignment: MemoryAlignment,
 
     // The total number of results contained in this collection.
     number_of_results: u64,
@@ -20,7 +22,8 @@ impl SnapshotRegionFilterCollection {
     /// representing regions of memory with the specified data type and alignment.
     pub fn new(
         mut snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
-        user_scan_parameters_local: UserScanParametersLocal,
+        data_type_ref: DataTypeRef,
+        memory_alignment: MemoryAlignment,
     ) -> Self {
         // Sort each inner vector by base address.
         // JIRA: This data is likely already sorted. Should we just cut this?
@@ -37,18 +40,17 @@ impl SnapshotRegionFilterCollection {
                 .unwrap_or(u64::MAX)
         });
 
-        let data_type = user_scan_parameters_local.get_data_type();
-        let memory_alignment = user_scan_parameters_local.get_memory_alignment_or_default();
         let number_of_results = snapshot_region_filters
             .iter()
             .flatten()
-            .map(|filter| filter.get_element_count(&data_type, memory_alignment))
+            .map(|filter| filter.get_element_count(&data_type_ref, memory_alignment))
             .sum();
 
         Self {
             snapshot_region_filters,
             number_of_results,
-            user_scan_parameters_local,
+            data_type_ref,
+            memory_alignment,
         }
     }
 
@@ -81,20 +83,14 @@ impl SnapshotRegionFilterCollection {
         self.number_of_results
     }
 
-    /// Gets the scan filter parameters of this snapshot region filter collection.
-    pub fn get_user_scan_parameters_local(&self) -> &UserScanParametersLocal {
-        &self.user_scan_parameters_local
-    }
-
     /// Gets the data type of this snapshot region filter collection.
     pub fn get_data_type(&self) -> &DataTypeRef {
-        &self.user_scan_parameters_local.get_data_type()
+        &self.data_type_ref
     }
 
     /// Gets the memory alignment of this snapshot region filter collection.
     pub fn get_memory_alignment(&self) -> MemoryAlignment {
-        self.user_scan_parameters_local
-            .get_memory_alignment_or_default()
+        self.memory_alignment
     }
 
     /// Iterates the snapshot region filters sequentially, which are sorted by base address ascending.

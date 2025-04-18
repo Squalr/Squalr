@@ -94,8 +94,9 @@ impl ScanResultsViewModel {
         {
             let scan_results_view_model = scan_results_view_model.clone();
 
-            engine_execution_context.listen_for_engine_event::<ScanResultsUpdatedEvent>(move |_scan_results_updated_event| {
-                Self::query_scan_results(scan_results_view_model.clone(), true);
+            engine_execution_context.listen_for_engine_event::<ScanResultsUpdatedEvent>(move |scan_results_updated_event| {
+                let play_sound = !scan_results_updated_event.is_new_scan;
+                Self::query_scan_results(scan_results_view_model.clone(), play_sound);
             });
         }
 

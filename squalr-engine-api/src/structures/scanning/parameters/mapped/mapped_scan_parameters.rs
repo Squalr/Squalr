@@ -1,6 +1,3 @@
-use std::simd::LaneCount;
-use std::simd::SupportedLaneCount;
-
 use crate::structures::data_types::built_in_types::byte_array::data_type_byte_array::DataTypeByteArray;
 use crate::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
 use crate::structures::data_types::built_in_types::u16be::data_type_u16be::DataTypeU16be;
@@ -10,7 +7,6 @@ use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::data_types::generics::vector_comparer::VectorComparer;
-use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
@@ -18,18 +14,19 @@ use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanC
 use crate::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use crate::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
+use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::MappedScanType;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParametersByteArray;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParametersScalar;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParametersVector;
 use crate::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
-use crate::structures::scanning::parameters::user::user_scan_parameters_global::UserScanParametersGlobal;
-use crate::structures::scanning::parameters::user::user_scan_parameters_local::UserScanParametersLocal;
+use crate::structures::scanning::parameters::user::user_scan_parameters::UserScanParameters;
+use std::simd::LaneCount;
+use std::simd::SupportedLaneCount;
 
 /// Represents processed scan parameters derived from user provided scan parameters.
 #[derive(Debug, Clone)]
 pub struct MappedScanParameters {
-    data_type: DataTypeRef,
     data_value: DataValue,
     memory_alignment: MemoryAlignment,
     scan_compare_type: ScanCompareType,
@@ -43,46 +40,46 @@ impl MappedScanParameters {
     /// Creates optimized scan paramaters for a given snapshot region filter, given user provided global/local scan parameters.
     /// Internally, the user parameters are processed into more optimal parameters that help select the most optimal scan implementation.
     pub fn new(
+        snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
-        user_scan_parameters_global: &UserScanParametersGlobal,
-        user_scan_parameters_local: &UserScanParametersLocal,
+        user_scan_parameters: &UserScanParameters,
     ) -> Self {
+        let data_type_ref = snapshot_region_filter_collection.get_data_type();
+        let memory_alignment = snapshot_region_filter_collection.get_memory_alignment();
         let mut mapped_params = Self {
-            data_type: user_scan_parameters_local.get_data_type().clone(),
-            data_value: Self::deanonymize_data_value(user_scan_parameters_global, user_scan_parameters_local),
-            memory_alignment: user_scan_parameters_local.get_memory_alignment_or_default(),
-            scan_compare_type: user_scan_parameters_global.get_compare_type(),
-            floating_point_tolerance: user_scan_parameters_global.get_floating_point_tolerance(),
+            data_value: user_scan_parameters.get_compare_immediate_for_data_type(data_type_ref),
+            memory_alignment: snapshot_region_filter_collection.get_memory_alignment(),
+            scan_compare_type: user_scan_parameters.get_compare_type(),
+            floating_point_tolerance: user_scan_parameters.get_floating_point_tolerance(),
             vectorization_size: VectorizationSize::default(),
             periodicity: 0,
             mapped_scan_type: MappedScanType::Scalar(ScanParametersScalar::SingleElement),
         };
 
         // First try a single element scanner. This is valid even for cases like array of byte scans, as all data types support basic equality checks.
-        if Self::is_single_element_scan(snapshot_region_filter, user_scan_parameters_local) {
+        if Self::is_single_element_scan(snapshot_region_filter, data_type_ref, memory_alignment) {
             return mapped_params;
         }
 
         // Next handle byte array scans. These can potentially be remapped to primitive scans for performance gains.
-        if mapped_params.data_type.get_data_type_id() == DataTypeByteArray::get_data_type_id() {
-            match Self::try_map_byte_array_to_primitive(&mapped_params.data_type) {
+        if mapped_params.get_data_type().get_data_type_id() == DataTypeByteArray::get_data_type_id() {
+            match Self::try_map_byte_array_to_primitive(&mapped_params.get_data_type()) {
                 None => {
                     // Perform a standard byte array scan, since we were unable to map the byte array to a primitive type.
                     mapped_params.mapped_scan_type = MappedScanType::ByteArray(ScanParametersByteArray::ByteArrayBooyerMoore);
 
                     return mapped_params;
                 }
-                Some(mapped_data_type) => {
+                Some(mapped_data_type_ref) => {
                     // Mapping onto a primitive type map was successful. Update our new internal data type, and proceed with this as the new type.
-                    mapped_params.data_value = Self::remap_data_value(&mapped_data_type, &mapped_params.data_value);
-                    mapped_params.data_type = mapped_data_type;
+                    mapped_params.data_value.remap_data_type(mapped_data_type_ref);
                 }
             }
         }
 
         // Now we decide whether to use a scalar or SIMD scan based on filter region size.
         mapped_params.vectorization_size =
-            match Self::create_vectorization_size(snapshot_region_filter, &mapped_params.data_type, mapped_params.memory_alignment) {
+            match Self::create_vectorization_size(snapshot_region_filter, &mapped_params.get_data_type(), mapped_params.memory_alignment) {
                 None => {
                     // The filter cannot fit into a vector! Revert to scalar scan.
                     mapped_params.mapped_scan_type = MappedScanType::Scalar(ScanParametersScalar::ScalarIterative);
@@ -97,12 +94,11 @@ impl MappedScanParameters {
 
         if data_type_size > memory_alignment_size {
             // For discrete, multi-byte, primitive types (non-floating point), we can fall back on optimized scans if explicitly performing == or != scans.
-            if mapped_params.data_type.is_discrete()
+            if mapped_params.data_value.get_data_type().is_discrete()
                 && mapped_params.data_value.get_size_in_bytes() > 1
                 && Self::is_checking_equal_or_not_equal(&mapped_params.scan_compare_type)
             {
-                if let Some(periodicity) = Self::calculate_periodicity(user_scan_parameters_global, &mapped_params.data_type, &mapped_params.scan_compare_type)
-                {
+                if let Some(periodicity) = Self::calculate_periodicity(mapped_params.get_data_value(), &mapped_params.scan_compare_type) {
                     mapped_params.periodicity = periodicity;
 
                     match periodicity {
@@ -140,7 +136,7 @@ impl MappedScanParameters {
     }
 
     pub fn get_data_type(&self) -> &DataTypeRef {
-        &self.data_type
+        self.data_value.get_data_type()
     }
 
     pub fn get_memory_alignment(&self) -> MemoryAlignment {
@@ -232,52 +228,12 @@ impl MappedScanParameters {
         None
     }
 
-    // JIRA: Is this really even necessary any more? Does this not just always result in the same bytes? Why not just truncate to match
-    // the data type size? I don't really see this as being a valuable operation.
-    fn remap_data_value(
-        new_data_type: &DataTypeRef,
-        data_value: &DataValue,
-    ) -> DataValue {
-        // The current data value is a set of bytes in the context of the original data type!
-        // For example, if we wanted to remap 00 00 00 00 as a u32 into 00 00 as a u16, first we extract the bytes.
-        let reanonymized_value = AnonymousValue::new_bytes(data_value.get_value_bytes().clone());
-
-        // Next, we take those bytes and convert them back into a data value in the context of the new type.
-        // This ensures that the data value matches in length to the target type.
-        match new_data_type.deanonymize_value(&reanonymized_value) {
-            Ok(data_value) => data_value,
-            Err(_) => DataValue::new(new_data_type.clone(), vec![]),
-        }
-    }
-
-    fn deanonymize_data_value(
-        user_scan_parameters_global: &UserScanParametersGlobal,
-        user_scan_parameters_local: &UserScanParametersLocal,
-    ) -> DataValue {
-        let data_type = user_scan_parameters_local.get_data_type();
-        // First, parse the anonymous value into the original data type.
-        match user_scan_parameters_global.get_compare_immediate() {
-            Some(anonymous_value) => match data_type.deanonymize_value(&anonymous_value) {
-                Ok(value) => {
-                    return value;
-                }
-                Err(_) => {}
-            },
-            None => {}
-        }
-
-        // Fall back to an empty data type.
-        DataValue::new(data_type.clone(), vec![])
-    }
-
     fn is_single_element_scan(
         snapshot_region_filter: &SnapshotRegionFilter,
-        user_scan_parameters_local: &UserScanParametersLocal,
+        data_type: &DataTypeRef,
+        memory_alignment: MemoryAlignment,
     ) -> bool {
-        let element_count = snapshot_region_filter.get_element_count(
-            user_scan_parameters_local.get_data_type(),
-            user_scan_parameters_local.get_memory_alignment_or_default(),
-        );
+        let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
 
         element_count == 1
     }
@@ -332,33 +288,18 @@ impl MappedScanParameters {
     }
 
     fn calculate_periodicity(
-        user_scan_parameters_global: &UserScanParametersGlobal,
-        data_type: &DataTypeRef,
+        data_value: &DataValue,
         scan_compare_type: &ScanCompareType,
     ) -> Option<u64> {
         match scan_compare_type {
-            ScanCompareType::Immediate(_scan_compare_type_immediate) => {
-                if let Some(compare_immediate) = user_scan_parameters_global.get_compare_immediate() {
-                    if let Ok(immediate_value) = data_type.deanonymize_value(compare_immediate) {
-                        Some(Self::calculate_periodicity_from_immediate(immediate_value.get_value_bytes(), &data_type))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
-            ScanCompareType::Delta(_scan_compare_type_immediate) => {
-                if let Some(compare_immediate) = user_scan_parameters_global.get_compare_immediate() {
-                    if let Ok(immediate_value) = data_type.deanonymize_value(compare_immediate) {
-                        Some(Self::calculate_periodicity_from_immediate(immediate_value.get_value_bytes(), &data_type))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }
+            ScanCompareType::Immediate(_scan_compare_type_immediate) => Some(Self::calculate_periodicity_from_immediate(
+                &data_value.get_value_bytes(),
+                data_value.get_data_type(),
+            )),
+            ScanCompareType::Delta(_scan_compare_type_immediate) => Some(Self::calculate_periodicity_from_immediate(
+                &data_value.get_value_bytes(),
+                data_value.get_data_type(),
+            )),
             _ => None,
         }
     }

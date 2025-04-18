@@ -21,8 +21,8 @@ use squalr_engine_api::structures::data_types::data_type_meta_data::DataTypeMeta
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
+use squalr_engine_api::structures::scanning::data_type_and_alignment::DataTypeAndAlignment;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
-use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters_local::UserScanParametersLocal;
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -103,15 +103,22 @@ impl ScannerViewModel {
             }
         };
 
+        let data_type_id = data_type_view.data_type.to_string();
+        let data_type_meta_data = DataTypeMetaData::None;
+        let memory_alignment = MemoryAlignmentConverter {}.convert_from_view_data(&memory_alignment_view);
+        let data_type_ref = DataTypeRef::new(&data_type_id, data_type_meta_data);
+
         match scan_view_model_state_value {
             ScanViewModelState::HasResults => {
-                Self::start_scan(scanner_view_model, scan_constraint, AnonymousValue::new_string(&scan_value, is_value_hex));
+                Self::start_scan(
+                    scanner_view_model,
+                    data_type_ref,
+                    memory_alignment,
+                    scan_constraint,
+                    AnonymousValue::new_string(&scan_value, is_value_hex),
+                );
             }
             ScanViewModelState::NoResults => {
-                let memory_alignment = MemoryAlignmentConverter {}.convert_from_view_data(&memory_alignment_view);
-                let data_type_id = data_type_view.data_type.to_string();
-                let data_type_meta_data = DataTypeMetaData::None;
-                let data_type_ref = DataTypeRef::new(&data_type_id, data_type_meta_data);
                 let scan_value = AnonymousValue::new_string(&scan_value, is_value_hex);
 
                 Self::new_scan(scanner_view_model, data_type_ref, memory_alignment, scan_constraint, scan_value);
@@ -130,24 +137,25 @@ impl ScannerViewModel {
 
     fn new_scan(
         scanner_view_model: Arc<ScannerViewModel>,
-        data_type: DataTypeRef,
+        data_type_ref: DataTypeRef,
         memory_alignment: MemoryAlignment,
         scan_constraint: ScanConstraintTypeView,
         scan_value: AnonymousValue,
     ) {
         let engine_execution_context = &scanner_view_model.engine_execution_context;
         let scanner_view_model = scanner_view_model.clone();
-        let user_scan_parameters_local = vec![UserScanParametersLocal::new(data_type, Some(memory_alignment))];
-        let scan_new_request = ScanNewRequest { user_scan_parameters_local };
+        let scan_new_request = ScanNewRequest {};
 
         // Start a new scan, and recurse to start the scan once the new scan is made.
         scan_new_request.send(engine_execution_context, move |_scan_new_response| {
-            Self::start_scan(scanner_view_model, scan_constraint, scan_value);
+            Self::start_scan(scanner_view_model, data_type_ref, memory_alignment, scan_constraint, scan_value);
         });
     }
 
     fn start_scan(
         scanner_view_model: Arc<ScannerViewModel>,
+        data_type_ref: DataTypeRef,
+        memory_alignment: MemoryAlignment,
         scan_constraint: ScanConstraintTypeView,
         scan_value: AnonymousValue,
     ) {
@@ -155,6 +163,7 @@ impl ScannerViewModel {
         let scanner_view_model = scanner_view_model.clone();
         let scan_execute_request = ScanExecuteRequest {
             scan_value: Some(scan_value),
+            data_types_and_alignments: vec![DataTypeAndAlignment::new(data_type_ref, Some(memory_alignment))],
             compare_type: ScanConstraintConverter::new().convert_from_view_data(&scan_constraint),
             memory_read_mode: MemoryReadMode::ReadBeforeScan, // JIRA: Setting for this
         };

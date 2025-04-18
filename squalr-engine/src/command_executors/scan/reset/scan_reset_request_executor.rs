@@ -29,7 +29,7 @@ impl EngineCommandRequestExecutor for ScanResetRequest {
 
                 // Clears snapshot regions to reset the scan.
                 snapshot.set_snapshot_regions(vec![]);
-                engine_privileged_state.emit_event(ScanResultsUpdatedEvent {});
+                engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: false });
 
                 log::info!("Cleared scan data.");
 

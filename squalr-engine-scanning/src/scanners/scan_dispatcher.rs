@@ -18,7 +18,7 @@ use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_typ
     MappedScanType, ScanParametersByteArray, ScanParametersScalar, ScanParametersVector,
 };
 use squalr_engine_api::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
-use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters_global::UserScanParametersGlobal;
+use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters::UserScanParameters;
 
 pub struct ScanDispatcher {}
 
@@ -29,26 +29,28 @@ impl ScanDispatcher {
     pub fn dispatch_scan(
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
-        user_scan_parameters_global: &UserScanParametersGlobal,
+        user_scan_parameters: &UserScanParameters,
     ) -> SnapshotRegionFilterCollection {
-        let user_scan_parameters_local = snapshot_region_filter_collection.get_user_scan_parameters_local();
-
-        if !user_scan_parameters_global.is_valid() {
+        if !user_scan_parameters.is_valid_for_data_type(snapshot_region_filter_collection.get_data_type()) {
             log::error!("Error in provided scan parameters, unable to start scan!");
-            return SnapshotRegionFilterCollection::new(vec![], user_scan_parameters_local.clone());
+            return SnapshotRegionFilterCollection::new(
+                vec![],
+                snapshot_region_filter_collection.get_data_type().clone(),
+                snapshot_region_filter_collection.get_memory_alignment(),
+            );
         }
 
         // The main body of the scan routine performed on a given filter.
         let snapshot_region_scanner = |snapshot_region_filter| {
             // Combine the global and local parameters into a single container that optimizes the parameters for selecting the best scanner implementation.
-            let scan_parameters = MappedScanParameters::new(snapshot_region_filter, user_scan_parameters_global, user_scan_parameters_local);
+            let scan_parameters = MappedScanParameters::new(snapshot_region_filter_collection, snapshot_region_filter, user_scan_parameters);
 
             // Execute the scanner that corresponds to the mapped parameters.
             let scanner_instance = Self::aquire_scanner_instance(&scan_parameters);
             let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, &scan_parameters);
 
             // If the debug flag is provided, perform a scalar scan to ensure that our specialized scanner has the same results.
-            if user_scan_parameters_global.get_debug_perform_validation_scan() {
+            if user_scan_parameters.get_debug_perform_validation_scan() {
                 Self::perform_debug_scan(scanner_instance, &filters, snapshot_region, snapshot_region_filter, &scan_parameters);
             }
 
@@ -56,7 +58,7 @@ impl ScanDispatcher {
         };
 
         // Run the scan either single-threaded or parallel based on settings. Single-thread is not advised unless debugging.
-        let single_thread_scan = user_scan_parameters_global.is_single_thread_scan();
+        let single_thread_scan = user_scan_parameters.is_single_thread_scan();
         let result_snapshot_region_filters = if single_thread_scan {
             snapshot_region_filter_collection
                 .iter()
@@ -71,9 +73,8 @@ impl ScanDispatcher {
 
         SnapshotRegionFilterCollection::new(
             result_snapshot_region_filters,
-            snapshot_region_filter_collection
-                .get_user_scan_parameters_local()
-                .clone(),
+            snapshot_region_filter_collection.get_data_type().clone(),
+            snapshot_region_filter_collection.get_memory_alignment(),
         )
     }
 

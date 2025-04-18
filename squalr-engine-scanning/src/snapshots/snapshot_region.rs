@@ -5,10 +5,10 @@ use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
+use squalr_engine_api::structures::scanning::data_value_and_alignment::DataValueAndAlignment;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
-use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters_global::UserScanParametersGlobal;
-use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters_local::UserScanParametersLocal;
+use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters::UserScanParameters;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 
@@ -34,27 +34,13 @@ impl SnapshotRegion {
     pub fn new(
         normalized_region: NormalizedRegion,
         page_boundaries: Vec<u64>,
-        user_scan_parameters_local_collection: &Vec<UserScanParametersLocal>,
     ) -> Self {
-        // Create an initial filter, spanning the entire region, for each data type that the scan results will represent.
-        let scan_filter_collections = user_scan_parameters_local_collection
-            .iter()
-            .map(|user_scan_parameters_local| {
-                let initial_filter = vec![vec![SnapshotRegionFilter::new(
-                    normalized_region.get_base_address(),
-                    normalized_region.get_region_size(),
-                )]];
-
-                SnapshotRegionFilterCollection::new(initial_filter, user_scan_parameters_local.clone())
-            })
-            .collect();
-
         Self {
             normalized_region,
             current_values: vec![],
             previous_values: vec![],
             page_boundaries,
-            scan_results: SnapshotRegionScanResults::new(scan_filter_collections),
+            scan_results: SnapshotRegionScanResults::new(vec![]),
         }
     }
 
@@ -226,16 +212,41 @@ impl SnapshotRegion {
 
     pub fn can_compare_using_parameters(
         &self,
-        user_scan_parameters_global: &UserScanParametersGlobal,
+        user_scan_parameters: &UserScanParameters,
     ) -> bool {
-        if !user_scan_parameters_global.is_valid() || !self.has_current_values() {
+        if !user_scan_parameters.is_valid() || !self.has_current_values() {
             false
         } else {
-            match user_scan_parameters_global.get_compare_type() {
+            match user_scan_parameters.get_compare_type() {
                 ScanCompareType::Immediate(_) => true,
                 ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => self.has_previous_values(),
             }
         }
+    }
+
+    pub fn initialize_scan_results(
+        &mut self,
+        data_values_and_alignments: &Vec<DataValueAndAlignment>,
+    ) {
+        if self.scan_results.get_filter_collections().len() > 0 {
+            return;
+        }
+
+        let snapshot_region_filter_collections = data_values_and_alignments
+            .iter()
+            .map(|data_value_and_alignment| {
+                SnapshotRegionFilterCollection::new(
+                    vec![vec![SnapshotRegionFilter::new(
+                        self.get_base_address(),
+                        self.get_region_size(),
+                    )]],
+                    data_value_and_alignment.get_data_type().clone(),
+                    data_value_and_alignment.get_memory_alignment(),
+                )
+            })
+            .collect();
+
+        self.scan_results = SnapshotRegionScanResults::new(snapshot_region_filter_collections)
     }
 
     pub fn get_scan_results(&self) -> &SnapshotRegionScanResults {

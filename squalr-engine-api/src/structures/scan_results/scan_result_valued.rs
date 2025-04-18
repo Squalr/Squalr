@@ -15,12 +15,12 @@ pub struct ScanResultValued {
 impl ScanResultValued {
     pub fn new(
         address: u64,
-        data_type: DataTypeRef,
+        data_type_ref: DataTypeRef,
         current_value: Option<DataValue>,
         previous_value: Option<DataValue>,
     ) -> Self {
         Self {
-            scan_result_base: ScanResultBase::new(address, data_type),
+            scan_result_base: ScanResultBase::new(address, data_type_ref),
             current_value,
             previous_value,
         }

@@ -37,13 +37,13 @@ impl AnonymousValue {
 
     pub fn deanonymize_value(
         &self,
-        data_type_ref: DataTypeRef,
+        data_type_ref: &DataTypeRef,
     ) -> Result<DataValue, String> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         match registry.get(data_type_ref.get_data_type_id()) {
             Some(data_type) => {
-                let deanonymized_value = data_type.deanonymize_value(&self, data_type_ref);
+                let deanonymized_value = data_type.deanonymize_value(&self, data_type_ref.clone());
 
                 match deanonymized_value {
                     Ok(value) => Ok(value),
