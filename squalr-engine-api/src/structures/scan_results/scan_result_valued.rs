@@ -39,7 +39,7 @@ impl ScanResultValued {
     }
 
     pub fn get_current_value(&self) -> &Option<DataValue> {
-        &self.previous_value
+        &self.current_value
     }
 
     pub fn get_previous_value(&self) -> &Option<DataValue> {
