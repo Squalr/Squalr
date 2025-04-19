@@ -226,7 +226,7 @@ impl ScanResultsViewModel {
         // Extract numeric part from new_page_index_text and parse it to u64, defaulting to 0.
         let new_page_index = new_page_index_text
             .chars()
-            .take_while(|c| c.is_digit(10))
+            .take_while(|char| char.is_digit(10))
             .collect::<String>()
             .parse::<u64>()
             .unwrap_or(0);

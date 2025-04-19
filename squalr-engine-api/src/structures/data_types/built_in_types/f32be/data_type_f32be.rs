@@ -41,7 +41,7 @@ impl DataType for DataTypeF32be {
         &self,
         anonymous_value: &AnonymousValue,
     ) -> bool {
-        let data_type_ref = DataTypeRef::new(self.get_data_type_id(), DataTypeMetaData::None);
+        let data_type_ref = DataTypeRef::new_from_anonymous_value(self.get_data_type_id(), anonymous_value);
 
         match self.deanonymize_value(anonymous_value, data_type_ref) {
             Ok(_) => true,
@@ -89,5 +89,19 @@ impl DataType for DataTypeF32be {
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {
         DataTypeMetaData::None
+    }
+
+    fn get_meta_data_for_anonymous_value(
+        &self,
+        _anonymous_value: &AnonymousValue,
+    ) -> DataTypeMetaData {
+        DataTypeMetaData::None
+    }
+
+    fn get_meta_data_from_string(
+        &self,
+        _string: &str,
+    ) -> Result<DataTypeMetaData, String> {
+        Ok(DataTypeMetaData::None)
     }
 }

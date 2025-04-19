@@ -63,10 +63,7 @@ impl Conversions {
 
     pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, &'static str> {
         let hex = if hex.to_lowercase().starts_with("0x") { &hex[2..] } else { hex };
-        let hex: String = hex
-            .chars()
-            .filter(|character| !character.is_whitespace())
-            .collect();
+        let hex = hex.replace(|next_char: char| next_char.is_whitespace() || next_char == ',', "");
 
         if hex.is_empty() {
             return Ok(Vec::new());

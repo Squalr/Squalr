@@ -44,6 +44,16 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
 
     fn get_default_meta_data(&self) -> DataTypeMetaData;
 
+    fn get_meta_data_for_anonymous_value(
+        &self,
+        anonymous_value: &AnonymousValue,
+    ) -> DataTypeMetaData;
+
+    fn get_meta_data_from_string(
+        &self,
+        string: &str,
+    ) -> Result<DataTypeMetaData, String>;
+
     fn get_ref(&self) -> DataTypeRef {
         DataTypeRef::new(self.get_data_type_id(), self.get_default_meta_data())
     }

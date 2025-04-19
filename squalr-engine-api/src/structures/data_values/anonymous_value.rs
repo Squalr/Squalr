@@ -1,6 +1,7 @@
 use crate::structures::data_values::data_value::DataValue;
 use crate::{registries::data_types::data_type_registry::DataTypeRegistry, structures::data_types::data_type_ref::DataTypeRef};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::str::FromStr;
 
 /// Internal enum to represent the two value modes.
@@ -12,8 +13,8 @@ pub enum AnonymousValueContainer {
 }
 
 /// Represents a value as a string that can potentially be converted to an explicit type later.
-/// This is particularly useful when scannining for a value that may later be interpreted
-/// as many data types, and supporting values passed via command line.
+/// This is particularly useful when scannining for a value such as `0`, which is valid across
+/// many data types. This is helpful for supporting values passed via command line / GUI.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AnonymousValue {
     pub value: AnonymousValueContainer,
@@ -59,20 +60,31 @@ impl AnonymousValue {
     }
 }
 
-impl ToString for AnonymousValue {
-    fn to_string(&self) -> String {
-        match &self.value {
-            AnonymousValueContainer::StringValue(string, _is_value_hex) => string.clone(),
-            AnonymousValueContainer::ByteArray(bytes) => String::from_utf8_lossy(bytes).to_string(),
-        }
-    }
-}
-
 impl FromStr for AnonymousValue {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let is_value_hex = string.starts_with("0x");
         Ok(AnonymousValue::new_string(string, is_value_hex))
+    }
+}
+
+impl fmt::Display for AnonymousValue {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match &self.value {
+            AnonymousValueContainer::StringValue(string, is_hex) => {
+                if *is_hex {
+                    write!(formatter, "{}", string)
+                } else {
+                    write!(formatter, "{}", string)
+                }
+            }
+            AnonymousValueContainer::ByteArray(bytes) => {
+                write!(formatter, "{:?}", bytes)
+            }
+        }
     }
 }

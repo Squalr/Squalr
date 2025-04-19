@@ -5,6 +5,7 @@ use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousV
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
+use squalr_engine_common::conversions::Conversions;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DataTypeByteArray {}
@@ -34,7 +35,7 @@ impl DataType for DataTypeByteArray {
         &self,
         anonymous_value: &AnonymousValue,
     ) -> bool {
-        let data_type_ref = DataTypeRef::new(self.get_data_type_id(), DataTypeMetaData::SizedContainer(0));
+        let data_type_ref = DataTypeRef::new_from_anonymous_value(self.get_data_type_id(), anonymous_value);
 
         match self.deanonymize_value(anonymous_value, data_type_ref) {
             Ok(_) => true,
@@ -50,29 +51,7 @@ impl DataType for DataTypeByteArray {
         match anonymous_value.get_value() {
             AnonymousValueContainer::StringValue(value_string, is_value_hex) => {
                 if *is_value_hex {
-                    // Clean input: remove whitespace, commas, and any 0x prefixes.
-                    let mut cleaned = value_string
-                        .replace(|next_char: char| next_char.is_whitespace() || next_char == ',', "")
-                        .replace("0x", "")
-                        .replace("0X", "");
-
-                    // Zero-pad odd numbered length to force the hex to be groups of two digits per byte.
-                    if cleaned.len() % 2 != 0 {
-                        cleaned = format!("0{}", cleaned);
-                    }
-
-                    let value_bytes = cleaned
-                        .as_bytes()
-                        .chunks(2)
-                        .map(|chunk| {
-                            let hex_str = std::str::from_utf8(chunk).unwrap_or_default();
-                            u8::from_str_radix(hex_str, 16).map_err(|err| DataTypeError::ValueParseError {
-                                value: hex_str.to_string(),
-                                is_value_hex: true,
-                                source: err,
-                            })
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
+                    let value_bytes = Conversions::hex_to_bytes(value_string).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
 
                     // Group into bytes (2 hex digits each).
                     Ok(DataValue::new(data_type_ref, value_bytes))
@@ -138,5 +117,45 @@ impl DataType for DataTypeByteArray {
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {
         DataTypeMetaData::SizedContainer(1)
+    }
+
+    fn get_meta_data_for_anonymous_value(
+        &self,
+        anonymous_value: &AnonymousValue,
+    ) -> DataTypeMetaData {
+        let byte_count = match anonymous_value.get_value() {
+            AnonymousValueContainer::StringValue(value_string, is_value_hex) => {
+                if *is_value_hex {
+                    Conversions::hex_to_bytes(value_string)
+                        .unwrap_or_default()
+                        .len()
+                } else {
+                    // For decimal, allow space or comma separation.
+                    value_string
+                        .split(|next_char: char| next_char.is_whitespace() || next_char == ',')
+                        .filter(|next_value| !next_value.is_empty())
+                        .map(|next_value| u8::from_str_radix(next_value, 10))
+                        .collect::<Result<Vec<_>, _>>()
+                        .unwrap_or_default()
+                        .len()
+                }
+            }
+            AnonymousValueContainer::ByteArray(value_bytes) => value_bytes.len(),
+        } as u64;
+        DataTypeMetaData::SizedContainer(byte_count)
+    }
+
+    fn get_meta_data_from_string(
+        &self,
+        string: &str,
+    ) -> Result<DataTypeMetaData, String> {
+        let container_size = match string.parse::<u64>() {
+            Ok(container_size) => container_size,
+            Err(err) => {
+                return Err(format!("Failed to parse container size: {}", err));
+            }
+        };
+
+        Ok(DataTypeMetaData::SizedContainer(container_size))
     }
 }

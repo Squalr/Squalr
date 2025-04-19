@@ -90,13 +90,14 @@ impl DataValue {
     ) -> String {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        match registry.get(data_type_ref.get_data_type_id()) {
-            Some(data_type) => match data_type.create_display_value(value_bytes, data_type_ref.get_meta_data()) {
-                Ok(value_string) => value_string,
-                Err(_) => "??".to_string(),
-            },
-            None => "??".to_string(),
-        }
+        registry
+            .get(data_type_ref.get_data_type_id())
+            .and_then(|data_type| {
+                data_type
+                    .create_display_value(value_bytes, data_type_ref.get_meta_data())
+                    .ok()
+            })
+            .unwrap_or_else(|| "??".to_string())
     }
 }
 

@@ -34,7 +34,7 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
 
             // Best-effort attempt to read the values for this scan result.
             if let Some(opened_process_info) = engine_privileged_state.get_opened_process() {
-                if let Some(mut data_value) = scan_result_base.get_data_type().get_default_value() {
+                if let Some(mut data_value) = scan_result_base.get_current_value().clone() {
                     if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
                         recently_read_value = Some(data_value);
                     }

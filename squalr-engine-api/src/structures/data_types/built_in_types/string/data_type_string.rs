@@ -5,7 +5,15 @@ use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
+use encoding::all::{HZ, ISO_8859_1};
+use encoding::{EncoderTrap, Encoding};
+use encoding_rs::{
+    BIG5, EUC_JP, EUC_KR, GB18030, GBK, ISO_2022_JP, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, ISO_8859_6, ISO_8859_7, ISO_8859_8, ISO_8859_8_I,
+    ISO_8859_10, ISO_8859_13, ISO_8859_14, ISO_8859_15, ISO_8859_16, KOI8_R, KOI8_U, MACINTOSH, REPLACEMENT, SHIFT_JIS, WINDOWS_874, WINDOWS_1250,
+    WINDOWS_1251, WINDOWS_1252, WINDOWS_1253, WINDOWS_1254, WINDOWS_1255, WINDOWS_1256, WINDOWS_1257, WINDOWS_1258, X_MAC_CYRILLIC, X_USER_DEFINED,
+};
 use serde::{Deserialize, Serialize};
+use squalr_engine_common::conversions::Conversions;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DataTypeString {}
@@ -35,8 +43,9 @@ impl DataType for DataTypeString {
         &self,
         anonymous_value: &AnonymousValue,
     ) -> bool {
-        let data_type_ref = DataTypeRef::new(self.get_data_type_id(), DataTypeMetaData::EncodedString(0, StringEncoding::Utf8));
+        let data_type_ref = DataTypeRef::new_from_anonymous_value(self.get_data_type_id(), anonymous_value);
 
+        // Validating a UTF string really just boils down to "can we parse the anonymous value as a string".
         match self.deanonymize_value(anonymous_value, data_type_ref) {
             Ok(_) => true,
             Err(_) => false,
@@ -48,12 +57,85 @@ impl DataType for DataTypeString {
         anonymous_value: &AnonymousValue,
         data_type_ref: DataTypeRef,
     ) -> Result<DataValue, DataTypeError> {
-        /*
-        match anonymous_value.get_value() {
-            AnonymousValueContainer::StringValue(value_string, is_value_hex) => Ok(vec![]),
-            AnonymousValueContainer::ByteArray(value_bytes) => Ok(value_bytes.clone()),
-        }*/
-        Err(DataTypeError::NoBytes)
+        match data_type_ref.get_meta_data() {
+            DataTypeMetaData::EncodedString(size, string_encoding) => match anonymous_value.get_value() {
+                AnonymousValueContainer::StringValue(value_string_utf8, is_value_hex) => {
+                    if *is_value_hex {
+                        let value_bytes = Conversions::hex_to_bytes(value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
+
+                        return Ok(DataValue::new(data_type_ref, value_bytes));
+                    }
+
+                    let mut string_bytes = match string_encoding {
+                        StringEncoding::Utf8 => value_string_utf8.as_bytes().to_vec(),
+                        StringEncoding::Utf16 => {
+                            let mut bytes = Vec::new();
+                            for utf16 in value_string_utf8.encode_utf16() {
+                                bytes.extend_from_slice(&utf16.to_le_bytes());
+                            }
+                            bytes
+                        }
+                        StringEncoding::Utf16be => {
+                            let mut bytes = Vec::new();
+                            for utf16 in value_string_utf8.encode_utf16() {
+                                bytes.extend_from_slice(&utf16.to_be_bytes());
+                            }
+                            bytes
+                        }
+                        StringEncoding::Ascii => value_string_utf8.as_bytes().iter().map(|&b| b & 0x7F).collect(),
+                        StringEncoding::Big5 => BIG5.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::EucJp => EUC_JP.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::EucKr => EUC_KR.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Gb18030_2022 => GB18030.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Gbk => GBK.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Hz => HZ
+                            .encode(&value_string_utf8, EncoderTrap::Ignore)
+                            .unwrap_or(vec![]),
+                        StringEncoding::Iso2022Jp => ISO_2022_JP.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_1 => ISO_8859_1
+                            .encode(&value_string_utf8, EncoderTrap::Ignore)
+                            .unwrap_or(vec![]),
+                        StringEncoding::Iso8859_10 => ISO_8859_10.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_13 => ISO_8859_13.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_14 => ISO_8859_14.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_15 => ISO_8859_15.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_16 => ISO_8859_16.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_2 => ISO_8859_2.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_3 => ISO_8859_3.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_4 => ISO_8859_4.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_5 => ISO_8859_5.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_6 => ISO_8859_6.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_7 => ISO_8859_7.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_8 => ISO_8859_8.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Iso8859_8I => ISO_8859_8_I.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Koi8R => KOI8_R.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Koi8U => KOI8_U.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::MacCyrillic => X_MAC_CYRILLIC.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Macintosh => MACINTOSH.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Replacement => REPLACEMENT.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::ShiftJis => SHIFT_JIS.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Windows1250 => WINDOWS_1250.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Windows1251 => WINDOWS_1251.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Windows1252 => WINDOWS_1252.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Windows1253 => WINDOWS_1253.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Windows1254 => WINDOWS_1254.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Windows1255 => WINDOWS_1255.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Windows1256 => WINDOWS_1256.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Windows1257 => WINDOWS_1257.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Windows1258 => WINDOWS_1258.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::Windows874 => WINDOWS_874.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::XMacCyrillic => X_MAC_CYRILLIC.encode(value_string_utf8).0.to_vec(),
+                        StringEncoding::XUserDefined => X_USER_DEFINED.encode(value_string_utf8).0.to_vec(),
+                    };
+
+                    string_bytes.truncate(*size as usize);
+
+                    Ok(DataValue::new(data_type_ref, string_bytes))
+                }
+                AnonymousValueContainer::ByteArray(value_bytes) => Ok(DataValue::new(data_type_ref, value_bytes.clone())),
+            },
+            _ => Err(DataTypeError::InvalidMetaData),
+        }
     }
 
     fn create_display_value(
@@ -61,14 +143,305 @@ impl DataType for DataTypeString {
         value_bytes: &[u8],
         data_type_meta_data: &DataTypeMetaData,
     ) -> Result<String, DataTypeError> {
-        if !value_bytes.is_empty() {
-            Ok(value_bytes
-                .iter()
-                .map(|byte| format!("{:02X}", byte))
-                .collect::<Vec<String>>()
-                .join(" "))
-        } else {
-            Err(DataTypeError::NoBytes)
+        if value_bytes.is_empty() {
+            return Err(DataTypeError::NoBytes);
+        }
+
+        match data_type_meta_data {
+            DataTypeMetaData::EncodedString(_size, string_encoding) => {
+                let decoded_string = match string_encoding {
+                    StringEncoding::Utf8 => std::str::from_utf8(value_bytes)
+                        .map_err(|_err| DataTypeError::DecodingError)?
+                        .to_string(),
+                    StringEncoding::Utf16 => {
+                        if value_bytes.len() % 2 != 0 {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        let utf16_iter = value_bytes
+                            .chunks(2)
+                            .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]));
+                        String::from_utf16(utf16_iter.collect::<Vec<_>>().as_slice()).map_err(|_err| DataTypeError::DecodingError)?
+                    }
+                    StringEncoding::Utf16be => {
+                        if value_bytes.len() % 2 != 0 {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        let utf16_iter = value_bytes
+                            .chunks(2)
+                            .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]));
+                        String::from_utf16(utf16_iter.collect::<Vec<_>>().as_slice()).map_err(|_err| DataTypeError::DecodingError)?
+                    }
+                    StringEncoding::Ascii => value_bytes.iter().map(|&b| (b & 0x7F) as char).collect(),
+                    StringEncoding::Big5 => {
+                        let (cow, _, had_errors) = BIG5.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::EucJp => {
+                        let (cow, _, had_errors) = EUC_JP.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::EucKr => {
+                        let (cow, _, had_errors) = EUC_KR.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Gb18030_2022 => {
+                        let (cow, _, had_errors) = GB18030.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Gbk => {
+                        let (cow, _, had_errors) = GBK.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Hz => HZ
+                        .decode(value_bytes, encoding::DecoderTrap::Ignore)
+                        .map_err(|_| DataTypeError::DecodingError)?,
+                    StringEncoding::Iso2022Jp => {
+                        let (cow, _, had_errors) = ISO_2022_JP.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_1 => ISO_8859_1
+                        .decode(value_bytes, encoding::DecoderTrap::Ignore)
+                        .map_err(|_| DataTypeError::DecodingError)?,
+                    StringEncoding::Iso8859_10 => {
+                        let (cow, _, had_errors) = ISO_8859_10.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_13 => {
+                        let (cow, _, had_errors) = ISO_8859_13.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_14 => {
+                        let (cow, _, had_errors) = ISO_8859_14.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_15 => {
+                        let (cow, _, had_errors) = ISO_8859_15.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_16 => {
+                        let (cow, _, had_errors) = ISO_8859_16.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_2 => {
+                        let (cow, _, had_errors) = ISO_8859_2.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_3 => {
+                        let (cow, _, had_errors) = ISO_8859_3.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_4 => {
+                        let (cow, _, had_errors) = ISO_8859_4.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_5 => {
+                        let (cow, _, had_errors) = ISO_8859_5.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_6 => {
+                        let (cow, _, had_errors) = ISO_8859_6.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_7 => {
+                        let (cow, _, had_errors) = ISO_8859_7.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_8 => {
+                        let (cow, _, had_errors) = ISO_8859_8.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Iso8859_8I => {
+                        let (cow, _, had_errors) = ISO_8859_8_I.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Koi8R => {
+                        let (cow, _, had_errors) = KOI8_R.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Koi8U => {
+                        let (cow, _, had_errors) = KOI8_U.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::MacCyrillic => {
+                        let (cow, _, had_errors) = X_MAC_CYRILLIC.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Macintosh => {
+                        let (cow, _, had_errors) = MACINTOSH.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Replacement => {
+                        let (cow, _, had_errors) = REPLACEMENT.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::ShiftJis => {
+                        let (cow, _, had_errors) = SHIFT_JIS.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Windows1250 => {
+                        let (cow, _, had_errors) = WINDOWS_1250.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Windows1251 => {
+                        let (cow, _, had_errors) = WINDOWS_1251.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Windows1252 => {
+                        let (cow, _, had_errors) = WINDOWS_1252.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Windows1253 => {
+                        let (cow, _, had_errors) = WINDOWS_1253.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Windows1254 => {
+                        let (cow, _, had_errors) = WINDOWS_1254.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Windows1255 => {
+                        let (cow, _, had_errors) = WINDOWS_1255.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Windows1256 => {
+                        let (cow, _, had_errors) = WINDOWS_1256.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Windows1257 => {
+                        let (cow, _, had_errors) = WINDOWS_1257.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Windows1258 => {
+                        let (cow, _, had_errors) = WINDOWS_1258.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::Windows874 => {
+                        let (cow, _, had_errors) = WINDOWS_874.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::XMacCyrillic => {
+                        let (cow, _, had_errors) = X_MAC_CYRILLIC.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                    StringEncoding::XUserDefined => {
+                        let (cow, _, had_errors) = X_USER_DEFINED.decode(value_bytes);
+                        if had_errors {
+                            return Err(DataTypeError::DecodingError);
+                        }
+                        cow.to_string()
+                    }
+                };
+
+                Ok(decoded_string)
+            }
+            _ => Err(DataTypeError::InvalidMetaData),
         }
     }
 
@@ -84,18 +457,52 @@ impl DataType for DataTypeString {
         &self,
         data_type_ref: DataTypeRef,
     ) -> DataValue {
-        let array_size = match data_type_ref.get_meta_data() {
-            DataTypeMetaData::EncodedString(size, encoding) => *size as usize,
-            _ => {
-                log::error!("Invalid metadata provided to byte array data type.");
-                0usize
-            }
-        };
-
-        DataValue::new(data_type_ref.clone(), vec![0u8; array_size])
+        DataValue::new(data_type_ref.clone(), vec![])
     }
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {
         DataTypeMetaData::EncodedString(1, StringEncoding::Utf8)
+    }
+
+    fn get_meta_data_for_anonymous_value(
+        &self,
+        anonymous_value: &AnonymousValue,
+    ) -> DataTypeMetaData {
+        // When parsing meta data from an anonymous value, we don't really have any context, so we just validate it against UTF-8.
+        // If the value is passes as hex, we actually just validate whether we successfully can parse the hex string and re-encode it as a string.
+        let string_length = match anonymous_value.get_value() {
+            AnonymousValueContainer::ByteArray(byte_array) => byte_array.len(),
+            AnonymousValueContainer::StringValue(string, is_hex) => {
+                if *is_hex {
+                    Conversions::hex_to_bytes(string).unwrap_or_default().len()
+                } else {
+                    string.as_bytes().len()
+                }
+            }
+        } as u64;
+
+        DataTypeMetaData::EncodedString(string_length, StringEncoding::Utf8)
+    }
+
+    fn get_meta_data_from_string(
+        &self,
+        string: &str,
+    ) -> Result<DataTypeMetaData, String> {
+        let parts: Vec<&str> = string.splitn(2, ';').collect();
+
+        if parts.len() < 1 {
+            return Err("Invalid string data type format, expected string;{byte_count};{optional_encoding_or_utf8_default}".into());
+        }
+
+        let string_size = match parts[1].trim().parse::<u64>() {
+            Ok(string_size) => string_size,
+            Err(err) => {
+                return Err(format!("Failed to parse string size: {}", err));
+            }
+        };
+        let encoding_string = if parts.len() >= 2 { parts[2].trim() } else { "" };
+        let encoding = encoding_string.parse().unwrap_or(StringEncoding::Utf8);
+
+        Ok(DataTypeMetaData::EncodedString(string_size, encoding))
     }
 }

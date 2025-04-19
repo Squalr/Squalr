@@ -1,4 +1,5 @@
 use crate::structures::data_types::built_in_types::byte_array::data_type_byte_array::DataTypeByteArray;
+use crate::structures::data_types::built_in_types::string::data_type_string::DataTypeString;
 use crate::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
 use crate::structures::data_types::built_in_types::u16be::data_type_u16be::DataTypeU16be;
 use crate::structures::data_types::built_in_types::u32be::data_type_u32be::DataTypeU32be;
@@ -59,6 +60,15 @@ impl MappedScanParameters {
         // First try a single element scanner. This is valid even for cases like array of byte scans, as all data types support basic equality checks.
         if Self::is_single_element_scan(snapshot_region_filter, data_type_ref, memory_alignment) {
             return mapped_params;
+        }
+
+        // Next handle string scans. These are always just remapped to byte array scans.
+        if mapped_params.get_data_type().get_data_type_id() == DataTypeString::get_data_type_id() {
+            let byte_count = mapped_params.data_value.get_size_in_bytes();
+            mapped_params.data_value.remap_data_type(DataTypeRef::new(
+                DataTypeByteArray::get_data_type_id(),
+                DataTypeMetaData::SizedContainer(byte_count),
+            ));
         }
 
         // Next handle byte array scans. These can potentially be remapped to primitive scans for performance gains.

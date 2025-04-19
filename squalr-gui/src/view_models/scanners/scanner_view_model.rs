@@ -17,7 +17,6 @@ use squalr_engine_api::commands::scan::collect_values::scan_collect_values_reque
 use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecuteRequest;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::reset::scan_reset_request::ScanResetRequest;
-use squalr_engine_api::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
@@ -104,23 +103,15 @@ impl ScannerViewModel {
         };
 
         let data_type_id = data_type_view.data_type.to_string();
-        let data_type_meta_data = DataTypeMetaData::None;
+        let scan_value = AnonymousValue::new_string(&scan_value, is_value_hex);
         let memory_alignment = MemoryAlignmentConverter {}.convert_from_view_data(&memory_alignment_view);
-        let data_type_ref = DataTypeRef::new(&data_type_id, data_type_meta_data);
+        let data_type_ref = DataTypeRef::new_from_anonymous_value(&data_type_id, &scan_value);
 
         match scan_view_model_state_value {
             ScanViewModelState::HasResults => {
-                Self::start_scan(
-                    scanner_view_model,
-                    data_type_ref,
-                    memory_alignment,
-                    scan_constraint,
-                    AnonymousValue::new_string(&scan_value, is_value_hex),
-                );
+                Self::start_scan(scanner_view_model, data_type_ref, memory_alignment, scan_constraint, scan_value);
             }
             ScanViewModelState::NoResults => {
-                let scan_value = AnonymousValue::new_string(&scan_value, is_value_hex);
-
                 Self::new_scan(scanner_view_model, data_type_ref, memory_alignment, scan_constraint, scan_value);
             }
             ScanViewModelState::ScanInProgress => {

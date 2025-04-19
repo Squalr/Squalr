@@ -18,10 +18,6 @@ use std::{
     str::FromStr,
 };
 
-use super::built_in_types::byte_array::data_type_byte_array::DataTypeByteArray;
-use super::built_in_types::string::data_type_string::DataTypeString;
-use super::built_in_types::string::string_encodings::StringEncoding;
-
 /// Represents a handle to a data type. This is kept as a weak reference, as DataTypes can be registered/unregistered by plugins.
 /// As such, `DataType` is a `Box<dyn>` type, so it is much easier to abstract them behind `DataTypeRef` and just pass around handles.
 /// This is also important for serialization/deserialization, as if a plugin that defines a type is disabled, we can still deserialize it.
@@ -32,12 +28,55 @@ pub struct DataTypeRef {
 }
 
 impl DataTypeRef {
-    /// Creates a new reference to a registered `DataType`. The type must be registered to collect important metadata.
-    /// If the type is not yet registered, or does not exist, then this will return `None`.
+    /// Creates a new reference to a registered `DataType` with the explicit
     pub fn new(
         data_type_id: &str,
         data_type_meta_data: DataTypeMetaData,
     ) -> Self {
+        Self {
+            data_type_id: data_type_id.to_string(),
+            data_type_meta_data,
+        }
+    }
+
+    /// Creates a new reference to a registered `DataType`. The type must be registered to collect important metadata.
+    /// If the type is not yet registered, or does not exist, then this will return `None`.
+    pub fn new_from_anonymous_value(
+        data_type_id: &str,
+        anonymous_value: &AnonymousValue,
+    ) -> Self {
+        let registry = DataTypeRegistry::get_instance().get_registry();
+        let data_type_meta_data = match registry.get(data_type_id) {
+            Some(data_type) => data_type.get_meta_data_for_anonymous_value(anonymous_value),
+            None => {
+                log::error!(
+                    "Failed to resolve data type when initializing meta data from anonymous value: {}: {}",
+                    data_type_id,
+                    anonymous_value
+                );
+                DataTypeMetaData::None
+            }
+        };
+
+        Self {
+            data_type_id: data_type_id.to_string(),
+            data_type_meta_data,
+        }
+    }
+
+    /// Creates a new reference to a registered `DataType`. The type must be registered to collect important metadata.
+    /// If the type is not yet registered, or does not exist, then this will return `None`.
+    pub fn new_from_data_type_defaults(data_type_id: &str) -> Self {
+        let registry = DataTypeRegistry::get_instance().get_registry();
+
+        let data_type_meta_data = match registry.get(data_type_id) {
+            Some(data_type) => data_type.get_default_meta_data(),
+            None => {
+                log::error!("Failed to resolve data type when initializing defaultmeta data: {}", data_type_id);
+                DataTypeMetaData::None
+            }
+        };
+
         Self {
             data_type_id: data_type_id.to_string(),
             data_type_meta_data,
@@ -240,10 +279,10 @@ impl FromStr for DataTypeRef {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = string.split(';').collect();
+        let parts: Vec<&str> = string.splitn(2, ';').collect();
 
         if parts.len() <= 0 {
-            return Err("Invalid data type ref format, expected {data_type}{;optional_data_type_meta_data}".into());
+            return Err("Invalid data type ref format, expected {data_type};{conditional_data_type_meta_data}".into());
         }
 
         let data_type_id = parts[0];
@@ -252,27 +291,12 @@ impl FromStr for DataTypeRef {
         let data_type_meta_data = if parts.len() < 2 {
             DataTypeMetaData::None
         } else {
-            if data_type_id == DataTypeByteArray::get_data_type_id() {
-                let container_size = match parts[1].trim().parse::<u64>() {
-                    Ok(container_size) => container_size,
-                    Err(err) => {
-                        return Err(format!("Failed to parse container size: {}", err));
-                    }
-                };
-                DataTypeMetaData::SizedContainer(container_size)
-            } else if data_type_id == DataTypeString::get_data_type_id() {
-                let string_size = match parts[1].trim().parse::<u64>() {
-                    Ok(string_size) => string_size,
-                    Err(err) => {
-                        return Err(format!("Failed to parse string size: {}", err));
-                    }
-                };
-                let encoding_string = if parts.len() >= 2 { parts[2].trim() } else { "" };
-                let encoding = encoding_string.parse().unwrap_or(StringEncoding::Utf8);
-
-                DataTypeMetaData::EncodedString(string_size, encoding)
-            } else {
-                return Err("Failed to parse meta data for given data type.".into());
+            let registry = DataTypeRegistry::get_instance().get_registry();
+            match registry.get(data_type_id) {
+                Some(data_type) => data_type.get_meta_data_from_string(parts[1])?,
+                None => {
+                    return Err(format!("Failed to resolve data type when parsing meta data: {}", data_type_id));
+                }
             }
         };
 

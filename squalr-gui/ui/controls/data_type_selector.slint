@@ -266,7 +266,7 @@ export component DataTypeSelector inherits Rectangle {
                     icon: DataTypeIconView.string;
                     tooltip_text: @tr("Data Type: String. Size depends on the encoding and length of text. Represents any text.");
                     clicked => {
-                        ScannerViewModelBindings.active_data_type = { data_type: "String", icon: self.icon };
+                        ScannerViewModelBindings.active_data_type = { data_type: "string", icon: self.icon };
                     }
                 }
             }

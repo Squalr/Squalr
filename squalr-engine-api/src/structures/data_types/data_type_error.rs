@@ -11,6 +11,12 @@ pub enum DataTypeError {
     #[error("No bytes provided")]
     NoBytes,
 
+    #[error("Invalid meta data")]
+    InvalidMetaData,
+
+    #[error("Decoding error")]
+    DecodingError,
+
     #[error("Invalid value '{value}', is_hex: {is_value_hex} => {source}")]
     ValueParseError {
         value: String,
