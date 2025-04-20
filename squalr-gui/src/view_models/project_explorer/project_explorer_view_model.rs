@@ -6,12 +6,12 @@ use crate::view_models::project_explorer::project_info_converter::ProjectInfoCon
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_collection_binding::ViewCollectionBinding;
-use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::project::list::project_list_request::ProjectListRequest;
+use squalr_engine_api::commands::project::open::project_open_request::ProjectOpenRequest;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use std::sync::Arc;
 
@@ -67,11 +67,10 @@ impl ProjectExplorerViewModel {
         engine_execution_context: Arc<EngineExecutionContext>,
         project_entry: ProjectViewData,
     ) {
-        /*
         let open_project_command = ProjectOpenRequest {
-            project_id: Some(project_entry.project_id as u32),
+            project_name: project_entry.name.into(),
         };
 
-        open_project_command.send(&engine_execution_context, move |project_open_response| {});*/
+        open_project_command.send(&engine_execution_context, move |project_open_response| {});
     }
 }

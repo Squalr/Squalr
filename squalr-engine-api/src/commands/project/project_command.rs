@@ -1,10 +1,16 @@
 use crate::commands::project::list::project_list_request::ProjectListRequest;
+use crate::commands::project::open::project_open_request::ProjectOpenRequest;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub enum ProjectCommand {
-    /// List all projects
+    /// Open a project.
+    Open {
+        #[structopt(flatten)]
+        project_open_request: ProjectOpenRequest,
+    },
+    /// List all projects.
     List {
         #[structopt(flatten)]
         project_list_request: ProjectListRequest,
