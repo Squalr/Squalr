@@ -8,6 +8,7 @@ use squalr_engine_api::events::process::changed::process_changed_event::ProcessC
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
+use squalr_engine_projects::project::Project;
 use squalr_engine_scanning::results::snapshot_scan_result_freeze_list::SnapshotScanResultFreezeList;
 use squalr_engine_scanning::results::snapshot_scan_result_freeze_task::SnapshotScanResultFreezeTask;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
@@ -31,6 +32,9 @@ pub struct EnginePrivilegedState {
 
     /// Defines functionality that can be invoked by the engine for the GUI or CLI to handle.
     engine_bindings: Arc<RwLock<dyn EnginePrivilegedBindings>>,
+
+    /// The current opened project.
+    project: Arc<RwLock<Option<Project>>>,
 }
 
 impl EnginePrivilegedState {
@@ -44,6 +48,7 @@ impl EnginePrivilegedState {
         let snapshot = Arc::new(RwLock::new(Snapshot::new()));
         let opened_process = Arc::new(RwLock::new(None));
         let snapshot_scan_result_freeze_list = Arc::new(RwLock::new(SnapshotScanResultFreezeList::new()));
+        let project = Arc::new(RwLock::new(None));
 
         SnapshotScanResultFreezeTask::start_task(opened_process.clone(), snapshot_scan_result_freeze_list.clone());
 
@@ -53,6 +58,7 @@ impl EnginePrivilegedState {
             snapshot_scan_result_freeze_list,
             task_manager: TrackableTaskManager::new(),
             engine_bindings,
+            project,
         });
 
         Self::listen_for_open_process_changes(execution_context.clone());

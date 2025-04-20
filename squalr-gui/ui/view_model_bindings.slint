@@ -219,7 +219,22 @@ export global ScanSettingsViewModelBindings {
     callback debug_perform_validation_scan_changed(debug_perform_validation_scan: bool);
 }
 
-export global ProjectExplorerViewModelBindings { }
+export struct ProjectViewData {
+    name: string,
+}
+
+export struct ProjectItemViewData {
+    name: string,
+    description: string,
+    indentation: int,
+    is_checked: bool,
+}
+
+export global ProjectExplorerViewModelBindings {
+    in_out property <bool> is_project_open;
+    in property <[ProjectViewData]> projects;
+    in property <[ProjectItemViewData]> project_items;
+}
 
 export struct ScanResultViewData {
     data_type: DataTypeIconView,

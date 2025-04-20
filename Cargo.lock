@@ -1323,6 +1323,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "directories"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16f5094c54661b38d03bd7e50df373292118db60b585c08a411c6d840017fe7d"
+dependencies = [
+ "dirs-sys",
+]
+
+[[package]]
 name = "dirs"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4966,6 +4975,7 @@ dependencies = [
  "squalr-engine-debuggers",
  "squalr-engine-memory",
  "squalr-engine-processes",
+ "squalr-engine-projects",
  "squalr-engine-scanning",
  "squalr-engine-scripting",
  "structopt",
@@ -4979,6 +4989,7 @@ version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
  "dashmap",
+ "directories",
  "encoding",
  "encoding_rs",
  "log",
@@ -5059,6 +5070,8 @@ dependencies = [
 name = "squalr-engine-projects"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "squalr-engine-api",
 ]
 
