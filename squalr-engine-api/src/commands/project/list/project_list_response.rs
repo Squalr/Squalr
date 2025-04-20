@@ -1,10 +1,13 @@
 use crate::commands::engine_command_response::EngineCommandResponse;
 use crate::commands::engine_command_response::TypedEngineCommandResponse;
 use crate::commands::project::project_response::ProjectResponse;
+use crate::structures::projects::project_info::ProjectInfo;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ProjectListResponse {}
+pub struct ProjectListResponse {
+    pub projects: Vec<ProjectInfo>,
+}
 
 impl TypedEngineCommandResponse for ProjectListResponse {
     fn to_engine_response(&self) -> EngineCommandResponse {

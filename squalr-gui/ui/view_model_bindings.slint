@@ -231,6 +231,8 @@ export struct ProjectItemViewData {
 }
 
 export global ProjectExplorerViewModelBindings {
+    callback refresh_project_list();
+    callback select_project(project: ProjectViewData);
     in_out property <bool> is_project_open;
     in property <[ProjectViewData]> projects;
     in property <[ProjectItemViewData]> project_items;

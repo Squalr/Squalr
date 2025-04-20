@@ -12,6 +12,6 @@ impl EngineCommandRequestExecutor for ProjectListRequest {
         _engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         // JIRA: Implement me
-        ProjectListResponse {}
+        ProjectListResponse { projects: vec![] }
     }
 }
