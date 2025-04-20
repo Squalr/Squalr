@@ -1,10 +1,10 @@
-use crate::structures::projects::manifest::project_manifest::ProjectManifest;
+use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectInfo {
     name: String,
-    manifest: ProjectManifest,
+    items: Vec<ProjectItemRef>,
 }
 
 impl ProjectInfo {

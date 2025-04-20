@@ -1,6 +1,4 @@
 use crate::ProjectViewData;
-use slint::Image;
-use slint::SharedPixelBuffer;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 

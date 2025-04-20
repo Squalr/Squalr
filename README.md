@@ -67,3 +67,4 @@ Features:
 - [ ] Plugin system for new data types. The engine is already designed with this feature in mind, so actually this should be fairly easy.
 - [ ] Plugin system to support emulator middleware (ie filtering queried virtual memory, remapping virtual address space, etc).
 - [ ] Plugin system to support virtual modules. Very similar to above, but registering fake modules, with emulators again being the primary use case.
+- [ ] Plugin system for new project item types (ie supporting a .NET item, or a JRE item)
