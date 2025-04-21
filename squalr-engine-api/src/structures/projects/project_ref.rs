@@ -1,13 +1,13 @@
-use crate::structures::projects::project_item::ProjectItem;
+use crate::structures::projects::project_item_ref::ProjectItemRef;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Project {
+pub struct ProjectRef {
     name: String,
-    children: Vec<ProjectItem>,
+    children: Vec<ProjectItemRef>,
 }
 
-impl Project {
+impl ProjectRef {
     pub fn get_name(&self) -> &str {
         &self.name
     }

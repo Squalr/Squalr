@@ -1,5 +1,5 @@
 #[typetag::serde(tag = "kind")]
-pub trait ProjectItem {
+pub trait ProjectItemType: Send + Sync {
     fn get_name(&self) -> &str;
     fn get_description(&self) -> &str;
     fn is_activated(&self) -> bool;

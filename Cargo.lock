@@ -5020,6 +5020,7 @@ dependencies = [
  "structopt",
  "sysinfo 0.31.2",
  "thiserror 2.0.12",
+ "typetag",
  "uuid",
 ]
 
@@ -5089,10 +5090,10 @@ dependencies = [
 name = "squalr-engine-projects"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "serde",
  "serde_json",
  "squalr-engine-api",
- "typetag",
 ]
 
 [[package]]

@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+/// Represents a unique reference to a project item in an opened project.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ProjectItem {
+pub struct ProjectItemRef {
     /// The unique path to this project item.
     path: PathBuf,
 
@@ -16,7 +17,7 @@ pub struct ProjectItem {
     preview: Option<String>,
 
     /// The child project items underneath this project item.
-    children: Vec<ProjectItem>,
+    children: Vec<ProjectItemRef>,
 
     /// A value indicating whether this project item accepts children.
     is_container_type: bool,
@@ -30,7 +31,7 @@ pub struct ProjectItem {
     tooltip: Option<String>,
 }
 
-impl ProjectItem {
+impl ProjectItemRef {
     pub fn get_name(&self) -> &str {
         &self.name
     }

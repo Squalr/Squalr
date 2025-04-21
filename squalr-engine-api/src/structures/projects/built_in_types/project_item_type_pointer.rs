@@ -1,32 +1,35 @@
-use crate::project_items::project_item::ProjectItem;
+use crate::structures::{data_types::data_type_ref::DataTypeRef, projects::project_item_type::ProjectItemType};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, RwLock};
 use typetag::serde;
 
-/*
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DirectoryItem {
+#[derive(Serialize, Deserialize)]
+pub struct ProjectItemTypePointer {
     name: String,
+
     description: String,
-    children: Arc<RwLock<Box<dyn ProjectItem>>>,
+
+    data_type: DataTypeRef,
+
+    is_value_hex: bool,
+
+    module_name: String,
+
+    module_offset: u64,
+
+    pointer_offsets: Vec<i32>,
 
     #[serde(skip)]
     is_activated: bool,
 }
 
-impl DirectoryItem {
+impl ProjectItemTypePointer {
     pub fn new() {
         //
     }
 }
 
-impl ProjectItem for DirectoryItem {
-    fn typetag_name(&self) -> &'static str {
-        "directory"
-    }
-
-    fn typetag_deserialize(&self) {}
-
+#[typetag::serde]
+impl ProjectItemType for ProjectItemTypePointer {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -50,4 +53,3 @@ impl ProjectItem for DirectoryItem {
         self.is_activated = is_activated;
     }
 }
-*/
