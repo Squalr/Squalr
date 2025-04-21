@@ -6,7 +6,7 @@ use crossbeam_channel::Receiver;
 use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
 use squalr_engine_api::events::process::changed::process_changed_event::ProcessChangedEvent;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use squalr_engine_api::structures::projects::project_info::ProjectInfo;
+use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_scanning::results::snapshot_scan_result_freeze_list::SnapshotScanResultFreezeList;
@@ -34,7 +34,7 @@ pub struct EnginePrivilegedState {
     engine_bindings: Arc<RwLock<dyn EnginePrivilegedBindings>>,
 
     /// The current opened project.
-    opened_project: Arc<RwLock<Option<ProjectInfo>>>,
+    opened_project: Arc<RwLock<Option<Project>>>,
 }
 
 impl EnginePrivilegedState {
