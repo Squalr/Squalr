@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox } from "std-widgets.slint";
-
 import { Theme } from "../../theme.slint";
 
 import { ScanSettingsViewModelBindings, MemorySettingsViewModelBindings } from "../../view_model_bindings.slint";
@@ -18,7 +16,7 @@ export component SettingsTabMemory inherits Rectangle {
         Row {
             GroupBox {
                 header_text: "Required Protection Flags";
-                VerticalBox {
+                VerticalLayout {
                     alignment: start;
                     padding: 0px;
                     spacing: 6px;
@@ -53,7 +51,7 @@ export component SettingsTabMemory inherits Rectangle {
 
             GroupBox {
                 header_text: "Excluded Protection Flags";
-                VerticalBox {
+                VerticalLayout {
                     alignment: start;
                     padding: 0px;
                     spacing: 6px;
@@ -90,7 +88,7 @@ export component SettingsTabMemory inherits Rectangle {
         Row {
             GroupBox {
                 header_text: "Memory Types";
-                VerticalBox {
+                VerticalLayout {
                     alignment: start;
                     padding: 0px;
                     spacing: 6px;
@@ -134,7 +132,7 @@ export component SettingsTabMemory inherits Rectangle {
 
             GroupBox {
                 header_text: "Virtual Memory Querying";
-                VerticalBox {
+                VerticalLayout {
                     alignment: start;
                     padding: 0px;
                     spacing: 6px;

@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
-
 import { Theme } from "./../../theme.slint";
 
 import { ToolbarMenuItem, ToolbarMenuItemData } from "./toolbar_menu_item.slint";
@@ -17,13 +15,13 @@ export component ToolbarMenu inherits Rectangle {
     height: 24px + root.bottom_padding;
     background: Theme.background_primary;
     HorizontalLayout {
-        content := HorizontalBox {
+        content := HorizontalLayout {
+            spacing: 0px;
             alignment: start;
             padding_left: 0px;
             padding_right: 0px;
             padding_top: 0px;
             padding_bottom: bottom_padding;
-            spacing: 0px;
             for menu in menus: ToolbarMenuItem {
                 parent_toolbar_size: content.width;
                 text: menu.header;

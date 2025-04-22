@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox, Palette, GridBox } from "std-widgets.slint";
-
 import { Theme } from "../theme.slint";
 
 import { ContextMenu } from "../components/context_menu/context_menu.slint";
@@ -36,29 +34,26 @@ export component DataTypeSelector inherits Rectangle {
             padding_bottom: 0px;
             padding_left: 8px;
             padding_right: 0px;
-            HorizontalBox {
-                alignment: start;
-                padding: 0px;
-                spacing: 4px;
-                VerticalLayout {
-                    alignment: center;
-                    Image {
-                        width: 16px;
-                        height: 16px;
-                        horizontal_alignment: left;
-                        vertical_alignment: center;
-                        source: data_type_icon_converter.data_type_source(ScannerViewModelBindings.active_data_type.icon);
-                    }
+            spacing: 4px;
+            alignment: start;
+            VerticalLayout {
+                alignment: center;
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    horizontal_alignment: left;
+                    vertical_alignment: center;
+                    source: data_type_icon_converter.data_type_source(ScannerViewModelBindings.active_data_type.icon);
                 }
+            }
 
-                VerticalLayout {
-                    alignment: center;
-                    Text {
-                        text: root.to_display_string(ScannerViewModelBindings.active_data_type.data_type);
-                        color: Theme.foreground;
-                        horizontal_alignment: left;
-                        vertical_alignment: center;
-                    }
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: root.to_display_string(ScannerViewModelBindings.active_data_type.data_type);
+                    color: Theme.foreground;
+                    horizontal_alignment: left;
+                    vertical_alignment: center;
                 }
             }
         }

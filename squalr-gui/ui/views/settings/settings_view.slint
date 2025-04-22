@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox } from "std-widgets.slint";
-
 import { Theme } from "../../theme.slint";
 
 import { ScanSettingsViewModelBindings, MemorySettingsViewModelBindings } from "../../view_model_bindings.slint";
@@ -15,13 +13,13 @@ import { BevelButton } from "../../components/buttons/bevel_button.slint";
 
 export component SettingsView inherits Rectangle {
     property <int> selected_tab: 1;
-    content := VerticalBox {
+    content := VerticalLayout {
         padding: 0px;
         spacing: 0px;
         Rectangle {
             height: 24px;
             padding_bottom: 4px;
-            header := HorizontalBox {
+            header := HorizontalLayout {
                 alignment: start;
                 padding: 0px;
                 spacing: 0px;
@@ -121,13 +119,13 @@ export component SettingsView inherits Rectangle {
         }
 
         Rectangle {
-            general_content := VerticalBox { }
+            general_content := VerticalLayout { }
 
             memory_content := SettingsTabMemory { }
 
             scans_content := SettingsTabScan { }
 
-            middleware_content := VerticalBox { }
+            middleware_content := VerticalLayout { }
         }
 
         states [

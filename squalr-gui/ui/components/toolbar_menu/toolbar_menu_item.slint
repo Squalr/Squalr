@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
-
 import { Theme } from "../../theme.slint";
 
 import { ContextMenu } from "../context_menu/context_menu.slint";
@@ -44,43 +42,41 @@ export component ToolbarMenuItem inherits HorizontalLayout {
     context_menu := ContextMenu {
         x: text_button.x;
         y: text_button.y + text_button.height;
-        content := VerticalBox {
+        content := VerticalLayout {
             padding: 0px;
             spacing: 0px;
             for item in items: VerticalLayout {
-                VerticalBox {
-                    padding: 0px;
-                    padding_top: item.has_separator ? 4px : 0px;
-                    spacing: item.has_separator ? 4px : 0px;
-                    HSeparator {
-                        is_collapsed: !item.has_separator;
+                padding: 0px;
+                padding_top: item.has_separator ? 4px : 0px;
+                spacing: item.has_separator ? 4px : 0px;
+                HSeparator {
+                    is_collapsed: !item.has_separator;
+                }
+
+                Button {
+                    height: 24px;
+                    clicked => {
+                        root.onItemClicked(item.id);
                     }
-
-                    Button {
-                        height: 24px;
-                        clicked => {
-                            root.onItemClicked(item.id);
-                        }
-                        HorizontalLayout {
-                            alignment: start;
-                            padding_left: 8px;
-                            padding_right: 8px;
-                            VerticalLayout {
-                                alignment: center;
-                                if(item.check_state == ToolbarMenuCheckState.none): Text {
-                                    horizontal_alignment: center;
-                                    vertical_alignment: center;
-                                    text: item.text;
-                                    color: Theme.foreground;
-                                }
+                    HorizontalLayout {
+                        alignment: start;
+                        padding_left: 8px;
+                        padding_right: 8px;
+                        VerticalLayout {
+                            alignment: center;
+                            if(item.check_state == ToolbarMenuCheckState.none): Text {
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
+                                text: item.text;
+                                color: Theme.foreground;
                             }
+                        }
 
-                            VerticalLayout {
-                                alignment: center;
-                                if(item.check_state != ToolbarMenuCheckState.none): TextFakeCheckbox {
-                                    text: item.text;
-                                    is_checked: item.check_state == ToolbarMenuCheckState.checked;
-                                }
+                        VerticalLayout {
+                            alignment: center;
+                            if(item.check_state != ToolbarMenuCheckState.none): TextFakeCheckbox {
+                                text: item.text;
+                                is_checked: item.check_state == ToolbarMenuCheckState.checked;
                             }
                         }
                     }

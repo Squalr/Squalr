@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
-
 import { Theme } from "../../theme.slint";
 
 import { DockRootViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
@@ -38,7 +36,7 @@ export component DockedWindowTitleBarView inherits Rectangle {
             }
         }
 
-        HorizontalBox {
+        HorizontalLayout {
             alignment: end;
             padding: 0px;
             spacing: 0px;

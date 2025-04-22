@@ -1,4 +1,4 @@
-import { HorizontalBox, VerticalBox, ScrollView, Slider } from "std-widgets.slint";
+import { Slider } from "std-widgets.slint";
 
 import { Theme } from "../../theme.slint";
 
@@ -21,14 +21,15 @@ export component SettingsTabScan inherits Rectangle {
         Row {
             GroupBox {
                 header_text: "Memory Read Intervals";
-                VerticalBox {
+                VerticalLayout {
                     alignment: start;
                     padding: 0px;
                     spacing: 6px;
                     GridLayout {
                         spacing: 8px;
                         Row {
-                            HorizontalBox {
+                            HorizontalLayout {
+                                spacing: 8px;
                                 page_size_slider := Slider {
                                     width: 128px;
                                     minimum: 8;
@@ -53,7 +54,8 @@ export component SettingsTabScan inherits Rectangle {
                         }
 
                         Row {
-                            HorizontalBox {
+                            HorizontalLayout {
+                                spacing: 8px;
                                 freeze_interval_slider := Slider {
                                     width: 128px;
                                     minimum: 0;
@@ -77,7 +79,8 @@ export component SettingsTabScan inherits Rectangle {
                         }
 
                         Row {
-                            HorizontalBox {
+                            HorizontalLayout {
+                                spacing: 8px;
                                 project_read_interval_slider := Slider {
                                     width: 128px;
                                     minimum: 0;
@@ -105,7 +108,8 @@ export component SettingsTabScan inherits Rectangle {
                         }
 
                         Row {
-                            HorizontalBox {
+                            HorizontalLayout {
+                                spacing: 8px;
                                 result_read_interval_slider := Slider {
                                     width: 128px;
                                     minimum: 0;
@@ -138,7 +142,7 @@ export component SettingsTabScan inherits Rectangle {
 
         GroupBox {
             header_text: "Scan Params";
-            VerticalBox {
+            VerticalLayout {
                 alignment: start;
                 padding: 0px;
                 spacing: 6px;
@@ -180,7 +184,7 @@ export component SettingsTabScan inherits Rectangle {
         Row {
             GroupBox {
                 header_text: "Scan Internals";
-                VerticalBox {
+                VerticalLayout {
                     alignment: start;
                     padding: 0px;
                     spacing: 6px;

@@ -1,4 +1,4 @@
-import { HorizontalBox, VerticalBox, Palette, ScrollView } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
 
 import { Theme } from "../../theme.slint";
 import { ScanResultsViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
@@ -50,18 +50,13 @@ export component ScanResultsView inherits Rectangle {
                         alignment: start;
                         padding: 0px;
                         spacing: 0px;
-                        VerticalBox {
-                            alignment: start;
-                            padding: 0px;
-                            spacing: 0px;
-                            for index in ScanResultsViewModelBindings.scan_results.length: ScanResultEntry {
-                                address_splitter_location: root.get_address_splitter_location() + resizer_size;
-                                current_values_splitter_location: root.get_current_value_splitter_location() + resizer_size;
-                                previous_values_splitter_location: root.get_previous_value_splitter_location() + resizer_size;
-                                scan_result_view_data: ScanResultsViewModelBindings.scan_results[index];
-                                index: index;
-                                on_click => {
-                                }
+                        for index in ScanResultsViewModelBindings.scan_results.length: ScanResultEntry {
+                            address_splitter_location: root.get_address_splitter_location() + resizer_size;
+                            current_values_splitter_location: root.get_current_value_splitter_location() + resizer_size;
+                            previous_values_splitter_location: root.get_previous_value_splitter_location() + resizer_size;
+                            scan_result_view_data: ScanResultsViewModelBindings.scan_results[index];
+                            index: index;
+                            on_click => {
                             }
                         }
                     }

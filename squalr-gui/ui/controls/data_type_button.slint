@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox, Palette, GridBox } from "std-widgets.slint";
-
 import { Theme } from "./../theme.slint";
 
 import { Button } from "../components/buttons/button.slint";
@@ -12,21 +10,20 @@ export component DataTypeButton inherits Button {
     data_type_icon_converter := DataTypeIconConverter { }
 
     HorizontalLayout {
-        HorizontalBox {
-            Image {
-                width: 16px;
-                height: 16px;
-                horizontal_alignment: center;
-                vertical_alignment: center;
-                source: data_type_icon_converter.data_type_source(root.icon);
-            }
+        spacing: 8px;
+        Image {
+            width: 16px;
+            height: 16px;
+            horizontal_alignment: center;
+            vertical_alignment: center;
+            source: data_type_icon_converter.data_type_source(root.icon);
+        }
 
-            Text {
-                color: Theme.foreground;
-                horizontal_alignment: left;
-                vertical_alignment: center;
-                text: root.text;
-            }
+        Text {
+            color: Theme.foreground;
+            horizontal_alignment: left;
+            vertical_alignment: center;
+            text: root.text;
         }
     }
 }

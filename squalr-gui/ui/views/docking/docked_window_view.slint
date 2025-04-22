@@ -1,5 +1,3 @@
-import { VerticalBox } from "std-widgets.slint";
-
 import { Theme } from "./../../theme.slint";
 
 import { DockRootViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
@@ -31,25 +29,21 @@ export component DockedWindowView inherits Rectangle {
         height: root.docked_window_data.height - resize_padding * 2;
         spacing: 0px;
         padding: 0px;
-        VerticalBox {
-            padding: 0px;
-            spacing: 0px;
-            DockedWindowTitleBarView {
-                docked_window_data <=> root.docked_window_data;
-            }
+        DockedWindowTitleBarView {
+            docked_window_data <=> root.docked_window_data;
+        }
 
             // Main content area
             Rectangle {
-                background: root.is_being_dragged() && !root.is_drop_area_visible() ? Theme.selected_background : Theme.background_panel;
-                border_color: Theme.submenu_border;
-                border_radius: 2px;
-                border_width: 1px;
-                @children
-            }
+            background: root.is_being_dragged() && !root.is_drop_area_visible() ? Theme.selected_background : Theme.background_panel;
+            border_color: Theme.submenu_border;
+            border_radius: 2px;
+            border_width: 1px;
+            @children
+        }
 
-            footer := DockedWindowFooter {
-                docked_window_data <=> root.docked_window_data;
-            }
+        footer := DockedWindowFooter {
+            docked_window_data <=> root.docked_window_data;
         }
     }
 

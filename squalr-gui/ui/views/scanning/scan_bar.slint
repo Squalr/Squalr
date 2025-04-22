@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
-
 import { Theme } from "../../theme.slint";
 
 import { Button } from "../../components/buttons/button.slint";
@@ -19,7 +17,7 @@ export component ScanBarView inherits Rectangle {
     height: bar_height + root.bottom_padding;
     background: Theme.background_primary;
     // Shortcut
-    top_bar := HorizontalBox {
+    top_bar := HorizontalLayout {
         x: 0px;
         y: 0px;
         alignment: start;

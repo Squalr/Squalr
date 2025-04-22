@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox, Palette } from "std-widgets.slint";
-
 import { Theme } from "../../theme.slint";
 
 import { DockRootViewModelBindings, DockedWindowViewData } from "./../../view_model_bindings.slint";
@@ -13,41 +11,38 @@ export component DockedWindowFooter inherits Rectangle {
     height: docked_window_data.tab_ids.length > 0 ? 24px : 0px;
     HorizontalLayout {
         padding: 0px;
-        HorizontalBox {
-            alignment: start;
-            padding: 0px;
-            spacing: 0px;
-            for tab_id in docked_window_data.tab_ids: BevelButton {
-                width: 128px;
-                height: 24px;
-                background_color: docked_window_data.active_tab_id == tab_id ? Theme.background_control_primary : Theme.background_control_secondary;
-                border_color: Theme.submenu_border;
-                border_width: 1px;
-                border_radius: 0px;
-                border_top_left_radius: 0px;
-                border_top_right_radius: 0px;
-                border_bottom_left_radius: 0px;
-                border_bottom_right_radius: 0px;
-                enabled: !DockRootViewModelBindings.is_dragging_window;
-                clicked => {
-                    docked_window_data.active_tab_id = tab_id;
-                    DockRootViewModelBindings.update_active_tab_id(tab_id);
-                }
-                moved => {
-                    if (self.is_pressed && self.enabled) {
+        alignment: start;
+        spacing: 0px;
+        for tab_id in docked_window_data.tab_ids: BevelButton {
+            width: 128px;
+            height: 24px;
+            background_color: docked_window_data.active_tab_id == tab_id ? Theme.background_control_primary : Theme.background_control_secondary;
+            border_color: Theme.submenu_border;
+            border_width: 1px;
+            border_radius: 0px;
+            border_top_left_radius: 0px;
+            border_top_right_radius: 0px;
+            border_bottom_left_radius: 0px;
+            border_bottom_right_radius: 0px;
+            enabled: !DockRootViewModelBindings.is_dragging_window;
+            clicked => {
+                docked_window_data.active_tab_id = tab_id;
+                DockRootViewModelBindings.update_active_tab_id(tab_id);
+            }
+            moved => {
+                if (self.is_pressed && self.enabled) {
                         // Begin dragging this window for a potential redock operation.
                         DockRootViewModelBindings.active_dragged_window_id = tab_id;
         
                         // Disable ourself to relinquish control over the mouse, allowing hit (and thus drop) detection on other elements.
                         DockRootViewModelBindings.is_dragging_window = true;
-                    }
                 }
-                Text {
-                    horizontal_alignment: left;
-                    vertical_alignment: center;
-                    text: DockRootViewModelBindings.get_tab_text(tab_id);
-                    color: Theme.foreground;
-                }
+            }
+            Text {
+                horizontal_alignment: left;
+                vertical_alignment: center;
+                text: DockRootViewModelBindings.get_tab_text(tab_id);
+                color: Theme.foreground;
             }
         }
     }

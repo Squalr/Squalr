@@ -1,4 +1,4 @@
-import { LineEdit, HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { LineEdit } from "std-widgets.slint";
 
 import { Theme } from "../../theme.slint";
 
@@ -116,89 +116,87 @@ export component DataValueBox {
         height: root.height;
         close_policy: PopupClosePolicy.close_on_click_outside;
         VerticalLayout {
-            VerticalBox {
-                padding: 0px;
-                spacing: 0px;
-                Button {
-                    clicked => {
-                        context_menu.close();
-                        root.is_value_hex = false;
+            padding: 0px;
+            spacing: 0px;
+            Button {
+                clicked => {
+                    context_menu.close();
+                    root.is_value_hex = false;
+                }
+                HorizontalLayout {
+                    alignment: start;
+                    padding: 8px;
+                    spacing: 4px;
+                    FakeCheckbox {
+                        is_checked: !root.is_value_hex;
                     }
-                    HorizontalLayout {
-                        alignment: start;
-                        padding: 8px;
-                        spacing: 4px;
-                        FakeCheckbox {
-                            is_checked: !root.is_value_hex;
-                        }
 
-                        Text {
-                            horizontal_alignment: center;
-                            vertical_alignment: center;
-                            text: @tr("Dec");
-                            color: Theme.foreground;
-                        }
+                    Text {
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        text: @tr("Dec");
+                        color: Theme.foreground;
+                    }
+                }
+            }
+
+            Button {
+                clicked => {
+                    context_menu.close();
+                    root.is_value_hex = true;
+                }
+                HorizontalLayout {
+                    alignment: start;
+                    padding: 8px;
+                    spacing: 4px;
+                    FakeCheckbox {
+                        is_checked: root.is_value_hex;
+                    }
+
+                    Text {
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        text: @tr("Hex");
+                        color: Theme.foreground;
+                    }
+                }
+            }
+
+            Button {
+                HorizontalLayout {
+                    alignment: start;
+                    padding: 8px;
+                    Text {
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        text: @tr("Convert to Dec");
+                        color: Theme.foreground;
                     }
                 }
 
-                Button {
-                    clicked => {
-                        context_menu.close();
-                        root.is_value_hex = true;
-                    }
-                    HorizontalLayout {
-                        alignment: start;
-                        padding: 8px;
-                        spacing: 4px;
-                        FakeCheckbox {
-                            is_checked: root.is_value_hex;
-                        }
+                clicked => {
+                    root.is_value_hex = false;
+                    line_edit.text = ConversionsViewModelBindings.convert_hex_to_dec(line_edit.text);
+                    context_menu.close();
+                }
+            }
 
-                        Text {
-                            horizontal_alignment: center;
-                            vertical_alignment: center;
-                            text: @tr("Hex");
-                            color: Theme.foreground;
-                        }
+            Button {
+                HorizontalLayout {
+                    alignment: start;
+                    padding: 8px;
+                    Text {
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        text: @tr("Convert to Hex");
+                        color: Theme.foreground;
                     }
                 }
 
-                Button {
-                    HorizontalLayout {
-                        alignment: start;
-                        padding: 8px;
-                        Text {
-                            horizontal_alignment: center;
-                            vertical_alignment: center;
-                            text: @tr("Convert to Dec");
-                            color: Theme.foreground;
-                        }
-                    }
-
-                    clicked => {
-                        root.is_value_hex = false;
-                        line_edit.text = ConversionsViewModelBindings.convert_hex_to_dec(line_edit.text);
-                        context_menu.close();
-                    }
-                }
-
-                Button {
-                    HorizontalLayout {
-                        alignment: start;
-                        padding: 8px;
-                        Text {
-                            horizontal_alignment: center;
-                            vertical_alignment: center;
-                            text: @tr("Convert to Hex");
-                            color: Theme.foreground;
-                        }
-                    }
-
-                    clicked => {
-                        root.is_value_hex = true;
-                        line_edit.text = ConversionsViewModelBindings.convert_dec_to_hex(line_edit.text);
-                        context_menu.close();
-                    }
+                clicked => {
+                    root.is_value_hex = true;
+                    line_edit.text = ConversionsViewModelBindings.convert_dec_to_hex(line_edit.text);
+                    context_menu.close();
                 }
             }
         }

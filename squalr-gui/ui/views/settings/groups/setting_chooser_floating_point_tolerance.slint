@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox } from "std-widgets.slint";
-
 import { Theme } from "../../../theme.slint";
 
 import { ConversionsViewModelBindings, ScanSettingsViewModelBindings, FloatingPointToleranceView } from "../../../view_model_bindings.slint";
@@ -32,24 +30,22 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                     alignment: center;
                     HorizontalLayout {
                         padding_left: 4px;
+                        padding_right: 8px;
                         alignment: start;
-                        HorizontalBox {
-                            padding: 0px;
-                            padding_right: 8px;
-                            Image {
-                                width: 16px;
-                                height: 16px;
-                                horizontal_alignment: center;
-                                vertical_alignment: center;
-                                source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(ScanSettingsViewModelBindings.floating_point_tolerance);
-                            }
+                        spacing: 8px;
+                        Image {
+                            width: 16px;
+                            height: 16px;
+                            horizontal_alignment: center;
+                            vertical_alignment: center;
+                            source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(ScanSettingsViewModelBindings.floating_point_tolerance);
+                        }
 
-                            Text {
-                                color: Theme.foreground;
-                                horizontal_alignment: left;
-                                vertical_alignment: center;
-                                text: ConversionsViewModelBindings.get_floating_point_tolerance_string(ScanSettingsViewModelBindings.floating_point_tolerance);
-                            }
+                        Text {
+                            color: Theme.foreground;
+                            horizontal_alignment: left;
+                            vertical_alignment: center;
+                            text: ConversionsViewModelBindings.get_floating_point_tolerance_string(ScanSettingsViewModelBindings.floating_point_tolerance);
                         }
                     }
                 }
@@ -83,7 +79,7 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
             border_color: Theme.submenu_border;
             border_width: 1px;
             min_width: floating_point_tolerance_dropdown_button.width - self.border_width * 2 + 8px;
-            VerticalBox {
+            VerticalLayout {
                 padding: 0px;
                 spacing: 0px;
                 Button {
@@ -97,24 +93,23 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                         alignment: center;
                         HorizontalLayout {
                             padding_left: 4px;
+                            padding_right: 8px;
+                            spacing: 8px;
                             alignment: start;
-                            HorizontalBox {
-                                padding: 0px;
-                                padding_right: 8px;
-                                Image {
-                                    width: 16px;
-                                    height: 16px;
-                                    horizontal_alignment: center;
-                                    vertical_alignment: center;
-                                    source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e1);
-                                }
+                            padding: 0px;
+                            Image {
+                                width: 16px;
+                                height: 16px;
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
+                                source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e1);
+                            }
 
-                                Text {
-                                    color: Theme.foreground;
-                                    horizontal_alignment: left;
-                                    vertical_alignment: center;
-                                    text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e1);
-                                }
+                            Text {
+                                color: Theme.foreground;
+                                horizontal_alignment: left;
+                                vertical_alignment: center;
+                                text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e1);
                             }
                         }
                     }
@@ -131,24 +126,22 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                         alignment: center;
                         HorizontalLayout {
                             padding_left: 4px;
+                            padding_right: 8px;
+                            spacing: 8px;
                             alignment: start;
-                            HorizontalBox {
-                                padding: 0px;
-                                padding_right: 8px;
-                                Image {
-                                    width: 16px;
-                                    height: 16px;
-                                    horizontal_alignment: center;
-                                    vertical_alignment: center;
-                                    source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e2);
-                                }
+                            Image {
+                                width: 16px;
+                                height: 16px;
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
+                                source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e2);
+                            }
 
-                                Text {
-                                    color: Theme.foreground;
-                                    horizontal_alignment: left;
-                                    vertical_alignment: center;
-                                    text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e2);
-                                }
+                            Text {
+                                color: Theme.foreground;
+                                horizontal_alignment: left;
+                                vertical_alignment: center;
+                                text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e2);
                             }
                         }
                     }
@@ -165,24 +158,22 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                         alignment: center;
                         HorizontalLayout {
                             padding_left: 4px;
+                            padding_right: 8px;
+                            spacing: 8px;
                             alignment: start;
-                            HorizontalBox {
-                                padding: 0px;
-                                padding_right: 8px;
-                                Image {
-                                    width: 16px;
-                                    height: 16px;
-                                    horizontal_alignment: center;
-                                    vertical_alignment: center;
-                                    source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e3);
-                                }
+                            Image {
+                                width: 16px;
+                                height: 16px;
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
+                                source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e3);
+                            }
 
-                                Text {
-                                    color: Theme.foreground;
-                                    horizontal_alignment: left;
-                                    vertical_alignment: center;
-                                    text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e3);
-                                }
+                            Text {
+                                color: Theme.foreground;
+                                horizontal_alignment: left;
+                                vertical_alignment: center;
+                                text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e3);
                             }
                         }
                     }
@@ -199,24 +190,22 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                         alignment: center;
                         HorizontalLayout {
                             padding_left: 4px;
+                            padding_right: 8px;
+                            spacing: 8px;
                             alignment: start;
-                            HorizontalBox {
-                                padding: 0px;
-                                padding_right: 8px;
-                                Image {
-                                    width: 16px;
-                                    height: 16px;
-                                    horizontal_alignment: center;
-                                    vertical_alignment: center;
-                                    source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e4);
-                                }
+                            Image {
+                                width: 16px;
+                                height: 16px;
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
+                                source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e4);
+                            }
 
-                                Text {
-                                    color: Theme.foreground;
-                                    horizontal_alignment: left;
-                                    vertical_alignment: center;
-                                    text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e4);
-                                }
+                            Text {
+                                color: Theme.foreground;
+                                horizontal_alignment: left;
+                                vertical_alignment: center;
+                                text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e4);
                             }
                         }
                     }
@@ -233,24 +222,22 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                         alignment: center;
                         HorizontalLayout {
                             padding_left: 4px;
+                            padding_right: 8px;
+                            spacing: 8px;
                             alignment: start;
-                            HorizontalBox {
-                                padding: 0px;
-                                padding_right: 8px;
-                                Image {
-                                    width: 16px;
-                                    height: 16px;
-                                    horizontal_alignment: center;
-                                    vertical_alignment: center;
-                                    source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e5);
-                                }
+                            Image {
+                                width: 16px;
+                                height: 16px;
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
+                                source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_10e5);
+                            }
 
-                                Text {
-                                    color: Theme.foreground;
-                                    horizontal_alignment: left;
-                                    vertical_alignment: center;
-                                    text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e5);
-                                }
+                            Text {
+                                color: Theme.foreground;
+                                horizontal_alignment: left;
+                                vertical_alignment: center;
+                                text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_10e5);
                             }
                         }
                     }
@@ -267,24 +254,22 @@ export component SettingChooserFloatingPointTolerance inherits Rectangle {
                         alignment: center;
                         HorizontalLayout {
                             padding_left: 4px;
+                            padding_right: 8px;
+                            spacing: 8px;
                             alignment: start;
-                            HorizontalBox {
-                                padding: 0px;
-                                padding_right: 8px;
-                                Image {
-                                    width: 16px;
-                                    height: 16px;
-                                    horizontal_alignment: center;
-                                    vertical_alignment: center;
-                                    source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_epsilon);
-                                }
+                            Image {
+                                width: 16px;
+                                height: 16px;
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
+                                source: floating_point_tolerance_icon_converter.floating_point_tolerance_source(FloatingPointToleranceView.tolerance_epsilon);
+                            }
 
-                                Text {
-                                    color: Theme.foreground;
-                                    horizontal_alignment: left;
-                                    vertical_alignment: center;
-                                    text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_epsilon);
-                                }
+                            Text {
+                                color: Theme.foreground;
+                                horizontal_alignment: left;
+                                vertical_alignment: center;
+                                text: ConversionsViewModelBindings.get_floating_point_tolerance_string(FloatingPointToleranceView.tolerance_epsilon);
                             }
                         }
                     }

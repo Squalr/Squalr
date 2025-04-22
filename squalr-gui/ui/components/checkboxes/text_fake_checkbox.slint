@@ -1,5 +1,3 @@
-import { HorizontalBox } from "std-widgets.slint";
-
 import { Theme } from "./../../theme.slint";
 
 import { Tooltip } from "../tooltips/tooltip.slint";
@@ -10,7 +8,8 @@ export component TextFakeCheckbox {
     in property <string> text;
     callback check_changed(bool);
     Rectangle {
-        container := HorizontalBox {
+        container := HorizontalLayout {
+            spacing: 8px;
             padding_top: root.padding_top;
             padding_bottom: root.padding_bottom;
             padding_left: root.padding_left;

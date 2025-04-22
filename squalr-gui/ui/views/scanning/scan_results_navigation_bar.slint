@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox, Palette, ScrollView } from "std-widgets.slint";
-
 import { Theme } from "../../theme.slint";
 import { ScanResultsViewModelBindings } from "../../view_model_bindings.slint";
 
@@ -10,7 +8,7 @@ export component ScanResultsNavigationBar inherits Rectangle {
     in property <length> current_value_header_start;
     in property <length> previous_value_header_start;
     height: 32px;
-    HorizontalBox {
+    HorizontalLayout {
         alignment: center;
         padding_top: 4px;
         padding_bottom: 4px;

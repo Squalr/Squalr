@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox } from "std-widgets.slint";
-
 import { Theme } from "../../../theme.slint";
 
 import { ConversionsViewModelBindings, ScanSettingsViewModelBindings, MemoryAlignmentView } from "../../../view_model_bindings.slint";
@@ -33,24 +31,22 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                     alignment: center;
                     HorizontalLayout {
                         padding_left: 4px;
+                        padding_right: 8px;
                         alignment: start;
-                        HorizontalBox {
-                            padding: 0px;
-                            padding_right: 8px;
-                            Image {
-                                width: 16px;
-                                height: 16px;
-                                horizontal_alignment: center;
-                                vertical_alignment: center;
-                                source: memory_alignment_icon_converter.memory_alignment_source(ScanSettingsViewModelBindings.memory_alignment);
-                            }
+                        spacing: 8px;
+                        Image {
+                            width: 16px;
+                            height: 16px;
+                            horizontal_alignment: center;
+                            vertical_alignment: center;
+                            source: memory_alignment_icon_converter.memory_alignment_source(ScanSettingsViewModelBindings.memory_alignment);
+                        }
 
-                            Text {
-                                color: Theme.foreground;
-                                horizontal_alignment: left;
-                                vertical_alignment: center;
-                                text: ConversionsViewModelBindings.get_memory_alignment_string(ScanSettingsViewModelBindings.memory_alignment);
-                            }
+                        Text {
+                            color: Theme.foreground;
+                            horizontal_alignment: left;
+                            vertical_alignment: center;
+                            text: ConversionsViewModelBindings.get_memory_alignment_string(ScanSettingsViewModelBindings.memory_alignment);
                         }
                     }
                 }
@@ -84,7 +80,7 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
             border_color: Theme.submenu_border;
             border_width: 1px;
             min_width: memory_alignment_dropdown_button.width - self.border_width * 2;
-            VerticalBox {
+            VerticalLayout {
                 padding: 0px;
                 spacing: 0px;
                 Button {
@@ -98,24 +94,23 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                         alignment: center;
                         HorizontalLayout {
                             padding_left: 4px;
+                            padding_right: 8px;
+                            spacing: 8px;
                             alignment: start;
-                            HorizontalBox {
-                                padding: 0px;
-                                padding_right: 8px;
-                                Image {
-                                    width: 16px;
-                                    height: 16px;
-                                    horizontal_alignment: center;
-                                    vertical_alignment: center;
-                                    source: memory_alignment_icon_converter.memory_alignment_source(MemoryAlignmentView.alignment_1);
-                                }
+                            padding: 0px;
+                            Image {
+                                width: 16px;
+                                height: 16px;
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
+                                source: memory_alignment_icon_converter.memory_alignment_source(MemoryAlignmentView.alignment_1);
+                            }
 
-                                Text {
-                                    color: Theme.foreground;
-                                    horizontal_alignment: left;
-                                    vertical_alignment: center;
-                                    text: ConversionsViewModelBindings.get_memory_alignment_string(MemoryAlignmentView.alignment_1);
-                                }
+                            Text {
+                                color: Theme.foreground;
+                                horizontal_alignment: left;
+                                vertical_alignment: center;
+                                text: ConversionsViewModelBindings.get_memory_alignment_string(MemoryAlignmentView.alignment_1);
                             }
                         }
                     }
@@ -132,24 +127,22 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                         alignment: center;
                         HorizontalLayout {
                             padding_left: 4px;
+                            padding_right: 8px;
+                            spacing: 8px;
                             alignment: start;
-                            HorizontalBox {
-                                padding: 0px;
-                                padding_right: 8px;
-                                Image {
-                                    width: 16px;
-                                    height: 16px;
-                                    horizontal_alignment: center;
-                                    vertical_alignment: center;
-                                    source: memory_alignment_icon_converter.memory_alignment_source(MemoryAlignmentView.alignment_2);
-                                }
+                            Image {
+                                width: 16px;
+                                height: 16px;
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
+                                source: memory_alignment_icon_converter.memory_alignment_source(MemoryAlignmentView.alignment_2);
+                            }
 
-                                Text {
-                                    color: Theme.foreground;
-                                    horizontal_alignment: left;
-                                    vertical_alignment: center;
-                                    text: ConversionsViewModelBindings.get_memory_alignment_string(MemoryAlignmentView.alignment_2);
-                                }
+                            Text {
+                                color: Theme.foreground;
+                                horizontal_alignment: left;
+                                vertical_alignment: center;
+                                text: ConversionsViewModelBindings.get_memory_alignment_string(MemoryAlignmentView.alignment_2);
                             }
                         }
                     }
@@ -166,24 +159,22 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                         alignment: center;
                         HorizontalLayout {
                             padding_left: 4px;
+                            padding_right: 8px;
+                            spacing: 8px;
                             alignment: start;
-                            HorizontalBox {
-                                padding: 0px;
-                                padding_right: 8px;
-                                Image {
-                                    width: 16px;
-                                    height: 16px;
-                                    horizontal_alignment: center;
-                                    vertical_alignment: center;
-                                    source: memory_alignment_icon_converter.memory_alignment_source(MemoryAlignmentView.alignment_4);
-                                }
+                            Image {
+                                width: 16px;
+                                height: 16px;
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
+                                source: memory_alignment_icon_converter.memory_alignment_source(MemoryAlignmentView.alignment_4);
+                            }
 
-                                Text {
-                                    color: Theme.foreground;
-                                    horizontal_alignment: left;
-                                    vertical_alignment: center;
-                                    text: ConversionsViewModelBindings.get_memory_alignment_string(MemoryAlignmentView.alignment_4);
-                                }
+                            Text {
+                                color: Theme.foreground;
+                                horizontal_alignment: left;
+                                vertical_alignment: center;
+                                text: ConversionsViewModelBindings.get_memory_alignment_string(MemoryAlignmentView.alignment_4);
                             }
                         }
                     }
@@ -200,24 +191,22 @@ export component SettingChooserMemoryAlignment inherits Rectangle {
                         alignment: center;
                         HorizontalLayout {
                             padding_left: 4px;
+                            padding_right: 8px;
+                            spacing: 8px;
                             alignment: start;
-                            HorizontalBox {
-                                padding: 0px;
-                                padding_right: 8px;
-                                Image {
-                                    width: 16px;
-                                    height: 16px;
-                                    horizontal_alignment: center;
-                                    vertical_alignment: center;
-                                    source: memory_alignment_icon_converter.memory_alignment_source(MemoryAlignmentView.alignment_8);
-                                }
+                            Image {
+                                width: 16px;
+                                height: 16px;
+                                horizontal_alignment: center;
+                                vertical_alignment: center;
+                                source: memory_alignment_icon_converter.memory_alignment_source(MemoryAlignmentView.alignment_8);
+                            }
 
-                                Text {
-                                    color: Theme.foreground;
-                                    horizontal_alignment: left;
-                                    vertical_alignment: center;
-                                    text: ConversionsViewModelBindings.get_memory_alignment_string(MemoryAlignmentView.alignment_8);
-                                }
+                            Text {
+                                color: Theme.foreground;
+                                horizontal_alignment: left;
+                                vertical_alignment: center;
+                                text: ConversionsViewModelBindings.get_memory_alignment_string(MemoryAlignmentView.alignment_8);
                             }
                         }
                     }

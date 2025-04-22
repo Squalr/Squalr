@@ -1,5 +1,3 @@
-import { HorizontalBox, VerticalBox, Palette, GridBox } from "std-widgets.slint";
-
 import { Theme } from "../../theme.slint";
 import { ScanResultsViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
 import { DataTypeIconConverter } from "../../converters/data_type_icon_converter.slint";
@@ -28,7 +26,7 @@ export component ScanResultEntry inherits Button {
         }
     }
 
-    HorizontalBox {
+    HorizontalLayout {
         x: root.address_splitter_location + 8px;
         padding: 0px;
         spacing: 4px;
