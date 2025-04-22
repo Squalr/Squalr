@@ -42,23 +42,6 @@ export component ShortcutBarView inherits Rectangle {
             }
         }
 
-        open_project_button := Button {
-            height: bar_height;
-            width: 36px;
-            tooltip_text: @tr("Open Project");
-            click_sound: "";
-            clicked => {
-                // WindowViewModelBindings.minimize();
-            }
-            Image {
-                width: 16px;
-                height: 16px;
-                horizontal_alignment: center;
-                vertical_alignment: center;
-                source: @image_url("../../images/file_system/open_folder.png");
-            }
-        }
-
         process_quick_selector := ProcessQuickSelector {
             height: bar_height;
         }

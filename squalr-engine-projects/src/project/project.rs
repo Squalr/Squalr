@@ -26,6 +26,8 @@ impl Project {
         &self.project_info
     }
 
+    pub fn save(&self) {}
+
     fn load_directory(path: &Path) -> anyhow::Result<ProjectItemTypeDirectory> {
         let mut directory = ProjectItemTypeDirectory::new(path);
 

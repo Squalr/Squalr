@@ -6,24 +6,53 @@ import { Button } from "../../../components/buttons/button.slint";
 
 export component ProjectEntry inherits Button {
     in property <ProjectViewData> process_view_data;
-    callback on_click();
+    in property <bool> is_selected;
+    in property <bool> is_editing;
+    callback on_clicked();
+    callback on_rename_clicked();
     clicked => {
-        root.on_click();
+        root.on_clicked();
     }
-    HorizontalLayout {
-        spacing: 8px;
-        Image {
-            width: 16px;
-            height: 16px;
-            horizontal_alignment: center;
-            vertical_alignment: center;
-        }
+    Rectangle {
+        background: root.is_selected ? Theme.selected_background : Theme.background_panel;
+        border_color: root.is_selected ? Theme.selected_border : Theme.submenu_border;
+        border_width: 1px;
+        HorizontalLayout {
+            padding_top: 4px;
+            padding_bottom: 4px;
+            padding_left: 4px;
+            padding_right: 4px;
+            spacing: 8px;
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+            }
 
-        Text {
-            color: Theme.foreground;
-            horizontal_alignment: left;
-            vertical_alignment: center;
-            text: process_view_data.name;
+            rename_project_button := Button {
+                height: 24px;
+                width: 36px;
+                tooltip_text: @tr("Rename project...");
+                click_sound: "";
+                clicked => {
+                    root.on_rename_clicked();
+                }
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    horizontal_alignment: center;
+                    vertical_alignment: center;
+                    source: @image_url("../../../images/properties/edit.png");
+                }
+            }
+
+            Text {
+                color: Theme.foreground;
+                horizontal_alignment: left;
+                vertical_alignment: center;
+                text: process_view_data.name;
+            }
         }
     }
 }

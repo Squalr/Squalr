@@ -11,7 +11,7 @@ export component ProcessQuickSelector inherits Rectangle {
     background: Theme.background_control;
     border_color: Theme.submenu_border;
     border_width: 1px;
-    width: 192px;
+    min_width: 192px;
     dropdown_button := Button {
         width: 100%;
         height: 24px;
@@ -23,6 +23,7 @@ export component ProcessQuickSelector inherits Rectangle {
             alignment: center;
             HorizontalLayout {
                 padding_left: 4px;
+                padding-right: 32px;
                 alignment: start;
                 Image {
                     width: 16px;

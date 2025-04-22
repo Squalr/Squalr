@@ -97,6 +97,11 @@ impl EnginePrivilegedState {
         }
     }
 
+    /// Gets the current opened project.
+    pub fn get_opened_project(&self) -> Arc<RwLock<Option<Project>>> {
+        self.opened_project.clone()
+    }
+
     /// Sets the process to which we are currently attached.
     pub fn set_opened_process(
         &self,

@@ -8,6 +8,8 @@ import { BevelButton } from "../../../components/buttons/bevel_button.slint";
 import { ProjectEntry } from "project_entry.slint";
 
 export component ProjectSelectorTab inherits Rectangle {
+    property <int> selected_index: -1;
+    property <bool> is_editing: false;
     VerticalLayout {
         padding: 0px;
         spacing: 0px;
@@ -16,12 +18,30 @@ export component ProjectSelectorTab inherits Rectangle {
             HorizontalLayout {
                 padding: 2px;
                 spacing: 4px;
+                open_project_button := Button {
+                    height: 24px;
+                    width: 36px;
+                    tooltip_text: @tr("Browse to project...");
+                    click_sound: "";
+                    clicked => {
+                        ProjectExplorerViewModelBindings.browse_for_project();
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        source: @image_url("../../../images/file_system/open_folder.png");
+                    }
+                }
+
                 new_project_button := Button {
                     height: 24px;
                     width: 36px;
-                    tooltip_text: @tr("New Project");
+                    tooltip_text: @tr("New project");
                     click_sound: "";
                     clicked => {
+                        ProjectExplorerViewModelBindings.create_new_project("New Project");
                     }
                     Image {
                         width: 16px;
@@ -39,13 +59,14 @@ export component ProjectSelectorTab inherits Rectangle {
                     click_sound: "";
                     clicked => {
                         ProjectExplorerViewModelBindings.refresh_project_list();
+                        root.selected_index = -1;
                     }
                     Image {
                         width: 16px;
                         height: 16px;
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        source: @image_url("../../../images/navigation/redo.png");
+                        source: @image_url("../../../images/navigation/refresh.png");
                     }
                 }
             }
@@ -55,9 +76,15 @@ export component ProjectSelectorTab inherits Rectangle {
             content := VerticalLayout {
                 padding: 0px;
                 spacing: 0px;
-                for process_entry in ProjectExplorerViewModelBindings.projects: ProjectEntry {
-                    process_view_data: process_entry;
-                    on_click => {
+                for index in ProjectExplorerViewModelBindings.projects.length: ProjectEntry {
+                    is_selected: index == root.selected_index;
+                    is_editing: index == root.selected_index && root.is_editing;
+                    process_view_data: ProjectExplorerViewModelBindings.projects[index];
+                    on_clicked => {
+                        root.selected_index = index;
+                    }
+                    on_rename_clicked => {
+                        root.is_editing = true;
                     }
                 }
             }
