@@ -2,8 +2,9 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::project::open::project_open_request::ProjectOpenRequest;
 use squalr_engine_api::commands::project::open::project_open_response::ProjectOpenResponse;
+use squalr_engine_projects::project::project::Project;
+use squalr_engine_projects::project_settings_config::ProjectSettingsConfig;
 use std::sync::Arc;
-use sysinfo::Pid;
 
 impl EngineCommandRequestExecutor for ProjectOpenRequest {
     type ResponseType = ProjectOpenResponse;
@@ -12,42 +13,18 @@ impl EngineCommandRequestExecutor for ProjectOpenRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        /*
-        if self.project_id.is_none() && self.search_name.is_none() {
-            log::error!("Error: Neither PID nor search name provided. Cannot open project.");
-            return ProjectOpenResponse { opened_project_info: None };
-        }
+        let project_path = ProjectSettingsConfig::get_projects_root().join(&self.project_name);
 
-        log::info!("Opening project...");
+        if let Ok(project) = Project::open_project(&project_path) {
+            let project_info = project.get_project_info().clone();
 
-        let options = ProjectQueryOptions {
-            search_name: self.search_name.clone(),
-            required_project_id: self.project_id.map(Pid::from_u32),
-            require_windowed: false,
-            match_case: self.match_case,
-            fetch_icons: false,
-            limit: Some(1),
-        };
+            engine_privileged_state.set_opened_project(project);
 
-        let projectes = ProjectQuery::get_projectes(options);
-
-        if let Some(project_info) = projectes.first() {
-            match ProjectQuery::open_project(&project_info) {
-                Ok(opened_project_info) => {
-                    engine_privileged_state.set_opened_project(opened_project_info.clone());
-
-                    return ProjectOpenResponse {
-                        opened_project_info: Some(opened_project_info),
-                    };
-                }
-                Err(err) => {
-                    log::info!("Failed to open project {}: {}", project_info.get_project_id_raw(), err);
-                }
+            ProjectOpenResponse {
+                opened_project_info: Some(project_info),
             }
         } else {
-            log::error!("No matching project found.");
-        }*/
-
-        ProjectOpenResponse { opened_project_info: None }
+            ProjectOpenResponse { opened_project_info: None }
+        }
     }
 }

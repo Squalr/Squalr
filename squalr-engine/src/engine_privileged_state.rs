@@ -86,6 +86,17 @@ impl EnginePrivilegedState {
         }
     }
 
+    /// Sets the current opened project.
+    pub fn set_opened_project(
+        &self,
+        project: Project,
+    ) {
+        if let Ok(mut opened_project) = self.opened_project.write() {
+            log::info!("Opened project: {}", project.get_name());
+            *opened_project = Some(project);
+        }
+    }
+
     /// Sets the process to which we are currently attached.
     pub fn set_opened_process(
         &self,

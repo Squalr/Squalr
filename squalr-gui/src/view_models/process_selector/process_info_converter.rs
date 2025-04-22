@@ -29,9 +29,9 @@ impl ViewDataConverter<ProcessInfo, ProcessViewData> for ProcessInfoConverter {
     ) -> ProcessViewData {
         let icon = if let Some(icon_data) = &process_info.get_icon() {
             // Create new buffer and copy the data
-            let mut icon_buffer = SharedPixelBuffer::new(icon_data.width, icon_data.height);
+            let mut icon_buffer = SharedPixelBuffer::new(icon_data.get_width(), icon_data.get_height());
             let icon_buffer_bytes = icon_buffer.make_mut_bytes();
-            icon_buffer_bytes.copy_from_slice(&icon_data.bytes_rgba);
+            icon_buffer_bytes.copy_from_slice(icon_data.get_bytes_rgba());
             Image::from_rgba8(icon_buffer)
         } else {
             // Create 1x1 transparent image as fallback

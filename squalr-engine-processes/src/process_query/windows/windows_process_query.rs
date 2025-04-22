@@ -140,11 +140,7 @@ impl WindowsProcessQuery {
                 }
             }
 
-            Some(ProcessIcon {
-                bytes_rgba: rgba,
-                width: width as u32,
-                height: height as u32,
-            })
+            Some(ProcessIcon::new(rgba, width as u32, height as u32))
         }
     }
 
