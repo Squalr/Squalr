@@ -18,6 +18,9 @@ use std::time::Duration;
 
 /// Tracks critical engine state for internal use. This includes executing engine tasks, commands, and events.
 pub struct EnginePrivilegedState {
+    /// The current opened project.
+    opened_project: Arc<RwLock<Option<Project>>>,
+
     /// The process to which Squalr is attached.
     opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>,
 
@@ -32,9 +35,6 @@ pub struct EnginePrivilegedState {
 
     /// Defines functionality that can be invoked by the engine for the GUI or CLI to handle.
     engine_bindings: Arc<RwLock<dyn EnginePrivilegedBindings>>,
-
-    /// The current opened project.
-    opened_project: Arc<RwLock<Option<Project>>>,
 }
 
 impl EnginePrivilegedState {

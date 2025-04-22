@@ -58,7 +58,7 @@ impl ProjectExplorerViewModel {
         let list_all_projectes_request = ProjectListRequest {};
 
         list_all_projectes_request.send(&engine_execution_context, move |project_list_response| {
-            project_list_collection.update_from_source(project_list_response.projects);
+            project_list_collection.update_from_source(project_list_response.projects_info);
         });
     }
 

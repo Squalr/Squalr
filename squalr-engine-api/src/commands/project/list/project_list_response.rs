@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectListResponse {
-    pub projects: Vec<ProjectInfo>,
+    pub projects_info: Vec<ProjectInfo>,
 }
 
 impl TypedEngineCommandResponse for ProjectListResponse {
