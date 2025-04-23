@@ -1,4 +1,5 @@
 use crate::ProjectViewData;
+use slint::ToSharedString;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 
@@ -27,6 +28,7 @@ impl ViewDataConverter<ProjectInfo, ProjectViewData> for ProjectInfoConverter {
     ) -> ProjectViewData {
         ProjectViewData {
             name: project_info.get_name().to_string().into(),
+            path: project_info.get_path().to_string_lossy().to_shared_string(),
         }
     }
 

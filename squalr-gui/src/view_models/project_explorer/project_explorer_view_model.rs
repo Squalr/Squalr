@@ -13,9 +13,12 @@ use squalr_engine::command_executors::engine_request_executor::EngineCommandRequ
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::project::list::project_list_request::ProjectListRequest;
 use squalr_engine_api::commands::project::open::project_open_request::ProjectOpenRequest;
+use squalr_engine_api::commands::project::rename::project_rename_request::ProjectRenameRequest;
 use squalr_engine_api::events::project::created::project_created_event::ProjectCreatedEvent;
 use squalr_engine_api::events::project::deleted::project_deleted_event::ProjectDeletedEvent;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
+use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 
 pub struct ProjectExplorerViewModel {
@@ -49,8 +52,8 @@ impl ProjectExplorerViewModel {
         create_view_bindings!(view_binding, {
             ProjectExplorerViewModelBindings => {
                 on_refresh_project_list() -> [project_list_collection, engine_execution_context] -> Self::on_refresh_project_list
-                on_open_project(project_entry: ProjectViewData) -> [view_binding, engine_execution_context] -> Self::on_open_project
-                on_rename_project(project_entry: ProjectViewData, new_project_name: SharedString) -> [view_binding, engine_execution_context] -> Self::on_rename_project
+                on_open_project(project_entry: ProjectViewData) -> [engine_execution_context] -> Self::on_open_project
+                on_rename_project(project_entry: ProjectViewData, new_project_name: SharedString) -> [engine_execution_context] -> Self::on_rename_project
             }
         });
 
@@ -92,7 +95,6 @@ impl ProjectExplorerViewModel {
     }
 
     fn on_open_project(
-        view_binding: ViewBinding<MainWindowView>,
         engine_execution_context: Arc<EngineExecutionContext>,
         project_entry: ProjectViewData,
     ) {
@@ -100,21 +102,19 @@ impl ProjectExplorerViewModel {
             project_name: project_entry.name.into(),
         };
 
-        project_open_request.send(&engine_execution_context, move |project_open_response| {});
+        project_open_request.send(&engine_execution_context, move |_project_open_response| {});
     }
 
     fn on_rename_project(
-        view_binding: ViewBinding<MainWindowView>,
         engine_execution_context: Arc<EngineExecutionContext>,
         project_entry: ProjectViewData,
         new_project_name: SharedString,
     ) {
-        /*
         let project_rename_request = ProjectRenameRequest {
-            project_name: project_entry.name.into(),
+            project_path: PathBuf::from_str(&project_entry.path.to_string()).unwrap_or_default(),
+            new_project_name: new_project_name.into(),
         };
 
-        project_rename_request.send(&engine_execution_context, move |project_rename_response| {});
-        */
+        project_rename_request.send(&engine_execution_context, move |_project_rename_response| {});
     }
 }

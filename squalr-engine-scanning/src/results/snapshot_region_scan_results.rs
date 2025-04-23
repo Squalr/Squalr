@@ -72,7 +72,9 @@ impl SnapshotRegionScanResults {
 
             if scan_result_index < result_count {
                 // The desired result is within this filter.
-                let scan_result_address = filter.get_base_address() + scan_result_index * memory_alignment as u64;
+                let scan_result_address = filter
+                    .get_base_address()
+                    .saturating_add(scan_result_index * memory_alignment as u64);
                 return Some(ScanResultValued::new(
                     scan_result_address,
                     data_type.clone(),
@@ -82,7 +84,7 @@ impl SnapshotRegionScanResults {
             }
 
             // Decrease the index as we've skipped this entire filter's elements.
-            scan_result_index -= result_count;
+            scan_result_index = scan_result_index.saturating_sub(result_count);
 
             // If the iterator still has filters, add the next one to the heap.
             if let Some(_) = iterator.peek() {

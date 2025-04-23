@@ -118,6 +118,10 @@ export component ProjectEntry inherits Button {
                 text_changed(new_text) => {
                     root.current_text = new_text;
                 }
+                commit_text(text) => {
+                    root.current_text = text;
+                    root.on_rename_finish_clicked(root.current_text);
+                }
             }
         }
     }

@@ -17,20 +17,22 @@ impl EngineCommandRequestExecutor for ProjectListRequest {
         let projects_root = ProjectSettingsConfig::get_projects_root();
         let mut projects_info = vec![];
 
-        if let Ok(read_dir) = std::fs::read_dir(projects_root) {
-            for entry in read_dir {
-                if let Ok(entry) = entry {
-                    let entry_path = entry.path();
+        match std::fs::read_dir(projects_root) {
+            Ok(read_dir) => {
+                for entry in read_dir {
+                    if let Ok(entry) = entry {
+                        let entry_path = entry.path();
 
-                    if entry_path.is_dir() {
-                        if let Some(directory_name) = entry_path.file_name() {
-                            let project_name = directory_name.to_string_lossy().to_string();
+                        if entry_path.is_dir() {
                             let icon = ProcessIcon::new(vec![], 0, 0);
 
-                            projects_info.push(ProjectInfo::new(project_name, icon));
+                            projects_info.push(ProjectInfo::new(entry_path, icon));
                         }
                     }
                 }
+            }
+            Err(err) => {
+                log::error!("Failed to list projects: {}", err);
             }
         }
 

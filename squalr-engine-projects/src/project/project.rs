@@ -11,7 +11,7 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn open_project(path: &Path) -> anyhow::Result<Self> {
+    pub fn load_project(path: &Path) -> anyhow::Result<Self> {
         Ok(Self {
             project_info: Self::load_project_info(path)?,
             root: Self::load_directory(path)?,

@@ -17,6 +17,7 @@ export component TextField {
     in property <color> foreground_preview: Theme.foreground_preview;
     in property <color> border_color: Theme.submenu_border;
     callback text_changed(new_text: string);
+    callback commit_text(text: string);
     forward_focus: touch_area;
     touch_area := FocusTouchArea {
         width: 100%;
@@ -52,6 +53,14 @@ export component TextField {
                 single_line: true;
                 changed text => {
                     text_changed(self.text);
+                }
+                key_pressed(key_event) => {
+                    if key_event.text == "\n" {
+                        commit_text(self.text);
+                        EventResult.accept
+                    } else {
+                        EventResult.reject
+                    }
                 }
             }
         }

@@ -15,6 +15,6 @@ impl ViewDataComparer<ProjectViewData> for ProjectInfoComparer {
         a: &ProjectViewData,
         b: &ProjectViewData,
     ) -> bool {
-        a.name == b.name
+        a.name == b.name && a.path == b.path
     }
 }

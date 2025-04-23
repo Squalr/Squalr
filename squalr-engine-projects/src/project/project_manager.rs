@@ -172,12 +172,7 @@ impl ProjectManager {
     }
 
     fn create_project_info(path: &PathBuf) -> ProjectInfo {
-        let project_name = path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        let project_info = ProjectInfo::new(project_name, ProcessIcon::new(vec![], 32, 32));
+        let project_info = ProjectInfo::new(path.clone(), ProcessIcon::new(vec![], 32, 32));
 
         project_info
     }
