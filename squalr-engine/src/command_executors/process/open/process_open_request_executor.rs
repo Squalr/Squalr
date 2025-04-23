@@ -35,7 +35,9 @@ impl EngineCommandRequestExecutor for ProcessOpenRequest {
         if let Some(process_info) = processes.first() {
             match ProcessQuery::open_process(&process_info) {
                 Ok(opened_process_info) => {
-                    engine_privileged_state.set_opened_process(opened_process_info.clone());
+                    engine_privileged_state
+                        .get_process_manager()
+                        .set_opened_process(opened_process_info.clone());
 
                     return ProcessOpenResponse {
                         opened_process_info: Some(opened_process_info),

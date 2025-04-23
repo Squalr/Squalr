@@ -24,7 +24,10 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
         let mut total_size_in_bytes = 0;
 
         // Collect modules if possible so that we can resolve whether individual addresses are static later.
-        let modules = if let Some(opened_process_info) = engine_privileged_state.get_opened_process() {
+        let modules = if let Some(opened_process_info) = engine_privileged_state
+            .get_process_manager()
+            .get_opened_process()
+        {
             MemoryQueryer::get_instance().get_modules(&opened_process_info)
         } else {
             vec![]
@@ -53,7 +56,10 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
                 let mut module_offset = address;
 
                 // Best-effort attempt to read the values for this scan result.
-                if let Some(opened_process_info) = engine_privileged_state.get_opened_process() {
+                if let Some(opened_process_info) = engine_privileged_state
+                    .get_process_manager()
+                    .get_opened_process()
+                {
                     if let Some(mut data_value) = scan_result_base.get_data_type().get_default_value() {
                         if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
                             recently_read_value = Some(data_value);

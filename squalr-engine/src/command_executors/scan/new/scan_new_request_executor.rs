@@ -15,7 +15,9 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let opened_process_info = engine_privileged_state.get_opened_process();
+        let opened_process_info = engine_privileged_state
+            .get_process_manager()
+            .get_opened_process();
         let opened_process_info = match opened_process_info {
             Some(opened_process_info) => opened_process_info,
             None => {

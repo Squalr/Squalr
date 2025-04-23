@@ -18,7 +18,10 @@ impl EngineCommandRequestExecutor for ScanExecuteRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        if let Some(process_info) = engine_privileged_state.get_opened_process() {
+        if let Some(process_info) = engine_privileged_state
+            .get_process_manager()
+            .get_opened_process()
+        {
             let snapshot = engine_privileged_state.get_snapshot();
             let data_values_and_alignments = self
                 .data_types_and_alignments

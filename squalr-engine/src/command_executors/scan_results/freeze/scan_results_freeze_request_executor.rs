@@ -19,7 +19,10 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
         {
             let address = self.scan_result.get_address();
             if self.is_frozen {
-                if let Some(opened_process_info) = engine_privileged_state.get_opened_process() {
+                if let Some(opened_process_info) = engine_privileged_state
+                    .get_process_manager()
+                    .get_opened_process()
+                {
                     if let Some(mut data_value) = self.scan_result.get_data_type().get_default_value() {
                         if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
                             snapshot_scan_result_freeze_list.set_address_frozen(address, data_value);

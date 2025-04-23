@@ -4,7 +4,7 @@ use squalr_engine_api::commands::project::list::project_list_request::ProjectLis
 use squalr_engine_api::commands::project::list::project_list_response::ProjectListResponse;
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
-use squalr_engine_projects::project_settings_config::ProjectSettingsConfig;
+use squalr_engine_projects::settings::project_settings_config::ProjectSettingsConfig;
 use std::sync::Arc;
 
 impl EngineCommandRequestExecutor for ProjectListRequest {

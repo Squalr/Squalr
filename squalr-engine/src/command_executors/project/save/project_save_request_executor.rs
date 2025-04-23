@@ -11,8 +11,13 @@ impl EngineCommandRequestExecutor for ProjectSaveRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        if let Ok(project_manager) = engine_privileged_state.get_project_manager().write().as_deref() {
-            if let Some(project) = project_manager.get_opened_project() {
+        if let Ok(project) = engine_privileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .as_deref()
+        {
+            if let Some(project) = project {
                 project.save();
             }
             ProjectSaveResponse { success: true }

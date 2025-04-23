@@ -14,7 +14,10 @@ impl EngineCommandRequestExecutor for ScanCollectValuesRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        if let Some(process_info) = engine_privileged_state.get_opened_process() {
+        if let Some(process_info) = engine_privileged_state
+            .get_process_manager()
+            .get_opened_process()
+        {
             let snapshot = engine_privileged_state.get_snapshot();
             let task = ValueCollectorTask::start_task(process_info.clone(), snapshot, true);
             let task_handle = task.get_task_handle();

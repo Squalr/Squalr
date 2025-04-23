@@ -1,2 +1,2 @@
 pub mod project;
-pub mod project_settings_config;
+pub mod settings;

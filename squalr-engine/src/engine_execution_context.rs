@@ -148,6 +148,15 @@ impl EngineExecutionContext {
                 ProjectEvent::ProjectChanged { project_changed_event } => {
                     Self::dispatch_engine_event(&event_listeners, project_changed_event);
                 }
+                ProjectEvent::ProjectCreated { project_created_event } => {
+                    Self::dispatch_engine_event(&event_listeners, project_created_event);
+                }
+                ProjectEvent::ProjectDeleted { project_deleted_event } => {
+                    Self::dispatch_engine_event(&event_listeners, project_deleted_event);
+                }
+                ProjectEvent::ProjectRenamed { project_renamed_event } => {
+                    Self::dispatch_engine_event(&event_listeners, project_renamed_event);
+                }
             },
             EngineEvent::ScanResults(process_event) => match process_event {
                 ScanResultsEvent::ScanResultsUpdated { scan_results_updated_event } => {

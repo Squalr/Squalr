@@ -14,7 +14,10 @@ impl EngineCommandRequestExecutor for MemoryReadRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        if let Some(process_info) = engine_privileged_state.get_opened_process() {
+        if let Some(process_info) = engine_privileged_state
+            .get_process_manager()
+            .get_opened_process()
+        {
             log::info!("Reading value from address {}", self.address);
 
             // let mut out_value = self.value.clone();
