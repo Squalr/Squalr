@@ -1,5 +1,3 @@
-import { LineEdit } from "std-widgets.slint";
-
 import { Theme } from "../../theme.slint";
 
 import { Button } from "../../components/buttons/button.slint";
@@ -27,7 +25,7 @@ export component DataValueBox {
     in property <color> border_color: Theme.submenu_border;
     in property <color> invalid_color: Theme.error_red;
     public pure function get_value_text() -> string {
-        return line_edit.text;
+        return text_input.text;
     }
     public pure function is_value_valid(value: string) -> bool {
         // Empty string is OK, we dont want the cursor to go red for empty text.
@@ -38,7 +36,7 @@ export component DataValueBox {
         width: 100%;
         height: 100%;
         clicked => {
-            line_edit.focus();
+            text_input.focus();
         }
     }
 
@@ -61,7 +59,7 @@ export component DataValueBox {
             padding_left: root.text_padding_left;
             padding_right: root.text_padding_right;
             alignment: start;
-            line_edit := TextInput {
+            text_input := TextInput {
                 text: root.default_text;
                 horizontal_alignment: root.text_horizontal_alignment;
                 vertical_alignment: root.text_vertical_alignment;
@@ -102,7 +100,7 @@ export component DataValueBox {
         padding_left: root.text_padding_left;
         padding_right: root.text_padding_right;
         preview_text_display := Text {
-            text: line_edit.text == "" ? root.preview_text : "";
+            text: text_input.text == "" ? root.preview_text : "";
             horizontal_alignment: root.text_horizontal_alignment;
             vertical_alignment: root.text_vertical_alignment;
             color: root.foreground_preview;
@@ -110,8 +108,8 @@ export component DataValueBox {
     }
 
     context_menu := ContextMenu {
-        x: line_edit.x;
-        y: line_edit.y + input_border.height;
+        x: text_input.x;
+        y: text_input.y + input_border.height;
         width: root.width;
         height: root.height;
         close_policy: PopupClosePolicy.close_on_click_outside;
@@ -176,7 +174,7 @@ export component DataValueBox {
 
                 clicked => {
                     root.is_value_hex = false;
-                    line_edit.text = ConversionsViewModelBindings.convert_hex_to_dec(line_edit.text);
+                    text_input.text = ConversionsViewModelBindings.convert_hex_to_dec(text_input.text);
                     context_menu.close();
                 }
             }
@@ -195,7 +193,7 @@ export component DataValueBox {
 
                 clicked => {
                     root.is_value_hex = true;
-                    line_edit.text = ConversionsViewModelBindings.convert_dec_to_hex(line_edit.text);
+                    text_input.text = ConversionsViewModelBindings.convert_dec_to_hex(text_input.text);
                     context_menu.close();
                 }
             }

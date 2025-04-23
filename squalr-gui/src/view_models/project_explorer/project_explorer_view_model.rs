@@ -44,7 +44,7 @@ impl ProjectExplorerViewModel {
         create_view_bindings!(view_binding, {
             ProjectExplorerViewModelBindings => {
                 on_refresh_project_list() -> [project_list_collection, engine_execution_context] -> Self::on_refresh_project_list
-                on_select_project(project_entry: ProjectViewData) -> [view_binding, engine_execution_context] -> Self::on_select_project
+                on_open_project(project_entry: ProjectViewData) -> [view_binding, engine_execution_context] -> Self::on_open_project
             }
         });
 
@@ -55,14 +55,14 @@ impl ProjectExplorerViewModel {
         project_list_collection: ViewCollectionBinding<ProjectViewData, ProjectInfo, MainWindowView>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
-        let list_all_projectes_request = ProjectListRequest {};
+        let list_all_projects_request = ProjectListRequest {};
 
-        list_all_projectes_request.send(&engine_execution_context, move |project_list_response| {
+        list_all_projects_request.send(&engine_execution_context, move |project_list_response| {
             project_list_collection.update_from_source(project_list_response.projects_info);
         });
     }
 
-    fn on_select_project(
+    fn on_open_project(
         view_binding: ViewBinding<MainWindowView>,
         engine_execution_context: Arc<EngineExecutionContext>,
         project_entry: ProjectViewData,

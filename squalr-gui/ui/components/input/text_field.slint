@@ -1,5 +1,3 @@
-import { LineEdit } from "std-widgets.slint";
-
 import { Theme } from "./../../theme.slint";
 
 import { FocusTouchArea } from "./../focus_touch_area.slint";
@@ -24,7 +22,7 @@ export component TextField {
         width: 100%;
         height: 100%;
         clicked => {
-            line_edit.focus();
+            text_input.focus();
         }
     }
 
@@ -46,7 +44,7 @@ export component TextField {
             padding_bottom: root.text_padding_bottom;
             padding_left: root.text_padding_left;
             padding_right: root.text_padding_right;
-            line_edit := TextInput {
+            text_input := TextInput {
                 text: root.default_text;
                 horizontal_alignment: root.text_horizontal_alignment;
                 vertical_alignment: root.text_vertical_alignment;
@@ -66,7 +64,7 @@ export component TextField {
         padding_left: root.text_padding_left;
         padding_right: root.text_padding_right;
         preview_text_display := Text {
-            text: line_edit.text == "" ? root.preview_text : "";
+            text: text_input.text == "" ? root.preview_text : "";
             horizontal_alignment: root.text_horizontal_alignment;
             vertical_alignment: root.text_vertical_alignment;
             color: root.foreground_preview;

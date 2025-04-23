@@ -9,6 +9,7 @@ use squalr_engine_api::structures::processes::opened_process_info::OpenedProcess
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_projects::project::project::Project;
+use squalr_engine_projects::project::project_manager::ProjectManager;
 use squalr_engine_scanning::results::snapshot_scan_result_freeze_list::SnapshotScanResultFreezeList;
 use squalr_engine_scanning::results::snapshot_scan_result_freeze_task::SnapshotScanResultFreezeTask;
 use squalr_engine_scanning::snapshots::snapshot::Snapshot;
@@ -18,8 +19,8 @@ use std::time::Duration;
 
 /// Tracks critical engine state for internal use. This includes executing engine tasks, commands, and events.
 pub struct EnginePrivilegedState {
-    /// The current opened project.
-    opened_project: Arc<RwLock<Option<Project>>>,
+    /// The manager for the opened project and projects list.
+    project_manager: Arc<RwLock<ProjectManager>>,
 
     /// The process to which Squalr is attached.
     opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>,
@@ -48,7 +49,7 @@ impl EnginePrivilegedState {
         let snapshot = Arc::new(RwLock::new(Snapshot::new()));
         let opened_process = Arc::new(RwLock::new(None));
         let snapshot_scan_result_freeze_list = Arc::new(RwLock::new(SnapshotScanResultFreezeList::new()));
-        let opened_project = Arc::new(RwLock::new(None));
+        let project_manager = Arc::new(RwLock::new(ProjectManager::new()));
 
         SnapshotScanResultFreezeTask::start_task(opened_process.clone(), snapshot_scan_result_freeze_list.clone());
 
@@ -58,7 +59,7 @@ impl EnginePrivilegedState {
             snapshot_scan_result_freeze_list,
             task_manager: TrackableTaskManager::new(),
             engine_bindings,
-            opened_project,
+            project_manager,
         });
 
         Self::listen_for_open_process_changes(execution_context.clone());
@@ -86,20 +87,9 @@ impl EnginePrivilegedState {
         }
     }
 
-    /// Sets the current opened project.
-    pub fn set_opened_project(
-        &self,
-        project: Project,
-    ) {
-        if let Ok(mut opened_project) = self.opened_project.write() {
-            log::info!("Opened project: {}", project.get_name());
-            *opened_project = Some(project);
-        }
-    }
-
     /// Gets the current opened project.
-    pub fn get_opened_project(&self) -> Arc<RwLock<Option<Project>>> {
-        self.opened_project.clone()
+    pub fn get_project_manager(&self) -> Arc<RwLock<ProjectManager>> {
+        self.project_manager.clone()
     }
 
     /// Sets the process to which we are currently attached.

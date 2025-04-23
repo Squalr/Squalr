@@ -78,13 +78,27 @@ export component ProjectSelectorTab inherits Rectangle {
                 spacing: 0px;
                 for index in ProjectExplorerViewModelBindings.projects.length: ProjectEntry {
                     is_selected: index == root.selected_index;
-                    is_editing: index == root.selected_index && root.is_editing;
-                    process_view_data: ProjectExplorerViewModelBindings.projects[index];
+                    is_editing: root.is_editing;
+                    project_view_data: ProjectExplorerViewModelBindings.projects[index];
                     on_clicked => {
                         root.selected_index = index;
+                        root.is_editing = false;
                     }
-                    on_rename_clicked => {
+                    on_open_project_clicked => {
+                        root.selected_index = -1;
+                        root.is_editing = false;
+                        ProjectExplorerViewModelBindings.open_project(ProjectExplorerViewModelBindings.projects[index]);
+                    }
+                    on_rename_start_clicked => {
+                        root.selected_index = index;
                         root.is_editing = true;
+                    }
+                    on_rename_finish_clicked(new_project_name) => {
+                        root.is_editing = false;
+                        ProjectExplorerViewModelBindings.rename_project(ProjectExplorerViewModelBindings.projects[index], new_project_name);
+                    }
+                    on_rename_cancel_clicked => {
+                        root.is_editing = false;
                     }
                 }
             }

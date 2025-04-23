@@ -3,13 +3,18 @@ import { Theme } from "../../../theme.slint";
 import { ProjectExplorerViewModelBindings, ProjectViewData } from "../../../view_model_bindings.slint";
 import { ContextMenu } from "../../../components/context_menu/context_menu.slint";
 import { Button } from "../../../components/buttons/button.slint";
+import { TextField } from "../../../components/input/text_field.slint";
 
 export component ProjectEntry inherits Button {
-    in property <ProjectViewData> process_view_data;
+    in property <ProjectViewData> project_view_data;
     in property <bool> is_selected;
     in property <bool> is_editing;
+    property <string> current_text: project_view_data.name;
     callback on_clicked();
-    callback on_rename_clicked();
+    callback on_open_project_clicked();
+    callback on_rename_start_clicked();
+    callback on_rename_finish_clicked(new_project_name: string);
+    callback on_rename_cancel_clicked();
     clicked => {
         root.on_clicked();
     }
@@ -21,7 +26,7 @@ export component ProjectEntry inherits Button {
             padding_top: 4px;
             padding_bottom: 4px;
             padding_left: 4px;
-            padding_right: 4px;
+            padding_right: 24px;
             spacing: 8px;
             Image {
                 width: 16px;
@@ -30,13 +35,69 @@ export component ProjectEntry inherits Button {
                 vertical_alignment: center;
             }
 
-            rename_project_button := Button {
+            if root.is_selected && root.is_editing: finish_rename_project_button := Button {
                 height: 24px;
                 width: 36px;
+                visible: root.is_editing;
+                enabled: root.is_editing;
+                tooltip_text: @tr("Accept new project name.");
+                click_sound: "";
+                clicked => {
+                    root.on_rename_finish_clicked(root.current_text);
+                }
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    horizontal_alignment: center;
+                    vertical_alignment: center;
+                    source: @image_url("../../../images/properties/check_mark.png");
+                }
+            }
+            if !root.is_selected || !root.is_editing: open_project_button := Button {
+                height: 24px;
+                width: 36px;
+                visible: !root.is_editing;
+                enabled: !root.is_editing;
+                tooltip_text: @tr("Open project.");
+                click_sound: "";
+                clicked => {
+                    root.on_open_project_clicked();
+                }
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    horizontal_alignment: center;
+                    vertical_alignment: center;
+                    source: @image_url("../../../images/file_system/open_folder.png");
+                }
+            }
+            if root.is_selected && root.is_editing: cancel_rename_project_button := Button {
+                height: 24px;
+                width: 36px;
+                visible: root.is_editing;
+                enabled: root.is_editing;
+                tooltip_text: @tr("Cancel renaming project.");
+                click_sound: "";
+                clicked => {
+                    root.on_rename_cancel_clicked();
+                }
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    horizontal_alignment: center;
+                    vertical_alignment: center;
+                    source: @image_url("../../../images/navigation/cancel.png");
+                }
+            }
+            if !root.is_selected || !root.is_editing: start_rename_project_button := Button {
+                height: 24px;
+                width: 36px;
+                visible: !root.is_editing;
+                enabled: !root.is_editing;
                 tooltip_text: @tr("Rename project...");
                 click_sound: "";
                 clicked => {
-                    root.on_rename_clicked();
+                    root.on_rename_start_clicked();
                 }
                 Image {
                     width: 16px;
@@ -46,12 +107,17 @@ export component ProjectEntry inherits Button {
                     source: @image_url("../../../images/properties/edit.png");
                 }
             }
-
-            Text {
+            if !root.is_selected || !root.is_editing: Text {
                 color: Theme.foreground;
                 horizontal_alignment: left;
                 vertical_alignment: center;
-                text: process_view_data.name;
+                text: project_view_data.name;
+            }
+            if root.is_selected && root.is_editing: project_name_text_field := TextField {
+                default_text: project_view_data.name;
+                text_changed(new_text) => {
+                    root.current_text = new_text;
+                }
             }
         }
     }

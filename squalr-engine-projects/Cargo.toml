@@ -8,6 +8,8 @@ edition = "2024"
 [dependencies]
 squalr-engine-api = { path = "../squalr-engine-api" }
 anyhow = ">=1.0.96"
+log = { version = ">=0.4.26" }
+notify = ">=8.0.0"
 serde = { version = ">=1.0.0", features = ["derive"] }
 serde_json = ">=1.0.139"
 
