@@ -20,7 +20,11 @@ pub struct ProjectItemTypeDirectory {
 impl ProjectItemTypeDirectory {
     pub fn new(path: &Path) -> Self {
         Self {
-            name: "".to_string(),
+            name: path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
             children: Arc::new(RwLock::new(vec![])),
             is_activated: false,
         }

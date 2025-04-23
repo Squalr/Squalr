@@ -41,8 +41,9 @@ impl EnginePrivilegedState {
             EngineMode::UnprivilegedHost => unreachable!("Privileged state should never be created on an unprivileged host."),
         };
 
-        let process_manager = ProcessManager::new();
-        let project_manager = ProjectManager::new();
+        let event_emitter = Self::create_event_emitter(engine_bindings.clone());
+        let process_manager = ProcessManager::new(event_emitter.clone());
+        let project_manager = ProjectManager::new(event_emitter);
         let task_manager = TrackableTaskManager::new();
         let snapshot = Arc::new(RwLock::new(Snapshot::new()));
         let snapshot_scan_result_freeze_list = Arc::new(RwLock::new(SnapshotScanResultFreezeList::new()));
@@ -130,5 +131,16 @@ impl EnginePrivilegedState {
                 log::error!("Failed to acquire privileged engine bindings read lock: {}", err);
             }
         }
+    }
+
+    fn create_event_emitter(engine_bindings: Arc<RwLock<dyn EnginePrivilegedBindings>>) -> Arc<dyn Fn(EngineEvent) + Send + Sync> {
+        let engine_bindings = engine_bindings.clone();
+        Arc::new(move |event: EngineEvent| {
+            if let Ok(bindings) = engine_bindings.read() {
+                if let Err(err) = bindings.emit_event(event) {
+                    log::error!("Error dispatching engine event: {}", err);
+                }
+            }
+        }) as Arc<dyn Fn(EngineEvent) + Send + Sync>
     }
 }

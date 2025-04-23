@@ -140,13 +140,13 @@ impl ProcessSelectorViewModel {
         engine_execution_context: Arc<EngineExecutionContext>,
         process_entry: ProcessViewData,
     ) {
-        let open_process_command = ProcessOpenRequest {
+        let process_open_request = ProcessOpenRequest {
             process_id: Some(process_entry.process_id as u32),
             search_name: None,
             match_case: false,
         };
 
-        open_process_command.send(&engine_execution_context, move |process_open_response| {
+        process_open_request.send(&engine_execution_context, move |process_open_response| {
             Self::refresh_opened_process(&view_binding, process_open_response.opened_process_info)
         });
     }

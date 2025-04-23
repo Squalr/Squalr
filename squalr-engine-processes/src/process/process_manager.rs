@@ -1,5 +1,11 @@
 use crate::process_query::{process_query_options::ProcessQueryOptions, process_queryer::ProcessQuery};
-use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+use squalr_engine_api::{
+    events::{
+        engine_event::{EngineEvent, EngineEventRequest},
+        process::changed::process_changed_event::ProcessChangedEvent,
+    },
+    structures::processes::opened_process_info::OpenedProcessInfo,
+};
 use std::{
     sync::{Arc, RwLock},
     thread,
@@ -8,15 +14,17 @@ use std::{
 
 pub struct ProcessManager {
     opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>,
+    event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>,
 }
 
 impl ProcessManager {
-    pub fn new() -> Self {
+    pub fn new(event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>) -> Self {
         let instance = Self {
             opened_process: Arc::new(RwLock::new(None)),
+            event_emitter: event_emitter.clone(),
         };
 
-        Self::listen_for_open_process_death(instance.opened_process.clone());
+        Self::listen_for_open_process_death(event_emitter, instance.opened_process.clone());
 
         instance
     }
@@ -30,10 +38,12 @@ impl ProcessManager {
             log::info!("Opened process: {}, pid: {}", process_info.get_name(), process_info.get_process_id());
             *process = Some(process_info.clone());
 
-            /*
-            self.emit_event(ProcessChangedEvent {
-                process_info: Some(process_info),
-            });*/
+            (self.event_emitter)(
+                ProcessChangedEvent {
+                    process_info: Some(process_info),
+                }
+                .to_engine_event(),
+            );
         }
     }
 
@@ -43,7 +53,8 @@ impl ProcessManager {
             *process = None;
 
             log::info!("Process closed.");
-            // self.emit_event(ProcessChangedEvent { process_info: None });
+
+            (self.event_emitter)(ProcessChangedEvent { process_info: None }.to_engine_event());
         }
     }
 
@@ -64,7 +75,10 @@ impl ProcessManager {
     }
 
     /// Listens for the death of the currently opened process by polling for it repeatedly.
-    fn listen_for_open_process_death(opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>) {
+    fn listen_for_open_process_death(
+        event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>,
+        opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>,
+    ) {
         std::thread::spawn(move || {
             loop {
                 thread::sleep(Duration::from_millis(100));
@@ -94,7 +108,11 @@ impl ProcessManager {
                 let processes = ProcessQuery::get_processes(process_query_options);
 
                 if processes.len() <= 0 {
-                    // execution_context.clear_opened_process();
+                    if let Ok(mut opened_process) = opened_process.write() {
+                        *opened_process = None;
+                        log::info!("Process no longer open, detaching.");
+                        (event_emitter)(ProcessChangedEvent { process_info: None }.to_engine_event());
+                    }
                 }
             }
         });
