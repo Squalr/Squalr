@@ -7,7 +7,7 @@ use std::{
     path::Path,
 };
 
-use super::serialization::serializable_project_item::SerializableProjectItem;
+use super::serialization::serializable_project_file::SerializableProjectFile;
 
 #[derive(Serialize, Deserialize)]
 pub struct Project {
@@ -16,6 +16,7 @@ pub struct Project {
 }
 
 impl Project {
+    pub const PROJECT_FILE: &'static str = "project.json";
     pub const TABLE_DIR: &'static str = "table";
 
     pub fn new(

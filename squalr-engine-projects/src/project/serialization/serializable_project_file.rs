@@ -1,6 +1,6 @@
 use std::path::Path;
 
-pub trait SerializableProjectItem {
+pub trait SerializableProjectFile {
     fn save_to_path(
         &self,
         directory: &Path,

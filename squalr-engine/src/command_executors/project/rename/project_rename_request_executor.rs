@@ -3,7 +3,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::project::rename::project_rename_request::ProjectRenameRequest;
 use squalr_engine_api::commands::project::rename::project_rename_response::ProjectRenameResponse;
 use squalr_engine_projects::project::project::Project;
-use squalr_engine_projects::project::serialization::serializable_project_item::SerializableProjectItem;
+use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::fs;
 use std::sync::Arc;
 

@@ -3,7 +3,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::project::open::project_open_request::ProjectOpenRequest;
 use squalr_engine_api::commands::project::open::project_open_response::ProjectOpenResponse;
 use squalr_engine_projects::project::project::Project;
-use squalr_engine_projects::project::serialization::serializable_project_item::SerializableProjectItem;
+use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use squalr_engine_projects::settings::project_settings_config::ProjectSettingsConfig;
 use std::sync::Arc;
 

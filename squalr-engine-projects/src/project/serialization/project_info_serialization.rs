@@ -1,4 +1,4 @@
-use crate::project::serialization::serializable_project_item::SerializableProjectItem;
+use crate::project::{project::Project, serialization::serializable_project_file::SerializableProjectFile};
 use serde::{Deserialize, Serialize};
 use squalr_engine_api::structures::{
     processes::process_icon::ProcessIcon,
@@ -21,7 +21,7 @@ struct ProjectInfoStub {
     project_manifest: ProjectManifest,
 }
 
-impl SerializableProjectItem for ProjectInfo {
+impl SerializableProjectFile for ProjectInfo {
     fn load_from_path(directory: &Path) -> anyhow::Result<Self> {
         let file = File::open(directory)?;
         let result: ProjectInfoStub = serde_json::from_reader(file)?;
@@ -34,7 +34,9 @@ impl SerializableProjectItem for ProjectInfo {
         directory: &Path,
         allow_overwrite: bool,
     ) -> anyhow::Result<()> {
-        if directory.exists() && !allow_overwrite {
+        let project_file_path = directory.join(Project::PROJECT_FILE);
+
+        if project_file_path.exists() && !allow_overwrite {
             anyhow::bail!("Failed to save project info. A project already exists in this directory.");
         }
 
@@ -42,7 +44,7 @@ impl SerializableProjectItem for ProjectInfo {
             .write(true)
             .create(true)
             .truncate(allow_overwrite)
-            .open(&directory)?;
+            .open(&project_file_path)?;
 
         let project_info_stub = ProjectInfoStub {
             project_icon_rgba: self.get_project_icon_rgba().clone(),
