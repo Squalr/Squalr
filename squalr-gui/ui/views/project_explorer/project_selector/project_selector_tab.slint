@@ -91,6 +91,7 @@ export component ProjectSelectorTab inherits Rectangle {
                     on_rename_start_clicked => {
                         root.selected_index = index;
                         root.is_editing = true;
+                        self.begin_edit();
                     }
                     on_rename_finish_clicked(new_project_name) => {
                         root.is_editing = false;

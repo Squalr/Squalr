@@ -15,6 +15,10 @@ export component ProjectEntry inherits Button {
     callback on_rename_start_clicked();
     callback on_rename_finish_clicked(new_project_name: string);
     callback on_rename_cancel_clicked();
+    public function begin_edit() {
+        project_name_text_field.focus_text();
+        project_name_text_field.select_all();
+    }
     clicked => {
         root.on_clicked();
     }
@@ -113,14 +117,19 @@ export component ProjectEntry inherits Button {
                 vertical_alignment: center;
                 text: project_view_data.name;
             }
-            if root.is_selected && root.is_editing: project_name_text_field := TextField {
+            project_name_text_field := TextField {
+                visible: root.is_selected && root.is_editing;
                 default_text: project_view_data.name;
                 text_changed(new_text) => {
-                    root.current_text = new_text;
+                    if (parent.visible) {
+                        root.current_text = new_text;
+                    }
                 }
                 commit_text(text) => {
-                    root.current_text = text;
-                    root.on_rename_finish_clicked(root.current_text);
+                    if (parent.visible) {
+                        root.current_text = text;
+                        root.on_rename_finish_clicked(root.current_text);
+                    }
                 }
             }
         }
