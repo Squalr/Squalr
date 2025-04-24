@@ -145,8 +145,8 @@ impl EngineExecutionContext {
                 }
             },
             EngineEvent::Project(project_event) => match project_event {
-                ProjectEvent::ProjectChanged { project_changed_event } => {
-                    Self::dispatch_engine_event(&event_listeners, project_changed_event);
+                ProjectEvent::ProjectClosed { project_closed_event } => {
+                    Self::dispatch_engine_event(&event_listeners, project_closed_event);
                 }
                 ProjectEvent::ProjectCreated { project_created_event } => {
                     Self::dispatch_engine_event(&event_listeners, project_created_event);

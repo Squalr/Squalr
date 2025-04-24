@@ -5,12 +5,12 @@ use crate::events::{
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ProjectChangedEvent {}
+pub struct ProjectClosedEvent {}
 
-impl EngineEventRequest for ProjectChangedEvent {
+impl EngineEventRequest for ProjectClosedEvent {
     fn to_engine_event(&self) -> EngineEvent {
-        EngineEvent::Project(ProjectEvent::ProjectChanged {
-            project_changed_event: self.clone(),
+        EngineEvent::Project(ProjectEvent::ProjectClosed {
+            project_closed_event: self.clone(),
         })
     }
 }

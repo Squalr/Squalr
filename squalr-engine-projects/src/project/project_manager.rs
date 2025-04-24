@@ -6,7 +6,10 @@ use notify::{
 use squalr_engine_api::{
     events::{
         engine_event::{EngineEvent, EngineEventRequest},
-        project::{created::project_created_event::ProjectCreatedEvent, deleted::project_deleted_event::ProjectDeletedEvent},
+        project::{
+            closed::project_closed_event::ProjectClosedEvent, created::project_created_event::ProjectCreatedEvent,
+            deleted::project_deleted_event::ProjectDeletedEvent,
+        },
     },
     structures::projects::project_info::ProjectInfo,
 };
@@ -57,10 +60,14 @@ impl ProjectManager {
             *project = None;
 
             log::info!("Project closed.");
+
+            (self.event_emitter)(ProjectClosedEvent {}.to_engine_event());
         }
     }
 
     /// Gets a reference to the shared lock containing the currently opened project.
+    /// Take caution not to directly set the project if the desire is to capture project events.
+    /// To capture these, call `set_opened_project` and `clear_opened_project` instead.
     pub fn get_opened_project(&self) -> Arc<RwLock<Option<Project>>> {
         self.opened_project.clone()
     }

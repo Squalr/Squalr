@@ -7,43 +7,40 @@ import { Button } from "../../../components/buttons/button.slint";
 import { BevelButton } from "../../../components/buttons/bevel_button.slint";
 
 export component ProjectOutlineTab inherits Rectangle {
-    Rectangle {
-        background: Theme.background_control;
-        HorizontalLayout {
-            padding: 2px;
-            spacing: 4px;
-            save_project_button := Button {
-                height: 24px;
-                width: 36px;
-                tooltip_text: @tr("Save Project");
-                click_sound: "";
-                clicked => {
-                    ProjectExplorerViewModelBindings.save_opened_project();
-                }
-                Image {
-                    width: 16px;
-                    height: 16px;
-                    horizontal_alignment: center;
-                    vertical_alignment: center;
-                    source: @image_url("../../../images/file_system/save.png");
-                }
+    HorizontalLayout {
+        padding: 2px;
+        spacing: 4px;
+        save_project_button := Button {
+            height: 24px;
+            width: 36px;
+            tooltip_text: @tr("Save Project");
+            click_sound: "";
+            clicked => {
+                ProjectExplorerViewModelBindings.save_opened_project();
             }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../../images/file_system/save.png");
+            }
+        }
 
-            export_project_button := Button {
-                height: 24px;
-                width: 36px;
-                tooltip_text: @tr("Export Project");
-                click_sound: "";
-                clicked => {
-                    ProjectExplorerViewModelBindings.export_opened_project();
-                }
-                Image {
-                    width: 16px;
-                    height: 16px;
-                    horizontal_alignment: center;
-                    vertical_alignment: center;
-                    source: @image_url("../../../images/navigation/up_arrow_small.png");
-                }
+        export_project_button := Button {
+            height: 24px;
+            width: 36px;
+            tooltip_text: @tr("Export Project");
+            click_sound: "";
+            clicked => {
+                ProjectExplorerViewModelBindings.export_opened_project();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../../images/navigation/up_arrow_small.png");
             }
         }
     }
