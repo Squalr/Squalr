@@ -11,7 +11,7 @@ use squalr_engine_api::{
             deleted::project_deleted_event::ProjectDeletedEvent,
         },
     },
-    structures::projects::project_info::ProjectInfo,
+    structures::projects::{project_info::ProjectInfo, project_manifest::ProjectManifest},
 };
 use std::{
     path::PathBuf,
@@ -179,7 +179,7 @@ impl ProjectManager {
     }
 
     fn create_project_info(path: &PathBuf) -> ProjectInfo {
-        let project_info = ProjectInfo::new(path.clone());
+        let project_info = ProjectInfo::new(path.clone(), None, ProjectManifest::default());
 
         project_info
     }

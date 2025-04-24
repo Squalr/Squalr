@@ -1,0 +1,17 @@
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ProjectManifest {
+    project_item_sort_order: Vec<PathBuf>,
+}
+
+impl ProjectManifest {
+    pub fn new(project_item_sort_order: Vec<PathBuf>) -> Self {
+        Self { project_item_sort_order }
+    }
+
+    pub fn get_project_item_sort_order(&self) -> &Vec<PathBuf> {
+        &self.project_item_sort_order
+    }
+}

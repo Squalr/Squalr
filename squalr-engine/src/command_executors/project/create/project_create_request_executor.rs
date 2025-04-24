@@ -32,7 +32,7 @@ impl EngineCommandRequestExecutor for ProjectCreateRequest {
             }
         };
 
-        match Project::create_project(&project_path) {
+        match Project::create_new_project(&project_path) {
             Ok(project) => {
                 let project_info = project.get_project_info().clone();
 

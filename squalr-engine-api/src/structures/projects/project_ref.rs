@@ -1,4 +1,4 @@
-use crate::structures::projects::project_item_ref::ProjectItemRef;
+use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

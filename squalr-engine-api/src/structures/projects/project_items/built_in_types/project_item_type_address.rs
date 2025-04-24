@@ -1,4 +1,5 @@
-use crate::structures::{data_types::data_type_ref::DataTypeRef, projects::project_item_type::ProjectItemType};
+use crate::structures::data_types::data_type_ref::DataTypeRef;
+use crate::structures::projects::project_items::project_item_type::ProjectItemType;
 use serde::{Deserialize, Serialize};
 use typetag::serde;
 

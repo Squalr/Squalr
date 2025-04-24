@@ -39,78 +39,82 @@ export component ProjectEntry inherits Button {
                 vertical_alignment: center;
             }
 
-            if root.is_selected && root.is_editing: finish_rename_project_button := Button {
-                height: 24px;
-                width: 36px;
-                visible: root.is_editing;
-                enabled: root.is_editing;
-                tooltip_text: @tr("Accept new project name.");
-                click_sound: "";
-                clicked => {
-                    root.on_rename_finish_clicked(root.current_text);
+            HorizontalLayout {
+                spacing: 0px;
+                if root.is_selected && root.is_editing: finish_rename_project_button := Button {
+                    height: 24px;
+                    width: 36px;
+                    visible: root.is_editing;
+                    enabled: root.is_editing;
+                    tooltip_text: @tr("Accept new project name.");
+                    click_sound: "";
+                    clicked => {
+                        root.on_rename_finish_clicked(root.current_text);
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        source: @image_url("../../../images/properties/check_mark.png");
+                    }
                 }
-                Image {
-                    width: 16px;
-                    height: 16px;
-                    horizontal_alignment: center;
-                    vertical_alignment: center;
-                    source: @image_url("../../../images/properties/check_mark.png");
+                if !root.is_selected || !root.is_editing: open_project_button := Button {
+                    height: 24px;
+                    width: 36px;
+                    visible: !root.is_editing;
+                    enabled: !root.is_editing;
+                    tooltip_text: @tr("Open project.");
+                    click_sound: "";
+                    clicked => {
+                        root.on_open_project_clicked();
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        source: @image_url("../../../images/file_system/open_folder.png");
+                    }
+                }
+                if root.is_selected && root.is_editing: cancel_rename_project_button := Button {
+                    height: 24px;
+                    width: 36px;
+                    visible: root.is_editing;
+                    enabled: root.is_editing;
+                    tooltip_text: @tr("Cancel renaming project.");
+                    click_sound: "";
+                    clicked => {
+                        root.on_rename_cancel_clicked();
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        source: @image_url("../../../images/navigation/cancel.png");
+                    }
+                }
+                if !root.is_selected || !root.is_editing: start_rename_project_button := Button {
+                    height: 24px;
+                    width: 36px;
+                    visible: !root.is_editing;
+                    enabled: !root.is_editing;
+                    tooltip_text: @tr("Rename project...");
+                    click_sound: "";
+                    clicked => {
+                        root.on_rename_start_clicked();
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        source: @image_url("../../../images/properties/edit.png");
+                    }
                 }
             }
-            if !root.is_selected || !root.is_editing: open_project_button := Button {
-                height: 24px;
-                width: 36px;
-                visible: !root.is_editing;
-                enabled: !root.is_editing;
-                tooltip_text: @tr("Open project.");
-                click_sound: "";
-                clicked => {
-                    root.on_open_project_clicked();
-                }
-                Image {
-                    width: 16px;
-                    height: 16px;
-                    horizontal_alignment: center;
-                    vertical_alignment: center;
-                    source: @image_url("../../../images/file_system/open_folder.png");
-                }
-            }
-            if root.is_selected && root.is_editing: cancel_rename_project_button := Button {
-                height: 24px;
-                width: 36px;
-                visible: root.is_editing;
-                enabled: root.is_editing;
-                tooltip_text: @tr("Cancel renaming project.");
-                click_sound: "";
-                clicked => {
-                    root.on_rename_cancel_clicked();
-                }
-                Image {
-                    width: 16px;
-                    height: 16px;
-                    horizontal_alignment: center;
-                    vertical_alignment: center;
-                    source: @image_url("../../../images/navigation/cancel.png");
-                }
-            }
-            if !root.is_selected || !root.is_editing: start_rename_project_button := Button {
-                height: 24px;
-                width: 36px;
-                visible: !root.is_editing;
-                enabled: !root.is_editing;
-                tooltip_text: @tr("Rename project...");
-                click_sound: "";
-                clicked => {
-                    root.on_rename_start_clicked();
-                }
-                Image {
-                    width: 16px;
-                    height: 16px;
-                    horizontal_alignment: center;
-                    vertical_alignment: center;
-                    source: @image_url("../../../images/properties/edit.png");
-                }
-            }
+
             if !root.is_selected || !root.is_editing: Text {
                 color: Theme.foreground;
                 horizontal_alignment: left;

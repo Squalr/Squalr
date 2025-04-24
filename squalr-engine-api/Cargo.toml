@@ -7,6 +7,7 @@ edition = "2024"
 
 [dependencies]
 squalr-engine-common = { path = "../squalr-engine-common" }
+anyhow = ">=1.0.96"
 crossbeam-channel = ">=0.5.14"
 dashmap = ">=6.1.0"
 directories = ">=6.0.0"

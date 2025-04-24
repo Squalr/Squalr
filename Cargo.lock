@@ -5092,6 +5092,7 @@ dependencies = [
 name = "squalr-engine-api"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "crossbeam-channel",
  "dashmap",
  "directories",

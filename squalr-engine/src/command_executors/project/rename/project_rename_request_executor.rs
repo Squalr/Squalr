@@ -3,6 +3,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::project::rename::project_rename_request::ProjectRenameRequest;
 use squalr_engine_api::commands::project::rename::project_rename_response::ProjectRenameResponse;
 use squalr_engine_projects::project::project::Project;
+use squalr_engine_projects::project::serialization::serializable_project_item::SerializableProjectItem;
 use std::fs;
 use std::sync::Arc;
 
@@ -21,13 +22,10 @@ impl EngineCommandRequestExecutor for ProjectRenameRequest {
 
         let project_manager = engine_privileged_state.get_project_manager();
         let is_renaming_opened_project = match project_manager.get_opened_project().read() {
-            Ok(current_project) => {
-                log::error!("Error re-opening the current project after rename! Closing current project.");
-                match current_project.as_ref() {
-                    Some(current_project) => current_project.get_project_info().get_path() == project_path,
-                    None => false,
-                }
-            }
+            Ok(current_project) => match current_project.as_ref() {
+                Some(current_project) => current_project.get_project_info().get_path() == project_path,
+                None => false,
+            },
             Err(err) => {
                 log::error!("Failed to check if renaming current project, aborting: {}", err);
                 return ProjectRenameResponse { renamed_project_info: None };
@@ -43,7 +41,7 @@ impl EngineCommandRequestExecutor for ProjectRenameRequest {
         // If we are renaming the current project, just do a full reload.
         // We may actually be able to get away with mutating state, but for now I do not see the value in that.
         if is_renaming_opened_project {
-            match Project::load_project(&new_project_path) {
+            match Project::load_from_path(&new_project_path) {
                 Ok(reopened_project) => {
                     log::info!("The current project has been renamed. Re-opening the project.");
                     project_manager.set_opened_project(reopened_project);

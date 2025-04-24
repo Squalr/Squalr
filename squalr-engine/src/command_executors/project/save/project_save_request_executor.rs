@@ -2,6 +2,7 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::project::save::project_save_response::ProjectSaveResponse;
+use squalr_engine_projects::project::serialization::serializable_project_item::SerializableProjectItem;
 use std::sync::Arc;
 
 impl EngineCommandRequestExecutor for ProjectSaveRequest {
@@ -18,7 +19,7 @@ impl EngineCommandRequestExecutor for ProjectSaveRequest {
             .as_deref()
         {
             if let Some(project) = project {
-                match project.save(true) {
+                match project.save_to_path(project.get_project_info().get_path(), true) {
                     Ok(_) => {
                         return ProjectSaveResponse { success: true };
                     }

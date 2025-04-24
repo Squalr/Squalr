@@ -1,4 +1,4 @@
-use crate::structures::projects::project_item_type::ProjectItemType;
+use crate::structures::projects::project_items::project_item_type::ProjectItemType;
 use serde::{Deserialize, Serialize};
 use std::{
     path::Path,

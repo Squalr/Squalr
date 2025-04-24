@@ -61,6 +61,7 @@ Features:
 Lower priority features that we can defer, for now.
 
 Post-launch Features:
+- [ ] Deleting scan results directly.
 - [ ] Pointer Scans
 - [ ] Memory viewer
 - [ ] Masked byte scans.
