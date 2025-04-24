@@ -49,7 +49,7 @@ impl ProjectManager {
         project_info: Project,
     ) {
         if let Ok(mut project) = self.opened_project.write() {
-            log::info!("Opened project: {}, pid: {}", project_info.get_name(), project_info.get_name());
+            log::info!("Opened project: {}", project_info.get_name());
             *project = Some(project_info);
         }
     }

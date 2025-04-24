@@ -6,7 +6,7 @@ use std::path::Path;
 
 impl SerializableProjectFile for Project {
     fn load_from_path(directory: &Path) -> anyhow::Result<Self> {
-        let project_info = ProjectInfo::load_from_path(directory)?;
+        let project_info = ProjectInfo::load_from_path(&directory.join(Project::PROJECT_FILE))?;
         let project_root = ProjectItemTypeDirectory::load_from_path(&directory.join(Project::TABLE_DIR))?;
 
         Ok(Project::new(project_info, project_root))
