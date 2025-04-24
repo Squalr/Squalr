@@ -13,7 +13,13 @@ impl EngineCommandRequestExecutor for ProjectOpenRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let project_path = ProjectSettingsConfig::get_projects_root().join(&self.project_name);
+        // If a path is provided, use this directly. Otherwise, try to use the project settings relative name to construct the path.
+        let project_path = if let Some(path) = &self.project_path {
+            path.into()
+        } else {
+            let name = self.project_name.as_deref().unwrap_or_default();
+            ProjectSettingsConfig::get_projects_root().join(name)
+        };
 
         match Project::load_project(&project_path) {
             Ok(project) => {

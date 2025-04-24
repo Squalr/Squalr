@@ -8,7 +8,7 @@ use squalr_engine_api::{
         engine_event::{EngineEvent, EngineEventRequest},
         project::{created::project_created_event::ProjectCreatedEvent, deleted::project_deleted_event::ProjectDeletedEvent},
     },
-    structures::{processes::process_icon::ProcessIcon, projects::project_info::ProjectInfo},
+    structures::projects::project_info::ProjectInfo,
 };
 use std::{
     path::PathBuf,
@@ -172,7 +172,7 @@ impl ProjectManager {
     }
 
     fn create_project_info(path: &PathBuf) -> ProjectInfo {
-        let project_info = ProjectInfo::new(path.clone(), ProcessIcon::new(vec![], 32, 32));
+        let project_info = ProjectInfo::new(path.clone());
 
         project_info
     }

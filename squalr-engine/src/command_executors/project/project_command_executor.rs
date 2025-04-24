@@ -13,6 +13,9 @@ impl EngineCommandExecutor for ProjectCommand {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandExecutor>::ResponseType {
         match self {
+            ProjectCommand::Create { project_create_request } => project_create_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
             ProjectCommand::Open { project_open_request } => project_open_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),

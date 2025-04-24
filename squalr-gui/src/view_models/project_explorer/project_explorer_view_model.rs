@@ -11,6 +11,7 @@ use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::commands::project::create::project_create_request::ProjectCreateRequest;
 use squalr_engine_api::commands::project::list::project_list_request::ProjectListRequest;
 use squalr_engine_api::commands::project::open::project_open_request::ProjectOpenRequest;
 use squalr_engine_api::commands::project::rename::project_rename_request::ProjectRenameRequest;
@@ -54,6 +55,7 @@ impl ProjectExplorerViewModel {
                 on_refresh_project_list() -> [project_list_collection, engine_execution_context] -> Self::on_refresh_project_list
                 on_open_project(project_entry: ProjectViewData) -> [engine_execution_context] -> Self::on_open_project
                 on_rename_project(project_entry: ProjectViewData, new_project_name: SharedString) -> [engine_execution_context] -> Self::on_rename_project
+                on_create_new_project() -> [engine_execution_context] -> Self::on_create_new_project
             }
         });
 
@@ -99,7 +101,8 @@ impl ProjectExplorerViewModel {
         project_entry: ProjectViewData,
     ) {
         let project_open_request = ProjectOpenRequest {
-            project_name: project_entry.name.into(),
+            project_path: Some(PathBuf::from_str(&project_entry.path.to_string()).unwrap_or_default()),
+            project_name: None,
         };
 
         project_open_request.send(&engine_execution_context, move |_project_open_response| {});
@@ -116,5 +119,14 @@ impl ProjectExplorerViewModel {
         };
 
         project_rename_request.send(&engine_execution_context, move |_project_rename_response| {});
+    }
+
+    fn on_create_new_project(engine_execution_context: Arc<EngineExecutionContext>) {
+        let project_create_request = ProjectCreateRequest {
+            project_path: None,
+            project_name: None,
+        };
+
+        project_create_request.send(&engine_execution_context, move |_project_create_response| {});
     }
 }

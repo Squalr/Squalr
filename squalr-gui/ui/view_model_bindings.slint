@@ -238,7 +238,7 @@ export global ProjectExplorerViewModelBindings {
     callback save_opened_project();
     callback export_opened_project();
     callback browse_for_project();
-    callback create_new_project(project_name: string);
+    callback create_new_project();
     callback rename_project(project: ProjectViewData, new_project_name: string);
     in_out property <bool> is_project_open;
     in property <[ProjectViewData]> projects;

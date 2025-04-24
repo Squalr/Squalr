@@ -2,7 +2,6 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::project::list::project_list_request::ProjectListRequest;
 use squalr_engine_api::commands::project::list::project_list_response::ProjectListResponse;
-use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_projects::settings::project_settings_config::ProjectSettingsConfig;
 use std::sync::Arc;
@@ -24,9 +23,7 @@ impl EngineCommandRequestExecutor for ProjectListRequest {
                         let entry_path = entry.path();
 
                         if entry_path.is_dir() {
-                            let icon = ProcessIcon::new(vec![], 0, 0);
-
-                            projects_info.push(ProjectInfo::new(entry_path, icon));
+                            projects_info.push(ProjectInfo::new(entry_path));
                         }
                     }
                 }

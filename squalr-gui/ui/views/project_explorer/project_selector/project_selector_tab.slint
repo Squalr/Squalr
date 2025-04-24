@@ -40,7 +40,7 @@ export component ProjectSelectorTab inherits Rectangle {
                     tooltip_text: @tr("New project");
                     click_sound: "";
                     clicked => {
-                        ProjectExplorerViewModelBindings.create_new_project("New Project");
+                        ProjectExplorerViewModelBindings.create_new_project();
                     }
                     Image {
                         width: 16px;

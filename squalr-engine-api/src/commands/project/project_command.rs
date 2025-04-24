@@ -1,3 +1,4 @@
+use crate::commands::project::create::project_create_request::ProjectCreateRequest;
 use crate::commands::project::list::project_list_request::ProjectListRequest;
 use crate::commands::project::open::project_open_request::ProjectOpenRequest;
 use crate::commands::project::rename::project_rename_request::ProjectRenameRequest;
@@ -7,6 +8,11 @@ use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub enum ProjectCommand {
+    /// Create a project.
+    Create {
+        #[structopt(flatten)]
+        project_create_request: ProjectCreateRequest,
+    },
     /// Open a project.
     Open {
         #[structopt(flatten)]

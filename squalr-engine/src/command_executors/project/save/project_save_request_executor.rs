@@ -18,11 +18,17 @@ impl EngineCommandRequestExecutor for ProjectSaveRequest {
             .as_deref()
         {
             if let Some(project) = project {
-                project.save();
+                match project.save(true) {
+                    Ok(_) => {
+                        return ProjectSaveResponse { success: true };
+                    }
+                    Err(err) => {
+                        log::error!("Failed to save project: {}", err);
+                    }
+                }
             }
-            ProjectSaveResponse { success: true }
-        } else {
-            ProjectSaveResponse { success: false }
         }
+
+        ProjectSaveResponse { success: false }
     }
 }
