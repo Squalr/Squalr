@@ -1,6 +1,7 @@
 use crate::structures::projects::project_items::project_item_type::ProjectItemType;
 use serde::{Deserialize, Serialize};
 use std::{
+    any::Any,
     path::Path,
     sync::{Arc, RwLock},
 };
@@ -38,10 +39,18 @@ impl ProjectItemTypeDirectory {
             children.push(child);
         }
     }
+
+    pub fn get_children(&self) -> &Arc<RwLock<Vec<Box<dyn ProjectItemType>>>> {
+        &self.children
+    }
 }
 
 #[typetag::serde]
 impl ProjectItemType for ProjectItemTypeDirectory {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn get_name(&self) -> &str {
         &self.name
     }

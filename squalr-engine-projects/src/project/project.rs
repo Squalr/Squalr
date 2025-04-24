@@ -33,7 +33,6 @@ impl Project {
         }
 
         fs::create_dir_all(path)?;
-        fs::create_dir(path.join(Self::TABLE_DIR))?;
 
         let project_info = ProjectInfo::new(path.to_path_buf(), None, ProjectManifest::default());
         let root: ProjectItemTypeDirectory = ProjectItemTypeDirectory::new(path);
@@ -55,5 +54,9 @@ impl Project {
 
     pub fn get_project_info(&self) -> &ProjectInfo {
         &self.project_info
+    }
+
+    pub fn get_project_root(&self) -> &ProjectItemTypeDirectory {
+        &self.root
     }
 }

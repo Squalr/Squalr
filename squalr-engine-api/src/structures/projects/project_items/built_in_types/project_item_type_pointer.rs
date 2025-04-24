@@ -1,6 +1,7 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::projects::project_items::project_item_type::ProjectItemType;
 use serde::{Deserialize, Serialize};
+use std::any::Any;
 use typetag::serde;
 
 #[derive(Serialize, Deserialize)]
@@ -31,6 +32,10 @@ impl ProjectItemTypePointer {
 
 #[typetag::serde]
 impl ProjectItemType for ProjectItemTypePointer {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn get_name(&self) -> &str {
         &self.name
     }
