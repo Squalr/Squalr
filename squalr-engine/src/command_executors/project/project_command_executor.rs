@@ -19,6 +19,9 @@ impl EngineCommandExecutor for ProjectCommand {
             ProjectCommand::Open { project_open_request } => project_open_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
+            ProjectCommand::Close { project_close_request } => project_close_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
             ProjectCommand::Rename { project_rename_request } => project_rename_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),

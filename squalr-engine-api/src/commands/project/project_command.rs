@@ -1,3 +1,4 @@
+use crate::commands::project::close::project_close_request::ProjectCloseRequest;
 use crate::commands::project::create::project_create_request::ProjectCreateRequest;
 use crate::commands::project::list::project_list_request::ProjectListRequest;
 use crate::commands::project::open::project_open_request::ProjectOpenRequest;
@@ -17,6 +18,11 @@ pub enum ProjectCommand {
     Open {
         #[structopt(flatten)]
         project_open_request: ProjectOpenRequest,
+    },
+    /// Close a project.
+    Close {
+        #[structopt(flatten)]
+        project_close_request: ProjectCloseRequest,
     },
     /// Rename a project.
     Rename {

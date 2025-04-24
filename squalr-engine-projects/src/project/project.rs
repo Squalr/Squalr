@@ -16,8 +16,8 @@ pub struct Project {
 }
 
 impl Project {
-    const MANIFEST_FILENAME: &'static str = "manifest.sqlr";
-    const TABLE_DIR: &'static str = "table";
+    pub const MANIFEST_FILENAME: &'static str = "project.sqlr";
+    pub const TABLE_DIR: &'static str = "table";
 
     /// Creates a new project and writes it to disk.
     pub fn create_project(path: &Path) -> anyhow::Result<Self> {

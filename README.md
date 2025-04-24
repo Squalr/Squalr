@@ -52,6 +52,7 @@ Features:
 - [X] Periodic Vectorized overlapping scans.
 - [X] Settings system that respects command/response, IPC, etc.
 - [X] String scans, with various encoding support.
+-   [ ] Encoding selection from UI.
 - [X] Freezing/deleting scan results directly from scan window.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 - [ ] Property viewer.
@@ -59,7 +60,7 @@ Features:
 ## Post-launch tasklist
 Lower priority features that we can defer, for now.
 
-Features:
+Post-launch Features:
 - [ ] Pointer Scans
 - [ ] Memory viewer
 - [ ] Masked byte scans.
@@ -68,3 +69,5 @@ Features:
 - [ ] Plugin system to support emulator middleware (ie filtering queried virtual memory, remapping virtual address space, etc).
 - [ ] Plugin system to support virtual modules. Very similar to above, but registering fake modules, with emulators again being the primary use case.
 - [ ] Plugin system for new project item types (ie supporting a .NET item, or a JRE item)
+- [ ] Finish trackable task system to support cancellation, progress bars, etc.
+- [ ] Git(hub) integration?
