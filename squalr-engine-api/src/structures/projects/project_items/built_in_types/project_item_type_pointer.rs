@@ -22,17 +22,42 @@ pub struct ProjectItemTypePointer {
 
     #[serde(skip)]
     is_activated: bool,
+
+    #[serde(skip)]
+    has_unsaved_changes: bool,
 }
 
 impl ProjectItemTypePointer {
-    pub fn new() {
-        //
+    pub fn new(
+        name: String,
+        description: String,
+        data_type: DataTypeRef,
+        is_value_hex: bool,
+        module_name: String,
+        module_offset: u64,
+        pointer_offsets: Vec<i32>,
+    ) -> Self {
+        Self {
+            name,
+            description,
+            data_type,
+            is_value_hex,
+            module_name,
+            module_offset,
+            pointer_offsets,
+            is_activated: false,
+            has_unsaved_changes: true,
+        }
     }
 }
 
 #[typetag::serde]
 impl ProjectItemType for ProjectItemTypePointer {
     fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
@@ -57,5 +82,16 @@ impl ProjectItemType for ProjectItemTypePointer {
         is_activated: bool,
     ) {
         self.is_activated = is_activated;
+    }
+
+    fn get_has_unsaved_changes(&self) -> bool {
+        self.has_unsaved_changes
+    }
+
+    fn set_has_unsaved_changes(
+        &mut self,
+        has_unsaved_changes: bool,
+    ) {
+        self.has_unsaved_changes = has_unsaved_changes;
     }
 }

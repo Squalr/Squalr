@@ -34,29 +34,32 @@ impl SerializableProjectFile for ProjectItemTypeDirectory {
     }
 
     fn save_to_path(
-        &self,
+        &mut self,
         directory: &Path,
         allow_overwrite: bool,
+        save_changed_only: bool,
     ) -> anyhow::Result<()> {
-        if directory.exists() {
-            if !allow_overwrite {
-                anyhow::bail!("Failed to save directory item, the directory already exists: {:?}", directory);
+        if save_changed_only && self.get_has_unsaved_changes() {
+            if directory.exists() {
+                if !allow_overwrite {
+                    anyhow::bail!("Failed to save directory item, the directory already exists: {:?}", directory);
+                }
+            } else {
+                fs::create_dir(&directory)?;
             }
-        } else {
-            fs::create_dir(&directory)?;
-        }
 
-        if let Ok(children) = self.get_children().read().as_deref() {
-            for child in children {
-                let child_path = directory.join(child.get_name());
+            if let Ok(mut children) = self.get_children().write() {
+                for child in children.iter_mut() {
+                    let child_path = directory.join(child.get_name());
 
-                if let Some(directory_child) = child.as_any().downcast_ref::<ProjectItemTypeDirectory>() {
-                    // Recursive call for subdirectory
-                    directory_child.save_to_path(&child_path, allow_overwrite)?;
-                } else {
-                    // Save individual file item
-                    let file = File::create(&child_path)?;
-                    serde_json::to_writer_pretty(file, &child)?;
+                    if let Some(directory_child) = child.as_any_mut().downcast_mut::<ProjectItemTypeDirectory>() {
+                        // Recursive call for subdirectory
+                        directory_child.save_to_path(&child_path, allow_overwrite, save_changed_only)?;
+                    } else {
+                        // Save individual file item
+                        let file = File::create(&child_path)?;
+                        serde_json::to_writer_pretty(file, &child)?;
+                    }
                 }
             }
         }

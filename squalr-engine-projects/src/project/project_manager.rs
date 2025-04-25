@@ -72,7 +72,7 @@ impl ProjectManager {
         self.opened_project.clone()
     }
 
-    pub fn watch_projects_directory(&mut self) -> notify::Result<()> {
+    fn watch_projects_directory(&mut self) -> notify::Result<()> {
         // Cancel any existing directory watcher threads.
         self.watcher = None;
 
@@ -87,6 +87,7 @@ impl ProjectManager {
         println!("Watching project directory: {}", projects_root.display());
 
         // Spawn a thread to handle events.
+        // JIRA: This is a bit jank, we miss icon updates, its not really as robust as it can be, etc.
         thread::spawn(move || {
             while let Ok(event) = rx.recv() {
                 match event {

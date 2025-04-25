@@ -16,6 +16,9 @@ pub struct ProjectInfo {
 
     /// The manifest for this project, containing the sort order of project items.
     project_manifest: ProjectManifest,
+
+    #[serde(skip)]
+    has_unsaved_changes: bool,
 }
 
 impl ProjectInfo {
@@ -35,6 +38,7 @@ impl ProjectInfo {
             project_path,
             project_icon_rgba,
             project_manifest,
+            has_unsaved_changes: true,
         }
     }
 
@@ -59,5 +63,16 @@ impl ProjectInfo {
 
     pub fn get_project_manifest(&self) -> &ProjectManifest {
         &self.project_manifest
+    }
+
+    pub fn get_has_unsaved_changes(&self) -> bool {
+        self.has_unsaved_changes
+    }
+
+    pub fn set_has_unsaved_changes(
+        &mut self,
+        has_unsaved_changes: bool,
+    ) {
+        self.has_unsaved_changes = has_unsaved_changes;
     }
 }

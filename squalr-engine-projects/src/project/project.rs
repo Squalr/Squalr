@@ -15,7 +15,9 @@ use super::serialization::serializable_project_file::SerializableProjectFile;
 #[derive(Serialize, Deserialize)]
 pub struct Project {
     project_info: ProjectInfo,
-    root: ProjectItemTypeDirectory,
+
+    #[serde(rename = "project")]
+    project_root: ProjectItemTypeDirectory,
 }
 
 impl Project {
@@ -24,9 +26,9 @@ impl Project {
 
     pub fn new(
         project_info: ProjectInfo,
-        root: ProjectItemTypeDirectory,
+        project_root: ProjectItemTypeDirectory,
     ) -> Self {
-        Self { project_info, root }
+        Self { project_info, project_root }
     }
 
     /// Creates a new project and writes it to disk.
@@ -38,11 +40,11 @@ impl Project {
         fs::create_dir_all(path)?;
 
         let project_info = ProjectInfo::new(path.to_path_buf(), None, ProjectManifest::default());
-        let root: ProjectItemTypeDirectory = ProjectItemTypeDirectory::new(path);
+        let project_root: ProjectItemTypeDirectory = ProjectItemTypeDirectory::new(path);
 
-        let project = Self { project_info, root };
+        let mut project = Self { project_info, project_root };
 
-        project.save_to_path(path, false)?;
+        project.save_to_path(path, false, false)?;
 
         Ok(project)
     }
@@ -59,6 +61,10 @@ impl Project {
         &self.project_info
     }
 
+    pub fn get_project_info_mut(&mut self) -> &mut ProjectInfo {
+        &mut self.project_info
+    }
+
     pub fn set_project_icon(
         &mut self,
         project_icon: Option<ProcessIcon>,
@@ -67,6 +73,10 @@ impl Project {
     }
 
     pub fn get_project_root(&self) -> &ProjectItemTypeDirectory {
-        &self.root
+        &self.project_root
+    }
+
+    pub fn get_project_root_mut(&mut self) -> &mut ProjectItemTypeDirectory {
+        &mut self.project_root
     }
 }

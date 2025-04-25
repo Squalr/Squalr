@@ -15,9 +15,11 @@ use std::{
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct ProjectInfoStub {
     /// The process icon associated with this project.
+    #[serde(rename = "icon")]
     project_icon_rgba: Option<ProcessIcon>,
 
     /// The manifest for this project, containing the sort order of project items.
+    #[serde(rename = "manifest")]
     project_manifest: ProjectManifest,
 }
 
@@ -31,28 +33,33 @@ impl SerializableProjectFile for ProjectInfo {
     }
 
     fn save_to_path(
-        &self,
+        &mut self,
         directory: &Path,
         allow_overwrite: bool,
+        save_changed_only: bool,
     ) -> anyhow::Result<()> {
-        let project_file_path = directory.join(Project::PROJECT_FILE);
+        if save_changed_only && self.get_has_unsaved_changes() {
+            let project_file_path = directory.join(Project::PROJECT_FILE);
 
-        if project_file_path.exists() && !allow_overwrite {
-            anyhow::bail!("Failed to save project info. A project already exists in this directory.");
+            if project_file_path.exists() && !allow_overwrite {
+                anyhow::bail!("Failed to save project info. A project already exists in this directory.");
+            }
+
+            let file = OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(allow_overwrite)
+                .open(&project_file_path)?;
+
+            let project_info_stub = ProjectInfoStub {
+                project_icon_rgba: self.get_project_icon_rgba().clone(),
+                project_manifest: self.get_project_manifest().clone(),
+            };
+
+            serde_json::to_writer(file, &project_info_stub)?;
+
+            self.set_has_unsaved_changes(false);
         }
-
-        let file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(allow_overwrite)
-            .open(&project_file_path)?;
-
-        let project_info_stub = ProjectInfoStub {
-            project_icon_rgba: self.get_project_icon_rgba().clone(),
-            project_manifest: self.get_project_manifest().clone(),
-        };
-
-        serde_json::to_writer(file, &project_info_stub)?;
 
         Ok(())
     }

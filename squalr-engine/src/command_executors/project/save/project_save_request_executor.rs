@@ -29,8 +29,10 @@ impl EngineCommandRequestExecutor for ProjectSaveRequest {
                     }
                 }
 
+                let project_path = project.get_project_info().get_path().to_owned();
+
                 // Persist the project to disk.
-                match project.save_to_path(project.get_project_info().get_path(), true) {
+                match project.save_to_path(&project_path, true, true) {
                     Ok(_) => {
                         return ProjectSaveResponse { success: true };
                     }

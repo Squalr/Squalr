@@ -16,6 +16,9 @@ pub struct ProjectItemTypeDirectory {
 
     #[serde(skip)]
     is_activated: bool,
+
+    #[serde(skip)]
+    has_unsaved_changes: bool,
 }
 
 impl ProjectItemTypeDirectory {
@@ -28,6 +31,7 @@ impl ProjectItemTypeDirectory {
                 .to_string(),
             children: Arc::new(RwLock::new(vec![])),
             is_activated: false,
+            has_unsaved_changes: true,
         }
     }
 
@@ -48,6 +52,10 @@ impl ProjectItemTypeDirectory {
 #[typetag::serde]
 impl ProjectItemType for ProjectItemTypeDirectory {
     fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 
@@ -72,5 +80,16 @@ impl ProjectItemType for ProjectItemTypeDirectory {
         is_activated: bool,
     ) {
         self.is_activated = is_activated;
+    }
+
+    fn get_has_unsaved_changes(&self) -> bool {
+        self.has_unsaved_changes
+    }
+
+    fn set_has_unsaved_changes(
+        &mut self,
+        has_unsaved_changes: bool,
+    ) {
+        self.has_unsaved_changes = has_unsaved_changes;
     }
 }
