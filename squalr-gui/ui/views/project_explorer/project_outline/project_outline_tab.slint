@@ -34,7 +34,7 @@ export component ProjectOutlineTab inherits Rectangle {
                 tooltip_text: @tr("Export Project");
                 click_sound: "";
                 clicked => {
-                    ProjectExplorerViewModelBindings.export_opened_project();
+                    ProjectExplorerViewModelBindings.export_project(ProjectExplorerViewModelBindings.opened_project);
                 }
                 Image {
                     width: 16px;

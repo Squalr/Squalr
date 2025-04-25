@@ -50,6 +50,13 @@ impl ProjectInfo {
         &self.project_icon_rgba
     }
 
+    pub fn set_project_icon(
+        &mut self,
+        project_icon: Option<ProcessIcon>,
+    ) {
+        self.project_icon_rgba = project_icon;
+    }
+
     pub fn get_project_manifest(&self) -> &ProjectManifest {
         &self.project_manifest
     }

@@ -28,6 +28,9 @@ impl EngineCommandExecutor for ProjectCommand {
             ProjectCommand::Save { project_save_request } => project_save_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
+            ProjectCommand::Export { project_export_request } => project_export_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
             ProjectCommand::List { project_list_request } => project_list_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),

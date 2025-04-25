@@ -43,7 +43,7 @@ impl SerializableProjectFile for ProjectItemTypeDirectory {
                 anyhow::bail!("Failed to save directory item, the directory already exists: {:?}", directory);
             }
         } else {
-            fs::create_dir(directory)?;
+            fs::create_dir(&directory)?;
         }
 
         if let Ok(children) = self.get_children().read().as_deref() {

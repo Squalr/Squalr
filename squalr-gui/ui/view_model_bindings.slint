@@ -222,6 +222,7 @@ export global ScanSettingsViewModelBindings {
 export struct ProjectViewData {
     name: string,
     path: string,
+    icon: image,
 }
 
 export struct ProjectItemViewData {
@@ -238,10 +239,11 @@ export global ProjectExplorerViewModelBindings {
     callback open_project(project: ProjectViewData);
     callback close_opened_project();
     callback save_opened_project();
-    callback export_opened_project();
+    callback export_project(project: ProjectViewData);
     callback create_new_project();
     callback rename_project(project: ProjectViewData, new_project_name: string);
     in_out property <bool> is_project_open;
+    in property <ProjectViewData> opened_project;
     in property <[ProjectViewData]> projects;
     in property <[ProjectItemViewData]> project_items;
 }

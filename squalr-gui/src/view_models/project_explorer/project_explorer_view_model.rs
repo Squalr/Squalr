@@ -7,15 +7,18 @@ use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_collection_binding::ViewCollectionBinding;
+use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::project::close::project_close_request::ProjectCloseRequest;
 use squalr_engine_api::commands::project::create::project_create_request::ProjectCreateRequest;
+use squalr_engine_api::commands::project::export::project_export_request::ProjectExportRequest;
 use squalr_engine_api::commands::project::list::project_list_request::ProjectListRequest;
 use squalr_engine_api::commands::project::open::project_open_request::ProjectOpenRequest;
 use squalr_engine_api::commands::project::rename::project_rename_request::ProjectRenameRequest;
+use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::events::project::closed::project_closed_event::ProjectClosedEvent;
 use squalr_engine_api::events::project::created::project_created_event::ProjectCreatedEvent;
 use squalr_engine_api::events::project::deleted::project_deleted_event::ProjectDeletedEvent;
@@ -58,8 +61,8 @@ impl ProjectExplorerViewModel {
                 on_browse_for_project() -> [view_binding, engine_execution_context] -> Self::on_browse_for_project
                 on_open_project(project_entry: ProjectViewData) -> [view_binding, engine_execution_context] -> Self::on_open_project
                 on_close_opened_project() -> [engine_execution_context] -> Self::on_close_opened_project
-                on_save_opened_project() -> [view_binding, engine_execution_context] -> Self::on_save_opened_project
-                on_export_opened_project() -> [view_binding, engine_execution_context] -> Self::on_export_opened_project
+                on_save_opened_project() -> [engine_execution_context] -> Self::on_save_opened_project
+                on_export_project(project_entry: ProjectViewData) -> [engine_execution_context] -> Self::on_export_project
                 on_rename_project(project_entry: ProjectViewData, new_project_name: SharedString) -> [engine_execution_context] -> Self::on_rename_project
                 on_create_new_project() -> [engine_execution_context] -> Self::on_create_new_project
             }
@@ -98,6 +101,7 @@ impl ProjectExplorerViewModel {
                         let project_explorer_bindings = main_window_view.global::<ProjectExplorerViewModelBindings>();
 
                         project_explorer_bindings.set_is_project_open(false);
+                        project_explorer_bindings.set_opened_project(ProjectViewData::default());
                     });
                 });
         }
@@ -137,6 +141,10 @@ impl ProjectExplorerViewModel {
                 let project_explorer_bindings = main_window_view.global::<ProjectExplorerViewModelBindings>();
 
                 project_explorer_bindings.set_is_project_open(project_open_response.opened_project_info.is_some());
+
+                if let Some(opened_project_info) = project_open_response.opened_project_info {
+                    project_explorer_bindings.set_opened_project(ProjectInfoConverter {}.convert_to_view_data(&opened_project_info));
+                }
             });
         });
     }
@@ -147,18 +155,23 @@ impl ProjectExplorerViewModel {
         project_close_request.send(&engine_execution_context, move |_project_close_response| {});
     }
 
-    fn on_save_opened_project(
-        view_binding: ViewBinding<MainWindowView>,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) {
-        //
+    fn on_save_opened_project(engine_execution_context: Arc<EngineExecutionContext>) {
+        let project_save_request = ProjectSaveRequest {};
+
+        project_save_request.send(&engine_execution_context, move |_project_save_response| {});
     }
 
-    fn on_export_opened_project(
-        view_binding: ViewBinding<MainWindowView>,
+    fn on_export_project(
         engine_execution_context: Arc<EngineExecutionContext>,
+        project_entry: ProjectViewData,
     ) {
-        //
+        let project_export_request = ProjectExportRequest {
+            project_path: Some(PathBuf::from_str(&project_entry.path.to_string()).unwrap_or_default()),
+            project_name: None,
+            open_export_folder: true,
+        };
+
+        project_export_request.send(&engine_execution_context, move |_project_export_response| {});
     }
 
     fn on_rename_project(

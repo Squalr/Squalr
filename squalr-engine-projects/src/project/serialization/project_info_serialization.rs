@@ -52,7 +52,7 @@ impl SerializableProjectFile for ProjectInfo {
             project_manifest: self.get_project_manifest().clone(),
         };
 
-        serde_json::to_writer_pretty(file, &project_info_stub)?;
+        serde_json::to_writer(file, &project_info_stub)?;
 
         Ok(())
     }

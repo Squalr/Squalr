@@ -1,5 +1,6 @@
 use crate::commands::project::close::project_close_request::ProjectCloseRequest;
 use crate::commands::project::create::project_create_request::ProjectCreateRequest;
+use crate::commands::project::export::project_export_request::ProjectExportRequest;
 use crate::commands::project::list::project_list_request::ProjectListRequest;
 use crate::commands::project::open::project_open_request::ProjectOpenRequest;
 use crate::commands::project::rename::project_rename_request::ProjectRenameRequest;
@@ -33,6 +34,11 @@ pub enum ProjectCommand {
     Save {
         #[structopt(flatten)]
         project_save_request: ProjectSaveRequest,
+    },
+    /// Export a project.
+    Export {
+        #[structopt(flatten)]
+        project_export_request: ProjectExportRequest,
     },
     /// List all projects.
     List {

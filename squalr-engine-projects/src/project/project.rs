@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
-use squalr_engine_api::structures::projects::{
-    project_info::ProjectInfo, project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_manifest::ProjectManifest,
+use squalr_engine_api::structures::{
+    processes::process_icon::ProcessIcon,
+    projects::{
+        project_info::ProjectInfo, project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_manifest::ProjectManifest,
+    },
 };
 use std::{
     fs::{self},
@@ -54,6 +57,13 @@ impl Project {
 
     pub fn get_project_info(&self) -> &ProjectInfo {
         &self.project_info
+    }
+
+    pub fn set_project_icon(
+        &mut self,
+        project_icon: Option<ProcessIcon>,
+    ) {
+        self.project_info.set_project_icon(project_icon);
     }
 
     pub fn get_project_root(&self) -> &ProjectItemTypeDirectory {

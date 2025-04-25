@@ -16,9 +16,20 @@ impl EngineCommandRequestExecutor for ProjectSaveRequest {
             .get_project_manager()
             .get_opened_project()
             .write()
-            .as_deref()
+            .as_deref_mut()
         {
             if let Some(project) = project {
+                // Attempt to update the project icon if we are attached to a process.
+                if let Some(opened_process) = engine_privileged_state
+                    .get_process_manager()
+                    .get_opened_process()
+                {
+                    if let Some(process_icon) = opened_process.get_icon() {
+                        project.set_project_icon(Some(process_icon.clone()));
+                    }
+                }
+
+                // Persist the project to disk.
                 match project.save_to_path(project.get_project_info().get_path(), true) {
                     Ok(_) => {
                         return ProjectSaveResponse { success: true };
