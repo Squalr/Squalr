@@ -1,11 +1,9 @@
-use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::projects::project_items::project_item_type::ProjectItemType;
 use serde::{Deserialize, Serialize};
-use std::any::Any;
-use typetag::serde;
 
 #[derive(Serialize, Deserialize)]
 pub struct ProjectItemTypeAddress {
+    /*
     name: String,
 
     description: String,
@@ -18,10 +16,12 @@ pub struct ProjectItemTypeAddress {
     is_activated: bool,
 
     #[serde(skip)]
-    has_unsaved_changes: bool,
+    has_unsaved_changes: bool,*/
 }
 
 impl ProjectItemTypeAddress {
+    pub const PROJECT_ITEM_TYPE_ID: &str = "address";
+    /*
     pub fn new(
         name: String,
         description: String,
@@ -36,11 +36,14 @@ impl ProjectItemTypeAddress {
             is_activated: false,
             has_unsaved_changes: true,
         }
-    }
+    }*/
 }
 
-#[typetag::serde]
 impl ProjectItemType for ProjectItemTypeAddress {
+    fn get_project_item_type_id(&self) -> &str {
+        &Self::PROJECT_ITEM_TYPE_ID
+    }
+    /*
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -81,5 +84,5 @@ impl ProjectItemType for ProjectItemTypeAddress {
         has_unsaved_changes: bool,
     ) {
         self.has_unsaved_changes = has_unsaved_changes;
-    }
+    }*/
 }

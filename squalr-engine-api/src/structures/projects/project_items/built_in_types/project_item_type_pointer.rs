@@ -1,11 +1,9 @@
-use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::projects::project_items::project_item_type::ProjectItemType;
 use serde::{Deserialize, Serialize};
-use std::any::Any;
-use typetag::serde;
 
 #[derive(Serialize, Deserialize)]
 pub struct ProjectItemTypePointer {
+    /*
     name: String,
 
     description: String,
@@ -24,10 +22,12 @@ pub struct ProjectItemTypePointer {
     is_activated: bool,
 
     #[serde(skip)]
-    has_unsaved_changes: bool,
+    has_unsaved_changes: bool,*/
 }
 
 impl ProjectItemTypePointer {
+    pub const PROJECT_ITEM_TYPE_ID: &str = "pointer";
+    /*
     pub fn new(
         name: String,
         description: String,
@@ -48,11 +48,14 @@ impl ProjectItemTypePointer {
             is_activated: false,
             has_unsaved_changes: true,
         }
-    }
+    }*/
 }
 
-#[typetag::serde]
 impl ProjectItemType for ProjectItemTypePointer {
+    fn get_project_item_type_id(&self) -> &str {
+        &Self::PROJECT_ITEM_TYPE_ID
+    }
+    /*
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -93,5 +96,5 @@ impl ProjectItemType for ProjectItemTypePointer {
         has_unsaved_changes: bool,
     ) {
         self.has_unsaved_changes = has_unsaved_changes;
-    }
+    }*/
 }

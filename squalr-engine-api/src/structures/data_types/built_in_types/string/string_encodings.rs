@@ -1,9 +1,9 @@
+use bevy_reflect::Reflect;
+use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
 
-use serde::{Deserialize, Serialize};
-
 /// Represents the string encoding supported in scans.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Reflect, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum StringEncoding {
     Utf8,
     Utf16,

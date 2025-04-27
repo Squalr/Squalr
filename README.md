@@ -52,7 +52,7 @@ Features:
 - [X] Periodic Vectorized overlapping scans.
 - [X] Settings system that respects command/response, IPC, etc.
 - [X] String scans, with various encoding support.
--   [ ] Encoding selection from UI.
+- [ ] Encoding selection from UI.
 - [X] Freezing/deleting scan results directly from scan window.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 - [ ] Property viewer.
@@ -72,3 +72,29 @@ Post-launch Features:
 - [ ] Plugin system for new project item types (ie supporting a .NET item, or a JRE item)
 - [ ] Finish trackable task system to support cancellation, progress bars, etc.
 - [ ] Git(hub) integration?
+
+
+## Project structure brain dump
+We need to support command/response, only exposing the bare minimum for API structs. Additionally, we need dynamically registered project item types to support a plugin system later.
+
+Additionally, we need some form of reflection (or pseudo reflection) for editing properties on a project item reference.
+
+Each project item type should be able to define exactly what properties it exposes. These will end up in the property viewer later, so this system needs to be incredibly generic (especially to support scan results and other selectables later)
+
+While it would be nice to have annotation based property reflection, the reality is that this does not honestly work that well for our use case. The C# way would be to tag a property with [browsable] and voila! We can edit it with reflection.
+
+This is where it gets tricky. Sure, we can probably do this, but then now we need to ship dyn instances across an IPC boundary. This is where it becomes perhaps cleaner to have a generic `ProjectItem` with properties, and a pathbuf used as the unique identifier. In fact, we can keep this representation in the backend too! Each registered project item type can literally just expose fields and defaults for those fields. So perhaps a PropertyField and PropertyValue, with an allowed type. This could, in theory, feed into the data type system, or we can just hard limit this to supported types. Trade-offs TBD.
+
+So there we have it, a generic property system.
+
+Now, for items like ScanResults, we would similarly use this system. If done well, this would open up a future where plugins can do custom scans (ie a .NET or JVM scan) and be able to use our property system.
+
+To make an attempt to steelman the other case, we would need an incredibly robust system for serializing dyn instances across IPC bounds, having the types be known on both client and server, and then support procmacros for reflecting exposed values. Additionally, this would need some method of dealing with versioning, which is perhaps easier with a property system. I think this proves the case for the other approach.
+
+Now there is the question of 'editors'. Perhaps each editor must be inlined, and supported types only. Custom validators? Sure, easy enough. Custom editors? Actual agony, especially if aiming for mobile support. Solution TBD.
+
+Now for directory items, there is another gotcha of how these are formatted. "Properties all the way down" doesn't sit well with me. In fact, directories really should not expose any properties at all.
+
+So, perhaps there is simply a 'is a container' and 'children' non-property fields.
+
+Gets mre

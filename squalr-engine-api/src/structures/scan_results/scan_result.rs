@@ -1,10 +1,11 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
+use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Reflect, Clone, Serialize, Deserialize)]
 pub struct ScanResult {
     valued_result: ScanResultValued,
     module: String,

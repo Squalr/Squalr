@@ -1,11 +1,12 @@
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, data_values::data_value::DataValue};
+use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 /// Represents a base scan result containing only the address and data type.
 /// This will later need to be processed to determine modules, offsets, current values, etc.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Reflect, Clone, Debug, Serialize, Deserialize)]
 pub struct ScanResultValued {
     scan_result_base: ScanResultBase,
     current_value: Option<DataValue>,

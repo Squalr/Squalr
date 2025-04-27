@@ -2,7 +2,12 @@ use serde::{Deserialize, Serialize};
 use squalr_engine_api::structures::{
     processes::process_icon::ProcessIcon,
     projects::{
-        project_info::ProjectInfo, project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_manifest::ProjectManifest,
+        project_info::ProjectInfo,
+        project_items::{
+            built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_item::ProjectItem, project_item_type::ProjectItemType,
+            project_item_type_ref::ProjectItemTypeRef,
+        },
+        project_manifest::ProjectManifest,
     },
 };
 use std::{
@@ -17,7 +22,7 @@ pub struct Project {
     project_info: ProjectInfo,
 
     #[serde(rename = "project")]
-    project_root: ProjectItemTypeDirectory,
+    project_root: ProjectItem,
 }
 
 impl Project {
@@ -26,7 +31,7 @@ impl Project {
 
     pub fn new(
         project_info: ProjectInfo,
-        project_root: ProjectItemTypeDirectory,
+        project_root: ProjectItem,
     ) -> Self {
         Self { project_info, project_root }
     }
@@ -40,8 +45,12 @@ impl Project {
         fs::create_dir_all(path)?;
 
         let project_info = ProjectInfo::new(path.to_path_buf(), None, ProjectManifest::default());
-        let project_root: ProjectItemTypeDirectory = ProjectItemTypeDirectory::new(path);
-
+        let directory_type = ProjectItemTypeRef::new(
+            ProjectItemTypeDirectory {}
+                .get_project_item_type_id()
+                .to_string(),
+        );
+        let project_root = ProjectItem::new(path.to_path_buf(), directory_type);
         let mut project = Self { project_info, project_root };
 
         project.save_to_path(path, false, false)?;
@@ -72,11 +81,11 @@ impl Project {
         self.project_info.set_project_icon(project_icon);
     }
 
-    pub fn get_project_root(&self) -> &ProjectItemTypeDirectory {
+    pub fn get_project_root(&self) -> &ProjectItem {
         &self.project_root
     }
 
-    pub fn get_project_root_mut(&mut self) -> &mut ProjectItemTypeDirectory {
+    pub fn get_project_root_mut(&mut self) -> &mut ProjectItem {
         &mut self.project_root
     }
 }

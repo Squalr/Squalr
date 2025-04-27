@@ -9,6 +9,7 @@ use crate::structures::scanning::comparisons::scan_compare_type_relative::ScanCo
 use crate::structures::scanning::comparisons::scan_function_scalar::ScalarCompareFnImmediate;
 use crate::structures::scanning::comparisons::scan_function_scalar::ScalarCompareFnRelative;
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
+use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
 use std::simd::LaneCount;
 use std::simd::Simd;
@@ -21,7 +22,7 @@ use std::{
 /// Represents a handle to a data type. This is kept as a weak reference, as DataTypes can be registered/unregistered by plugins.
 /// As such, `DataType` is a `Box<dyn>` type, so it is much easier to abstract them behind `DataTypeRef` and just pass around handles.
 /// This is also important for serialization/deserialization, as if a plugin that defines a type is disabled, we can still deserialize it.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Reflect, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DataTypeRef {
     data_type_id: String,
     data_type_meta_data: DataTypeMetaData,

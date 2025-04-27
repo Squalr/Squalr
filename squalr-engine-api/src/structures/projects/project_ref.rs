@@ -1,10 +1,10 @@
-use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
+use crate::structures::projects::project_items::project_item::ProjectItem;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectRef {
     name: String,
-    children: Vec<ProjectItemRef>,
+    children: Vec<ProjectItem>,
 }
 
 impl ProjectRef {

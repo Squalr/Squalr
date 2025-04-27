@@ -1,13 +1,11 @@
 use crate::project::{project::Project, serialization::serializable_project_file::SerializableProjectFile};
-use squalr_engine_api::structures::projects::{
-    project_info::ProjectInfo, project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory,
-};
+use squalr_engine_api::structures::projects::{project_info::ProjectInfo, project_items::project_item::ProjectItem};
 use std::path::Path;
 
 impl SerializableProjectFile for Project {
     fn load_from_path(directory: &Path) -> anyhow::Result<Self> {
         let project_info = ProjectInfo::load_from_path(&directory.join(Project::PROJECT_FILE))?;
-        let project_root = ProjectItemTypeDirectory::load_from_path(&directory.join(Project::TABLE_DIR))?;
+        let project_root = ProjectItem::load_from_path(&directory.join(Project::TABLE_DIR))?;
 
         Ok(Project::new(project_info, project_root))
     }
