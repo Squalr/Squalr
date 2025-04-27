@@ -5,3 +5,4 @@ pub mod engine_mode;
 mod engine_privileged_state;
 pub mod squalr_engine;
 pub mod tasks;
+pub mod updates;

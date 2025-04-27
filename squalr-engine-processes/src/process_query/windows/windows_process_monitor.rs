@@ -16,7 +16,7 @@ impl WindowsProcessMonitor {
             stop_signal: Arc::new(AtomicBool::new(false)),
             monitor_thread: None,
             system: Arc::new(RwLock::new(System::new_with_specifics(
-                RefreshKind::new().with_processes(ProcessRefreshKind::everything()),
+                RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
             ))),
         }
     }

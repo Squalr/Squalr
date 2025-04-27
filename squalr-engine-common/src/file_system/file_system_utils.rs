@@ -1,5 +1,5 @@
 use std::{
-    fs, io,
+    env, fs, io,
     path::{Path, PathBuf},
 };
 
@@ -28,5 +28,37 @@ impl FileSystemUtils {
 
             index += 1;
         }
+    }
+
+    /// Gets the path to the current running executable.
+    pub fn get_executable_path() -> PathBuf {
+        match env::current_exe() {
+            Ok(exe_path) => {
+                return exe_path;
+            }
+            Err(err) => {
+                log::error!("Failed to get executable directory: {err}");
+                return PathBuf::new();
+            }
+        }
+    }
+
+    /// Copies all elements from the source folder to the destination folder. Note that files in the destination are not pre-cleared.
+    pub fn copy_dir_all(
+        source_folder: impl AsRef<Path>,
+        destination_folder: impl AsRef<Path>,
+    ) -> io::Result<()> {
+        std::fs::create_dir_all(&destination_folder)?;
+        for entry in std::fs::read_dir(source_folder)? {
+            let entry = entry?;
+            let file_type = entry.file_type()?;
+
+            if file_type.is_dir() {
+                Self::copy_dir_all(entry.path(), destination_folder.as_ref().join(entry.file_name()))?;
+            } else {
+                std::fs::copy(entry.path(), destination_folder.as_ref().join(entry.file_name()))?;
+            }
+        }
+        Ok(())
     }
 }
