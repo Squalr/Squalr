@@ -20,7 +20,7 @@ impl AppExtractor {
         }
     }
 
-    pub async fn extract_archive(
+    pub fn extract_archive(
         &self,
         archive_path: &Path,
     ) -> Result<()> {
@@ -29,9 +29,11 @@ impl AppExtractor {
         let mut files_processed = 0u64;
 
         log::info!("Clearing existing install directory...");
+
         if self.install_dir.exists() {
             fs::remove_dir_all(&self.install_dir)?;
         }
+
         fs::create_dir_all(&self.install_dir)?;
 
         log::info!("Starting archive extraction...");

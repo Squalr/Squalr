@@ -142,5 +142,64 @@
             "args": [],
             "cwd": "${workspaceFolder}"
         },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'squalr-installer'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=squalr-installer",
+                    "--package=squalr-installer"
+                ],
+                "filter": {
+                    "name": "squalr-installer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release executable 'squalr-installer'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--release",
+                    "--bin=squalr-installer",
+                    "--package=squalr-installer"
+                ],
+                "filter": {
+                    "name": "squalr-installer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release (with debug info) executable 'squalr-installer'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--release",
+                    "--bin=squalr-installer",
+                    "--package=squalr-installer"
+                ],
+                "filter": {
+                    "name": "squalr-installer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUSTFLAGS": "-g"
+            }
+        },
     ],
 }

@@ -77,7 +77,7 @@ impl AppUpdater {
         self.progress_tracker.subscribe()
     }
 
-    async fn run_update() {
+    fn run_update() {
         let app_instance = AppUpdater::get_instance();
         let app_updater = match app_instance.read() {
             Ok(updater) => updater,
@@ -115,7 +115,7 @@ impl AppUpdater {
         log::info!("Temporary file location: {}", tmp_file_path.display());
 
         // Download new version.
-        app_updater.progress_tracker.init_progress().await;
+        app_updater.progress_tracker.init_progress();
         let download_url = AppDownloadEndpoints::get_latest_download_url();
 
         // Download progress callback setup.
@@ -163,7 +163,7 @@ impl AppUpdater {
 
         // Extract the archive
         let extractor = AppExtractor::new(&tmp_extract_dir, extract_progress_callback);
-        if let Err(err) = extractor.extract_archive(&tmp_file_path).await {
+        if let Err(err) = extractor.extract_archive(&tmp_file_path) {
             log::error!("Failed to extract zip archive: {err}");
             return;
         }

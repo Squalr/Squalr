@@ -1,6 +1,4 @@
-use super::updater::check_for_updates_task::CheckForUpdatesTask;
-use super::updater::perform_update_task::PerformUpdateTask;
-use super::updater::update_status::UpdateStatus;
+use crate::updates::updater::update_status::UpdateStatus;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, RwLock};

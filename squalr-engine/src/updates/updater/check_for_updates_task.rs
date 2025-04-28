@@ -8,7 +8,7 @@ pub struct CheckForUpdatesTask {}
 
 /*
 impl CheckForUpdatesTask {
-    const BUCKET_NAME: &str = "wisp-134d6.appspot.com";
+    const BUCKET_NAME: &str = "squalr-134d6.appspot.com";
     const UPDATES_PREFIX: &str = "releases/windows";
     const VERSION_FILE: &str = "latest_version";
 

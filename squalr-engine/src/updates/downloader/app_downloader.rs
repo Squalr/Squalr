@@ -4,6 +4,8 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use ureq::config::Config;
+use ureq::tls::{TlsConfig, TlsProvider};
 
 pub struct AppDownloader {
     progress: Arc<Mutex<Option<DownloadProgress>>>,
@@ -18,7 +20,7 @@ impl AppDownloader {
         Self { progress, progress_callback }
     }
 
-    async fn update_progress(
+    fn update_progress(
         &self,
         bytes_downloaded: u64,
         total_bytes: Option<u64>,
@@ -41,9 +43,10 @@ impl AppDownloader {
     ) -> Result<()> {
         log::info!("Downloading from: {}", url);
 
-        let mut response = ureq::get(url)
-            .call()
-            .map_err(|e| anyhow::anyhow!("Request failed: {}", e))?;
+        let tls_config = TlsConfig::builder().provider(TlsProvider::NativeTls).build();
+        let config = Config::builder().tls_config(tls_config).build();
+        let agent = config.new_agent();
+        let mut response = agent.get(url).call()?;
 
         // Status is ureq::http::StatusCode. Convert it to u16 first.
         let status = response.status();
@@ -61,6 +64,7 @@ impl AppDownloader {
             .unwrap_or(0);
 
         log::info!("Expected download size: {} bytes", total_size);
+
         self.update_progress(0, Some(total_size));
 
         let mut file = File::create(target_path)?;

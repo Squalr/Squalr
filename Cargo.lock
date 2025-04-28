@@ -5595,6 +5595,7 @@ dependencies = [
  "futures-util",
  "interprocess",
  "log",
+ "native-tls",
  "opener",
  "self-replace",
  "semver",
@@ -5769,6 +5770,19 @@ dependencies = [
  "squalr-engine-common",
  "structopt",
  "sysinfo 0.34.2",
+]
+
+[[package]]
+name = "squalr-installer"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "slint",
+ "slint-build",
+ "slint-mvvm",
+ "slint-mvvm-macros",
+ "squalr-engine",
+ "winresource",
 ]
 
 [[package]]

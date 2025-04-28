@@ -54,7 +54,7 @@ impl ProgressTracker {
         }
     }
 
-    pub async fn init_progress(&self) {
+    pub fn init_progress(&self) {
         if let Ok(mut progress) = self.progress.lock() {
             *progress = Some(DownloadProgress {
                 filename: AppDownloadEndpoints::FILENAME.to_string(),

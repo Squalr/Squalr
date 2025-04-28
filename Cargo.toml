@@ -14,6 +14,7 @@ members = [
     "squalr-gui",
     "squalr-android",
     "squalr-cli",
+    "squalr-installer",
     "squalr",
 ]
 resolver = "3"
