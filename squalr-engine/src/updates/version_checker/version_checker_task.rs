@@ -5,6 +5,10 @@ use semver::Version;
 use serde::Deserialize;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use std::sync::Arc;
+use ureq::{
+    config::Config,
+    tls::{TlsConfig, TlsProvider},
+};
 
 #[derive(Deserialize)]
 struct GitHubRelease {
@@ -66,7 +70,11 @@ impl VersionCheckerTask {
     }
 
     fn check_for_updates() -> Result<Option<Version>> {
-        let response = ureq::get(AppDownloadEndpoints::get_latest_version_url())
+        let tls_config = TlsConfig::builder().provider(TlsProvider::NativeTls).build();
+        let config = Config::builder().tls_config(tls_config).build();
+        let agent = config.new_agent();
+        let response = agent
+            .get(AppDownloadEndpoints::get_latest_version_url())
             .header("User-Agent", "squalr-rust-updater")
             .call()
             .context("Failed to send GitHub latest release request")?;
