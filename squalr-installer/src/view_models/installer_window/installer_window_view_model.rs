@@ -5,8 +5,6 @@ use crate::WindowViewModelBindings;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
-use squalr_engine::updates::operations::install::app_installer::AppInstaller;
-use squalr_engine::updates::operations::install::install_phase::InstallPhase;
 
 pub struct InstallerWindowViewModel {
     _view: InstallerWindowView,

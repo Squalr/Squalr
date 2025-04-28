@@ -1,4 +1,4 @@
-use crate::updates::operations::download::download_progress::DownloadProgress;
+use crate::app_provisioner::operations::download::download_progress::DownloadProgress;
 use anyhow::Result;
 use std::fs::File;
 use std::io::{Read, Write};

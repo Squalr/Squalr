@@ -1,6 +1,6 @@
-use crate::updates::app_download_endpoints::AppDownloadEndpoints;
-use crate::updates::version_checker::github_latest_version_info::GitHubLatestVersionInfo;
-use crate::updates::version_checker::version_checker_status::VersionCheckerStatus;
+use crate::app_provisioner::app_download_endpoints::AppDownloadEndpoints;
+use crate::app_provisioner::operations::version_check::github_latest_version_info::GitHubLatestVersionInfo;
+use crate::app_provisioner::operations::version_check::version_checker_status::VersionCheckerStatus;
 use anyhow::{Context, Result};
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use std::sync::Arc;

@@ -1,4 +1,4 @@
-use crate::updates::version_checker::version_checker_status::VersionCheckerStatus;
+use crate::app_provisioner::operations::version_check::version_checker_status::VersionCheckerStatus;
 
 #[derive(Clone)]
 pub enum UpdateStatus {

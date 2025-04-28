@@ -1,9 +1,9 @@
-use crate::updates::app_download_endpoints::AppDownloadEndpoints;
-use crate::updates::operations::download::update_operation_download::UpdateOperationDownload;
-use crate::updates::operations::extract::update_operation_extract::UpdateOperationExtract;
-use crate::updates::operations::install::install_phase::InstallPhase;
-use crate::updates::operations::install::install_progress::InstallProgress;
-use crate::updates::progress_tracker::ProgressTracker;
+use crate::app_provisioner::app_download_endpoints::AppDownloadEndpoints;
+use crate::app_provisioner::installer::install_phase::InstallPhase;
+use crate::app_provisioner::installer::install_progress::InstallProgress;
+use crate::app_provisioner::operations::download::update_operation_download::UpdateOperationDownload;
+use crate::app_provisioner::operations::extract::update_operation_extract::UpdateOperationExtract;
+use crate::app_provisioner::progress_tracker::ProgressTracker;
 use anyhow::Result;
 use squalr_engine_common::file_system::file_system_utils::FileSystemUtils;
 use std::path::PathBuf;

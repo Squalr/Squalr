@@ -1,11 +1,11 @@
-use crate::updates::app_download_endpoints::AppDownloadEndpoints;
-use crate::updates::operations::download::update_operation_download::UpdateOperationDownload;
-use crate::updates::operations::extract::update_operation_extract::UpdateOperationExtract;
-use crate::updates::operations::install::install_phase::InstallPhase;
-use crate::updates::operations::install::install_progress::InstallProgress;
-use crate::updates::progress_tracker::ProgressTracker;
-use crate::updates::version_checker::version_checker_status::VersionCheckerStatus;
-use crate::updates::version_checker::version_checker_task::VersionCheckerTask;
+use crate::app_provisioner::app_download_endpoints::AppDownloadEndpoints;
+use crate::app_provisioner::installer::install_phase::InstallPhase;
+use crate::app_provisioner::installer::install_progress::InstallProgress;
+use crate::app_provisioner::operations::download::update_operation_download::UpdateOperationDownload;
+use crate::app_provisioner::operations::extract::update_operation_extract::UpdateOperationExtract;
+use crate::app_provisioner::operations::version_check::version_checker_status::VersionCheckerStatus;
+use crate::app_provisioner::operations::version_check::version_checker_task::VersionCheckerTask;
+use crate::app_provisioner::progress_tracker::ProgressTracker;
 use squalr_engine_common::file_system::file_system_utils::FileSystemUtils;
 use std::path::PathBuf;
 use tempfile;
@@ -99,7 +99,7 @@ impl AppInstaller {
                 }
 
                 // Regular installation - clear directory and copy new files.
-                if let Err(err) = Self::update_installation_directory(&tmp_extract_dir, &install_dir) {
+                if let Err(err) = Self::replace_installation_directory_contents(&tmp_extract_dir, &install_dir) {
                     log::error!("Failed to update installation directory: {err}");
                     return;
                 }
@@ -117,18 +117,18 @@ impl AppInstaller {
         });
     }
 
-    fn update_installation_directory(
+    fn replace_installation_directory_contents(
         src_dir: &std::path::Path,
         dst_dir: &std::path::Path,
     ) -> std::io::Result<()> {
-        log::info!("Updating installation directory: {}", dst_dir.display());
+        log::info!("Updating installation directory contents: {}", dst_dir.display());
 
-        // Create the installation directory if it doesn't exist
+        // Create the installation directory if it doesn't exist.
         if !dst_dir.exists() {
             std::fs::create_dir_all(dst_dir)?;
         }
 
-        // Clear existing files
+        // Clear existing files.
         if dst_dir.exists() {
             log::info!("Clearing existing installation directory");
             for entry in std::fs::read_dir(dst_dir)? {
@@ -143,7 +143,7 @@ impl AppInstaller {
             }
         }
 
-        // Copy new files
+        // Copy new files.
         log::info!("Copying new files from {} to {}", src_dir.display(), dst_dir.display());
         for entry in std::fs::read_dir(src_dir)? {
             let entry = entry?;

@@ -1,7 +1,7 @@
-use crate::updates::updater::perform_update_task::PerformUpdateTask;
-use crate::updates::updater::update_status::UpdateStatus;
-use crate::updates::version_checker::version_checker_status::VersionCheckerStatus;
-use crate::updates::version_checker::version_checker_task::VersionCheckerTask;
+use crate::app_provisioner::operations::version_check::version_checker_status::VersionCheckerStatus;
+use crate::app_provisioner::operations::version_check::version_checker_task::VersionCheckerTask;
+use crate::app_provisioner::updater::perform_update_task::PerformUpdateTask;
+use crate::app_provisioner::updater::update_status::UpdateStatus;
 use semver::Version;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};

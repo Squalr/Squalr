@@ -1,4 +1,4 @@
-use crate::updates::version_checker::github_latest_version_info::GitHubLatestVersionInfo;
+use crate::app_provisioner::operations::version_check::github_latest_version_info::GitHubLatestVersionInfo;
 
 #[derive(Clone)]
 pub enum VersionCheckerStatus {

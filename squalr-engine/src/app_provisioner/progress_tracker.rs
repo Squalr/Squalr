@@ -1,7 +1,7 @@
-use crate::updates::app_download_endpoints::AppDownloadEndpoints;
-use crate::updates::operations::download::download_progress::DownloadProgress;
-use crate::updates::operations::install::install_phase::InstallPhase;
-use crate::updates::operations::install::install_progress::InstallProgress;
+use crate::app_provisioner::app_download_endpoints::AppDownloadEndpoints;
+use crate::app_provisioner::installer::install_phase::InstallPhase;
+use crate::app_provisioner::installer::install_progress::InstallProgress;
+use crate::app_provisioner::operations::download::download_progress::DownloadProgress;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 

@@ -1,4 +1,4 @@
-use super::update_status::UpdateStatus;
+use crate::app_provisioner::updater::update_status::UpdateStatus;
 
 #[derive(Clone)]
 pub struct UpdateProgress {

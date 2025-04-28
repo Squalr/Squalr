@@ -1,7 +1,7 @@
-use crate::updates::operations::install::install_phase::InstallPhase;
-use crate::updates::operations::install::install_progress::InstallProgress;
-use crate::updates::updater::app_updater::AppUpdater;
-use crate::updates::updater::update_status::UpdateStatus;
+use crate::app_provisioner::installer::install_phase::InstallPhase;
+use crate::app_provisioner::installer::install_progress::InstallProgress;
+use crate::app_provisioner::updater::app_updater::AppUpdater;
+use crate::app_provisioner::updater::update_status::UpdateStatus;
 use anyhow::Result;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use std::sync::Arc;
