@@ -4,17 +4,16 @@ use crate::updates::updater::app_updater::AppUpdater;
 use crate::updates::updater::update_status::UpdateStatus;
 use anyhow::Result;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 pub struct PerformUpdateTask;
 
-/*
 impl PerformUpdateTask {
-    pub fn run<F>(notify_status: F) -> Arc<RwLock<TrackableTask<()>>>
+    pub fn run<F>(notify_status: F) -> Arc<TrackableTask>
     where
         F: Fn(UpdateStatus) + Send + Sync + 'static,
     {
-        let task = TrackableTask::create("PerformUpdateTask".to_string());
+        let task = TrackableTask::create("PerformUpdateTask".to_string(), None);
         let task_clone = task.clone();
         let notify_status = Arc::new(notify_status);
 
@@ -22,7 +21,7 @@ impl PerformUpdateTask {
             if let Err(e) = Self::execute(task_clone.clone(), notify_status.clone()) {
                 log::error!("Update failed: {}", e);
                 notify_status(UpdateStatus::Error(e.to_string()));
-                task_clone.write().unwrap().complete(());
+                task_clone.complete();
             }
         });
 
@@ -30,7 +29,7 @@ impl PerformUpdateTask {
     }
 
     fn execute(
-        task: Arc<RwLock<TrackableTask<()>>>,
+        task: Arc<TrackableTask>,
         notify_status: Arc<dyn Fn(UpdateStatus) + Send + Sync>,
     ) -> Result<()> {
         let installer = AppUpdater::get_instance();
@@ -43,22 +42,20 @@ impl PerformUpdateTask {
         // Single thread to handle both progress updates and task completion
         std::thread::spawn(move || {
             while let Ok(progress) = progress_receiver.recv() {
-                // Check cancellation
-                if let Ok(task_guard) = task_clone.read() {
-                    if task_guard
-                        .get_cancellation_token()
-                        .load(std::sync::atomic::Ordering::Relaxed)
-                    {
-                        notify_status(UpdateStatus::Cancelled);
-                        break;
-                    }
+                // Check cancellation.
+                if task_clone
+                    .get_cancellation_token()
+                    .load(std::sync::atomic::Ordering::Relaxed)
+                {
+                    notify_status(UpdateStatus::Cancelled);
+                    break;
                 }
 
                 Self::map_progress_to_status(progress, &notify_status);
 
                 // Check for completion
                 if matches!(progress.phase, InstallPhase::Complete) {
-                    task_clone.write().unwrap().complete(());
+                    task_clone.complete();
                     break;
                 }
             }
@@ -81,4 +78,3 @@ impl PerformUpdateTask {
         notify_status(status);
     }
 }
-*/

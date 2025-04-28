@@ -1,4 +1,4 @@
-use crate::updates::downloader::app_downloader::AppDownloader;
+use crate::updates::downloader::file_downloader::FileDownloader;
 use crate::updates::extractor::app_extractor::AppExtractor;
 use crate::updates::shared::app_download_endpoints::AppDownloadEndpoints;
 use crate::updates::shared::install_phase::InstallPhase;
@@ -116,7 +116,8 @@ impl AppUpdater {
 
         // Download new version.
         app_updater.progress_tracker.init_progress();
-        let download_url = AppDownloadEndpoints::get_latest_download_url();
+        let download_url = AppDownloadEndpoints::get_latest_version_url();
+        let FIX_ME = 420; // Need to parse download version from version checker
 
         // Download progress callback setup.
         let instance = app_instance.clone();
@@ -133,7 +134,7 @@ impl AppUpdater {
         });
 
         // Download the new version
-        let downloader = AppDownloader::new(app_updater.progress_tracker.get_progress().clone(), download_progress_callback);
+        let downloader = FileDownloader::new(app_updater.progress_tracker.get_progress().clone(), download_progress_callback);
         if let Err(err) = downloader.download_file(&download_url, &tmp_file_path) {
             log::error!("Failed to download app: {err}");
             return;

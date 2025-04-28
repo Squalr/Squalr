@@ -1,2 +1,2 @@
 pub mod download_progress;
-pub mod app_downloader;
+pub mod file_downloader;

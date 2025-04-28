@@ -1,11 +1,9 @@
-use semver::Version;
+use crate::updates::version_checker::version_checker_status::VersionCheckerStatus;
 
 #[derive(Clone, PartialEq)]
 pub enum UpdateStatus {
-    CheckingForUpdates,
+    CheckingVersion(VersionCheckerStatus),
     Cancelled,
-    UpdateAvailable(Version),
-    NoUpdateRequired,
     Downloading(f32),
     Installing(f32),
     Complete,

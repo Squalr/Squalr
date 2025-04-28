@@ -7,12 +7,12 @@ use std::sync::{Arc, Mutex};
 use ureq::config::Config;
 use ureq::tls::{TlsConfig, TlsProvider};
 
-pub struct AppDownloader {
+pub struct FileDownloader {
     progress: Arc<Mutex<Option<DownloadProgress>>>,
     progress_callback: Box<dyn Fn(u64, u64) + Send + Sync>,
 }
 
-impl AppDownloader {
+impl FileDownloader {
     pub fn new(
         progress: Arc<Mutex<Option<DownloadProgress>>>,
         progress_callback: Box<dyn Fn(u64, u64) + Send + Sync>,

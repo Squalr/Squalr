@@ -1,10 +1,13 @@
-use crate::updates::downloader::app_downloader::AppDownloader;
+use crate::updates::downloader::file_downloader::FileDownloader;
 use crate::updates::extractor::app_extractor::AppExtractor;
 use crate::updates::shared::app_download_endpoints::AppDownloadEndpoints;
 use crate::updates::shared::install_phase::InstallPhase;
 use crate::updates::shared::install_progress::InstallProgress;
 use crate::updates::shared::progress_tracker::ProgressTracker;
+use crate::updates::version_checker::version_checker_status::VersionCheckerStatus;
+use crate::updates::version_checker::version_checker_task::VersionCheckerTask;
 use anyhow::Result;
+use semver::Version;
 use squalr_engine_common::file_system::file_system_utils::FileSystemUtils;
 use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
@@ -70,7 +73,18 @@ impl AppInstaller {
     }
 
     pub fn begin_install(&self) {
-        Self::run_installation();
+        VersionCheckerTask::run(move |status| {
+            if let VersionCheckerStatus::LatestVersionFound(latest_version) = status {
+                let current_version = Version::parse(env!("CARGO_PKG_VERSION")).unwrap();
+
+                if latest_version > current_version {
+                    log::info!("An update is available.");
+                    Self::run_installation();
+                } else {
+                    log::info!("App is up to date, no update is required.");
+                }
+            }
+        });
     }
 
     pub fn subscribe(&self) -> Receiver<InstallProgress> {
@@ -103,7 +117,8 @@ impl AppInstaller {
 
         // Download new version
         app_installer.progress_tracker.init_progress();
-        let download_url = AppDownloadEndpoints::get_latest_download_url();
+        let download_url = AppDownloadEndpoints::get_latest_version_url();
+        let FIX_ME = 420; // Need to parse download version from version checker
 
         // Download progress callback setup
         let instance = app_instance.clone();
@@ -120,7 +135,7 @@ impl AppInstaller {
         });
 
         // Download the new version
-        let downloader = AppDownloader::new(app_installer.progress_tracker.get_progress().clone(), download_progress_callback);
+        let downloader = FileDownloader::new(app_installer.progress_tracker.get_progress().clone(), download_progress_callback);
         if let Err(err) = downloader.download_file(&download_url, &tmp_file_path) {
             log::error!("Failed to download app: {err}");
             return;
