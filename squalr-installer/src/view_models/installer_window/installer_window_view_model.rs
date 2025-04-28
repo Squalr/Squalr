@@ -5,8 +5,8 @@ use crate::WindowViewModelBindings;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
-use squalr_engine::updates::installer::app_installer::AppInstaller;
-use squalr_engine::updates::shared::install_phase::InstallPhase;
+use squalr_engine::updates::operations::install::app_installer::AppInstaller;
+use squalr_engine::updates::operations::install::install_phase::InstallPhase;
 
 pub struct InstallerWindowViewModel {
     _view: InstallerWindowView,
@@ -71,6 +71,7 @@ impl InstallerWindowViewModel {
     fn subscribe_to_installer_progress(&self) {
         let view_binding = self.view_binding.clone();
 
+        /*
         if let Ok(installer) = AppInstaller::get_instance().read() {
             let receiver = installer.subscribe();
 
@@ -87,7 +88,7 @@ impl InstallerWindowViewModel {
                     });
                 }
             });
-        }
+        }*/
     }
     fn on_minimize(view_binding: ViewBinding<InstallerWindowView>) {
         view_binding.execute_on_ui_thread(|installer_window_view, _| {
@@ -130,6 +131,7 @@ impl InstallerWindowViewModel {
     }
 
     fn on_launch_app() {
+        /*
         match AppInstaller::get_instance().read() {
             Ok(app_installer) => {
                 app_installer.launch_app();
@@ -137,6 +139,6 @@ impl InstallerWindowViewModel {
             Err(err) => {
                 log::error!("Failed to acquire lock for launching app: {err}");
             }
-        }
+        }*/
     }
 }

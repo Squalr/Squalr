@@ -1,19 +1,13 @@
-use crate::updates::shared::app_download_endpoints::AppDownloadEndpoints;
+use crate::updates::app_download_endpoints::AppDownloadEndpoints;
+use crate::updates::version_checker::github_latest_version_info::GitHubLatestVersionInfo;
 use crate::updates::version_checker::version_checker_status::VersionCheckerStatus;
 use anyhow::{Context, Result};
-use semver::Version;
-use serde::Deserialize;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use std::sync::Arc;
 use ureq::{
     config::Config,
     tls::{TlsConfig, TlsProvider},
 };
-
-#[derive(Deserialize)]
-struct GitHubRelease {
-    tag_name: String,
-}
 
 pub struct VersionCheckerTask {}
 
@@ -69,7 +63,7 @@ impl VersionCheckerTask {
         }
     }
 
-    fn check_for_updates() -> Result<Option<Version>> {
+    fn check_for_updates() -> Result<Option<GitHubLatestVersionInfo>> {
         let tls_config = TlsConfig::builder().provider(TlsProvider::NativeTls).build();
         let config = Config::builder().tls_config(tls_config).build();
         let agent = config.new_agent();
@@ -78,17 +72,12 @@ impl VersionCheckerTask {
             .header("User-Agent", "squalr-rust-updater")
             .call()
             .context("Failed to send GitHub latest release request")?;
-
         let body = response
             .into_body()
             .read_to_string()
             .context("Failed to read GitHub release response body")?;
+        let release: GitHubLatestVersionInfo = serde_json::from_str(&body).context("Failed to parse GitHub release JSON")?;
 
-        let release: GitHubRelease = serde_json::from_str(&body).context("Failed to parse GitHub release JSON")?;
-
-        let tag = release.tag_name.trim_start_matches('v');
-        let latest_version = Version::parse(tag).context("Failed to parse version string")?;
-
-        Ok(Some(latest_version))
+        Ok(Some(release))
     }
 }

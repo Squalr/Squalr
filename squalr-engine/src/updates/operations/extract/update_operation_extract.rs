@@ -4,12 +4,12 @@ use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 use zip::read::ZipFile;
 
-pub struct AppExtractor {
+pub struct UpdateOperationExtract {
     install_dir: PathBuf,
     progress_callback: Box<dyn Fn(u64, u64) + Send + Sync>,
 }
 
-impl AppExtractor {
+impl UpdateOperationExtract {
     pub fn new(
         install_dir: &Path,
         progress_callback: Box<dyn Fn(u64, u64) + Send + Sync>,

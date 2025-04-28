@@ -1,4 +1,4 @@
-use crate::updates::downloader::download_progress::DownloadProgress;
+use crate::updates::operations::download::download_progress::DownloadProgress;
 use anyhow::Result;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -7,33 +7,17 @@ use std::sync::{Arc, Mutex};
 use ureq::config::Config;
 use ureq::tls::{TlsConfig, TlsProvider};
 
-pub struct FileDownloader {
+pub struct UpdateOperationDownload {
     progress: Arc<Mutex<Option<DownloadProgress>>>,
     progress_callback: Box<dyn Fn(u64, u64) + Send + Sync>,
 }
 
-impl FileDownloader {
+impl UpdateOperationDownload {
     pub fn new(
         progress: Arc<Mutex<Option<DownloadProgress>>>,
         progress_callback: Box<dyn Fn(u64, u64) + Send + Sync>,
     ) -> Self {
         Self { progress, progress_callback }
-    }
-
-    fn update_progress(
-        &self,
-        bytes_downloaded: u64,
-        total_bytes: Option<u64>,
-    ) {
-        if let Ok(mut progress) = self.progress.lock() {
-            if let Some(ref mut progress) = *progress {
-                progress.bytes_downloaded = bytes_downloaded;
-                if let Some(total) = total_bytes {
-                    progress.total_bytes = total;
-                    (self.progress_callback)(bytes_downloaded, total);
-                }
-            }
-        }
     }
 
     pub fn download_file(
@@ -88,5 +72,21 @@ impl FileDownloader {
         log::info!("File synced to disk");
 
         Ok(())
+    }
+
+    fn update_progress(
+        &self,
+        bytes_downloaded: u64,
+        total_bytes: Option<u64>,
+    ) {
+        if let Ok(mut progress) = self.progress.lock() {
+            if let Some(ref mut progress) = *progress {
+                progress.bytes_downloaded = bytes_downloaded;
+                if let Some(total) = total_bytes {
+                    progress.total_bytes = total;
+                    (self.progress_callback)(bytes_downloaded, total);
+                }
+            }
+        }
     }
 }

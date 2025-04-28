@@ -31,12 +31,13 @@ impl UpdaterSubsystem {
             if let VersionCheckerStatus::LatestVersionFound(latest_version) = status {
                 let current_version = Version::parse(env!("CARGO_PKG_VERSION")).unwrap();
 
+                /*
                 if latest_version > current_version {
                     log::info!("An update is available.");
                     Self::perform_update(subscribers.clone());
                 } else {
                     log::info!("App is up to date, no update is required.");
-                }
+                }*/
             }
         });
     }

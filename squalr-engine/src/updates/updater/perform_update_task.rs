@@ -1,5 +1,5 @@
-use crate::updates::shared::install_phase::InstallPhase;
-use crate::updates::shared::install_progress::InstallProgress;
+use crate::updates::operations::install::install_phase::InstallPhase;
+use crate::updates::operations::install::install_progress::InstallProgress;
 use crate::updates::updater::app_updater::AppUpdater;
 use crate::updates::updater::update_status::UpdateStatus;
 use anyhow::Result;

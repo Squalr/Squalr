@@ -1,9 +1,9 @@
-use semver::Version;
+use crate::updates::version_checker::github_latest_version_info::GitHubLatestVersionInfo;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub enum VersionCheckerStatus {
     CheckingForVersions,
     Cancelled,
-    LatestVersionFound(Version),
+    LatestVersionFound(GitHubLatestVersionInfo),
     Error(String),
 }

@@ -1,9 +1,9 @@
-use crate::updates::downloader::file_downloader::FileDownloader;
-use crate::updates::extractor::app_extractor::AppExtractor;
-use crate::updates::shared::app_download_endpoints::AppDownloadEndpoints;
-use crate::updates::shared::install_phase::InstallPhase;
-use crate::updates::shared::install_progress::InstallProgress;
-use crate::updates::shared::progress_tracker::ProgressTracker;
+use crate::updates::app_download_endpoints::AppDownloadEndpoints;
+use crate::updates::operations::download::update_operation_download::UpdateOperationDownload;
+use crate::updates::operations::extract::update_operation_extract::UpdateOperationExtract;
+use crate::updates::operations::install::install_phase::InstallPhase;
+use crate::updates::operations::install::install_progress::InstallProgress;
+use crate::updates::progress_tracker::ProgressTracker;
 use anyhow::Result;
 use squalr_engine_common::file_system::file_system_utils::FileSystemUtils;
 use std::path::PathBuf;
@@ -31,7 +31,7 @@ impl AppUpdater {
 
         Self {
             install_dir,
-            progress_tracker: ProgressTracker::new(InstallPhase::Download),
+            progress_tracker: ProgressTracker::new(),
         }
     }
 
@@ -134,7 +134,7 @@ impl AppUpdater {
         });
 
         // Download the new version
-        let downloader = FileDownloader::new(app_updater.progress_tracker.get_progress().clone(), download_progress_callback);
+        let downloader = UpdateOperationDownload::new(app_updater.progress_tracker.get_progress().clone(), download_progress_callback);
         if let Err(err) = downloader.download_file(&download_url, &tmp_file_path) {
             log::error!("Failed to download app: {err}");
             return;
@@ -163,7 +163,7 @@ impl AppUpdater {
         });
 
         // Extract the archive
-        let extractor = AppExtractor::new(&tmp_extract_dir, extract_progress_callback);
+        let extractor = UpdateOperationExtract::new(&tmp_extract_dir, extract_progress_callback);
         if let Err(err) = extractor.extract_archive(&tmp_file_path) {
             log::error!("Failed to extract zip archive: {err}");
             return;

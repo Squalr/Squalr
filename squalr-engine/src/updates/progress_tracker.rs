@@ -1,10 +1,11 @@
-use crate::updates::downloader::download_progress::DownloadProgress;
-use crate::updates::shared::app_download_endpoints::AppDownloadEndpoints;
-use crate::updates::shared::install_phase::InstallPhase;
-use crate::updates::shared::install_progress::InstallProgress;
+use crate::updates::app_download_endpoints::AppDownloadEndpoints;
+use crate::updates::operations::download::download_progress::DownloadProgress;
+use crate::updates::operations::install::install_phase::InstallPhase;
+use crate::updates::operations::install::install_progress::InstallProgress;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 
+#[derive(Clone)]
 pub struct ProgressTracker {
     progress: Arc<Mutex<Option<DownloadProgress>>>,
     subscriber_senders: Arc<RwLock<Vec<Sender<InstallProgress>>>>,
@@ -12,12 +13,12 @@ pub struct ProgressTracker {
 }
 
 impl ProgressTracker {
-    pub fn new(initial_phase: InstallPhase) -> Self {
+    pub fn new() -> Self {
         Self {
             progress: Arc::new(Mutex::new(None)),
             subscriber_senders: Arc::new(RwLock::new(Vec::new())),
             current_progress: Arc::new(RwLock::new(InstallProgress {
-                phase: initial_phase,
+                phase: InstallPhase::Download,
                 progress_percent: 0.0,
                 bytes_processed: 0,
                 total_bytes: 0,
