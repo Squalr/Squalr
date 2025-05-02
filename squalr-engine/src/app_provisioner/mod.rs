@@ -1,4 +1,4 @@
-pub mod app_download_endpoints;
+pub mod app_provisioner_config;
 pub mod installer;
 pub mod operations;
 pub mod progress_tracker;

@@ -1,4 +1,4 @@
-use crate::app_provisioner::app_download_endpoints::AppDownloadEndpoints;
+use crate::app_provisioner::app_provisioner_config::AppProvisionerConfig;
 use crate::app_provisioner::installer::install_phase::InstallPhase;
 use crate::app_provisioner::installer::install_progress::InstallProgress;
 use crate::app_provisioner::operations::download::download_progress::DownloadProgress;
@@ -58,7 +58,7 @@ impl ProgressTracker {
     pub fn init_progress(&self) {
         if let Ok(mut progress) = self.progress.lock() {
             *progress = Some(DownloadProgress {
-                filename: AppDownloadEndpoints::FILENAME.to_string(),
+                filename: AppProvisionerConfig::FILENAME.to_string(),
                 bytes_downloaded: 0,
                 total_bytes: 0,
             });

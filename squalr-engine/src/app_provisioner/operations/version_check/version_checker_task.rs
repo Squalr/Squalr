@@ -1,4 +1,4 @@
-use crate::app_provisioner::app_download_endpoints::AppDownloadEndpoints;
+use crate::app_provisioner::app_provisioner_config::AppProvisionerConfig;
 use crate::app_provisioner::operations::version_check::github_latest_version_info::GitHubLatestVersionInfo;
 use crate::app_provisioner::operations::version_check::version_checker_status::VersionCheckerStatus;
 use anyhow::{Context, Result};
@@ -68,7 +68,7 @@ impl VersionCheckerTask {
         let config = Config::builder().tls_config(tls_config).build();
         let agent = config.new_agent();
         let response = agent
-            .get(AppDownloadEndpoints::get_latest_version_url())
+            .get(AppProvisionerConfig::get_latest_version_url())
             .header("User-Agent", "squalr-rust-updater")
             .call()
             .context("Failed to send GitHub latest release request")?;

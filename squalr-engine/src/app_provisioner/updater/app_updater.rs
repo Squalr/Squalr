@@ -1,4 +1,4 @@
-use crate::app_provisioner::app_download_endpoints::AppDownloadEndpoints;
+use crate::app_provisioner::app_provisioner_config::AppProvisionerConfig;
 use crate::app_provisioner::installer::install_phase::InstallPhase;
 use crate::app_provisioner::installer::install_progress::InstallProgress;
 use crate::app_provisioner::operations::download::update_operation_download::UpdateOperationDownload;
@@ -111,12 +111,12 @@ impl AppUpdater {
             }
         };
 
-        let tmp_file_path = tmp_dir.path().join(AppDownloadEndpoints::FILENAME);
+        let tmp_file_path = tmp_dir.path().join(AppProvisionerConfig::FILENAME);
         log::info!("Temporary file location: {}", tmp_file_path.display());
 
         // Download new version.
         app_updater.progress_tracker.init_progress();
-        let download_url = AppDownloadEndpoints::get_latest_version_url();
+        let download_url = AppProvisionerConfig::get_latest_version_url();
         let FIX_ME = 420; // Need to parse download version from version checker
 
         // Download progress callback setup.
@@ -125,7 +125,7 @@ impl AppUpdater {
             if let Ok(updater) = instance.read() {
                 let progress = InstallProgress {
                     phase: InstallPhase::Download,
-                    progress_percent: (bytes_downloaded as f32 / total_bytes as f32) * AppDownloadEndpoints::DOWNLOAD_WEIGHT,
+                    progress_percent: (bytes_downloaded as f32 / total_bytes as f32) * AppProvisionerConfig::DOWNLOAD_WEIGHT,
                     bytes_processed: bytes_downloaded,
                     total_bytes,
                 };
@@ -153,8 +153,8 @@ impl AppUpdater {
             if let Ok(updater) = instance.read() {
                 let progress = InstallProgress {
                     phase: InstallPhase::Extraction,
-                    progress_percent: AppDownloadEndpoints::DOWNLOAD_WEIGHT
-                        + (files_processed as f32 / total_files as f32) * AppDownloadEndpoints::EXTRACT_WEIGHT,
+                    progress_percent: AppProvisionerConfig::DOWNLOAD_WEIGHT
+                        + (files_processed as f32 / total_files as f32) * AppProvisionerConfig::EXTRACT_WEIGHT,
                     bytes_processed: files_processed,
                     total_bytes: total_files,
                 };

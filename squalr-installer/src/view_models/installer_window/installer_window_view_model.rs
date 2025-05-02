@@ -1,10 +1,13 @@
-use super::logging::install_logger::InstallLogger;
 use crate::InstallerViewModelBindings;
 use crate::InstallerWindowView;
 use crate::WindowViewModelBindings;
+use crate::view_models::installer_window::logging::install_logger::InstallLogger;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
+use squalr_engine::app_provisioner::installer::app_installer::AppInstaller;
+use squalr_engine::app_provisioner::installer::install_phase::InstallPhase;
+use squalr_engine::app_provisioner::{app_provisioner_config::AppProvisionerConfig, progress_tracker::ProgressTracker};
 
 pub struct InstallerWindowViewModel {
     _view: InstallerWindowView,
@@ -16,9 +19,9 @@ impl InstallerWindowViewModel {
         let view = InstallerWindowView::new().unwrap();
         let view_binding = ViewBinding::new(ComponentHandle::as_weak(&view));
 
-        // Initialize the logger
-        if let Err(e) = InstallLogger::init(view_binding.clone()) {
-            eprintln!("Failed to initialize UI logger: {}", e);
+        // Initialize the logger such that we can bind logs to the view.
+        if let Err(err) = InstallLogger::init(view_binding.clone()) {
+            eprintln!("Failed to initialize UI logger: {}", err);
         }
 
         let view = InstallerWindowViewModel {
@@ -39,7 +42,7 @@ impl InstallerWindowViewModel {
             }
         });
 
-        view.subscribe_to_installer_progress();
+        view.start_installer_with_progress_tracking();
 
         return view;
     }
@@ -66,27 +69,32 @@ impl InstallerWindowViewModel {
             });
     }
 
-    fn subscribe_to_installer_progress(&self) {
+    fn start_installer_with_progress_tracking(&self) {
         let view_binding = self.view_binding.clone();
 
-        /*
-        if let Ok(installer) = AppInstaller::get_instance().read() {
-            let receiver = installer.subscribe();
+        match AppProvisionerConfig::get_default_install_dir() {
+            Ok(install_dir) => {
+                let progress_tracker = ProgressTracker::new();
+                let receiver = progress_tracker.subscribe();
 
-            std::thread::spawn(move || {
-                for progress in receiver {
-                    view_binding.execute_on_ui_thread(move |installer_window_view, _view_binding| {
-                        let installer_view = installer_window_view.global::<InstallerViewModelBindings>();
-                        installer_view.set_installer_progress(progress.progress_percent as f32);
-                        installer_view.set_installer_progress_string(format!("{:.0}%", progress.progress_percent as f32 * 100.0).into());
+                std::thread::spawn(move || {
+                    for progress in receiver {
+                        view_binding.execute_on_ui_thread(move |installer_window_view, _view_binding| {
+                            let installer_view = installer_window_view.global::<InstallerViewModelBindings>();
+                            installer_view.set_installer_progress(progress.progress_percent as f32);
+                            installer_view.set_installer_progress_string(format!("{:.0}%", progress.progress_percent as f32 * 100.0).into());
 
-                        if progress.phase == InstallPhase::Complete {
-                            installer_view.set_install_complete(true);
-                        }
-                    });
-                }
-            });
-        }*/
+                            if progress.phase == InstallPhase::Complete {
+                                installer_view.set_install_complete(true);
+                            }
+                        });
+                    }
+                });
+
+                AppInstaller::run_installation(install_dir, progress_tracker)
+            }
+            Err(err) => log::error!("Failed to get default install directory: {}", err),
+        }
     }
     fn on_minimize(view_binding: ViewBinding<InstallerWindowView>) {
         view_binding.execute_on_ui_thread(|installer_window_view, _| {
