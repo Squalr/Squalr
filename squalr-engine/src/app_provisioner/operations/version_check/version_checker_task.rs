@@ -1,5 +1,5 @@
 use crate::app_provisioner::app_provisioner_config::AppProvisionerConfig;
-use crate::app_provisioner::operations::version_check::github_latest_version_info::GitHubLatestVersionInfo;
+use crate::app_provisioner::operations::version_check::github_release_info::GitHubReleaseInfo;
 use crate::app_provisioner::operations::version_check::version_checker_status::VersionCheckerStatus;
 use anyhow::{Context, Result};
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
@@ -63,7 +63,7 @@ impl VersionCheckerTask {
         }
     }
 
-    fn check_for_updates() -> Result<Option<GitHubLatestVersionInfo>> {
+    fn check_for_updates() -> Result<Option<GitHubReleaseInfo>> {
         let tls_config = TlsConfig::builder().provider(TlsProvider::NativeTls).build();
         let config = Config::builder().tls_config(tls_config).build();
         let agent = config.new_agent();
@@ -76,7 +76,7 @@ impl VersionCheckerTask {
             .into_body()
             .read_to_string()
             .context("Failed to read GitHub release response body")?;
-        let release: GitHubLatestVersionInfo = serde_json::from_str(&body).context("Failed to parse GitHub release JSON")?;
+        let release: GitHubReleaseInfo = serde_json::from_str(&body).context("Failed to parse GitHub release JSON")?;
 
         Ok(Some(release))
     }

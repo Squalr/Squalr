@@ -1,9 +1,9 @@
-use crate::app_provisioner::operations::version_check::github_latest_version_info::GitHubLatestVersionInfo;
+use crate::app_provisioner::operations::version_check::github_release_info::GitHubReleaseInfo;
 
 #[derive(Clone)]
 pub enum VersionCheckerStatus {
     CheckingForVersions,
     Cancelled,
-    LatestVersionFound(GitHubLatestVersionInfo),
+    LatestVersionFound(GitHubReleaseInfo),
     Error(String),
 }

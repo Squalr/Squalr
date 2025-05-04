@@ -5534,7 +5534,7 @@ dependencies = [
 
 [[package]]
 name = "squalr"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "log",
  "slint",
@@ -5547,7 +5547,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-android"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "futures",
  "log",
@@ -5569,7 +5569,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "crossbeam-channel",
  "futures",
@@ -5585,7 +5585,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5646,7 +5646,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-architecture"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "log",
  "squalr-engine-common",
@@ -5654,7 +5654,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-common"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -5668,7 +5668,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-debuggers"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "squalr-engine-api",
  "squalr-engine-common",
@@ -5676,7 +5676,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-memory"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bitflags 2.9.0",
  "dll-syringe",
@@ -5692,7 +5692,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-processes"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "image",
  "log",
@@ -5708,7 +5708,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-projects"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "log",
@@ -5720,7 +5720,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-scanning"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bitflags 2.9.0",
  "bytemuck",
@@ -5741,7 +5741,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-scripting"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "squalr-engine-architecture",
  "squalr-engine-common",
@@ -5753,7 +5753,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-gui"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "futures",
  "log",
@@ -5774,7 +5774,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-installer"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "log",
  "slint",

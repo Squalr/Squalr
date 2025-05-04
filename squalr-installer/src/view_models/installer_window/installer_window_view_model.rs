@@ -7,6 +7,7 @@ use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::app_provisioner::installer::app_installer::AppInstaller;
 use squalr_engine::app_provisioner::installer::install_phase::InstallPhase;
+use squalr_engine::app_provisioner::operations::launch::update_operation_launch::UpdateOperationLaunch;
 use squalr_engine::app_provisioner::{app_provisioner_config::AppProvisionerConfig, progress_tracker::ProgressTracker};
 
 pub struct InstallerWindowViewModel {
@@ -137,14 +138,14 @@ impl InstallerWindowViewModel {
     }
 
     fn on_launch_app() {
-        /*
-        match AppInstaller::get_instance().read() {
-            Ok(app_installer) => {
-                app_installer.launch_app();
+        match AppProvisionerConfig::get_default_install_dir() {
+            Ok(app_dir) => {
+                let app_path = app_dir.join("squalr.exe");
+                UpdateOperationLaunch::launch_app(&app_path);
             }
             Err(err) => {
-                log::error!("Failed to acquire lock for launching app: {err}");
+                log::error!("Failed to launch app: {err}");
             }
-        }*/
+        }
     }
 }

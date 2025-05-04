@@ -24,6 +24,20 @@ impl AppInstaller {
             if let VersionCheckerStatus::LatestVersionFound(latest_version) = status {
                 log::info!("Starting installation...");
 
+                // Extract the .zip asset from the GitHub release info
+                let maybe_zip_asset = latest_version.assets.as_ref().and_then(|assets| {
+                    assets
+                        .iter()
+                        .find(|asset| asset.name.eq_ignore_ascii_case("squalr.zip"))
+                });
+
+                let Some(zip_asset) = maybe_zip_asset else {
+                    log::error!("Could not find squalr.zip in release assets");
+                    return;
+                };
+
+                let download_url = &zip_asset.browser_download_url;
+
                 // Create temporary directory for downloads.
                 let tmp_dir = match tempfile::Builder::new().prefix("app").tempdir() {
                     Ok(dir) => dir,
@@ -38,8 +52,6 @@ impl AppInstaller {
 
                 // Setup for downloading the new version.
                 progress_tracker.init_progress();
-                let download_url = AppProvisionerConfig::get_latest_version_url();
-                let FIX_ME = 420; // Need to parse download version from version checker
 
                 // Download progress callback setup.
                 let progress_tracker_clone = progress_tracker.clone();
@@ -133,7 +145,10 @@ impl AppInstaller {
         }
 
         // Copy new files.
-        log::info!("Copying new files from {} to {}", src_dir.display(), dst_dir.display());
+        log::info!("Copying new files... from");
+        log::info!("Source: {}", src_dir.display());
+        log::info!("Destination: {}", dst_dir.display());
+
         for entry in std::fs::read_dir(src_dir)? {
             let entry = entry?;
             let src_path = entry.path();

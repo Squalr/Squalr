@@ -1,10 +1,6 @@
-use crate::app_provisioner::progress_tracker::ProgressTracker;
 use std::path::PathBuf;
 
-pub struct UpdateOperationLaunch {
-    install_dir: PathBuf,
-    progress_tracker: ProgressTracker,
-}
+pub struct UpdateOperationLaunch {}
 
 impl UpdateOperationLaunch {
     pub fn launch_app(app_executable_path: &PathBuf) {
