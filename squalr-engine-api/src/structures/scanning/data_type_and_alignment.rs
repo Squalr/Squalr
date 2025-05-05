@@ -59,8 +59,8 @@ impl fmt::Display for DataTypeAndAlignmentParseError {
 }
 
 impl From<ParseIntError> for DataTypeAndAlignmentParseError {
-    fn from(e: ParseIntError) -> Self {
-        DataTypeAndAlignmentParseError::InvalidAlignment(e)
+    fn from(err: ParseIntError) -> Self {
+        DataTypeAndAlignmentParseError::InvalidAlignment(err)
     }
 }
 

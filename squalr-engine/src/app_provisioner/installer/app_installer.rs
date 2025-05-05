@@ -13,7 +13,6 @@ use tempfile;
 pub struct AppInstaller {}
 
 impl AppInstaller {
-    // let app_exe = self.install_dir.join("Squalr.exe");
     pub fn run_installation(
         install_dir: PathBuf,
         progress_tracker: ProgressTracker,
@@ -21,21 +20,19 @@ impl AppInstaller {
         let progress_tracker = progress_tracker.clone();
 
         VersionCheckerTask::run(move |status| {
-            if let VersionCheckerStatus::LatestVersionFound(latest_version) = status {
+            if let VersionCheckerStatus::LatestVersionFound(latest_version_info) = status {
                 log::info!("Starting installation...");
 
-                // Extract the .zip asset from the GitHub release info
-                let maybe_zip_asset = latest_version.assets.as_ref().and_then(|assets| {
+                // Find the .zip asset meta data for the latest github release.
+                let maybe_zip_asset = latest_version_info.assets.as_ref().and_then(|assets| {
                     assets
                         .iter()
                         .find(|asset| asset.name.eq_ignore_ascii_case("squalr.zip"))
                 });
-
                 let Some(zip_asset) = maybe_zip_asset else {
-                    log::error!("Could not find squalr.zip in release assets");
+                    log::error!("Could not find squalr.zip in release assets, installation failed.");
                     return;
                 };
-
                 let download_url = &zip_asset.browser_download_url;
 
                 // Create temporary directory for downloads.

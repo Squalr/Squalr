@@ -1,6 +1,6 @@
 use crate::app_provisioner::installer::install_phase::InstallPhase;
 use crate::app_provisioner::installer::install_progress::InstallProgress;
-use crate::app_provisioner::updater::app_updater::AppUpdater;
+use crate::app_provisioner::progress_tracker::ProgressTracker;
 use crate::app_provisioner::updater::update_status::UpdateStatus;
 use anyhow::Result;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
@@ -18,9 +18,9 @@ impl PerformUpdateTask {
         let notify_status = Arc::new(notify_status);
 
         std::thread::spawn(move || {
-            if let Err(e) = Self::execute(task_clone.clone(), notify_status.clone()) {
-                log::error!("Update failed: {}", e);
-                notify_status(UpdateStatus::Error(e.to_string()));
+            if let Err(err) = Self::execute(task_clone.clone(), notify_status.clone()) {
+                log::error!("Update failed: {}", err);
+                notify_status(UpdateStatus::Error(err.to_string()));
                 task_clone.complete();
             }
         });
@@ -32,12 +32,9 @@ impl PerformUpdateTask {
         task: Arc<TrackableTask>,
         notify_status: Arc<dyn Fn(UpdateStatus) + Send + Sync>,
     ) -> Result<()> {
-        let installer = AppUpdater::get_instance();
-        let installer_guard = installer.read().unwrap();
-
-        // Subscribe to installer progress updates
-        let progress_receiver = installer_guard.subscribe();
+        let progress_tracker = ProgressTracker::new();
         let task_clone = task.clone();
+        let progress_receiver = progress_tracker.subscribe();
 
         // Single thread to handle both progress updates and task completion
         std::thread::spawn(move || {
@@ -61,7 +58,6 @@ impl PerformUpdateTask {
             }
         });
 
-        installer_guard.begin_update();
         Ok(())
     }
 

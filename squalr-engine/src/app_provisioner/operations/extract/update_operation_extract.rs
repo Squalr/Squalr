@@ -39,10 +39,10 @@ impl UpdateOperationExtract {
         log::info!("Starting archive extraction...");
         let archive_len = archive.len();
 
-        for i in 0..archive.len() {
-            let mut file = archive.by_index(i)?;
+        for index in 0..archive.len() {
+            let mut file = archive.by_index(index)?;
 
-            log::info!("Processing file {}/{}: {}", i + 1, archive_len, file.name());
+            log::info!("Processing file {}/{}: {}", index + 1, archive_len, file.name());
 
             let file_path = file
                 .enclosed_name()

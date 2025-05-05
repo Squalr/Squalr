@@ -1,6 +1,8 @@
 // Disable terminal from spawning. All relevant output is routed to the output view anyways.
 #![windows_subsystem = "windows"]
 
+use squalr_engine::app_provisioner::progress_tracker::ProgressTracker;
+use squalr_engine::app_provisioner::updater::app_updater::AppUpdater;
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_gui::view_models::main_window::main_window_view_model::MainWindowViewModel;
@@ -23,6 +25,8 @@ pub fn main() {
 
     // Start the log event sending now that both the GUI and engine are ready to receive log messages.
     squalr_engine.get_logger().start_log_event_sender();
+
+    AppUpdater::run_update(ProgressTracker::new());
 
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {

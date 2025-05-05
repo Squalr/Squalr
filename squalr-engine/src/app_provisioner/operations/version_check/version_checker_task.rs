@@ -46,8 +46,8 @@ impl VersionCheckerTask {
             Ok(update_result) => {
                 match update_result {
                     Some(latest_version) => {
-                        notify_status(VersionCheckerStatus::LatestVersionFound(latest_version.clone()));
                         log::info!("Latest version information found.");
+                        notify_status(VersionCheckerStatus::LatestVersionFound(latest_version.clone()));
                     }
                     None => {
                         notify_status(VersionCheckerStatus::Error("Failed to get latest app version.".to_string()));
