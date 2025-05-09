@@ -24,6 +24,7 @@ For platforms like Android, Squalr runs in a dual process mode with an unprivile
 Additionally, we support a CLI build, which is actually pretty easy to do, since we're already going for the command/response architecture. This just adds 1 more step of making all commands structopts, meaning all commands can be created from a string (and therefore from user input). So, we just dispatch the raw commands users input, and implement handlers for all the responses that simply output to the command responses console.
 
 Features:
+- [X] Custom installer and auto updater from Git tags. (The auto updater Rust crate is not GCC compatible, and MSVC sucks with Rust, so we're rolling our own updater).
 - [X] Dockable window system.
 - [X] Command/Response system, with IPC support for rooted Android devices.
 - [X] Scan result display.
@@ -42,7 +43,6 @@ Features:
 - [ ] String Encoding selection from UI.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 - [ ] Property viewer.
-- [ ] Custom installer and auto updater from Git tags. (The auto updater Rust crate is not GCC compatible, and MSVC sucks with Rust, so we're rolling our own updater)
 
 ## Post-launch tasklist
 Lower priority features that we can defer, for now.
@@ -57,13 +57,33 @@ Post-launch Features:
 - [ ] Plugin system for new data types. The engine is already designed with this feature in mind, so actually this should be fairly easy.
 - [ ] Plugin system to support emulator middleware (ie filtering queried virtual memory, remapping virtual address space, etc).
 - [ ] Plugin system to support virtual modules. Very similar to above, but registering fake modules, with emulators again being the primary use case.
-- [ ] Plugin system for new project item types (ie supporting a .NET item, or a JRE item)
+- [ ] Plugin system for new project item types (ie supporting a .NET item, or a JRE item).
 - [ ] Finish trackable task system to support cancellation, progress bars, etc.
 - [ ] Registerable editors in the property viewer. NOT pop-up based though (to support mobile), instead as a take-over screen on the property editor panel.
 - [ ] Git(hub) integration?
 
 ## Unsolved architectural challenges:
 - Should we allow engine event hooking? If we support plugins later, this might prove valuable. But lambdas are stored almost exclusively as FnOnce for easier stack capture. It also muddies the command/response architecture a bit.
+
+## Property viewer brain dump
+So this is a pain in the ass. We need a .NET style property viewer for editing stuff. This to me feels like the cleanest way to edit shit, especially with plugin extendable types, without having a bunch of registered editors. Or at least, when we support registered editors, they can take over the property viewer pane. So this is a MUST in my mind.
+
+Now there are a couple challenges here.
+1) How does data get INTO the property viewer?
+2) How is an "active property" registered with the property viewer?
+3) How does data get OUT of the property viewer (ie write back)?
+
+So for #1: I guess there's really two modalities. Either the commands ship `Property` instances, or we allow these to be derived on the UI side. The complex case I can think of is `ScanResult`, where the command currently just ships the full result. We could add a `to_property` method, back to the UI derived idea. But then we may have cases where the commands just ship raw properties anyhow. Destroying our scan results for a more generic property seems stupid. I mean I guess we could nest the property under the scan result, or have pass-through methods where ScanResult actually has no fields, but instead just has an interface over an internal `Property`.
+
+The whole point I suppose would be that it would be nice if the engine was consistent in how `Property` structs are returned. Having it sometimes UI-derived and sometimes engine-derived is fucking stupid.
+
+So perhaps yeah, try to keep it engine derived, and just abstract it if we really must, perhaps with a `as_property` method or something in the case of `scan_result`.
+
+And for #2: This one is a bitch. Writing back to the engine is actual agony, because we really don't want to create a property registry and have everything route through that. It seems like a huge mess. We could just tag each property, ie some ID for a `scan_result` (perhaps `scan_result_{index}`), but now who handles this? We would need some way of having the engine route property changes to this particular scan result. I mean maybe we could have a FnOnce registered -- specifically chosen because this allows for capture variables, where all locks needed to access the element could be provided. And plus, on edit we could always just re-register the same FnOnce with recaptures.
+
+The other option is that we actually just do the registry thing, but this becomes agony for lifetimes. Although lifetimes are already agony (ie scan results cleared while one is focused? Get rekt, have to know to clear it). Now maybe, just maybe, with a registry system we could introduce some OOP ass dumb shit where each property is self handling and registers itself, but god damn this seems annoying. At least then we could build up a map of IDs to property, and each property can handle its own bindings of a changed callback or whatever.
+
+So now #3: Entirley contingent on how we solve #2.
 
 ## Project structure brain dump
 We need to support command/response, only exposing the bare minimum for API structs. Additionally, we need dynamically registered project item types to support a plugin system later.
