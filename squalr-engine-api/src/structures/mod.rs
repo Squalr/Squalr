@@ -4,7 +4,7 @@ pub mod dynamic_struct;
 pub mod memory;
 pub mod processes;
 pub mod projects;
-pub mod property_viewer;
+pub mod properties;
 pub mod scan_results;
 pub mod scanning;
 pub mod settings;

@@ -1,5 +1,5 @@
 use crate::structures::projects::project_items::project_item_type_ref::ProjectItemTypeRef;
-use crate::structures::property_viewer::property::Property;
+use crate::structures::properties::property::Property;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 

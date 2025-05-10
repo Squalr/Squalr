@@ -22,6 +22,12 @@ impl DataTypeI64be {
     fn to_vec(value: PrimitiveType) -> Vec<u8> {
         value.to_be_bytes().to_vec()
     }
+
+    pub fn get_value_from_primitive(value: PrimitiveType) -> DataValue {
+        let value_bytes = PrimitiveType::to_be_bytes(value);
+
+        DataValue::new(DataTypeRef::new(Self::get_data_type_id(), DataTypeMetaData::None), value_bytes.to_vec())
+    }
 }
 
 impl DataType for DataTypeI64be {
@@ -54,6 +60,10 @@ impl DataType for DataTypeI64be {
         anonymous_value: &AnonymousValue,
         data_type_ref: DataTypeRef,
     ) -> Result<DataValue, DataTypeError> {
+        if data_type_ref.get_data_type_id() != Self::get_data_type_id() {
+            return Err(DataTypeError::InvalidDataType);
+        }
+
         PrimitiveDataType::deanonymize_primitive::<PrimitiveType>(anonymous_value, data_type_ref, true)
     }
 

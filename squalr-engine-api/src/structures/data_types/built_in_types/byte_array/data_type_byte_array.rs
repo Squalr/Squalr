@@ -16,6 +16,13 @@ impl DataTypeByteArray {
     pub fn get_data_type_id() -> &'static str {
         Self::DATA_TYPE_ID
     }
+
+    pub fn get_value_from_primitive(value_bytes: &[u8]) -> DataValue {
+        DataValue::new(
+            DataTypeRef::new(Self::get_data_type_id(), DataTypeMetaData::SizedContainer(value_bytes.len() as u64)),
+            value_bytes.to_vec(),
+        )
+    }
 }
 
 impl DataType for DataTypeByteArray {
@@ -48,6 +55,10 @@ impl DataType for DataTypeByteArray {
         anonymous_value: &AnonymousValue,
         data_type_ref: DataTypeRef,
     ) -> Result<DataValue, DataTypeError> {
+        if data_type_ref.get_data_type_id() != Self::get_data_type_id() {
+            return Err(DataTypeError::InvalidDataType);
+        }
+
         match anonymous_value.get_value() {
             AnonymousValueContainer::StringValue(value_string, is_value_hex) => {
                 if *is_value_hex {

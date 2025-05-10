@@ -1,3 +1,5 @@
+pub mod bool32;
+pub mod bool8;
 pub mod byte_array;
 pub mod f32;
 pub mod f32be;

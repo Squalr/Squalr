@@ -11,6 +11,9 @@ pub enum DataTypeError {
     #[error("No bytes provided")]
     NoBytes,
 
+    #[error("Invalid data type provided")]
+    InvalidDataType,
+
     #[error("Invalid meta data")]
     InvalidMetaData,
 

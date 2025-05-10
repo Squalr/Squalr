@@ -11,6 +11,48 @@ use std::{any::type_name, mem::size_of, str::FromStr};
 pub struct PrimitiveDataType {}
 
 impl PrimitiveDataType {
+    pub fn deanonymize_bool<T: Copy + num_traits::ToBytes + From<u8>>(
+        anonymous_value: &AnonymousValue,
+        data_type_ref: DataTypeRef,
+        is_big_endian: bool,
+    ) -> Result<DataValue, DataTypeError>
+    where
+        Vec<u8>: From<<T as num_traits::ToBytes>::Bytes>,
+    {
+        match anonymous_value.get_value() {
+            AnonymousValueContainer::StringValue(value_string, _) => {
+                let normalized = value_string.trim().to_ascii_lowercase();
+                let boolean = match normalized.as_str() {
+                    "true" | "1" => true,
+                    "false" | "0" => false,
+                    _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
+                };
+
+                let primitive: T = if boolean { T::from(1) } else { T::from(0) };
+                let bytes = if is_big_endian { primitive.to_be_bytes() } else { primitive.to_le_bytes() };
+
+                Ok(DataValue::new(data_type_ref, bytes.into()))
+            }
+
+            AnonymousValueContainer::ByteArray(value_bytes) => {
+                let expected_size = std::mem::size_of::<T>();
+                if value_bytes.len() != expected_size {
+                    return Err(DataTypeError::InvalidByteCount {
+                        expected: expected_size,
+                        actual: value_bytes.len(),
+                    });
+                }
+
+                // Any non-zero byte value is interpreted as true.
+                let is_true = value_bytes.iter().any(|&b| b != 0);
+                let primitive: T = if is_true { T::from(1) } else { T::from(0) };
+                let bytes = if is_big_endian { primitive.to_be_bytes() } else { primitive.to_le_bytes() };
+
+                Ok(DataValue::new(data_type_ref, bytes.into()))
+            }
+        }
+    }
+
     pub fn deanonymize_primitive<T: std::str::FromStr + Copy + num_traits::ToBytes>(
         anonymous_value: &AnonymousValue,
         data_type_ref: DataTypeRef,

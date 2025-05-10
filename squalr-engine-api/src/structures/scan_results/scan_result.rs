@@ -1,6 +1,9 @@
-use crate::structures::data_types::data_type_ref::DataTypeRef;
+use crate::structures::data_types::built_in_types::bool8::data_type_bool8::DataTypeBool8;
+use crate::structures::data_types::built_in_types::string::data_type_string::DataTypeString;
+use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
+use crate::structures::{data_types::data_type_ref::DataTypeRef, properties::property::Property};
 use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -15,6 +18,11 @@ pub struct ScanResult {
 }
 
 impl ScanResult {
+    pub const PROPERTY_NAME_MODULE: &str = "module";
+    pub const PROPERTY_NAME_MODULE_OFFSET: &str = "module_offset";
+    pub const PROPERTY_NAME_VALUE: &str = "value";
+    pub const PROPERTY_NAME_IS_FROZEN: &str = "is_frozen";
+
     pub fn new(
         valued_result: ScanResultValued,
         module: String,
@@ -29,6 +37,24 @@ impl ScanResult {
             recently_read_value,
             is_frozen,
         }
+    }
+
+    pub fn as_properties(&self) -> Vec<Property> {
+        let property_module = Property::new(Self::PROPERTY_NAME_MODULE.to_string(), DataTypeString::get_value_from_primitive(&self.module));
+        let property_module_offset = Property::new(
+            Self::PROPERTY_NAME_MODULE_OFFSET.to_string(),
+            DataTypeU64::get_value_from_primitive(self.module_offset),
+        );
+        let property_is_frozen = Property::new(
+            Self::PROPERTY_NAME_MODULE_OFFSET.to_string(),
+            DataTypeBool8::get_value_from_primitive(self.is_frozen),
+        );
+
+        vec![property_module, property_module_offset, property_is_frozen]
+    }
+
+    pub fn set_property(&mut self) {
+        //
     }
 
     pub fn get_address(&self) -> u64 {

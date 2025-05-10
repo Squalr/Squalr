@@ -24,6 +24,17 @@ impl DataTypeString {
     pub fn get_data_type_id() -> &'static str {
         Self::DATA_TYPE_ID
     }
+
+    pub fn get_value_from_primitive(str: &str) -> DataValue {
+        let value_bytes = str.as_bytes();
+        DataValue::new(
+            DataTypeRef::new(
+                Self::get_data_type_id(),
+                DataTypeMetaData::EncodedString(value_bytes.len() as u64, StringEncoding::Utf8),
+            ),
+            value_bytes.to_vec(),
+        )
+    }
 }
 
 impl DataType for DataTypeString {
@@ -57,6 +68,10 @@ impl DataType for DataTypeString {
         anonymous_value: &AnonymousValue,
         data_type_ref: DataTypeRef,
     ) -> Result<DataValue, DataTypeError> {
+        if data_type_ref.get_data_type_id() != Self::get_data_type_id() {
+            return Err(DataTypeError::InvalidDataType);
+        }
+
         match data_type_ref.get_meta_data() {
             DataTypeMetaData::EncodedString(size, string_encoding) => match anonymous_value.get_value() {
                 AnonymousValueContainer::StringValue(value_string_utf8, is_value_hex) => {
