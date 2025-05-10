@@ -2,6 +2,7 @@ use crate::commands::scan_results::freeze::scan_results_freeze_request::ScanResu
 use crate::commands::scan_results::list::scan_results_list_request::ScanResultsListRequest;
 use crate::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
 use crate::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
+use crate::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -26,5 +27,10 @@ pub enum ScanResultsCommand {
     Freeze {
         #[structopt(flatten)]
         results_freeze_request: ScanResultsFreezeRequest,
+    },
+    /// Sets a property on a specified set of scan results.
+    SetProperty {
+        #[structopt(flatten)]
+        results_set_property_request: ScanResultsSetPropertyRequest,
     },
 }

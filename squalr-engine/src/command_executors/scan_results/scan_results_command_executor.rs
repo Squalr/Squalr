@@ -25,6 +25,9 @@ impl EngineCommandExecutor for ScanResultsCommand {
             ScanResultsCommand::Freeze { results_freeze_request } => results_freeze_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
+            ScanResultsCommand::SetProperty { results_set_property_request } => results_set_property_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
         }
     }
 }

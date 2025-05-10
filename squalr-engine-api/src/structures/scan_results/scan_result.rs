@@ -18,10 +18,11 @@ pub struct ScanResult {
 }
 
 impl ScanResult {
-    pub const PROPERTY_NAME_MODULE: &str = "module";
-    pub const PROPERTY_NAME_MODULE_OFFSET: &str = "module_offset";
     pub const PROPERTY_NAME_VALUE: &str = "value";
     pub const PROPERTY_NAME_IS_FROZEN: &str = "is_frozen";
+    pub const PROPERTY_NAME_ADDRESS: &str = "address";
+    pub const PROPERTY_NAME_MODULE: &str = "module";
+    pub const PROPERTY_NAME_MODULE_OFFSET: &str = "module_offset";
 
     pub fn new(
         valued_result: ScanResultValued,
@@ -40,21 +41,39 @@ impl ScanResult {
     }
 
     pub fn as_properties(&self) -> Vec<Property> {
-        let property_module = Property::new(Self::PROPERTY_NAME_MODULE.to_string(), DataTypeString::get_value_from_primitive(&self.module));
+        let property_value = Property::new(
+            Self::PROPERTY_NAME_VALUE.to_string(),
+            DataTypeString::get_value_from_primitive(&self.module),
+            false,
+        );
+        let property_is_frozen = Property::new(
+            Self::PROPERTY_NAME_IS_FROZEN.to_string(),
+            DataTypeBool8::get_value_from_primitive(self.is_frozen),
+            false,
+        );
+        let property_address = Property::new(
+            Self::PROPERTY_NAME_ADDRESS.to_string(),
+            DataTypeU64::get_value_from_primitive(self.valued_result.get_address()),
+            true,
+        );
+        let property_module = Property::new(
+            Self::PROPERTY_NAME_MODULE.to_string(),
+            DataTypeString::get_value_from_primitive(&self.module),
+            true,
+        );
         let property_module_offset = Property::new(
             Self::PROPERTY_NAME_MODULE_OFFSET.to_string(),
             DataTypeU64::get_value_from_primitive(self.module_offset),
-        );
-        let property_is_frozen = Property::new(
-            Self::PROPERTY_NAME_MODULE_OFFSET.to_string(),
-            DataTypeBool8::get_value_from_primitive(self.is_frozen),
+            true,
         );
 
-        vec![property_module, property_module_offset, property_is_frozen]
-    }
-
-    pub fn set_property(&mut self) {
-        //
+        vec![
+            property_value,
+            property_is_frozen,
+            property_address,
+            property_module,
+            property_module_offset,
+        ]
     }
 
     pub fn get_address(&self) -> u64 {

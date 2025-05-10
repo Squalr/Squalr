@@ -1,0 +1,2 @@
+pub mod scan_results_set_property_request;
+pub mod scan_results_set_property_response;
