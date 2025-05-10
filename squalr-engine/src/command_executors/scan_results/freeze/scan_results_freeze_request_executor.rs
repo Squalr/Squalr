@@ -17,20 +17,22 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
             .get_snapshot_scan_result_freeze_list()
             .read()
         {
-            let address = self.scan_result.get_address();
-            if self.is_frozen {
-                if let Some(opened_process_info) = engine_privileged_state
-                    .get_process_manager()
-                    .get_opened_process()
-                {
-                    if let Some(mut data_value) = self.scan_result.get_data_type().get_default_value() {
-                        if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
-                            snapshot_scan_result_freeze_list.set_address_frozen(address, data_value);
+            for scan_result in &self.scan_results {
+                let address = scan_result.get_address();
+                if self.is_frozen {
+                    if let Some(opened_process_info) = engine_privileged_state
+                        .get_process_manager()
+                        .get_opened_process()
+                    {
+                        if let Some(mut data_value) = scan_result.get_data_type().get_default_value() {
+                            if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
+                                snapshot_scan_result_freeze_list.set_address_frozen(address, data_value);
+                            }
                         }
                     }
+                } else {
+                    snapshot_scan_result_freeze_list.set_address_unfrozen(address);
                 }
-            } else {
-                snapshot_scan_result_freeze_list.set_address_unfrozen(address);
             }
         }
         ScanResultsFreezeResponse {}

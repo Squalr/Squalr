@@ -70,7 +70,7 @@ impl SnapshotScanResultFreezeTask {
             for address in freeze_entries.keys() {
                 if let Some(data_value) = snapshot_scan_result_freeze_list.get_address_frozen_data_value(*address) {
                     let value_bytes = data_value.get_value_bytes();
-                    let _success = MemoryWriter::get_instance().write_bytes(process_info.get_handle(), *address, &value_bytes);
+                    let _success = MemoryWriter::get_instance().write_bytes(process_info, *address, &value_bytes);
                 }
             }
         }

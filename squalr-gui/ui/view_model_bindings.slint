@@ -270,7 +270,7 @@ export global ScanResultsViewModelBindings {
     callback add_result_range(local_start_index: int, local_end_index: int);
     callback page_index_text_changed(new_page_index_text: string);
     callback delete_scan_result(local_scan_result_index: int);
-    callback set_scan_result_frozen(local_scan_result_index: int, is_frozen: bool);
+    callback set_scan_results_frozen(local_scan_result_indices: [int], is_frozen: bool);
 }
 
 export global PointerScanResultsViewModelBindings { }

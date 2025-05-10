@@ -1,4 +1,5 @@
 use crate::memory_writer::memory_writer_trait::IMemoryWriter;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use std::os::raw::c_void;
 use std::ptr::null_mut;
 use windows_sys::Win32::System::Diagnostics::Debug::WriteProcessMemory;
@@ -49,10 +50,10 @@ impl WindowsMemoryWriter {
 impl IMemoryWriter for WindowsMemoryWriter {
     fn write_bytes(
         &self,
-        process_handle: u64,
+        process_info: &OpenedProcessInfo,
         address: u64,
         values: &[u8],
     ) -> bool {
-        Self::write_memory(process_handle, address, values)
+        Self::write_memory(process_info.get_handle(), address, values)
     }
 }

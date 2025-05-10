@@ -9,7 +9,7 @@ use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ScanResultsFreezeRequest {
     #[structopt(short = "s", long)]
-    pub scan_result: ScanResultBase,
+    pub scan_results: Vec<ScanResultBase>,
     #[structopt(short = "f", long)]
     pub is_frozen: bool,
 }

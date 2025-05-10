@@ -3,7 +3,7 @@ use syn::{
     braced, parenthesized,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
-    Expr, ExprClosure, Ident, Path, Result as SynResult, Token,
+    Expr, ExprClosure, Ident, Path, Result as SynResult, Token, Type,
 };
 
 pub struct CreateViewBindingsInput {
@@ -107,7 +107,7 @@ impl BindingGroup {
 // -------------------------------------------------------------------------------------
 struct CallbackDefinition {
     callback_name: Ident,
-    args: Vec<(Ident, Ident)>,
+    args: Vec<(Ident, Type)>,
     captures: Vec<Expr>,
     target: CallbackTarget,
 }
@@ -167,13 +167,13 @@ impl Parse for CallbackDefinition {
 }
 
 // Helper to parse a comma-separated list of `(ident: Type)` pairs
-fn parse_args(input: ParseStream) -> SynResult<Vec<(Ident, Ident)>> {
+fn parse_args(input: ParseStream) -> SynResult<Vec<(Ident, Type)>> {
     let mut args = Vec::new();
 
     while !input.is_empty() {
         let arg_name: Ident = input.parse()?;
         input.parse::<Token![:]>()?;
-        let arg_type: Ident = input.parse()?;
+        let arg_type: Type = input.parse()?;
         args.push((arg_name, arg_type));
 
         if input.peek(Token![,]) {

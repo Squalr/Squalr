@@ -22,7 +22,7 @@ export component ScanResultEntry inherits Button {
         x: 8px;
         is_checked: scan_result_view_data.is_frozen;
         check_changed(value) => {
-            ScanResultsViewModelBindings.set_scan_result_frozen(root.index, value);
+            ScanResultsViewModelBindings.set_scan_results_frozen([root.index], value);
         }
     }
 

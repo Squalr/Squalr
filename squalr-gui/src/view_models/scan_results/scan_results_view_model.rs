@@ -6,6 +6,8 @@ use crate::models::audio::audio_player::SoundType;
 use crate::view_models::scan_results::scan_result_comparer::ScanResultComparer;
 use crate::view_models::scan_results::scan_result_converter::ScanResultConverter;
 use slint::ComponentHandle;
+use slint::Model;
+use slint::ModelRc;
 use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_collection_binding::ViewCollectionBinding;
@@ -77,7 +79,7 @@ impl ScanResultsViewModel {
                     on_add_result_range(local_start_index: i32, local_end_index: i32) -> [] -> Self::on_add_result_range,
                     on_page_index_text_changed(new_page_index_text: SharedString) -> [view] -> Self::on_page_index_text_changed,
                     on_delete_scan_result(local_scan_result_index: i32) -> [engine_execution_context] -> Self::on_delete_scan_result,
-                    on_set_scan_result_frozen(local_scan_result_index: i32, is_frozen: bool) -> [engine_execution_context, base_scan_results_collection] -> Self::on_set_scan_result_frozen,
+                    on_set_scan_results_frozen(local_scan_result_indices: ModelRc<i32>, is_frozen: bool) -> [engine_execution_context, base_scan_results_collection] -> Self::on_set_scan_results_frozen,
                 },
             });
         }
@@ -265,10 +267,10 @@ impl ScanResultsViewModel {
     ) {
     }
 
-    fn on_set_scan_result_frozen(
+    fn on_set_scan_results_frozen(
         engine_execution_context: Arc<EngineExecutionContext>,
         base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
-        local_scan_result_index: i32,
+        local_scan_result_indices: ModelRc<i32>,
         is_frozen: bool,
     ) {
         // Gather the current/incomplete scan results.
@@ -276,13 +278,19 @@ impl ScanResultsViewModel {
             Ok(base_scan_results_collection) => base_scan_results_collection.clone(),
             Err(_) => vec![],
         };
-        if let Some(scan_result) = scan_results_to_refresh
-            .get(local_scan_result_index as usize)
-            .map(|scan_result| scan_result.get_scan_result_base().clone())
-        {
-            let scan_results_freeze_request = ScanResultsFreezeRequest { scan_result, is_frozen };
+        let scan_results: Vec<_> = (0..local_scan_result_indices.row_count())
+            .filter_map(|i| local_scan_result_indices.row_data(i))
+            .filter_map(|index| {
+                scan_results_to_refresh
+                    .get(index as usize)
+                    .map(|r| r.get_scan_result_base().clone())
+            })
+            .collect();
 
-            scan_results_freeze_request.send(&engine_execution_context, |_scan_results_freeze_response| {});
+        if !scan_results.is_empty() {
+            let scan_results_freeze_request = ScanResultsFreezeRequest { scan_results, is_frozen };
+
+            scan_results_freeze_request.send(&engine_execution_context, |_response| {});
         }
     }
 }

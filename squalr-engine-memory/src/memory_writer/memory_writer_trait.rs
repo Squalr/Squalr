@@ -1,7 +1,9 @@
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+
 pub trait IMemoryWriter {
     fn write_bytes(
         &self,
-        process_handle: u64,
+        process_info: &OpenedProcessInfo,
         address: u64,
         values: &[u8],
     ) -> bool;
