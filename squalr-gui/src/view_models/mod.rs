@@ -1,4 +1,6 @@
 pub mod conversions_view_model;
+pub mod dependency_container;
+pub mod dependency_container_builder;
 pub mod docking;
 pub mod main_window;
 pub mod output;

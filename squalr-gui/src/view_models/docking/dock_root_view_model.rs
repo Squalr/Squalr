@@ -2,73 +2,41 @@ use crate::DockRootViewModelBindings;
 use crate::MainWindowView;
 use crate::RedockTarget;
 use crate::WindowViewModelBindings;
-use crate::models::audio::audio_player::AudioPlayer;
 use crate::models::docking::docking_manager::DockingManager;
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
-use crate::view_models::conversions_view_model::conversions_view_model::ConversionsViewModel;
+use crate::view_models::dependency_container::DependencyContainer;
 use crate::view_models::docking::dock_target_converter::DocktargetConverter;
 use crate::view_models::docking::dock_window_converter::DockWindowConverter;
-use crate::view_models::output::output_view_model::OutputViewModel;
-use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
-use crate::view_models::project_explorer::project_explorer_view_model::ProjectExplorerViewModel;
-use crate::view_models::property_viewer::property_viewer_view_model::PropertyViewerViewModel;
-use crate::view_models::scan_results::scan_results_view_model::ScanResultsViewModel;
-use crate::view_models::scanners::scanner_view_model::ScannerViewModel;
-use crate::view_models::settings::memory_settings_view_model::MemorySettingsViewModel;
-use crate::view_models::settings::scan_settings_view_model::ScanSettingsViewModel;
-use crate::view_models::validation_view_model::validation_view_model::ValidationViewModel;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_common::logging::file_system_logger::FileSystemLogger;
 use std::sync::Arc;
 use std::sync::RwLock;
 
 pub struct DockRootViewModel {
-    view_binding: ViewBinding<MainWindowView>,
+    view_binding: Arc<ViewBinding<MainWindowView>>,
     _docking_manager: Arc<RwLock<DockingManager>>,
-    manual_scan_view_model: Arc<ScannerViewModel>,
-    memory_settings_view_model: Arc<MemorySettingsViewModel>,
-    output_view_model: Arc<OutputViewModel>,
-    process_selector_view_model: Arc<ProcessSelectorViewModel>,
-    project_explorer_view_model: Arc<ProjectExplorerViewModel>,
-    property_viewer_view_model: Arc<PropertyViewerViewModel>,
-    scan_settings_view_model: Arc<ScanSettingsViewModel>,
-    scan_results_view_model: Arc<ScanResultsViewModel>,
-    conversions_view_model: Arc<ConversionsViewModel>,
-    validation_view_model: Arc<ValidationViewModel>,
 }
 
 impl DockRootViewModel {
     pub fn new(
-        view_binding: ViewBinding<MainWindowView>,
+        dependency_container: &DependencyContainer,
         engine_execution_context: Arc<EngineExecutionContext>,
-        file_system_logger: Arc<FileSystemLogger>,
-    ) -> Self {
+    ) -> anyhow::Result<Arc<Self>> {
         let main_dock_root = DockableWindowSettings::get_dock_layout_settings();
         let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));
-        let audio_player = Arc::new(AudioPlayer::new());
+        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
 
-        let view: DockRootViewModel = DockRootViewModel {
+        let view = Arc::new(DockRootViewModel {
             view_binding: view_binding.clone(),
             _docking_manager: docking_manager.clone(),
-            manual_scan_view_model: ScannerViewModel::new(view_binding.clone(), engine_execution_context.clone()),
-            memory_settings_view_model: MemorySettingsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
-            output_view_model: OutputViewModel::new(view_binding.clone(), engine_execution_context.clone(), file_system_logger),
-            process_selector_view_model: ProcessSelectorViewModel::new(view_binding.clone(), engine_execution_context.clone()),
-            project_explorer_view_model: ProjectExplorerViewModel::new(view_binding.clone(), engine_execution_context.clone()),
-            property_viewer_view_model: PropertyViewerViewModel::new(view_binding.clone(), engine_execution_context.clone()),
-            scan_settings_view_model: ScanSettingsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
-            scan_results_view_model: ScanResultsViewModel::new(view_binding.clone(), audio_player.clone(), engine_execution_context.clone()),
-            conversions_view_model: ConversionsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
-            validation_view_model: ValidationViewModel::new(view_binding.clone(), engine_execution_context.clone()),
-        };
+        });
 
         // Initialize the dock root size.
         let docking_manager_clone = docking_manager.clone();
@@ -109,7 +77,7 @@ impl DockRootViewModel {
             }
         });
 
-        view
+        Ok(view)
     }
 
     pub fn initialize(&self) {
@@ -136,54 +104,14 @@ impl DockRootViewModel {
         }
     }
 
-    pub fn get_manual_scan_view_model(&self) -> &Arc<ScannerViewModel> {
-        &self.manual_scan_view_model
-    }
-
-    pub fn get_memory_settings_view_model(&self) -> &Arc<MemorySettingsViewModel> {
-        &self.memory_settings_view_model
-    }
-
-    pub fn get_output_view_model(&self) -> &Arc<OutputViewModel> {
-        &self.output_view_model
-    }
-
-    pub fn get_process_selector_view_model(&self) -> &Arc<ProcessSelectorViewModel> {
-        &self.process_selector_view_model
-    }
-
-    pub fn get_project_explorer_view_model(&self) -> &Arc<ProjectExplorerViewModel> {
-        &self.project_explorer_view_model
-    }
-
-    pub fn get_property_viewer_view_model(&self) -> &Arc<PropertyViewerViewModel> {
-        &self.property_viewer_view_model
-    }
-
-    pub fn get_scan_settings_view_model(&self) -> &Arc<ScanSettingsViewModel> {
-        &self.scan_settings_view_model
-    }
-
-    pub fn get_scan_results_view_model(&self) -> &Arc<ScanResultsViewModel> {
-        &self.scan_results_view_model
-    }
-
-    pub fn get_conversions_view_model(&self) -> &Arc<ConversionsViewModel> {
-        &self.conversions_view_model
-    }
-
-    pub fn get_validation_view_model(&self) -> &Arc<ValidationViewModel> {
-        &self.validation_view_model
-    }
-
-    fn on_minimize(view_binding: ViewBinding<MainWindowView>) {
+    fn on_minimize(view_binding: Arc<ViewBinding<MainWindowView>>) {
         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
             let window = main_window_view.window();
             window.set_minimized(true);
         });
     }
 
-    fn on_maximize(view_binding: ViewBinding<MainWindowView>) {
+    fn on_maximize(view_binding: Arc<ViewBinding<MainWindowView>>) {
         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
             let window = main_window_view.window();
             window.set_maximized(!window.is_maximized());
@@ -196,7 +124,7 @@ impl DockRootViewModel {
         }
     }
 
-    fn on_double_clicked(view_binding: ViewBinding<MainWindowView>) {
+    fn on_double_clicked(view_binding: Arc<ViewBinding<MainWindowView>>) {
         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
             let window = main_window_view.window();
             window.set_maximized(!window.is_maximized());
@@ -204,7 +132,7 @@ impl DockRootViewModel {
     }
 
     fn on_drag(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         delta_x: i32,
         delta_y: i32,
     ) {
@@ -218,7 +146,7 @@ impl DockRootViewModel {
     }
 
     fn on_update_dock_root_size(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
         width: f32,
         height: f32,
@@ -234,7 +162,7 @@ impl DockRootViewModel {
     }
 
     fn on_update_dock_root_width(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
         width: f32,
     ) {
@@ -248,7 +176,7 @@ impl DockRootViewModel {
     }
 
     fn on_update_dock_root_height(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
         height: f32,
     ) {
@@ -262,7 +190,7 @@ impl DockRootViewModel {
     }
 
     fn on_update_active_tab_id(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
         identifier: SharedString,
     ) {
@@ -297,7 +225,7 @@ impl DockRootViewModel {
     }
 
     fn on_try_redock_window(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
         identifier: SharedString,
         target_identifier: SharedString,
@@ -313,7 +241,7 @@ impl DockRootViewModel {
     }
 
     fn on_reset_layout(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
     ) {
         Self::mutate_layout(&view_binding, &docking_manager, true, move |docking_manager| {
@@ -322,7 +250,7 @@ impl DockRootViewModel {
     }
 
     fn on_show(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
         dockable_window_id: SharedString,
     ) {
@@ -337,7 +265,7 @@ impl DockRootViewModel {
     }
 
     fn on_hide(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
         dockable_window_id: SharedString,
     ) {
@@ -349,7 +277,7 @@ impl DockRootViewModel {
     }
 
     fn on_toggle_visibility(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
         dockable_window_id: SharedString,
     ) {
@@ -367,7 +295,7 @@ impl DockRootViewModel {
     }
 
     fn on_drag_left(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
         dockable_window_id: SharedString,
         delta_x: i32,
@@ -379,7 +307,7 @@ impl DockRootViewModel {
     }
 
     fn on_drag_right(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
         dockable_window_id: SharedString,
         delta_x: i32,
@@ -391,7 +319,7 @@ impl DockRootViewModel {
     }
 
     fn on_drag_top(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
         dockable_window_id: SharedString,
         delta_x: i32,
@@ -403,7 +331,7 @@ impl DockRootViewModel {
     }
 
     fn on_drag_bottom(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
         dockable_window_id: SharedString,
         delta_x: i32,
@@ -415,7 +343,7 @@ impl DockRootViewModel {
     }
 
     fn mutate_layout<F>(
-        view_binding: &ViewBinding<MainWindowView>,
+        view_binding: &Arc<ViewBinding<MainWindowView>>,
         docking_manager: &Arc<RwLock<DockingManager>>,
         save_layout: bool,
         f: F,
@@ -443,7 +371,7 @@ impl DockRootViewModel {
     }
 
     fn propagate_layout(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         docking_manager: Arc<RwLock<DockingManager>>,
     ) {
         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {

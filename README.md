@@ -25,7 +25,7 @@ For platforms like Android, Squalr runs in a dual process mode with an unprivile
 
 Additionally, we support a CLI build, which is actually pretty easy to do, since we're already going for the command/response architecture. This just adds 1 more step of making all commands structopts, meaning all commands can be created from a string (and therefore from user input). So, we just dispatch the raw commands users input, and implement handlers for all the responses that simply output to the command responses console.
 
-Features:
+Launch Checklist:
 - [X] Custom installer and auto updater from Git tags. (The auto updater Rust crate is not GCC compatible, and MSVC sucks with Rust, so we're rolling our own updater).
 - [X] Dockable window system.
 - [X] Command/Response system, with IPC support for rooted Android devices.
@@ -45,6 +45,7 @@ Features:
 - [ ] String Encoding selection from UI.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 - [ ] Property viewer in the GUI that can register an active set of properties for editing.
+- [ ] Dependency Injection for GUI. Possibly for engine?
 
 ## Post-launch tasklist
 Lower priority features that we can defer, for now.

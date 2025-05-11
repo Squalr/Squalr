@@ -1,6 +1,7 @@
 use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
+use crate::view_models::dependency_container::DependencyContainer;
 use crate::view_models::process_selector::opened_process_info_converter::OpenedProcessInfoConverter;
 use crate::view_models::process_selector::process_info_comparer::ProcessInfoComparer;
 use crate::view_models::process_selector::process_info_converter::ProcessInfoConverter;
@@ -21,7 +22,7 @@ use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use std::sync::Arc;
 
 pub struct ProcessSelectorViewModel {
-    _view_binding: ViewBinding<MainWindowView>,
+    _view_binding: Arc<ViewBinding<MainWindowView>>,
     _full_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
     _windowed_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
     engine_execution_context: Arc<EngineExecutionContext>,
@@ -29,9 +30,10 @@ pub struct ProcessSelectorViewModel {
 
 impl ProcessSelectorViewModel {
     pub fn new(
-        view_binding: ViewBinding<MainWindowView>,
+        dependency_container: &DependencyContainer,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Arc<Self> {
+    ) -> anyhow::Result<Arc<Self>> {
+        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
         // Create a binding that allows us to easily update the view's process list.
         let full_process_list_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
@@ -66,12 +68,12 @@ impl ProcessSelectorViewModel {
 
         view.listen_for_process_change(view_binding.clone());
 
-        view
+        Ok(view)
     }
 
     fn listen_for_process_change(
         &self,
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
     ) {
         let view_binding = view_binding.clone();
 
@@ -82,7 +84,7 @@ impl ProcessSelectorViewModel {
     }
 
     fn refresh_opened_process(
-        view_binding: &ViewBinding<MainWindowView>,
+        view_binding: &Arc<ViewBinding<MainWindowView>>,
         process_info: Option<OpenedProcessInfo>,
     ) {
         view_binding.execute_on_ui_thread(move |main_window_view, _| {
@@ -136,7 +138,7 @@ impl ProcessSelectorViewModel {
     }
 
     fn on_select_process(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         engine_execution_context: Arc<EngineExecutionContext>,
         process_entry: ProcessViewData,
     ) {

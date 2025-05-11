@@ -4,6 +4,7 @@ use crate::MemoryAlignmentView;
 use crate::ScanConstraintTypeView;
 use crate::ScannerViewModelBindings;
 use crate::ValueCollectorViewModelBindings;
+use crate::view_models::dependency_container::DependencyContainer;
 use crate::view_models::scanners::scan_constraint_converter::ScanConstraintConverter;
 use crate::view_models::settings::memory_alignment_converter::MemoryAlignmentConverter;
 use slint::ComponentHandle;
@@ -33,16 +34,17 @@ enum ScanViewModelState {
 }
 
 pub struct ScannerViewModel {
-    view_binding: ViewBinding<MainWindowView>,
+    view_binding: Arc<ViewBinding<MainWindowView>>,
     engine_execution_context: Arc<EngineExecutionContext>,
     scan_view_model_state: RwLock<ScanViewModelState>,
 }
 
 impl ScannerViewModel {
     pub fn new(
-        view_binding: ViewBinding<MainWindowView>,
+        dependency_container: &DependencyContainer,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Arc<Self> {
+    ) -> anyhow::Result<Arc<Self>> {
+        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
         let view = Arc::new(ScannerViewModel {
             view_binding: view_binding.clone(),
             engine_execution_context: engine_execution_context.clone(),
@@ -63,7 +65,7 @@ impl ScannerViewModel {
             });
         }
 
-        view
+        Ok(view)
     }
 
     fn on_reset_scan(scanner_view_model: Arc<ScannerViewModel>) {

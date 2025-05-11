@@ -1,3 +1,4 @@
+use crate::view_models::dependency_container::DependencyContainer;
 use crate::view_models::settings::{
     floating_point_tolerance_converter::FloatingPointToleranceConverter, memory_alignment_converter::MemoryAlignmentConverter,
     memory_read_mode_converter::MemoryReadModeConverter,
@@ -15,15 +16,16 @@ use squalr_engine_api::{
 use std::sync::Arc;
 
 pub struct ScanSettingsViewModel {
-    view_binding: ViewBinding<MainWindowView>,
+    view_binding: Arc<ViewBinding<MainWindowView>>,
     engine_execution_context: Arc<EngineExecutionContext>,
 }
 
 impl ScanSettingsViewModel {
     pub fn new(
-        view_binding: ViewBinding<MainWindowView>,
+        dependency_container: &DependencyContainer,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Arc<Self> {
+    ) -> anyhow::Result<Arc<Self>> {
+        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
         let view = Arc::new(ScanSettingsViewModel {
             view_binding: view_binding.clone(),
             engine_execution_context: engine_execution_context.clone(),
@@ -44,7 +46,7 @@ impl ScanSettingsViewModel {
 
         view.sync_ui_with_scan_settings();
 
-        view
+        Ok(view)
     }
 
     fn on_results_page_size_changed(

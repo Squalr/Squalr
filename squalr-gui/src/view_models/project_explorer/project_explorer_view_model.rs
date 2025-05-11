@@ -1,6 +1,7 @@
 use crate::MainWindowView;
 use crate::ProjectExplorerViewModelBindings;
 use crate::ProjectViewData;
+use crate::view_models::dependency_container::DependencyContainer;
 use crate::view_models::project_explorer::project_info_comparer::ProjectInfoComparer;
 use crate::view_models::project_explorer::project_info_converter::ProjectInfoConverter;
 use slint::ComponentHandle;
@@ -28,16 +29,18 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 pub struct ProjectExplorerViewModel {
-    view_binding: ViewBinding<MainWindowView>,
+    view_binding: Arc<ViewBinding<MainWindowView>>,
     project_list_collection: ViewCollectionBinding<ProjectViewData, ProjectInfo, MainWindowView>,
     engine_execution_context: Arc<EngineExecutionContext>,
 }
 
 impl ProjectExplorerViewModel {
     pub fn new(
-        view_binding: ViewBinding<MainWindowView>,
+        dependency_container: &DependencyContainer,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Arc<Self> {
+    ) -> anyhow::Result<Arc<Self>> {
+        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
+
         // Create a binding that allows us to easily update the view's project list.
         let project_list_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
@@ -70,7 +73,7 @@ impl ProjectExplorerViewModel {
 
         view.listen_for_project_changes();
 
-        view
+        Ok(view)
     }
 
     fn listen_for_project_changes(&self) {
@@ -119,14 +122,14 @@ impl ProjectExplorerViewModel {
     }
 
     fn on_browse_for_project(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
         //
     }
 
     fn on_open_project(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         engine_execution_context: Arc<EngineExecutionContext>,
         project_entry: ProjectViewData,
     ) {

@@ -1,5 +1,6 @@
 use crate::MainWindowView;
 use crate::MemorySettingsViewModelBindings;
+use crate::view_models::dependency_container::DependencyContainer;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
@@ -10,15 +11,16 @@ use squalr_engine_api::commands::settings::memory::set::memory_settings_set_requ
 use std::sync::Arc;
 
 pub struct MemorySettingsViewModel {
-    view_binding: ViewBinding<MainWindowView>,
+    view_binding: Arc<ViewBinding<MainWindowView>>,
     engine_execution_context: Arc<EngineExecutionContext>,
 }
 
 impl MemorySettingsViewModel {
     pub fn new(
-        view_binding: ViewBinding<MainWindowView>,
+        dependency_container: &DependencyContainer,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Arc<Self> {
+    ) -> anyhow::Result<Arc<Self>> {
+        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
         let view = Arc::new(MemorySettingsViewModel {
             view_binding: view_binding.clone(),
             engine_execution_context: engine_execution_context.clone(),
@@ -41,7 +43,7 @@ impl MemorySettingsViewModel {
 
         view.sync_ui_with_memory_settings();
 
-        view
+        Ok(view)
     }
 
     fn on_required_write_changed(

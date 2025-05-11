@@ -10,6 +10,7 @@ use squalr_engine_api::events::project::project_event::ProjectEvent;
 use squalr_engine_api::events::scan_results::scan_results_event::ScanResultsEvent;
 use squalr_engine_api::events::trackable_task::trackable_task_event::TrackableTaskEvent;
 use squalr_engine_api::{commands::engine_command::EngineCommand, events::engine_event::EngineEvent};
+use squalr_engine_common::logging::file_system_logger::FileSystemLogger;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -23,6 +24,9 @@ pub struct EngineExecutionContext {
 
     /// All event listeners that are listening for particular engine events.
     event_listeners: Arc<RwLock<HashMap<TypeId, Vec<Box<dyn Fn(&dyn Any) + Send + Sync>>>>>,
+
+    // Routes logs to the file system, as well as any optional subscribers to log events, such as output in the GUI.
+    file_system_logger: Arc<FileSystemLogger>,
 }
 
 impl EngineExecutionContext {
@@ -36,6 +40,7 @@ impl EngineExecutionContext {
         let execution_context = Arc::new(EngineExecutionContext {
             engine_bindings,
             event_listeners: Arc::new(RwLock::new(HashMap::new())),
+            file_system_logger: Arc::new(FileSystemLogger::new()),
         });
 
         execution_context
@@ -57,6 +62,10 @@ impl EngineExecutionContext {
         }
 
         self.start_event_dispatcher();
+    }
+
+    pub fn get_logger(&self) -> &Arc<FileSystemLogger> {
+        &self.file_system_logger
     }
 
     /// Dispatches a command to the engine. Direct usage is generally not advised unless you know what you are doing.

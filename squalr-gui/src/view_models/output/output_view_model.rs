@@ -1,29 +1,29 @@
 use crate::MainWindowView;
 use crate::OutputViewModelBindings;
+use crate::view_models::dependency_container::DependencyContainer;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_common::logging::file_system_logger::FileSystemLogger;
 use std::sync::Arc;
 use std::thread;
 
 pub struct OutputViewModel {
-    _view_binding: ViewBinding<MainWindowView>,
+    _view_binding: Arc<ViewBinding<MainWindowView>>,
     _engine_execution_context: Arc<EngineExecutionContext>,
 }
 
 impl OutputViewModel {
     pub fn new(
-        view_binding: ViewBinding<MainWindowView>,
+        dependency_container: &DependencyContainer,
         engine_execution_context: Arc<EngineExecutionContext>,
-        file_system_logger: Arc<FileSystemLogger>,
-    ) -> Arc<Self> {
+    ) -> anyhow::Result<Arc<Self>> {
+        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
         let view = Arc::new(OutputViewModel {
             _view_binding: view_binding.clone(),
-            _engine_execution_context: engine_execution_context,
+            _engine_execution_context: engine_execution_context.clone(),
         });
 
-        match file_system_logger.subscribe_to_logs() {
+        match engine_execution_context.get_logger().subscribe_to_logs() {
             Ok(receiver) => {
                 thread::spawn(move || {
                     while let Ok(log_message) = receiver.recv() {
@@ -36,11 +36,11 @@ impl OutputViewModel {
             }
         }
 
-        view
+        Ok(view)
     }
 
     fn on_log_event(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         log_message: String,
     ) {
         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {

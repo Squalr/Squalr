@@ -1,6 +1,7 @@
 use crate::MainWindowView;
 use crate::PropertyEntryViewData;
 use crate::PropertyViewerViewModelBindings;
+use crate::view_models::dependency_container::DependencyContainer;
 use crate::view_models::property_viewer::property_comparer::PropertyComparer;
 use crate::view_models::property_viewer::property_converter::PropertyConverter;
 use slint::ComponentHandle;
@@ -14,16 +15,18 @@ use squalr_engine_api::structures::properties::property::Property;
 use std::sync::Arc;
 
 pub struct PropertyViewerViewModel {
-    view_binding: ViewBinding<MainWindowView>,
+    view_binding: Arc<ViewBinding<MainWindowView>>,
     selected_properties_collection: ViewCollectionBinding<PropertyEntryViewData, Property, MainWindowView>,
     engine_execution_context: Arc<EngineExecutionContext>,
 }
 
 impl PropertyViewerViewModel {
     pub fn new(
-        view_binding: ViewBinding<MainWindowView>,
+        dependency_container: &DependencyContainer,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Arc<Self> {
+    ) -> anyhow::Result<Arc<Self>> {
+        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
+
         // Create a binding that allows us to easily update the view's selected properties.
         let selected_properties_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
@@ -45,7 +48,7 @@ impl PropertyViewerViewModel {
             }
         });
 
-        view
+        Ok(view)
     }
 
     pub fn set_selected_properties(

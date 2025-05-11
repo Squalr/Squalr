@@ -1,41 +1,112 @@
 use crate::MainWindowView;
 use crate::WindowViewModelBindings;
+use crate::models::audio::audio_player::AudioPlayer;
+use crate::view_models::conversions_view_model::conversions_view_model::ConversionsViewModel;
+use crate::view_models::dependency_container::DependencyContainer;
+use crate::view_models::dependency_container_builder::DependencyContainerBuilder;
 use crate::view_models::docking::dock_root_view_model::DockRootViewModel;
+use crate::view_models::output::output_view_model::OutputViewModel;
+use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
+use crate::view_models::project_explorer::project_explorer_view_model::ProjectExplorerViewModel;
+use crate::view_models::property_viewer::property_viewer_view_model::PropertyViewerViewModel;
+use crate::view_models::scan_results::scan_results_view_model::ScanResultsViewModel;
+use crate::view_models::scanners::scanner_view_model::ScannerViewModel;
+use crate::view_models::settings::memory_settings_view_model::MemorySettingsViewModel;
+use crate::view_models::settings::scan_settings_view_model::ScanSettingsViewModel;
+use crate::view_models::validation_view_model::validation_view_model::ValidationViewModel;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_common::logging::file_system_logger::FileSystemLogger;
 use std::sync::Arc;
 
 pub struct MainWindowViewModel {
-    _view: MainWindowView,
-    view_binding: ViewBinding<MainWindowView>,
-    _dock_root_view_model: Arc<DockRootViewModel>,
-    _engine_execution_context: Arc<EngineExecutionContext>,
+    _dependency_container: Arc<DependencyContainer>,
 }
 
 impl MainWindowViewModel {
-    pub fn new(
-        engine_execution_context: &Arc<EngineExecutionContext>,
-        file_system_logger: &Arc<FileSystemLogger>,
-    ) -> Self {
+    pub fn new(engine_execution_context: &Arc<EngineExecutionContext>) -> anyhow::Result<Arc<Self>> {
         let view = MainWindowView::new().unwrap();
-        let view_binding = ViewBinding::new(ComponentHandle::as_weak(&view));
-        let dock_root_view_model = Arc::new(DockRootViewModel::new(
-            view_binding.clone(),
-            engine_execution_context.clone(),
-            file_system_logger.clone(),
-        ));
+        let view_binding = Arc::new(ViewBinding::new(ComponentHandle::as_weak(&view)));
+        let mut dependency_container_builder = DependencyContainerBuilder::new();
+        let engine_execution_context = engine_execution_context.clone();
 
-        let view: MainWindowViewModel = MainWindowViewModel {
-            _view: view,
-            view_binding: view_binding.clone(),
-            _dock_root_view_model: dock_root_view_model.clone(),
-            _engine_execution_context: engine_execution_context.clone(),
-        };
+        dependency_container_builder.register::<AudioPlayer, _>(|_dependency_container| Ok(Arc::new(AudioPlayer::new())));
 
-        // Logger::subscribe(dock_root_view_model.get_output_view_model().clone());
+        {
+            let view_binding = view_binding.clone();
+
+            dependency_container_builder.register::<ViewBinding<MainWindowView>, _>(move |_dependency_container| Ok(view_binding.clone()));
+        }
+
+        {
+            let engine_execution_context = engine_execution_context.clone();
+
+            dependency_container_builder.register(move |dependency_container| DockRootViewModel::new(dependency_container, engine_execution_context.clone()));
+        }
+        {
+            let engine_execution_context = engine_execution_context.clone();
+
+            dependency_container_builder.register(move |dependency_container| ScannerViewModel::new(dependency_container, engine_execution_context.clone()));
+        }
+        {
+            let engine_execution_context = engine_execution_context.clone();
+
+            dependency_container_builder
+                .register(move |dependency_container| MemorySettingsViewModel::new(dependency_container, engine_execution_context.clone()));
+        }
+        {
+            let engine_execution_context = engine_execution_context.clone();
+
+            dependency_container_builder.register(move |dependency_container| OutputViewModel::new(dependency_container, engine_execution_context.clone()));
+        }
+        {
+            let engine_execution_context = engine_execution_context.clone();
+
+            dependency_container_builder
+                .register(move |dependency_container| ProcessSelectorViewModel::new(dependency_container, engine_execution_context.clone()));
+        }
+        {
+            let engine_execution_context = engine_execution_context.clone();
+
+            dependency_container_builder
+                .register(move |dependency_container| ProjectExplorerViewModel::new(dependency_container, engine_execution_context.clone()));
+        }
+        {
+            let engine_execution_context = engine_execution_context.clone();
+
+            dependency_container_builder
+                .register(move |dependency_container| PropertyViewerViewModel::new(dependency_container, engine_execution_context.clone()));
+        }
+        {
+            let engine_execution_context = engine_execution_context.clone();
+
+            dependency_container_builder
+                .register(move |dependency_container| ScanSettingsViewModel::new(dependency_container, engine_execution_context.clone()));
+        }
+        {
+            let engine_execution_context = engine_execution_context.clone();
+
+            dependency_container_builder
+                .register(move |dependency_container| ScanResultsViewModel::new(dependency_container, engine_execution_context.clone()));
+        }
+        {
+            let engine_execution_context = engine_execution_context.clone();
+
+            dependency_container_builder
+                .register(move |dependency_container| ConversionsViewModel::new(dependency_container, engine_execution_context.clone()));
+        }
+        {
+            let engine_execution_context = engine_execution_context.clone();
+
+            dependency_container_builder.register(move |dependency_container| ValidationViewModel::new(dependency_container, engine_execution_context.clone()));
+        }
+
+        let dependency_container = dependency_container_builder.build()?;
+
+        let view = Arc::new(MainWindowViewModel {
+            _dependency_container: Arc::new(dependency_container),
+        });
 
         create_view_bindings!(view_binding, {
             WindowViewModelBindings => {
@@ -47,17 +118,13 @@ impl MainWindowViewModel {
             }
         });
 
-        view.show();
+        Self::show(view_binding);
 
-        view
+        Ok(view)
     }
 
-    pub fn initialize(&self) {
-        self.show();
-    }
-
-    pub fn show(&self) {
-        if let Ok(handle) = self.view_binding.get_view_handle().lock() {
+    pub fn show(view_binding: Arc<ViewBinding<MainWindowView>>) {
+        if let Ok(handle) = view_binding.get_view_handle().lock() {
             if let Some(view) = handle.upgrade() {
                 if let Err(err) = view.show() {
                     log::error!("Error showing the main window: {err}");
@@ -66,8 +133,8 @@ impl MainWindowViewModel {
         }
     }
 
-    pub fn hide(&self) {
-        if let Ok(handle) = self.view_binding.get_view_handle().lock() {
+    pub fn hide(view_binding: Arc<ViewBinding<MainWindowView>>) {
+        if let Ok(handle) = view_binding.get_view_handle().lock() {
             if let Some(view) = handle.upgrade() {
                 if let Err(err) = view.hide() {
                     log::error!("Error hiding the main window: {err}");
@@ -76,14 +143,14 @@ impl MainWindowViewModel {
         }
     }
 
-    fn on_minimize(view_binding: ViewBinding<MainWindowView>) {
+    fn on_minimize(view_binding: Arc<ViewBinding<MainWindowView>>) {
         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
             let window = main_window_view.window();
             window.set_minimized(true);
         });
     }
 
-    fn on_maximize(view_binding: ViewBinding<MainWindowView>) {
+    fn on_maximize(view_binding: Arc<ViewBinding<MainWindowView>>) {
         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
             let window = main_window_view.window();
             window.set_maximized(!window.is_maximized());
@@ -96,7 +163,7 @@ impl MainWindowViewModel {
         }
     }
 
-    fn on_double_clicked(view_binding: ViewBinding<MainWindowView>) {
+    fn on_double_clicked(view_binding: Arc<ViewBinding<MainWindowView>>) {
         view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
             let window = main_window_view.window();
             window.set_maximized(!window.is_maximized());
@@ -104,7 +171,7 @@ impl MainWindowViewModel {
     }
 
     fn on_drag(
-        view_binding: ViewBinding<MainWindowView>,
+        view_binding: Arc<ViewBinding<MainWindowView>>,
         delta_x: i32,
         delta_y: i32,
     ) {

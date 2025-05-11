@@ -1,6 +1,7 @@
 use crate::DataTypeView;
 use crate::MainWindowView;
 use crate::ValidationViewModelBindings;
+use crate::view_models::dependency_container::DependencyContainer;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
@@ -11,15 +12,16 @@ use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use std::sync::Arc;
 
 pub struct ValidationViewModel {
-    _view_binding: ViewBinding<MainWindowView>,
+    _view_binding: Arc<ViewBinding<MainWindowView>>,
     _engine_execution_context: Arc<EngineExecutionContext>,
 }
 
 impl ValidationViewModel {
     pub fn new(
-        view_binding: ViewBinding<MainWindowView>,
+        dependency_container: &DependencyContainer,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Arc<Self> {
+    ) -> anyhow::Result<Arc<Self>> {
+        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
         let view = Arc::new(ValidationViewModel {
             _view_binding: view_binding.clone(),
             _engine_execution_context: engine_execution_context.clone(),
@@ -31,7 +33,7 @@ impl ValidationViewModel {
             }
         });
 
-        view
+        Ok(view)
     }
 
     fn on_validate_data_value(

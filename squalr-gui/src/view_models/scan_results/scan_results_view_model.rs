@@ -3,6 +3,7 @@ use crate::ScanResultViewData;
 use crate::ScanResultsViewModelBindings;
 use crate::models::audio::audio_player::AudioPlayer;
 use crate::models::audio::audio_player::SoundType;
+use crate::view_models::dependency_container::DependencyContainer;
 use crate::view_models::scan_results::scan_result_comparer::ScanResultComparer;
 use crate::view_models::scan_results::scan_result_converter::ScanResultConverter;
 use slint::ComponentHandle;
@@ -33,7 +34,7 @@ use std::thread;
 use std::time::Duration;
 
 pub struct ScanResultsViewModel {
-    view_binding: ViewBinding<MainWindowView>,
+    view_binding: Arc<ViewBinding<MainWindowView>>,
     audio_player: Arc<AudioPlayer>,
     base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
     scan_results_collection: ViewCollectionBinding<ScanResultViewData, ScanResult, MainWindowView>,
@@ -44,10 +45,12 @@ pub struct ScanResultsViewModel {
 
 impl ScanResultsViewModel {
     pub fn new(
-        view_binding: ViewBinding<MainWindowView>,
-        audio_player: Arc<AudioPlayer>,
+        dependency_container: &DependencyContainer,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Arc<Self> {
+    ) -> anyhow::Result<Arc<Self>> {
+        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
+        let audio_player = dependency_container.resolve::<AudioPlayer>()?;
+
         // Create a binding that allows us to easily update the view's scan results.
         let scan_results_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
@@ -62,7 +65,7 @@ impl ScanResultsViewModel {
 
         let view = Arc::new(ScanResultsViewModel {
             view_binding: view_binding.clone(),
-            audio_player: audio_player.clone(),
+            audio_player,
             base_scan_results_collection: base_scan_results_collection.clone(),
             scan_results_collection: scan_results_collection.clone(),
             engine_execution_context: engine_execution_context.clone(),
@@ -90,7 +93,7 @@ impl ScanResultsViewModel {
 
         Self::poll_scan_results(view.clone());
 
-        view
+        Ok(view)
     }
 
     fn poll_scan_results(scan_results_view_model: Arc<ScanResultsViewModel>) {

@@ -3,6 +3,7 @@ use crate::FloatingPointToleranceView;
 use crate::MainWindowView;
 use crate::MemoryAlignmentView;
 use crate::MemoryReadModeView;
+use crate::view_models::dependency_container::DependencyContainer;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
@@ -12,15 +13,16 @@ use squalr_engine_common::conversions::Conversions;
 use std::sync::Arc;
 
 pub struct ConversionsViewModel {
-    _view_binding: ViewBinding<MainWindowView>,
+    _view_binding: Arc<ViewBinding<MainWindowView>>,
     _engine_execution_context: Arc<EngineExecutionContext>,
 }
 
 impl ConversionsViewModel {
     pub fn new(
-        view_binding: ViewBinding<MainWindowView>,
+        dependency_container: &DependencyContainer,
         engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Arc<Self> {
+    ) -> anyhow::Result<Arc<Self>> {
+        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
         let view = Arc::new(ConversionsViewModel {
             _view_binding: view_binding.clone(),
             _engine_execution_context: engine_execution_context.clone(),
@@ -36,7 +38,7 @@ impl ConversionsViewModel {
             }
         });
 
-        view
+        Ok(view)
     }
 
     fn on_convert_hex_to_dec(data_value: SharedString) -> SharedString {

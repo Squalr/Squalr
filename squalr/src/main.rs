@@ -21,10 +21,14 @@ pub fn main() {
         .unwrap_or_else(|| panic!("Engine context failed to initialize."));
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
-    let _main_window_view = MainWindowViewModel::new(engine_execution_context, squalr_engine.get_logger());
+    let main_window_view = MainWindowViewModel::new(engine_execution_context);
+
+    if let Err(err) = main_window_view {
+        panic!("Fatal error creating Squalr GUI: {}", err);
+    }
 
     // Start the log event sending now that both the GUI and engine are ready to receive log messages.
-    squalr_engine.get_logger().start_log_event_sender();
+    engine_execution_context.get_logger().start_log_event_sender();
 
     AppUpdater::run_update(ProgressTracker::new());
 
@@ -32,7 +36,7 @@ pub fn main() {
     match slint::run_event_loop() {
         Ok(_) => {}
         Err(err) => {
-            log::error!("Fatal error starting Squalr: {}", err);
+            panic!("Fatal error starting Squalr: {}", err);
         }
     }
 }

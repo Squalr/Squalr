@@ -3,15 +3,16 @@ use crate::WindowViewModelBindings;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
+use std::sync::Arc;
 
 pub struct UndockedWindowViewModel {
-    view_binding: ViewBinding<UndockedWindowView>,
+    view_binding: Arc<ViewBinding<UndockedWindowView>>,
 }
 
 impl UndockedWindowViewModel {
     pub fn new() -> Self {
         let view = UndockedWindowView::new().unwrap();
-        let view_binding = ViewBinding::new(ComponentHandle::as_weak(&view));
+        let view_binding = Arc::new(ViewBinding::new(ComponentHandle::as_weak(&view)));
 
         let view_model = UndockedWindowViewModel {
             view_binding: view_binding.clone(),
@@ -50,14 +51,14 @@ impl UndockedWindowViewModel {
             });
     }
 
-    fn on_minimize(view_binding: ViewBinding<UndockedWindowView>) {
+    fn on_minimize(view_binding: Arc<ViewBinding<UndockedWindowView>>) {
         view_binding.execute_on_ui_thread(move |undocked_window_view, _| {
             let window = undocked_window_view.window();
             window.set_minimized(true);
         });
     }
 
-    fn on_maximize(view_binding: ViewBinding<UndockedWindowView>) {
+    fn on_maximize(view_binding: Arc<ViewBinding<UndockedWindowView>>) {
         view_binding.execute_on_ui_thread(move |undocked_window_view, _| {
             let window = undocked_window_view.window();
             window.set_maximized(!window.is_maximized());
@@ -70,7 +71,7 @@ impl UndockedWindowViewModel {
         }
     }
 
-    fn on_double_clicked(view_binding: ViewBinding<UndockedWindowView>) {
+    fn on_double_clicked(view_binding: Arc<ViewBinding<UndockedWindowView>>) {
         view_binding.execute_on_ui_thread(move |undocked_window_view, _| {
             let window = undocked_window_view.window();
             window.set_maximized(!window.is_maximized());
@@ -78,7 +79,7 @@ impl UndockedWindowViewModel {
     }
 
     fn on_drag(
-        view_binding: ViewBinding<UndockedWindowView>,
+        view_binding: Arc<ViewBinding<UndockedWindowView>>,
         delta_x: i32,
         delta_y: i32,
     ) {

@@ -11,6 +11,7 @@ slint-mvvm-macros = { path = "../slint-mvvm-macros" }
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
 squalr-engine-common = { path = "../squalr-engine-common" }
+anyhow = ">=1.0.96"
 futures = ">=0.3.31"
 log = ">=0.4.27"
 rayon = ">=1.10.0"

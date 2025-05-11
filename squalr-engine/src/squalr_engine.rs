@@ -2,7 +2,6 @@ use crate::engine_execution_context::EngineExecutionContext;
 use crate::engine_mode::EngineMode;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_architecture::vectors::Vectors;
-use squalr_engine_common::logging::file_system_logger::FileSystemLogger;
 use std::sync::Arc;
 
 /// Orchestrates commands and responses to and from the engine.
@@ -12,9 +11,6 @@ pub struct SqualrEngine {
 
     // Execution context that wraps privileged state behind a publically usable API.
     engine_execution_context: Option<Arc<EngineExecutionContext>>,
-
-    // Routes logs to the file system, as well as any optional subscribers to log events, such as output in the GUI.
-    file_system_logger: Arc<FileSystemLogger>,
 }
 
 impl SqualrEngine {
@@ -38,7 +34,6 @@ impl SqualrEngine {
         let squalr_engine = SqualrEngine {
             engine_privileged_state,
             engine_execution_context,
-            file_system_logger: Arc::new(FileSystemLogger::new()),
         };
 
         squalr_engine.initialize();
@@ -68,9 +63,5 @@ impl SqualrEngine {
 
     pub fn get_engine_execution_context(&self) -> &Option<Arc<EngineExecutionContext>> {
         &self.engine_execution_context
-    }
-
-    pub fn get_logger(&self) -> &Arc<FileSystemLogger> {
-        &self.file_system_logger
     }
 }
