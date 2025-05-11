@@ -15,11 +15,14 @@ use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::commands::scan_results::add_to_project::scan_results_add_to_project_request::ScanResultsAddToProjectRequest;
+use squalr_engine_api::commands::scan_results::delete::scan_results_delete_request::ScanResultsDeleteRequest;
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
+use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
 use squalr_engine_api::structures::scan_results::scan_result_valued::ScanResultValued;
 use squalr_engine_common::conversions::Conversions;
 use std::sync::Arc;
@@ -76,9 +79,10 @@ impl ScanResultsViewModel {
                     on_navigate_last_page() -> [view] -> Self::on_navigate_last_page,
                     on_navigate_previous_page() -> [view] -> Self::on_navigate_previous_page,
                     on_navigate_next_page() -> [view] -> Self::on_navigate_next_page,
-                    on_add_result_range(local_start_index: i32, local_end_index: i32) -> [] -> Self::on_add_result_range,
                     on_page_index_text_changed(new_page_index_text: SharedString) -> [view] -> Self::on_page_index_text_changed,
-                    on_delete_scan_result(local_scan_result_index: i32) -> [engine_execution_context] -> Self::on_delete_scan_result,
+                    on_select_scan_results(local_scan_result_indices: ModelRc<i32>) -> [engine_execution_context, base_scan_results_collection] -> Self::on_select_scan_results,
+                    on_add_scan_results_to_project(local_scan_result_indices: ModelRc<i32>) -> [engine_execution_context, base_scan_results_collection] -> Self::on_add_scan_results_to_project,
+                    on_delete_scan_results(local_scan_result_index: ModelRc<i32>) -> [engine_execution_context, base_scan_results_collection] -> Self::on_delete_scan_results,
                     on_set_scan_results_frozen(local_scan_result_indices: ModelRc<i32>, is_frozen: bool) -> [engine_execution_context, base_scan_results_collection] -> Self::on_set_scan_results_frozen,
                 },
             });
@@ -215,12 +219,6 @@ impl ScanResultsViewModel {
         Self::query_scan_results(scan_results_view_model_clone, false);
     }
 
-    fn on_add_result_range(
-        start_index: i32,
-        end_index: i32,
-    ) {
-    }
-
     fn on_page_index_text_changed(
         scan_results_view_model: Arc<ScanResultsViewModel>,
         new_page_index_text: SharedString,
@@ -261,10 +259,44 @@ impl ScanResultsViewModel {
         Self::set_page_index(scan_results_view_model, new_page_index);
     }
 
-    fn on_delete_scan_result(
+    fn on_select_scan_results(
         engine_execution_context: Arc<EngineExecutionContext>,
-        scan_result_index: i32,
+        base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
+        local_scan_result_indices: ModelRc<i32>,
     ) {
+        let scan_results = Self::collect_scan_results_by_indicies(base_scan_results_collection, local_scan_result_indices);
+
+        if !scan_results.is_empty() {
+            //
+        }
+    }
+
+    fn on_add_scan_results_to_project(
+        engine_execution_context: Arc<EngineExecutionContext>,
+        base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
+        local_scan_result_indices: ModelRc<i32>,
+    ) {
+        let scan_results = Self::collect_scan_results_by_indicies(base_scan_results_collection, local_scan_result_indices);
+
+        if !scan_results.is_empty() {
+            let scan_results_add_to_project_request = ScanResultsAddToProjectRequest { scan_results };
+
+            scan_results_add_to_project_request.send(&engine_execution_context, |_response| {});
+        }
+    }
+
+    fn on_delete_scan_results(
+        engine_execution_context: Arc<EngineExecutionContext>,
+        base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
+        local_scan_result_indices: ModelRc<i32>,
+    ) {
+        let scan_results = Self::collect_scan_results_by_indicies(base_scan_results_collection, local_scan_result_indices);
+
+        if !scan_results.is_empty() {
+            let scan_results_delete_request = ScanResultsDeleteRequest { scan_results };
+
+            scan_results_delete_request.send(&engine_execution_context, |_response| {});
+        }
     }
 
     fn on_set_scan_results_frozen(
@@ -273,24 +305,32 @@ impl ScanResultsViewModel {
         local_scan_result_indices: ModelRc<i32>,
         is_frozen: bool,
     ) {
-        // Gather the current/incomplete scan results.
-        let scan_results_to_refresh = match base_scan_results_collection.read() {
-            Ok(base_scan_results_collection) => base_scan_results_collection.clone(),
-            Err(_) => vec![],
-        };
-        let scan_results: Vec<_> = (0..local_scan_result_indices.row_count())
-            .filter_map(|i| local_scan_result_indices.row_data(i))
-            .filter_map(|index| {
-                scan_results_to_refresh
-                    .get(index as usize)
-                    .map(|r| r.get_scan_result_base().clone())
-            })
-            .collect();
+        let scan_results = Self::collect_scan_results_by_indicies(base_scan_results_collection, local_scan_result_indices);
 
         if !scan_results.is_empty() {
             let scan_results_freeze_request = ScanResultsFreezeRequest { scan_results, is_frozen };
 
             scan_results_freeze_request.send(&engine_execution_context, |_response| {});
         }
+    }
+
+    fn collect_scan_results_by_indicies(
+        base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
+        local_scan_result_indices: ModelRc<i32>,
+    ) -> Vec<ScanResultBase> {
+        let current_scan_results = match base_scan_results_collection.read() {
+            Ok(base_scan_results_collection) => base_scan_results_collection.clone(),
+            Err(_) => vec![],
+        };
+        let scan_results: Vec<ScanResultBase> = (0..local_scan_result_indices.row_count())
+            .filter_map(|index| local_scan_result_indices.row_data(index))
+            .filter_map(|index| {
+                current_scan_results
+                    .get(index as usize)
+                    .map(|scan_result_valued| scan_result_valued.get_scan_result_base().clone())
+            })
+            .collect();
+
+        scan_results
     }
 }

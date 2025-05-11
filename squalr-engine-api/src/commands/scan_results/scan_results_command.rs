@@ -1,3 +1,5 @@
+use crate::commands::scan_results::add_to_project::scan_results_add_to_project_request::ScanResultsAddToProjectRequest;
+use crate::commands::scan_results::delete::scan_results_delete_request::ScanResultsDeleteRequest;
 use crate::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use crate::commands::scan_results::list::scan_results_list_request::ScanResultsListRequest;
 use crate::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
@@ -23,6 +25,11 @@ pub enum ScanResultsCommand {
         #[structopt(flatten)]
         results_refresh_request: ScanResultsRefreshRequest,
     },
+    /// Adds a specified set of scan results to the opened project.
+    AddToProject {
+        #[structopt(flatten)]
+        results_add_to_project_request: ScanResultsAddToProjectRequest,
+    },
     /// Freezes a specified set of scan result addresses to their current value.
     Freeze {
         #[structopt(flatten)]
@@ -32,5 +39,10 @@ pub enum ScanResultsCommand {
     SetProperty {
         #[structopt(flatten)]
         results_set_property_request: ScanResultsSetPropertyRequest,
+    },
+    /// Deletes a specified set of scan results.
+    Delete {
+        #[structopt(flatten)]
+        results_delete_request: ScanResultsDeleteRequest,
     },
 }

@@ -1,3 +1,5 @@
+use crate::commands::scan_results::add_to_project::scan_results_add_to_project_response::ScanResultsAddToProjectResponse;
+use crate::commands::scan_results::delete::scan_results_delete_response::ScanResultsDeleteResponse;
 use crate::commands::scan_results::freeze::scan_results_freeze_response::ScanResultsFreezeResponse;
 use crate::commands::scan_results::list::scan_results_list_response::ScanResultsListResponse;
 use crate::commands::scan_results::query::scan_results_query_response::ScanResultsQueryResponse;
@@ -16,10 +18,16 @@ pub enum ScanResultsResponse {
     Refresh {
         scan_results_refresh_response: ScanResultsRefreshResponse,
     },
+    AddToProject {
+        scan_results_add_to_project_response: ScanResultsAddToProjectResponse,
+    },
     Freeze {
         scan_results_freeze_response: ScanResultsFreezeResponse,
     },
     SetProperty {
         scan_results_set_property_response: ScanResultsSetPropertyResponse,
+    },
+    Delete {
+        scan_results_delete_response: ScanResultsDeleteResponse,
     },
 }
