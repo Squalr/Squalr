@@ -17,17 +17,20 @@ fn android_main(app: slint::android::AndroidApp) {
         return;
     }
 
-    let squalr_engine = SqualrEngine::new(EngineMode::UnprivilegedHost);
-    let engine_execution_context = squalr_engine
-        .get_engine_execution_context()
-        .as_ref()
-        .unwrap_or_else(|| panic!("Engine context failed to initialize."));
+    // Create an unprivileged engine host (on android, the privileged engine is spawned as a new process).
+    let mut squalr_engine = match SqualrEngine::new(EngineMode::UnprivilegedHost) {
+        Ok(squalr_engine) => squalr_engine,
+        Err(err) => panic!("Fatal error initializing Squalr engine: {}", err),
+    };
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
-    let _main_window_view = MainWindowViewModel::new(engine_execution_context, squalr_engine.get_logger());
+    let _main_window_view = match MainWindowViewModel::new(squalr_engine.get_dependency_container_mut()) {
+        Ok(main_window_view) => main_window_view,
+        Err(err) => panic!("Fatal error creating Squalr GUI: {}", err),
+    };
 
-    // Start the log event sending now that both the GUI and engine are ready to receive log messages.
-    squalr_engine.get_logger().start_log_event_sender();
+    // Now that gui dependencies are registered, start the engine fully.
+    squalr_engine.initialize();
 
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {

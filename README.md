@@ -28,6 +28,7 @@ Additionally, we support a CLI build, which is actually pretty easy to do, since
 Launch Checklist:
 - [X] Custom installer and auto updater from Git tags. (The auto updater Rust crate is not GCC compatible, and MSVC sucks with Rust, so we're rolling our own updater).
 - [X] Dockable window system.
+- [X] Dependency Injection framework for GUI and engine.
 - [X] Command/Response system, with IPC support for rooted Android devices.
 - [X] Scan result display.
 - [X] Integer Scans.
@@ -45,7 +46,6 @@ Launch Checklist:
 - [ ] String Encoding selection from UI.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 - [ ] Property viewer in the GUI that can register an active set of properties for editing.
-- [ ] Dependency Injection for GUI. Possibly for engine?
 
 ## Post-launch tasklist
 Lower priority features that we can defer, for now.

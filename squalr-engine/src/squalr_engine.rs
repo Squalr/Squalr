@@ -1,3 +1,5 @@
+use crate::app_provisioner::progress_tracker::ProgressTracker;
+use crate::app_provisioner::updater::app_updater::AppUpdater;
 use crate::engine_execution_context::EngineExecutionContext;
 use crate::engine_mode::EngineMode;
 use crate::engine_privileged_state::EnginePrivilegedState;
@@ -75,6 +77,8 @@ impl SqualrEngine {
         if let Err(err) = self.dependency_container.build() {
             log::error!("Error initializing dependencies: {}", err);
         }
+
+        AppUpdater::run_update(ProgressTracker::new());
     }
 
     pub fn get_engine_execution_context(&self) -> &Option<Arc<EngineExecutionContext>> {
