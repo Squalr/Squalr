@@ -1,7 +1,6 @@
 use crate::MainWindowView;
 use crate::ProjectExplorerViewModelBindings;
 use crate::ProjectViewData;
-use crate::view_models::dependency_container::DependencyContainer;
 use crate::view_models::project_explorer::project_info_comparer::ProjectInfoComparer;
 use crate::view_models::project_explorer::project_info_converter::ProjectInfoConverter;
 use slint::ComponentHandle;
@@ -20,6 +19,7 @@ use squalr_engine_api::commands::project::list::project_list_request::ProjectLis
 use squalr_engine_api::commands::project::open::project_open_request::ProjectOpenRequest;
 use squalr_engine_api::commands::project::rename::project_rename_request::ProjectRenameRequest;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::events::project::closed::project_closed_event::ProjectClosedEvent;
 use squalr_engine_api::events::project::created::project_created_event::ProjectCreatedEvent;
 use squalr_engine_api::events::project::deleted::project_deleted_event::ProjectDeletedEvent;
@@ -35,11 +35,9 @@ pub struct ProjectExplorerViewModel {
 }
 
 impl ProjectExplorerViewModel {
-    pub fn new(
-        dependency_container: &DependencyContainer,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> anyhow::Result<Arc<Self>> {
+    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
         let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
+        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
 
         // Create a binding that allows us to easily update the view's project list.
         let project_list_collection = create_view_model_collection!(

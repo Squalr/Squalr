@@ -1,4 +1,3 @@
-use crate::view_models::dependency_container::DependencyContainer;
 use crate::view_models::settings::{
     floating_point_tolerance_converter::FloatingPointToleranceConverter, memory_alignment_converter::MemoryAlignmentConverter,
     memory_read_mode_converter::MemoryReadModeConverter,
@@ -10,6 +9,7 @@ use slint_mvvm::{view_binding::ViewBinding, view_data_converter::ViewDataConvert
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::{command_executors::engine_request_executor::EngineCommandRequestExecutor, engine_execution_context::EngineExecutionContext};
 use squalr_engine_api::commands::settings::scan::set::scan_settings_set_request::ScanSettingsSetRequest;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::{
     commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest, structures::memory::memory_alignment::MemoryAlignment,
 };
@@ -21,11 +21,10 @@ pub struct ScanSettingsViewModel {
 }
 
 impl ScanSettingsViewModel {
-    pub fn new(
-        dependency_container: &DependencyContainer,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> anyhow::Result<Arc<Self>> {
+    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
         let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
+        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
+
         let view = Arc::new(ScanSettingsViewModel {
             view_binding: view_binding.clone(),
             engine_execution_context: engine_execution_context.clone(),

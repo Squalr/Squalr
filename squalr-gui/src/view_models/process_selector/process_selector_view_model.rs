@@ -1,7 +1,6 @@
 use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
-use crate::view_models::dependency_container::DependencyContainer;
 use crate::view_models::process_selector::opened_process_info_converter::OpenedProcessInfoConverter;
 use crate::view_models::process_selector::process_info_comparer::ProcessInfoComparer;
 use crate::view_models::process_selector::process_info_converter::ProcessInfoConverter;
@@ -16,6 +15,7 @@ use squalr_engine::command_executors::engine_request_executor::EngineCommandRequ
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::process::list::process_list_request::ProcessListRequest;
 use squalr_engine_api::commands::process::open::process_open_request::ProcessOpenRequest;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::events::process::changed::process_changed_event::ProcessChangedEvent;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
@@ -29,11 +29,10 @@ pub struct ProcessSelectorViewModel {
 }
 
 impl ProcessSelectorViewModel {
-    pub fn new(
-        dependency_container: &DependencyContainer,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> anyhow::Result<Arc<Self>> {
+    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
         let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
+        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
+
         // Create a binding that allows us to easily update the view's process list.
         let full_process_list_collection = create_view_model_collection!(
             view_binding -> MainWindowView,

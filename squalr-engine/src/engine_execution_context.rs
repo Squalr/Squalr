@@ -62,8 +62,12 @@ impl EngineExecutionContext {
         }
 
         self.start_event_dispatcher();
+
+        // Start the log event sending now that the engine is initialized. This will send all backlogged messages to listeners.
+        self.get_logger().start_log_event_sender();
     }
 
+    /// Gets the file system logger that routes log events to the log file.
     pub fn get_logger(&self) -> &Arc<FileSystemLogger> {
         &self.file_system_logger
     }

@@ -2,8 +2,6 @@ use crate::MainWindowView;
 use crate::WindowViewModelBindings;
 use crate::models::audio::audio_player::AudioPlayer;
 use crate::view_models::conversions_view_model::conversions_view_model::ConversionsViewModel;
-use crate::view_models::dependency_container::DependencyContainer;
-use crate::view_models::dependency_container_builder::DependencyContainerBuilder;
 use crate::view_models::docking::dock_root_view_model::DockRootViewModel;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
@@ -17,96 +15,37 @@ use crate::view_models::validation_view_model::validation_view_model::Validation
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
-use squalr_engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::dependency_injection::dependency_container_builder::DependencyContainerBuilder;
 use std::sync::Arc;
 
-pub struct MainWindowViewModel {
-    _dependency_container: Arc<DependencyContainer>,
-}
+pub struct MainWindowViewModel {}
 
 impl MainWindowViewModel {
-    pub fn new(engine_execution_context: &Arc<EngineExecutionContext>) -> anyhow::Result<Arc<Self>> {
+    pub fn new(dependency_container_builder: &mut DependencyContainerBuilder) -> anyhow::Result<Arc<Self>> {
         let view = MainWindowView::new().unwrap();
         let view_binding = Arc::new(ViewBinding::new(ComponentHandle::as_weak(&view)));
-        let mut dependency_container_builder = DependencyContainerBuilder::new();
-        let engine_execution_context = engine_execution_context.clone();
 
-        dependency_container_builder.register::<AudioPlayer, _>(|_dependency_container| Ok(Arc::new(AudioPlayer::new())));
+        dependency_container_builder.register(|_dependency_container| Ok(Arc::new(AudioPlayer::new())));
 
         {
             let view_binding = view_binding.clone();
 
-            dependency_container_builder.register::<ViewBinding<MainWindowView>, _>(move |_dependency_container| Ok(view_binding.clone()));
+            dependency_container_builder.register(move |_dependency_container| Ok(view_binding.clone()));
         }
 
-        {
-            let engine_execution_context = engine_execution_context.clone();
+        dependency_container_builder.register(move |dependency_container| DockRootViewModel::new(dependency_container));
+        dependency_container_builder.register(move |dependency_container| ScannerViewModel::new(dependency_container));
+        dependency_container_builder.register(move |dependency_container| MemorySettingsViewModel::new(dependency_container));
+        dependency_container_builder.register(move |dependency_container| OutputViewModel::new(dependency_container));
+        dependency_container_builder.register(move |dependency_container| ProcessSelectorViewModel::new(dependency_container));
+        dependency_container_builder.register(move |dependency_container| ProjectExplorerViewModel::new(dependency_container));
+        dependency_container_builder.register(move |dependency_container| PropertyViewerViewModel::new(dependency_container));
+        dependency_container_builder.register(move |dependency_container| ScanSettingsViewModel::new(dependency_container));
+        dependency_container_builder.register(move |dependency_container| ScanResultsViewModel::new(dependency_container));
+        dependency_container_builder.register(move |dependency_container| ConversionsViewModel::new(dependency_container));
+        dependency_container_builder.register(move |dependency_container| ValidationViewModel::new(dependency_container));
 
-            dependency_container_builder.register(move |dependency_container| DockRootViewModel::new(dependency_container, engine_execution_context.clone()));
-        }
-        {
-            let engine_execution_context = engine_execution_context.clone();
-
-            dependency_container_builder.register(move |dependency_container| ScannerViewModel::new(dependency_container, engine_execution_context.clone()));
-        }
-        {
-            let engine_execution_context = engine_execution_context.clone();
-
-            dependency_container_builder
-                .register(move |dependency_container| MemorySettingsViewModel::new(dependency_container, engine_execution_context.clone()));
-        }
-        {
-            let engine_execution_context = engine_execution_context.clone();
-
-            dependency_container_builder.register(move |dependency_container| OutputViewModel::new(dependency_container, engine_execution_context.clone()));
-        }
-        {
-            let engine_execution_context = engine_execution_context.clone();
-
-            dependency_container_builder
-                .register(move |dependency_container| ProcessSelectorViewModel::new(dependency_container, engine_execution_context.clone()));
-        }
-        {
-            let engine_execution_context = engine_execution_context.clone();
-
-            dependency_container_builder
-                .register(move |dependency_container| ProjectExplorerViewModel::new(dependency_container, engine_execution_context.clone()));
-        }
-        {
-            let engine_execution_context = engine_execution_context.clone();
-
-            dependency_container_builder
-                .register(move |dependency_container| PropertyViewerViewModel::new(dependency_container, engine_execution_context.clone()));
-        }
-        {
-            let engine_execution_context = engine_execution_context.clone();
-
-            dependency_container_builder
-                .register(move |dependency_container| ScanSettingsViewModel::new(dependency_container, engine_execution_context.clone()));
-        }
-        {
-            let engine_execution_context = engine_execution_context.clone();
-
-            dependency_container_builder
-                .register(move |dependency_container| ScanResultsViewModel::new(dependency_container, engine_execution_context.clone()));
-        }
-        {
-            let engine_execution_context = engine_execution_context.clone();
-
-            dependency_container_builder
-                .register(move |dependency_container| ConversionsViewModel::new(dependency_container, engine_execution_context.clone()));
-        }
-        {
-            let engine_execution_context = engine_execution_context.clone();
-
-            dependency_container_builder.register(move |dependency_container| ValidationViewModel::new(dependency_container, engine_execution_context.clone()));
-        }
-
-        let dependency_container = dependency_container_builder.build()?;
-
-        let view = Arc::new(MainWindowViewModel {
-            _dependency_container: Arc::new(dependency_container),
-        });
+        let view = Arc::new(MainWindowViewModel {});
 
         create_view_bindings!(view_binding, {
             WindowViewModelBindings => {

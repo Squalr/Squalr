@@ -1,4 +1,4 @@
-use crate::view_models::dependency_container::DependencyContainer;
+use crate::dependency_injection::dependency_container::DependencyContainer;
 use std::any::Any;
 use std::any::TypeId;
 use std::sync::Arc;
@@ -34,13 +34,13 @@ impl DependencyContainerBuilder {
         ));
     }
 
-    pub fn build(self) -> anyhow::Result<DependencyContainer> {
+    pub fn build(&self) -> anyhow::Result<DependencyContainer> {
         let mut container = DependencyContainer::new();
 
-        for (type_id, type_name, factory) in self.factories {
+        for (type_id, type_name, factory) in &self.factories {
             match factory(&container) {
                 Ok(instance) => {
-                    container.register(type_id, instance);
+                    container.register(*type_id, instance);
                 }
                 Err(err) => {
                     log::error!("Failed to create instance for type `{}`: {}", type_name, err);

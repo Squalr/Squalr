@@ -5,6 +5,7 @@ use squalr_engine::app_provisioner::progress_tracker::ProgressTracker;
 use squalr_engine::app_provisioner::updater::app_updater::AppUpdater;
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
+use squalr_engine_api::dependency_injection::dependency_container_builder::DependencyContainerBuilder;
 use squalr_gui::view_models::main_window::main_window_view_model::MainWindowViewModel;
 
 pub fn main() {
@@ -14,21 +15,23 @@ pub fn main() {
         std::env::set_var("SLINT_BACKEND", "winit-software");
     }
 
-    let squalr_engine = SqualrEngine::new(EngineMode::Standalone);
-    let engine_execution_context = squalr_engine
-        .get_engine_execution_context()
-        .as_ref()
-        .unwrap_or_else(|| panic!("Engine context failed to initialize."));
+    // Create the dependency injection builder, into which plugins and the GUI can register services.
+    let mut dependency_container_builder = DependencyContainerBuilder::new();
+
+    let squalr_engine = match SqualrEngine::new(EngineMode::Standalone, &mut dependency_container_builder) {
+        Ok(squalr_engine) => squalr_engine,
+        Err(err) => panic!("Fatal error initializing Squalr engine: {}", err),
+    };
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
-    let main_window_view = MainWindowViewModel::new(engine_execution_context);
+    let _main_window_view = match MainWindowViewModel::new(&mut dependency_container_builder) {
+        Ok(main_window_view) => main_window_view,
+        Err(err) => panic!("Fatal error creating Squalr GUI: {}", err),
+    };
 
-    if let Err(err) = main_window_view {
-        panic!("Fatal error creating Squalr GUI: {}", err);
-    }
+    let _dependency_container = dependency_container_builder.build();
 
-    // Start the log event sending now that both the GUI and engine are ready to receive log messages.
-    engine_execution_context.get_logger().start_log_event_sender();
+    squalr_engine.initialize();
 
     AppUpdater::run_update(ProgressTracker::new());
 
@@ -36,7 +39,7 @@ pub fn main() {
     match slint::run_event_loop() {
         Ok(_) => {}
         Err(err) => {
-            panic!("Fatal error starting Squalr: {}", err);
+            panic!("Fatal error in Squalr event loop: {}", err);
         }
     }
 }

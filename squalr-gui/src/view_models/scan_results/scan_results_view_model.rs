@@ -3,7 +3,6 @@ use crate::ScanResultViewData;
 use crate::ScanResultsViewModelBindings;
 use crate::models::audio::audio_player::AudioPlayer;
 use crate::models::audio::audio_player::SoundType;
-use crate::view_models::dependency_container::DependencyContainer;
 use crate::view_models::scan_results::scan_result_comparer::ScanResultComparer;
 use crate::view_models::scan_results::scan_result_converter::ScanResultConverter;
 use slint::ComponentHandle;
@@ -21,6 +20,7 @@ use squalr_engine_api::commands::scan_results::delete::scan_results_delete_reque
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
@@ -44,11 +44,9 @@ pub struct ScanResultsViewModel {
 }
 
 impl ScanResultsViewModel {
-    pub fn new(
-        dependency_container: &DependencyContainer,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> anyhow::Result<Arc<Self>> {
+    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
         let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
+        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
         let audio_player = dependency_container.resolve::<AudioPlayer>()?;
 
         // Create a binding that allows us to easily update the view's scan results.

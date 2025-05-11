@@ -7,8 +7,7 @@ use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
-use crate::view_models::dependency_container::DependencyContainer;
-use crate::view_models::docking::dock_target_converter::DocktargetConverter;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;use crate::view_models::docking::dock_target_converter::DocktargetConverter;
 use crate::view_models::docking::dock_window_converter::DockWindowConverter;
 use slint::ComponentHandle;
 use slint::SharedString;
@@ -25,13 +24,10 @@ pub struct DockRootViewModel {
 }
 
 impl DockRootViewModel {
-    pub fn new(
-        dependency_container: &DependencyContainer,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> anyhow::Result<Arc<Self>> {
+    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
+        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
         let main_dock_root = DockableWindowSettings::get_dock_layout_settings();
         let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));
-        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
 
         let view = Arc::new(DockRootViewModel {
             view_binding: view_binding.clone(),

@@ -1,6 +1,8 @@
 use crate::engine_execution_context::EngineExecutionContext;
 use crate::engine_mode::EngineMode;
 use crate::engine_privileged_state::EnginePrivilegedState;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use squalr_engine_api::dependency_injection::dependency_container_builder::DependencyContainerBuilder;
 use squalr_engine_architecture::vectors::Vectors;
 use std::sync::Arc;
 
@@ -14,7 +16,10 @@ pub struct SqualrEngine {
 }
 
 impl SqualrEngine {
-    pub fn new(engine_mode: EngineMode) -> Self {
+    pub fn new(
+        engine_mode: EngineMode,
+        dependency_container_builder: &mut DependencyContainerBuilder,
+    ) -> anyhow::Result<Self> {
         let mut engine_privileged_state = None;
         let mut engine_execution_context = None;
 
@@ -31,17 +36,22 @@ impl SqualrEngine {
             }
         }
 
+        // Register the engine execution context for dependency injection use.
+        if let Some(engine_execution_context) = engine_execution_context.as_ref() {
+            let engine_execution_context = engine_execution_context.clone();
+
+            dependency_container_builder.register(move |_dependency_container: &DependencyContainer| Ok(engine_execution_context.clone()));
+        }
+
         let squalr_engine = SqualrEngine {
             engine_privileged_state,
             engine_execution_context,
         };
 
-        squalr_engine.initialize();
-
-        squalr_engine
+        Ok(squalr_engine)
     }
 
-    fn initialize(&self) {
+    pub fn initialize(&self) {
         log::info!("Squalr started");
         log::info!(
             "CPU vector size for accelerated scans: {:?} bytes ({:?} bits), architecture: {}",

@@ -1,12 +1,12 @@
 use crate::DataTypeView;
 use crate::MainWindowView;
 use crate::ValidationViewModelBindings;
-use crate::view_models::dependency_container::DependencyContainer;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use std::sync::Arc;
@@ -17,11 +17,9 @@ pub struct ValidationViewModel {
 }
 
 impl ValidationViewModel {
-    pub fn new(
-        dependency_container: &DependencyContainer,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> anyhow::Result<Arc<Self>> {
+    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
         let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
+        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
         let view = Arc::new(ValidationViewModel {
             _view_binding: view_binding.clone(),
             _engine_execution_context: engine_execution_context.clone(),

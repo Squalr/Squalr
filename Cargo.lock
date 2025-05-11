@@ -5541,6 +5541,7 @@ dependencies = [
  "slint-mvvm",
  "slint-mvvm-macros",
  "squalr-engine",
+ "squalr-engine-api",
  "squalr-gui",
  "winresource",
 ]

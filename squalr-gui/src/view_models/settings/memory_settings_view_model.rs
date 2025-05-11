@@ -1,6 +1,5 @@
 use crate::MainWindowView;
 use crate::MemorySettingsViewModelBindings;
-use crate::view_models::dependency_container::DependencyContainer;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
@@ -8,6 +7,7 @@ use squalr_engine::command_executors::engine_request_executor::EngineCommandRequ
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::settings::memory::list::memory_settings_list_request::MemorySettingsListRequest;
 use squalr_engine_api::commands::settings::memory::set::memory_settings_set_request::MemorySettingsSetRequest;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use std::sync::Arc;
 
 pub struct MemorySettingsViewModel {
@@ -16,11 +16,9 @@ pub struct MemorySettingsViewModel {
 }
 
 impl MemorySettingsViewModel {
-    pub fn new(
-        dependency_container: &DependencyContainer,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> anyhow::Result<Arc<Self>> {
+    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
         let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
+        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
         let view = Arc::new(MemorySettingsViewModel {
             view_binding: view_binding.clone(),
             engine_execution_context: engine_execution_context.clone(),

@@ -4,7 +4,6 @@ use crate::MemoryAlignmentView;
 use crate::ScanConstraintTypeView;
 use crate::ScannerViewModelBindings;
 use crate::ValueCollectorViewModelBindings;
-use crate::view_models::dependency_container::DependencyContainer;
 use crate::view_models::scanners::scan_constraint_converter::ScanConstraintConverter;
 use crate::view_models::settings::memory_alignment_converter::MemoryAlignmentConverter;
 use slint::ComponentHandle;
@@ -18,6 +17,7 @@ use squalr_engine_api::commands::scan::collect_values::scan_collect_values_reque
 use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecuteRequest;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::reset::scan_reset_request::ScanResetRequest;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
@@ -40,11 +40,9 @@ pub struct ScannerViewModel {
 }
 
 impl ScannerViewModel {
-    pub fn new(
-        dependency_container: &DependencyContainer,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> anyhow::Result<Arc<Self>> {
+    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
         let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
+        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
         let view = Arc::new(ScannerViewModel {
             view_binding: view_binding.clone(),
             engine_execution_context: engine_execution_context.clone(),
