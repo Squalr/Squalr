@@ -15,35 +15,35 @@ use crate::view_models::validation_view_model::validation_view_model::Validation
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
-use squalr_engine_api::dependency_injection::dependency_container_builder::DependencyContainerBuilder;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use std::sync::Arc;
 
 pub struct MainWindowViewModel {}
 
 impl MainWindowViewModel {
-    pub fn new(dependency_container_builder: &mut DependencyContainerBuilder) -> anyhow::Result<Arc<Self>> {
+    pub fn new(dependency_container: &mut DependencyContainer) -> anyhow::Result<Arc<Self>> {
         let view = MainWindowView::new().unwrap();
         let view_binding = Arc::new(ViewBinding::new(ComponentHandle::as_weak(&view)));
 
-        dependency_container_builder.register(|_dependency_container| Ok(Arc::new(AudioPlayer::new())));
+        dependency_container.register(|_dependency_container| Ok(Arc::new(AudioPlayer::new())));
 
         {
             let view_binding = view_binding.clone();
 
-            dependency_container_builder.register(move |_dependency_container| Ok(view_binding.clone()));
+            dependency_container.register(move |_dependency_container| Ok(view_binding.clone()));
         }
 
-        dependency_container_builder.register(move |dependency_container| DockRootViewModel::new(dependency_container));
-        dependency_container_builder.register(move |dependency_container| ScannerViewModel::new(dependency_container));
-        dependency_container_builder.register(move |dependency_container| MemorySettingsViewModel::new(dependency_container));
-        dependency_container_builder.register(move |dependency_container| OutputViewModel::new(dependency_container));
-        dependency_container_builder.register(move |dependency_container| ProcessSelectorViewModel::new(dependency_container));
-        dependency_container_builder.register(move |dependency_container| ProjectExplorerViewModel::new(dependency_container));
-        dependency_container_builder.register(move |dependency_container| PropertyViewerViewModel::new(dependency_container));
-        dependency_container_builder.register(move |dependency_container| ScanSettingsViewModel::new(dependency_container));
-        dependency_container_builder.register(move |dependency_container| ScanResultsViewModel::new(dependency_container));
-        dependency_container_builder.register(move |dependency_container| ConversionsViewModel::new(dependency_container));
-        dependency_container_builder.register(move |dependency_container| ValidationViewModel::new(dependency_container));
+        dependency_container.register(move |dependency_container| DockRootViewModel::new(dependency_container));
+        dependency_container.register(move |dependency_container| ScannerViewModel::new(dependency_container));
+        dependency_container.register(move |dependency_container| MemorySettingsViewModel::new(dependency_container));
+        dependency_container.register(move |dependency_container| OutputViewModel::new(dependency_container));
+        dependency_container.register(move |dependency_container| ProcessSelectorViewModel::new(dependency_container));
+        dependency_container.register(move |dependency_container| ProjectExplorerViewModel::new(dependency_container));
+        dependency_container.register(move |dependency_container| PropertyViewerViewModel::new(dependency_container));
+        dependency_container.register(move |dependency_container| ScanSettingsViewModel::new(dependency_container));
+        dependency_container.register(move |dependency_container| ScanResultsViewModel::new(dependency_container));
+        dependency_container.register(move |dependency_container| ConversionsViewModel::new(dependency_container));
+        dependency_container.register(move |dependency_container| ValidationViewModel::new(dependency_container));
 
         let view = Arc::new(MainWindowViewModel {});
 

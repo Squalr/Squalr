@@ -5,7 +5,6 @@ use squalr_engine::app_provisioner::progress_tracker::ProgressTracker;
 use squalr_engine::app_provisioner::updater::app_updater::AppUpdater;
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
-use squalr_engine_api::dependency_injection::dependency_container_builder::DependencyContainerBuilder;
 use squalr_gui::view_models::main_window::main_window_view_model::MainWindowViewModel;
 
 pub fn main() {
@@ -15,21 +14,16 @@ pub fn main() {
         std::env::set_var("SLINT_BACKEND", "winit-software");
     }
 
-    // Create the dependency injection builder, into which plugins and the GUI can register services.
-    let mut dependency_container_builder = DependencyContainerBuilder::new();
-
-    let squalr_engine = match SqualrEngine::new(EngineMode::Standalone, &mut dependency_container_builder) {
+    let mut squalr_engine = match SqualrEngine::new(EngineMode::Standalone) {
         Ok(squalr_engine) => squalr_engine,
         Err(err) => panic!("Fatal error initializing Squalr engine: {}", err),
     };
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
-    let _main_window_view = match MainWindowViewModel::new(&mut dependency_container_builder) {
+    let _main_window_view = match MainWindowViewModel::new(squalr_engine.get_dependency_container_mut()) {
         Ok(main_window_view) => main_window_view,
         Err(err) => panic!("Fatal error creating Squalr GUI: {}", err),
     };
-
-    let _dependency_container = dependency_container_builder.build();
 
     squalr_engine.initialize();
 

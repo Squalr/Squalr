@@ -1,26 +1,69 @@
-use anyhow::anyhow;
+use anyhow::{Result, anyhow};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+type Factory = Box<dyn Fn(&DependencyContainer) -> Result<Arc<dyn Any + Send + Sync>>>;
+
 pub struct DependencyContainer {
     services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
+    factories: HashMap<TypeId, (String, Factory)>,
+    built: bool,
 }
 
 impl DependencyContainer {
     pub fn new() -> Self {
-        Self { services: HashMap::new() }
+        Self {
+            services: HashMap::new(),
+            factories: HashMap::new(),
+            built: false,
+        }
     }
 
-    pub fn register(
+    pub fn register<T, F>(
         &mut self,
-        type_id: TypeId,
-        service: Arc<dyn Any + Send + Sync>,
-    ) {
-        self.services.insert(type_id, service);
+        factory: F,
+    ) where
+        T: Send + Sync + 'static,
+        F: Fn(&DependencyContainer) -> Result<Arc<T>> + 'static,
+    {
+        let type_id = TypeId::of::<T>();
+        let type_name = std::any::type_name::<T>().to_string();
+
+        self.factories.insert(
+            type_id,
+            (
+                type_name,
+                Box::new(move |container| {
+                    let val = factory(container)?;
+                    Ok(val as Arc<dyn Any + Send + Sync>)
+                }),
+            ),
+        );
     }
 
-    pub fn resolve<T: Send + Sync + 'static>(&self) -> anyhow::Result<Arc<T>> {
+    pub fn build(&mut self) -> Result<()> {
+        if self.built {
+            return Err(anyhow!("DependencyContainer has already been built."));
+        }
+
+        for (type_id, (type_name, factory)) in &self.factories {
+            match factory(self) {
+                Ok(instance) => {
+                    self.services.insert(*type_id, instance);
+                }
+                Err(err) => {
+                    log::error!("Failed to create instance for type `{}`: {}", type_name, err);
+                }
+            }
+        }
+
+        self.factories.clear(); // clear factories to free memory
+        self.built = true;
+        Ok(())
+    }
+
+    pub fn resolve<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
         self.services
             .get(&TypeId::of::<T>())
             .ok_or_else(|| anyhow!("Dependency not found: {}", std::any::type_name::<T>()))?
