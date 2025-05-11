@@ -22,9 +22,9 @@ use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use std::sync::Arc;
 
 pub struct ProcessSelectorViewModel {
-    _view_binding: Arc<ViewBinding<MainWindowView>>,
-    _full_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
-    _windowed_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
+    view_binding: Arc<ViewBinding<MainWindowView>>,
+    full_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
+    windowed_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
     engine_execution_context: Arc<EngineExecutionContext>,
 }
 
@@ -49,63 +49,62 @@ impl ProcessSelectorViewModel {
             ProcessInfoComparer -> [],
         );
 
-        let view = Arc::new(ProcessSelectorViewModel {
-            _view_binding: view_binding.clone(),
-            _full_process_list_collection: full_process_list_collection.clone(),
-            _windowed_process_list_collection: windowed_process_list_collection.clone(),
-            engine_execution_context: engine_execution_context.clone(),
+        let view_model = Arc::new(ProcessSelectorViewModel {
+            view_binding: view_binding.clone(),
+            full_process_list_collection,
+            windowed_process_list_collection,
+            engine_execution_context,
         });
 
-        // Route all view bindings to Rust.
-        create_view_bindings!(view_binding, {
-            ProcessSelectorViewModelBindings => {
-                on_refresh_full_process_list() -> [full_process_list_collection, engine_execution_context] -> Self::on_refresh_full_process_list
-                on_refresh_windowed_process_list() -> [windowed_process_list_collection, engine_execution_context] -> Self::on_refresh_windowed_process_list
-                on_select_process(process_entry: ProcessViewData) -> [view_binding, engine_execution_context] -> Self::on_select_process
-            }
-        });
+        {
+            let view_model = view_model.clone();
 
-        view.listen_for_process_change(view_binding.clone());
+            // Route all view bindings to Rust.
+            create_view_bindings!(view_binding, {
+                ProcessSelectorViewModelBindings => {
+                    on_refresh_full_process_list() -> [view_model] -> Self::on_refresh_full_process_list
+                    on_refresh_windowed_process_list() -> [view_model] -> Self::on_refresh_windowed_process_list
+                    on_select_process(process_entry: ProcessViewData) -> [view_model] -> Self::on_select_process
+                }
+            });
+        }
 
-        Ok(view)
+        Self::listen_for_process_change(view_model.clone());
+
+        Ok(view_model)
     }
 
-    fn listen_for_process_change(
-        &self,
-        view_binding: Arc<ViewBinding<MainWindowView>>,
-    ) {
-        let view_binding = view_binding.clone();
+    fn listen_for_process_change(view_model: Arc<ProcessSelectorViewModel>) {
+        let engine_execution_context = view_model.engine_execution_context.clone();
 
-        self.engine_execution_context
-            .listen_for_engine_event::<ProcessChangedEvent>(move |process_changed_event| {
-                Self::refresh_opened_process(&view_binding, process_changed_event.process_info.clone());
-            });
+        engine_execution_context.listen_for_engine_event::<ProcessChangedEvent>(move |process_changed_event| {
+            Self::refresh_opened_process(view_model.clone(), process_changed_event.process_info.clone());
+        });
     }
 
     fn refresh_opened_process(
-        view_binding: &Arc<ViewBinding<MainWindowView>>,
+        view_model: Arc<ProcessSelectorViewModel>,
         process_info: Option<OpenedProcessInfo>,
     ) {
-        view_binding.execute_on_ui_thread(move |main_window_view, _| {
-            let process_selector_bindings = main_window_view.global::<ProcessSelectorViewModelBindings>();
+        view_model
+            .view_binding
+            .execute_on_ui_thread(move |main_window_view, _| {
+                let process_selector_bindings = main_window_view.global::<ProcessSelectorViewModelBindings>();
 
-            if let Some(process_info) = process_info {
-                process_selector_bindings.set_selected_process(OpenedProcessInfoConverter::new().convert_to_view_data(&process_info));
-            } else {
-                process_selector_bindings.set_selected_process(ProcessViewData {
-                    icon: Image::default(),
-                    name: "".into(),
-                    process_id: 0,
-                    process_id_str: "".into(),
-                });
-            }
-        });
+                if let Some(process_info) = process_info {
+                    process_selector_bindings.set_selected_process(OpenedProcessInfoConverter::new().convert_to_view_data(&process_info));
+                } else {
+                    process_selector_bindings.set_selected_process(ProcessViewData {
+                        icon: Image::default(),
+                        name: "".into(),
+                        process_id: 0,
+                        process_id_str: "".into(),
+                    });
+                }
+            });
     }
 
-    fn on_refresh_full_process_list(
-        full_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) {
+    fn on_refresh_full_process_list(view_model: Arc<ProcessSelectorViewModel>) {
         let list_all_processes_request = ProcessListRequest {
             require_windowed: false,
             search_name: None,
@@ -113,16 +112,16 @@ impl ProcessSelectorViewModel {
             limit: None,
             fetch_icons: true,
         };
+        let engine_execution_context = view_model.engine_execution_context.clone();
 
         list_all_processes_request.send(&engine_execution_context, move |process_list_response| {
-            full_process_list_collection.update_from_source(process_list_response.processes);
+            view_model
+                .full_process_list_collection
+                .update_from_source(process_list_response.processes);
         });
     }
 
-    fn on_refresh_windowed_process_list(
-        windowed_process_list_collection: ViewCollectionBinding<ProcessViewData, ProcessInfo, MainWindowView>,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) {
+    fn on_refresh_windowed_process_list(view_model: Arc<ProcessSelectorViewModel>) {
         let list_windowed_processes_request = ProcessListRequest {
             require_windowed: true,
             search_name: None,
@@ -130,15 +129,17 @@ impl ProcessSelectorViewModel {
             limit: None,
             fetch_icons: true,
         };
+        let engine_execution_context = view_model.engine_execution_context.clone();
 
         list_windowed_processes_request.send(&engine_execution_context, move |process_list_response| {
-            windowed_process_list_collection.update_from_source(process_list_response.processes);
+            view_model
+                .windowed_process_list_collection
+                .update_from_source(process_list_response.processes);
         });
     }
 
     fn on_select_process(
-        view_binding: Arc<ViewBinding<MainWindowView>>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<ProcessSelectorViewModel>,
         process_entry: ProcessViewData,
     ) {
         let process_open_request = ProcessOpenRequest {
@@ -146,9 +147,10 @@ impl ProcessSelectorViewModel {
             search_name: None,
             match_case: false,
         };
+        let engine_execution_context = view_model.engine_execution_context.clone();
 
         process_open_request.send(&engine_execution_context, move |process_open_response| {
-            Self::refresh_opened_process(&view_binding, process_open_response.opened_process_info)
+            Self::refresh_opened_process(view_model.clone(), process_open_response.opened_process_info)
         });
     }
 }

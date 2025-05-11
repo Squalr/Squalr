@@ -1,8 +1,9 @@
 use crate::MainWindowView;
 use crate::OutputViewModelBindings;
-use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;use slint::ComponentHandle;
+use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use std::sync::Arc;
 use std::thread;
 
@@ -15,7 +16,7 @@ impl OutputViewModel {
     pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
         let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
         let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
-        let view = Arc::new(OutputViewModel {
+        let view_model = Arc::new(OutputViewModel {
             _view_binding: view_binding.clone(),
             _engine_execution_context: engine_execution_context.clone(),
         });
@@ -33,7 +34,7 @@ impl OutputViewModel {
             }
         }
 
-        Ok(view)
+        Ok(view_model)
     }
 
     fn on_log_event(

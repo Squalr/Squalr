@@ -45,7 +45,7 @@ impl MainWindowViewModel {
         dependency_container.register(move |dependency_container| ConversionsViewModel::new(dependency_container));
         dependency_container.register(move |dependency_container| ValidationViewModel::new(dependency_container));
 
-        let view = Arc::new(MainWindowViewModel {});
+        let view_model = Arc::new(MainWindowViewModel {});
 
         create_view_bindings!(view_binding, {
             WindowViewModelBindings => {
@@ -59,7 +59,7 @@ impl MainWindowViewModel {
 
         Self::show(view_binding);
 
-        Ok(view)
+        Ok(view_model)
     }
 
     pub fn show(view_binding: Arc<ViewBinding<MainWindowView>>) {

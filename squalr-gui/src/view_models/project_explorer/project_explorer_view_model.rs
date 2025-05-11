@@ -47,56 +47,59 @@ impl ProjectExplorerViewModel {
             ProjectInfoComparer -> [],
         );
 
-        let view = Arc::new(ProjectExplorerViewModel {
+        let view_model = Arc::new(ProjectExplorerViewModel {
             view_binding: view_binding.clone(),
             project_list_collection: project_list_collection.clone(),
             engine_execution_context: engine_execution_context.clone(),
         });
 
-        Self::on_refresh_project_list(project_list_collection.clone(), engine_execution_context.clone());
+        Self::on_refresh_project_list(view_model.clone());
 
-        // Route all view bindings to Rust.
-        create_view_bindings!(view_binding, {
-            ProjectExplorerViewModelBindings => {
-                on_refresh_project_list() -> [project_list_collection, engine_execution_context] -> Self::on_refresh_project_list
-                on_browse_for_project() -> [view_binding, engine_execution_context] -> Self::on_browse_for_project
-                on_open_project(project_entry: ProjectViewData) -> [view_binding, engine_execution_context] -> Self::on_open_project
-                on_close_opened_project() -> [engine_execution_context] -> Self::on_close_opened_project
-                on_save_opened_project() -> [engine_execution_context] -> Self::on_save_opened_project
-                on_export_project(project_entry: ProjectViewData) -> [engine_execution_context] -> Self::on_export_project
-                on_rename_project(project_entry: ProjectViewData, new_project_name: SharedString) -> [engine_execution_context] -> Self::on_rename_project
-                on_create_new_project() -> [engine_execution_context] -> Self::on_create_new_project
-            }
-        });
+        {
+            let view_model = view_model.clone();
 
-        view.listen_for_project_changes();
+            // Route all view bindings to Rust.
+            create_view_bindings!(view_binding, {
+                ProjectExplorerViewModelBindings => {
+                    on_refresh_project_list() -> [view_model] -> Self::on_refresh_project_list
+                    on_browse_for_project() -> [view_model] -> Self::on_browse_for_project
+                    on_open_project(project_entry: ProjectViewData) -> [view_model] -> Self::on_open_project
+                    on_close_opened_project() -> [view_model] -> Self::on_close_opened_project
+                    on_save_opened_project() -> [view_model] -> Self::on_save_opened_project
+                    on_export_project(project_entry: ProjectViewData) -> [view_model] -> Self::on_export_project
+                    on_rename_project(project_entry: ProjectViewData, new_project_name: SharedString) -> [view_model] -> Self::on_rename_project
+                    on_create_new_project() -> [view_model] -> Self::on_create_new_project
+                }
+            });
+        }
 
-        Ok(view)
+        Self::listen_for_project_changes(view_model.clone());
+
+        Ok(view_model)
     }
 
-    fn listen_for_project_changes(&self) {
+    fn listen_for_project_changes(view_model: Arc<ProjectExplorerViewModel>) {
         {
-            let project_list_collection = self.project_list_collection.clone();
-            let engine_execution_context = self.engine_execution_context.clone();
+            let engine_execution_context = view_model.engine_execution_context.clone();
+            let view_model = view_model.clone();
 
-            self.engine_execution_context
-                .listen_for_engine_event::<ProjectDeletedEvent>(move |_process_deleted_event| {
-                    Self::on_refresh_project_list(project_list_collection.clone(), engine_execution_context.clone());
-                });
+            engine_execution_context.listen_for_engine_event::<ProjectDeletedEvent>(move |_process_deleted_event| {
+                Self::on_refresh_project_list(view_model.clone());
+            });
         }
         {
-            let project_list_collection = self.project_list_collection.clone();
-            let engine_execution_context = self.engine_execution_context.clone();
+            let engine_execution_context = view_model.engine_execution_context.clone();
+            let view_model = view_model.clone();
 
-            self.engine_execution_context
-                .listen_for_engine_event::<ProjectCreatedEvent>(move |_process_created_event| {
-                    Self::on_refresh_project_list(project_list_collection.clone(), engine_execution_context.clone());
-                });
+            engine_execution_context.listen_for_engine_event::<ProjectCreatedEvent>(move |_process_created_event| {
+                Self::on_refresh_project_list(view_model.clone());
+            });
         }
         {
-            let view_binding = self.view_binding.clone();
+            let view_binding = view_model.view_binding.clone();
 
-            self.engine_execution_context
+            view_model
+                .engine_execution_context
                 .listen_for_engine_event::<ProjectClosedEvent>(move |_process_closed_event| {
                     view_binding.execute_on_ui_thread(move |main_window_view, _| {
                         let project_explorer_bindings = main_window_view.global::<ProjectExplorerViewModelBindings>();
@@ -108,36 +111,32 @@ impl ProjectExplorerViewModel {
         }
     }
 
-    fn on_refresh_project_list(
-        project_list_collection: ViewCollectionBinding<ProjectViewData, ProjectInfo, MainWindowView>,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) {
+    fn on_refresh_project_list(view_model: Arc<ProjectExplorerViewModel>) {
+        let engine_execution_context = &view_model.engine_execution_context;
+        let project_list_collection = view_model.project_list_collection.clone();
         let list_all_projects_request = ProjectListRequest {};
 
-        list_all_projects_request.send(&engine_execution_context, move |project_list_response| {
+        list_all_projects_request.send(engine_execution_context, move |project_list_response| {
             project_list_collection.update_from_source(project_list_response.projects_info);
         });
     }
 
-    fn on_browse_for_project(
-        view_binding: Arc<ViewBinding<MainWindowView>>,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) {
+    fn on_browse_for_project(view_model: Arc<ProjectExplorerViewModel>) {
         //
     }
 
     fn on_open_project(
-        view_binding: Arc<ViewBinding<MainWindowView>>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<ProjectExplorerViewModel>,
         project_entry: ProjectViewData,
     ) {
+        let view_binding = view_model.view_binding.clone();
+        let engine_execution_context = &view_model.engine_execution_context;
         let project_open_request = ProjectOpenRequest {
             project_path: Some(PathBuf::from_str(&project_entry.path.to_string()).unwrap_or_default()),
             project_name: None,
         };
-        let view_binding = view_binding.clone();
 
-        project_open_request.send(&engine_execution_context, move |project_open_response| {
+        project_open_request.send(engine_execution_context, move |project_open_response| {
             view_binding.execute_on_ui_thread(move |main_window_view, _| {
                 let project_explorer_bindings = main_window_view.global::<ProjectExplorerViewModelBindings>();
 
@@ -150,50 +149,55 @@ impl ProjectExplorerViewModel {
         });
     }
 
-    fn on_close_opened_project(engine_execution_context: Arc<EngineExecutionContext>) {
+    fn on_close_opened_project(view_model: Arc<ProjectExplorerViewModel>) {
+        let engine_execution_context = &view_model.engine_execution_context;
         let project_close_request = ProjectCloseRequest {};
 
-        project_close_request.send(&engine_execution_context, move |_project_close_response| {});
+        project_close_request.send(engine_execution_context, move |_project_close_response| {});
     }
 
-    fn on_save_opened_project(engine_execution_context: Arc<EngineExecutionContext>) {
+    fn on_save_opened_project(view_model: Arc<ProjectExplorerViewModel>) {
+        let engine_execution_context = &view_model.engine_execution_context;
         let project_save_request = ProjectSaveRequest {};
 
-        project_save_request.send(&engine_execution_context, move |_project_save_response| {});
+        project_save_request.send(engine_execution_context, move |_project_save_response| {});
     }
 
     fn on_export_project(
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<ProjectExplorerViewModel>,
         project_entry: ProjectViewData,
     ) {
+        let engine_execution_context = &view_model.engine_execution_context;
         let project_export_request = ProjectExportRequest {
             project_path: Some(PathBuf::from_str(&project_entry.path.to_string()).unwrap_or_default()),
             project_name: None,
             open_export_folder: true,
         };
 
-        project_export_request.send(&engine_execution_context, move |_project_export_response| {});
+        project_export_request.send(engine_execution_context, move |_project_export_response| {});
     }
 
     fn on_rename_project(
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<ProjectExplorerViewModel>,
         project_entry: ProjectViewData,
         new_project_name: SharedString,
     ) {
+        let engine_execution_context = &view_model.engine_execution_context;
         let project_rename_request = ProjectRenameRequest {
             project_path: PathBuf::from_str(&project_entry.path.to_string()).unwrap_or_default(),
             new_project_name: new_project_name.into(),
         };
 
-        project_rename_request.send(&engine_execution_context, move |_project_rename_response| {});
+        project_rename_request.send(engine_execution_context, move |_project_rename_response| {});
     }
 
-    fn on_create_new_project(engine_execution_context: Arc<EngineExecutionContext>) {
+    fn on_create_new_project(view_model: Arc<ProjectExplorerViewModel>) {
+        let engine_execution_context = &view_model.engine_execution_context;
         let project_create_request = ProjectCreateRequest {
             project_path: None,
             project_name: None,
         };
 
-        project_create_request.send(&engine_execution_context, move |_project_create_response| {});
+        project_create_request.send(engine_execution_context, move |_project_create_response| {});
     }
 }

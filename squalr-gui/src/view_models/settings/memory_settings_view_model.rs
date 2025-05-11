@@ -19,33 +19,37 @@ impl MemorySettingsViewModel {
     pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
         let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
         let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
-        let view = Arc::new(MemorySettingsViewModel {
+        let view_model = Arc::new(MemorySettingsViewModel {
             view_binding: view_binding.clone(),
             engine_execution_context: engine_execution_context.clone(),
         });
 
-        create_view_bindings!(view_binding, {
-            MemorySettingsViewModelBindings => {
-                on_required_write_changed(value: bool) -> [engine_execution_context] -> Self::on_required_write_changed,
-                on_required_execute_changed(value: bool) -> [engine_execution_context] -> Self::on_required_execute_changed,
-                on_required_copy_on_write_changed(value: bool) -> [engine_execution_context] -> Self::on_required_copy_on_write_changed,
-                on_excluded_write_changed(value: bool) -> [engine_execution_context] -> Self::on_excluded_write_changed,
-                on_excluded_execute_changed(value: bool) -> [engine_execution_context] -> Self::on_excluded_execute_changed,
-                on_excluded_copy_on_write_changed(value: bool) -> [engine_execution_context] -> Self::on_excluded_copy_on_write_changed,
-                on_memory_type_none_changed(value: bool) -> [engine_execution_context] -> Self::on_memory_type_none_changed,
-                on_memory_type_image_changed(value: bool) -> [engine_execution_context] -> Self::on_memory_type_image_changed,
-                on_memory_type_private_changed(value: bool) -> [engine_execution_context] -> Self::on_memory_type_private_changed,
-                on_memory_type_mapped_changed(value: bool) -> [engine_execution_context] -> Self::on_memory_type_mapped_changed,
-            }
-        });
+        {
+            let view_model = view_model.clone();
 
-        view.sync_ui_with_memory_settings();
+            create_view_bindings!(view_binding, {
+                MemorySettingsViewModelBindings => {
+                    on_required_write_changed(value: bool) -> [view_model] -> Self::on_required_write_changed,
+                    on_required_execute_changed(value: bool) -> [view_model] -> Self::on_required_execute_changed,
+                    on_required_copy_on_write_changed(value: bool) -> [view_model] -> Self::on_required_copy_on_write_changed,
+                    on_excluded_write_changed(value: bool) -> [view_model] -> Self::on_excluded_write_changed,
+                    on_excluded_execute_changed(value: bool) -> [view_model] -> Self::on_excluded_execute_changed,
+                    on_excluded_copy_on_write_changed(value: bool) -> [view_model] -> Self::on_excluded_copy_on_write_changed,
+                    on_memory_type_none_changed(value: bool) -> [view_model] -> Self::on_memory_type_none_changed,
+                    on_memory_type_image_changed(value: bool) -> [view_model] -> Self::on_memory_type_image_changed,
+                    on_memory_type_private_changed(value: bool) -> [view_model] -> Self::on_memory_type_private_changed,
+                    on_memory_type_mapped_changed(value: bool) -> [view_model] -> Self::on_memory_type_mapped_changed,
+                }
+            });
+        }
 
-        Ok(view)
+        view_model.sync_ui_with_memory_settings();
+
+        Ok(view_model)
     }
 
     fn on_required_write_changed(
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<MemorySettingsViewModel>,
         value: bool,
     ) {
         let memory_settings_set_request = MemorySettingsSetRequest {
@@ -53,11 +57,11 @@ impl MemorySettingsViewModel {
             ..Default::default()
         };
 
-        Self::update_config(&memory_settings_set_request, engine_execution_context);
+        Self::update_config(&memory_settings_set_request, view_model);
     }
 
     fn on_required_execute_changed(
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<MemorySettingsViewModel>,
         value: bool,
     ) {
         let memory_settings_set_request = MemorySettingsSetRequest {
@@ -65,11 +69,11 @@ impl MemorySettingsViewModel {
             ..Default::default()
         };
 
-        Self::update_config(&memory_settings_set_request, engine_execution_context);
+        Self::update_config(&memory_settings_set_request, view_model);
     }
 
     fn on_required_copy_on_write_changed(
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<MemorySettingsViewModel>,
         value: bool,
     ) {
         let memory_settings_set_request = MemorySettingsSetRequest {
@@ -77,11 +81,11 @@ impl MemorySettingsViewModel {
             ..Default::default()
         };
 
-        Self::update_config(&memory_settings_set_request, engine_execution_context);
+        Self::update_config(&memory_settings_set_request, view_model);
     }
 
     fn on_excluded_write_changed(
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<MemorySettingsViewModel>,
         value: bool,
     ) {
         let memory_settings_set_request = MemorySettingsSetRequest {
@@ -89,11 +93,11 @@ impl MemorySettingsViewModel {
             ..Default::default()
         };
 
-        Self::update_config(&memory_settings_set_request, engine_execution_context);
+        Self::update_config(&memory_settings_set_request, view_model);
     }
 
     fn on_excluded_execute_changed(
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<MemorySettingsViewModel>,
         value: bool,
     ) {
         let memory_settings_set_request = MemorySettingsSetRequest {
@@ -101,11 +105,11 @@ impl MemorySettingsViewModel {
             ..Default::default()
         };
 
-        Self::update_config(&memory_settings_set_request, engine_execution_context);
+        Self::update_config(&memory_settings_set_request, view_model);
     }
 
     fn on_excluded_copy_on_write_changed(
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<MemorySettingsViewModel>,
         value: bool,
     ) {
         let memory_settings_set_request = MemorySettingsSetRequest {
@@ -113,11 +117,11 @@ impl MemorySettingsViewModel {
             ..Default::default()
         };
 
-        Self::update_config(&memory_settings_set_request, engine_execution_context);
+        Self::update_config(&memory_settings_set_request, view_model);
     }
 
     fn on_memory_type_none_changed(
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<MemorySettingsViewModel>,
         value: bool,
     ) {
         let memory_settings_set_request = MemorySettingsSetRequest {
@@ -125,11 +129,11 @@ impl MemorySettingsViewModel {
             ..Default::default()
         };
 
-        Self::update_config(&memory_settings_set_request, engine_execution_context);
+        Self::update_config(&memory_settings_set_request, view_model);
     }
 
     fn on_memory_type_image_changed(
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<MemorySettingsViewModel>,
         value: bool,
     ) {
         let memory_settings_set_request = MemorySettingsSetRequest {
@@ -137,11 +141,11 @@ impl MemorySettingsViewModel {
             ..Default::default()
         };
 
-        Self::update_config(&memory_settings_set_request, engine_execution_context);
+        Self::update_config(&memory_settings_set_request, view_model);
     }
 
     fn on_memory_type_private_changed(
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<MemorySettingsViewModel>,
         value: bool,
     ) {
         let memory_settings_set_request = MemorySettingsSetRequest {
@@ -149,11 +153,11 @@ impl MemorySettingsViewModel {
             ..Default::default()
         };
 
-        Self::update_config(&memory_settings_set_request, engine_execution_context);
+        Self::update_config(&memory_settings_set_request, view_model);
     }
 
     fn on_memory_type_mapped_changed(
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<MemorySettingsViewModel>,
         value: bool,
     ) {
         let memory_settings_set_request = MemorySettingsSetRequest {
@@ -161,14 +165,16 @@ impl MemorySettingsViewModel {
             ..Default::default()
         };
 
-        Self::update_config(&memory_settings_set_request, engine_execution_context);
+        Self::update_config(&memory_settings_set_request, view_model);
     }
 
     fn update_config(
         memory_settings_set_request: &MemorySettingsSetRequest,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<MemorySettingsViewModel>,
     ) {
-        memory_settings_set_request.send(&engine_execution_context, |_memory_settings_set_response| {});
+        let engine_execution_context = &view_model.engine_execution_context;
+
+        memory_settings_set_request.send(engine_execution_context, |_memory_settings_set_response| {});
     }
 
     fn sync_ui_with_memory_settings(&self) {

@@ -16,24 +16,33 @@ fn main() {
     };
 
     // Start Squalr engine.
-    let squalr_engine = SqualrEngine::new(engine_mode);
+    let mut squalr_engine = match SqualrEngine::new(EngineMode::Standalone) {
+        Ok(squalr_engine) => squalr_engine,
+        Err(err) => panic!("Fatal error initializing Squalr engine: {}", err),
+    };
 
     // Hook into engine logging for the cli to display.
-    let _cli_log_listener = CliLogListener::new(match squalr_engine.get_logger().subscribe_to_logs() {
-        Ok(listener) => listener,
-        Err(err) => {
-            panic!("Fatal error hooking into engine log events: {}", err);
-        }
-    });
-
-    // Start the log event sending now that both the CLI and engine are ready to receive log messages.
-    squalr_engine.get_logger().start_log_event_sender();
-
-    if engine_mode == EngineMode::Standalone {
-        let engine_execution_context = squalr_engine
+    let _cli_log_listener = CliLogListener::new(
+        match squalr_engine
             .get_engine_execution_context()
             .as_ref()
-            .unwrap_or_else(|| panic!("Engine context failed to initialize."));
+            .unwrap_or_else(|| panic!("Engine context failed to initialize."))
+            .get_logger()
+            .subscribe_to_logs()
+        {
+            Ok(listener) => listener,
+            Err(err) => {
+                panic!("Fatal error hooking into engine log events: {}", err);
+            }
+        },
+    );
+
+    // Start the log event sending now that both the CLI and engine are ready to receive log messages.
+    squalr_engine.initialize();
+
+    if engine_mode == EngineMode::Standalone {
+        let engine_execution_context = squalr_engine.get_engine_execution_context().as_ref().unwrap();
+
         // Listen for user input.
         // Note that the "Cli", when listening for input, is considered unprivileged, as it is considered the "UI".
         // Internally, these commands then get dispatched to an abstracted away privileged component.

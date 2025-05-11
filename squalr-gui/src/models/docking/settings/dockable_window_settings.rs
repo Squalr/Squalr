@@ -33,19 +33,19 @@ impl DockSettingsConfig {
                         DockBuilder::split_node(DockSplitDirection::VerticalDivider)
                             .push_child(
                                 0.5,
-                                DockBuilder::tab_node("project-explorer")
-                                    .push_tab(DockBuilder::window("process-selector"))
+                                DockBuilder::tab_node("project_explorer")
+                                    .push_tab(DockBuilder::window("process_selector"))
                                     .visible(false)
-                                    .push_tab(DockBuilder::window("project-explorer")),
+                                    .push_tab(DockBuilder::window("project_explorer")),
                             )
-                            .push_child(0.5, DockBuilder::window("property-viewer")),
+                            .push_child(0.5, DockBuilder::window("property_viewer")),
                     )
                     .push_child(0.5, DockBuilder::window("output")),
             )
             .push_child(
                 0.4,
-                DockBuilder::tab_node("scan-results")
-                    .push_tab(DockBuilder::window("scan-results"))
+                DockBuilder::tab_node("scan_results")
+                    .push_tab(DockBuilder::window("scan_results"))
                     .push_tab(DockBuilder::window("settings")),
             )
             .build();
@@ -57,18 +57,18 @@ impl DockSettingsConfig {
                 DockBuilder::split_node(DockSplitDirection::VerticalDivider)
                     .push_child(
                         0.5,
-                        DockBuilder::tab_node("project-explorer")
-                            .push_tab(DockBuilder::window("process-selector").visible(false))
-                            .push_tab(DockBuilder::window("project-explorer")),
+                        DockBuilder::tab_node("project_explorer")
+                            .push_tab(DockBuilder::window("process_selector").visible(false))
+                            .push_tab(DockBuilder::window("project_explorer")),
                     )
                     .push_child(
                         0.5,
-                        DockBuilder::tab_node("scan-results")
-                            .push_tab(DockBuilder::window("scan-results"))
+                        DockBuilder::tab_node("scan_results")
+                            .push_tab(DockBuilder::window("scan_results"))
                             .push_tab(DockBuilder::window("settings")),
                     ),
             )
-            .push_child(0.25, DockBuilder::window("property-viewer"))
+            .push_child(0.25, DockBuilder::window("property_viewer"))
             .push_child(0.2, DockBuilder::window("output"))
             .build();
 

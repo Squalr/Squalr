@@ -33,20 +33,24 @@ impl PropertyViewerViewModel {
             PropertyComparer -> [],
         );
 
-        let view = Arc::new(PropertyViewerViewModel {
+        let view_model = Arc::new(PropertyViewerViewModel {
             view_binding: view_binding.clone(),
             selected_properties_collection: selected_properties_collection.clone(),
             engine_execution_context: engine_execution_context.clone(),
         });
 
-        // Route all view bindings to Rust.
-        create_view_bindings!(view_binding, {
-            PropertyViewerViewModelBindings => {
-                on_set_property_value(new_value: SharedString) -> [selected_properties_collection, engine_execution_context] -> Self::on_set_property_value
-            }
-        });
+        {
+            let view_model = view_model.clone();
 
-        Ok(view)
+            // Route all view bindings to Rust.
+            create_view_bindings!(view_binding, {
+                PropertyViewerViewModelBindings => {
+                    on_set_property_value(new_value: SharedString) -> [view_model] -> Self::on_set_property_value
+                }
+            });
+        }
+
+        Ok(view_model)
     }
 
     pub fn set_selected_properties(
@@ -58,8 +62,7 @@ impl PropertyViewerViewModel {
     }
 
     fn on_set_property_value(
-        selected_properties_collection: ViewCollectionBinding<PropertyEntryViewData, Property, MainWindowView>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        view_model: Arc<PropertyViewerViewModel>,
         new_value: SharedString,
     ) {
     }

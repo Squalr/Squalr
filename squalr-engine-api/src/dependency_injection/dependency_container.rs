@@ -27,6 +27,10 @@ impl DependencyContainer {
         T: Send + Sync + 'static,
         F: Fn(&DependencyContainer) -> Result<Arc<T>> + 'static,
     {
+        if self.built {
+            log::error!("Attempted to register a dependency after the container has been built!")
+        }
+
         let type_id = TypeId::of::<T>();
         let type_name = std::any::type_name::<T>().to_string();
 
@@ -44,7 +48,7 @@ impl DependencyContainer {
 
     pub fn build(&mut self) -> Result<()> {
         if self.built {
-            return Err(anyhow!("DependencyContainer has already been built."));
+            return Err(anyhow!("Dependency container has already been built."));
         }
 
         for (type_id, (type_name, factory)) in &self.factories {
@@ -58,8 +62,10 @@ impl DependencyContainer {
             }
         }
 
-        self.factories.clear(); // clear factories to free memory
+        // Clear factories to free memory, as these are no longer required.
+        self.factories.clear();
         self.built = true;
+
         Ok(())
     }
 

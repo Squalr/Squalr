@@ -61,7 +61,7 @@ impl ScanResultsViewModel {
         let cached_last_page_index = Arc::new(AtomicU64::new(0));
         let base_scan_results_collection = Arc::new(RwLock::new(vec![]));
 
-        let view = Arc::new(ScanResultsViewModel {
+        let view_model = Arc::new(ScanResultsViewModel {
             view_binding: view_binding.clone(),
             audio_player,
             base_scan_results_collection: base_scan_results_collection.clone(),
@@ -72,54 +72,54 @@ impl ScanResultsViewModel {
         });
 
         {
-            let view = view.clone();
+            let view_model = view_model.clone();
 
             create_view_bindings!(view_binding, {
                 ScanResultsViewModelBindings => {
-                    on_navigate_first_page() -> [view] -> Self::on_navigate_first_page,
-                    on_navigate_last_page() -> [view] -> Self::on_navigate_last_page,
-                    on_navigate_previous_page() -> [view] -> Self::on_navigate_previous_page,
-                    on_navigate_next_page() -> [view] -> Self::on_navigate_next_page,
-                    on_page_index_text_changed(new_page_index_text: SharedString) -> [view] -> Self::on_page_index_text_changed,
-                    on_select_scan_results(local_scan_result_indices: ModelRc<i32>) -> [engine_execution_context, base_scan_results_collection] -> Self::on_select_scan_results,
-                    on_add_scan_results_to_project(local_scan_result_indices: ModelRc<i32>) -> [engine_execution_context, base_scan_results_collection] -> Self::on_add_scan_results_to_project,
-                    on_delete_scan_results(local_scan_result_index: ModelRc<i32>) -> [engine_execution_context, base_scan_results_collection] -> Self::on_delete_scan_results,
-                    on_set_scan_results_frozen(local_scan_result_indices: ModelRc<i32>, is_frozen: bool) -> [engine_execution_context, base_scan_results_collection] -> Self::on_set_scan_results_frozen,
+                    on_navigate_first_page() -> [view_model] -> Self::on_navigate_first_page,
+                    on_navigate_last_page() -> [view_model] -> Self::on_navigate_last_page,
+                    on_navigate_previous_page() -> [view_model] -> Self::on_navigate_previous_page,
+                    on_navigate_next_page() -> [view_model] -> Self::on_navigate_next_page,
+                    on_page_index_text_changed(new_page_index_text: SharedString) -> [view_model] -> Self::on_page_index_text_changed,
+                    on_select_scan_results(local_scan_result_indices: ModelRc<i32>) -> [view_model] -> Self::on_select_scan_results,
+                    on_add_scan_results_to_project(local_scan_result_indices: ModelRc<i32>) -> [view_model] -> Self::on_add_scan_results_to_project,
+                    on_delete_scan_results(local_scan_result_index: ModelRc<i32>) -> [view_model] -> Self::on_delete_scan_results,
+                    on_set_scan_results_frozen(local_scan_result_indices: ModelRc<i32>, is_frozen: bool) -> [view_model] -> Self::on_set_scan_results_frozen,
                 },
             });
         }
 
-        Self::poll_scan_results(view.clone());
+        Self::poll_scan_results(view_model.clone());
 
-        Ok(view)
+        Ok(view_model)
     }
 
-    fn poll_scan_results(scan_results_view_model: Arc<ScanResultsViewModel>) {
-        let engine_execution_context = &scan_results_view_model.engine_execution_context;
+    fn poll_scan_results(view_model: Arc<ScanResultsViewModel>) {
+        let engine_execution_context = &view_model.engine_execution_context;
 
         // Requery all scan results if they update.
         {
-            let scan_results_view_model = scan_results_view_model.clone();
+            let view_model = view_model.clone();
 
             engine_execution_context.listen_for_engine_event::<ScanResultsUpdatedEvent>(move |scan_results_updated_event| {
                 let play_sound = !scan_results_updated_event.is_new_scan;
-                Self::query_scan_results(scan_results_view_model.clone(), play_sound);
+                Self::query_scan_results(view_model.clone(), play_sound);
             });
         }
 
         // Refresh scan values on a loop. JIRA: This should be coming from settings. We can probably cache, and have some mechanism for getting latest val.
         thread::spawn(move || {
             loop {
-                Self::refresh_scan_results(scan_results_view_model.clone());
+                Self::refresh_scan_results(view_model.clone());
 
                 thread::sleep(Duration::from_millis(100));
             }
         });
     }
 
-    fn load_current_page_index(scan_results_view_model: &Arc<ScanResultsViewModel>) -> u64 {
-        let current_page_index = &scan_results_view_model.current_page_index;
-        let cached_last_page_index = &scan_results_view_model.cached_last_page_index;
+    fn load_current_page_index(view_model: &Arc<ScanResultsViewModel>) -> u64 {
+        let current_page_index = &view_model.current_page_index;
+        let cached_last_page_index = &view_model.cached_last_page_index;
 
         current_page_index
             .load(Ordering::Relaxed)
@@ -127,19 +127,19 @@ impl ScanResultsViewModel {
     }
 
     fn query_scan_results(
-        scan_results_view_model: Arc<ScanResultsViewModel>,
+        view_model: Arc<ScanResultsViewModel>,
         play_sound: bool,
     ) {
-        let engine_execution_context = &scan_results_view_model.engine_execution_context;
-        let page_index = Self::load_current_page_index(&scan_results_view_model);
+        let engine_execution_context = &view_model.engine_execution_context;
+        let page_index = Self::load_current_page_index(&view_model);
         let scan_results_query_request = ScanResultsQueryRequest { page_index };
-        let scan_results_view_model = scan_results_view_model.clone();
+        let view_model = view_model.clone();
 
         scan_results_query_request.send(engine_execution_context, move |scan_results_query_response| {
-            let view_binding = &scan_results_view_model.view_binding;
-            let cached_last_page_index = &scan_results_view_model.cached_last_page_index;
-            let base_scan_results_collection = &scan_results_view_model.base_scan_results_collection;
-            let scan_results_view_model = scan_results_view_model.clone();
+            let view_binding = &view_model.view_binding;
+            let cached_last_page_index = &view_model.cached_last_page_index;
+            let base_scan_results_collection = &view_model.base_scan_results_collection;
+            let view_model = view_model.clone();
             let result_count = scan_results_query_response.result_count;
             let byte_count = scan_results_query_response.total_size_in_bytes;
 
@@ -150,7 +150,7 @@ impl ScanResultsViewModel {
             }
 
             view_binding.execute_on_ui_thread(move |main_window_view, _| {
-                let audio_player = &scan_results_view_model.audio_player;
+                let audio_player = &view_model.audio_player;
                 let scan_results_bindings = main_window_view.global::<ScanResultsViewModelBindings>();
                 let byte_size_in_metric = Conversions::value_to_metric_size(byte_count);
 
@@ -164,16 +164,16 @@ impl ScanResultsViewModel {
                     }
                 }
 
-                Self::refresh_scan_results(scan_results_view_model);
+                Self::refresh_scan_results(view_model);
             });
         });
     }
 
     /// Fetches up-to-date values and module information for the current scan results, then updates the UI.
-    fn refresh_scan_results(scan_results_view_model: Arc<ScanResultsViewModel>) {
-        let scan_results_collection = scan_results_view_model.scan_results_collection.clone();
-        let base_scan_results_collection = &scan_results_view_model.base_scan_results_collection;
-        let engine_execution_context = &scan_results_view_model.engine_execution_context;
+    fn refresh_scan_results(view_model: Arc<ScanResultsViewModel>) {
+        let scan_results_collection = view_model.scan_results_collection.clone();
+        let base_scan_results_collection = &view_model.base_scan_results_collection;
+        let engine_execution_context = &view_model.engine_execution_context;
 
         // Gather the current/incomplete scan results.
         let scan_results_to_refresh = match base_scan_results_collection.read() {
@@ -193,15 +193,15 @@ impl ScanResultsViewModel {
     }
 
     fn set_page_index(
-        scan_results_view_model: Arc<ScanResultsViewModel>,
+        view_model: Arc<ScanResultsViewModel>,
         new_page_index: u64,
     ) {
-        let view_binding = scan_results_view_model.view_binding.clone();
-        let scan_results_view_model_clone = scan_results_view_model.clone();
+        let view_binding = view_model.view_binding.clone();
+        let view_model_clone = view_model.clone();
 
         view_binding.execute_on_ui_thread(move |main_window_view, _| {
-            let cached_last_page_index = &scan_results_view_model.cached_last_page_index;
-            let current_page_index = &scan_results_view_model.current_page_index;
+            let cached_last_page_index = &view_model.cached_last_page_index;
+            let current_page_index = &view_model.current_page_index;
             let new_page_index = new_page_index.clamp(0, cached_last_page_index.load(Ordering::Acquire));
 
             let scan_results_bindings = main_window_view.global::<ScanResultsViewModelBindings>();
@@ -217,11 +217,11 @@ impl ScanResultsViewModel {
         });
 
         // Refresh scan results with the new page index. // JIRA: Should happen in the loop technically, but we need to make the MVVM bindings deadlock resistant.
-        Self::query_scan_results(scan_results_view_model_clone, false);
+        Self::query_scan_results(view_model_clone, false);
     }
 
     fn on_page_index_text_changed(
-        scan_results_view_model: Arc<ScanResultsViewModel>,
+        view_model: Arc<ScanResultsViewModel>,
         new_page_index_text: SharedString,
     ) {
         // Extract numeric part from new_page_index_text and parse it to u64, defaulting to 0.
@@ -232,40 +232,39 @@ impl ScanResultsViewModel {
             .parse::<u64>()
             .unwrap_or(0);
 
-        Self::set_page_index(scan_results_view_model, new_page_index);
+        Self::set_page_index(view_model, new_page_index);
     }
 
-    fn on_navigate_first_page(scan_results_view_model: Arc<ScanResultsViewModel>) {
+    fn on_navigate_first_page(view_model: Arc<ScanResultsViewModel>) {
         let new_page_index = 0;
 
-        Self::set_page_index(scan_results_view_model, new_page_index);
+        Self::set_page_index(view_model, new_page_index);
     }
 
-    fn on_navigate_last_page(scan_results_view_model: Arc<ScanResultsViewModel>) {
-        let cached_last_page_index = &scan_results_view_model.cached_last_page_index;
+    fn on_navigate_last_page(view_model: Arc<ScanResultsViewModel>) {
+        let cached_last_page_index = &view_model.cached_last_page_index;
         let new_page_index = cached_last_page_index.load(Ordering::Acquire);
 
-        Self::set_page_index(scan_results_view_model, new_page_index);
+        Self::set_page_index(view_model, new_page_index);
     }
 
-    fn on_navigate_previous_page(scan_results_view_model: Arc<ScanResultsViewModel>) {
-        let new_page_index = Self::load_current_page_index(&scan_results_view_model).saturating_sub(1);
+    fn on_navigate_previous_page(view_model: Arc<ScanResultsViewModel>) {
+        let new_page_index = Self::load_current_page_index(&view_model).saturating_sub(1);
 
-        Self::set_page_index(scan_results_view_model, new_page_index);
+        Self::set_page_index(view_model, new_page_index);
     }
 
-    fn on_navigate_next_page(scan_results_view_model: Arc<ScanResultsViewModel>) {
-        let new_page_index = Self::load_current_page_index(&scan_results_view_model).saturating_add(1);
+    fn on_navigate_next_page(view_model: Arc<ScanResultsViewModel>) {
+        let new_page_index = Self::load_current_page_index(&view_model).saturating_add(1);
 
-        Self::set_page_index(scan_results_view_model, new_page_index);
+        Self::set_page_index(view_model, new_page_index);
     }
 
     fn on_select_scan_results(
-        engine_execution_context: Arc<EngineExecutionContext>,
-        base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
+        view_model: Arc<ScanResultsViewModel>,
         local_scan_result_indices: ModelRc<i32>,
     ) {
-        let scan_results = Self::collect_scan_results_by_indicies(base_scan_results_collection, local_scan_result_indices);
+        let scan_results = Self::collect_scan_results_by_indicies(&view_model, local_scan_result_indices);
 
         if !scan_results.is_empty() {
             //
@@ -273,52 +272,53 @@ impl ScanResultsViewModel {
     }
 
     fn on_add_scan_results_to_project(
-        engine_execution_context: Arc<EngineExecutionContext>,
-        base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
+        view_model: Arc<ScanResultsViewModel>,
         local_scan_result_indices: ModelRc<i32>,
     ) {
-        let scan_results = Self::collect_scan_results_by_indicies(base_scan_results_collection, local_scan_result_indices);
+        let scan_results = Self::collect_scan_results_by_indicies(&view_model, local_scan_result_indices);
 
         if !scan_results.is_empty() {
+            let engine_execution_context = &view_model.engine_execution_context;
             let scan_results_add_to_project_request = ScanResultsAddToProjectRequest { scan_results };
 
-            scan_results_add_to_project_request.send(&engine_execution_context, |_response| {});
+            scan_results_add_to_project_request.send(engine_execution_context, |_response| {});
         }
     }
 
     fn on_delete_scan_results(
-        engine_execution_context: Arc<EngineExecutionContext>,
-        base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
+        view_model: Arc<ScanResultsViewModel>,
         local_scan_result_indices: ModelRc<i32>,
     ) {
-        let scan_results = Self::collect_scan_results_by_indicies(base_scan_results_collection, local_scan_result_indices);
+        let scan_results = Self::collect_scan_results_by_indicies(&view_model, local_scan_result_indices);
 
         if !scan_results.is_empty() {
+            let engine_execution_context = &view_model.engine_execution_context;
             let scan_results_delete_request = ScanResultsDeleteRequest { scan_results };
 
-            scan_results_delete_request.send(&engine_execution_context, |_response| {});
+            scan_results_delete_request.send(engine_execution_context, |_response| {});
         }
     }
 
     fn on_set_scan_results_frozen(
-        engine_execution_context: Arc<EngineExecutionContext>,
-        base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
+        view_model: Arc<ScanResultsViewModel>,
         local_scan_result_indices: ModelRc<i32>,
         is_frozen: bool,
     ) {
-        let scan_results = Self::collect_scan_results_by_indicies(base_scan_results_collection, local_scan_result_indices);
+        let scan_results = Self::collect_scan_results_by_indicies(&view_model, local_scan_result_indices);
 
         if !scan_results.is_empty() {
+            let engine_execution_context = &view_model.engine_execution_context;
             let scan_results_freeze_request = ScanResultsFreezeRequest { scan_results, is_frozen };
 
-            scan_results_freeze_request.send(&engine_execution_context, |_response| {});
+            scan_results_freeze_request.send(engine_execution_context, |_response| {});
         }
     }
 
     fn collect_scan_results_by_indicies(
-        base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
+        view_model: &Arc<ScanResultsViewModel>,
         local_scan_result_indices: ModelRc<i32>,
     ) -> Vec<ScanResultBase> {
+        let base_scan_results_collection = &view_model.base_scan_results_collection;
         let current_scan_results = match base_scan_results_collection.read() {
             Ok(base_scan_results_collection) => base_scan_results_collection.clone(),
             Err(_) => vec![],
