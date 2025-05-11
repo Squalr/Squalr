@@ -1,0 +1,20 @@
+import { Theme } from "../../theme.slint";
+
+import { PropertyEntryViewData } from "../../../view_model_bindings.slint";
+
+export component PropertyEntryView inherits Rectangle {
+    in property <PropertyEntryViewData> property_entry;
+    content := HorizontalLayout {
+        padding: 0px;
+        spacing: 0px;
+        Text {
+            color: Theme.foreground;
+            text: root.property_entry.name;
+        }
+
+        Text {
+            color: Theme.foreground;
+            text: root.property_entry.display_value;
+        }
+    }
+}

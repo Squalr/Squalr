@@ -276,7 +276,16 @@ export global ScanResultsViewModelBindings {
 
 export global PointerScanResultsViewModelBindings { }
 
-export global PropertyViewerViewModelBindings { }
+export struct PropertyEntryViewData {
+    name: string,
+    display_value: string,
+    is_read_only: bool,
+}
+
+export global PropertyViewerViewModelBindings {
+    in property <[PropertyEntryViewData]> selected_properties;
+    pure callback set_property_value(new_value: string);
+}
 
 export global ConversionsViewModelBindings {
     pure callback convert_hex_to_dec(data_value: string) -> string;

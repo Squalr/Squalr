@@ -1,6 +1,8 @@
 ## Notice
 
-This project is currently being ported from its former C# implementation to Rust. Squalr 4.0 is currently unreleased and in active development. Check back later.
+Squalr is currently being re-written from the ground up in Rust. A release is coming soon!
+
+Looking for the old C# repo? See [Squalr-Sharp](https://github.com/Squalr/Squalr-Sharp)
 
 # Squalr
 
@@ -42,7 +44,7 @@ Features:
 - [X] String scans, with various encoding support.
 - [ ] String Encoding selection from UI.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
-- [ ] Property viewer.
+- [ ] Property viewer in the GUI that can register an active set of properties for editing.
 
 ## Post-launch tasklist
 Lower priority features that we can defer, for now.

@@ -14,6 +14,7 @@ use crate::view_models::docking::dock_window_converter::DockWindowConverter;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
 use crate::view_models::project_explorer::project_explorer_view_model::ProjectExplorerViewModel;
+use crate::view_models::property_viewer::property_viewer_view_model::PropertyViewerViewModel;
 use crate::view_models::scan_results::scan_results_view_model::ScanResultsViewModel;
 use crate::view_models::scanners::scanner_view_model::ScannerViewModel;
 use crate::view_models::settings::memory_settings_view_model::MemorySettingsViewModel;
@@ -36,7 +37,8 @@ pub struct DockRootViewModel {
     memory_settings_view_model: Arc<MemorySettingsViewModel>,
     output_view_model: Arc<OutputViewModel>,
     process_selector_view_model: Arc<ProcessSelectorViewModel>,
-    project_explorer_view_mode: Arc<ProjectExplorerViewModel>,
+    project_explorer_view_model: Arc<ProjectExplorerViewModel>,
+    property_viewer_view_model: Arc<PropertyViewerViewModel>,
     scan_settings_view_model: Arc<ScanSettingsViewModel>,
     scan_results_view_model: Arc<ScanResultsViewModel>,
     conversions_view_model: Arc<ConversionsViewModel>,
@@ -60,7 +62,8 @@ impl DockRootViewModel {
             memory_settings_view_model: MemorySettingsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
             output_view_model: OutputViewModel::new(view_binding.clone(), engine_execution_context.clone(), file_system_logger),
             process_selector_view_model: ProcessSelectorViewModel::new(view_binding.clone(), engine_execution_context.clone()),
-            project_explorer_view_mode: ProjectExplorerViewModel::new(view_binding.clone(), engine_execution_context.clone()),
+            project_explorer_view_model: ProjectExplorerViewModel::new(view_binding.clone(), engine_execution_context.clone()),
+            property_viewer_view_model: PropertyViewerViewModel::new(view_binding.clone(), engine_execution_context.clone()),
             scan_settings_view_model: ScanSettingsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
             scan_results_view_model: ScanResultsViewModel::new(view_binding.clone(), audio_player.clone(), engine_execution_context.clone()),
             conversions_view_model: ConversionsViewModel::new(view_binding.clone(), engine_execution_context.clone()),
@@ -149,8 +152,12 @@ impl DockRootViewModel {
         &self.process_selector_view_model
     }
 
-    pub fn get_project_explorer_view_mode(&self) -> &Arc<ProjectExplorerViewModel> {
-        &self.project_explorer_view_mode
+    pub fn get_project_explorer_view_model(&self) -> &Arc<ProjectExplorerViewModel> {
+        &self.project_explorer_view_model
+    }
+
+    pub fn get_property_viewer_view_model(&self) -> &Arc<PropertyViewerViewModel> {
+        &self.property_viewer_view_model
     }
 
     pub fn get_scan_settings_view_model(&self) -> &Arc<ScanSettingsViewModel> {
