@@ -36,25 +36,12 @@ impl SqualrEngine {
             }
         }
 
-        let dependency_container = DependencyContainer::new();
-
-        // Register the engine execution context for dependency injection use.
-        if let Some(engine_execution_context) = engine_execution_context.as_ref() {
-            let engine_execution_context = engine_execution_context.clone();
-
-            dependency_container.register(engine_execution_context.clone());
-        }
-
         let squalr_engine = SqualrEngine {
             engine_privileged_state,
             engine_execution_context,
-            dependency_container,
+            dependency_container: DependencyContainer::new(),
         };
 
-        Ok(squalr_engine)
-    }
-
-    pub fn initialize(&mut self) {
         log::info!("Squalr started");
         log::info!(
             "CPU vector size for accelerated scans: {:?} bytes ({:?} bits), architecture: {}",
@@ -63,6 +50,10 @@ impl SqualrEngine {
             Vectors::get_hardware_vector_name(),
         );
 
+        Ok(squalr_engine)
+    }
+
+    pub fn initialize(&mut self) {
         // Initialize privileged engine capabilities if we own them.
         if let Some(engine_privileged_state) = &self.engine_privileged_state {
             engine_privileged_state.initialize(&self.engine_privileged_state);
@@ -71,6 +62,10 @@ impl SqualrEngine {
         // Initialize unprivileged engine capabilities if we own them.
         if let Some(engine_execution_context) = &self.engine_execution_context {
             engine_execution_context.initialize(&self.engine_privileged_state);
+
+            // Register the engine execution context for dependency injection use.
+            self.dependency_container
+                .register::<EngineExecutionContext>(engine_execution_context.clone());
         }
 
         AppUpdater::run_update(ProgressTracker::new());

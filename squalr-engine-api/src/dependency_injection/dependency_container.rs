@@ -29,12 +29,21 @@ impl DependencyContainer {
     {
         let key = type_name::<T>().to_string();
 
-        match self.inner.write() {
+        // Store ready callbacks.
+        let ready_callbacks = match self.inner.write() {
             Ok(mut container) => {
                 container.services.insert(key, instance);
-                container.process_pending_callbacks(self.clone());
+                container.collect_ready_callbacks()
             }
-            Err(err) => log::error!("Error acquiring dependency register lock: {}", err),
+            Err(err) => {
+                log::error!("Error acquiring dependency register lock: {}", err);
+                return;
+            }
+        };
+
+        // Run the callbacks now that the write lock is dropped.
+        for callback in ready_callbacks {
+            callback(self.clone());
         }
     }
 
@@ -63,14 +72,15 @@ impl DependencyContainer {
         let (missing, resolved) = { (T::missing_dependencies(self), T::resolve_from(self)) };
 
         if missing.is_empty() {
-            if let Ok(resolved) = resolved {
-                callback(self.clone(), resolved);
+            match resolved {
+                Ok(resolved) => callback(self.clone(), resolved),
+                Err(err) => log::error!("Fatal error resolving dependency for immediate resolve: {}", err),
             }
         } else {
             let stored_callback = Box::new({
                 move |container: DependencyContainer| match T::resolve_from(&container) {
                     Ok(resolved) => callback(container, resolved),
-                    Err(err) => log::error!("Fatal error resolving internal dependency: {}", err),
+                    Err(err) => log::error!("Fatal error resolving dependency for stored resolve: {}", err),
                 }
             });
 
@@ -88,10 +98,7 @@ struct DependencyContainerInner {
 }
 
 impl DependencyContainerInner {
-    fn process_pending_callbacks(
-        &mut self,
-        container: DependencyContainer,
-    ) {
+    fn collect_ready_callbacks(&mut self) -> Vec<Callback> {
         let mut ready_callbacks = vec![];
         let mut still_pending = vec![];
 
@@ -109,9 +116,6 @@ impl DependencyContainerInner {
         }
 
         self.pending_callbacks = still_pending;
-
-        for callback in ready_callbacks {
-            callback(container.clone());
-        }
+        ready_callbacks
     }
 }
