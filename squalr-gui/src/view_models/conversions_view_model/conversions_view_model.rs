@@ -18,12 +18,17 @@ pub struct ConversionsViewModel {
 }
 
 impl ConversionsViewModel {
-    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
-        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
-        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
-        let view = Arc::new(ConversionsViewModel {
+    pub fn register(dependency_container: &DependencyContainer) {
+        dependency_container.resolve_all(Self::on_dependencies_resolved);
+    }
+
+    fn on_dependencies_resolved(
+        dependency_container: DependencyContainer,
+        (view_binding, engine_execution_context): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>),
+    ) {
+        let view_model = Arc::new(ConversionsViewModel {
             _view_binding: view_binding.clone(),
-            _engine_execution_context: engine_execution_context.clone(),
+            _engine_execution_context: engine_execution_context,
         });
 
         create_view_bindings!(view_binding, {
@@ -36,7 +41,7 @@ impl ConversionsViewModel {
             }
         });
 
-        Ok(view)
+        dependency_container.register(view_model);
     }
 
     fn on_convert_hex_to_dec(data_value: SharedString) -> SharedString {

@@ -14,23 +14,32 @@ use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
+use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use std::sync::Arc;
 use std::sync::RwLock;
 
 pub struct DockRootViewModel {
     view_binding: Arc<ViewBinding<MainWindowView>>,
+    _engine_execution_context: Arc<EngineExecutionContext>,
     docking_manager: Arc<RwLock<DockingManager>>,
 }
 
 impl DockRootViewModel {
-    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
-        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
+    pub fn register(dependency_container: &DependencyContainer) {
+        dependency_container.resolve_all(Self::on_dependencies_resolved);
+    }
+
+    fn on_dependencies_resolved(
+        dependency_container: DependencyContainer,
+        (view_binding, engine_execution_context): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>),
+    ) {
         let main_dock_root = DockableWindowSettings::get_dock_layout_settings();
         let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));
 
         let view_model = Arc::new(DockRootViewModel {
             view_binding: view_binding.clone(),
+            _engine_execution_context: engine_execution_context,
             docking_manager: docking_manager.clone(),
         });
 
@@ -77,31 +86,7 @@ impl DockRootViewModel {
             });
         }
 
-        Ok(view_model)
-    }
-
-    pub fn initialize(&self) {
-        self.show();
-    }
-
-    pub fn show(&self) {
-        if let Ok(handle) = self.view_binding.get_view_handle().lock() {
-            if let Some(view) = handle.upgrade() {
-                if let Err(err) = view.show() {
-                    log::error!("Error showing the main window: {err}");
-                }
-            }
-        }
-    }
-
-    pub fn hide(&self) {
-        if let Ok(handle) = self.view_binding.get_view_handle().lock() {
-            if let Some(view) = handle.upgrade() {
-                if let Err(err) = view.hide() {
-                    log::error!("Error hiding the main window: {err}");
-                }
-            }
-        }
+        dependency_container.register(view_model);
     }
 
     fn on_minimize(view_model: Arc<DockRootViewModel>) {

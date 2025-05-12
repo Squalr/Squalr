@@ -40,9 +40,14 @@ pub struct ScannerViewModel {
 }
 
 impl ScannerViewModel {
-    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
-        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
-        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
+    pub fn register(dependency_container: &DependencyContainer) {
+        dependency_container.resolve_all(Self::on_dependencies_resolved);
+    }
+
+    fn on_dependencies_resolved(
+        dependency_container: DependencyContainer,
+        (view_binding, engine_execution_context): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>),
+    ) {
         let view_model = Arc::new(ScannerViewModel {
             view_binding: view_binding.clone(),
             engine_execution_context: engine_execution_context.clone(),
@@ -63,7 +68,7 @@ impl ScannerViewModel {
             });
         }
 
-        Ok(view_model)
+        dependency_container.register(view_model);
     }
 
     fn on_reset_scan(view_model: Arc<ScannerViewModel>) {

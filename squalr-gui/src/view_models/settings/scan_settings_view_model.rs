@@ -21,11 +21,15 @@ pub struct ScanSettingsViewModel {
 }
 
 impl ScanSettingsViewModel {
-    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
-        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
-        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
+    pub fn register(dependency_container: &DependencyContainer) {
+        dependency_container.resolve_all(Self::on_dependencies_resolved);
+    }
 
-        let view = Arc::new(ScanSettingsViewModel {
+    fn on_dependencies_resolved(
+        dependency_container: DependencyContainer,
+        (view_binding, engine_execution_context): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>),
+    ) {
+        let view_model = Arc::new(ScanSettingsViewModel {
             view_binding: view_binding.clone(),
             engine_execution_context: engine_execution_context.clone(),
         });
@@ -43,9 +47,9 @@ impl ScanSettingsViewModel {
             }
         });
 
-        view.sync_ui_with_scan_settings();
+        view_model.sync_ui_with_scan_settings();
 
-        Ok(view)
+        dependency_container.register(view_model);
     }
 
     fn on_results_page_size_changed(

@@ -36,13 +36,13 @@ impl SqualrEngine {
             }
         }
 
-        let mut dependency_container = DependencyContainer::new();
+        let dependency_container = DependencyContainer::new();
 
         // Register the engine execution context for dependency injection use.
         if let Some(engine_execution_context) = engine_execution_context.as_ref() {
             let engine_execution_context = engine_execution_context.clone();
 
-            dependency_container.register(move |_dependency_container: &DependencyContainer| Ok(engine_execution_context.clone()));
+            dependency_container.register(engine_execution_context.clone());
         }
 
         let squalr_engine = SqualrEngine {
@@ -73,11 +73,6 @@ impl SqualrEngine {
             engine_execution_context.initialize(&self.engine_privileged_state);
         }
 
-        // Create the dependency injection builder, into which engine/plugins/ui can register services.
-        if let Err(err) = self.dependency_container.build() {
-            log::error!("Error initializing dependencies: {}", err);
-        }
-
         AppUpdater::run_update(ProgressTracker::new());
     }
 
@@ -85,7 +80,7 @@ impl SqualrEngine {
         &self.engine_execution_context
     }
 
-    pub fn get_dependency_container_mut(&mut self) -> &mut DependencyContainer {
-        &mut self.dependency_container
+    pub fn get_dependency_container(&mut self) -> &DependencyContainer {
+        &self.dependency_container
     }
 }

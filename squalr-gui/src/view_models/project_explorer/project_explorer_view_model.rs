@@ -35,10 +35,14 @@ pub struct ProjectExplorerViewModel {
 }
 
 impl ProjectExplorerViewModel {
-    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
-        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
-        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
+    pub fn register(dependency_container: &DependencyContainer) {
+        dependency_container.resolve_all(Self::on_dependencies_resolved);
+    }
 
+    fn on_dependencies_resolved(
+        dependency_container: DependencyContainer,
+        (view_binding, engine_execution_context): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>),
+    ) {
         // Create a binding that allows us to easily update the view's project list.
         let project_list_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
@@ -75,7 +79,7 @@ impl ProjectExplorerViewModel {
 
         Self::listen_for_project_changes(view_model.clone());
 
-        Ok(view_model)
+        dependency_container.register(view_model);
     }
 
     fn listen_for_project_changes(view_model: Arc<ProjectExplorerViewModel>) {

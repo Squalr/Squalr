@@ -19,10 +19,8 @@ pub fn main() {
     };
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
-    let _main_window_view = match MainWindowViewModel::new(squalr_engine.get_dependency_container_mut()) {
-        Ok(main_window_view) => main_window_view,
-        Err(err) => panic!("Fatal error creating Squalr GUI: {}", err),
-    };
+    // May not evaluate until the dependencies in the engine are initialized.
+    MainWindowViewModel::register(squalr_engine.get_dependency_container());
 
     // Now that gui dependencies are registered, start the engine fully.
     squalr_engine.initialize();

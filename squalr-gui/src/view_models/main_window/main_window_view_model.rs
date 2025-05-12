@@ -21,29 +21,24 @@ use std::sync::Arc;
 pub struct MainWindowViewModel {}
 
 impl MainWindowViewModel {
-    pub fn new(dependency_container: &mut DependencyContainer) -> anyhow::Result<Arc<Self>> {
+    pub fn register(dependency_container: &DependencyContainer) {
         let view = MainWindowView::new().unwrap();
         let view_binding = Arc::new(ViewBinding::new(ComponentHandle::as_weak(&view)));
 
-        dependency_container.register(|_dependency_container| Ok(Arc::new(AudioPlayer::new())));
+        dependency_container.register(view_binding.clone());
+        dependency_container.register(Arc::new(AudioPlayer::new()));
 
-        {
-            let view_binding = view_binding.clone();
-
-            dependency_container.register(move |_dependency_container| Ok(view_binding.clone()));
-        }
-
-        dependency_container.register(move |dependency_container| DockRootViewModel::new(dependency_container));
-        dependency_container.register(move |dependency_container| ScannerViewModel::new(dependency_container));
-        dependency_container.register(move |dependency_container| MemorySettingsViewModel::new(dependency_container));
-        dependency_container.register(move |dependency_container| OutputViewModel::new(dependency_container));
-        dependency_container.register(move |dependency_container| ProcessSelectorViewModel::new(dependency_container));
-        dependency_container.register(move |dependency_container| ProjectExplorerViewModel::new(dependency_container));
-        dependency_container.register(move |dependency_container| PropertyViewerViewModel::new(dependency_container));
-        dependency_container.register(move |dependency_container| ScanSettingsViewModel::new(dependency_container));
-        dependency_container.register(move |dependency_container| ScanResultsViewModel::new(dependency_container));
-        dependency_container.register(move |dependency_container| ConversionsViewModel::new(dependency_container));
-        dependency_container.register(move |dependency_container| ValidationViewModel::new(dependency_container));
+        DockRootViewModel::register(dependency_container);
+        ScannerViewModel::register(dependency_container);
+        MemorySettingsViewModel::register(dependency_container);
+        OutputViewModel::register(dependency_container);
+        ProcessSelectorViewModel::register(dependency_container);
+        ProjectExplorerViewModel::register(dependency_container);
+        PropertyViewerViewModel::register(dependency_container);
+        ScanSettingsViewModel::register(dependency_container);
+        ScanResultsViewModel::register(dependency_container);
+        ConversionsViewModel::register(dependency_container);
+        ValidationViewModel::register(dependency_container);
 
         let view_model = Arc::new(MainWindowViewModel {});
 
@@ -59,7 +54,7 @@ impl MainWindowViewModel {
 
         Self::show(view_binding);
 
-        Ok(view_model)
+        dependency_container.register(view_model);
     }
 
     pub fn show(view_binding: Arc<ViewBinding<MainWindowView>>) {

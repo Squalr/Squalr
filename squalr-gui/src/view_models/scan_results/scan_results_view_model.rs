@@ -44,11 +44,14 @@ pub struct ScanResultsViewModel {
 }
 
 impl ScanResultsViewModel {
-    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
-        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
-        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
-        let audio_player = dependency_container.resolve::<AudioPlayer>()?;
+    pub fn register(dependency_container: &DependencyContainer) {
+        dependency_container.resolve_all(Self::on_dependencies_resolved);
+    }
 
+    fn on_dependencies_resolved(
+        dependency_container: DependencyContainer,
+        (view_binding, engine_execution_context, audio_player): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>, Arc<AudioPlayer>),
+    ) {
         // Create a binding that allows us to easily update the view's scan results.
         let scan_results_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
@@ -91,7 +94,7 @@ impl ScanResultsViewModel {
 
         Self::poll_scan_results(view_model.clone());
 
-        Ok(view_model)
+        dependency_container.register(view_model);
     }
 
     fn poll_scan_results(view_model: Arc<ScanResultsViewModel>) {

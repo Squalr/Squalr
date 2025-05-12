@@ -16,9 +16,14 @@ pub struct MemorySettingsViewModel {
 }
 
 impl MemorySettingsViewModel {
-    pub fn new(dependency_container: &DependencyContainer) -> anyhow::Result<Arc<Self>> {
-        let view_binding = dependency_container.resolve::<ViewBinding<MainWindowView>>()?;
-        let engine_execution_context = dependency_container.resolve::<EngineExecutionContext>()?;
+    pub fn register(dependency_container: &DependencyContainer) {
+        dependency_container.resolve_all(Self::on_dependencies_resolved);
+    }
+
+    fn on_dependencies_resolved(
+        dependency_container: DependencyContainer,
+        (view_binding, engine_execution_context): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>),
+    ) {
         let view_model = Arc::new(MemorySettingsViewModel {
             view_binding: view_binding.clone(),
             engine_execution_context: engine_execution_context.clone(),
@@ -45,7 +50,7 @@ impl MemorySettingsViewModel {
 
         view_model.sync_ui_with_memory_settings();
 
-        Ok(view_model)
+        dependency_container.register(view_model);
     }
 
     fn on_required_write_changed(
