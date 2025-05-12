@@ -68,7 +68,7 @@ impl ScannerViewModel {
             });
         }
 
-        dependency_container.register(view_model);
+        dependency_container.register::<ScannerViewModel>(view_model);
     }
 
     fn on_reset_scan(view_model: Arc<ScannerViewModel>) {

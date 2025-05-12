@@ -86,7 +86,7 @@ impl DockRootViewModel {
             });
         }
 
-        dependency_container.register(view_model);
+        dependency_container.register::<DockRootViewModel>(view_model);
     }
 
     fn on_minimize(view_model: Arc<DockRootViewModel>) {

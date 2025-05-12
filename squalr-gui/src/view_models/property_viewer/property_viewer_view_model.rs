@@ -54,7 +54,7 @@ impl PropertyViewerViewModel {
             });
         }
 
-        dependency_container.register(view_model);
+        dependency_container.register::<PropertyViewerViewModel>(view_model);
     }
 
     pub fn set_selected_properties(

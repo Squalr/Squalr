@@ -1,10 +1,14 @@
 use crate::dependency_injection::dependency_container::DependencyContainer;
 use anyhow::Result;
-use std::{any::TypeId, collections::HashSet, sync::Arc};
+use std::{any::type_name, collections::HashSet, sync::Arc};
 
 pub trait DepTuple: Sized {
-    fn missing_dependencies(container: &DependencyContainer) -> HashSet<TypeId>;
+    fn missing_dependencies(container: &DependencyContainer) -> HashSet<String>;
     fn resolve_from(container: &DependencyContainer) -> Result<Self>;
+}
+
+fn key<T: 'static>() -> String {
+    type_name::<T>().to_string()
 }
 
 // Resolve for 1-item list.
@@ -12,10 +16,10 @@ impl<A> DepTuple for Arc<A>
 where
     A: Send + Sync + 'static,
 {
-    fn missing_dependencies(container: &DependencyContainer) -> HashSet<TypeId> {
+    fn missing_dependencies(container: &DependencyContainer) -> HashSet<String> {
         let mut set = HashSet::new();
         if container.get_existing::<A>().is_err() {
-            set.insert(TypeId::of::<A>());
+            set.insert(key::<A>());
         }
         set
     }
@@ -31,13 +35,13 @@ where
     A: Send + Sync + 'static,
     B: Send + Sync + 'static,
 {
-    fn missing_dependencies(container: &DependencyContainer) -> HashSet<TypeId> {
+    fn missing_dependencies(container: &DependencyContainer) -> HashSet<String> {
         let mut set = HashSet::new();
         if container.get_existing::<A>().is_err() {
-            set.insert(TypeId::of::<A>());
+            set.insert(key::<A>());
         }
         if container.get_existing::<B>().is_err() {
-            set.insert(TypeId::of::<B>());
+            set.insert(key::<B>());
         }
         set
     }
@@ -54,16 +58,16 @@ where
     B: Send + Sync + 'static,
     C: Send + Sync + 'static,
 {
-    fn missing_dependencies(container: &DependencyContainer) -> HashSet<TypeId> {
+    fn missing_dependencies(container: &DependencyContainer) -> HashSet<String> {
         let mut set = HashSet::new();
         if container.get_existing::<A>().is_err() {
-            set.insert(TypeId::of::<A>());
+            set.insert(key::<A>());
         }
         if container.get_existing::<B>().is_err() {
-            set.insert(TypeId::of::<B>());
+            set.insert(key::<B>());
         }
         if container.get_existing::<C>().is_err() {
-            set.insert(TypeId::of::<C>());
+            set.insert(key::<C>());
         }
         set
     }

@@ -25,8 +25,8 @@ impl MainWindowViewModel {
         let view = MainWindowView::new().unwrap();
         let view_binding = Arc::new(ViewBinding::new(ComponentHandle::as_weak(&view)));
 
-        dependency_container.register(view_binding.clone());
-        dependency_container.register(Arc::new(AudioPlayer::new()));
+        dependency_container.register::<ViewBinding<MainWindowView>>(view_binding.clone());
+        dependency_container.register::<AudioPlayer>(Arc::new(AudioPlayer::new()));
 
         DockRootViewModel::register(dependency_container);
         ScannerViewModel::register(dependency_container);
@@ -54,7 +54,7 @@ impl MainWindowViewModel {
 
         Self::show(view_binding);
 
-        dependency_container.register(view_model);
+        dependency_container.register::<MainWindowViewModel>(view_model);
     }
 
     pub fn show(view_binding: Arc<ViewBinding<MainWindowView>>) {

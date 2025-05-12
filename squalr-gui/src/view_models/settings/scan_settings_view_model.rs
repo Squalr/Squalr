@@ -49,7 +49,7 @@ impl ScanSettingsViewModel {
 
         view_model.sync_ui_with_scan_settings();
 
-        dependency_container.register(view_model);
+        dependency_container.register::<ScanSettingsViewModel>(view_model);
     }
 
     fn on_results_page_size_changed(

@@ -3,6 +3,7 @@ use crate::WindowViewModelBindings;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use std::sync::Arc;
 
 pub struct UndockedWindowViewModel {
@@ -10,13 +11,13 @@ pub struct UndockedWindowViewModel {
 }
 
 impl UndockedWindowViewModel {
-    pub fn new() -> Self {
+    pub fn register(dependency_container: &DependencyContainer) {
         let view = UndockedWindowView::new().unwrap();
         let view_binding = Arc::new(ViewBinding::new(ComponentHandle::as_weak(&view)));
 
-        let view_model = UndockedWindowViewModel {
+        let view_model = Arc::new(UndockedWindowViewModel {
             view_binding: view_binding.clone(),
-        };
+        });
 
         create_view_bindings!(view_binding, {
             WindowViewModelBindings => {
@@ -28,7 +29,7 @@ impl UndockedWindowViewModel {
             }
         });
 
-        view_model
+        dependency_container.register::<UndockedWindowViewModel>(view_model);
     }
 
     /// Shows the undocked window

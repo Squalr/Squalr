@@ -36,7 +36,7 @@ impl ValidationViewModel {
             }
         });
 
-        dependency_container.register(view_model);
+        dependency_container.register::<ValidationViewModel>(view_model);
     }
 
     fn on_validate_data_value(

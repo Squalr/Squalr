@@ -50,7 +50,7 @@ impl MemorySettingsViewModel {
 
         view_model.sync_ui_with_memory_settings();
 
-        dependency_container.register(view_model);
+        dependency_container.register::<MemorySettingsViewModel>(view_model);
     }
 
     fn on_required_write_changed(

@@ -79,7 +79,7 @@ impl ProjectExplorerViewModel {
 
         Self::listen_for_project_changes(view_model.clone());
 
-        dependency_container.register(view_model);
+        dependency_container.register::<ProjectExplorerViewModel>(view_model);
     }
 
     fn listen_for_project_changes(view_model: Arc<ProjectExplorerViewModel>) {

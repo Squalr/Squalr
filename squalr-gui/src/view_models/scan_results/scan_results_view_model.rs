@@ -94,7 +94,7 @@ impl ScanResultsViewModel {
 
         Self::poll_scan_results(view_model.clone());
 
-        dependency_container.register(view_model);
+        dependency_container.register::<ScanResultsViewModel>(view_model);
     }
 
     fn poll_scan_results(view_model: Arc<ScanResultsViewModel>) {

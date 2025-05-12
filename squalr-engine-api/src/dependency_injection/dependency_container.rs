@@ -1,6 +1,6 @@
 use crate::dependency_injection::dep_tuple::DepTuple;
 use anyhow::{Result, anyhow};
-use std::any::{Any, TypeId};
+use std::any::{Any, type_name};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
@@ -27,11 +27,11 @@ impl DependencyContainer {
     ) where
         T: Send + Sync + 'static,
     {
-        let type_id = TypeId::of::<T>();
+        let key = type_name::<T>().to_string();
 
         match self.inner.write() {
             Ok(mut container) => {
-                container.services.insert(type_id, instance);
+                container.services.insert(key, instance);
                 container.process_pending_callbacks(self.clone());
             }
             Err(err) => log::error!("Error acquiring dependency register lock: {}", err),
@@ -39,14 +39,18 @@ impl DependencyContainer {
     }
 
     pub fn get_existing<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
-        let guard = self.inner.read().unwrap();
-        guard
-            .services
-            .get(&TypeId::of::<T>())
-            .ok_or_else(|| anyhow!("Dependency not found: {}", std::any::type_name::<T>()))?
-            .clone()
-            .downcast::<T>()
-            .map_err(|_| anyhow!("Dependency type mismatch for type: {}", std::any::type_name::<T>()))
+        let key = type_name::<T>();
+
+        match self.inner.read() {
+            Ok(container) => container
+                .services
+                .get(key)
+                .ok_or_else(|| anyhow!("Dependency not found: {}", key))?
+                .clone()
+                .downcast::<T>()
+                .map_err(|_| anyhow!("Dependency type mismatch for type: {}", key)),
+            Err(err) => Err(anyhow!("Failed to acquire lock when getting dependency instance: {}", err)),
+        }
     }
 
     pub fn resolve_all<T, F>(
@@ -63,22 +67,24 @@ impl DependencyContainer {
                 callback(self.clone(), resolved);
             }
         } else {
-            let cb = Box::new({
+            let stored_callback = Box::new({
                 move |container: DependencyContainer| match T::resolve_from(&container) {
                     Ok(resolved) => callback(container, resolved),
                     Err(err) => log::error!("Fatal error resolving internal dependency: {}", err),
                 }
             });
 
-            let mut guard = self.inner.write().unwrap();
-            guard.pending_callbacks.push((missing, cb));
+            match self.inner.write() {
+                Ok(mut container) => container.pending_callbacks.push((missing, stored_callback)),
+                Err(err) => log::error!("Failed to acquire lock when resolving dependency instance: {}", err),
+            }
         }
     }
 }
 
 struct DependencyContainerInner {
-    pub services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
-    pending_callbacks: Vec<(HashSet<TypeId>, Callback)>,
+    services: HashMap<String, Arc<dyn Any + Send + Sync>>,
+    pending_callbacks: Vec<(HashSet<String>, Callback)>,
 }
 
 impl DependencyContainerInner {
@@ -104,8 +110,8 @@ impl DependencyContainerInner {
 
         self.pending_callbacks = still_pending;
 
-        for cb in ready_callbacks {
-            cb(container.clone());
+        for callback in ready_callbacks {
+            callback(container.clone());
         }
     }
 }

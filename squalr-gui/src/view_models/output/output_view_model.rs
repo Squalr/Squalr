@@ -39,7 +39,7 @@ impl OutputViewModel {
             }
         }
 
-        dependency_container.register(view_model);
+        dependency_container.register::<OutputViewModel>(view_model);
     }
 
     fn on_log_event(

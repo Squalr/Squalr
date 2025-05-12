@@ -41,7 +41,7 @@ impl ConversionsViewModel {
             }
         });
 
-        dependency_container.register(view_model);
+        dependency_container.register::<ConversionsViewModel>(view_model);
     }
 
     fn on_convert_hex_to_dec(data_value: SharedString) -> SharedString {

@@ -75,7 +75,7 @@ impl ProcessSelectorViewModel {
 
         Self::listen_for_process_change(view_model.clone());
 
-        dependency_container.register(view_model);
+        dependency_container.register::<ProcessSelectorViewModel>(view_model);
     }
 
     fn listen_for_process_change(view_model: Arc<ProcessSelectorViewModel>) {
