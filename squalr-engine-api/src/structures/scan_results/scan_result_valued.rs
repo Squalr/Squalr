@@ -27,16 +27,16 @@ impl ScanResultValued {
         }
     }
 
+    pub fn get_base_result(&self) -> &ScanResultBase {
+        &self.scan_result_base
+    }
+
     pub fn get_address(&self) -> u64 {
         self.scan_result_base.get_address()
     }
 
     pub fn get_data_type(&self) -> &DataTypeRef {
         &self.scan_result_base.get_data_type()
-    }
-
-    pub fn get_scan_result_base(&self) -> &ScanResultBase {
-        &self.scan_result_base
     }
 
     pub fn get_current_value(&self) -> &Option<DataValue> {

@@ -12,6 +12,7 @@ use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::structures::properties::property::Property;
+use squalr_engine_api::structures::properties::property_collection::PropertyCollection;
 use std::sync::Arc;
 
 pub struct PropertyViewerViewModel {
@@ -59,10 +60,10 @@ impl PropertyViewerViewModel {
 
     pub fn set_selected_properties(
         &self,
-        selected_properties: Vec<Property>,
+        selected_properties: Vec<PropertyCollection>,
     ) {
         self.selected_properties_collection
-            .update_from_source(selected_properties);
+            .update_from_source(PropertyCollection::combine_property_collections(&selected_properties));
     }
 
     fn on_set_property_value(

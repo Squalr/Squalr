@@ -2,6 +2,11 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_response::ScanResultsQueryResponse;
+use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
+use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
+use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
+use squalr_engine_memory::memory_reader::MemoryReader;
+use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use std::sync::Arc;
 
@@ -17,6 +22,16 @@ impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
         let mut last_page_index = 0;
         let mut result_count = 0;
         let mut total_size_in_bytes = 0;
+
+        // Collect modules if possible so that we can resolve whether individual addresses are static later.
+        let modules = if let Some(opened_process_info) = engine_privileged_state
+            .get_process_manager()
+            .get_opened_process()
+        {
+            MemoryQueryer::get_instance().get_modules(&opened_process_info)
+        } else {
+            vec![]
+        };
 
         if let Ok(snapshot) = engine_privileged_state.get_snapshot().read() {
             result_count = snapshot.get_number_of_results();
@@ -34,8 +49,39 @@ impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
                     None => break,
                     Some(scan_result_base) => scan_result_base,
                 };
+                let mut recently_read_value = None;
+                let mut module_name = String::default();
+                let address = scan_result_base.get_address();
+                let mut module_offset = scan_result_base.get_address();
 
-                scan_results_list.push(scan_result_base);
+                // Best-effort attempt to read the values for this scan result.
+                if let Some(opened_process_info) = engine_privileged_state
+                    .get_process_manager()
+                    .get_opened_process()
+                {
+                    if let Some(mut data_value) = scan_result_base.get_current_value().clone() {
+                        if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
+                            recently_read_value = Some(data_value);
+                        }
+                    }
+                }
+
+                // Check whether this scan result belongs to a module (ie check if the address is static).
+                if let Some((found_module_name, address)) = MemoryQueryer::get_instance().address_to_module(address, &modules) {
+                    module_name = found_module_name;
+                    module_offset = address;
+                }
+
+                let is_frozen = if let Ok(snapshot_scan_result_freeze_list) = engine_privileged_state
+                    .get_snapshot_scan_result_freeze_list()
+                    .read()
+                {
+                    snapshot_scan_result_freeze_list.is_address_frozen(address)
+                } else {
+                    false
+                };
+
+                scan_results_list.push(ScanResult::new(scan_result_base, module_name, module_offset, recently_read_value, is_frozen));
             }
         }
 

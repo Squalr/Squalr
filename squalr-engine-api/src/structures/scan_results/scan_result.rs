@@ -2,6 +2,8 @@ use crate::structures::data_types::built_in_types::bool8::data_type_bool8::DataT
 use crate::structures::data_types::built_in_types::string::data_type_string::DataTypeString;
 use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
 use crate::structures::data_values::data_value::DataValue;
+use crate::structures::properties::property_collection::PropertyCollection;
+use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, properties::property::Property};
 use bevy_reflect::Reflect;
@@ -40,7 +42,7 @@ impl ScanResult {
         }
     }
 
-    pub fn as_properties(&self) -> Vec<Property> {
+    pub fn as_properties(&self) -> PropertyCollection {
         let property_value = Property::new(
             Self::PROPERTY_NAME_VALUE.to_string(),
             DataTypeString::get_value_from_primitive(&self.module),
@@ -67,13 +69,21 @@ impl ScanResult {
             true,
         );
 
-        vec![
+        PropertyCollection::new(vec![
             property_value,
             property_is_frozen,
             property_address,
             property_module,
             property_module_offset,
-        ]
+        ])
+    }
+
+    pub fn get_valued_result(&self) -> &ScanResultValued {
+        &self.valued_result
+    }
+
+    pub fn get_base_result(&self) -> &ScanResultBase {
+        self.valued_result.get_base_result()
     }
 
     pub fn get_address(&self) -> u64 {

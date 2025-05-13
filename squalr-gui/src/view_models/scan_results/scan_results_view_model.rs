@@ -3,6 +3,7 @@ use crate::ScanResultViewData;
 use crate::ScanResultsViewModelBindings;
 use crate::models::audio::audio_player::AudioPlayer;
 use crate::models::audio::audio_player::SoundType;
+use crate::view_models::property_viewer::property_viewer_view_model::PropertyViewerViewModel;
 use crate::view_models::scan_results::scan_result_comparer::ScanResultComparer;
 use crate::view_models::scan_results::scan_result_converter::ScanResultConverter;
 use slint::ComponentHandle;
@@ -24,7 +25,6 @@ use squalr_engine_api::dependency_injection::dependency_container::DependencyCon
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
-use squalr_engine_api::structures::scan_results::scan_result_valued::ScanResultValued;
 use squalr_engine_common::conversions::Conversions;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -36,11 +36,12 @@ use std::time::Duration;
 pub struct ScanResultsViewModel {
     view_binding: Arc<ViewBinding<MainWindowView>>,
     audio_player: Arc<AudioPlayer>,
-    base_scan_results_collection: Arc<RwLock<Vec<ScanResultValued>>>,
+    base_scan_results_collection: Arc<RwLock<Vec<ScanResult>>>,
     scan_results_collection: ViewCollectionBinding<ScanResultViewData, ScanResult, MainWindowView>,
     engine_execution_context: Arc<EngineExecutionContext>,
     current_page_index: Arc<AtomicU64>,
     cached_last_page_index: Arc<AtomicU64>,
+    property_viewer_view_model: Arc<PropertyViewerViewModel>,
 }
 
 impl ScanResultsViewModel {
@@ -50,7 +51,12 @@ impl ScanResultsViewModel {
 
     fn on_dependencies_resolved(
         dependency_container: DependencyContainer,
-        (view_binding, engine_execution_context, audio_player): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>, Arc<AudioPlayer>),
+        (view_binding, engine_execution_context, audio_player, property_viewer_view_model): (
+            Arc<ViewBinding<MainWindowView>>,
+            Arc<EngineExecutionContext>,
+            Arc<AudioPlayer>,
+            Arc<PropertyViewerViewModel>,
+        ),
     ) {
         // Create a binding that allows us to easily update the view's scan results.
         let scan_results_collection = create_view_model_collection!(
@@ -72,6 +78,7 @@ impl ScanResultsViewModel {
             engine_execution_context: engine_execution_context.clone(),
             current_page_index: current_page_index.clone(),
             cached_last_page_index: cached_last_page_index.clone(),
+            property_viewer_view_model,
         });
 
         {
@@ -186,7 +193,10 @@ impl ScanResultsViewModel {
 
         // Fire a request to get all scan result data needed for display.
         let scan_results_refresh_request = ScanResultsRefreshRequest {
-            scan_results: scan_results_to_refresh,
+            scan_results: scan_results_to_refresh
+                .iter()
+                .map(|scan_result| scan_result.get_valued_result().clone())
+                .collect(),
         };
 
         scan_results_refresh_request.send(engine_execution_context, move |scan_results_refresh_response| {
@@ -267,10 +277,16 @@ impl ScanResultsViewModel {
         view_model: Arc<ScanResultsViewModel>,
         local_scan_result_indices: ModelRc<i32>,
     ) {
+        let property_viewer_view_model = &view_model.property_viewer_view_model;
         let scan_results = Self::collect_scan_results_by_indicies(&view_model, local_scan_result_indices);
 
         if !scan_results.is_empty() {
-            //
+            property_viewer_view_model.set_selected_properties(
+                scan_results
+                    .iter()
+                    .map(|scan_result| scan_result.as_properties())
+                    .collect(),
+            );
         }
     }
 
@@ -278,7 +294,7 @@ impl ScanResultsViewModel {
         view_model: Arc<ScanResultsViewModel>,
         local_scan_result_indices: ModelRc<i32>,
     ) {
-        let scan_results = Self::collect_scan_results_by_indicies(&view_model, local_scan_result_indices);
+        let scan_results = Self::collect_scan_result_bases_by_indicies(&view_model, local_scan_result_indices);
 
         if !scan_results.is_empty() {
             let engine_execution_context = &view_model.engine_execution_context;
@@ -292,7 +308,7 @@ impl ScanResultsViewModel {
         view_model: Arc<ScanResultsViewModel>,
         local_scan_result_indices: ModelRc<i32>,
     ) {
-        let scan_results = Self::collect_scan_results_by_indicies(&view_model, local_scan_result_indices);
+        let scan_results = Self::collect_scan_result_bases_by_indicies(&view_model, local_scan_result_indices);
 
         if !scan_results.is_empty() {
             let engine_execution_context = &view_model.engine_execution_context;
@@ -307,7 +323,7 @@ impl ScanResultsViewModel {
         local_scan_result_indices: ModelRc<i32>,
         is_frozen: bool,
     ) {
-        let scan_results = Self::collect_scan_results_by_indicies(&view_model, local_scan_result_indices);
+        let scan_results = Self::collect_scan_result_bases_by_indicies(&view_model, local_scan_result_indices);
 
         if !scan_results.is_empty() {
             let engine_execution_context = &view_model.engine_execution_context;
@@ -320,18 +336,39 @@ impl ScanResultsViewModel {
     fn collect_scan_results_by_indicies(
         view_model: &Arc<ScanResultsViewModel>,
         local_scan_result_indices: ModelRc<i32>,
+    ) -> Vec<ScanResult> {
+        let base_scan_results_collection = &view_model.base_scan_results_collection;
+        let current_scan_results = match base_scan_results_collection.read() {
+            Ok(base_scan_results_collection) => base_scan_results_collection.clone(),
+            Err(_) => vec![],
+        };
+        let scan_results = (0..local_scan_result_indices.row_count())
+            .filter_map(|index| local_scan_result_indices.row_data(index))
+            .filter_map(|index| {
+                current_scan_results
+                    .get(index as usize)
+                    .map(|scan_result| scan_result.clone())
+            })
+            .collect();
+
+        scan_results
+    }
+
+    fn collect_scan_result_bases_by_indicies(
+        view_model: &Arc<ScanResultsViewModel>,
+        local_scan_result_indices: ModelRc<i32>,
     ) -> Vec<ScanResultBase> {
         let base_scan_results_collection = &view_model.base_scan_results_collection;
         let current_scan_results = match base_scan_results_collection.read() {
             Ok(base_scan_results_collection) => base_scan_results_collection.clone(),
             Err(_) => vec![],
         };
-        let scan_results: Vec<ScanResultBase> = (0..local_scan_result_indices.row_count())
+        let scan_results = (0..local_scan_result_indices.row_count())
             .filter_map(|index| local_scan_result_indices.row_data(index))
             .filter_map(|index| {
                 current_scan_results
                     .get(index as usize)
-                    .map(|scan_result_valued| scan_result_valued.get_scan_result_base().clone())
+                    .map(|scan_result| scan_result.get_base_result().clone())
             })
             .collect();
 
