@@ -1,4 +1,4 @@
-use crate::structures::data_types::built_in_types::data_type::data_type_data_type::DataTypeDataType;
+use crate::structures::data_types::built_in_types::data_type::data_type_data_type_ref::DataTypeRefDataType;
 use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
 use crate::structures::scanning::comparisons::scan_function_vector::{
     VectorCompareFnDelta16, VectorCompareFnDelta32, VectorCompareFnDelta64, VectorCompareFnImmediate16, VectorCompareFnImmediate32, VectorCompareFnImmediate64,
@@ -6,8 +6,8 @@ use crate::structures::scanning::comparisons::scan_function_vector::{
 };
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 
-/// Comparisons for the 'data type data type' are not supported.
-impl VectorComparable for DataTypeDataType {
+/// Comparisons for the 'data type ref' data type are not supported.
+impl VectorComparable for DataTypeRefDataType {
     fn get_vector_compare_equal_64(
         &self,
         _scan_parameters: &MappedScanParameters,

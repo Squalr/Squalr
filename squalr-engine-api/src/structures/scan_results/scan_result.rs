@@ -1,5 +1,5 @@
 use crate::structures::data_types::built_in_types::bool8::data_type_bool8::DataTypeBool8;
-use crate::structures::data_types::built_in_types::data_type::data_type_data_type::DataTypeDataType;
+use crate::structures::data_types::built_in_types::data_type::data_type_data_type_ref::DataTypeRefDataType;
 use crate::structures::data_types::built_in_types::primitive_display_type::PrimitiveDisplayType;
 use crate::structures::data_types::built_in_types::string::data_type_string::DataTypeString;
 use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
@@ -47,7 +47,7 @@ impl ScanResult {
     pub fn as_properties(&self) -> PropertyCollection {
         let property_data_type = Property::new(
             Self::PROPERTY_NAME_DATA_TYPE.to_string(),
-            DataTypeDataType::get_value_from_primitive(self.valued_result.get_data_type().get_data_type_id()),
+            DataTypeRefDataType::get_value_from_primitive(self.valued_result.get_data_type().get_data_type_id()),
             true,
         );
         let property_value = Property::new(

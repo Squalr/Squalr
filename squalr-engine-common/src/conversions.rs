@@ -22,6 +22,21 @@ impl Conversions {
             .map(|val| if prepend_prefix { format!("0x{:x}", val) } else { format!("{:x}", val) })
     }
 
+    /// Converts a decimal string to a padded 16-character hexadecimal string (u64).
+    pub fn dec_to_address(
+        dec: &str,
+        prepend_prefix: bool,
+    ) -> Result<String, std::num::ParseIntError> {
+        dec.parse::<u64>().map(|val| {
+            let hex = if val <= u32::MAX as u64 {
+                format!("{:08x}", val)
+            } else {
+                format!("{:016x}", val)
+            };
+            if prepend_prefix { format!("0x{}", hex) } else { hex }
+        })
+    }
+
     pub fn parse_hex_or_int(src: &str) -> Result<u64, std::num::ParseIntError> {
         if src.starts_with("0x") || src.starts_with("0X") {
             u64::from_str_radix(&src[2..], 16)

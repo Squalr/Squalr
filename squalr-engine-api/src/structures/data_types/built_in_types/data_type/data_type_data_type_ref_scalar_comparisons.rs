@@ -1,10 +1,10 @@
-use crate::structures::data_types::built_in_types::data_type::data_type_data_type::DataTypeDataType;
+use crate::structures::data_types::built_in_types::data_type::data_type_data_type_ref::DataTypeRefDataType;
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
 use crate::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 
-/// Comparisons for the 'data type data type' are not supported.
-impl ScalarComparable for DataTypeDataType {
+/// Comparisons for the 'data type ref' data type are not supported.
+impl ScalarComparable for DataTypeRefDataType {
     fn get_compare_equal(
         &self,
         _scan_parameters: &MappedScanParameters,

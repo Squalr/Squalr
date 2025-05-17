@@ -118,7 +118,9 @@ impl PrimitiveDataType {
                     let value = convert_bytes_unchecked();
                     let value_string = value.to_string();
                     match primitive_display_type {
-                        PrimitiveDisplayType::AsHex | PrimitiveDisplayType::AsAddress => Conversions::dec_to_hex(&value_string, false)
+                        PrimitiveDisplayType::AsHex => Conversions::dec_to_hex(&value_string, false)
+                            .map_err(|err| DataTypeError::ParseError(format!("Error converting primitive to hex: {}", err))),
+                        PrimitiveDisplayType::AsAddress => Conversions::dec_to_address(&value_string, false)
                             .map_err(|err| DataTypeError::ParseError(format!("Error converting primitive to hex: {}", err))),
                         PrimitiveDisplayType::Normal => Ok(value_string),
                     }

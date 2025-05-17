@@ -1,6 +1,6 @@
 use crate::structures::data_types::{
     built_in_types::{
-        byte_array::data_type_byte_array::DataTypeByteArray, data_type::data_type_data_type::DataTypeDataType, f32::data_type_f32::DataTypeF32,
+        byte_array::data_type_byte_array::DataTypeByteArray, data_type::data_type_data_type_ref::DataTypeRefDataType, f32::data_type_f32::DataTypeF32,
         f32be::data_type_f32be::DataTypeF32be, f64::data_type_f64::DataTypeF64, f64be::data_type_f64be::DataTypeF64be, i8::data_type_i8::DataTypeI8,
         i16::data_type_i16::DataTypeI16, i16be::data_type_i16be::DataTypeI16be, i32::data_type_i32::DataTypeI32, i32be::data_type_i32be::DataTypeI32be,
         i64::data_type_i64::DataTypeI64, i64be::data_type_i64be::DataTypeI64be, string::data_type_string::DataTypeString, u8::data_type_u8::DataTypeU8,
@@ -46,7 +46,7 @@ impl DataTypeRegistry {
         let registry: DashMap<String, Arc<dyn DataType>> = DashMap::new();
 
         let built_in_data_types: Vec<Arc<dyn DataType>> = vec![
-            Arc::new(DataTypeDataType {}),
+            Arc::new(DataTypeRefDataType {}),
             Arc::new(DataTypeI8 {}),
             Arc::new(DataTypeI16 {}),
             Arc::new(DataTypeI16be {}),

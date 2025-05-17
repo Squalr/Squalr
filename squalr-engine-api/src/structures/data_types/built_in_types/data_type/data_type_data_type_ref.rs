@@ -6,13 +6,13 @@ use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
 
-/// Represents the 'data type data type', ie a data type that references another data type.
+/// Represents the 'data type ref' data type, ie a data type that references another data type.
 /// In other words, this is a data type that contains a fixed, known `String`, used to construct a `DataTypeRef`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DataTypeDataType {}
+pub struct DataTypeRefDataType {}
 
-impl DataTypeDataType {
-    pub const DATA_TYPE_ID: &str = "data_type";
+impl DataTypeRefDataType {
+    pub const DATA_TYPE_ID: &str = "data_type_ref";
 
     pub fn get_data_type_id() -> &'static str {
         Self::DATA_TYPE_ID
@@ -27,7 +27,7 @@ impl DataTypeDataType {
     }
 }
 
-impl DataType for DataTypeDataType {
+impl DataType for DataTypeRefDataType {
     fn get_data_type_id(&self) -> &str {
         Self::get_data_type_id()
     }
@@ -106,7 +106,7 @@ impl DataType for DataTypeDataType {
     }
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {
-        DataTypeMetaData::FixedString(DataTypeDataType::get_data_type_id().to_string())
+        DataTypeMetaData::FixedString(DataTypeRefDataType::get_data_type_id().to_string())
     }
 
     fn get_meta_data_for_anonymous_value(
