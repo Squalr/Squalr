@@ -57,6 +57,7 @@ export component ScanResultsView inherits Rectangle {
                             scan_result_view_data: ScanResultsViewModelBindings.scan_results[index];
                             index: index;
                             on_click => {
+                                ScanResultsViewModelBindings.select_scan_results([index])
                             }
                         }
                     }

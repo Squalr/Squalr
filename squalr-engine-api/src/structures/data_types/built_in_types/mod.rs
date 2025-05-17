@@ -1,6 +1,7 @@
 pub mod bool32;
 pub mod bool8;
 pub mod byte_array;
+pub mod data_type;
 pub mod f32;
 pub mod f32be;
 pub mod f64;
@@ -12,7 +13,8 @@ pub mod i32be;
 pub mod i64;
 pub mod i64be;
 pub mod i8;
-pub mod primitive_type;
+pub mod primitive_data_type;
+pub mod primitive_display_type;
 pub mod string;
 pub mod u16;
 pub mod u16be;

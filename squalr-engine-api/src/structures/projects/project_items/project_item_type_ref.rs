@@ -1,9 +1,8 @@
-use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 /// Represents a handle to a project item type.
-#[derive(Reflect, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ProjectItemTypeRef {
     project_item_type_id: String,
 }

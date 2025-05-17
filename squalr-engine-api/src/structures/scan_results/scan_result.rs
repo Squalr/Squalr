@@ -1,4 +1,6 @@
 use crate::structures::data_types::built_in_types::bool8::data_type_bool8::DataTypeBool8;
+use crate::structures::data_types::built_in_types::data_type::data_type_data_type::DataTypeDataType;
+use crate::structures::data_types::built_in_types::primitive_display_type::PrimitiveDisplayType;
 use crate::structures::data_types::built_in_types::string::data_type_string::DataTypeString;
 use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
 use crate::structures::data_values::data_value::DataValue;
@@ -6,11 +8,10 @@ use crate::structures::properties::property_collection::PropertyCollection;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, properties::property::Property};
-use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Reflect, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ScanResult {
     valued_result: ScanResultValued,
     module: String,
@@ -20,6 +21,7 @@ pub struct ScanResult {
 }
 
 impl ScanResult {
+    pub const PROPERTY_NAME_DATA_TYPE: &str = "data_type";
     pub const PROPERTY_NAME_VALUE: &str = "value";
     pub const PROPERTY_NAME_IS_FROZEN: &str = "is_frozen";
     pub const PROPERTY_NAME_ADDRESS: &str = "address";
@@ -43,6 +45,11 @@ impl ScanResult {
     }
 
     pub fn as_properties(&self) -> PropertyCollection {
+        let property_data_type = Property::new(
+            Self::PROPERTY_NAME_DATA_TYPE.to_string(),
+            DataTypeDataType::get_value_from_primitive(self.valued_result.get_data_type().get_data_type_id()),
+            true,
+        );
         let property_value = Property::new(
             Self::PROPERTY_NAME_VALUE.to_string(),
             DataTypeString::get_value_from_primitive(&self.module),
@@ -55,7 +62,7 @@ impl ScanResult {
         );
         let property_address = Property::new(
             Self::PROPERTY_NAME_ADDRESS.to_string(),
-            DataTypeU64::get_value_from_primitive(self.valued_result.get_address()),
+            DataTypeU64::get_value_from_primitive(self.valued_result.get_address(), PrimitiveDisplayType::AsAddress),
             true,
         );
         let property_module = Property::new(
@@ -65,11 +72,12 @@ impl ScanResult {
         );
         let property_module_offset = Property::new(
             Self::PROPERTY_NAME_MODULE_OFFSET.to_string(),
-            DataTypeU64::get_value_from_primitive(self.module_offset),
+            DataTypeU64::get_value_from_primitive(self.module_offset, PrimitiveDisplayType::AsHex),
             true,
         );
 
         PropertyCollection::new(vec![
+            property_data_type,
             property_value,
             property_is_frozen,
             property_address,

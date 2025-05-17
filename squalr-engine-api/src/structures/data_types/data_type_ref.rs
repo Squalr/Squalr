@@ -9,7 +9,6 @@ use crate::structures::scanning::comparisons::scan_compare_type_relative::ScanCo
 use crate::structures::scanning::comparisons::scan_function_scalar::ScalarCompareFnImmediate;
 use crate::structures::scanning::comparisons::scan_function_scalar::ScalarCompareFnRelative;
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
-use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
 use std::simd::LaneCount;
 use std::simd::Simd;
@@ -22,7 +21,7 @@ use std::{
 /// Represents a handle to a data type. This is kept as a weak reference, as DataTypes can be registered/unregistered by plugins.
 /// As such, `DataType` is a `Box<dyn>` type, so it is much easier to abstract them behind `DataTypeRef` and just pass around handles.
 /// This is also important for serialization/deserialization, as if a plugin that defines a type is disabled, we can still deserialize it.
-#[derive(Reflect, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DataTypeRef {
     data_type_id: String,
     data_type_meta_data: DataTypeMetaData,
@@ -111,7 +110,7 @@ impl DataTypeRef {
     pub fn get_size_in_bytes(&self) -> u64 {
         match &self.data_type_meta_data {
             // For standard types, return the default / primitive size from the data type in the registry.
-            DataTypeMetaData::None => {
+            DataTypeMetaData::None | DataTypeMetaData::Primitive(_) => {
                 let registry = DataTypeRegistry::get_instance().get_registry();
 
                 match registry.get(self.get_data_type_id()) {
@@ -121,8 +120,10 @@ impl DataTypeRef {
             }
             // For container types, return the size of the container.
             DataTypeMetaData::SizedContainer(size) => *size,
-            // For string types, return the size of the container.
+            // For encoded string types, return the size of the container.
             DataTypeMetaData::EncodedString(size, _encoding) => *size,
+            // For fixed string types, return the size of the string.
+            DataTypeMetaData::FixedString(string) => string.len() as u64,
         }
     }
 

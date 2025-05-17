@@ -1,11 +1,10 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 /// Represents a base scan result containing only the address and data type.
 /// This will later need to be processed to determine modules, offsets, current values, etc.
-#[derive(Reflect, Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanResultBase {
     address: u64,
     data_type_ref: DataTypeRef,

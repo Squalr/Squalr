@@ -1,4 +1,5 @@
-use crate::structures::data_types::built_in_types::primitive_type::PrimitiveDataType;
+use crate::structures::data_types::built_in_types::primitive_data_type::PrimitiveDataType;
+use crate::structures::data_types::built_in_types::primitive_display_type::PrimitiveDisplayType;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
@@ -28,7 +29,10 @@ impl DataTypeBool32 {
     pub fn get_value_from_primitive(value: ExposedType) -> DataValue {
         let value_bytes = PrimitiveType::to_le_bytes(value as PrimitiveType);
 
-        DataValue::new(DataTypeRef::new(Self::get_data_type_id(), DataTypeMetaData::None), value_bytes.to_vec())
+        DataValue::new(
+            DataTypeRef::new(Self::get_data_type_id(), DataTypeMetaData::Primitive(PrimitiveDisplayType::Normal)),
+            value_bytes.to_vec(),
+        )
     }
 }
 
@@ -105,20 +109,20 @@ impl DataType for DataTypeBool32 {
     }
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {
-        DataTypeMetaData::None
+        DataTypeMetaData::Primitive(PrimitiveDisplayType::Normal)
     }
 
     fn get_meta_data_for_anonymous_value(
         &self,
         _anonymous_value: &AnonymousValue,
     ) -> DataTypeMetaData {
-        DataTypeMetaData::None
+        DataTypeMetaData::Primitive(PrimitiveDisplayType::Normal)
     }
 
     fn get_meta_data_from_string(
         &self,
         _string: &str,
     ) -> Result<DataTypeMetaData, String> {
-        Ok(DataTypeMetaData::None)
+        Ok(DataTypeMetaData::Primitive(PrimitiveDisplayType::Normal))
     }
 }

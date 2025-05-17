@@ -1,4 +1,5 @@
-use crate::structures::data_types::built_in_types::primitive_type::PrimitiveDataType;
+use crate::structures::data_types::built_in_types::primitive_data_type::PrimitiveDataType;
+use crate::structures::data_types::built_in_types::primitive_display_type::PrimitiveDisplayType;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
@@ -22,10 +23,16 @@ impl DataTypeI32be {
         value.to_be_bytes().to_vec()
     }
 
-    pub fn get_value_from_primitive(value: PrimitiveType) -> DataValue {
+    pub fn get_value_from_primitive(
+        value: PrimitiveType,
+        primitive_display_type: PrimitiveDisplayType,
+    ) -> DataValue {
         let value_bytes = PrimitiveType::to_be_bytes(value);
 
-        DataValue::new(DataTypeRef::new(Self::get_data_type_id(), DataTypeMetaData::None), value_bytes.to_vec())
+        DataValue::new(
+            DataTypeRef::new(Self::get_data_type_id(), DataTypeMetaData::Primitive(primitive_display_type)),
+            value_bytes.to_vec(),
+        )
     }
 }
 
@@ -63,22 +70,17 @@ impl DataType for DataTypeI32be {
             return Err(DataTypeError::InvalidDataType);
         }
 
-        PrimitiveDataType::deanonymize_primitive::<PrimitiveType>(anonymous_value, data_type_ref, true)
+        PrimitiveDataType::deanonymize_primitive::<PrimitiveType>(anonymous_value, data_type_ref, false)
     }
 
     fn create_display_value(
         &self,
         value_bytes: &[u8],
-        _data_type_meta_data: &DataTypeMetaData,
+        data_type_meta_data: &DataTypeMetaData,
     ) -> Result<String, DataTypeError> {
-        let expected = self.get_default_size_in_bytes() as usize;
-        let actual = value_bytes.len();
-
-        if actual == expected {
-            Ok(PrimitiveType::from_be_bytes([value_bytes[0], value_bytes[1], value_bytes[2], value_bytes[3]]).to_string())
-        } else {
-            Err(DataTypeError::InvalidByteCount { expected, actual })
-        }
+        PrimitiveDataType::create_display_value(value_bytes, data_type_meta_data, || {
+            PrimitiveType::from_be_bytes([value_bytes[0], value_bytes[1], value_bytes[2], value_bytes[3]])
+        })
     }
 
     fn get_endian(&self) -> Endian {
@@ -97,20 +99,20 @@ impl DataType for DataTypeI32be {
     }
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {
-        DataTypeMetaData::None
+        DataTypeMetaData::Primitive(PrimitiveDisplayType::Normal)
     }
 
     fn get_meta_data_for_anonymous_value(
         &self,
-        _anonymous_value: &AnonymousValue,
+        anonymous_value: &AnonymousValue,
     ) -> DataTypeMetaData {
-        DataTypeMetaData::None
+        PrimitiveDataType::get_meta_data_for_anonymous_value(anonymous_value)
     }
 
     fn get_meta_data_from_string(
         &self,
         _string: &str,
     ) -> Result<DataTypeMetaData, String> {
-        Ok(DataTypeMetaData::None)
+        Ok(DataTypeMetaData::Primitive(PrimitiveDisplayType::Normal))
     }
 }

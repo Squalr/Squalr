@@ -15,7 +15,16 @@ impl PropertyCollection {
         &self.properties
     }
 
-    pub fn combine_property_collections(property_collection: &Vec<PropertyCollection>) -> Vec<Property> {
-        vec![]
+    pub fn combine_property_collections(property_collections: &Vec<PropertyCollection>) -> Vec<Property> {
+        let mut merged_properties = vec![];
+
+        for property_collection in property_collections {
+            for property in property_collection.get_properties() {
+                // JIRA: Only push if not already added.
+                merged_properties.push(property.clone());
+            }
+        }
+
+        merged_properties
     }
 }

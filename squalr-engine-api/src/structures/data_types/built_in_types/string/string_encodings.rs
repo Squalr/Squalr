@@ -1,9 +1,8 @@
-use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
 
 /// Represents the string encoding supported in scans.
-#[derive(Reflect, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum StringEncoding {
     Utf8,
     Utf16,
@@ -53,9 +52,9 @@ pub enum StringEncoding {
 impl fmt::Display for StringEncoding {
     fn fmt(
         &self,
-        f: &mut fmt::Formatter,
+        formatter: &mut fmt::Formatter,
     ) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(formatter, "{:?}", self)
     }
 }
 
