@@ -1,16 +1,16 @@
-import { MemoryAlignmentView } from "../view_model_bindings.slint";
+import { IconView, MemoryAlignmentView } from "../view_model_bindings.slint";
 
 export component MemoryAlignmentIconConverter {
-    public pure function memory_alignment_source(memory_alignment_view: MemoryAlignmentView) -> image {
+    public pure function memory_alignment_source(memory_alignment_view: MemoryAlignmentView) -> IconView {
         if (memory_alignment_view == MemoryAlignmentView.alignment_1) {
-            return @image_url("./../images/data_types/purple_blocks_1.png");
+            return IconView.alignment_1;
         } else if (memory_alignment_view == MemoryAlignmentView.alignment_2) {
-            return @image_url("./../images/data_types/purple_blocks_2.png");
+            return IconView.alignment_2;
         } else if (memory_alignment_view == MemoryAlignmentView.alignment_4) {
-            return @image_url("./../images/data_types/purple_blocks_4.png");
+            return IconView.alignment_4;
         } else if (memory_alignment_view == MemoryAlignmentView.alignment_8) {
-            return @image_url("./../images/data_types/purple_blocks_8.png");
+            return IconView.alignment_8;
         }
-        return @image_url("./../images/unknown.png");
+        return IconView.unknown;
     }
 }

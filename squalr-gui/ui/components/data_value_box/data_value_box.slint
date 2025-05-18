@@ -5,10 +5,10 @@ import { ContextMenu } from "../context_menu/context_menu.slint";
 import { FocusTouchArea } from "../focus_touch_area.slint";
 import { StateLayer } from "../state_layer.slint";
 import { FakeCheckbox } from "../checkboxes/fake_checkbox.slint";
-import { DataTypeView, ConversionsViewModelBindings, ValidationViewModelBindings, ScannerViewModelBindings } from "../../view_model_bindings.slint";
+import { DataTypeRefView, ConversionsViewModelBindings, ValidationViewModelBindings, ScannerViewModelBindings } from "../../view_model_bindings.slint";
 
 export component DataValueBox {
-    in_out property <DataTypeView> data_type;
+    in_out property <DataTypeRefView> data_type;
     in_out property <bool> is_value_hex;
     in property <string> default_text;
     in property <string> preview_text;

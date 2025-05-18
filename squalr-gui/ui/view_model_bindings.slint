@@ -79,7 +79,10 @@ export global OutputViewModelBindings {
     in_out property <string> output_text;
 }
 
-export enum DataTypeIconView {
+export enum IconView {
+    unknown,
+
+    // Data types.
     i8,
     i8be,
     u8,
@@ -103,7 +106,47 @@ export enum DataTypeIconView {
     string,
     bytes,
     bitfield,
-    unknown,
+
+    // Scan constraints.
+    changed,
+    unchanged,
+    increased,
+    decreased,
+    equal,
+    not_equal,
+    greater_than,
+    greater_than_or_equal,
+    less_than,
+    less_than_or_equal,
+    increased_by_x,
+    decreased_by_x,
+    multiplied_by_x,
+    divided_by_x,
+    modulo_by_x,
+    shift_left_by_x,
+    shift_right_by_x,
+    logical_and_by_x,
+    logical_or_by_x,
+    logical_xor_by_x,
+
+    // Memory alignments
+    alignment_1,
+    alignment_2,
+    alignment_4,
+    alignment_8,
+
+    // Floating point tolerances.
+    tolerance_10e1,
+    tolerance_10e2,
+    tolerance_10e3,
+    tolerance_10e4,
+    tolerance_10e5,
+    tolerance_epsilon,
+
+    // Memory read modes.
+    skip,
+    read_interleaved_with_scan,
+    read_before_scan,
 }
 
 export enum ScanConstraintTypeView {
@@ -129,15 +172,6 @@ export enum ScanConstraintTypeView {
     logical_xor_by_x,
 }
 
-export global ValueCollectorViewModelBindings {
-    callback collect_values();
-}
-
-export struct DataTypeView {
-    data_type: string,
-    icon: DataTypeIconView,
-}
-
 export enum MemoryAlignmentView {
     alignment_1,
     alignment_2,
@@ -151,7 +185,7 @@ export enum FloatingPointToleranceView {
     tolerance_10e3,
     tolerance_10e4,
     tolerance_10e5,
-    tolerance_epsilon
+    tolerance_epsilon,
 }
 
 export enum MemoryReadModeView {
@@ -160,12 +194,21 @@ export enum MemoryReadModeView {
     read_before_scan,
 }
 
+export global ValueCollectorViewModelBindings {
+    callback collect_values();
+}
+
+export struct DataTypeRefView {
+    data_type_ref: string,
+    icon_id: string,
+}
+
 export global ScannerViewModelBindings {
-    in_out property <DataTypeView> active_data_type: { data_type: "i32", icon: DataTypeIconView.i32 };
+    in_out property <DataTypeRefView> active_data_type: { data_type_ref: "i32", icon_id: "i32" };
     in_out property <bool> is_value_hex: false;
     in_out property <ScanConstraintTypeView> active_scan_type: equal;
     callback reset_scan();
-    callback start_scan(data_type: DataTypeView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView, scan_value: string, is_value_hex: bool);
+    callback start_scan(data_type_ref: DataTypeRefView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView, scan_value: string, is_value_hex: bool);
     callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
 }
 
@@ -249,11 +292,11 @@ export global ProjectExplorerViewModelBindings {
 }
 
 export struct ScanResultViewData {
-    data_type: DataTypeIconView,
     address: string,
     current_value: string,
     previous_value: string,
     is_frozen: bool,
+    icon_id: string,
 }
 
 export global ScanResultsViewModelBindings {
@@ -280,6 +323,7 @@ export struct PropertyEntryViewData {
     name: string,
     display_value: string,
     is_read_only: bool,
+    icon_id: string,
 }
 
 export global PropertyViewerViewModelBindings {
@@ -296,5 +340,5 @@ export global ConversionsViewModelBindings {
 }
 
 export global ValidationViewModelBindings {
-    pure callback validate_data_value(data_type: DataTypeView, data_value: string, is_value_hex: bool) -> bool;
+    pure callback validate_data_value(data_type: DataTypeRefView, data_value: string, is_value_hex: bool) -> bool;
 }

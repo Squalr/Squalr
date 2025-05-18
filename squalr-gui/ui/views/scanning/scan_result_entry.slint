@@ -1,6 +1,6 @@
 import { Theme } from "../../theme.slint";
 import { ScanResultsViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
-import { DataTypeIconConverter } from "../../converters/data_type_icon_converter.slint";
+import { IconConverter } from "../../converters/icon_converter.slint";
 
 import { Button } from "../../components/buttons/button.slint";
 import { Checkbox } from "../../components/checkboxes/checkbox.slint";
@@ -13,7 +13,7 @@ export component ScanResultEntry inherits Button {
     in property <int> index;
     callback on_click();
     height: 24px;
-    data_type_icon_converter := DataTypeIconConverter { }
+    icon_converter := IconConverter { }
 
     clicked => {
         root.on_click();
@@ -37,7 +37,7 @@ export component ScanResultEntry inherits Button {
                 height: 16px;
                 horizontal_alignment: center;
                 vertical_alignment: center;
-                source: data_type_icon_converter.data_type_source(scan_result_view_data.data_type);
+                source: icon_converter.icon_view_to_image(icon_converter.icon_id_to_view(scan_result_view_data.icon_id));
             }
         }
 

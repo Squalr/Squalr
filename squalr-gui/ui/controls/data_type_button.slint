@@ -1,22 +1,26 @@
 import { Theme } from "./../theme.slint";
 
 import { Button } from "../components/buttons/button.slint";
-import { DataTypeIconConverter } from "../converters/data_type_icon_converter.slint";
-import { DataTypeIconView } from "../view_model_bindings.slint";
+import { IconConverter } from "../converters/icon_converter.slint";
+import { IconView } from "../view_model_bindings.slint";
 
 export component DataTypeButton inherits Button {
     in property <string> text;
-    in property <DataTypeIconView> icon;
-    data_type_icon_converter := DataTypeIconConverter { }
+    in property <IconView> icon;
+    icon_converter := IconConverter { }
 
     HorizontalLayout {
+        padding_left: 8px;
+        padding_right: 8px;
+        padding_top: 8px;
+        padding_bottom: 8px;
         spacing: 8px;
         Image {
             width: 16px;
             height: 16px;
             horizontal_alignment: center;
             vertical_alignment: center;
-            source: data_type_icon_converter.data_type_source(root.icon);
+            source: icon_converter.icon_view_to_image(root.icon);
         }
 
         Text {

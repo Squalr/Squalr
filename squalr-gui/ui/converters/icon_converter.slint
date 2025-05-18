@@ -1,0 +1,346 @@
+import { IconView } from "../view_model_bindings.slint";
+
+export component IconConverter {
+    public pure function icon_view_to_id(icon_view: IconView) -> string {
+        if (icon_view == IconView.i8) {
+            return "i8";
+        } else if (icon_view == IconView.i8be) {
+            return "i8be";
+        } else if (icon_view == IconView.u8) {
+            return "u8";
+        } else if (icon_view == IconView.u8be) {
+            return "u8be";
+        } else if (icon_view == IconView.i16) {
+            return "i16";
+        } else if (icon_view == IconView.i16be) {
+            return "i16be";
+        } else if (icon_view == IconView.u16) {
+            return "u16";
+        } else if (icon_view == IconView.u16be) {
+            return "u16be";
+        } else if (icon_view == IconView.i32) {
+            return "i32";
+        } else if (icon_view == IconView.i32be) {
+            return "i32be";
+        } else if (icon_view == IconView.u32) {
+            return "u32";
+        } else if (icon_view == IconView.u32be) {
+            return "u32be";
+        } else if (icon_view == IconView.i64) {
+            return "i64";
+        } else if (icon_view == IconView.i64be) {
+            return "i64be";
+        } else if (icon_view == IconView.u64) {
+            return "u64";
+        } else if (icon_view == IconView.u64be) {
+            return "u64be";
+        } else if (icon_view == IconView.f32) {
+            return "f32";
+        } else if (icon_view == IconView.f32be) {
+            return "f32be";
+        } else if (icon_view == IconView.f64) {
+            return "f64";
+        } else if (icon_view == IconView.f64be) {
+            return "f64be";
+        } else if (icon_view == IconView.bytes) {
+            return "bytes";
+        } else if (icon_view == IconView.string) {
+            return "string";
+        } else if (icon_view == IconView.changed) {
+            return "changed";
+        } else if (icon_view == IconView.unchanged) {
+            return "unchanged";
+        } else if (icon_view == IconView.increased) {
+            return "increased";
+        } else if (icon_view == IconView.decreased) {
+            return "decreased";
+        } else if (icon_view == IconView.equal) {
+            return "equal";
+        } else if (icon_view == IconView.not_equal) {
+            return "not_equal";
+        } else if (icon_view == IconView.greater_than) {
+            return "greater_than";
+        } else if (icon_view == IconView.greater_than_or_equal) {
+            return "greater_than_or_equal";
+        } else if (icon_view == IconView.less_than) {
+            return "less_than";
+        } else if (icon_view == IconView.less_than_or_equal) {
+            return "less_than_or_equal";
+        } else if (icon_view == IconView.increased_by_x) {
+            return "increased_by_x";
+        } else if (icon_view == IconView.decreased_by_x) {
+            return "decreased_by_x";
+        } else if (icon_view == IconView.multiplied_by_x) {
+            return "multiplied_by_x";
+        } else if (icon_view == IconView.divided_by_x) {
+            return "divided_by_x";
+        } else if (icon_view == IconView.modulo_by_x) {
+            return "modulo_by_x";
+        } else if (icon_view == IconView.shift_left_by_x) {
+            return "shift_left_by_x";
+        } else if (icon_view == IconView.shift_right_by_x) {
+            return "shift_right_by_x";
+        } else if (icon_view == IconView.logical_and_by_x) {
+            return "logical_and_by_x";
+        } else if (icon_view == IconView.logical_or_by_x) {
+            return "logical_or_by_x";
+        } else if (icon_view == IconView.logical_xor_by_x) {
+            return "logical_xor_by_x";
+        } else if (icon_view == IconView.alignment_1) {
+            return "alignment_1";
+        } else if (icon_view == IconView.alignment_2) {
+            return "alignment_2";
+        } else if (icon_view == IconView.alignment_4) {
+            return "alignment_4";
+        } else if (icon_view == IconView.alignment_8) {
+            return "alignment_8";
+        } else if (icon_view == IconView.tolerance_10e1) {
+            return "tolerance_10e1";
+        } else if (icon_view == IconView.tolerance_10e2) {
+            return "tolerance_10e2";
+        } else if (icon_view == IconView.tolerance_10e3) {
+            return "tolerance_10e3";
+        } else if (icon_view == IconView.tolerance_10e4) {
+            return "tolerance_10e4";
+        } else if (icon_view == IconView.tolerance_10e5) {
+            return "tolerance_10e5";
+        } else if (icon_view == IconView.tolerance_epsilon) {
+            return "tolerance_epsilon";
+        } else if (icon_view == IconView.skip) {
+            return "skip";
+        } else if (icon_view == IconView.read_interleaved_with_scan) {
+            return "read_interleaved_with_scan";
+        } else if (icon_view == IconView.read_before_scan) {
+            return "read_before_scan";
+        }
+        return "unknown";
+    }
+    public pure function icon_id_to_view(icon_id: string) -> IconView {
+        if (icon_id == "i8") {
+            return IconView.i8;
+        } else if (icon_id == "i8be") {
+            return IconView.i8be;
+        } else if (icon_id == "u8") {
+            return IconView.u8;
+        } else if (icon_id == "u8be") {
+            return IconView.u8be;
+        } else if (icon_id == "i16") {
+            return IconView.i16;
+        } else if (icon_id == "i16be") {
+            return IconView.i16be;
+        } else if (icon_id == "u16") {
+            return IconView.u16;
+        } else if (icon_id == "u16be") {
+            return IconView.u16be;
+        } else if (icon_id == "i32") {
+            return IconView.i32;
+        } else if (icon_id == "i32be") {
+            return IconView.i32be;
+        } else if (icon_id == "u32") {
+            return IconView.u32;
+        } else if (icon_id == "u32be") {
+            return IconView.u32be;
+        } else if (icon_id == "i64") {
+            return IconView.i64;
+        } else if (icon_id == "i64be") {
+            return IconView.i64be;
+        } else if (icon_id == "u64") {
+            return IconView.u64;
+        } else if (icon_id == "u64be") {
+            return IconView.u64be;
+        } else if (icon_id == "f32") {
+            return IconView.f32;
+        } else if (icon_id == "f32be") {
+            return IconView.f32be;
+        } else if (icon_id == "f64") {
+            return IconView.f64;
+        } else if (icon_id == "f64be") {
+            return IconView.f64be;
+        } else if (icon_id == "bytes") {
+            return IconView.bytes;
+        } else if (icon_id == "string") {
+            return IconView.string;
+        } else if (icon_id == "changed") {
+            return IconView.changed;
+        } else if (icon_id == "unchanged") {
+            return IconView.unchanged;
+        } else if (icon_id == "increased") {
+            return IconView.increased;
+        } else if (icon_id == "decreased") {
+            return IconView.decreased;
+        } else if (icon_id == "equal") {
+            return IconView.equal;
+        } else if (icon_id == "not_equal") {
+            return IconView.not_equal;
+        } else if (icon_id == "greater_than") {
+            return IconView.greater_than;
+        } else if (icon_id == "greater_than_or_equal") {
+            return IconView.greater_than_or_equal;
+        } else if (icon_id == "less_than") {
+            return IconView.less_than;
+        } else if (icon_id == "less_than_or_equal") {
+            return IconView.less_than_or_equal;
+        } else if (icon_id == "increased_by_x") {
+            return IconView.increased_by_x;
+        } else if (icon_id == "decreased_by_x") {
+            return IconView.decreased_by_x;
+        } else if (icon_id == "multiplied_by_x") {
+            return IconView.multiplied_by_x;
+        } else if (icon_id == "divided_by_x") {
+            return IconView.divided_by_x;
+        } else if (icon_id == "modulo_by_x") {
+            return IconView.modulo_by_x;
+        } else if (icon_id == "shift_left_by_x") {
+            return IconView.shift_left_by_x;
+        } else if (icon_id == "shift_right_by_x") {
+            return IconView.shift_right_by_x;
+        } else if (icon_id == "logical_and_by_x") {
+            return IconView.logical_and_by_x;
+        } else if (icon_id == "logical_or_by_x") {
+            return IconView.logical_or_by_x;
+        } else if (icon_id == "logical_xor_by_x") {
+            return IconView.logical_xor_by_x;
+        } else if (icon_id == "alignment_1") {
+            return IconView.alignment_1;
+        } else if (icon_id == "alignment_2") {
+            return IconView.alignment_2;
+        } else if (icon_id == "alignment_4") {
+            return IconView.alignment_4;
+        } else if (icon_id == "alignment_8") {
+            return IconView.alignment_8;
+        } else if (icon_id == "tolerance_10e1") {
+            return IconView.tolerance_10e1;
+        } else if (icon_id == "tolerance_10e2") {
+            return IconView.tolerance_10e2;
+        } else if (icon_id == "tolerance_10e3") {
+            return IconView.tolerance_10e3;
+        } else if (icon_id == "tolerance_10e4") {
+            return IconView.tolerance_10e4;
+        } else if (icon_id == "tolerance_10e5") {
+            return IconView.tolerance_10e5;
+        } else if (icon_id == "tolerance_epsilon") {
+            return IconView.tolerance_epsilon;
+        } else if (icon_id == "skip") {
+            return IconView.skip;
+        } else if (icon_id == "read_interleaved_with_scan") {
+            return IconView.read_interleaved_with_scan;
+        } else if (icon_id == "read_before_scan") {
+            return IconView.read_before_scan;
+        }
+        return IconView.unknown;
+    }
+    public pure function icon_view_to_image(icon_view: IconView) -> image {
+        if (icon_view == IconView.i8) {
+            return @image_url("../images/data_types/blue_blocks_1.png");
+        } else if (icon_view == IconView.i8be) {
+            return @image_url("../images/data_types/blue_blocks_reverse_1.png");
+        } else if (icon_view == IconView.u8) {
+            return @image_url("../images/data_types/purple_blocks_1.png");
+        } else if (icon_view == IconView.u8be) {
+            return @image_url("../images/data_types/purple_blocks_reverse_1.png");
+        } else if (icon_view == IconView.i16) {
+            return @image_url("../images/data_types/blue_blocks_2.png");
+        } else if (icon_view == IconView.i16be) {
+            return @image_url("../images/data_types/blue_blocks_reverse_2.png");
+        } else if (icon_view == IconView.u16) {
+            return @image_url("../images/data_types/purple_blocks_2.png");
+        } else if (icon_view == IconView.u16be) {
+            return @image_url("../images/data_types/purple_blocks_reverse_2.png");
+        } else if (icon_view == IconView.i32) {
+            return @image_url("../images/data_types/blue_blocks_4.png");
+        } else if (icon_view == IconView.i32be) {
+            return @image_url("../images/data_types/blue_blocks_reverse_4.png");
+        } else if (icon_view == IconView.u32) {
+            return @image_url("../images/data_types/purple_blocks_4.png");
+        } else if (icon_view == IconView.u32be) {
+            return @image_url("../images/data_types/purple_blocks_reverse_4.png");
+        } else if (icon_view == IconView.i64) {
+            return @image_url("../images/data_types/blue_blocks_8.png");
+        } else if (icon_view == IconView.i64be) {
+            return @image_url("../images/data_types/blue_blocks_reverse_8.png");
+        } else if (icon_view == IconView.u64) {
+            return @image_url("../images/data_types/purple_blocks_8.png");
+        } else if (icon_view == IconView.u64be) {
+            return @image_url("../images/data_types/purple_blocks_reverse_8.png");
+        } else if (icon_view == IconView.f32) {
+            return @image_url("../images/data_types/orange_blocks_4.png");
+        } else if (icon_view == IconView.f32be) {
+            return @image_url("../images/data_types/orange_blocks_reverse_4.png");
+        } else if (icon_view == IconView.f64) {
+            return @image_url("../images/data_types/orange_blocks_8.png");
+        } else if (icon_view == IconView.f64be) {
+            return @image_url("../images/data_types/orange_blocks_reverse_8.png");
+        } else if (icon_view == IconView.bytes) {
+            return @image_url("../images/data_types/purple_blocks_array.png");
+        } else if (icon_view == IconView.string) {
+            return @image_url("../images/data_types/string.png");
+        } else if (icon_view == IconView.changed) {
+            return @image_url("../images/scans/scan_relative_changed.png");
+        } else if (icon_view == IconView.unchanged) {
+            return @image_url("../images/scans/scan_relative_unchanged.png");
+        } else if (icon_view == IconView.increased) {
+            return @image_url("../images/scans/scan_relative_increased.png");
+        } else if (icon_view == IconView.decreased) {
+            return @image_url("../images/scans/scan_relative_decreased.png");
+        } else if (icon_view == IconView.equal) {
+            return @image_url("../images/scans/scan_immediate_equal.png");
+        } else if (icon_view == IconView.not_equal) {
+            return @image_url("../images/scans/scan_immediate_not_equal.png");
+        } else if (icon_view == IconView.greater_than) {
+            return @image_url("../images/scans/scan_immediate_greater_than.png");
+        } else if (icon_view == IconView.greater_than_or_equal) {
+            return @image_url("../images/scans/scan_immediate_greater_than_or_equal.png");
+        } else if (icon_view == IconView.less_than) {
+            return @image_url("../images/scans/scan_immediate_less_than.png");
+        } else if (icon_view == IconView.less_than_or_equal) {
+            return @image_url("../images/scans/scan_immediate_less_than_or_equal.png");
+        } else if (icon_view == IconView.increased_by_x) {
+            return @image_url("../images/scans/scan_delta_increased_by_x.png");
+        } else if (icon_view == IconView.decreased_by_x) {
+            return @image_url("../images/scans/scan_delta_decreased_by_x.png");
+        } else if (icon_view == IconView.multiplied_by_x) {
+            return @image_url("../images/scans/scan_delta_multiplied_by_x.png");
+        } else if (icon_view == IconView.divided_by_x) {
+            return @image_url("../images/scans/scan_delta_divided_by_x.png");
+        } else if (icon_view == IconView.modulo_by_x) {
+            return @image_url("../images/scans/scan_delta_modulo_by_x.png");
+        } else if (icon_view == IconView.shift_left_by_x) {
+            return @image_url("../images/scans/scan_delta_shift_left_by_x.png");
+        } else if (icon_view == IconView.shift_right_by_x) {
+            return @image_url("../images/scans/scan_delta_shift_right_by_x.png");
+        } else if (icon_view == IconView.logical_and_by_x) {
+            return @image_url("../images/scans/scan_delta_logical_and_by_x.png");
+        } else if (icon_view == IconView.logical_or_by_x) {
+            return @image_url("../images/scans/scan_delta_logical_or_by_x.png");
+        } else if (icon_view == IconView.logical_xor_by_x) {
+            return @image_url("../images/scans/scan_delta_logical_xor_by_x.png");
+        } else if (icon_view == IconView.alignment_1) {
+            return @image_url("../images/data_types/purple_blocks_1.png");
+        } else if (icon_view == IconView.alignment_2) {
+            return @image_url("../images/data_types/purple_blocks_2.png");
+        } else if (icon_view == IconView.alignment_4) {
+            return @image_url("../images/data_types/purple_blocks_4.png");
+        } else if (icon_view == IconView.alignment_8) {
+            return @image_url("../images/data_types/purple_blocks_8.png");
+        } else if (icon_view == IconView.tolerance_10e1) {
+            return @image_url("../images/settings/tolerance_1.png");
+        } else if (icon_view == IconView.tolerance_10e2) {
+            return @image_url("../images/settings/tolerance_2.png");
+        } else if (icon_view == IconView.tolerance_10e3) {
+            return @image_url("../images/settings/tolerance_3.png");
+        } else if (icon_view == IconView.tolerance_10e4) {
+            return @image_url("../images/settings/tolerance_4.png");
+        } else if (icon_view == IconView.tolerance_10e5) {
+            return @image_url("../images/settings/tolerance_5.png");
+        } else if (icon_view == IconView.tolerance_epsilon) {
+            return @image_url("../images/settings/tolerance_6.png");
+        } else if (icon_view == IconView.skip) {
+            return @image_url("../images/navigation/cancel.png");
+        } else if (icon_view == IconView.read_interleaved_with_scan) {
+            return @image_url("../images/navigation/double_right_overlapped_arrows.png");
+        } else if (icon_view == IconView.read_before_scan) {
+            return @image_url("../images/navigation/left_arrow_small.png");
+        }
+        return @image_url("../images/unknown.png");
+    }
+}

@@ -1,24 +1,42 @@
 import { Theme } from "../../theme.slint";
 
 import { PropertyEntryViewData } from "../../view_model_bindings.slint";
+import { IconConverter } from "../../converters/icon_converter.slint";
 
 export component PropertyEntryView inherits Rectangle {
     in property <PropertyEntryViewData> property_entry;
     in property <length> splitter_location;
-    border-width: 1px;
-    border-color: Theme.submenu_border;
+    border_width: 1px;
+    border_color: Theme.submenu_border;
     height: 24px;
+    icon_converter := IconConverter { }
+
     Text {
         x: 8px;
-        horizontal-alignment: left;
+        horizontal_alignment: left;
         color: Theme.foreground;
         text: root.property_entry.name;
     }
 
-    Text {
+    HorizontalLayout {
         x: splitter_location + 8px;
-        horizontal-alignment: left;
-        color: Theme.foreground;
-        text: root.property_entry.display_value;
+        padding: 0px;
+        spacing: 4px;
+        VerticalLayout {
+            alignment: center;
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: icon_converter.icon_view_to_image(icon_converter.icon_id_to_view(property_entry.icon_id));
+            }
+        }
+
+        Text {
+            horizontal_alignment: left;
+            color: property_entry.is_read_only ? Theme.foreground_preview : Theme.foreground;
+            text: root.property_entry.display_value;
+        }
     }
 }

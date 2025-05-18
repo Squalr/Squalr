@@ -1,4 +1,4 @@
-use crate::DataTypeView;
+use crate::DataTypeRefView;
 use crate::MainWindowView;
 use crate::MemoryAlignmentView;
 use crate::ScanConstraintTypeView;
@@ -60,7 +60,7 @@ impl ScannerViewModel {
             create_view_bindings!(view_model.view_binding, {
                 ScannerViewModelBindings => {
                     on_reset_scan() -> [view_model] -> Self::on_reset_scan,
-                    on_start_scan(data_type: DataTypeView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView, scan_value: SharedString, is_value_hex: bool) -> [view_model] -> Self::on_start_scan,
+                    on_start_scan(data_type: DataTypeRefView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView, scan_value: SharedString, is_value_hex: bool) -> [view_model] -> Self::on_start_scan,
                 },
                 ValueCollectorViewModelBindings => {
                     on_collect_values() -> [view_model] -> Self::on_collect_values,
@@ -89,7 +89,7 @@ impl ScannerViewModel {
 
     fn on_start_scan(
         view_model: Arc<ScannerViewModel>,
-        data_type_view: DataTypeView,
+        data_type_view: DataTypeRefView,
         memory_alignment_view: MemoryAlignmentView,
         scan_constraint: ScanConstraintTypeView,
         scan_value: SharedString,
@@ -107,7 +107,7 @@ impl ScannerViewModel {
             }
         };
 
-        let data_type_id = data_type_view.data_type.to_string();
+        let data_type_id = data_type_view.data_type_ref.to_string();
         let scan_value = AnonymousValue::new_string(&scan_value, is_value_hex);
         let memory_alignment = MemoryAlignmentConverter {}.convert_from_view_data(&memory_alignment_view);
         let data_type_ref = DataTypeRef::new_from_anonymous_value(&data_type_id, &scan_value);

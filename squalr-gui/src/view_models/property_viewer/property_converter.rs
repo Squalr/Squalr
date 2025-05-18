@@ -29,6 +29,7 @@ impl ViewDataConverter<Property, PropertyEntryViewData> for PropertyConverter {
             name: property.get_name().to_string().into(),
             display_value: property.get_value().get_value_string().into(),
             is_read_only: property.get_is_read_only(),
+            icon_id: property.get_value().get_data_type().get_icon_id().into(),
         }
     }
 

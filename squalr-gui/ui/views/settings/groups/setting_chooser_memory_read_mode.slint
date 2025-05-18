@@ -2,6 +2,7 @@ import { Theme } from "../../../theme.slint";
 
 import { ConversionsViewModelBindings, ScanSettingsViewModelBindings, MemoryReadModeView } from "../../../view_model_bindings.slint";
 import { MemoryReadModeIconConverter } from "../../../converters/memory_read_mode_icon_converter.slint";
+import { IconConverter } from "../../../converters/icon_converter.slint";
 import { GroupBox } from "../../../components/groupbox.slint";
 import { Button } from "../../../components/buttons/button.slint";
 import { TextField } from "../../../components/input/text_field.slint";
@@ -12,6 +13,8 @@ import { ContextMenu } from "../../../components/context_menu/context_menu.slint
 
 export component SettingChooserMemoryReadMode inherits Rectangle {
     memory_read_mode_icon_converter := MemoryReadModeIconConverter { }
+
+    icon_converter := IconConverter { }
 
     min_width: 96px;
     HorizontalLayout {
@@ -39,7 +42,7 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                             height: 16px;
                             horizontal_alignment: center;
                             vertical_alignment: center;
-                            source: memory_read_mode_icon_converter.memory_read_mode_source(ScanSettingsViewModelBindings.memory_read_mode);
+                            source: icon_converter.icon_view_to_image(memory_read_mode_icon_converter.memory_read_mode_source(ScanSettingsViewModelBindings.memory_read_mode));
                         }
 
                         Text {
@@ -102,7 +105,7 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                                 height: 16px;
                                 horizontal_alignment: center;
                                 vertical_alignment: center;
-                                source: memory_read_mode_icon_converter.memory_read_mode_source(MemoryReadModeView.skip);
+                                source: icon_converter.icon_view_to_image(memory_read_mode_icon_converter.memory_read_mode_source(MemoryReadModeView.skip));
                             }
 
                             Text {
@@ -134,7 +137,7 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                                 height: 16px;
                                 horizontal_alignment: center;
                                 vertical_alignment: center;
-                                source: memory_read_mode_icon_converter.memory_read_mode_source(MemoryReadModeView.read_interleaved_with_scan);
+                                source: icon_converter.icon_view_to_image(memory_read_mode_icon_converter.memory_read_mode_source(MemoryReadModeView.read_interleaved_with_scan));
                             }
 
                             Text {
@@ -166,7 +169,7 @@ export component SettingChooserMemoryReadMode inherits Rectangle {
                                 height: 16px;
                                 horizontal_alignment: center;
                                 vertical_alignment: center;
-                                source: memory_read_mode_icon_converter.memory_read_mode_source(MemoryReadModeView.read_before_scan);
+                                source: icon_converter.icon_view_to_image(memory_read_mode_icon_converter.memory_read_mode_source(MemoryReadModeView.read_before_scan));
                             }
 
                             Text {

@@ -1,4 +1,4 @@
-use crate::DataTypeView;
+use crate::DataTypeRefView;
 use crate::MainWindowView;
 use crate::ValidationViewModelBindings;
 use slint::ComponentHandle;
@@ -32,7 +32,7 @@ impl ValidationViewModel {
 
         create_view_bindings!(view_binding, {
             ValidationViewModelBindings => {
-                on_validate_data_value(data_type_view: DataTypeView, value: SharedString, is_value_hex: bool) -> [] -> Self::on_validate_data_value,
+                on_validate_data_value(data_type_view: DataTypeRefView, value: SharedString, is_value_hex: bool) -> [] -> Self::on_validate_data_value,
             }
         });
 
@@ -40,15 +40,15 @@ impl ValidationViewModel {
     }
 
     fn on_validate_data_value(
-        data_value_view: DataTypeView,
+        data_value_view: DataTypeRefView,
         value: SharedString,
         is_value_hex: bool,
     ) -> bool {
         let anonymous_value = AnonymousValue::new_string(&value, is_value_hex);
         let registry = DataTypeRegistry::get_instance().get_registry();
-        let data_type = data_value_view.data_type.to_string();
+        let data_type_ref = data_value_view.data_type_ref.to_string();
 
-        if let Some(data_type) = registry.get(&data_type) {
+        if let Some(data_type) = registry.get(&data_type_ref) {
             data_type.validate_value(&anonymous_value)
         } else {
             false

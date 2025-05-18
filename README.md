@@ -44,8 +44,9 @@ Launch Checklist:
 - [X] Freezing/deleting scan results directly from scan window.
 - [X] String scans, with various encoding support.
 - [ ] String Encoding selection from UI.
+- [X] Property viewer in the GUI that can register an active set of properties.
+- [ ] Custom and built in editors for property viewer data types.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
-- [ ] Property viewer in the GUI that can register an active set of properties for editing.
 
 ## Post-launch tasklist
 Lower priority features that we can defer, for now.
