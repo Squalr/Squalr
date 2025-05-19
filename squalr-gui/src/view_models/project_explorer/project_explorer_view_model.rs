@@ -5,9 +5,9 @@ use crate::view_models::project_explorer::project_info_comparer::ProjectInfoComp
 use crate::view_models::project_explorer::project_info_converter::ProjectInfoConverter;
 use slint::ComponentHandle;
 use slint::SharedString;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_collection_binding::ViewCollectionBinding;
-use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
 use squalr_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;

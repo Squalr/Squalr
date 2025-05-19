@@ -1,6 +1,6 @@
 use crate::ProjectViewData;
 use slint::{Image, SharedPixelBuffer, ToSharedString};
-use slint_mvvm::view_data_converter::ViewDataConverter;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 
 pub struct ProjectInfoConverter {}
@@ -11,7 +11,7 @@ impl ProjectInfoConverter {
     }
 }
 
-impl ViewDataConverter<ProjectInfo, ProjectViewData> for ProjectInfoConverter {
+impl ConvertToViewData<ProjectInfo, ProjectViewData> for ProjectInfoConverter {
     fn convert_collection(
         &self,
         project_info_list: &Vec<ProjectInfo>,
@@ -45,12 +45,5 @@ impl ViewDataConverter<ProjectInfo, ProjectViewData> for ProjectInfoConverter {
             path: project_info.get_path().to_string_lossy().to_shared_string(),
             icon,
         }
-    }
-
-    fn convert_from_view_data(
-        &self,
-        _: &ProjectViewData,
-    ) -> ProjectInfo {
-        panic!("Not implemented!");
     }
 }

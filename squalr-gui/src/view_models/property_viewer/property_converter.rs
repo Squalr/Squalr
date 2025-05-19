@@ -1,5 +1,5 @@
 use crate::PropertyEntryViewData;
-use slint_mvvm::view_data_converter::ViewDataConverter;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use squalr_engine_api::structures::properties::property::Property;
 
 pub struct PropertyConverter {}
@@ -10,7 +10,7 @@ impl PropertyConverter {
     }
 }
 
-impl ViewDataConverter<Property, PropertyEntryViewData> for PropertyConverter {
+impl ConvertToViewData<Property, PropertyEntryViewData> for PropertyConverter {
     fn convert_collection(
         &self,
         property_list: &Vec<Property>,
@@ -31,12 +31,5 @@ impl ViewDataConverter<Property, PropertyEntryViewData> for PropertyConverter {
             is_read_only: property.get_is_read_only(),
             icon_id: property.get_value().get_data_type().get_icon_id().into(),
         }
-    }
-
-    fn convert_from_view_data(
-        &self,
-        _: &PropertyEntryViewData,
-    ) -> Property {
-        panic!("Not implemented!");
     }
 }

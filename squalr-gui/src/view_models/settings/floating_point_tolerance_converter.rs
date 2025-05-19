@@ -1,7 +1,7 @@
-use slint_mvvm::view_data_converter::ViewDataConverter;
-use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
-
 use crate::FloatingPointToleranceView;
+use slint_mvvm::convert_from_view_data::ConvertFromViewData;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
+use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 
 pub struct FloatingPointToleranceConverter {}
 
@@ -11,7 +11,7 @@ impl FloatingPointToleranceConverter {
     }
 }
 
-impl ViewDataConverter<FloatingPointTolerance, FloatingPointToleranceView> for FloatingPointToleranceConverter {
+impl ConvertToViewData<FloatingPointTolerance, FloatingPointToleranceView> for FloatingPointToleranceConverter {
     fn convert_collection(
         &self,
         floating_point_tolerance_list: &Vec<FloatingPointTolerance>,
@@ -35,7 +35,9 @@ impl ViewDataConverter<FloatingPointTolerance, FloatingPointToleranceView> for F
             FloatingPointTolerance::ToleranceEpsilon => FloatingPointToleranceView::ToleranceEpsilon,
         }
     }
+}
 
+impl ConvertFromViewData<FloatingPointTolerance, FloatingPointToleranceView> for FloatingPointToleranceConverter {
     fn convert_from_view_data(
         &self,
         floating_point_tolerance_view: &FloatingPointToleranceView,

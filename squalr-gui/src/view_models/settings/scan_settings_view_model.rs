@@ -5,7 +5,8 @@ use crate::view_models::settings::{
 use crate::{FloatingPointToleranceView, MemoryAlignmentView};
 use crate::{MainWindowView, ScanSettingsViewModelBindings};
 use slint::ComponentHandle;
-use slint_mvvm::{view_binding::ViewBinding, view_data_converter::ViewDataConverter};
+use slint_mvvm::convert_from_view_data::ConvertFromViewData;
+use slint_mvvm::{convert_to_view_data::ConvertToViewData, view_binding::ViewBinding};
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::{command_executors::engine_request_executor::EngineCommandRequestExecutor, engine_execution_context::EngineExecutionContext};
 use squalr_engine_api::commands::settings::scan::set::scan_settings_set_request::ScanSettingsSetRequest;

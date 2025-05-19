@@ -1,7 +1,7 @@
 use crate::ProcessViewData;
 use slint::Image;
 use slint::SharedPixelBuffer;
-use slint_mvvm::view_data_converter::ViewDataConverter;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 
 pub struct OpenedProcessInfoConverter {}
@@ -12,7 +12,7 @@ impl OpenedProcessInfoConverter {
     }
 }
 
-impl ViewDataConverter<OpenedProcessInfo, ProcessViewData> for OpenedProcessInfoConverter {
+impl ConvertToViewData<OpenedProcessInfo, ProcessViewData> for OpenedProcessInfoConverter {
     fn convert_collection(
         &self,
         process_info_list: &Vec<OpenedProcessInfo>,
@@ -47,12 +47,5 @@ impl ViewDataConverter<OpenedProcessInfo, ProcessViewData> for OpenedProcessInfo
             name: process_info.get_name().to_string().into(),
             icon,
         }
-    }
-
-    fn convert_from_view_data(
-        &self,
-        _: &ProcessViewData,
-    ) -> OpenedProcessInfo {
-        panic!("Not implemented!");
     }
 }

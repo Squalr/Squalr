@@ -1,6 +1,7 @@
 use crate::RedockTarget;
 use crate::models::docking::hierarchy::types::dock_reparent_direction::DockReparentDirection;
-use slint_mvvm::view_data_converter::ViewDataConverter;
+use slint_mvvm::convert_from_view_data::ConvertFromViewData;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 
 pub struct DocktargetConverter {}
 
@@ -10,7 +11,7 @@ impl DocktargetConverter {
     }
 }
 
-impl ViewDataConverter<DockReparentDirection, RedockTarget> for DocktargetConverter {
+impl ConvertToViewData<DockReparentDirection, RedockTarget> for DocktargetConverter {
     fn convert_collection(
         &self,
         docked_window_nodes: &Vec<DockReparentDirection>,
@@ -33,7 +34,9 @@ impl ViewDataConverter<DockReparentDirection, RedockTarget> for DocktargetConver
             DockReparentDirection::Tab => RedockTarget::Center,
         }
     }
+}
 
+impl ConvertFromViewData<DockReparentDirection, RedockTarget> for DocktargetConverter {
     fn convert_from_view_data(
         &self,
         redock_target: &RedockTarget,

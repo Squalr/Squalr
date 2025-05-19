@@ -26,12 +26,15 @@ impl WindowsMemoryReaderNt {
         unsafe {
             let ntdll = GetModuleHandleA("ntdll.dll\0".as_ptr() as *const u8);
             if ntdll == std::ptr::null_mut() {
-                panic!("Failed to load ntdll.dll: {}", GetLastError());
+                log::error!("Failed to load ntdll.dll, memory reading may fail for this session! Error: {}", GetLastError());
             }
 
             let proc_addr = GetProcAddress(ntdll, "NtReadVirtualMemory\0".as_ptr() as *const u8);
             if proc_addr.is_none() {
-                panic!("Failed to locate NtReadVirtualMemory: {}", GetLastError());
+                log::error!(
+                    "Failed to locate NtReadVirtualMemory, memory reading may fail for this session! Error: {}",
+                    GetLastError()
+                );
             }
 
             WindowsMemoryReaderNt {

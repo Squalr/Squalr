@@ -65,7 +65,7 @@ impl DockBuilder {
                 children.push((child, ratio));
             }
             _ => {
-                panic!("push_child() called on a non-Split builder.");
+                log::error!("push_child() called on a non-Split builder.");
             }
         }
         self
@@ -81,7 +81,7 @@ impl DockBuilder {
                 tabs.push(child);
             }
             _ => {
-                panic!("push_tab() called on a non-Tab builder.");
+                log::error!("push_tab() called on a non-Tab builder.");
             }
         }
         self
@@ -97,7 +97,7 @@ impl DockBuilder {
                 *dir = direction;
             }
             _ => {
-                panic!("direction() called on a non-Split builder.");
+                log::error!("direction() called on a non-Split builder.");
             }
         }
         self

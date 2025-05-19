@@ -1,4 +1,5 @@
-use crate::view_data_converter::ViewDataConverter;
+use crate::convert_from_view_data::ConvertFromViewData;
+use crate::convert_to_view_data::ConvertToViewData;
 use slint::SharedString;
 
 pub struct SharedStringConverter;
@@ -10,7 +11,7 @@ impl SharedStringConverter {
 }
 
 /// Converts a string into a SharedString.
-impl ViewDataConverter<String, SharedString> for SharedStringConverter {
+impl ConvertToViewData<String, SharedString> for SharedStringConverter {
     fn convert_collection(
         &self,
         strings: &Vec<String>,
@@ -27,7 +28,10 @@ impl ViewDataConverter<String, SharedString> for SharedStringConverter {
     ) -> SharedString {
         SharedString::from(string)
     }
+}
 
+/// Converts a SharedString into a string.
+impl ConvertFromViewData<String, SharedString> for SharedStringConverter {
     fn convert_from_view_data(
         &self,
         string: &SharedString,

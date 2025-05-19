@@ -2,8 +2,8 @@ use crate::DockedWindowViewData;
 use crate::models::docking::docking_manager::DockingManager;
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use slint::{ModelRc, VecModel};
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use slint_mvvm::converters::shared_string_converter::SharedStringConverter;
-use slint_mvvm::view_data_converter::ViewDataConverter;
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -17,7 +17,7 @@ impl DockWindowConverter {
     }
 }
 
-impl ViewDataConverter<DockNode, DockedWindowViewData> for DockWindowConverter {
+impl ConvertToViewData<DockNode, DockedWindowViewData> for DockWindowConverter {
     fn convert_collection(
         &self,
         docked_window_nodes: &Vec<DockNode>,
@@ -72,12 +72,5 @@ impl ViewDataConverter<DockNode, DockedWindowViewData> for DockWindowConverter {
             // If it's not a Window, just return a default.
             _ => DockedWindowViewData::default(),
         }
-    }
-
-    fn convert_from_view_data(
-        &self,
-        _: &DockedWindowViewData,
-    ) -> DockNode {
-        panic!("Not implemented!");
     }
 }

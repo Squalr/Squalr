@@ -1,5 +1,6 @@
 use crate::ScanConstraintTypeView;
-use slint_mvvm::view_data_converter::ViewDataConverter;
+use slint_mvvm::convert_from_view_data::ConvertFromViewData;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use squalr_engine_api::structures::scanning::comparisons::{
     scan_compare_type::ScanCompareType, scan_compare_type_delta::ScanCompareTypeDelta, scan_compare_type_immediate::ScanCompareTypeImmediate,
     scan_compare_type_relative::ScanCompareTypeRelative,
@@ -13,7 +14,7 @@ impl ScanConstraintConverter {
     }
 }
 
-impl ViewDataConverter<ScanCompareType, ScanConstraintTypeView> for ScanConstraintConverter {
+impl ConvertToViewData<ScanCompareType, ScanConstraintTypeView> for ScanConstraintConverter {
     fn convert_collection(
         &self,
         scan_compare_type_list: &Vec<ScanCompareType>,
@@ -57,7 +58,9 @@ impl ViewDataConverter<ScanCompareType, ScanConstraintTypeView> for ScanConstrai
             },
         }
     }
+}
 
+impl ConvertFromViewData<ScanCompareType, ScanConstraintTypeView> for ScanConstraintConverter {
     fn convert_from_view_data(
         &self,
         scan_compare_type: &ScanConstraintTypeView,

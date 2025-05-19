@@ -1,5 +1,5 @@
 use crate::ScanResultViewData;
-use slint_mvvm::view_data_converter::ViewDataConverter;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 
 pub struct ScanResultConverter {}
@@ -10,7 +10,7 @@ impl ScanResultConverter {
     }
 }
 
-impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
+impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
     fn convert_collection(
         &self,
         scan_compare_type_list: &Vec<ScanResult>,
@@ -55,12 +55,5 @@ impl ViewDataConverter<ScanResult, ScanResultViewData> for ScanResultConverter {
             is_frozen: scan_result.get_is_frozen(),
             icon_id: scan_result.get_data_type().get_icon_id().into(),
         }
-    }
-
-    fn convert_from_view_data(
-        &self,
-        _scan_result_view_data: &ScanResultViewData,
-    ) -> ScanResult {
-        panic!("Not implemented.")
     }
 }

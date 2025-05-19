@@ -150,7 +150,7 @@ impl CreateViewCollectionBindingInput {
                         // Capture Arc in a move closure
                         let converter = #converter_ident.clone();
                         move |source_collection| {
-                            use slint_mvvm::view_data_converter::ViewDataConverter;
+                            use slint_mvvm::convert_to_view_data::ConvertToViewData;
                             converter.convert_collection(&source_collection)
                         }
                     },

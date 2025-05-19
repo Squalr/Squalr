@@ -8,8 +8,8 @@ use crate::view_models::scanners::scan_constraint_converter::ScanConstraintConve
 use crate::view_models::settings::memory_alignment_converter::MemoryAlignmentConverter;
 use slint::ComponentHandle;
 use slint::SharedString;
+use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::view_binding::ViewBinding;
-use slint_mvvm::view_data_converter::ViewDataConverter;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use squalr_engine::engine_execution_context::EngineExecutionContext;

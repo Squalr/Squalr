@@ -10,6 +10,7 @@ use slint::ComponentHandle;
 use slint::Model;
 use slint::ModelRc;
 use slint::SharedString;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm_macros::create_view_bindings;

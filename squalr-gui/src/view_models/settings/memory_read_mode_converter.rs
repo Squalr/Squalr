@@ -1,5 +1,6 @@
 use crate::MemoryReadModeView;
-use slint_mvvm::view_data_converter::ViewDataConverter;
+use slint_mvvm::convert_from_view_data::ConvertFromViewData;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 
 pub struct MemoryReadModeConverter {}
@@ -10,7 +11,7 @@ impl MemoryReadModeConverter {
     }
 }
 
-impl ViewDataConverter<MemoryReadMode, MemoryReadModeView> for MemoryReadModeConverter {
+impl ConvertToViewData<MemoryReadMode, MemoryReadModeView> for MemoryReadModeConverter {
     fn convert_collection(
         &self,
         memory_read_mode_list: &Vec<MemoryReadMode>,
@@ -31,7 +32,9 @@ impl ViewDataConverter<MemoryReadMode, MemoryReadModeView> for MemoryReadModeCon
             MemoryReadMode::ReadInterleavedWithScan => MemoryReadModeView::ReadInterleavedWithScan,
         }
     }
+}
 
+impl ConvertFromViewData<MemoryReadMode, MemoryReadModeView> for MemoryReadModeConverter {
     fn convert_from_view_data(
         &self,
         memory_read_mode_view: &MemoryReadModeView,

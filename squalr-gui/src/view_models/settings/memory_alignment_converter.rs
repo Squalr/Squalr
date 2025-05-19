@@ -1,7 +1,7 @@
-use slint_mvvm::view_data_converter::ViewDataConverter;
-use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
-
 use crate::MemoryAlignmentView;
+use slint_mvvm::convert_from_view_data::ConvertFromViewData;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
+use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 
 pub struct MemoryAlignmentConverter {}
 
@@ -11,7 +11,7 @@ impl MemoryAlignmentConverter {
     }
 }
 
-impl ViewDataConverter<MemoryAlignment, MemoryAlignmentView> for MemoryAlignmentConverter {
+impl ConvertToViewData<MemoryAlignment, MemoryAlignmentView> for MemoryAlignmentConverter {
     fn convert_collection(
         &self,
         floating_point_tolerance_list: &Vec<MemoryAlignment>,
@@ -33,7 +33,9 @@ impl ViewDataConverter<MemoryAlignment, MemoryAlignmentView> for MemoryAlignment
             MemoryAlignment::Alignment8 => MemoryAlignmentView::Alignment8,
         }
     }
+}
 
+impl ConvertFromViewData<MemoryAlignment, MemoryAlignmentView> for MemoryAlignmentConverter {
     fn convert_from_view_data(
         &self,
         floating_point_tolerance_view: &MemoryAlignmentView,
