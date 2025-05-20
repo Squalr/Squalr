@@ -42,7 +42,7 @@ impl DataType for DataTypeBool8 {
     }
 
     fn get_icon_id(&self) -> &str {
-        Self::get_data_type_id()
+        "bool"
     }
 
     fn get_default_size_in_bytes(&self) -> u64 {

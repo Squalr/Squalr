@@ -1,6 +1,9 @@
 use crate::PropertyEntryViewData;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
-use squalr_engine_api::structures::properties::property::Property;
+use squalr_engine_api::structures::{
+    data_types::{built_in_types::data_type::data_type_data_type_ref::DataTypeRefDataType, data_type_meta_data::DataTypeMetaData, data_type_ref::DataTypeRef},
+    properties::property::Property,
+};
 
 pub struct PropertyConverter {}
 
@@ -25,11 +28,23 @@ impl ConvertToViewData<Property, PropertyEntryViewData> for PropertyConverter {
         &self,
         property: &Property,
     ) -> PropertyEntryViewData {
+        let data_type = property.get_value().get_data_type();
+        let mut icon_id = data_type.get_icon_id();
+
+        // JIRA: It would be nice not to leak internals -- we're very deliberately reaching into metadata to grab a piece of info.
+        // This is not super obvious from an API point of view, but this is how we get the underlying data type that a data type ref points to.
+        if data_type.get_data_type_id() == DataTypeRefDataType::get_data_type_id() {
+            match data_type.get_meta_data() {
+                DataTypeMetaData::FixedString(data_type_ref_id) => icon_id = DataTypeRef::new(data_type_ref_id, DataTypeMetaData::None).get_icon_id(),
+                _ => {}
+            }
+        }
+
         PropertyEntryViewData {
             name: property.get_name().to_string().into(),
             display_value: property.get_value().get_value_string().into(),
             is_read_only: property.get_is_read_only(),
-            icon_id: property.get_value().get_data_type().get_icon_id().into(),
+            icon_id: icon_id.into(),
         }
     }
 }

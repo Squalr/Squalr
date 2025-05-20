@@ -33,10 +33,13 @@ export component PropertyEntryView inherits Rectangle {
             }
         }
 
-        Text {
-            horizontal_alignment: left;
-            color: property_entry.is_read_only ? Theme.foreground_preview : Theme.foreground;
-            text: root.property_entry.display_value;
+        VerticalLayout {
+            alignment: center;
+            Text {
+                horizontal_alignment: left;
+                color: property_entry.is_read_only ? Theme.foreground_preview : Theme.foreground;
+                text: root.property_entry.display_value;
+            }
         }
     }
 }

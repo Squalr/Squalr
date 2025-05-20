@@ -2,7 +2,9 @@ import { IconView } from "../view_model_bindings.slint";
 
 export component IconConverter {
     public pure function icon_view_to_id(icon_view: IconView) -> string {
-        if (icon_view == IconView.i8) {
+        if (icon_view == IconView.bool) {
+            return "bool";
+        } else if (icon_view == IconView.i8) {
             return "i8";
         } else if (icon_view == IconView.i8be) {
             return "i8be";
@@ -116,7 +118,9 @@ export component IconConverter {
         return "unknown";
     }
     public pure function icon_id_to_view(icon_id: string) -> IconView {
-        if (icon_id == "i8") {
+        if (icon_id == "bool") {
+            return IconView.bool;
+        } else if (icon_id == "i8") {
             return IconView.i8;
         } else if (icon_id == "i8be") {
             return IconView.i8be;
@@ -230,7 +234,9 @@ export component IconConverter {
         return IconView.unknown;
     }
     public pure function icon_view_to_image(icon_view: IconView) -> image {
-        if (icon_view == IconView.i8) {
+        if (icon_view == IconView.bool) {
+            return @image_url("../images/data_types/bool.png");
+        } else if (icon_view == IconView.i8) {
             return @image_url("../images/data_types/blue_blocks_1.png");
         } else if (icon_view == IconView.i8be) {
             return @image_url("../images/data_types/blue_blocks_reverse_1.png");
