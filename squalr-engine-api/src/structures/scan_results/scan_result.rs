@@ -50,11 +50,10 @@ impl ScanResult {
             DataTypeRefDataType::get_value_from_primitive(self.valued_result.get_data_type().get_data_type_id()),
             true,
         );
-        let property_value = Property::new(
-            Self::PROPERTY_NAME_VALUE.to_string(),
-            DataTypeString::get_value_from_primitive(&self.module),
-            false,
-        );
+        let property_value = match self.valued_result.get_current_value() {
+            Some(current_value) => Property::new(Self::PROPERTY_NAME_VALUE.to_string(), current_value.clone(), false),
+            None => Property::new(Self::PROPERTY_NAME_VALUE.to_string(), DataTypeString::get_value_from_primitive("??"), true),
+        };
         let property_is_frozen = Property::new(
             Self::PROPERTY_NAME_IS_FROZEN.to_string(),
             DataTypeBool8::get_value_from_primitive(self.is_frozen),

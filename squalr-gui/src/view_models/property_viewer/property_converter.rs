@@ -42,9 +42,12 @@ impl ConvertToViewData<Property, PropertyEntryViewData> for PropertyConverter {
 
         PropertyEntryViewData {
             name: property.get_name().to_string().into(),
+            data_type_ref: crate::DataTypeRefView {
+                data_type_ref: data_type.get_data_type_id().into(),
+                icon_id: icon_id.into(),
+            },
             display_value: property.get_value().get_value_string().into(),
             is_read_only: property.get_is_read_only(),
-            icon_id: icon_id.into(),
         }
     }
 }
