@@ -200,16 +200,22 @@ export global ValueCollectorViewModelBindings {
 }
 
 export struct DataTypeRefView {
-    data_type_ref: string,
+    data_type_id: string,
     icon_id: string,
 }
 
+export struct DataValueView {
+    data_type_ref: DataTypeRefView,
+    display_value: string,
+    is_value_hex: bool,
+    fixed_choices: [string],
+}
+
 export global ScannerViewModelBindings {
-    in_out property <DataTypeRefView> active_data_type: { data_type_ref: "i32", icon_id: "i32" };
-    in_out property <bool> is_value_hex: false;
+    in_out property <DataValueView> active_data_value;
     in_out property <ScanConstraintTypeView> active_scan_type: equal;
     callback reset_scan();
-    callback start_scan(data_type_ref: DataTypeRefView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView, scan_value: string, is_value_hex: bool);
+    callback start_scan(data_value: DataValueView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView);
     callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
 }
 
@@ -322,8 +328,7 @@ export global PointerScanResultsViewModelBindings { }
 
 export struct PropertyEntryViewData {
     name: string,
-    data_type_ref: DataTypeRefView,
-    display_value: string,
+    data_value: DataValueView,
     is_read_only: bool,
 }
 
@@ -341,5 +346,5 @@ export global ConversionsViewModelBindings {
 }
 
 export global ValidationViewModelBindings {
-    pure callback validate_data_value(data_type: DataTypeRefView, data_value: string, is_value_hex: bool) -> bool;
+    pure callback validate_data_value(data_value: DataValueView) -> bool;
 }

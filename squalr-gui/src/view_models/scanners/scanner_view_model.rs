@@ -1,4 +1,4 @@
-use crate::DataTypeRefView;
+use crate::DataValueView;
 use crate::MainWindowView;
 use crate::MemoryAlignmentView;
 use crate::ScanConstraintTypeView;
@@ -7,7 +7,6 @@ use crate::ValueCollectorViewModelBindings;
 use crate::view_models::scanners::scan_constraint_converter::ScanConstraintConverter;
 use crate::view_models::settings::memory_alignment_converter::MemoryAlignmentConverter;
 use slint::ComponentHandle;
-use slint::SharedString;
 use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
@@ -60,7 +59,7 @@ impl ScannerViewModel {
             create_view_bindings!(view_model.view_binding, {
                 ScannerViewModelBindings => {
                     on_reset_scan() -> [view_model] -> Self::on_reset_scan,
-                    on_start_scan(data_type: DataTypeRefView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView, scan_value: SharedString, is_value_hex: bool) -> [view_model] -> Self::on_start_scan,
+                    on_start_scan(data_value: DataValueView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView) -> [view_model] -> Self::on_start_scan,
                 },
                 ValueCollectorViewModelBindings => {
                     on_collect_values() -> [view_model] -> Self::on_collect_values,
@@ -89,11 +88,9 @@ impl ScannerViewModel {
 
     fn on_start_scan(
         view_model: Arc<ScannerViewModel>,
-        data_type_view: DataTypeRefView,
+        data_value: DataValueView,
         memory_alignment_view: MemoryAlignmentView,
         scan_constraint: ScanConstraintTypeView,
-        scan_value: SharedString,
-        is_value_hex: bool,
     ) {
         let scan_view_model_state = &view_model.scan_view_model_state;
 
@@ -107,7 +104,10 @@ impl ScannerViewModel {
             }
         };
 
-        let data_type_id = data_type_view.data_type_ref.to_string();
+        let scan_value = data_value.display_value.to_string();
+        let is_value_hex = data_value.is_value_hex;
+        let data_type_id = data_value.data_type_ref.data_type_id.to_string();
+
         let scan_value = AnonymousValue::new_string(&scan_value, is_value_hex);
         let memory_alignment = MemoryAlignmentConverter {}.convert_from_view_data(&memory_alignment_view);
         let data_type_ref = DataTypeRef::new_from_anonymous_value(&data_type_id, &scan_value);

@@ -1,4 +1,6 @@
+use crate::DataValueView;
 use crate::PropertyEntryViewData;
+use slint::ModelRc;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use squalr_engine_api::structures::{
     data_types::{built_in_types::data_type::data_type_data_type_ref::DataTypeRefDataType, data_type_meta_data::DataTypeMetaData, data_type_ref::DataTypeRef},
@@ -28,25 +30,32 @@ impl ConvertToViewData<Property, PropertyEntryViewData> for PropertyConverter {
         &self,
         property: &Property,
     ) -> PropertyEntryViewData {
-        let data_type = property.get_value().get_data_type();
+        let data_value = property.get_value();
+        let data_type = data_value.get_data_type();
+        let mut data_type_id = data_type.get_data_type_id();
         let mut icon_id = data_type.get_icon_id();
 
         // JIRA: It would be nice not to leak internals -- we're very deliberately reaching into metadata to grab a piece of info.
         // This is not super obvious from an API point of view, but this is how we get the underlying data type that a data type ref points to.
-        if data_type.get_data_type_id() == DataTypeRefDataType::get_data_type_id() {
+        if data_type_id == DataTypeRefDataType::get_data_type_id() {
             match data_type.get_meta_data() {
                 DataTypeMetaData::FixedString(data_type_ref_id) => icon_id = DataTypeRef::new(data_type_ref_id, DataTypeMetaData::None).get_icon_id(),
                 _ => {}
             }
         }
 
+        // JIRA: Converter, populate fixed choices, whether value is hex
         PropertyEntryViewData {
             name: property.get_name().to_string().into(),
-            data_type_ref: crate::DataTypeRefView {
-                data_type_ref: data_type.get_data_type_id().into(),
-                icon_id: icon_id.into(),
+            data_value: DataValueView {
+                data_type_ref: crate::DataTypeRefView {
+                    data_type_id: data_type_id.into(),
+                    icon_id: icon_id.into(),
+                },
+                display_value: data_value.get_value_string().into(),
+                fixed_choices: ModelRc::default(),
+                is_value_hex: false,
             },
-            display_value: property.get_value().get_value_string().into(),
             is_read_only: property.get_is_read_only(),
         }
     }

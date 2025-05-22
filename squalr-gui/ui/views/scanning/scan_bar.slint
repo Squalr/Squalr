@@ -14,6 +14,10 @@ export component ScanBarView inherits Rectangle {
     property <length> bar_spacing: 4px;
     property <length> bottom_padding: 4px;
     property <length> flow_break_point: 800px;
+    init => {
+        ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i32";
+        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = "i32";
+    }
     height: bar_height + root.bottom_padding;
     background: Theme.background_primary;
     // Shortcut
@@ -65,8 +69,10 @@ export component ScanBarView inherits Rectangle {
         }
 
         scan_value := DataValueBox {
-            data_type <=> ScannerViewModelBindings.active_data_type;
-            is_value_hex <=> ScannerViewModelBindings.is_value_hex;
+            data_value <=> ScannerViewModelBindings.active_data_value;
+            is_read_only: false;
+            is_commit_mode: false;
+            is_value_owner: true;
             height: bar_height;
             text_padding_top: 0px;
             text_padding_bottom: 0px;
@@ -84,7 +90,7 @@ export component ScanBarView inherits Rectangle {
             tooltip_text: @tr("Start Scan");
             click_sound: "";
             clicked => {
-                ScannerViewModelBindings.start_scan(ScannerViewModelBindings.active_data_type, ScanSettingsViewModelBindings.memory_alignment, ScannerViewModelBindings.active_scan_type, scan_value.get_value_text(), ScannerViewModelBindings.is_value_hex);
+                ScannerViewModelBindings.start_scan(ScannerViewModelBindings.active_data_value, ScanSettingsViewModelBindings.memory_alignment, ScannerViewModelBindings.active_scan_type);
             }
             Image {
                 width: 16px;

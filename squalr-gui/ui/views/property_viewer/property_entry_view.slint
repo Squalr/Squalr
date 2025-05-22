@@ -30,23 +30,18 @@ export component PropertyEntryView inherits Rectangle {
                 height: 16px;
                 horizontal_alignment: center;
                 vertical_alignment: center;
-                source: icon_converter.icon_view_to_image(icon_converter.icon_id_to_view(property_entry.data_type_ref.icon_id));
+                source: icon_converter.icon_view_to_image(icon_converter.icon_id_to_view(property_entry.data_value.data_type_ref.icon_id));
             }
         }
 
         VerticalLayout {
             alignment: center;
-            if !root.property_entry.is_read_only:  
-                DataValueBox {
-                data_type: root.property_entry.data_type_ref;
-                default_text: root.property_entry.display_value;
+            DataValueBox {
+                data_value: root.property_entry.data_value;
                 width: root.width - entry.x - icon.width - entry.spacing;
-            }
-            if root.property_entry.is_read_only: 
-                Text {
-                horizontal_alignment: left;
-                color: property_entry.is_read_only ? Theme.foreground_preview : Theme.foreground;
-                text: root.property_entry.display_value;
+                is_read_only: root.property_entry.is_read_only;
+                is_commit_mode: true;
+                is_value_owner: false;
             }
         }
     }
