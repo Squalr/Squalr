@@ -12,7 +12,6 @@ export component DataValueBox {
     in property <bool> is_commit_mode;
     in property <bool> is_value_owner;
     in property <bool> is_read_only;
-    in property <string> default_text;
     in property <string> preview_text;
     in property <length> text_padding_top: 4px;
     in property <length> text_padding_bottom: 4px;
@@ -64,7 +63,7 @@ export component DataValueBox {
             padding_right: root.text_padding_right;
             alignment: start;
             text_input := TextInput {
-                text: root.default_text;
+                text: root.data_value.display_value;
                 enabled: !root.is_read_only;
                 horizontal_alignment: root.text_horizontal_alignment;
                 vertical_alignment: root.text_vertical_alignment;
