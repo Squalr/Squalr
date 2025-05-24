@@ -113,10 +113,13 @@ impl DataType for DataTypeByteArray {
                         .collect::<Vec<String>>()
                         .join(" ");
 
-                    Ok(DisplayValues::new(vec![DisplayValue::new(
+                    Ok(DisplayValues::new(
+                        vec![DisplayValue::new(
+                            DisplayValueType::ByteArray,
+                            byte_array_string,
+                        )],
                         DisplayValueType::ByteArray,
-                        byte_array_string,
-                    )]))
+                    ))
                 } else {
                     Err(DataTypeError::NoBytes)
                 }

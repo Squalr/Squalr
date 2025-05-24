@@ -1,6 +1,7 @@
 use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
+use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_values::DisplayValues;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -8,6 +9,8 @@ use std::{
     mem,
     str::FromStr,
 };
+
+use super::display_value_type::DisplayValueType;
 
 /// Represents a value for a `DataType`. Additionally, new `DataType` and `DataValue` pairs can be registered by plugins.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -81,6 +84,14 @@ impl DataValue {
         &self.display_values
     }
 
+    pub fn get_default_display_value(&self) -> Option<&DisplayValue> {
+        self.display_values.get_default_display_value()
+    }
+
+    pub fn get_default_display_value_string(&self) -> &str {
+        self.display_values.get_default_display_value_string()
+    }
+
     pub fn as_ptr(&self) -> *const u8 {
         self.value_bytes.as_ptr()
     }
@@ -98,7 +109,7 @@ impl DataValue {
                     .create_display_values(value_bytes, data_type_ref.get_meta_data())
                     .ok()
             })
-            .unwrap_or_else(|| DisplayValues::new(vec![]))
+            .unwrap_or_else(|| DisplayValues::new(vec![], DisplayValueType::String))
     }
 }
 

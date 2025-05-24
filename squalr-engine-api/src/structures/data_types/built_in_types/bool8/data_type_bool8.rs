@@ -86,10 +86,16 @@ impl DataType for DataTypeBool8 {
 
                 if actual == expected {
                     if value_bytes[0] == 0 {
-                        Ok(DisplayValues::new(vec![DisplayValue::new(DisplayValueType::Bool, "false".into())]))
+                        Ok(DisplayValues::new(
+                            vec![DisplayValue::new(DisplayValueType::Bool, "false".into())],
+                            DisplayValueType::Bool,
+                        ))
                     } else {
                         // For our impl we consider non-zero to be true.
-                        Ok(DisplayValues::new(vec![DisplayValue::new(DisplayValueType::Bool, "true".into())]))
+                        Ok(DisplayValues::new(
+                            vec![DisplayValue::new(DisplayValueType::Bool, "true".into())],
+                            DisplayValueType::Bool,
+                        ))
                     }
                 } else {
                     Err(DataTypeError::InvalidByteCount { expected, actual })

@@ -7,7 +7,7 @@ pub struct Property {
     name: String,
     value: DataValue,
     is_read_only: bool,
-    display_value_type: DisplayValueType,
+    display_value_type_override: Option<DisplayValueType>,
 }
 
 impl Property {
@@ -15,13 +15,13 @@ impl Property {
         name: String,
         value: DataValue,
         is_read_only: bool,
-        display_value_type: DisplayValueType,
+        display_value_type_override: Option<DisplayValueType>,
     ) -> Self {
         Self {
             name,
             value,
             is_read_only,
-            display_value_type,
+            display_value_type_override,
         }
     }
 
@@ -34,13 +34,18 @@ impl Property {
     }
 
     pub fn get_display_value(&self) -> &str {
-        match &self
-            .value
-            .get_display_values()
-            .get_display_value(&self.display_value_type)
-        {
-            Some(display_value) => display_value.get_display_value(),
-            None => "??",
+        match &self.display_value_type_override {
+            Some(display_value_type) => {
+                match &self
+                    .value
+                    .get_display_values()
+                    .get_display_value(display_value_type)
+                {
+                    Some(display_value) => display_value.get_display_value(),
+                    None => "??",
+                }
+            }
+            None => self.value.get_default_display_value_string(),
         }
     }
 
@@ -65,7 +70,7 @@ impl FromStr for Property {
         // Extract value before any optional metadata.
         let mut value_str = rest;
         let mut is_read_only = false;
-        let mut display_value_type = DisplayValueType::String;
+        let mut display_value_type_override = None;
 
         // If there are additional fields, extract them.
         if let Some(index) = rest.find(",readonly=") {
@@ -80,7 +85,7 @@ impl FromStr for Property {
                                 .map_err(|err| format!("Invalid readonly flag: {err}"))?;
                         }
                         "display_value_type" => {
-                            display_value_type = DisplayValueType::from_str(value).map_err(|_| format!("Invalid display_value_type: {value}"))?;
+                            display_value_type_override = Some(DisplayValueType::from_str(value).map_err(|_| format!("Invalid display_value_type: {value}"))?);
                         }
                         _ => return Err(format!("Unknown field: {key}")),
                     }
@@ -90,7 +95,7 @@ impl FromStr for Property {
 
         let value = DataValue::from_str(value_str).map_err(|err| format!("Invalid DataValue: {err}"))?;
 
-        Ok(Property::new(name, value, is_read_only, display_value_type))
+        Ok(Property::new(name, value, is_read_only, display_value_type_override))
     }
 }
 

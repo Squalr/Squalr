@@ -49,40 +49,40 @@ impl ScanResult {
             Self::PROPERTY_NAME_DATA_TYPE.to_string(),
             DataTypeRefDataType::get_value_from_primitive(self.valued_result.get_data_type().get_data_type_id()),
             true,
-            DisplayValueType::String,
+            None,
         );
         let property_value = match self.valued_result.get_current_value() {
-            Some(current_value) => Property::new(Self::PROPERTY_NAME_VALUE.to_string(), current_value.clone(), false, DisplayValueType::String),
+            Some(current_value) => Property::new(Self::PROPERTY_NAME_VALUE.to_string(), current_value.clone(), false, None),
             None => Property::new(
                 Self::PROPERTY_NAME_VALUE.to_string(),
                 DataTypeString::get_value_from_primitive("??"),
                 true,
-                DisplayValueType::String,
+                None,
             ),
         };
         let property_is_frozen = Property::new(
             Self::PROPERTY_NAME_IS_FROZEN.to_string(),
             DataTypeBool8::get_value_from_primitive(self.is_frozen),
             false,
-            DisplayValueType::Bool,
+            None,
         );
         let property_address = Property::new(
             Self::PROPERTY_NAME_ADDRESS.to_string(),
             DataTypeU64::get_value_from_primitive(self.valued_result.get_address()),
             true,
-            DisplayValueType::Address,
+            Some(DisplayValueType::Address),
         );
         let property_module = Property::new(
             Self::PROPERTY_NAME_MODULE.to_string(),
             DataTypeString::get_value_from_primitive(&self.module),
             true,
-            DisplayValueType::String,
+            None,
         );
         let property_module_offset = Property::new(
             Self::PROPERTY_NAME_MODULE_OFFSET.to_string(),
             DataTypeU64::get_value_from_primitive(self.module_offset),
             true,
-            DisplayValueType::Address,
+            Some(DisplayValueType::Hex),
         );
 
         PropertyCollection::new(vec![

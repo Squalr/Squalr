@@ -135,7 +135,7 @@ impl PrimitiveDataType {
 
                     results.push(DisplayValue::new(DisplayValueType::Dec, value_string));
 
-                    Ok(DisplayValues::new(results))
+                    Ok(DisplayValues::new(results, DisplayValueType::Dec))
                 } else {
                     Err(DataTypeError::InvalidByteCount { expected, actual })
                 }

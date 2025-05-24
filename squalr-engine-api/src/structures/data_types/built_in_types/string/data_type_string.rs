@@ -459,7 +459,10 @@ impl DataType for DataTypeString {
                     }
                 };
 
-                Ok(DisplayValues::new(vec![DisplayValue::new(DisplayValueType::String, decoded_string)]))
+                Ok(DisplayValues::new(
+                    vec![DisplayValue::new(DisplayValueType::String, decoded_string)],
+                    DisplayValueType::String,
+                ))
             }
             _ => Err(DataTypeError::InvalidMetaData),
         }

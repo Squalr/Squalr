@@ -90,7 +90,10 @@ impl DataType for DataTypeRefDataType {
         }
 
         match data_type_meta_data {
-            DataTypeMetaData::FixedString(string) => Ok(DisplayValues::new(vec![DisplayValue::new(DisplayValueType::DataTypeRef, string.into())])),
+            DataTypeMetaData::FixedString(string) => Ok(DisplayValues::new(
+                vec![DisplayValue::new(DisplayValueType::DataTypeRef, string.into())],
+                DisplayValueType::DataTypeRef,
+            )),
             _ => Err(DataTypeError::InvalidMetaData),
         }
     }
