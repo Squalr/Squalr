@@ -9,9 +9,9 @@ import { DataValueView, ConversionsViewModelBindings, ValidationViewModelBinding
 
 export component DataValueBox {
     in_out property <DataValueView> data_value;
-    in property <bool> is_commit_mode;
     in property <bool> is_value_owner;
     in property <bool> is_read_only;
+    in property <bool> show_conversions;
     in property <string> preview_text;
     in property <length> text_padding_top: 4px;
     in property <length> text_padding_bottom: 4px;
@@ -123,7 +123,7 @@ export component DataValueBox {
         VerticalLayout {
             padding: 0px;
             spacing: 0px;
-            if root.is_value_owner: as_dec_buttion := Button {
+            if !root.is_value_owner: show_as_dec_buttion := Button {
                 clicked => {
                     context_menu.close();
                     if root.is_value_owner {
@@ -141,12 +141,12 @@ export component DataValueBox {
                     Text {
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        text: @tr("Dec");
+                        text: @tr("Show as dec");
                         color: Theme.foreground;
                     }
                 }
             }
-            if root.is_value_owner: as_hex_buttion := Button {
+            if !root.is_value_owner: show_as_hex_buttion := Button {
                 clicked => {
                     context_menu.close();
                     if root.is_value_owner {
@@ -164,19 +164,65 @@ export component DataValueBox {
                     Text {
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        text: @tr("Hex");
+                        text: @tr("Show as hex");
                         color: Theme.foreground;
                     }
                 }
             }
-            convert_to_dec_buttion := Button {
+            if root.is_value_owner: interpret_as_dec_buttion := Button {
+                clicked => {
+                    context_menu.close();
+                    if root.is_value_owner {
+                        root.data_value.is_value_hex = false;
+                    }
+                }
+                HorizontalLayout {
+                    alignment: start;
+                    padding: 8px;
+                    spacing: 4px;
+                    FakeCheckbox {
+                        is_checked: !root.data_value.is_value_hex;
+                    }
+
+                    Text {
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        text: @tr("Interpret as dec");
+                        color: Theme.foreground;
+                    }
+                }
+            }
+            if root.is_value_owner:interpret_as_hex_buttion := Button {
+                clicked => {
+                    context_menu.close();
+                    if root.is_value_owner {
+                        root.data_value.is_value_hex = true;
+                    }
+                }
+                HorizontalLayout {
+                    alignment: start;
+                    padding: 8px;
+                    spacing: 4px;
+                    FakeCheckbox {
+                        is_checked: root.data_value.is_value_hex;
+                    }
+
+                    Text {
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        text: @tr("Interpret as hex");
+                        color: Theme.foreground;
+                    }
+                }
+            }
+            if !root.is_read_only && root.show_conversions: convert_to_dec_buttion := Button {
                 HorizontalLayout {
                     alignment: start;
                     padding: 8px;
                     Text {
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        text: @tr("Convert to Dec");
+                        text: @tr("Convert to dec");
                         color: Theme.foreground;
                     }
                 }
@@ -189,15 +235,14 @@ export component DataValueBox {
                     context_menu.close();
                 }
             }
-
-            convert_to_hex_buttion := Button {
+            if !root.is_read_only && root.show_conversions: convert_to_hex_buttion := Button {
                 HorizontalLayout {
                     alignment: start;
                     padding: 8px;
                     Text {
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        text: @tr("Convert to Hex");
+                        text: @tr("Convert to hex");
                         color: Theme.foreground;
                     }
                 }

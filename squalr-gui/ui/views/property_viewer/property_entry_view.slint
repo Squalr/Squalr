@@ -40,8 +40,8 @@ export component PropertyEntryView inherits Rectangle {
                 data_value: root.property_entry.data_value;
                 width: root.width - entry.x - icon.width - entry.spacing;
                 is_read_only: root.property_entry.is_read_only;
-                is_commit_mode: true;
                 is_value_owner: false;
+                show_conversions: false;
             }
         }
     }

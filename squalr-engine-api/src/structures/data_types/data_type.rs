@@ -5,6 +5,7 @@ use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::data_values::data_value::DataValue;
+use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::memory::endian::Endian;
 use std::fmt::Debug;
 
@@ -27,11 +28,11 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
         data_type_ref: DataTypeRef,
     ) -> Result<DataValue, DataTypeError>;
 
-    fn create_display_value(
+    fn create_display_values(
         &self,
         value_bytes: &[u8],
         data_type_meta_data: &DataTypeMetaData,
-    ) -> Result<String, DataTypeError>;
+    ) -> Result<Vec<DisplayValue>, DataTypeError>;
 
     fn get_endian(&self) -> Endian;
 

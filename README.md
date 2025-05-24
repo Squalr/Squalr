@@ -66,7 +66,17 @@ Post-launch Features:
 - [ ] Registerable editors in the property viewer. NOT pop-up based though (to support mobile), instead as a take-over screen on the property editor panel.
 - [ ] Git(hub) integration?
 
-## Unsolved architectural challenges:
+## Unsolved architectural challenges
 - Should we allow engine event hooking? If we support plugins later, this might prove valuable. But lambdas are stored almost exclusively as FnOnce for easier stack capture. It also muddies the command/response architecture a bit.
 - How should we allow plugins to register custom windows? Slint supports an interpreter, but unclear if we can fully register a dockable window without serious changes to Slint.
 - How would we allow plugins to register custom editors for custom data types? Similar challenges to custom windows.
+
+## Brain Dump for Property Editor
+These are the supported editor types:
+- True/false (or genericize to an Enumeration type)
+- Data type (Re-use existing data type editor, which needs to be sync'd to the backend registry)
+- Direct value
+
+Display types must be custom sent as a list, ie:
+- Bin/Dec/Hex/Address
+With each type opting into what they support, and specifying a default.

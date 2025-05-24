@@ -1,6 +1,5 @@
 use crate::structures::data_types::built_in_types::bool8::data_type_bool8::DataTypeBool8;
 use crate::structures::data_types::built_in_types::data_type::data_type_data_type_ref::DataTypeRefDataType;
-use crate::structures::data_types::built_in_types::primitive_display_type::PrimitiveDisplayType;
 use crate::structures::data_types::built_in_types::string::data_type_string::DataTypeString;
 use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
 use crate::structures::data_values::data_value::DataValue;
@@ -61,7 +60,7 @@ impl ScanResult {
         );
         let property_address = Property::new(
             Self::PROPERTY_NAME_ADDRESS.to_string(),
-            DataTypeU64::get_value_from_primitive(self.valued_result.get_address(), PrimitiveDisplayType::AsAddress),
+            DataTypeU64::get_value_from_primitive(self.valued_result.get_address()),
             true,
         );
         let property_module = Property::new(
@@ -71,7 +70,7 @@ impl ScanResult {
         );
         let property_module_offset = Property::new(
             Self::PROPERTY_NAME_MODULE_OFFSET.to_string(),
-            DataTypeU64::get_value_from_primitive(self.module_offset, PrimitiveDisplayType::AsHex),
+            DataTypeU64::get_value_from_primitive(self.module_offset),
             true,
         );
 

@@ -2,6 +2,7 @@ use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
+use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
@@ -56,7 +57,9 @@ impl DataType for DataTypeByteArray {
         data_type_ref: DataTypeRef,
     ) -> Result<DataValue, DataTypeError> {
         if data_type_ref.get_data_type_id() != Self::get_data_type_id() {
-            return Err(DataTypeError::InvalidDataType);
+            return Err(DataTypeError::InvalidDataTypeRef {
+                data_type_ref: data_type_ref.get_data_type_id().to_string(),
+            });
         }
 
         match anonymous_value.get_value() {
@@ -87,19 +90,33 @@ impl DataType for DataTypeByteArray {
         }
     }
 
-    fn create_display_value(
+    fn create_display_values(
         &self,
         value_bytes: &[u8],
-        _data_type_meta_data: &DataTypeMetaData,
-    ) -> Result<String, DataTypeError> {
-        if !value_bytes.is_empty() {
-            Ok(value_bytes
-                .iter()
-                .map(|byte| format!("{:02X}", byte))
-                .collect::<Vec<String>>()
-                .join(" "))
-        } else {
-            Err(DataTypeError::NoBytes)
+        data_type_meta_data: &DataTypeMetaData,
+    ) -> Result<Vec<DisplayValue>, DataTypeError> {
+        match data_type_meta_data {
+            DataTypeMetaData::SizedContainer(size) => {
+                let byte_count = value_bytes.len() as u64;
+
+                if byte_count != *size {
+                    Err(DataTypeError::InvalidByteCount {
+                        expected: *size,
+                        actual: byte_count,
+                    })
+                } else if !value_bytes.is_empty() {
+                    let byte_array_string = value_bytes
+                        .iter()
+                        .map(|byte| format!("{:02X}", byte))
+                        .collect::<Vec<String>>()
+                        .join(" ");
+
+                    Ok(vec![DisplayValue::new("byte_array".to_string(), byte_array_string)])
+                } else {
+                    Err(DataTypeError::NoBytes)
+                }
+            }
+            _ => Err(DataTypeError::InvalidMetaData),
         }
     }
 

@@ -110,7 +110,7 @@ impl DataTypeRef {
     pub fn get_size_in_bytes(&self) -> u64 {
         match &self.data_type_meta_data {
             // For standard types, return the default / primitive size from the data type in the registry.
-            DataTypeMetaData::None | DataTypeMetaData::Primitive(_) => {
+            DataTypeMetaData::None | DataTypeMetaData::Primitive() => {
                 let registry = DataTypeRegistry::get_instance().get_registry();
 
                 match registry.get(self.get_data_type_id()) {

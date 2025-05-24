@@ -1,4 +1,3 @@
-use crate::structures::data_types::built_in_types::primitive_display_type::PrimitiveDisplayType;
 use crate::structures::data_types::built_in_types::string::string_encodings::StringEncoding;
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +9,7 @@ pub enum DataTypeMetaData {
     None,
 
     /// Represents meta data for whether a data value is displayed as hex.
-    Primitive(PrimitiveDisplayType),
+    Primitive(),
 
     /// Represents a container (ie byte[]) of a specified byte-wise size for the underlying data type.
     SizedContainer(u64),

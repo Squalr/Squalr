@@ -52,7 +52,7 @@ impl ConvertToViewData<Property, PropertyEntryViewData> for PropertyConverter {
                     data_type_id: data_type_id.into(),
                     icon_id: icon_id.into(),
                 },
-                display_value: data_value.get_value_string().into(),
+                display_value: "TODO".into(), // data_value.get_value_string().into(),
                 fixed_choices: ModelRc::default(),
                 is_value_hex: false,
             },

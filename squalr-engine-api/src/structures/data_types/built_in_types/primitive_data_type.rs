@@ -1,4 +1,4 @@
-use crate::structures::data_types::built_in_types::primitive_display_type::PrimitiveDisplayType;
+use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::{
     data_types::{data_type_error::DataTypeError, data_type_meta_data::DataTypeMetaData, data_type_ref::DataTypeRef},
     data_values::{
@@ -36,11 +36,13 @@ impl PrimitiveDataType {
             }
 
             AnonymousValueContainer::ByteArray(value_bytes) => {
-                let expected_size = std::mem::size_of::<T>();
-                if value_bytes.len() != expected_size {
+                let expected_size = std::mem::size_of::<T>() as u64;
+                let actual_size = value_bytes.len() as u64;
+
+                if actual_size != expected_size {
                     return Err(DataTypeError::InvalidByteCount {
                         expected: expected_size,
-                        actual: value_bytes.len(),
+                        actual: actual_size,
                     });
                 }
 
@@ -100,48 +102,43 @@ impl PrimitiveDataType {
         }
     }
 
-    pub fn create_display_value<T, F>(
+    pub fn create_display_values<T, F>(
         value_bytes: &[u8],
         data_type_meta_data: &DataTypeMetaData,
         convert_bytes_unchecked: F,
-    ) -> Result<String, DataTypeError>
+    ) -> Result<Vec<DisplayValue>, DataTypeError>
     where
         F: Fn() -> T,
         T: ToString,
     {
-        let expected = std::mem::size_of::<T>();
-        let actual = value_bytes.len();
-
         match data_type_meta_data {
-            DataTypeMetaData::Primitive(primitive_display_type) => {
+            DataTypeMetaData::Primitive() => {
+                let expected = std::mem::size_of::<T>() as u64;
+                let actual = value_bytes.len() as u64;
+
                 if actual == expected {
+                    let mut results = vec![];
                     let value = convert_bytes_unchecked();
                     let value_string = value.to_string();
-                    match primitive_display_type {
-                        PrimitiveDisplayType::AsHex => Conversions::dec_to_hex(&value_string, false)
-                            .map_err(|err| DataTypeError::ParseError(format!("Error converting primitive to hex: {}", err))),
-                        PrimitiveDisplayType::AsAddress => Conversions::dec_to_address(&value_string, false)
-                            .map_err(|err| DataTypeError::ParseError(format!("Error converting primitive to hex: {}", err))),
-                        PrimitiveDisplayType::Normal => Ok(value_string),
+
+                    match Conversions::dec_to_hex(&value_string, false) {
+                        Ok(display_value) => results.push(DisplayValue::new("hex".to_string(), display_value)),
+                        Err(err) => log::error!("Error converting primitive to hex display value: {}", err),
                     }
+
+                    match Conversions::dec_to_address(&value_string, false) {
+                        Ok(display_value) => results.push(DisplayValue::new("address".to_string(), display_value)),
+                        Err(err) => log::error!("Error converting primitive to address display value: {}", err),
+                    }
+
+                    results.push(DisplayValue::new("decimal".to_string(), value_string));
+
+                    Ok(results)
                 } else {
                     Err(DataTypeError::InvalidByteCount { expected, actual })
                 }
             }
             _ => Err(DataTypeError::InvalidMetaData),
-        }
-    }
-
-    pub fn get_meta_data_for_anonymous_value(anonymous_value: &AnonymousValue) -> DataTypeMetaData {
-        match anonymous_value.get_value() {
-            AnonymousValueContainer::StringValue(_, is_hex) => {
-                if *is_hex {
-                    DataTypeMetaData::Primitive(PrimitiveDisplayType::AsHex)
-                } else {
-                    DataTypeMetaData::Primitive(PrimitiveDisplayType::Normal)
-                }
-            }
-            AnonymousValueContainer::ByteArray(_) => DataTypeMetaData::Primitive(PrimitiveDisplayType::Normal),
         }
     }
 }

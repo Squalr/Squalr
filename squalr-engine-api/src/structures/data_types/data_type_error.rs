@@ -6,13 +6,13 @@ pub enum DataTypeError {
     ParseError(String),
 
     #[error("Invalid byte count: expected {expected} bytes, got {actual}")]
-    InvalidByteCount { expected: usize, actual: usize },
+    InvalidByteCount { expected: u64, actual: u64 },
 
     #[error("No bytes provided")]
     NoBytes,
 
-    #[error("Invalid data type provided")]
-    InvalidDataType,
+    #[error("Invalid data type reference provided")]
+    InvalidDataTypeRef { data_type_ref: String },
 
     #[error("Invalid meta data")]
     InvalidMetaData,

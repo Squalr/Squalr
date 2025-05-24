@@ -71,8 +71,8 @@ export component ScanBarView inherits Rectangle {
         scan_value := DataValueBox {
             data_value <=> ScannerViewModelBindings.active_data_value;
             is_read_only: false;
-            is_commit_mode: false;
             is_value_owner: true;
+            show_conversions: true;
             height: bar_height;
             text_padding_top: 0px;
             text_padding_bottom: 0px;

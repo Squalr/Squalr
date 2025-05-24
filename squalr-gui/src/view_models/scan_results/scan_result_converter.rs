@@ -36,15 +36,15 @@ impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
         };
 
         let current_value_string = match scan_result.get_recently_read_value() {
-            Some(recently_read_value) => recently_read_value.get_value_string(),
+            Some(recently_read_value) => "TODO".into(), // recently_read_value.get_value_string(),
             None => match scan_result.get_current_value() {
-                Some(current_value) => current_value.get_value_string(),
+                Some(current_value) => "TODO".into(), // current_value.get_value_string(),
                 None => "??",
             },
         };
 
         let previous_value_string = match scan_result.get_previous_value() {
-            Some(previous_value) => previous_value.get_value_string(),
+            Some(previous_value) => "TODO".into(), //previous_value.get_value_string(),
             None => "??",
         };
 

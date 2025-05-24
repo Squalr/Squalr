@@ -8,6 +8,8 @@ use std::{
     str::FromStr,
 };
 
+use super::display_value::DisplayValue;
+
 /// Represents a value for a `DataType`. Additionally, new `DataType` and `DataValue` pairs can be registered by plugins.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DataValue {
@@ -18,8 +20,8 @@ pub struct DataValue {
     /// or even a serialized bitfield and mask. It is the responsibility of the `DataType` object to interpret the bytes.
     value_bytes: Vec<u8>,
 
-    /// The display value. This is cached to prevent repeatedly allocating new strings when refreshing a value.
-    display_value: String,
+    /// The display values. These are created when the underlying value bytes change to prevent repeatedly allocating new strings when refreshing a value.
+    display_values: Vec<DisplayValue>,
 }
 
 impl DataValue {
@@ -27,12 +29,12 @@ impl DataValue {
         data_type_ref: DataTypeRef,
         value_bytes: Vec<u8>,
     ) -> Self {
-        let display_value = Self::create_display_value(&data_type_ref, &value_bytes);
+        let display_values = Self::create_display_values(&data_type_ref, &value_bytes);
 
         Self {
             data_type_ref,
             value_bytes,
-            display_value,
+            display_values,
         }
     }
 
@@ -43,7 +45,7 @@ impl DataValue {
         // Only update the array and refresh the display value if the bytes are actually changed.
         if self.value_bytes != value_bytes {
             self.value_bytes = value_bytes.to_vec();
-            self.display_value = Self::create_display_value(&self.data_type_ref, value_bytes);
+            self.display_values = Self::create_display_values(&self.data_type_ref, value_bytes);
         }
     }
 
@@ -76,28 +78,28 @@ impl DataValue {
         mem::take(&mut self.value_bytes)
     }
 
-    pub fn get_value_string(&self) -> &str {
-        &self.display_value
+    pub fn get_display_values(&self) -> &Vec<DisplayValue> {
+        &self.display_values
     }
 
     pub fn as_ptr(&self) -> *const u8 {
         self.value_bytes.as_ptr()
     }
 
-    fn create_display_value(
+    fn create_display_values(
         data_type_ref: &DataTypeRef,
         value_bytes: &[u8],
-    ) -> String {
+    ) -> Vec<DisplayValue> {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         registry
             .get(data_type_ref.get_data_type_id())
             .and_then(|data_type| {
                 data_type
-                    .create_display_value(value_bytes, data_type_ref.get_meta_data())
+                    .create_display_values(value_bytes, data_type_ref.get_meta_data())
                     .ok()
             })
-            .unwrap_or_else(|| "??".to_string())
+            .unwrap_or_else(|| vec![])
     }
 }
 
@@ -112,6 +114,7 @@ impl FromStr for DataValue {
         }
 
         let data_type = DataTypeRef::from_str(parts[0])?;
+        // JIRA: Not exactly a great way to parse this. Should probably be able to either infer or specify this directly.
         let is_value_hex = parts[1].starts_with("0x");
         let anonymous_value = AnonymousValue::new_string(parts[1], is_value_hex);
 
@@ -127,6 +130,6 @@ impl fmt::Display for DataValue {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(formatter, "{}={}", self.get_data_type_id(), self.get_value_string())
+        write!(formatter, "{}={:?}", self.get_data_type_id(), self.get_display_values())
     }
 }
