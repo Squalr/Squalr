@@ -3,6 +3,8 @@ use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
 use crate::structures::data_values::display_value::DisplayValue;
+use crate::structures::data_values::display_value_type::DisplayValueType;
+use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
@@ -82,13 +84,13 @@ impl DataType for DataTypeRefDataType {
         &self,
         value_bytes: &[u8],
         data_type_meta_data: &DataTypeMetaData,
-    ) -> Result<Vec<DisplayValue>, DataTypeError> {
+    ) -> Result<DisplayValues, DataTypeError> {
         if value_bytes.is_empty() {
             return Err(DataTypeError::NoBytes);
         }
 
         match data_type_meta_data {
-            DataTypeMetaData::FixedString(string) => Ok(vec![DisplayValue::new("data_type_ref".to_string(), string.into())]),
+            DataTypeMetaData::FixedString(string) => Ok(DisplayValues::new(vec![DisplayValue::new(DisplayValueType::DataTypeRef, string.into())])),
             _ => Err(DataTypeError::InvalidMetaData),
         }
     }

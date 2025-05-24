@@ -3,7 +3,7 @@ use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
-use crate::structures::data_values::display_value::DisplayValue;
+use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
@@ -74,7 +74,7 @@ impl DataType for DataTypeU32be {
         &self,
         value_bytes: &[u8],
         data_type_meta_data: &DataTypeMetaData,
-    ) -> Result<Vec<DisplayValue>, DataTypeError> {
+    ) -> Result<DisplayValues, DataTypeError> {
         PrimitiveDataType::create_display_values(value_bytes, data_type_meta_data, || {
             PrimitiveType::from_be_bytes([value_bytes[0], value_bytes[1], value_bytes[2], value_bytes[3]])
         })

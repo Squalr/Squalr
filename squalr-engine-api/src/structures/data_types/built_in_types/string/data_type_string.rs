@@ -4,6 +4,8 @@ use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
 use crate::structures::data_values::display_value::DisplayValue;
+use crate::structures::data_values::display_value_type::DisplayValueType;
+use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use encoding::all::{HZ, ISO_8859_1};
@@ -160,7 +162,7 @@ impl DataType for DataTypeString {
         &self,
         value_bytes: &[u8],
         data_type_meta_data: &DataTypeMetaData,
-    ) -> Result<Vec<DisplayValue>, DataTypeError> {
+    ) -> Result<DisplayValues, DataTypeError> {
         if value_bytes.is_empty() {
             return Err(DataTypeError::NoBytes);
         }
@@ -457,7 +459,7 @@ impl DataType for DataTypeString {
                     }
                 };
 
-                Ok(vec![DisplayValue::new("string".to_string(), decoded_string)])
+                Ok(DisplayValues::new(vec![DisplayValue::new(DisplayValueType::String, decoded_string)]))
             }
             _ => Err(DataTypeError::InvalidMetaData),
         }

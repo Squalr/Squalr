@@ -1,15 +1,13 @@
-use crate::structures::data_values::data_value::DataValue;
+use crate::structures::data_values::{data_value::DataValue, display_value_type::DisplayValueType};
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt,
-    str::{FromStr, ParseBoolError},
-};
+use std::{fmt, str::FromStr};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Property {
     name: String,
     value: DataValue,
     is_read_only: bool,
+    display_value_type: DisplayValueType,
 }
 
 impl Property {
@@ -17,8 +15,14 @@ impl Property {
         name: String,
         value: DataValue,
         is_read_only: bool,
+        display_value_type: DisplayValueType,
     ) -> Self {
-        Self { name, value, is_read_only }
+        Self {
+            name,
+            value,
+            is_read_only,
+            display_value_type,
+        }
     }
 
     pub fn get_name(&self) -> &str {
@@ -27,6 +31,17 @@ impl Property {
 
     pub fn get_value(&self) -> &DataValue {
         &self.value
+    }
+
+    pub fn get_display_value(&self) -> &str {
+        match &self
+            .value
+            .get_display_values()
+            .get_display_value(&self.display_value_type)
+        {
+            Some(display_value) => display_value.get_display_value(),
+            None => "??",
+        }
     }
 
     pub fn get_is_read_only(&self) -> bool {
@@ -45,22 +60,37 @@ impl FromStr for Property {
         }
 
         let name = parts[0].trim().to_string();
-        let rest = parts[1];
+        let rest = parts[1].trim();
 
-        // Optional readonly flag
-        let (value_str, is_read_only) = if let Some((value, flag)) = rest.rsplit_once(",readonly=") {
-            let is_read_only = flag
-                .trim()
-                .parse::<bool>()
-                .map_err(|err: ParseBoolError| err.to_string())?;
-            (value.trim(), is_read_only)
-        } else {
-            (rest.trim(), false)
-        };
+        // Extract value before any optional metadata.
+        let mut value_str = rest;
+        let mut is_read_only = false;
+        let mut display_value_type = DisplayValueType::String;
+
+        // If there are additional fields, extract them.
+        if let Some(index) = rest.find(",readonly=") {
+            value_str = &rest[..index].trim();
+            let metadata = &rest[index + 1..]; // skip the comma
+            for field in metadata.split(',') {
+                if let Some((key, value)) = field.split_once('=') {
+                    match key {
+                        "readonly" => {
+                            is_read_only = value
+                                .parse::<bool>()
+                                .map_err(|err| format!("Invalid readonly flag: {err}"))?;
+                        }
+                        "display_value_type" => {
+                            display_value_type = DisplayValueType::from_str(value).map_err(|_| format!("Invalid display_value_type: {value}"))?;
+                        }
+                        _ => return Err(format!("Unknown field: {key}")),
+                    }
+                }
+            }
+        }
 
         let value = DataValue::from_str(value_str).map_err(|err| format!("Invalid DataValue: {err}"))?;
 
-        Ok(Property::new(name, value, is_read_only))
+        Ok(Property::new(name, value, is_read_only, display_value_type))
     }
 }
 

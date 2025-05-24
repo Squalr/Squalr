@@ -1,4 +1,6 @@
 use crate::structures::data_values::display_value::DisplayValue;
+use crate::structures::data_values::display_value_type::DisplayValueType;
+use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::{
     data_types::{data_type_error::DataTypeError, data_type_meta_data::DataTypeMetaData, data_type_ref::DataTypeRef},
     data_values::{
@@ -106,7 +108,7 @@ impl PrimitiveDataType {
         value_bytes: &[u8],
         data_type_meta_data: &DataTypeMetaData,
         convert_bytes_unchecked: F,
-    ) -> Result<Vec<DisplayValue>, DataTypeError>
+    ) -> Result<DisplayValues, DataTypeError>
     where
         F: Fn() -> T,
         T: ToString,
@@ -122,18 +124,18 @@ impl PrimitiveDataType {
                     let value_string = value.to_string();
 
                     match Conversions::dec_to_hex(&value_string, false) {
-                        Ok(display_value) => results.push(DisplayValue::new("hex".to_string(), display_value)),
+                        Ok(display_value) => results.push(DisplayValue::new(DisplayValueType::Hex, display_value)),
                         Err(err) => log::error!("Error converting primitive to hex display value: {}", err),
                     }
 
                     match Conversions::dec_to_address(&value_string, false) {
-                        Ok(display_value) => results.push(DisplayValue::new("address".to_string(), display_value)),
+                        Ok(display_value) => results.push(DisplayValue::new(DisplayValueType::Address, display_value)),
                         Err(err) => log::error!("Error converting primitive to address display value: {}", err),
                     }
 
-                    results.push(DisplayValue::new("decimal".to_string(), value_string));
+                    results.push(DisplayValue::new(DisplayValueType::Dec, value_string));
 
-                    Ok(results)
+                    Ok(DisplayValues::new(results))
                 } else {
                     Err(DataTypeError::InvalidByteCount { expected, actual })
                 }

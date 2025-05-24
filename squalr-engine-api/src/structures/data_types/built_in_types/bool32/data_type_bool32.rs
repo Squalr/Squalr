@@ -4,6 +4,8 @@ use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::data_values::display_value::DisplayValue;
+use crate::structures::data_values::display_value_type::DisplayValueType;
+use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
@@ -76,7 +78,7 @@ impl DataType for DataTypeBool32 {
         &self,
         value_bytes: &[u8],
         data_type_meta_data: &DataTypeMetaData,
-    ) -> Result<Vec<DisplayValue>, DataTypeError> {
+    ) -> Result<DisplayValues, DataTypeError> {
         match data_type_meta_data {
             DataTypeMetaData::Primitive() => {
                 let expected = self.get_default_size_in_bytes();
@@ -84,10 +86,10 @@ impl DataType for DataTypeBool32 {
 
                 if actual == expected {
                     if value_bytes[0] == 0 {
-                        Ok(vec![DisplayValue::new("bool".to_string(), "false".to_string())])
+                        Ok(DisplayValues::new(vec![DisplayValue::new(DisplayValueType::Bool, "false".into())]))
                     } else {
                         // For our impl we consider non-zero to be true.
-                        Ok(vec![DisplayValue::new("bool".to_string(), "true".to_string())])
+                        Ok(DisplayValues::new(vec![DisplayValue::new(DisplayValueType::Bool, "true".into())]))
                     }
                 } else {
                     Err(DataTypeError::InvalidByteCount { expected, actual })

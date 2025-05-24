@@ -32,7 +32,7 @@ impl ConvertToViewData<Property, PropertyEntryViewData> for PropertyConverter {
     ) -> PropertyEntryViewData {
         let data_value = property.get_value();
         let data_type = data_value.get_data_type();
-        let mut data_type_id = data_type.get_data_type_id();
+        let data_type_id = data_type.get_data_type_id();
         let mut icon_id = data_type.get_icon_id();
 
         // JIRA: It would be nice not to leak internals -- we're very deliberately reaching into metadata to grab a piece of info.
@@ -44,7 +44,7 @@ impl ConvertToViewData<Property, PropertyEntryViewData> for PropertyConverter {
             }
         }
 
-        // JIRA: Converter, populate fixed choices, whether value is hex
+        // JIRA: Use a converter for this.
         PropertyEntryViewData {
             name: property.get_name().to_string().into(),
             data_value: DataValueView {
@@ -52,7 +52,7 @@ impl ConvertToViewData<Property, PropertyEntryViewData> for PropertyConverter {
                     data_type_id: data_type_id.into(),
                     icon_id: icon_id.into(),
                 },
-                display_value: "TODO".into(), // data_value.get_value_string().into(),
+                display_value: property.get_display_value().into(),
                 fixed_choices: ModelRc::default(),
                 is_value_hex: false,
             },

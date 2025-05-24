@@ -3,6 +3,7 @@ use crate::structures::data_types::built_in_types::data_type::data_type_data_typ
 use crate::structures::data_types::built_in_types::string::data_type_string::DataTypeString;
 use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
 use crate::structures::data_values::data_value::DataValue;
+use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::properties::property_collection::PropertyCollection;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
@@ -48,30 +49,40 @@ impl ScanResult {
             Self::PROPERTY_NAME_DATA_TYPE.to_string(),
             DataTypeRefDataType::get_value_from_primitive(self.valued_result.get_data_type().get_data_type_id()),
             true,
+            DisplayValueType::String,
         );
         let property_value = match self.valued_result.get_current_value() {
-            Some(current_value) => Property::new(Self::PROPERTY_NAME_VALUE.to_string(), current_value.clone(), false),
-            None => Property::new(Self::PROPERTY_NAME_VALUE.to_string(), DataTypeString::get_value_from_primitive("??"), true),
+            Some(current_value) => Property::new(Self::PROPERTY_NAME_VALUE.to_string(), current_value.clone(), false, DisplayValueType::String),
+            None => Property::new(
+                Self::PROPERTY_NAME_VALUE.to_string(),
+                DataTypeString::get_value_from_primitive("??"),
+                true,
+                DisplayValueType::String,
+            ),
         };
         let property_is_frozen = Property::new(
             Self::PROPERTY_NAME_IS_FROZEN.to_string(),
             DataTypeBool8::get_value_from_primitive(self.is_frozen),
             false,
+            DisplayValueType::Bool,
         );
         let property_address = Property::new(
             Self::PROPERTY_NAME_ADDRESS.to_string(),
             DataTypeU64::get_value_from_primitive(self.valued_result.get_address()),
             true,
+            DisplayValueType::Address,
         );
         let property_module = Property::new(
             Self::PROPERTY_NAME_MODULE.to_string(),
             DataTypeString::get_value_from_primitive(&self.module),
             true,
+            DisplayValueType::String,
         );
         let property_module_offset = Property::new(
             Self::PROPERTY_NAME_MODULE_OFFSET.to_string(),
             DataTypeU64::get_value_from_primitive(self.module_offset),
             true,
+            DisplayValueType::Address,
         );
 
         PropertyCollection::new(vec![

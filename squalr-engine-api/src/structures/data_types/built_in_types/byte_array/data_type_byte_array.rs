@@ -3,6 +3,8 @@ use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
 use crate::structures::data_values::display_value::DisplayValue;
+use crate::structures::data_values::display_value_type::DisplayValueType;
+use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
@@ -94,7 +96,7 @@ impl DataType for DataTypeByteArray {
         &self,
         value_bytes: &[u8],
         data_type_meta_data: &DataTypeMetaData,
-    ) -> Result<Vec<DisplayValue>, DataTypeError> {
+    ) -> Result<DisplayValues, DataTypeError> {
         match data_type_meta_data {
             DataTypeMetaData::SizedContainer(size) => {
                 let byte_count = value_bytes.len() as u64;
@@ -111,7 +113,10 @@ impl DataType for DataTypeByteArray {
                         .collect::<Vec<String>>()
                         .join(" ");
 
-                    Ok(vec![DisplayValue::new("byte_array".to_string(), byte_array_string)])
+                    Ok(DisplayValues::new(vec![DisplayValue::new(
+                        DisplayValueType::ByteArray,
+                        byte_array_string,
+                    )]))
                 } else {
                     Err(DataTypeError::NoBytes)
                 }

@@ -1,14 +1,13 @@
 use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
+use crate::structures::data_values::display_values::DisplayValues;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{self, Debug},
     mem,
     str::FromStr,
 };
-
-use super::display_value::DisplayValue;
 
 /// Represents a value for a `DataType`. Additionally, new `DataType` and `DataValue` pairs can be registered by plugins.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -21,7 +20,7 @@ pub struct DataValue {
     value_bytes: Vec<u8>,
 
     /// The display values. These are created when the underlying value bytes change to prevent repeatedly allocating new strings when refreshing a value.
-    display_values: Vec<DisplayValue>,
+    display_values: DisplayValues,
 }
 
 impl DataValue {
@@ -78,7 +77,7 @@ impl DataValue {
         mem::take(&mut self.value_bytes)
     }
 
-    pub fn get_display_values(&self) -> &Vec<DisplayValue> {
+    pub fn get_display_values(&self) -> &DisplayValues {
         &self.display_values
     }
 
@@ -89,7 +88,7 @@ impl DataValue {
     fn create_display_values(
         data_type_ref: &DataTypeRef,
         value_bytes: &[u8],
-    ) -> Vec<DisplayValue> {
+    ) -> DisplayValues {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
         registry
@@ -99,7 +98,7 @@ impl DataValue {
                     .create_display_values(value_bytes, data_type_ref.get_meta_data())
                     .ok()
             })
-            .unwrap_or_else(|| vec![])
+            .unwrap_or_else(|| DisplayValues::new(vec![]))
     }
 }
 

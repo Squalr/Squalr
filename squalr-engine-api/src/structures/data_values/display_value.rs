@@ -1,22 +1,26 @@
+use crate::structures::data_values::display_value_type::DisplayValueType;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Debug};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DisplayValue {
-    value_key: String,
+    display_value_type: DisplayValueType,
     display_value: String,
 }
 
 impl DisplayValue {
     pub fn new(
-        value_key: String,
+        display_value_type: DisplayValueType,
         display_value: String,
     ) -> Self {
-        Self { value_key, display_value }
+        Self {
+            display_value_type,
+            display_value,
+        }
     }
 
-    pub fn get_value_key(&self) -> &str {
-        &self.value_key
+    pub fn get_display_value_type(&self) -> &DisplayValueType {
+        &self.display_value_type
     }
 
     pub fn get_display_value(&self) -> &str {
@@ -29,6 +33,6 @@ impl fmt::Display for DisplayValue {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(formatter, "{}: {}", self.value_key, self.display_value)
+        write!(formatter, "{}: {}", self.display_value_type, self.display_value)
     }
 }
