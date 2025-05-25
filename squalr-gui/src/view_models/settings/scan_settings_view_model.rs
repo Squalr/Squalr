@@ -1,7 +1,6 @@
-use crate::view_models::settings::{
-    floating_point_tolerance_converter::FloatingPointToleranceConverter, memory_alignment_converter::MemoryAlignmentConverter,
-    memory_read_mode_converter::MemoryReadModeConverter,
-};
+use crate::converters::floating_point_tolerance_converter::FloatingPointToleranceConverter;
+use crate::converters::memory_alignment_converter::MemoryAlignmentConverter;
+use crate::converters::memory_read_mode_converter::MemoryReadModeConverter;
 use crate::{FloatingPointToleranceView, MemoryAlignmentView};
 use crate::{MainWindowView, ScanSettingsViewModelBindings};
 use slint::ComponentHandle;

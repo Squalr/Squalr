@@ -45,6 +45,7 @@ Launch Checklist:
 - [X] String scans, with various encoding support.
 - [ ] String Encoding selection from UI.
 - [X] Property viewer in the GUI that can register an active set of properties.
+- [ ] Display type switching for property viewer data types.
 - [ ] Custom and built in editors for property viewer data types.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 
@@ -70,6 +71,7 @@ Post-launch Features:
 - Should we allow engine event hooking? If we support plugins later, this might prove valuable. But lambdas are stored almost exclusively as FnOnce for easier stack capture. It also muddies the command/response architecture a bit.
 - How should we allow plugins to register custom windows? Slint supports an interpreter, but unclear if we can fully register a dockable window without serious changes to Slint.
 - How would we allow plugins to register custom editors for custom data types? Similar challenges to custom windows.
+- Implementing the comparer for all view types is extremely error prone (easy to add a field and forget to update comparer). Surely the default comparer is fine, no? Why did we opt to have a custom comparer? Please delve into whether this is acceptable.
 
 ## Brain Dump for Property Editor
 These are the supported editor types:

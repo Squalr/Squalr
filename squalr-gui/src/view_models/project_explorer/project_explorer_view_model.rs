@@ -1,8 +1,8 @@
 use crate::MainWindowView;
 use crate::ProjectExplorerViewModelBindings;
 use crate::ProjectViewData;
-use crate::view_models::project_explorer::project_info_comparer::ProjectInfoComparer;
-use crate::view_models::project_explorer::project_info_converter::ProjectInfoConverter;
+use crate::comparers::project_info_comparer::ProjectInfoComparer;
+use crate::converters::project_info_converter::ProjectInfoConverter;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;

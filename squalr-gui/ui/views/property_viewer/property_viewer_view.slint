@@ -12,8 +12,8 @@ export component PropertyViewerView inherits Rectangle {
     content := VerticalLayout {
         padding: 0px;
         spacing: 0px;
-        for index in PropertyViewerViewModelBindings.selected_properties.length: PropertyEntryView {
-            property_entry: PropertyViewerViewModelBindings.selected_properties[index];
+        for selected_property in PropertyViewerViewModelBindings.selected_properties: PropertyEntryView {
+            property_entry: selected_property;
             splitter_location: root.get_splitter_location();
         }
     }

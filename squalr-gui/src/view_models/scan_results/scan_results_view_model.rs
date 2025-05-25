@@ -1,11 +1,11 @@
 use crate::MainWindowView;
 use crate::ScanResultViewData;
 use crate::ScanResultsViewModelBindings;
+use crate::comparers::scan_result_comparer::ScanResultComparer;
+use crate::converters::scan_result_converter::ScanResultConverter;
 use crate::models::audio::audio_player::AudioPlayer;
 use crate::models::audio::audio_player::SoundType;
 use crate::view_models::property_viewer::property_viewer_view_model::PropertyViewerViewModel;
-use crate::view_models::scan_results::scan_result_comparer::ScanResultComparer;
-use crate::view_models::scan_results::scan_result_converter::ScanResultConverter;
 use slint::ComponentHandle;
 use slint::Model;
 use slint::ModelRc;

@@ -1,8 +1,8 @@
 use crate::MainWindowView;
 use crate::PropertyEntryViewData;
 use crate::PropertyViewerViewModelBindings;
-use crate::view_models::property_viewer::property_comparer::PropertyComparer;
-use crate::view_models::property_viewer::property_converter::PropertyConverter;
+use crate::comparers::property_comparer::PropertyComparer;
+use crate::converters::property_converter::PropertyConverter;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
@@ -63,6 +63,8 @@ impl PropertyViewerViewModel {
         &self,
         selected_properties: Vec<PropertyCollection>,
     ) {
+        // JIRA: This is a hack, figure out why it is needed and fix it.
+        self.selected_properties_collection.update_from_source(vec![]);
         self.selected_properties_collection
             .update_from_source(PropertyCollection::combine_property_collections(&selected_properties));
     }
