@@ -472,6 +472,10 @@ impl DataType for DataTypeString {
         }
     }
 
+    fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
+        vec![DisplayValueType::String]
+    }
+
     fn is_discrete(&self) -> bool {
         true
     }

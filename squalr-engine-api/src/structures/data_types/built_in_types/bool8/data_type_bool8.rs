@@ -3,7 +3,6 @@ use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
-use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
@@ -79,30 +78,11 @@ impl DataType for DataTypeBool8 {
         value_bytes: &[u8],
         data_type_meta_data: &DataTypeMetaData,
     ) -> Result<DisplayValues, DataTypeError> {
-        match data_type_meta_data {
-            DataTypeMetaData::Primitive() => {
-                let expected = self.get_default_size_in_bytes();
-                let actual = value_bytes.len() as u64;
+        PrimitiveDataType::create_display_values_bool(value_bytes, self.get_default_size_in_bytes(), data_type_meta_data)
+    }
 
-                if actual == expected {
-                    if value_bytes[0] == 0 {
-                        Ok(DisplayValues::new(
-                            vec![DisplayValue::new(DisplayValueType::Bool, "false".into())],
-                            DisplayValueType::Bool,
-                        ))
-                    } else {
-                        // For our impl we consider non-zero to be true.
-                        Ok(DisplayValues::new(
-                            vec![DisplayValue::new(DisplayValueType::Bool, "true".into())],
-                            DisplayValueType::Bool,
-                        ))
-                    }
-                } else {
-                    Err(DataTypeError::InvalidByteCount { expected, actual })
-                }
-            }
-            _ => Err(DataTypeError::InvalidMetaData),
-        }
+    fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
+        vec![DisplayValueType::Bool]
     }
 
     fn get_endian(&self) -> Endian {

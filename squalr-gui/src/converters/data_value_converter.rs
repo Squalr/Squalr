@@ -33,12 +33,11 @@ impl ConvertToViewData<DataValue, DataValueViewData> for DataValueConverter {
             Some(display_value) => DisplayValueTypeConverter {}.convert_to_view_data(display_value.get_display_value_type()),
             None => DisplayValueTypeView::String,
         };
+        let display_values = data_value.get_display_values().get_display_values();
 
         DataValueViewData {
             data_type_ref: DataTypeRefConverter {}.convert_to_view_data(data_value.get_data_type()),
-            display_values: ModelRc::new(VecModel::from(
-                DisplayValueConverter {}.convert_collection(data_value.get_display_values().get_display_values()),
-            )),
+            display_values: ModelRc::new(VecModel::from(DisplayValueConverter {}.convert_collection(display_values))),
             active_display_value_type,
         }
     }

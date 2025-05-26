@@ -1,5 +1,4 @@
 use crate::DisplayValueTypeView;
-use crate::DisplayValueViewData;
 use crate::MainWindowView;
 use crate::MemoryAlignmentView;
 use crate::ScanConstraintTypeView;
@@ -112,7 +111,6 @@ impl ScannerViewModel {
         let scan_value = scan_value.to_string();
         let data_type_id = data_type_id.to_string();
         let display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&display_value_type);
-
         let scan_value = AnonymousValue::new(&scan_value, display_value_type);
         let memory_alignment = MemoryAlignmentConverter {}.convert_from_view_data(&memory_alignment_view);
         let data_type_ref = DataTypeRef::new_from_anonymous_value(&data_type_id, &scan_value);

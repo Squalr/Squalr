@@ -363,4 +363,5 @@ export global ConversionsViewModelBindings {
 
 export global ValidationViewModelBindings {
     pure callback validate_data_value(data_value: string, data_type_id: string, display_value_type: DisplayValueTypeView) -> bool;
+    pure callback get_supported_display_types_for_data_type(data_type_id: string) -> [DisplayValueTypeView];
 }

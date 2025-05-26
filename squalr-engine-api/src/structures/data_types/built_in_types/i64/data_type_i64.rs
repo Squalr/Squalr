@@ -3,6 +3,7 @@ use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
+use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
@@ -87,6 +88,10 @@ impl DataType for DataTypeI64 {
                 value_bytes[7],
             ])
         })
+    }
+
+    fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
+        PrimitiveDataType::get_supported_display_types()
     }
 
     fn get_endian(&self) -> Endian {

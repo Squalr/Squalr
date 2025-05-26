@@ -131,6 +131,10 @@ impl DataType for DataTypeByteArray {
         }
     }
 
+    fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
+        vec![DisplayValueType::ByteArray]
+    }
+
     fn is_discrete(&self) -> bool {
         true
     }

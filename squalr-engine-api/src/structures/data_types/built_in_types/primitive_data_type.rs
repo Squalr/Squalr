@@ -162,4 +162,43 @@ impl PrimitiveDataType {
             _ => Err(DataTypeError::InvalidMetaData),
         }
     }
+
+    pub fn create_display_values_bool(
+        value_bytes: &[u8],
+        default_size_in_bytes: u64,
+        data_type_meta_data: &DataTypeMetaData,
+    ) -> Result<DisplayValues, DataTypeError> {
+        match data_type_meta_data {
+            DataTypeMetaData::Primitive() => {
+                let expected = default_size_in_bytes;
+                let actual = value_bytes.len() as u64;
+
+                if actual == expected {
+                    if value_bytes[0] == 0 {
+                        Ok(DisplayValues::new(
+                            vec![DisplayValue::new(DisplayValueType::Bool, "false".into())],
+                            DisplayValueType::Bool,
+                        ))
+                    } else {
+                        // For our impl we consider non-zero to be true.
+                        Ok(DisplayValues::new(
+                            vec![DisplayValue::new(DisplayValueType::Bool, "true".into())],
+                            DisplayValueType::Bool,
+                        ))
+                    }
+                } else {
+                    Err(DataTypeError::InvalidByteCount { expected, actual })
+                }
+            }
+            _ => Err(DataTypeError::InvalidMetaData),
+        }
+    }
+
+    pub fn get_supported_display_types() -> Vec<DisplayValueType> {
+        vec![
+            DisplayValueType::Bin,
+            DisplayValueType::Dec,
+            DisplayValueType::Hex,
+        ]
+    }
 }

@@ -106,6 +106,10 @@ impl DataType for DataTypeRefDataType {
         }
     }
 
+    fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
+        vec![DisplayValueType::DataTypeRef]
+    }
+
     fn is_discrete(&self) -> bool {
         true
     }

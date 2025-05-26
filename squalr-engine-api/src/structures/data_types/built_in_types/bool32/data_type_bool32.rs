@@ -105,6 +105,10 @@ impl DataType for DataTypeBool32 {
         }
     }
 
+    fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
+        vec![DisplayValueType::Bool]
+    }
+
     fn get_endian(&self) -> Endian {
         Endian::Little
     }

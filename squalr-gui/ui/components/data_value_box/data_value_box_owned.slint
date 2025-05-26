@@ -7,9 +7,8 @@ import { StateLayer } from "../state_layer.slint";
 import { FakeCheckbox } from "../checkboxes/fake_checkbox.slint";
 import { DataValueViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings } from "../../view_model_bindings.slint";
 
-export component DataValueBox {
+export component DataValueBoxOwned {
     in_out property <DataValueViewData> data_value;
-    in property <bool> is_read_only;
     in property <string> initial_value;
     in property <string> preview_text;
     in property <length> text_padding_top: 4px;
@@ -34,9 +33,7 @@ export component DataValueBox {
         return ValidationViewModelBindings.validate_data_value(text_input.text, data_value.data_type_ref.data_type_id, data_value.active_display_value_type);
     }
     public pure function get_display_value_color() -> color {
-        if root.is_read_only {
-            return root.read_only_color;
-        } else if !root.is_value_valid_for_cursor() {
+        if !root.is_value_valid_for_cursor() {
             return root.invalid_color;
         } else if data_value.active_display_value_type == DisplayValueTypeView.hex {
             return root.foreground_hex;
@@ -80,7 +77,6 @@ export component DataValueBox {
             alignment: start;
             text_input := TextInput {
                 text: root.initial_value;
-                enabled: !root.is_read_only;
                 horizontal_alignment: root.text_horizontal_alignment;
                 vertical_alignment: root.text_vertical_alignment;
                 color: root.get_display_value_color();
@@ -136,7 +132,7 @@ export component DataValueBox {
         VerticalLayout {
             padding: 0px;
             spacing: 0px;
-            for display_value in root.data_value.display_values: Button {
+            for display_value_type in ValidationViewModelBindings.get_supported_display_types_for_data_type(root.data_value.data_type_ref.data_type_id): Button {
                 clicked => {
                     context_menu.close();
                 }
@@ -145,150 +141,17 @@ export component DataValueBox {
                     padding: 8px;
                     spacing: 4px;
                     FakeCheckbox {
-                        is_checked: root.data_value.active_display_value_type == display_value.display_value_type;
+                        is_checked: root.data_value.active_display_value_type == display_value_type;
                     }
 
                     Text {
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        text: display_value.display_value;
+                        text: "TODO";
                         color: Theme.foreground;
                     }
                 }
             }
-            /*
-            if !root.is_value_owner: show_as_dec_buttion := Button {
-                clicked => {
-                    context_menu.close();
-                    if root.is_value_owner {
-                        // root.data_value.is_value_hex = false;
-                    }
-                }
-                HorizontalLayout {
-                    alignment: start;
-                    padding: 8px;
-                    spacing: 4px;
-                    FakeCheckbox {
-                        // is_checked: !root.data_value.is_value_hex;
-                    }
-
-                    Text {
-                        horizontal_alignment: center;
-                        vertical_alignment: center;
-                        text: @tr("Show as dec");
-                        color: Theme.foreground;
-                    }
-                }
-            }
-            if !root.is_value_owner: show_as_hex_buttion := Button {
-                clicked => {
-                    context_menu.close();
-                    if root.is_value_owner {
-                        // root.data_value.is_value_hex = true;
-                    }
-                }
-                HorizontalLayout {
-                    alignment: start;
-                    padding: 8px;
-                    spacing: 4px;
-                    FakeCheckbox {
-                        // is_checked: root.data_value.is_value_hex;
-                    }
-
-                    Text {
-                        horizontal_alignment: center;
-                        vertical_alignment: center;
-                        text: @tr("Show as hex");
-                        color: Theme.foreground;
-                    }
-                }
-            }
-            if root.is_value_owner: interpret_as_dec_buttion := Button {
-                clicked => {
-                    context_menu.close();
-                    if root.is_value_owner {
-                        // root.data_value.is_value_hex = false;
-                    }
-                }
-                HorizontalLayout {
-                    alignment: start;
-                    padding: 8px;
-                    spacing: 4px;
-                    FakeCheckbox {
-                        // is_checked: !root.data_value.is_value_hex;
-                    }
-
-                    Text {
-                        horizontal_alignment: center;
-                        vertical_alignment: center;
-                        text: @tr("Interpret as dec");
-                        color: Theme.foreground;
-                    }
-                }
-            }
-            if root.is_value_owner:interpret_as_hex_buttion := Button {
-                clicked => {
-                    context_menu.close();
-                    if root.is_value_owner {
-                        // root.data_value.is_value_hex = true;
-                    }
-                }
-                HorizontalLayout {
-                    alignment: start;
-                    padding: 8px;
-                    spacing: 4px;
-                    FakeCheckbox {
-                        // is_checked: root.data_value.is_value_hex;
-                    }
-
-                    Text {
-                        horizontal_alignment: center;
-                        vertical_alignment: center;
-                        text: @tr("Interpret as hex");
-                        color: Theme.foreground;
-                    }
-                }
-            }
-            if !root.is_read_only && root.show_conversions: convert_to_dec_buttion := Button {
-                HorizontalLayout {
-                    alignment: start;
-                    padding: 8px;
-                    Text {
-                        horizontal_alignment: center;
-                        vertical_alignment: center;
-                        text: @tr("Convert to dec");
-                        color: Theme.foreground;
-                    }
-                }
-
-                clicked => {
-                    if root.is_value_owner {
-                        // root.data_value.is_value_hex = false;
-                        text_input.text = ConversionsViewModelBindings.convert_hex_to_dec(text_input.text);
-                    }
-                    context_menu.close();
-                }
-            }
-            if !root.is_read_only && root.show_conversions: convert_to_hex_buttion := Button {
-                HorizontalLayout {
-                    alignment: start;
-                    padding: 8px;
-                    Text {
-                        horizontal_alignment: center;
-                        vertical_alignment: center;
-                        text: @tr("Convert to hex");
-                        color: Theme.foreground;
-                    }
-                }
-
-                clicked => {
-                    if root.is_value_owner {
-                        // root.data_value.is_value_hex = true;
-                        text_input.text = ConversionsViewModelBindings.convert_dec_to_hex(text_input.text);
-                    }
-                    context_menu.close();
-                }
-            }*/
         }
     }
 }
