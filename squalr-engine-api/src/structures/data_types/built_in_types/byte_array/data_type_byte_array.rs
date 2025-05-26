@@ -65,28 +65,31 @@ impl DataType for DataTypeByteArray {
         }
 
         match anonymous_value.get_value() {
-            AnonymousValueContainer::StringValue(value_string, is_value_hex) => {
-                if *is_value_hex {
-                    let value_bytes = Conversions::hex_to_bytes(value_string).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
+            AnonymousValueContainer::BinaryValue(value_string) => {
+                let value_bytes = Conversions::binary_to_bytes(value_string).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
 
-                    // Group into bytes (2 hex digits each).
-                    Ok(DataValue::new(data_type_ref, value_bytes))
-                } else {
-                    // For decimal, allow space or comma separation.
-                    let value_bytes = value_string
-                        .split(|next_char: char| next_char.is_whitespace() || next_char == ',')
-                        .filter(|next_value| !next_value.is_empty())
-                        .map(|next_value| {
-                            u8::from_str_radix(next_value, 10).map_err(|err| DataTypeError::ValueParseError {
-                                value: next_value.to_string(),
-                                is_value_hex: false,
-                                source: err,
-                            })
+                Ok(DataValue::new(data_type_ref, value_bytes))
+            }
+            AnonymousValueContainer::HexValue(value_string) => {
+                let value_bytes = Conversions::hex_to_bytes(value_string).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
+
+                Ok(DataValue::new(data_type_ref, value_bytes))
+            }
+            AnonymousValueContainer::StringValue(value_string) => {
+                // For decimal, allow space or comma separation.
+                let value_bytes = value_string
+                    .split(|next_char: char| next_char.is_whitespace() || next_char == ',')
+                    .filter(|next_value| !next_value.is_empty())
+                    .map(|next_value| {
+                        u8::from_str_radix(next_value, 10).map_err(|err| DataTypeError::ValueParseError {
+                            value: next_value.to_string(),
+                            is_value_hex: false,
+                            source: err,
                         })
-                        .collect::<Result<Vec<_>, _>>()?;
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
 
-                    Ok(DataValue::new(data_type_ref, value_bytes))
-                }
+                Ok(DataValue::new(data_type_ref, value_bytes))
             }
             AnonymousValueContainer::ByteArray(value_bytes) => Ok(DataValue::new(data_type_ref, value_bytes.clone())),
         }
@@ -160,21 +163,21 @@ impl DataType for DataTypeByteArray {
         anonymous_value: &AnonymousValue,
     ) -> DataTypeMetaData {
         let byte_count = match anonymous_value.get_value() {
-            AnonymousValueContainer::StringValue(value_string, is_value_hex) => {
-                if *is_value_hex {
-                    Conversions::hex_to_bytes(value_string)
-                        .unwrap_or_default()
-                        .len()
-                } else {
-                    // For decimal, allow space or comma separation.
-                    value_string
-                        .split(|next_char: char| next_char.is_whitespace() || next_char == ',')
-                        .filter(|next_value| !next_value.is_empty())
-                        .map(|next_value| u8::from_str_radix(next_value, 10))
-                        .collect::<Result<Vec<_>, _>>()
-                        .unwrap_or_default()
-                        .len()
-                }
+            AnonymousValueContainer::BinaryValue(value_string) => Conversions::binary_to_bytes(value_string)
+                .unwrap_or_default()
+                .len(),
+            AnonymousValueContainer::HexValue(value_string) => Conversions::hex_to_bytes(value_string)
+                .unwrap_or_default()
+                .len(),
+            AnonymousValueContainer::StringValue(value_string) => {
+                // For decimal, allow space or comma separation.
+                value_string
+                    .split(|next_char: char| next_char.is_whitespace() || next_char == ',')
+                    .filter(|next_value| !next_value.is_empty())
+                    .map(|next_value| u8::from_str_radix(next_value, 10))
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap_or_default()
+                    .len()
             }
             AnonymousValueContainer::ByteArray(value_bytes) => value_bytes.len(),
         } as u64;

@@ -1,4 +1,5 @@
 use crate::structures::data_values::data_value::DataValue;
+use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::{registries::data_types::data_type_registry::DataTypeRegistry, structures::data_types::data_type_ref::DataTypeRef};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -8,7 +9,9 @@ use std::str::FromStr;
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AnonymousValueContainer {
-    StringValue(String, bool),
+    StringValue(String),
+    BinaryValue(String),
+    HexValue(String),
     ByteArray(Vec<u8>),
 }
 
@@ -17,22 +20,24 @@ pub enum AnonymousValueContainer {
 /// many data types. This is helpful for supporting values passed via command line / GUI.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AnonymousValue {
-    pub value: AnonymousValueContainer,
+    container_value: AnonymousValueContainer,
 }
 
 impl AnonymousValue {
-    pub fn new_string(
+    pub fn new(
         value: &str,
-        is_value_hex: bool,
+        display_value_type: DisplayValueType,
     ) -> Self {
-        AnonymousValue {
-            value: AnonymousValueContainer::StringValue(value.to_string(), is_value_hex),
-        }
+        let container_value = match display_value_type {
+            _ => AnonymousValueContainer::StringValue(value.to_string()),
+        };
+
+        AnonymousValue { container_value }
     }
 
     pub fn new_bytes(bytes: Vec<u8>) -> Self {
         AnonymousValue {
-            value: AnonymousValueContainer::ByteArray(bytes),
+            container_value: AnonymousValueContainer::ByteArray(bytes),
         }
     }
 
@@ -56,7 +61,7 @@ impl AnonymousValue {
     }
 
     pub fn get_value(&self) -> &AnonymousValueContainer {
-        &self.value
+        &self.container_value
     }
 }
 
@@ -64,8 +69,8 @@ impl FromStr for AnonymousValue {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let is_value_hex = string.starts_with("0x");
-        Ok(AnonymousValue::new_string(string, is_value_hex))
+        // JIRA: Support optional display type overrides.
+        Ok(AnonymousValue::new(string, DisplayValueType::String))
     }
 }
 
@@ -74,13 +79,15 @@ impl fmt::Display for AnonymousValue {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        match &self.value {
-            AnonymousValueContainer::StringValue(string, is_hex) => {
-                if *is_hex {
-                    write!(formatter, "{}", string)
-                } else {
-                    write!(formatter, "{}", string)
-                }
+        match &self.container_value {
+            AnonymousValueContainer::StringValue(string) => {
+                write!(formatter, "{}", string)
+            }
+            AnonymousValueContainer::BinaryValue(string) => {
+                write!(formatter, "{}", string)
+            }
+            AnonymousValueContainer::HexValue(string) => {
+                write!(formatter, "{}", string)
             }
             AnonymousValueContainer::ByteArray(bytes) => {
                 write!(formatter, "{:?}", bytes)

@@ -362,5 +362,5 @@ export global ConversionsViewModelBindings {
 }
 
 export global ValidationViewModelBindings {
-    pure callback validate_data_value(data_value: DataValueViewData) -> bool;
+    pure callback validate_data_value(data_value: string, data_type_id: string, display_value_type: DisplayValueTypeView) -> bool;
 }

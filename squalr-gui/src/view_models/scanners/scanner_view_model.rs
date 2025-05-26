@@ -109,7 +109,7 @@ impl ScannerViewModel {
         let is_value_hex = data_value.is_value_hex;
         let data_type_id = data_value.data_type_ref.data_type_id.to_string();
 
-        let scan_value = AnonymousValue::new_string(&scan_value, is_value_hex);
+        let scan_value = AnonymousValue::new(&scan_value, is_value_hex);
         let memory_alignment = MemoryAlignmentConverter {}.convert_from_view_data(&memory_alignment_view);
         let data_type_ref = DataTypeRef::new_from_anonymous_value(&data_type_id, &scan_value);
 

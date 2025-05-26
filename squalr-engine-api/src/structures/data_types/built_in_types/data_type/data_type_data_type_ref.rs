@@ -76,12 +76,13 @@ impl DataType for DataTypeRefDataType {
 
         match data_type_ref.get_meta_data() {
             DataTypeMetaData::FixedString(_string) => match anonymous_value.get_value() {
-                AnonymousValueContainer::StringValue(value_string, _is_value_hex) => {
+                AnonymousValueContainer::StringValue(value_string) => {
                     let string_bytes = value_string.as_bytes().to_vec();
 
                     Ok(DataValue::new(data_type_ref, string_bytes))
                 }
                 AnonymousValueContainer::ByteArray(value_bytes) => Ok(DataValue::new(data_type_ref, value_bytes.clone())),
+                _ => Err(DataTypeError::InvalidMetaData),
             },
             _ => Err(DataTypeError::InvalidMetaData),
         }
@@ -130,7 +131,11 @@ impl DataType for DataTypeRefDataType {
     ) -> DataTypeMetaData {
         match anonymous_value.get_value() {
             AnonymousValueContainer::ByteArray(byte_array) => DataTypeMetaData::FixedString(std::str::from_utf8(byte_array).unwrap_or_default().to_string()),
-            AnonymousValueContainer::StringValue(string, _is_hex) => DataTypeMetaData::FixedString(string.into()),
+            AnonymousValueContainer::StringValue(string) => DataTypeMetaData::FixedString(string.into()),
+
+            // These anonymous container types are not supported.
+            AnonymousValueContainer::BinaryValue(_string) => DataTypeMetaData::FixedString("".into()),
+            AnonymousValueContainer::HexValue(_string) => DataTypeMetaData::FixedString("".into()),
         }
     }
 

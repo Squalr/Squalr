@@ -23,12 +23,22 @@ impl PrimitiveDataType {
         Vec<u8>: From<<T as num_traits::ToBytes>::Bytes>,
     {
         match anonymous_value.get_value() {
-            AnonymousValueContainer::StringValue(value_string, _) => {
+            AnonymousValueContainer::BinaryValue(value_string)
+            | AnonymousValueContainer::HexValue(value_string)
+            | AnonymousValueContainer::StringValue(value_string) => {
                 let normalized = value_string.trim().to_ascii_lowercase();
-                let boolean = match normalized.as_str() {
-                    "true" | "1" => true,
-                    "false" | "0" => false,
-                    _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
+                let boolean = match anonymous_value.get_value() {
+                    AnonymousValueContainer::StringValue(_) => match normalized.to_lowercase().as_str() {
+                        "true" | "1" => true,
+                        "false" | "0" => false,
+                        _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
+                    },
+                    // For binary and hex, we only support '0'/'1' as the proper encoding for a bool.
+                    _ => match normalized.as_str() {
+                        "1" => true,
+                        "0" => false,
+                        _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
+                    },
                 };
 
                 let primitive: T = if boolean { T::from(1) } else { T::from(0) };
@@ -36,7 +46,6 @@ impl PrimitiveDataType {
 
                 Ok(DataValue::new(data_type_ref, bytes.into()))
             }
-
             AnonymousValueContainer::ByteArray(value_bytes) => {
                 let expected_size = std::mem::size_of::<T>() as u64;
                 let actual_size = value_bytes.len() as u64;
@@ -68,38 +77,48 @@ impl PrimitiveDataType {
         <T as FromStr>::Err: std::fmt::Display,
     {
         match anonymous_value.get_value() {
-            AnonymousValueContainer::StringValue(value_string, is_value_hex) => {
-                if *is_value_hex {
-                    match Conversions::hex_to_primitive_bytes::<T>(&value_string, is_big_endian) {
-                        Ok(bytes) => {
-                            if bytes.len() < size_of::<T>() {
-                                return Err(DataTypeError::ParseError(format!(
-                                    "Failed to decode hex bytes '{}'. Length is {} bytes, but expected at least {} bytes for {}.",
-                                    value_string,
-                                    bytes.len(),
-                                    size_of::<T>(),
-                                    type_name::<T>()
-                                )));
-                            }
-                            Ok(DataValue::new(data_type_ref, bytes))
-                        }
-                        Err(err) => Err(DataTypeError::ParseError(format!("Failed to parse hex value '{}': {}", value_string, err))),
-                    }
-                } else {
-                    match value_string.parse::<T>() {
-                        Ok(value) => {
-                            let bytes = if is_big_endian { value.to_be_bytes() } else { value.to_le_bytes() };
-                            Ok(DataValue::new(data_type_ref, bytes.into()))
-                        }
-                        Err(err) => Err(DataTypeError::ParseError(format!(
-                            "Failed to parse {} value '{}': {}",
-                            type_name::<T>(),
+            AnonymousValueContainer::BinaryValue(value_string) => match Conversions::binary_to_primitive_bytes::<T>(&value_string, is_big_endian) {
+                Ok(bytes) => {
+                    if bytes.len() < size_of::<T>() {
+                        return Err(DataTypeError::ParseError(format!(
+                            "Failed to decode hex bytes '{}'. Length is {} bytes, but expected at least {} bytes for {}.",
                             value_string,
-                            err
-                        ))),
+                            bytes.len(),
+                            size_of::<T>(),
+                            type_name::<T>()
+                        )));
                     }
+                    Ok(DataValue::new(data_type_ref, bytes))
                 }
-            }
+                Err(err) => Err(DataTypeError::ParseError(format!("Failed to parse hex value '{}': {}", value_string, err))),
+            },
+            AnonymousValueContainer::HexValue(value_string) => match Conversions::hex_to_primitive_bytes::<T>(&value_string, is_big_endian) {
+                Ok(bytes) => {
+                    if bytes.len() < size_of::<T>() {
+                        return Err(DataTypeError::ParseError(format!(
+                            "Failed to decode hex bytes '{}'. Length is {} bytes, but expected at least {} bytes for {}.",
+                            value_string,
+                            bytes.len(),
+                            size_of::<T>(),
+                            type_name::<T>()
+                        )));
+                    }
+                    Ok(DataValue::new(data_type_ref, bytes))
+                }
+                Err(err) => Err(DataTypeError::ParseError(format!("Failed to parse hex value '{}': {}", value_string, err))),
+            },
+            AnonymousValueContainer::StringValue(value_string) => match value_string.parse::<T>() {
+                Ok(value) => {
+                    let bytes = if is_big_endian { value.to_be_bytes() } else { value.to_le_bytes() };
+                    Ok(DataValue::new(data_type_ref, bytes.into()))
+                }
+                Err(err) => Err(DataTypeError::ParseError(format!(
+                    "Failed to parse {} value '{}': {}",
+                    type_name::<T>(),
+                    value_string,
+                    err
+                ))),
+            },
             AnonymousValueContainer::ByteArray(value_bytes) => Ok(DataValue::new(data_type_ref, value_bytes.clone())),
         }
     }

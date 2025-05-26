@@ -1,4 +1,5 @@
 use crate::DisplayValueTypeView;
+use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use squalr_engine_api::structures::data_values::display_value_type::DisplayValueType;
 
@@ -35,6 +36,25 @@ impl ConvertToViewData<DisplayValueType, DisplayValueTypeView> for DisplayValueT
             DisplayValueType::ByteArray => DisplayValueTypeView::ByteArray,
             DisplayValueType::DataTypeRef => DisplayValueTypeView::DataTypeRef,
             DisplayValueType::Enumeration => DisplayValueTypeView::Enumeration,
+        }
+    }
+}
+
+impl ConvertFromViewData<DisplayValueType, DisplayValueTypeView> for DisplayValueTypeConverter {
+    fn convert_from_view_data(
+        &self,
+        display_value: &DisplayValueTypeView,
+    ) -> DisplayValueType {
+        match display_value {
+            DisplayValueTypeView::Bool => DisplayValueType::Bool,
+            DisplayValueTypeView::String => DisplayValueType::String,
+            DisplayValueTypeView::Bin => DisplayValueType::Bin,
+            DisplayValueTypeView::Dec => DisplayValueType::Dec,
+            DisplayValueTypeView::Hex => DisplayValueType::Hex,
+            DisplayValueTypeView::Address => DisplayValueType::Address,
+            DisplayValueTypeView::ByteArray => DisplayValueType::ByteArray,
+            DisplayValueTypeView::DataTypeRef => DisplayValueType::DataTypeRef,
+            DisplayValueTypeView::Enumeration => DisplayValueType::Enumeration,
         }
     }
 }

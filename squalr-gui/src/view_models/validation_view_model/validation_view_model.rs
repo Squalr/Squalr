@@ -1,7 +1,10 @@
-use crate::DataValueViewData;
+use crate::DisplayValueTypeView;
 use crate::MainWindowView;
 use crate::ValidationViewModelBindings;
+use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
 use slint::ComponentHandle;
+use slint::SharedString;
+use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
@@ -31,27 +34,26 @@ impl ValidationViewModel {
 
         create_view_bindings!(view_binding, {
             ValidationViewModelBindings => {
-                on_validate_data_value(data_value_view: DataValueViewData) -> [] -> Self::on_validate_data_value,
+                on_validate_data_value(data_value: SharedString, data_type_id: SharedString, display_value_type: DisplayValueTypeView) -> [] -> Self::on_validate_data_value,
             }
         });
 
         dependency_container.register::<ValidationViewModel>(view_model);
     }
 
-    fn on_validate_data_value(data_value_view: DataValueViewData) -> bool {
-        /*
-        let value = data_value_view.display_value.to_string();
-        let is_value_hex = data_value_view.is_value_hex;
-        let data_type_ref = data_value_view.data_type_ref.data_type_id.to_string();
-
-        let anonymous_value = AnonymousValue::new_string(&value, is_value_hex);
+    fn on_validate_data_value(
+        data_value: SharedString,
+        data_type_id: SharedString,
+        display_value_type: DisplayValueTypeView,
+    ) -> bool {
+        let display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&display_value_type);
+        let anonymous_value = AnonymousValue::new(&data_value, display_value_type);
         let registry = DataTypeRegistry::get_instance().get_registry();
 
-        if let Some(data_type) = registry.get(&data_type_ref) {
+        if let Some(data_type) = registry.get(&data_type_id.to_string()) {
             data_type.validate_value(&anonymous_value)
         } else {
             false
-        }*/
-        false
+        }
     }
 }

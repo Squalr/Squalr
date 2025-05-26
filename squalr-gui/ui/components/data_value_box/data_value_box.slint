@@ -31,9 +31,11 @@ export component DataValueBox {
         return text_input.text;
     }
     public pure function is_value_valid() -> bool {
+        return ValidationViewModelBindings.validate_data_value(text_input.text, data_value.data_type_ref.data_type_id, data_value.active_display_value_type);
+    }
+    public pure function is_value_valid_for_cursor() -> bool {
         // Empty string is OK, we dont want the cursor to go red for empty text.
-        // return root.data_value.display_value == "" || ValidationViewModelBindings.validate_data_value(root.data_value);
-        return false;
+        return text_input.text == "" || root.is_value_valid();
     }
     forward_focus: touch_area;
     touch_area := FocusTouchArea {
@@ -68,7 +70,7 @@ export component DataValueBox {
                 enabled: !root.is_read_only;
                 horizontal_alignment: root.text_horizontal_alignment;
                 vertical_alignment: root.text_vertical_alignment;
-                // color: root.is_read_only ? root.read_only_color : (root.is_value_valid() ? (root.data_value.is_value_hex ? root.foreground_hex : root.foreground) : root.invalid_color);
+                // color: root.is_read_only ? root.read_only_color : (root.is_value_valid_for_cursor() ? (root.data_value.is_value_hex ? root.foreground_hex : root.foreground) : root.invalid_color);
                 single_line: true;
                 changed text => {
                     // root.data_value.display_value = self.text;

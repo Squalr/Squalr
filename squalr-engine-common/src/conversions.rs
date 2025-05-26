@@ -76,6 +76,10 @@ impl Conversions {
         u64::from_str_radix(trimmed_address, 16)
     }
 
+    pub fn binary_to_bytes(bin: &str) -> Result<Vec<u8>, &'static str> {
+        Err("Not implemented")
+    }
+
     pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, &'static str> {
         let hex = if hex.to_lowercase().starts_with("0x") { &hex[2..] } else { hex };
         let hex = hex.replace(|next_char: char| next_char.is_whitespace() || next_char == ',', "");
@@ -110,6 +114,13 @@ impl Conversions {
         }
 
         Ok(bytes)
+    }
+
+    pub fn binary_to_primitive_bytes<T: Copy + num_traits::ToBytes>(
+        bin: &str,
+        is_big_endian: bool,
+    ) -> Result<Vec<u8>, &'static str> {
+        Err("Not implemented")
     }
 
     pub fn hex_to_primitive_bytes<T: Copy + num_traits::ToBytes>(

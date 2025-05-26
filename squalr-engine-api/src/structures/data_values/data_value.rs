@@ -124,9 +124,7 @@ impl FromStr for DataValue {
         }
 
         let data_type = DataTypeRef::from_str(parts[0])?;
-        // JIRA: Not exactly a great way to parse this. Should probably be able to either infer or specify this directly.
-        let is_value_hex = parts[1].starts_with("0x");
-        let anonymous_value = AnonymousValue::new_string(parts[1], is_value_hex);
+        let anonymous_value = AnonymousValue::from_str(parts[1])?;
 
         match data_type.deanonymize_value(&anonymous_value) {
             Ok(value) => Ok(value),
