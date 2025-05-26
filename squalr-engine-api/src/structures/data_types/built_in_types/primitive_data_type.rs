@@ -1,6 +1,6 @@
 use crate::conversions::conversions::Conversions;
 use crate::structures::data_values::display_value::DisplayValue;
-use crate::structures::data_values::display_value_type::DisplayValueType;
+use crate::structures::data_values::display_value_type::{DisplayContainer, DisplayValueType};
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::{
     data_types::{data_type_error::DataTypeError, data_type_meta_data::DataTypeMetaData, data_type_ref::DataTypeRef},
@@ -140,8 +140,13 @@ impl PrimitiveDataType {
                 if actual == expected {
                     let mut results = vec![];
                     let value = convert_bytes_unchecked();
+                    let value_bytes_string = value_bytes
+                        .iter()
+                        .map(|byte| byte.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",");
 
-                    results.push(DisplayValue::new(DisplayValueType::Decimal, value.to_string()));
+                    results.push(DisplayValue::new(DisplayValueType::Decimal(DisplayContainer::None), value.to_string()));
 
                     // TODO: Bytes to hex
                     /*
@@ -156,7 +161,7 @@ impl PrimitiveDataType {
                         Err(err) => log::error!("Error converting primitive to address display value: {}", err),
                     }*/
 
-                    Ok(DisplayValues::new(results, DisplayValueType::Decimal))
+                    Ok(DisplayValues::new(results, DisplayValueType::Decimal(DisplayContainer::None)))
                 } else {
                     Err(DataTypeError::InvalidByteCount { expected, actual })
                 }
@@ -178,14 +183,20 @@ impl PrimitiveDataType {
                 if actual == expected {
                     if value_bytes[0] == 0 {
                         Ok(DisplayValues::new(
-                            vec![DisplayValue::new(DisplayValueType::Bool, "false".into())],
-                            DisplayValueType::Bool,
+                            vec![DisplayValue::new(
+                                DisplayValueType::Bool(DisplayContainer::None),
+                                "false".into(),
+                            )],
+                            DisplayValueType::Bool(DisplayContainer::None),
                         ))
                     } else {
                         // For our impl we consider non-zero to be true.
                         Ok(DisplayValues::new(
-                            vec![DisplayValue::new(DisplayValueType::Bool, "true".into())],
-                            DisplayValueType::Bool,
+                            vec![DisplayValue::new(
+                                DisplayValueType::Bool(DisplayContainer::None),
+                                "true".into(),
+                            )],
+                            DisplayValueType::Bool(DisplayContainer::None),
                         ))
                     }
                 } else {
@@ -198,9 +209,9 @@ impl PrimitiveDataType {
 
     pub fn get_supported_display_types() -> Vec<DisplayValueType> {
         vec![
-            DisplayValueType::Binary(false),
-            DisplayValueType::Decimal,
-            DisplayValueType::Hexadecimal(false),
+            DisplayValueType::Binary(DisplayContainer::None),
+            DisplayValueType::Decimal(DisplayContainer::None),
+            DisplayValueType::Hexadecimal(DisplayContainer::None),
         ]
     }
 }

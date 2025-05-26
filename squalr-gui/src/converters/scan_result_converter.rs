@@ -1,6 +1,9 @@
 use crate::ScanResultViewData;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
-use squalr_engine_api::structures::{data_values::display_value_type::DisplayValueType, scan_results::scan_result::ScanResult};
+use squalr_engine_api::structures::{
+    data_values::display_value_type::{DisplayContainer, DisplayValueType},
+    scan_results::scan_result::ScanResult,
+};
 
 pub struct ScanResultConverter {}
 
@@ -38,11 +41,11 @@ impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
         let current_value_string = match scan_result.get_recently_read_value() {
             Some(recently_read_value) => recently_read_value
                 .get_display_values()
-                .get_display_value_string(&DisplayValueType::Decimal),
+                .get_display_value_string(&DisplayValueType::Decimal(DisplayContainer::None)),
             None => match scan_result.get_current_value() {
                 Some(current_value) => current_value
                     .get_display_values()
-                    .get_display_value_string(&DisplayValueType::Decimal),
+                    .get_display_value_string(&DisplayValueType::Decimal(DisplayContainer::None)),
                 None => "??",
             },
         };
@@ -50,7 +53,7 @@ impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
         let previous_value_string = match scan_result.get_previous_value() {
             Some(previous_value) => previous_value
                 .get_display_values()
-                .get_display_value_string(&DisplayValueType::Decimal),
+                .get_display_value_string(&DisplayValueType::Decimal(DisplayContainer::None)),
             None => "??",
         };
 

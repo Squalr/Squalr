@@ -1,4 +1,5 @@
 use crate::structures::data_values::data_value::DataValue;
+use crate::structures::data_values::display_value_type::DisplayContainer;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::{registries::data_types::data_type_registry::DataTypeRegistry, structures::data_types::data_type_ref::DataTypeRef};
 use serde::{Deserialize, Serialize};
@@ -70,7 +71,7 @@ impl FromStr for AnonymousValue {
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         // JIRA: Support optional display type overrides.
-        Ok(AnonymousValue::new(string, DisplayValueType::String))
+        Ok(AnonymousValue::new(string, DisplayValueType::String(DisplayContainer::None)))
     }
 }
 

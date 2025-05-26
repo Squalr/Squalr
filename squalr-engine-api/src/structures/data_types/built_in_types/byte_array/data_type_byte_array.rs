@@ -4,7 +4,7 @@ use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
 use crate::structures::data_values::display_value::DisplayValue;
-use crate::structures::data_values::display_value_type::DisplayValueType;
+use crate::structures::data_values::display_value_type::{DisplayContainer, DisplayValueType};
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
@@ -116,12 +116,14 @@ impl DataType for DataTypeByteArray {
                         .collect::<Vec<String>>()
                         .join(" ");
 
+                    // JIRA: Populate the bin/dec versions.
+                    let fixme = 420;
                     Ok(DisplayValues::new(
                         vec![DisplayValue::new(
-                            DisplayValueType::ByteArray,
+                            DisplayValueType::Hexadecimal(DisplayContainer::Array),
                             byte_array_string,
                         )],
-                        DisplayValueType::ByteArray,
+                        DisplayValueType::Hexadecimal(DisplayContainer::Array),
                     ))
                 } else {
                     Err(DataTypeError::NoBytes)
@@ -132,7 +134,11 @@ impl DataType for DataTypeByteArray {
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
-        vec![DisplayValueType::ByteArray]
+        vec![
+            DisplayValueType::Binary(DisplayContainer::Array),
+            DisplayValueType::Decimal(DisplayContainer::Array),
+            DisplayValueType::Hexadecimal(DisplayContainer::Array),
+        ]
     }
 
     fn is_discrete(&self) -> bool {
