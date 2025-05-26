@@ -90,7 +90,7 @@ export component ScanBarView inherits Rectangle {
             tooltip_text: @tr("Start Scan");
             click_sound: "";
             clicked => {
-                ScannerViewModelBindings.start_scan(ScannerViewModelBindings.active_data_value, ScanSettingsViewModelBindings.memory_alignment, ScannerViewModelBindings.active_scan_type);
+                ScannerViewModelBindings.start_scan(scan_value.get_value_text(), ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id, ScannerViewModelBindings.active_data_value.active_display_value_type, ScanSettingsViewModelBindings.memory_alignment, ScannerViewModelBindings.active_scan_type);
             }
             Image {
                 width: 16px;

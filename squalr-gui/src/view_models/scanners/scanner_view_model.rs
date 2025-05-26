@@ -1,12 +1,15 @@
-use crate::DataValueViewData;
+use crate::DisplayValueTypeView;
+use crate::DisplayValueViewData;
 use crate::MainWindowView;
 use crate::MemoryAlignmentView;
 use crate::ScanConstraintTypeView;
 use crate::ScannerViewModelBindings;
 use crate::ValueCollectorViewModelBindings;
+use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
 use crate::converters::memory_alignment_converter::MemoryAlignmentConverter;
 use crate::converters::scan_constraint_converter::ScanConstraintConverter;
 use slint::ComponentHandle;
+use slint::SharedString;
 use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
@@ -59,7 +62,7 @@ impl ScannerViewModel {
             create_view_bindings!(view_model.view_binding, {
                 ScannerViewModelBindings => {
                     on_reset_scan() -> [view_model] -> Self::on_reset_scan,
-                    on_start_scan(data_value: DataValueViewData, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView) -> [view_model] -> Self::on_start_scan,
+                    on_start_scan(scan_value: SharedString, data_type_id: SharedString, display_value_type: DisplayValueTypeView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView) -> [view_model] -> Self::on_start_scan,
                 },
                 ValueCollectorViewModelBindings => {
                     on_collect_values() -> [view_model] -> Self::on_collect_values,
@@ -88,7 +91,9 @@ impl ScannerViewModel {
 
     fn on_start_scan(
         view_model: Arc<ScannerViewModel>,
-        data_value: DataValueViewData,
+        scan_value: SharedString,
+        data_type_id: SharedString,
+        display_value_type: DisplayValueTypeView,
         memory_alignment_view: MemoryAlignmentView,
         scan_constraint: ScanConstraintTypeView,
     ) {
@@ -104,12 +109,11 @@ impl ScannerViewModel {
             }
         };
 
-        /*
-        let scan_value = data_value.display_value.to_string();
-        let is_value_hex = data_value.is_value_hex;
-        let data_type_id = data_value.data_type_ref.data_type_id.to_string();
+        let scan_value = scan_value.to_string();
+        let data_type_id = data_type_id.to_string();
+        let display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&display_value_type);
 
-        let scan_value = AnonymousValue::new(&scan_value, is_value_hex);
+        let scan_value = AnonymousValue::new(&scan_value, display_value_type);
         let memory_alignment = MemoryAlignmentConverter {}.convert_from_view_data(&memory_alignment_view);
         let data_type_ref = DataTypeRef::new_from_anonymous_value(&data_type_id, &scan_value);
 
@@ -123,7 +127,7 @@ impl ScannerViewModel {
             ScanViewModelState::ScanInProgress => {
                 log::error!("Cannot start a new scan while a scan is in progress.");
             }
-        };*/
+        };
     }
 
     fn on_collect_values(view_model: Arc<ScannerViewModel>) {

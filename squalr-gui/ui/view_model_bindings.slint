@@ -231,7 +231,7 @@ export global ScannerViewModelBindings {
     in_out property <DataValueViewData> active_data_value;
     in_out property <ScanConstraintTypeView> active_scan_type: equal;
     callback reset_scan();
-    callback start_scan(data_value: DataValueViewData, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView);
+    callback start_scan(scan_value: string, data_type_id: string, display_value_type: DisplayValueTypeView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView);
     callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
 }
 
