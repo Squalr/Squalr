@@ -24,7 +24,7 @@ impl PrimitiveDataType {
     {
         match anonymous_value.get_value() {
             AnonymousValueContainer::BinaryValue(value_string)
-            | AnonymousValueContainer::HexValue(value_string)
+            | AnonymousValueContainer::HexadecimalValue(value_string)
             | AnonymousValueContainer::StringValue(value_string) => {
                 let normalized = value_string.trim().to_ascii_lowercase();
                 let boolean = match anonymous_value.get_value() {
@@ -92,7 +92,7 @@ impl PrimitiveDataType {
                 }
                 Err(err) => Err(DataTypeError::ParseError(format!("Failed to parse hex value '{}': {}", value_string, err))),
             },
-            AnonymousValueContainer::HexValue(value_string) => match Conversions::hex_to_primitive_bytes::<T>(&value_string, is_big_endian) {
+            AnonymousValueContainer::HexadecimalValue(value_string) => match Conversions::hex_to_primitive_bytes::<T>(&value_string, is_big_endian) {
                 Ok(bytes) => {
                     if bytes.len() < size_of::<T>() {
                         return Err(DataTypeError::ParseError(format!(
@@ -140,26 +140,25 @@ impl PrimitiveDataType {
                 if actual == expected {
                     let mut results = vec![];
                     let value = convert_bytes_unchecked();
-                    let value_bytes_string = value_bytes
+
+                    let value_string_binary = value_bytes
                         .iter()
-                        .map(|byte| byte.to_string())
-                        .collect::<Vec<_>>()
-                        .join(",");
+                        .map(|byte| format!("{:08b}", byte))
+                        .collect::<Vec<String>>()
+                        .join("");
+                    let value_string_decimal = value.to_string();
+                    let value_string_hexadecimal = value_bytes
+                        .iter()
+                        .map(|byte| format!("{:02X}", byte))
+                        .collect::<Vec<String>>()
+                        .join("");
 
-                    results.push(DisplayValue::new(DisplayValueType::Decimal(DisplayContainer::None), value.to_string()));
-
-                    // TODO: Bytes to hex
-                    /*
-                    match Conversions::dec_to_hex(&value_string, false) {
-                        Ok(display_value) => results.push(DisplayValue::new(DisplayValueType::Hexadecimal(false), display_value)),
-                        Err(err) => log::error!("Error converting primitive to hex display value: {}", err),
-                    }
-
-                    // TODO: Bytes to hex to address
-                    match Conversions::dec_to_address(&value_string, false) {
-                        Ok(display_value) => results.push(DisplayValue::new(DisplayValueType::Address(false), display_value)),
-                        Err(err) => log::error!("Error converting primitive to address display value: {}", err),
-                    }*/
+                    results.push(DisplayValue::new(DisplayValueType::Binary(DisplayContainer::None), value_string_binary));
+                    results.push(DisplayValue::new(DisplayValueType::Decimal(DisplayContainer::None), value_string_decimal));
+                    results.push(DisplayValue::new(
+                        DisplayValueType::Hexadecimal(DisplayContainer::None),
+                        value_string_hexadecimal,
+                    ));
 
                     Ok(DisplayValues::new(results, DisplayValueType::Decimal(DisplayContainer::None)))
                 } else {

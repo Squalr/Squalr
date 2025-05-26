@@ -142,7 +142,7 @@ impl DataType for DataTypeRefDataType {
 
             // These anonymous container types are not supported.
             AnonymousValueContainer::BinaryValue(_string) => DataTypeMetaData::FixedString("".into()),
-            AnonymousValueContainer::HexValue(_string) => DataTypeMetaData::FixedString("".into()),
+            AnonymousValueContainer::HexadecimalValue(_string) => DataTypeMetaData::FixedString("".into()),
         }
     }
 

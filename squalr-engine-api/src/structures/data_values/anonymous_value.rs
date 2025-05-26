@@ -12,7 +12,7 @@ use std::str::FromStr;
 pub enum AnonymousValueContainer {
     StringValue(String),
     BinaryValue(String),
-    HexValue(String),
+    HexadecimalValue(String),
     ByteArray(Vec<u8>),
 }
 
@@ -30,7 +30,14 @@ impl AnonymousValue {
         display_value_type: DisplayValueType,
     ) -> Self {
         let container_value = match display_value_type {
-            _ => AnonymousValueContainer::StringValue(value.to_string()),
+            DisplayValueType::Bool(display_container) => AnonymousValueContainer::StringValue(value.to_string()),
+            DisplayValueType::String(display_container) => AnonymousValueContainer::StringValue(value.to_string()),
+            DisplayValueType::Binary(display_container) => AnonymousValueContainer::BinaryValue(value.to_string()),
+            DisplayValueType::Decimal(display_container) => AnonymousValueContainer::StringValue(value.to_string()),
+            DisplayValueType::Hexadecimal(display_container) => AnonymousValueContainer::HexadecimalValue(value.to_string()),
+            DisplayValueType::Address(display_container) => AnonymousValueContainer::StringValue(value.to_string()),
+            DisplayValueType::DataTypeRef(display_container) => AnonymousValueContainer::StringValue(value.to_string()),
+            DisplayValueType::Enumeration => AnonymousValueContainer::StringValue(value.to_string()),
         };
 
         AnonymousValue { container_value }
@@ -87,7 +94,7 @@ impl fmt::Display for AnonymousValue {
             AnonymousValueContainer::BinaryValue(string) => {
                 write!(formatter, "{}", string)
             }
-            AnonymousValueContainer::HexValue(string) => {
+            AnonymousValueContainer::HexadecimalValue(string) => {
                 write!(formatter, "{}", string)
             }
             AnonymousValueContainer::ByteArray(bytes) => {

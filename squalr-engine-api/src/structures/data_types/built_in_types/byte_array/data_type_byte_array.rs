@@ -70,7 +70,7 @@ impl DataType for DataTypeByteArray {
 
                 Ok(DataValue::new(data_type_ref, value_bytes))
             }
-            AnonymousValueContainer::HexValue(value_string) => {
+            AnonymousValueContainer::HexadecimalValue(value_string) => {
                 let value_bytes = Conversions::hex_to_bytes(value_string).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
 
                 Ok(DataValue::new(data_type_ref, value_bytes))
@@ -110,19 +110,28 @@ impl DataType for DataTypeByteArray {
                         actual: byte_count,
                     })
                 } else if !value_bytes.is_empty() {
-                    let byte_array_string = value_bytes
+                    let value_bytes_string_binary = value_bytes
+                        .iter()
+                        .map(|byte| format!("{:08b}", byte))
+                        .collect::<Vec<String>>()
+                        .join(" ");
+                    let value_bytes_string_decimal = value_bytes
+                        .iter()
+                        .map(|byte| byte.to_string())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    let value_bytes_string_hexadecimal = value_bytes
                         .iter()
                         .map(|byte| format!("{:02X}", byte))
                         .collect::<Vec<String>>()
                         .join(" ");
 
-                    // JIRA: Populate the bin/dec versions.
-                    let fixme = 420;
                     Ok(DisplayValues::new(
-                        vec![DisplayValue::new(
-                            DisplayValueType::Hexadecimal(DisplayContainer::Array),
-                            byte_array_string,
-                        )],
+                        vec![
+                            DisplayValue::new(DisplayValueType::Binary(DisplayContainer::Array), value_bytes_string_binary),
+                            DisplayValue::new(DisplayValueType::Decimal(DisplayContainer::Array), value_bytes_string_decimal),
+                            DisplayValue::new(DisplayValueType::Hexadecimal(DisplayContainer::Array), value_bytes_string_hexadecimal),
+                        ],
                         DisplayValueType::Hexadecimal(DisplayContainer::Array),
                     ))
                 } else {
@@ -176,7 +185,7 @@ impl DataType for DataTypeByteArray {
             AnonymousValueContainer::BinaryValue(value_string) => Conversions::binary_to_bytes(value_string)
                 .unwrap_or_default()
                 .len(),
-            AnonymousValueContainer::HexValue(value_string) => Conversions::hex_to_bytes(value_string)
+            AnonymousValueContainer::HexadecimalValue(value_string) => Conversions::hex_to_bytes(value_string)
                 .unwrap_or_default()
                 .len(),
             AnonymousValueContainer::StringValue(value_string) => {

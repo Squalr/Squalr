@@ -84,7 +84,7 @@ impl DataType for DataTypeString {
 
                     return Ok(DataValue::new(data_type_ref, value_bytes));
                 }
-                AnonymousValueContainer::HexValue(value_string_utf8) => {
+                AnonymousValueContainer::HexadecimalValue(value_string_utf8) => {
                     let value_bytes = Conversions::hex_to_bytes(value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
 
                     return Ok(DataValue::new(data_type_ref, value_bytes));
@@ -508,7 +508,7 @@ impl DataType for DataTypeString {
             AnonymousValueContainer::ByteArray(byte_array) => byte_array.len(),
             AnonymousValueContainer::StringValue(string) => string.as_bytes().len(),
             AnonymousValueContainer::BinaryValue(string) => Conversions::binary_to_bytes(string).unwrap_or_default().len(),
-            AnonymousValueContainer::HexValue(string) => Conversions::hex_to_bytes(string).unwrap_or_default().len(),
+            AnonymousValueContainer::HexadecimalValue(string) => Conversions::hex_to_bytes(string).unwrap_or_default().len(),
         } as u64;
 
         DataTypeMetaData::EncodedString(string_length, StringEncoding::Utf8)

@@ -158,6 +158,7 @@ export component DataValueBoxOwned {
             }
             for display_value_type in ValidationViewModelBindings.get_supported_display_types_for_data_type(root.data_value.data_type_ref.data_type_id): Button {
                 clicked => {
+                    text_input.text = ConversionsViewModelBindings.convert_to_data_type(text_input.text, data_value.active_display_value_type, display_value_type);
                     data_value.active_display_value_type = display_value_type;
                     context_menu.close();
                 }
