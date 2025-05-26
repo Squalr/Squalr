@@ -44,6 +44,7 @@ Launch Checklist:
 - [X] Freezing/deleting scan results directly from scan window.
 - [X] String scans, with various encoding support.
 - [ ] String Encoding selection from UI.
+- [ ] Robust conversion framework.
 - [X] Property viewer in the GUI that can register an active set of properties.
 - [ ] Display type switching for property viewer data types.
 - [ ] Custom and built in editors for property viewer data types.

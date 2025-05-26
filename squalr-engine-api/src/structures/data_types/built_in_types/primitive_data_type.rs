@@ -1,3 +1,4 @@
+use crate::conversions::conversions::Conversions;
 use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
@@ -8,7 +9,6 @@ use crate::structures::{
         data_value::DataValue,
     },
 };
-use squalr_engine_common::conversions::Conversions;
 use std::{any::type_name, mem::size_of, str::FromStr};
 
 pub struct PrimitiveDataType {}
@@ -140,21 +140,23 @@ impl PrimitiveDataType {
                 if actual == expected {
                     let mut results = vec![];
                     let value = convert_bytes_unchecked();
-                    let value_string = value.to_string();
 
+                    results.push(DisplayValue::new(DisplayValueType::Decimal, value.to_string()));
+
+                    // TODO: Bytes to hex
+                    /*
                     match Conversions::dec_to_hex(&value_string, false) {
-                        Ok(display_value) => results.push(DisplayValue::new(DisplayValueType::Hex, display_value)),
+                        Ok(display_value) => results.push(DisplayValue::new(DisplayValueType::Hexadecimal(false), display_value)),
                         Err(err) => log::error!("Error converting primitive to hex display value: {}", err),
                     }
 
+                    // TODO: Bytes to hex to address
                     match Conversions::dec_to_address(&value_string, false) {
-                        Ok(display_value) => results.push(DisplayValue::new(DisplayValueType::Address, display_value)),
+                        Ok(display_value) => results.push(DisplayValue::new(DisplayValueType::Address(false), display_value)),
                         Err(err) => log::error!("Error converting primitive to address display value: {}", err),
-                    }
+                    }*/
 
-                    results.push(DisplayValue::new(DisplayValueType::Dec, value_string));
-
-                    Ok(DisplayValues::new(results, DisplayValueType::Dec))
+                    Ok(DisplayValues::new(results, DisplayValueType::Decimal))
                 } else {
                     Err(DataTypeError::InvalidByteCount { expected, actual })
                 }
@@ -196,9 +198,9 @@ impl PrimitiveDataType {
 
     pub fn get_supported_display_types() -> Vec<DisplayValueType> {
         vec![
-            DisplayValueType::Bin,
-            DisplayValueType::Dec,
-            DisplayValueType::Hex,
+            DisplayValueType::Binary(false),
+            DisplayValueType::Decimal,
+            DisplayValueType::Hexadecimal(false),
         ]
     }
 }

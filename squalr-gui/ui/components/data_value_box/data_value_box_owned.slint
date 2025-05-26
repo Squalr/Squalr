@@ -5,6 +5,7 @@ import { ContextMenu } from "../context_menu/context_menu.slint";
 import { FocusTouchArea } from "../focus_touch_area.slint";
 import { StateLayer } from "../state_layer.slint";
 import { FakeCheckbox } from "../checkboxes/fake_checkbox.slint";
+import { DisplayValueTypeConverter } from "../../converters/display_value_type_converter.slint";
 import { DataValueViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings } from "../../view_model_bindings.slint";
 
 export component DataValueBoxOwned {
@@ -19,12 +20,14 @@ export component DataValueBoxOwned {
     in property <TextVerticalAlignment> text_vertical_alignment: center;
     in property <color> background: Theme.background_primary;
     in property <color> foreground: Theme.foreground;
-    in property <color> foreground_bin: Theme.bin_blue;
-    in property <color> foreground_hex: Theme.hex_green;
+    in property <color> foreground_binary: Theme.bin_blue;
+    in property <color> foreground_hexadecimal: Theme.hex_green;
     in property <color> foreground_preview: Theme.foreground_preview;
     in property <color> border_color: Theme.submenu_border;
     in property <color> invalid_color: Theme.error_red;
     in property <color> read_only_color: Theme.foreground_preview;
+    display_value_typer_converter := DisplayValueTypeConverter { }
+
     callback on_value_submitted(value: string);
     public pure function get_value_text() -> string {
         return text_input.text;
@@ -35,10 +38,10 @@ export component DataValueBoxOwned {
     public pure function get_display_value_color() -> color {
         if !root.is_value_valid_for_cursor() {
             return root.invalid_color;
-        } else if data_value.active_display_value_type == DisplayValueTypeView.hex {
-            return root.foreground_hex;
-        } else if data_value.active_display_value_type == DisplayValueTypeView.bin {
-            return root.foreground_bin;
+        } else if data_value.active_display_value_type == DisplayValueTypeView.hexadecimal {
+            return root.foreground_hexadecimal;
+        } else if data_value.active_display_value_type == DisplayValueTypeView.binary {
+            return root.foreground_binary;
         } else {
             return root.foreground;
         }
@@ -134,6 +137,7 @@ export component DataValueBoxOwned {
             spacing: 0px;
             for display_value_type in ValidationViewModelBindings.get_supported_display_types_for_data_type(root.data_value.data_type_ref.data_type_id): Button {
                 clicked => {
+                    data_value.active_display_value_type = display_value_type;
                     context_menu.close();
                 }
                 HorizontalLayout {
@@ -147,7 +151,23 @@ export component DataValueBoxOwned {
                     Text {
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        text: "TODO";
+                        text: "Interpret as " + display_value_typer_converter.display_value_type_to_string(display_value_type);
+                        color: Theme.foreground;
+                    }
+                }
+            }
+            for display_value_type in ValidationViewModelBindings.get_supported_display_types_for_data_type(root.data_value.data_type_ref.data_type_id): Button {
+                clicked => {
+                    data_value.active_display_value_type = display_value_type;
+                    context_menu.close();
+                }
+                HorizontalLayout {
+                    alignment: start;
+                    padding: 8px;
+                    Text {
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        text: "Convert to " + display_value_typer_converter.display_value_type_to_string(display_value_type);
                         color: Theme.foreground;
                     }
                 }

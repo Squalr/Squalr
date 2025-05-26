@@ -7,7 +7,7 @@ import { DataTypeSelector } from "../../controls/data_type_selector.slint";
 import { ScanConstraintTypeSelector } from "../../controls/scan_constraint_selector.slint";
 import { DockFocusCatcher } from "../docking/drag_and_drop/dock_focus_catcher.slint";
 import { DataValueBoxOwned } from "../../components/data_value_box/data_value_box_owned.slint";
-import { ValueCollectorViewModelBindings, ScannerViewModelBindings, ScanSettingsViewModelBindings } from "../../view_model_bindings.slint";
+import { DisplayValueTypeView, ValueCollectorViewModelBindings, ScannerViewModelBindings, ScanSettingsViewModelBindings } from "../../view_model_bindings.slint";
 
 export component ScanBarView inherits Rectangle {
     property <length> bar_height: 28px;
@@ -15,6 +15,7 @@ export component ScanBarView inherits Rectangle {
     property <length> bottom_padding: 4px;
     property <length> flow_break_point: 800px;
     init => {
+        ScannerViewModelBindings.active_data_value.active_display_value_type = DisplayValueTypeView.decimal;
         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i32";
         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = "i32";
     }

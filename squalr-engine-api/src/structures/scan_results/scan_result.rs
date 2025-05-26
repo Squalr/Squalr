@@ -70,7 +70,7 @@ impl ScanResult {
             Self::PROPERTY_NAME_ADDRESS.to_string(),
             DataTypeU64::get_value_from_primitive(self.valued_result.get_address()),
             true,
-            Some(DisplayValueType::Address),
+            Some(DisplayValueType::Address(false)),
         );
         let property_module = Property::new(
             Self::PROPERTY_NAME_MODULE.to_string(),
@@ -82,7 +82,7 @@ impl ScanResult {
             Self::PROPERTY_NAME_MODULE_OFFSET.to_string(),
             DataTypeU64::get_value_from_primitive(self.module_offset),
             true,
-            Some(DisplayValueType::Hex),
+            Some(DisplayValueType::Hexadecimal(false)),
         );
 
         PropertyCollection::new(vec![

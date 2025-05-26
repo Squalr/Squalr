@@ -3,18 +3,16 @@ use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::memory::memory_command::MemoryCommand;
 use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::memory::read::memory_read_response::MemoryReadResponse;
+use crate::conversions::conversions::Conversions;
 use serde::Deserialize;
 use serde::Serialize;
-use squalr_engine_common::conversions::Conversions;
-// use squalr_engine_api::structures::dynamic_struct::dynamic_struct::DynamicStruct;
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct MemoryReadRequest {
+    // JIRA: Seems sus to just have generic int or hex parser.
     #[structopt(short = "a", long, parse(try_from_str = Conversions::parse_hex_or_int))]
     pub address: u64,
-    // #[structopt(short = "v", long)]
-    // pub value: DynamicStruct,
 }
 
 impl EngineCommandRequest for MemoryReadRequest {

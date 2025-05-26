@@ -1,40 +1,25 @@
+use crate::conversions::conversion_error::ConversionError;
+use crate::conversions::conversions_from_binary::ConversionsFromBinary;
+use crate::conversions::conversions_from_decimal::ConversionsFromDecimal;
+use crate::conversions::conversions_from_hexadecimal::ConversionsFromHexadecimal;
+use crate::structures::data_values::display_value_type::DisplayValueType;
 use std::num::ParseIntError;
 
 pub struct Conversions {}
 
 impl Conversions {
-    /// Converts a hexadecimal string to a decimal string.
-    pub fn hex_to_dec(hex: &str) -> Result<String, ParseIntError> {
-        if hex.starts_with("0x") || hex.starts_with("0X") {
-            u64::from_str_radix(&hex[2..], 16).map(|val| val.to_string())
-        } else {
-            u64::from_str_radix(hex, 16).map(|val| val.to_string())
+    pub fn convert_data_value(
+        data_value: &str,
+        from_display_value_type: DisplayValueType,
+        to_display_value_type: DisplayValueType,
+    ) -> Result<String, ConversionError> {
+        match from_display_value_type {
+            DisplayValueType::Binary(_) => ConversionsFromBinary::convert_to_display_value(data_value, to_display_value_type),
+            DisplayValueType::Decimal => ConversionsFromDecimal::convert_to_display_value(data_value, to_display_value_type),
+            DisplayValueType::Hexadecimal(_) => ConversionsFromHexadecimal::convert_to_display_value(data_value, to_display_value_type),
+            DisplayValueType::Address(_) => ConversionsFromHexadecimal::convert_to_display_value(data_value, to_display_value_type),
+            _ => Ok(data_value.to_string()),
         }
-    }
-
-    /// Converts a decimal string to a hexadecimal string.
-    pub fn dec_to_hex(
-        dec: &str,
-        prepend_prefix: bool,
-    ) -> Result<String, ParseIntError> {
-        // Parse the decimal string to a u64 string.
-        dec.parse::<u64>()
-            .map(|val| if prepend_prefix { format!("0x{:x}", val) } else { format!("{:x}", val) })
-    }
-
-    /// Converts a decimal string to a padded 16-character hexadecimal string (u64).
-    pub fn dec_to_address(
-        dec: &str,
-        prepend_prefix: bool,
-    ) -> Result<String, std::num::ParseIntError> {
-        dec.parse::<u64>().map(|val| {
-            let hex = if val <= u32::MAX as u64 {
-                format!("{:08x}", val)
-            } else {
-                format!("{:016x}", val)
-            };
-            if prepend_prefix { format!("0x{}", hex) } else { hex }
-        })
     }
 
     pub fn parse_hex_or_int(src: &str) -> Result<u64, std::num::ParseIntError> {

@@ -20,8 +20,8 @@ export component DataValueBox {
     in property <TextVerticalAlignment> text_vertical_alignment: center;
     in property <color> background: Theme.background_primary;
     in property <color> foreground: Theme.foreground;
-    in property <color> foreground_bin: Theme.bin_blue;
-    in property <color> foreground_hex: Theme.hex_green;
+    in property <color> foreground_binary: Theme.bin_blue;
+    in property <color> foreground_hexadecimal: Theme.hex_green;
     in property <color> foreground_preview: Theme.foreground_preview;
     in property <color> border_color: Theme.submenu_border;
     in property <color> invalid_color: Theme.error_red;
@@ -38,10 +38,10 @@ export component DataValueBox {
             return root.read_only_color;
         } else if !root.is_value_valid_for_cursor() {
             return root.invalid_color;
-        } else if data_value.active_display_value_type == DisplayValueTypeView.hex {
-            return root.foreground_hex;
-        } else if data_value.active_display_value_type == DisplayValueTypeView.bin {
-            return root.foreground_bin;
+        } else if data_value.active_display_value_type == DisplayValueTypeView.hexadecimal {
+            return root.foreground_hexadecimal;
+        } else if data_value.active_display_value_type == DisplayValueTypeView.binary {
+            return root.foreground_binary;
         } else {
             return root.foreground;
         }

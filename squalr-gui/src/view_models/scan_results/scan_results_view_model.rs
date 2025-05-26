@@ -21,11 +21,11 @@ use squalr_engine_api::commands::scan_results::delete::scan_results_delete_reque
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
+use squalr_engine_api::conversions::conversions::Conversions;
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
-use squalr_engine_common::conversions::Conversions;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::AtomicU64;

@@ -198,9 +198,9 @@ export enum MemoryReadModeView {
 export enum DisplayValueTypeView {
     bool,
     string,
-    bin,
-    dec,
-    hex,
+    binary,
+    decimal,
+    hexadecimal,
     address,
     byte_array,
     data_type_ref,
@@ -354,8 +354,7 @@ export global PropertyViewerViewModelBindings {
 }
 
 export global ConversionsViewModelBindings {
-    pure callback convert_hex_to_dec(data_value: string) -> string;
-    pure callback convert_dec_to_hex(data_value: string) -> string;
+    pure callback convert_to_data_type(data_value: string, from_display_value_type: DisplayValueTypeView, to_display_value_type: DisplayValueTypeView) -> string;
     pure callback get_memory_alignment_string(memory_alignment: MemoryAlignmentView) -> string;
     pure callback get_memory_read_mode_string(memory_read_mode: MemoryReadModeView) -> string;
     pure callback get_floating_point_tolerance_string(floating_point_tolerance: FloatingPointToleranceView) -> string;

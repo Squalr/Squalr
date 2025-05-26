@@ -1,3 +1,4 @@
+use crate::conversions::conversions::Conversions;
 use crate::structures::data_types::built_in_types::string::string_encodings::StringEncoding;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
@@ -16,7 +17,6 @@ use encoding_rs::{
     WINDOWS_1251, WINDOWS_1252, WINDOWS_1253, WINDOWS_1254, WINDOWS_1255, WINDOWS_1256, WINDOWS_1257, WINDOWS_1258, X_MAC_CYRILLIC, X_USER_DEFINED,
 };
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::conversions::Conversions;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DataTypeString {}

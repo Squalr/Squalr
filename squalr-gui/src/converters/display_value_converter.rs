@@ -27,7 +27,7 @@ impl ConvertToViewData<DisplayValue, DisplayValueViewData> for DisplayValueConve
         display_value: &DisplayValue,
     ) -> DisplayValueViewData {
         DisplayValueViewData {
-            display_value: "TODO".into(),
+            display_value: display_value.get_display_value().into(),
             display_value_type: DisplayValueTypeConverter {}.convert_to_view_data(display_value.get_display_value_type()),
         }
     }

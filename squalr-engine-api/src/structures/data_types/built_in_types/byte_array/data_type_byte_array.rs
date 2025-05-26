@@ -1,3 +1,4 @@
+use crate::conversions::conversions::Conversions;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
@@ -8,7 +9,6 @@ use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
-use squalr_engine_common::conversions::Conversions;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DataTypeByteArray {}

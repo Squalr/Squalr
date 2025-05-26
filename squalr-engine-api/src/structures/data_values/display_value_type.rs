@@ -6,10 +6,10 @@ use std::str::FromStr;
 pub enum DisplayValueType {
     Bool,
     String,
-    Bin,
-    Dec,
-    Hex,
-    Address,
+    Binary(bool),
+    Decimal,
+    Hexadecimal(bool),
+    Address(bool),
     ByteArray,
     DataTypeRef,
     Enumeration,
@@ -23,10 +23,10 @@ impl fmt::Display for DisplayValueType {
         let string = match self {
             DisplayValueType::Bool => "bool",
             DisplayValueType::String => "string",
-            DisplayValueType::Bin => "bin",
-            DisplayValueType::Dec => "dec",
-            DisplayValueType::Hex => "hex",
-            DisplayValueType::Address => "address",
+            DisplayValueType::Binary(_) => "bin",
+            DisplayValueType::Decimal => "dec",
+            DisplayValueType::Hexadecimal(_) => "hex",
+            DisplayValueType::Address(_) => "address",
             DisplayValueType::ByteArray => "byte_array",
             DisplayValueType::DataTypeRef => "data_type_ref",
             DisplayValueType::Enumeration => "enumeration",
@@ -39,13 +39,14 @@ impl FromStr for DisplayValueType {
     type Err = ();
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
+        // JIRA: We could support an optional suffix to specify whether values have prefixes.
         match string {
             "bool" => Ok(DisplayValueType::Bool),
             "string" => Ok(DisplayValueType::String),
-            "bin" => Ok(DisplayValueType::Bin),
-            "dec" => Ok(DisplayValueType::Dec),
-            "hex" => Ok(DisplayValueType::Hex),
-            "address" => Ok(DisplayValueType::Address),
+            "bin" => Ok(DisplayValueType::Binary(false)),
+            "dec" => Ok(DisplayValueType::Decimal),
+            "hex" => Ok(DisplayValueType::Hexadecimal(false)),
+            "address" => Ok(DisplayValueType::Address(false)),
             "byte_array" => Ok(DisplayValueType::ByteArray),
             "data_type_ref" => Ok(DisplayValueType::DataTypeRef),
             "enumeration" => Ok(DisplayValueType::Enumeration),

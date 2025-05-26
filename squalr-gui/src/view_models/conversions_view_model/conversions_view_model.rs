@@ -1,15 +1,18 @@
 use crate::ConversionsViewModelBindings;
+use crate::DisplayValueTypeView;
 use crate::FloatingPointToleranceView;
 use crate::MainWindowView;
 use crate::MemoryAlignmentView;
 use crate::MemoryReadModeView;
+use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
 use slint::ComponentHandle;
 use slint::SharedString;
+use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::conversions::conversions::Conversions;
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
-use squalr_engine_common::conversions::Conversions;
 use std::sync::Arc;
 
 pub struct ConversionsViewModel {
@@ -33,8 +36,7 @@ impl ConversionsViewModel {
 
         create_view_bindings!(view_binding, {
             ConversionsViewModelBindings => {
-                on_convert_hex_to_dec(data_value: SharedString) -> [] -> Self::on_convert_hex_to_dec,
-                on_convert_dec_to_hex(data_value: SharedString) -> [] -> Self::on_convert_dec_to_hex,
+                on_convert_to_data_type(data_value: SharedString, from_display_value_type: DisplayValueTypeView, to_display_value_type: DisplayValueTypeView) -> [] -> Self::on_convert_to_data_type,
                 on_get_memory_alignment_string(memory_alignment: MemoryAlignmentView) -> [] -> Self::on_get_memory_alignment_string,
                 on_get_memory_read_mode_string(memory_read_mode: MemoryReadModeView) -> [] -> Self::on_get_memory_read_mode_string,
                 on_get_floating_point_tolerance_string(floating_point_tolerance: FloatingPointToleranceView) -> [] -> Self::on_get_floating_point_tolerance_string,
@@ -44,19 +46,21 @@ impl ConversionsViewModel {
         dependency_container.register::<ConversionsViewModel>(view_model);
     }
 
-    fn on_convert_hex_to_dec(data_value: SharedString) -> SharedString {
-        if let Ok(new_value) = Conversions::hex_to_dec(&data_value) {
-            SharedString::from(new_value)
-        } else {
-            data_value
-        }
-    }
+    fn on_convert_to_data_type(
+        data_value: SharedString,
+        from_display_value_type: DisplayValueTypeView,
+        to_display_value_type: DisplayValueTypeView,
+    ) -> SharedString {
+        let data_value_string = data_value.to_string();
+        let from_display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&from_display_value_type);
+        let to_display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&to_display_value_type);
 
-    fn on_convert_dec_to_hex(data_value: SharedString) -> SharedString {
-        if let Ok(new_value) = Conversions::dec_to_hex(&data_value, false) {
-            SharedString::from(new_value)
-        } else {
-            data_value
+        match Conversions::convert_data_value(&data_value_string, from_display_value_type, to_display_value_type) {
+            Ok(converted_data_value) => converted_data_value.into(),
+            Err(err) => {
+                log::error!("Error converting data value for display type {}, error: {}", data_value_string, err);
+                data_value
+            }
         }
     }
 
