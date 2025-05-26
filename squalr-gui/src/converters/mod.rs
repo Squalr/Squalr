@@ -1,3 +1,7 @@
+pub mod data_type_ref_converter;
+pub mod data_value_converter;
+pub mod display_value_converter;
+pub mod display_value_type_converter;
 pub mod dock_target_converter;
 pub mod dock_window_converter;
 pub mod floating_point_tolerance_converter;

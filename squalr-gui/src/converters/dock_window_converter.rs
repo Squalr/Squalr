@@ -22,10 +22,10 @@ impl ConvertToViewData<DockNode, DockedWindowViewData> for DockWindowConverter {
         &self,
         docked_window_nodes: &Vec<DockNode>,
     ) -> Vec<DockedWindowViewData> {
-        return docked_window_nodes
+        docked_window_nodes
             .into_iter()
             .map(|item| self.convert_to_view_data(item))
-            .collect();
+            .collect()
     }
 
     fn convert_to_view_data(

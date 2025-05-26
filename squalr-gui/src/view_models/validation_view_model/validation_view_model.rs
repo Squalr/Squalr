@@ -1,4 +1,4 @@
-use crate::DataValueView;
+use crate::DataValueViewData;
 use crate::MainWindowView;
 use crate::ValidationViewModelBindings;
 use slint::ComponentHandle;
@@ -31,14 +31,15 @@ impl ValidationViewModel {
 
         create_view_bindings!(view_binding, {
             ValidationViewModelBindings => {
-                on_validate_data_value(data_value_view: DataValueView) -> [] -> Self::on_validate_data_value,
+                on_validate_data_value(data_value_view: DataValueViewData) -> [] -> Self::on_validate_data_value,
             }
         });
 
         dependency_container.register::<ValidationViewModel>(view_model);
     }
 
-    fn on_validate_data_value(data_value_view: DataValueView) -> bool {
+    fn on_validate_data_value(data_value_view: DataValueViewData) -> bool {
+        /*
         let value = data_value_view.display_value.to_string();
         let is_value_hex = data_value_view.is_value_hex;
         let data_type_ref = data_value_view.data_type_ref.data_type_id.to_string();
@@ -50,6 +51,7 @@ impl ValidationViewModel {
             data_type.validate_value(&anonymous_value)
         } else {
             false
-        }
+        }*/
+        false
     }
 }

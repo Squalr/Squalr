@@ -19,10 +19,10 @@ impl ConvertToViewData<ScanCompareType, ScanConstraintTypeView> for ScanConstrai
         &self,
         scan_compare_type_list: &Vec<ScanCompareType>,
     ) -> Vec<ScanConstraintTypeView> {
-        return scan_compare_type_list
+        scan_compare_type_list
             .into_iter()
             .map(|item| self.convert_to_view_data(item))
-            .collect();
+            .collect()
     }
 
     fn convert_to_view_data(

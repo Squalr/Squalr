@@ -5,10 +5,10 @@ import { ContextMenu } from "../context_menu/context_menu.slint";
 import { FocusTouchArea } from "../focus_touch_area.slint";
 import { StateLayer } from "../state_layer.slint";
 import { FakeCheckbox } from "../checkboxes/fake_checkbox.slint";
-import { DataValueView, ConversionsViewModelBindings, ValidationViewModelBindings } from "../../view_model_bindings.slint";
+import { DataValueViewData, ConversionsViewModelBindings, ValidationViewModelBindings } from "../../view_model_bindings.slint";
 
 export component DataValueBox {
-    in_out property <DataValueView> data_value;
+    in_out property <DataValueViewData> data_value;
     in property <bool> is_value_owner;
     in property <bool> is_read_only;
     in property <bool> show_conversions;
@@ -32,7 +32,8 @@ export component DataValueBox {
     }
     public pure function is_value_valid() -> bool {
         // Empty string is OK, we dont want the cursor to go red for empty text.
-        return root.data_value.display_value == "" || ValidationViewModelBindings.validate_data_value(root.data_value);
+        // return root.data_value.display_value == "" || ValidationViewModelBindings.validate_data_value(root.data_value);
+        return false;
     }
     forward_focus: touch_area;
     touch_area := FocusTouchArea {
@@ -63,14 +64,14 @@ export component DataValueBox {
             padding_right: root.text_padding_right;
             alignment: start;
             text_input := TextInput {
-                text: root.data_value.display_value;
+                // text: root.data_value.display_value;
                 enabled: !root.is_read_only;
                 horizontal_alignment: root.text_horizontal_alignment;
                 vertical_alignment: root.text_vertical_alignment;
-                color: root.is_read_only ? root.read_only_color : (root.is_value_valid() ? (root.data_value.is_value_hex ? root.foreground_hex : root.foreground) : root.invalid_color);
+                // color: root.is_read_only ? root.read_only_color : (root.is_value_valid() ? (root.data_value.is_value_hex ? root.foreground_hex : root.foreground) : root.invalid_color);
                 single_line: true;
                 changed text => {
-                    root.data_value.display_value = self.text;
+                    // root.data_value.display_value = self.text;
                 }
             }
         }
@@ -127,7 +128,7 @@ export component DataValueBox {
                 clicked => {
                     context_menu.close();
                     if root.is_value_owner {
-                        root.data_value.is_value_hex = false;
+                        // root.data_value.is_value_hex = false;
                     }
                 }
                 HorizontalLayout {
@@ -135,7 +136,7 @@ export component DataValueBox {
                     padding: 8px;
                     spacing: 4px;
                     FakeCheckbox {
-                        is_checked: !root.data_value.is_value_hex;
+                        // is_checked: !root.data_value.is_value_hex;
                     }
 
                     Text {
@@ -150,7 +151,7 @@ export component DataValueBox {
                 clicked => {
                     context_menu.close();
                     if root.is_value_owner {
-                        root.data_value.is_value_hex = true;
+                        // root.data_value.is_value_hex = true;
                     }
                 }
                 HorizontalLayout {
@@ -158,7 +159,7 @@ export component DataValueBox {
                     padding: 8px;
                     spacing: 4px;
                     FakeCheckbox {
-                        is_checked: root.data_value.is_value_hex;
+                        // is_checked: root.data_value.is_value_hex;
                     }
 
                     Text {
@@ -173,7 +174,7 @@ export component DataValueBox {
                 clicked => {
                     context_menu.close();
                     if root.is_value_owner {
-                        root.data_value.is_value_hex = false;
+                        // root.data_value.is_value_hex = false;
                     }
                 }
                 HorizontalLayout {
@@ -181,7 +182,7 @@ export component DataValueBox {
                     padding: 8px;
                     spacing: 4px;
                     FakeCheckbox {
-                        is_checked: !root.data_value.is_value_hex;
+                        // is_checked: !root.data_value.is_value_hex;
                     }
 
                     Text {
@@ -196,7 +197,7 @@ export component DataValueBox {
                 clicked => {
                     context_menu.close();
                     if root.is_value_owner {
-                        root.data_value.is_value_hex = true;
+                        // root.data_value.is_value_hex = true;
                     }
                 }
                 HorizontalLayout {
@@ -204,7 +205,7 @@ export component DataValueBox {
                     padding: 8px;
                     spacing: 4px;
                     FakeCheckbox {
-                        is_checked: root.data_value.is_value_hex;
+                        // is_checked: root.data_value.is_value_hex;
                     }
 
                     Text {
@@ -229,7 +230,7 @@ export component DataValueBox {
 
                 clicked => {
                     if root.is_value_owner {
-                        root.data_value.is_value_hex = false;
+                        // root.data_value.is_value_hex = false;
                         text_input.text = ConversionsViewModelBindings.convert_hex_to_dec(text_input.text);
                     }
                     context_menu.close();
@@ -249,7 +250,7 @@ export component DataValueBox {
 
                 clicked => {
                     if root.is_value_owner {
-                        root.data_value.is_value_hex = true;
+                        // root.data_value.is_value_hex = true;
                         text_input.text = ConversionsViewModelBindings.convert_dec_to_hex(text_input.text);
                     }
                     context_menu.close();

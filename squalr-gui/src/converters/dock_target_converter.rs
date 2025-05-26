@@ -16,10 +16,10 @@ impl ConvertToViewData<DockReparentDirection, RedockTarget> for DocktargetConver
         &self,
         docked_window_nodes: &Vec<DockReparentDirection>,
     ) -> Vec<RedockTarget> {
-        return docked_window_nodes
+        docked_window_nodes
             .into_iter()
             .map(|item| self.convert_to_view_data(item))
-            .collect();
+            .collect()
     }
 
     fn convert_to_view_data(

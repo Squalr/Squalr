@@ -28,6 +28,13 @@ impl DataTypeRefDataType {
             value_bytes.to_vec(),
         )
     }
+
+    pub fn resolve_data_type_reference(data_type_meta_data: &DataTypeMetaData) -> DataTypeRef {
+        match data_type_meta_data {
+            DataTypeMetaData::FixedString(data_type_ref_id) => DataTypeRef::new(data_type_ref_id, DataTypeMetaData::None),
+            _ => DataTypeRef::new("".into(), DataTypeMetaData::None),
+        }
+    }
 }
 
 impl DataType for DataTypeRefDataType {

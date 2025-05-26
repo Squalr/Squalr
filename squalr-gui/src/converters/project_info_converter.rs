@@ -16,10 +16,10 @@ impl ConvertToViewData<ProjectInfo, ProjectViewData> for ProjectInfoConverter {
         &self,
         project_info_list: &Vec<ProjectInfo>,
     ) -> Vec<ProjectViewData> {
-        return project_info_list
+        project_info_list
             .into_iter()
             .map(|item| self.convert_to_view_data(item))
-            .collect();
+            .collect()
     }
 
     fn convert_to_view_data(

@@ -195,29 +195,43 @@ export enum MemoryReadModeView {
     read_before_scan,
 }
 
+export enum DisplayValueTypeView {
+    bool,
+    string,
+    bin,
+    dec,
+    hex,
+    address,
+    byte_array,
+    data_type_ref,
+    enumeration,
+}
+
 export global ValueCollectorViewModelBindings {
     callback collect_values();
 }
 
-export struct DataTypeRefView {
+export struct DataTypeRefViewData {
     data_type_id: string,
     icon_id: string,
 }
 
-export struct DataValueView {
-    data_type_ref: DataTypeRefView,
+export struct DisplayValueViewData {
     display_value: string,
-    is_value_hex: bool,
-    fixed_choices: [string],
-    // active_display_value_index: int,
-    // display_values: [string],
+    display_value_type: DisplayValueTypeView,
+}
+
+export struct DataValueViewData {
+    data_type_ref: DataTypeRefViewData,
+    display_values: [DisplayValueViewData],
+    active_display_value_type: DisplayValueTypeView,
 }
 
 export global ScannerViewModelBindings {
-    in_out property <DataValueView> active_data_value;
+    in_out property <DataValueViewData> active_data_value;
     in_out property <ScanConstraintTypeView> active_scan_type: equal;
     callback reset_scan();
-    callback start_scan(data_value: DataValueView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView);
+    callback start_scan(data_value: DataValueViewData, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView);
     callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
 }
 
@@ -330,7 +344,7 @@ export global PointerScanResultsViewModelBindings { }
 
 export struct PropertyEntryViewData {
     name: string,
-    data_value: DataValueView,
+    data_value: DataValueViewData,
     is_read_only: bool,
 }
 
@@ -348,5 +362,5 @@ export global ConversionsViewModelBindings {
 }
 
 export global ValidationViewModelBindings {
-    pure callback validate_data_value(data_value: DataValueView) -> bool;
+    pure callback validate_data_value(data_value: DataValueViewData) -> bool;
 }

@@ -17,10 +17,10 @@ impl ConvertToViewData<ProcessInfo, ProcessViewData> for ProcessInfoConverter {
         &self,
         process_info_list: &Vec<ProcessInfo>,
     ) -> Vec<ProcessViewData> {
-        return process_info_list
+        process_info_list
             .into_iter()
             .map(|item| self.convert_to_view_data(item))
-            .collect();
+            .collect()
     }
 
     fn convert_to_view_data(

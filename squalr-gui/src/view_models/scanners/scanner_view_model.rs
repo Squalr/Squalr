@@ -1,4 +1,4 @@
-use crate::DataValueView;
+use crate::DataValueViewData;
 use crate::MainWindowView;
 use crate::MemoryAlignmentView;
 use crate::ScanConstraintTypeView;
@@ -59,7 +59,7 @@ impl ScannerViewModel {
             create_view_bindings!(view_model.view_binding, {
                 ScannerViewModelBindings => {
                     on_reset_scan() -> [view_model] -> Self::on_reset_scan,
-                    on_start_scan(data_value: DataValueView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView) -> [view_model] -> Self::on_start_scan,
+                    on_start_scan(data_value: DataValueViewData, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView) -> [view_model] -> Self::on_start_scan,
                 },
                 ValueCollectorViewModelBindings => {
                     on_collect_values() -> [view_model] -> Self::on_collect_values,
@@ -88,7 +88,7 @@ impl ScannerViewModel {
 
     fn on_start_scan(
         view_model: Arc<ScannerViewModel>,
-        data_value: DataValueView,
+        data_value: DataValueViewData,
         memory_alignment_view: MemoryAlignmentView,
         scan_constraint: ScanConstraintTypeView,
     ) {
@@ -104,6 +104,7 @@ impl ScannerViewModel {
             }
         };
 
+        /*
         let scan_value = data_value.display_value.to_string();
         let is_value_hex = data_value.is_value_hex;
         let data_type_id = data_value.data_type_ref.data_type_id.to_string();
@@ -122,7 +123,7 @@ impl ScannerViewModel {
             ScanViewModelState::ScanInProgress => {
                 log::error!("Cannot start a new scan while a scan is in progress.");
             }
-        };
+        };*/
     }
 
     fn on_collect_values(view_model: Arc<ScannerViewModel>) {

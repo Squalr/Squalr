@@ -15,10 +15,10 @@ impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
         &self,
         scan_compare_type_list: &Vec<ScanResult>,
     ) -> Vec<ScanResultViewData> {
-        return scan_compare_type_list
+        scan_compare_type_list
             .into_iter()
             .map(|item| self.convert_to_view_data(item))
-            .collect();
+            .collect()
     }
 
     fn convert_to_view_data(
