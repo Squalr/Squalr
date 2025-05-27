@@ -3,7 +3,7 @@ import { DisplayValueTypeView } from "../view_model_bindings.slint";
 export component DisplayValueTypeConverter {
     public pure function display_value_type_to_string(display_value_type: DisplayValueTypeView) -> string {
         if display_value_type == DisplayValueTypeView.bool {
-            return "bool";
+            return "boolean";
         } else if display_value_type == DisplayValueTypeView.string {
             return "string";
         } else if display_value_type == DisplayValueTypeView.binary {

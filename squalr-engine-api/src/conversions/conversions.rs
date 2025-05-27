@@ -62,7 +62,84 @@ impl Conversions {
     }
 
     pub fn binary_to_bytes(bin: &str) -> Result<Vec<u8>, &'static str> {
-        Err("Not implemented")
+        // Strip optional 0b/0B prefix first, then every kind of whitespace or comma.
+        let bin = if bin.to_lowercase().starts_with("0b") { &bin[2..] } else { bin };
+        let bin: String = bin
+            .chars()
+            .filter(|ch| !ch.is_whitespace() && *ch != ',')
+            .collect();
+
+        if bin.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Validate characters and build bytes (least significant bit first, then reverse once at the end).
+        let mut bytes = Vec::with_capacity((bin.len() + 7) / 8);
+        let mut current = 0u8;
+        let mut bit_pos = 0;
+
+        // 0-7 inside current byte (least significant bit first).
+        for ch in bin.as_bytes().iter().rev() {
+            match *ch {
+                // Leave bit clear.
+                b'0' => {}
+                // Set the bit.
+                b'1' => current |= 1 << bit_pos,
+                _ => return Err("Invalid binary character."),
+            }
+
+            bit_pos += 1;
+            if bit_pos == 8 {
+                bytes.push(current);
+                current = 0;
+                bit_pos = 0;
+            }
+        }
+
+        // Handle the last partial byte.
+        if bit_pos > 0 {
+            bytes.push(current);
+        }
+
+        // restore most significant bit first order
+        bytes.reverse();
+        Ok(bytes)
+    }
+
+    pub fn binary_to_primitive_bytes<T: Copy + num_traits::ToBytes>(
+        bin: &str,
+        is_big_endian: bool,
+    ) -> Result<Vec<u8>, &'static str> {
+        // Remove optional prefix and whitespace (no commas inside primitives).
+        let bin = if bin.to_lowercase().starts_with("0b") { &bin[2..] } else { bin };
+        let bin: String = bin.chars().filter(|ch| !ch.is_whitespace()).collect();
+        let max_size = std::mem::size_of::<T>();
+        let max_bits = max_size * 8;
+
+        if bin.is_empty() {
+            return Ok(vec![0u8; max_size]);
+        }
+
+        if bin.len() > max_bits {
+            return Err("Binary string length does not fit into the expected size of the primitive.");
+        }
+
+        // Parse the binary string into raw bytes first.
+        let parsed = Self::binary_to_bytes(&bin)?;
+
+        // Copy into fixed-size buffer, least-significant byte first.
+        let used_size = parsed.len();
+        let mut bytes = vec![0u8; max_size];
+        for idx in 0..used_size {
+            bytes[idx] = parsed[used_size - idx - 1];
+        }
+
+        // Handle endianness: big-endian means most-significant byte first.
+        if is_big_endian {
+            bytes.reverse();
+        }
+
+        Ok(bytes)
     }
 
     pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, &'static str> {
@@ -99,13 +176,6 @@ impl Conversions {
         }
 
         Ok(bytes)
-    }
-
-    pub fn binary_to_primitive_bytes<T: Copy + num_traits::ToBytes>(
-        bin: &str,
-        is_big_endian: bool,
-    ) -> Result<Vec<u8>, &'static str> {
-        Err("Not implemented")
     }
 
     pub fn hex_to_primitive_bytes<T: Copy + num_traits::ToBytes>(

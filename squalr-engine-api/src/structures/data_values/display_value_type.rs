@@ -33,11 +33,11 @@ impl fmt::Display for DisplayValueType {
         }
 
         let result = match self {
-            DisplayValueType::Bool(display_container) => format!("bool{}", container_str(display_container)),
+            DisplayValueType::Bool(display_container) => format!("boolean{}", container_str(display_container)),
             DisplayValueType::String(display_container) => format!("string{}", container_str(display_container)),
-            DisplayValueType::Binary(display_container) => format!("bin{}", container_str(display_container)),
-            DisplayValueType::Decimal(display_container) => format!("dec{}", container_str(display_container)),
-            DisplayValueType::Hexadecimal(display_container) => format!("hex{}", container_str(display_container)),
+            DisplayValueType::Binary(display_container) => format!("binary{}", container_str(display_container)),
+            DisplayValueType::Decimal(display_container) => format!("decimal{}", container_str(display_container)),
+            DisplayValueType::Hexadecimal(display_container) => format!("hexadecimal{}", container_str(display_container)),
             DisplayValueType::Address(display_container) => format!("address{}", container_str(display_container)),
             DisplayValueType::DataTypeRef(display_container) => format!("data_type_ref{}", container_str(display_container)),
             DisplayValueType::Enumeration => "enumeration".to_string(),
@@ -62,11 +62,11 @@ impl FromStr for DisplayValueType {
         let (container, base_type) = extract_container(input);
 
         match base_type {
-            "bool" => Ok(DisplayValueType::Bool(container)),
+            "bool" | "boolean" => Ok(DisplayValueType::Bool(container)),
             "string" => Ok(DisplayValueType::String(container)),
-            "bin" => Ok(DisplayValueType::Binary(container)),
-            "dec" => Ok(DisplayValueType::Decimal(container)),
-            "hex" => Ok(DisplayValueType::Hexadecimal(container)),
+            "bin" | "binary" => Ok(DisplayValueType::Binary(container)),
+            "dec" | "decimal" => Ok(DisplayValueType::Decimal(container)),
+            "hex" | "hexadecimal" => Ok(DisplayValueType::Hexadecimal(container)),
             "address" => Ok(DisplayValueType::Address(container)),
             "data_type_ref" => Ok(DisplayValueType::DataTypeRef(container)),
             "enumeration" => Ok(DisplayValueType::Enumeration),

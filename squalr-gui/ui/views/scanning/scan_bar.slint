@@ -15,7 +15,8 @@ export component ScanBarView inherits Rectangle {
     property <length> bottom_padding: 4px;
     property <length> flow_break_point: 800px;
     init => {
-        ScannerViewModelBindings.active_data_value.active_display_value_type = DisplayValueTypeView.decimal;
+        // JIRA: This a bit hacky, but this defaults to decimal of int32. Brittle, and should find a better way to init this.
+        ScannerViewModelBindings.active_data_value.active_display_value_index = 1;
         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i32";
         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = "i32";
     }
@@ -88,7 +89,11 @@ export component ScanBarView inherits Rectangle {
             tooltip_text: @tr("Start Scan");
             click_sound: "";
             clicked => {
-                ScannerViewModelBindings.start_scan(scan_value.get_value_text(), ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id, ScannerViewModelBindings.active_data_value.active_display_value_type, ScanSettingsViewModelBindings.memory_alignment, ScannerViewModelBindings.active_scan_type);
+                ScannerViewModelBindings.start_scan(
+                    scan_value.get_value_text(),
+                    ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id,
+                    ScannerViewModelBindings.active_data_value.display_values[ScannerViewModelBindings.active_data_value.active_display_value_index].display_value_type,
+                    ScanSettingsViewModelBindings.memory_alignment, ScannerViewModelBindings.active_scan_type);
             }
             Image {
                 width: 16px;

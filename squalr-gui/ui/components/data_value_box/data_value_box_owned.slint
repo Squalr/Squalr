@@ -6,7 +6,7 @@ import { FocusTouchArea } from "../focus_touch_area.slint";
 import { StateLayer } from "../state_layer.slint";
 import { FakeCheckbox } from "../checkboxes/fake_checkbox.slint";
 import { DisplayValueTypeConverter } from "../../converters/display_value_type_converter.slint";
-import { DataValueViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings } from "../../view_model_bindings.slint";
+import { DataValueViewData, DisplayValueViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings } from "../../view_model_bindings.slint";
 
 export component DataValueBoxOwned {
     in_out property <DataValueViewData> data_value;
@@ -26,6 +26,7 @@ export component DataValueBoxOwned {
     in property <color> border_color: Theme.submenu_border;
     in property <color> invalid_color: Theme.error_red;
     in property <color> read_only_color: Theme.foreground_preview;
+    property <[DisplayValueTypeView]> supported_display_types: ValidationViewModelBindings.get_supported_display_types_for_data_type(root.data_value.data_type_ref.data_type_id);
     display_value_typer_converter := DisplayValueTypeConverter { }
 
     callback on_value_submitted(value: string);
@@ -33,20 +34,23 @@ export component DataValueBoxOwned {
         return text_input.text;
     }
     public pure function is_value_valid() -> bool {
-        return ValidationViewModelBindings.validate_data_value(text_input.text, data_value.data_type_ref.data_type_id, data_value.active_display_value_type);
+        return ValidationViewModelBindings.validate_data_value(text_input.text, data_value.data_type_ref.data_type_id, root.get_active_display_value_type());
     }
-    public pure function get_display_value_color() -> color {
+    pure function get_active_display_value_type() -> DisplayValueTypeView {
+        return root.supported_display_types[data_value.active_display_value_index];
+    }
+    pure function get_display_value_color() -> color {
         if !root.is_value_valid_for_cursor() {
             return root.invalid_color;
-        } else if data_value.active_display_value_type == DisplayValueTypeView.hexadecimal {
+        } else if root.get_active_display_value_type() == DisplayValueTypeView.hexadecimal {
             return root.foreground_hexadecimal;
-        } else if data_value.active_display_value_type == DisplayValueTypeView.binary {
+        } else if root.get_active_display_value_type() == DisplayValueTypeView.binary {
             return root.foreground_binary;
         } else {
             return root.foreground;
         }
     }
-    public pure function is_value_valid_for_cursor() -> bool {
+    pure function is_value_valid_for_cursor() -> bool {
         // Empty string is OK, we dont want the cursor to go red for empty text.
         return text_input.text == "" || root.is_value_valid();
     }
@@ -135,9 +139,9 @@ export component DataValueBoxOwned {
         VerticalLayout {
             padding: 0px;
             spacing: 0px;
-            for display_value_type in ValidationViewModelBindings.get_supported_display_types_for_data_type(root.data_value.data_type_ref.data_type_id): Button {
+            for supported_display_type_index in root.supported_display_types.length: Button {
                 clicked => {
-                    data_value.active_display_value_type = display_value_type;
+                    data_value.active_display_value_index = supported_display_type_index;
                     context_menu.close();
                 }
                 HorizontalLayout {
@@ -145,21 +149,21 @@ export component DataValueBoxOwned {
                     padding: 8px;
                     spacing: 4px;
                     FakeCheckbox {
-                        is_checked: root.data_value.active_display_value_type == display_value_type;
+                        is_checked: root.data_value.active_display_value_index == supported_display_type_index;
                     }
 
                     Text {
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        text: "Interpret as " + display_value_typer_converter.display_value_type_to_string(display_value_type);
+                        text: "Interpret as " + display_value_typer_converter.display_value_type_to_string(root.supported_display_types[supported_display_type_index]);
                         color: Theme.foreground;
                     }
                 }
             }
-            for display_value_type in ValidationViewModelBindings.get_supported_display_types_for_data_type(root.data_value.data_type_ref.data_type_id): Button {
+            for supported_display_type_index in root.supported_display_types.length: Button {
                 clicked => {
-                    text_input.text = ConversionsViewModelBindings.convert_to_data_type(text_input.text, data_value.active_display_value_type, display_value_type);
-                    data_value.active_display_value_type = display_value_type;
+                    text_input.text = ConversionsViewModelBindings.convert_to_data_type(text_input.text, root.get_active_display_value_type(), root.supported_display_types[supported_display_type_index]);
+                    data_value.active_display_value_index = supported_display_type_index;
                     context_menu.close();
                 }
                 HorizontalLayout {
@@ -168,7 +172,7 @@ export component DataValueBoxOwned {
                     Text {
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        text: "Convert to " + display_value_typer_converter.display_value_type_to_string(display_value_type);
+                        text: "Convert to " + display_value_typer_converter.display_value_type_to_string(root.supported_display_types[supported_display_type_index]);
                         color: Theme.foreground;
                     }
                 }

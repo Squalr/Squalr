@@ -19,7 +19,7 @@ impl ConversionsFromDecimal {
 
     /// Converts a decimal string to a binary string.
     pub fn convert_to_binary(data_value: &str) -> Result<String, ConversionError> {
-        BaseSystemConversions::convert_to_base(data_value, 16, 2)
+        BaseSystemConversions::convert_to_base(data_value, 10, 2)
     }
 
     /// Converts a decimal string to a hexadecimal string.

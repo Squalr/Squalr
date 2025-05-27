@@ -44,16 +44,18 @@ Launch Checklist:
 - [X] Freezing/deleting scan results directly from scan window.
 - [X] String scans, with various encoding support.
 - [ ] String Encoding selection from UI.
-- [ ] Robust conversion framework.
+- [X] Robust conversion framework.
 - [X] Property viewer in the GUI that can register an active set of properties.
-- [ ] Display type switching for property viewer data types.
-- [ ] Custom and built in editors for property viewer data types.
+- [X] Display type switching for property viewer data types.
+- [ ] String-based editing / committing of property viewer entries.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 
 ## Post-launch tasklist
 Lower priority features that we can defer, for now.
 
 Post-launch Features:
+- [ ] Improve coverage of conversion framework.
+- [ ] Custom and built in editors for property viewer data types.
 - [ ] Editing scan results directly (via property viewer)
 - [ ] Deleting scan results directly.
 - [ ] Pointer Scans
