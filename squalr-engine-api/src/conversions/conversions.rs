@@ -4,6 +4,7 @@ use crate::conversions::conversions_from_decimal::ConversionsFromDecimal;
 use crate::conversions::conversions_from_hexadecimal::ConversionsFromHexadecimal;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use std::num::ParseIntError;
+use std::{fmt, mem};
 
 pub struct Conversions {}
 
@@ -227,5 +228,39 @@ impl Conversions {
             b'A'..=b'F' => Ok(hex_character - b'A' + 10),
             _ => Err("Invalid hex character."),
         }
+    }
+
+    pub fn primitive_to_binary<T>(value: &T) -> String
+    where
+        T: fmt::Binary + fmt::Display,
+    {
+        format!("{:b}", value)
+    }
+
+    pub fn primitive_to_binary_padded<T>(value: &T) -> String
+    where
+        T: fmt::Binary + fmt::Display,
+    {
+        let bit_width = mem::size_of::<T>() * 8;
+        let bin = format!("{:0bit_width$b}", value, bit_width = bit_width);
+
+        bin
+    }
+
+    pub fn primitive_to_hexadecimal<T>(value: &T) -> String
+    where
+        T: fmt::UpperHex + fmt::Display,
+    {
+        format!("{:X}", value)
+    }
+
+    pub fn primitive_to_hexadecimal_padded<T>(value: &T) -> String
+    where
+        T: fmt::UpperHex + fmt::Display,
+    {
+        let hex_width = mem::size_of::<T>() * 2;
+        let hex = format!("{:0hex_width$X}", value, hex_width = hex_width);
+
+        hex
     }
 }

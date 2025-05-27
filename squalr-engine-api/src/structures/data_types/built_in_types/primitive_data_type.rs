@@ -9,7 +9,43 @@ use crate::structures::{
         data_value::DataValue,
     },
 };
+use std::fmt;
 use std::{any::type_name, mem::size_of, str::FromStr};
+
+pub trait AsBits {
+    /// An integer type that already implements all the formatting traits we need.
+    type Bits: fmt::Binary + fmt::UpperHex + fmt::Display + ToString;
+
+    /// Return the raw bit pattern of `self`.
+    fn as_bits(&self) -> Self::Bits;
+}
+
+macro_rules! impl_as_bits_int {
+    ($($t:ty)*) => {$(
+        impl AsBits for $t {
+            type Bits = $t;
+            #[inline] fn as_bits(&self) -> Self::Bits { *self }
+        }
+    )*};
+}
+
+impl_as_bits_int!(u8 i8 u16 i16 u32 i32 u64 i64 u128 i128 usize isize);
+
+impl AsBits for f32 {
+    type Bits = u32;
+    #[inline]
+    fn as_bits(&self) -> Self::Bits {
+        self.to_bits()
+    }
+}
+
+impl AsBits for f64 {
+    type Bits = u64;
+    #[inline]
+    fn as_bits(&self) -> Self::Bits {
+        self.to_bits()
+    }
+}
 
 pub struct PrimitiveDataType {}
 
@@ -130,7 +166,7 @@ impl PrimitiveDataType {
     ) -> Result<DisplayValues, DataTypeError>
     where
         F: Fn() -> T,
-        T: ToString,
+        T: AsBits + ToString + fmt::Display,
     {
         match data_type_meta_data {
             DataTypeMetaData::Primitive() => {
@@ -140,18 +176,11 @@ impl PrimitiveDataType {
                 if actual == expected {
                     let mut results = vec![];
                     let value = convert_bytes_unchecked();
+                    let bits = value.as_bits();
 
-                    let value_string_binary = value_bytes
-                        .iter()
-                        .map(|byte| format!("{:08b}", byte))
-                        .collect::<Vec<String>>()
-                        .join("");
+                    let value_string_binary = Conversions::primitive_to_binary(&bits);
                     let value_string_decimal = value.to_string();
-                    let value_string_hexadecimal = value_bytes
-                        .iter()
-                        .map(|byte| format!("{:02X}", byte))
-                        .collect::<Vec<String>>()
-                        .join("");
+                    let value_string_hexadecimal = Conversions::primitive_to_hexadecimal(&bits);
 
                     results.push(DisplayValue::new(DisplayValueType::Binary(DisplayContainer::None), value_string_binary));
                     results.push(DisplayValue::new(DisplayValueType::Decimal(DisplayContainer::None), value_string_decimal));
