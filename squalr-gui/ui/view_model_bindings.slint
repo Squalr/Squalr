@@ -189,6 +189,52 @@ export enum FloatingPointToleranceView {
     tolerance_epsilon,
 }
 
+export enum StringEncodingView {
+    utf8,
+    utf16,
+    utf16be,
+    ascii,
+    big5,
+    euc_jp,
+    euc_kr,
+    gb18030_2022,
+    gbk,
+    hz,
+    iso2022_jp,
+    iso8859_1,
+    iso8859_10,
+    iso8859_13,
+    iso8859_14,
+    iso8859_15,
+    iso8859_16,
+    iso8859_2,
+    iso8859_3,
+    iso8859_4,
+    iso8859_5,
+    iso8859_6,
+    iso8859_7,
+    iso8859_8,
+    iso8859_8i,
+    koi8_r,
+    koi8_u,
+    macintosh,
+    mac_cyrillic,
+    replacement,
+    shift_jis,
+    windows_1250,
+    windows_1251,
+    windows_1252,
+    windows_1253,
+    windows_1254,
+    windows_1255,
+    windows_1256,
+    windows_1257,
+    windows_1258,
+    windows_874,
+    x_mac_cyrillic,
+    x_user_defined,
+}
+
 export enum MemoryReadModeView {
     skip,
     read_interleaved_with_scan,
@@ -283,6 +329,8 @@ export global ScanSettingsViewModelBindings {
     callback memory_alignment_changed(memory_alignment: MemoryAlignmentView);
     in_out property <FloatingPointToleranceView> floating_point_tolerance;
     callback floating_point_tolerance_changed(floating_point_tolerance: FloatingPointToleranceView);
+    in_out property <StringEncodingView> string_encoding;
+    callback string_encoding_changed(string_encoding: StringEncodingView);
     in_out property <MemoryReadModeView> memory_read_mode;
     callback memory_read_mode_changed(memory_read_mode: MemoryReadModeView);
     in_out property <bool> is_single_threaded_scan;
@@ -364,6 +412,7 @@ export global ConversionsViewModelBindings {
     pure callback get_memory_alignment_string(memory_alignment: MemoryAlignmentView) -> string;
     pure callback get_memory_read_mode_string(memory_read_mode: MemoryReadModeView) -> string;
     pure callback get_floating_point_tolerance_string(floating_point_tolerance: FloatingPointToleranceView) -> string;
+    pure callback get_string_encoding_string(string_encoding: StringEncodingView) -> string;
 }
 
 export global ValidationViewModelBindings {

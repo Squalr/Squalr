@@ -1,4 +1,4 @@
-use crate::structures::data_types::built_in_types::string::string_encodings::StringEncoding;
+use crate::structures::data_types::built_in_types::string::string_encoding::StringEncoding;
 use serde::{Deserialize, Serialize};
 
 /// Represents additional data about a `DataType` that may further differentiate it.

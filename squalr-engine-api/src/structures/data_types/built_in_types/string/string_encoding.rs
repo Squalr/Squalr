@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
 
 /// Represents the string encoding supported in scans.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub enum StringEncoding {
     Utf8,
     Utf16,

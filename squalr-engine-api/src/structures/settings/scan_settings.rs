@@ -1,3 +1,4 @@
+use crate::structures::data_types::built_in_types::string::string_encoding::StringEncoding;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::{data_types::floating_point_tolerance::FloatingPointTolerance, scanning::memory_read_mode::MemoryReadMode};
 use serde::{Deserialize, Serialize};
@@ -15,6 +16,7 @@ pub struct ScanSettings {
     pub memory_read_mode: MemoryReadMode,
     pub is_single_threaded_scan: bool,
     pub debug_perform_validation_scan: bool,
+    pub string_encoding: StringEncoding,
 }
 
 impl fmt::Debug for ScanSettings {
@@ -41,6 +43,7 @@ impl Default for ScanSettings {
             memory_read_mode: MemoryReadMode::ReadBeforeScan,
             is_single_threaded_scan: false,
             debug_perform_validation_scan: false,
+            string_encoding: StringEncoding::Utf8,
         }
     }
 }

@@ -1,0 +1,44 @@
+import { Theme } from "../../../../theme.slint";
+
+import { ConversionsViewModelBindings, ScanSettingsViewModelBindings, FloatingPointToleranceView } from "../../../../view_model_bindings.slint";
+import { FloatingPointToleranceIconConverter } from "../../../../converters/floating_point_tolerance_icon_converter.slint";
+import { IconConverter } from "../../../../converters/icon_converter.slint";
+import { Button } from "../../../../components/buttons/button.slint";
+
+export component SettingChooserFloatingPointToleranceEntry inherits Button {
+    in property <FloatingPointToleranceView> floating_point_tolerance;
+    callback onClicked;
+    floating_point_tolerance_icon_converter := FloatingPointToleranceIconConverter { }
+
+    icon_converter := IconConverter { }
+
+    height: 24px;
+    clicked => {
+        ScanSettingsViewModelBindings.floating_point_tolerance = root.floating_point_tolerance;
+        ScanSettingsViewModelBindings.floating_point_tolerance_changed(root.floating_point_tolerance);
+        root.onClicked();
+    }
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            padding_left: 4px;
+            padding_right: 8px;
+            spacing: 8px;
+            alignment: start;
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: icon_converter.icon_view_to_image(floating_point_tolerance_icon_converter.floating_point_tolerance_to_icon_view(root.floating_point_tolerance));
+            }
+
+            Text {
+                color: Theme.foreground;
+                horizontal_alignment: left;
+                vertical_alignment: center;
+                text: ConversionsViewModelBindings.get_floating_point_tolerance_string(root.floating_point_tolerance);
+            }
+        }
+    }
+}

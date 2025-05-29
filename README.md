@@ -43,7 +43,7 @@ Launch Checklist:
 - [X] Settings system that respects command/response, IPC, etc.
 - [X] Freezing/deleting scan results directly from scan window.
 - [X] String scans, with various encoding support.
-- [ ] String Encoding selection from UI.
+- [ ] String Encoding selection from UI, use string encoding from settings in string scans.
 - [X] Robust conversion framework.
 - [X] Property viewer in the GUI that can register an active set of properties.
 - [X] Display type switching for property viewer data types.

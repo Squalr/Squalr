@@ -1,5 +1,5 @@
 use crate::conversions::conversions::Conversions;
-use crate::structures::data_types::built_in_types::string::string_encodings::StringEncoding;
+use crate::structures::data_types::built_in_types::string::string_encoding::StringEncoding;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;

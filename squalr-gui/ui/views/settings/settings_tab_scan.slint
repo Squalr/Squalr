@@ -3,9 +3,10 @@ import { Slider } from "std-widgets.slint";
 import { Theme } from "../../theme.slint";
 
 import { ScanSettingsViewModelBindings } from "../../view_model_bindings.slint";
-import { SettingChooserFloatingPointTolerance } from "groups/setting_chooser_floating_point_tolerance.slint";
-import { SettingChooserMemoryAlignment } from "groups/setting_chooser_memory_alignment.slint";
-import { SettingChooserMemoryReadMode } from "groups/setting_chooser_memory_read_mode.slint";
+import { SettingChooserFloatingPointTolerance } from "groups/floating_point_tolerance/setting_chooser_floating_point_tolerance.slint";
+import { SettingChooserMemoryAlignment } from "groups/memory_alignment/setting_chooser_memory_alignment.slint";
+import { SettingChooserMemoryReadMode } from "groups/memory_read_mode/setting_chooser_memory_read_mode.slint";
+import { SettingChooserStringEncoding } from "groups/string_encoding/setting_chooser_string_encoding.slint";
 import { GroupBox } from "../../components/groupbox.slint";
 import { Button } from "../../components/buttons/button.slint";
 import { TextField } from "../../components/input/text_field.slint";
@@ -174,6 +175,16 @@ export component SettingsTabScan inherits Rectangle {
                         Text {
                             vertical_alignment: center;
                             text: @tr("Memory Read Mode");
+                            color: Theme.foreground;
+                        }
+                    }
+
+                    Row {
+                        SettingChooserStringEncoding { }
+
+                        Text {
+                            vertical_alignment: center;
+                            text: @tr("String Encoding");
                             color: Theme.foreground;
                         }
                     }

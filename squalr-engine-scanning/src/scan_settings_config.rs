@@ -1,4 +1,5 @@
 use serde_json::to_string_pretty;
+use squalr_engine_api::structures::data_types::built_in_types::string::string_encoding::StringEncoding;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
@@ -150,6 +151,22 @@ impl ScanSettingsConfig {
             config.floating_point_tolerance
         } else {
             ScanSettings::default().floating_point_tolerance
+        }
+    }
+
+    pub fn set_string_encoding(value: StringEncoding) {
+        if let Ok(mut config) = Self::get_instance().config.write() {
+            config.string_encoding = value;
+        }
+
+        Self::save_config();
+    }
+
+    pub fn get_string_encoding() -> StringEncoding {
+        if let Ok(config) = Self::get_instance().config.read() {
+            config.string_encoding
+        } else {
+            ScanSettings::default().string_encoding
         }
     }
 

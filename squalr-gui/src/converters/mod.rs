@@ -13,3 +13,4 @@ pub mod project_info_converter;
 pub mod property_converter;
 pub mod scan_constraint_converter;
 pub mod scan_result_converter;
+pub mod string_encoding_converter;
