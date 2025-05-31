@@ -4,7 +4,6 @@ use crate::FloatingPointToleranceView;
 use crate::MainWindowView;
 use crate::MemoryAlignmentView;
 use crate::MemoryReadModeView;
-use crate::StringEncodingView;
 use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
 use slint::ComponentHandle;
 use slint::SharedString;
@@ -41,7 +40,6 @@ impl ConversionsViewModel {
                 on_get_memory_alignment_string(memory_alignment: MemoryAlignmentView) -> [] -> Self::on_get_memory_alignment_string,
                 on_get_memory_read_mode_string(memory_read_mode: MemoryReadModeView) -> [] -> Self::on_get_memory_read_mode_string,
                 on_get_floating_point_tolerance_string(floating_point_tolerance: FloatingPointToleranceView) -> [] -> Self::on_get_floating_point_tolerance_string,
-                on_get_string_encoding_string(string_encoding: StringEncodingView) -> [] -> Self::on_get_string_encoding_string,
             }
         });
 
@@ -92,54 +90,5 @@ impl ConversionsViewModel {
             FloatingPointToleranceView::Tolerance10e5 => "0.00001".into(),
             FloatingPointToleranceView::ToleranceEpsilon => "Epsilon".into(),
         }
-    }
-
-    fn on_get_string_encoding_string(string_encoding: StringEncodingView) -> SharedString {
-        match string_encoding {
-            StringEncodingView::Utf8 => "UTF-8",
-            StringEncodingView::Utf16 => "UTF-16",
-            StringEncodingView::Utf16be => "UTF-16BE",
-            StringEncodingView::Ascii => "ASCII",
-            StringEncodingView::Big5 => "Big5",
-            StringEncodingView::EucJp => "EUC-JP",
-            StringEncodingView::EucKr => "EUC-KR",
-            StringEncodingView::Gb180302022 => "GB18030-2022",
-            StringEncodingView::Gbk => "GBK",
-            StringEncodingView::Hz => "HZ",
-            StringEncodingView::Iso2022Jp => "ISO-2022-JP",
-            StringEncodingView::Iso88591 => "ISO-8859-1",
-            StringEncodingView::Iso885910 => "ISO-8859-10",
-            StringEncodingView::Iso885913 => "ISO-8859-13",
-            StringEncodingView::Iso885914 => "ISO-8859-14",
-            StringEncodingView::Iso885915 => "ISO-8859-15",
-            StringEncodingView::Iso885916 => "ISO-8859-16",
-            StringEncodingView::Iso88592 => "ISO-8859-2",
-            StringEncodingView::Iso88593 => "ISO-8859-3",
-            StringEncodingView::Iso88594 => "ISO-8859-4",
-            StringEncodingView::Iso88595 => "ISO-8859-5",
-            StringEncodingView::Iso88596 => "ISO-8859-6",
-            StringEncodingView::Iso88597 => "ISO-8859-7",
-            StringEncodingView::Iso88598 => "ISO-8859-8",
-            StringEncodingView::Iso88598i => "ISO-8859-8-i",
-            StringEncodingView::Koi8R => "KOI8-R",
-            StringEncodingView::Koi8U => "KOI8-U",
-            StringEncodingView::Macintosh => "Macintosh",
-            StringEncodingView::MacCyrillic => "Mac-Cyrillic",
-            StringEncodingView::Replacement => "Replacement",
-            StringEncodingView::ShiftJis => "Shift-JIS",
-            StringEncodingView::Windows1250 => "Windows-1250",
-            StringEncodingView::Windows1251 => "Windows-1251",
-            StringEncodingView::Windows1252 => "Windows-1252",
-            StringEncodingView::Windows1253 => "Windows-1253",
-            StringEncodingView::Windows1254 => "Windows-1254",
-            StringEncodingView::Windows1255 => "Windows-1255",
-            StringEncodingView::Windows1256 => "Windows-1256",
-            StringEncodingView::Windows1257 => "Windows-1257",
-            StringEncodingView::Windows1258 => "Windows-1258",
-            StringEncodingView::Windows874 => "Windows-874",
-            StringEncodingView::XMacCyrillic => "X-Mac-Cyrillic",
-            StringEncodingView::XUserDefined => "X-User-Defined",
-        }
-        .into()
     }
 }

@@ -2,8 +2,9 @@ use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
+use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::display_value::DisplayValue;
-use crate::structures::data_values::display_value_type::{DisplayContainer, DisplayValueType};
+use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
@@ -76,12 +77,11 @@ impl DataType for DataTypeRefDataType {
 
         match data_type_ref.get_meta_data() {
             DataTypeMetaData::FixedString(_string) => match anonymous_value.get_value() {
-                AnonymousValueContainer::StringValue(value_string) => {
+                AnonymousValueContainer::String(value_string) => {
                     let string_bytes = value_string.as_bytes().to_vec();
 
                     Ok(DataValue::new(data_type_ref, string_bytes))
                 }
-                AnonymousValueContainer::ByteArray(value_bytes) => Ok(DataValue::new(data_type_ref, value_bytes.clone())),
                 _ => Err(DataTypeError::InvalidMetaData),
             },
             _ => Err(DataTypeError::InvalidMetaData),
@@ -100,17 +100,17 @@ impl DataType for DataTypeRefDataType {
         match data_type_meta_data {
             DataTypeMetaData::FixedString(string) => Ok(DisplayValues::new(
                 vec![DisplayValue::new(
-                    DisplayValueType::DataTypeRef(DisplayContainer::None),
+                    DisplayValueType::DataTypeRef(ContainerType::None),
                     string.into(),
                 )],
-                DisplayValueType::DataTypeRef(DisplayContainer::None),
+                DisplayValueType::DataTypeRef(ContainerType::None),
             )),
             _ => Err(DataTypeError::InvalidMetaData),
         }
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
-        vec![DisplayValueType::DataTypeRef(DisplayContainer::None)]
+        vec![DisplayValueType::DataTypeRef(ContainerType::None)]
     }
 
     fn is_discrete(&self) -> bool {
@@ -137,12 +137,11 @@ impl DataType for DataTypeRefDataType {
         anonymous_value: &AnonymousValue,
     ) -> DataTypeMetaData {
         match anonymous_value.get_value() {
-            AnonymousValueContainer::ByteArray(byte_array) => DataTypeMetaData::FixedString(std::str::from_utf8(byte_array).unwrap_or_default().to_string()),
-            AnonymousValueContainer::StringValue(string) => DataTypeMetaData::FixedString(string.into()),
+            AnonymousValueContainer::String(string) => DataTypeMetaData::FixedString(string.into()),
 
             // These anonymous container types are not supported.
-            AnonymousValueContainer::BinaryValue(_string) => DataTypeMetaData::FixedString("".into()),
-            AnonymousValueContainer::HexadecimalValue(_string) => DataTypeMetaData::FixedString("".into()),
+            AnonymousValueContainer::BinaryValue(_) => DataTypeMetaData::FixedString("".into()),
+            AnonymousValueContainer::HexadecimalValue(_) => DataTypeMetaData::FixedString("".into()),
         }
     }
 

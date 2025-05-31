@@ -1,6 +1,6 @@
 use crate::DataTypeRefViewData;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
-use squalr_engine_api::structures::data_types::{built_in_types::data_type::data_type_data_type_ref::DataTypeRefDataType, data_type_ref::DataTypeRef};
+use squalr_engine_api::structures::data_types::{built_in_types::data_type_ref::data_type_data_type_ref::DataTypeRefDataType, data_type_ref::DataTypeRef};
 
 pub struct DataTypeRefConverter {}
 

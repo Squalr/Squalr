@@ -1,4 +1,3 @@
-use crate::structures::data_types::built_in_types::string::string_encoding::StringEncoding;
 use serde::{Deserialize, Serialize};
 
 /// Represents additional data about a `DataType` that may further differentiate it.
@@ -13,9 +12,6 @@ pub enum DataTypeMetaData {
 
     /// Represents a container (ie byte[]) of a specified byte-wise size for the underlying data type.
     SizedContainer(u64),
-
-    /// Represents a string of a specified length with a specified encoding. Specific to string data types.
-    EncodedString(u64, StringEncoding),
 
     /// Represents a known, fixed string. Used for referential data types, such as the 'data type data type'.
     FixedString(String),

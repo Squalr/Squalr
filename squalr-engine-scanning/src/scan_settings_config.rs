@@ -1,7 +1,7 @@
 use serde_json::to_string_pretty;
-use squalr_engine_api::structures::data_types::built_in_types::string::string_encoding::StringEncoding;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
+use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -146,27 +146,27 @@ impl ScanSettingsConfig {
         Self::save_config();
     }
 
-    pub fn get_floating_point_tolerance() -> FloatingPointTolerance {
+    pub fn get_memory_read_mode() -> MemoryReadMode {
         if let Ok(config) = Self::get_instance().config.read() {
-            config.floating_point_tolerance
+            config.memory_read_mode
         } else {
-            ScanSettings::default().floating_point_tolerance
+            ScanSettings::default().memory_read_mode
         }
     }
 
-    pub fn set_string_encoding(value: StringEncoding) {
+    pub fn set_memory_read_mode(value: MemoryReadMode) {
         if let Ok(mut config) = Self::get_instance().config.write() {
-            config.string_encoding = value;
+            config.memory_read_mode = value;
         }
 
         Self::save_config();
     }
 
-    pub fn get_string_encoding() -> StringEncoding {
+    pub fn get_floating_point_tolerance() -> FloatingPointTolerance {
         if let Ok(config) = Self::get_instance().config.read() {
-            config.string_encoding
+            config.floating_point_tolerance
         } else {
-            ScanSettings::default().string_encoding
+            ScanSettings::default().floating_point_tolerance
         }
     }
 

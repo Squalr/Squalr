@@ -1,4 +1,4 @@
-use crate::structures::data_types::built_in_types::string::data_type_string::DataTypeString;
+use crate::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
 use crate::structures::scanning::comparisons::scan_function_vector::{
     VectorCompareFnDelta16, VectorCompareFnDelta32, VectorCompareFnDelta64, VectorCompareFnImmediate16, VectorCompareFnImmediate32, VectorCompareFnImmediate64,
@@ -7,7 +7,7 @@ use crate::structures::scanning::comparisons::scan_function_vector::{
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 
 /// Deliberately not implemented. Vector based byte array comparisons are implemented elsewhere in specialized scan routines.
-impl VectorComparable for DataTypeString {
+impl VectorComparable for DataTypeStringUtf8 {
     fn get_vector_compare_equal_64(
         &self,
         _scan_parameters: &MappedScanParameters,

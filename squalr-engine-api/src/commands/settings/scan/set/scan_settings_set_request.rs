@@ -4,6 +4,7 @@ use crate::commands::settings::scan::scan_settings_response::ScanSettingsRespons
 use crate::commands::settings::scan::set::scan_settings_set_response::ScanSettingsSetResponse;
 use crate::commands::settings::settings_command::SettingsCommand;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
+use crate::structures::scanning::memory_read_mode::MemoryReadMode;
 use crate::{commands::engine_command::EngineCommand, structures::memory::memory_alignment::MemoryAlignment};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
@@ -20,6 +21,8 @@ pub struct ScanSettingsSetRequest {
     pub freeze_interval: Option<u64>,
     #[structopt(short = "m_align", long)]
     pub memory_alignment: Option<MemoryAlignment>,
+    #[structopt(short = "m_read", long)]
+    pub memory_read_mode: Option<MemoryReadMode>,
     #[structopt(short = "f_tol", long)]
     pub floating_point_tolerance: Option<FloatingPointTolerance>,
     #[structopt(short = "st", long)]

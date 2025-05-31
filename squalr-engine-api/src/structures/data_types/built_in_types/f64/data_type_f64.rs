@@ -99,7 +99,7 @@ impl DataType for DataTypeF64 {
     }
 
     fn is_discrete(&self) -> bool {
-        true
+        false
     }
 
     fn get_default_value(

@@ -1,4 +1,4 @@
-use crate::structures::data_types::built_in_types::data_type::data_type_data_type_ref::DataTypeRefDataType;
+use crate::structures::data_types::built_in_types::data_type_ref::data_type_data_type_ref::DataTypeRefDataType;
 use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
 use crate::structures::scanning::comparisons::scan_function_vector::{
     VectorCompareFnDelta16, VectorCompareFnDelta32, VectorCompareFnDelta64, VectorCompareFnImmediate16, VectorCompareFnImmediate32, VectorCompareFnImmediate64,

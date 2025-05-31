@@ -1,11 +1,10 @@
 use crate::conversions::conversions::Conversions;
-use crate::structures::data_types::built_in_types::string::string_encoding::StringEncoding;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
 use crate::structures::data_values::display_value::DisplayValue;
-use crate::structures::data_values::display_value_type::{DisplayContainer, DisplayValueType};
+use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
@@ -79,17 +78,17 @@ impl DataType for DataTypeString {
 
         match data_type_ref.get_meta_data() {
             DataTypeMetaData::EncodedString(size, string_encoding) => match anonymous_value.get_value() {
-                AnonymousValueContainer::BinaryValue(value_string_utf8) => {
+                AnonymousValueContainer::BinaryValue(value_string_utf8, container_type) => {
                     let value_bytes = Conversions::binary_to_bytes(value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
 
                     return Ok(DataValue::new(data_type_ref, value_bytes));
                 }
-                AnonymousValueContainer::HexadecimalValue(value_string_utf8) => {
+                AnonymousValueContainer::HexadecimalValue(value_string_utf8, container_type) => {
                     let value_bytes = Conversions::hex_to_bytes(value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
 
                     return Ok(DataValue::new(data_type_ref, value_bytes));
                 }
-                AnonymousValueContainer::StringValue(value_string_utf8) => {
+                AnonymousValueContainer::String(value_string_utf8, container_type) => {
                     let mut string_bytes = match string_encoding {
                         StringEncoding::Utf8 => value_string_utf8.as_bytes().to_vec(),
                         StringEncoding::Utf16 => {
@@ -465,10 +464,10 @@ impl DataType for DataTypeString {
 
                 Ok(DisplayValues::new(
                     vec![DisplayValue::new(
-                        DisplayValueType::String(DisplayContainer::None),
+                        DisplayValueType::String(ContainerType::None),
                         decoded_string,
                     )],
-                    DisplayValueType::String(DisplayContainer::None),
+                    DisplayValueType::String(ContainerType::None),
                 ))
             }
             _ => Err(DataTypeError::InvalidMetaData),
@@ -476,7 +475,7 @@ impl DataType for DataTypeString {
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
-        vec![DisplayValueType::String(DisplayContainer::None)]
+        vec![DisplayValueType::String(ContainerType::None)]
     }
 
     fn is_discrete(&self) -> bool {
@@ -505,8 +504,7 @@ impl DataType for DataTypeString {
         // When parsing meta data from an anonymous value, we don't really have any context, so we just validate it against UTF-8.
         // If the value is passes as hex, we actually just validate whether we successfully can parse the hex string and re-encode it as a string.
         let string_length = match anonymous_value.get_value() {
-            AnonymousValueContainer::ByteArray(byte_array) => byte_array.len(),
-            AnonymousValueContainer::StringValue(string) => string.as_bytes().len(),
+            AnonymousValueContainer::String(string) => string.as_bytes().len(),
             AnonymousValueContainer::BinaryValue(string) => Conversions::binary_to_bytes(string).unwrap_or_default().len(),
             AnonymousValueContainer::HexadecimalValue(string) => Conversions::hex_to_bytes(string).unwrap_or_default().len(),
         } as u64;

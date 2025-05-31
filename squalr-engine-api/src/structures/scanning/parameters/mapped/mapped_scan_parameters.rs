@@ -1,5 +1,3 @@
-use crate::structures::data_types::built_in_types::byte_array::data_type_byte_array::DataTypeByteArray;
-use crate::structures::data_types::built_in_types::string::data_type_string::DataTypeString;
 use crate::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
 use crate::structures::data_types::built_in_types::u16be::data_type_u16be::DataTypeU16be;
 use crate::structures::data_types::built_in_types::u32be::data_type_u32be::DataTypeU32be;
@@ -62,6 +60,10 @@ impl MappedScanParameters {
             return mapped_params;
         }
 
+        // JIRA: Well, we don't actually want a byte array type, we would rather flag all incoming types as arrays or not.
+        // This of course adds burden, because we can, in theory, have like a u8[2], which we would want to remap to primtiive
+        // Shit is super annoying.
+        /*
         // Next handle string scans. These are always just remapped to byte array scans.
         if mapped_params.get_data_type().get_data_type_id() == DataTypeString::get_data_type_id() {
             let byte_count = mapped_params.data_value.get_size_in_bytes();
@@ -85,7 +87,7 @@ impl MappedScanParameters {
                     mapped_params.data_value.remap_data_type(mapped_data_type_ref);
                 }
             }
-        }
+        } */
 
         // Now we decide whether to use a scalar or SIMD scan based on filter region size.
         mapped_params.vectorization_size =

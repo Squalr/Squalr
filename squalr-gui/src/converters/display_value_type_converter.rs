@@ -1,7 +1,8 @@
 use crate::DisplayValueTypeView;
 use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
-use squalr_engine_api::structures::data_values::display_value_type::{DisplayContainer, DisplayValueType};
+use squalr_engine_api::structures::data_values::container_type::ContainerType;
+use squalr_engine_api::structures::data_values::display_value_type::DisplayValueType;
 
 pub struct DisplayValueTypeConverter {}
 
@@ -27,35 +28,38 @@ impl ConvertToViewData<DisplayValueType, DisplayValueTypeView> for DisplayValueT
         display_value: &DisplayValueType,
     ) -> DisplayValueTypeView {
         match display_value {
-            DisplayValueType::Bool(display_container) => match display_container {
-                DisplayContainer::None => DisplayValueTypeView::Bool,
-                DisplayContainer::Array => DisplayValueTypeView::BoolArray,
+            DisplayValueType::Bool(container_type) => match container_type {
+                ContainerType::None => DisplayValueTypeView::Bool,
+                ContainerType::Array => DisplayValueTypeView::BoolArray,
             },
-            DisplayValueType::String(display_container) => match display_container {
-                DisplayContainer::None => DisplayValueTypeView::Bool,
-                DisplayContainer::Array => DisplayValueTypeView::BoolArray,
+            DisplayValueType::String(container_type) => match container_type {
+                ContainerType::None => DisplayValueTypeView::Bool,
+                ContainerType::Array => DisplayValueTypeView::BoolArray,
             },
-            DisplayValueType::Binary(display_container) => match display_container {
-                DisplayContainer::None => DisplayValueTypeView::Binary,
-                DisplayContainer::Array => DisplayValueTypeView::BinaryArray,
+            DisplayValueType::Binary(container_type) => match container_type {
+                ContainerType::None => DisplayValueTypeView::Binary,
+                ContainerType::Array => DisplayValueTypeView::BinaryArray,
             },
-            DisplayValueType::Decimal(display_container) => match display_container {
-                DisplayContainer::None => DisplayValueTypeView::Decimal,
-                DisplayContainer::Array => DisplayValueTypeView::DecimalArray,
+            DisplayValueType::Decimal(container_type) => match container_type {
+                ContainerType::None => DisplayValueTypeView::Decimal,
+                ContainerType::Array => DisplayValueTypeView::DecimalArray,
             },
-            DisplayValueType::Hexadecimal(display_container) => match display_container {
-                DisplayContainer::None => DisplayValueTypeView::Hexadecimal,
-                DisplayContainer::Array => DisplayValueTypeView::HexadecimalArray,
+            DisplayValueType::Hexadecimal(container_type) => match container_type {
+                ContainerType::None => DisplayValueTypeView::Hexadecimal,
+                ContainerType::Array => DisplayValueTypeView::HexadecimalArray,
             },
-            DisplayValueType::Address(display_container) => match display_container {
-                DisplayContainer::None => DisplayValueTypeView::Address,
-                DisplayContainer::Array => DisplayValueTypeView::AddressArray,
+            DisplayValueType::Address(container_type) => match container_type {
+                ContainerType::None => DisplayValueTypeView::Address,
+                ContainerType::Array => DisplayValueTypeView::AddressArray,
             },
-            DisplayValueType::DataTypeRef(display_container) => match display_container {
-                DisplayContainer::None => DisplayValueTypeView::DataTypeRef,
-                DisplayContainer::Array => DisplayValueTypeView::DataTypeRefArray,
+            DisplayValueType::DataTypeRef(container_type) => match container_type {
+                ContainerType::None => DisplayValueTypeView::DataTypeRef,
+                ContainerType::Array => DisplayValueTypeView::DataTypeRefArray,
             },
-            DisplayValueType::Enumeration => DisplayValueTypeView::Enumeration,
+            DisplayValueType::Enumeration(container_type) => match container_type {
+                ContainerType::None => DisplayValueTypeView::Enumeration,
+                ContainerType::Array => DisplayValueTypeView::EnumerationArray,
+            },
         }
     }
 }
@@ -66,21 +70,22 @@ impl ConvertFromViewData<DisplayValueType, DisplayValueTypeView> for DisplayValu
         display_value: &DisplayValueTypeView,
     ) -> DisplayValueType {
         match display_value {
-            DisplayValueTypeView::Bool => DisplayValueType::Bool(DisplayContainer::None),
-            DisplayValueTypeView::BoolArray => DisplayValueType::Bool(DisplayContainer::Array),
-            DisplayValueTypeView::String => DisplayValueType::String(DisplayContainer::None),
-            DisplayValueTypeView::StringArray => DisplayValueType::String(DisplayContainer::Array),
-            DisplayValueTypeView::Binary => DisplayValueType::Binary(DisplayContainer::None),
-            DisplayValueTypeView::BinaryArray => DisplayValueType::Binary(DisplayContainer::Array),
-            DisplayValueTypeView::Decimal => DisplayValueType::Decimal(DisplayContainer::None),
-            DisplayValueTypeView::DecimalArray => DisplayValueType::Decimal(DisplayContainer::Array),
-            DisplayValueTypeView::Hexadecimal => DisplayValueType::Hexadecimal(DisplayContainer::None),
-            DisplayValueTypeView::HexadecimalArray => DisplayValueType::Hexadecimal(DisplayContainer::Array),
-            DisplayValueTypeView::Address => DisplayValueType::Address(DisplayContainer::None),
-            DisplayValueTypeView::AddressArray => DisplayValueType::Address(DisplayContainer::Array),
-            DisplayValueTypeView::DataTypeRef => DisplayValueType::DataTypeRef(DisplayContainer::None),
-            DisplayValueTypeView::DataTypeRefArray => DisplayValueType::DataTypeRef(DisplayContainer::Array),
-            DisplayValueTypeView::Enumeration => DisplayValueType::Enumeration,
+            DisplayValueTypeView::Bool => DisplayValueType::Bool(ContainerType::None),
+            DisplayValueTypeView::BoolArray => DisplayValueType::Bool(ContainerType::Array),
+            DisplayValueTypeView::String => DisplayValueType::String(ContainerType::None),
+            DisplayValueTypeView::StringArray => DisplayValueType::String(ContainerType::Array),
+            DisplayValueTypeView::Binary => DisplayValueType::Binary(ContainerType::None),
+            DisplayValueTypeView::BinaryArray => DisplayValueType::Binary(ContainerType::Array),
+            DisplayValueTypeView::Decimal => DisplayValueType::Decimal(ContainerType::None),
+            DisplayValueTypeView::DecimalArray => DisplayValueType::Decimal(ContainerType::Array),
+            DisplayValueTypeView::Hexadecimal => DisplayValueType::Hexadecimal(ContainerType::None),
+            DisplayValueTypeView::HexadecimalArray => DisplayValueType::Hexadecimal(ContainerType::Array),
+            DisplayValueTypeView::Address => DisplayValueType::Address(ContainerType::None),
+            DisplayValueTypeView::AddressArray => DisplayValueType::Address(ContainerType::Array),
+            DisplayValueTypeView::DataTypeRef => DisplayValueType::DataTypeRef(ContainerType::None),
+            DisplayValueTypeView::DataTypeRefArray => DisplayValueType::DataTypeRef(ContainerType::Array),
+            DisplayValueTypeView::Enumeration => DisplayValueType::Enumeration(ContainerType::None),
+            DisplayValueTypeView::EnumerationArray => DisplayValueType::Enumeration(ContainerType::Array),
         }
     }
 }

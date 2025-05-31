@@ -90,7 +90,7 @@ impl DataType for DataTypeF32be {
     }
 
     fn is_discrete(&self) -> bool {
-        true
+        false
     }
 
     fn get_default_value(

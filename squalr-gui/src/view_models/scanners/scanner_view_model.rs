@@ -1,11 +1,9 @@
 use crate::DisplayValueTypeView;
 use crate::MainWindowView;
-use crate::MemoryAlignmentView;
 use crate::ScanConstraintTypeView;
 use crate::ScannerViewModelBindings;
 use crate::ValueCollectorViewModelBindings;
 use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
-use crate::converters::memory_alignment_converter::MemoryAlignmentConverter;
 use crate::converters::scan_constraint_converter::ScanConstraintConverter;
 use slint::ComponentHandle;
 use slint::SharedString;
@@ -21,9 +19,6 @@ use squalr_engine_api::commands::scan::reset::scan_reset_request::ScanResetReque
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
-use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
-use squalr_engine_api::structures::scanning::data_type_and_alignment::DataTypeAndAlignment;
-use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -61,7 +56,7 @@ impl ScannerViewModel {
             create_view_bindings!(view_model.view_binding, {
                 ScannerViewModelBindings => {
                     on_reset_scan() -> [view_model] -> Self::on_reset_scan,
-                    on_start_scan(scan_value: SharedString, data_type_id: SharedString, display_value_type: DisplayValueTypeView, memory_alignment: MemoryAlignmentView, scan_constraint: ScanConstraintTypeView) -> [view_model] -> Self::on_start_scan,
+                    on_start_scan(scan_value: SharedString, data_type_id: SharedString, display_value_type: DisplayValueTypeView, scan_constraint: ScanConstraintTypeView) -> [view_model] -> Self::on_start_scan,
                 },
                 ValueCollectorViewModelBindings => {
                     on_collect_values() -> [view_model] -> Self::on_collect_values,
@@ -93,7 +88,6 @@ impl ScannerViewModel {
         scan_value: SharedString,
         data_type_id: SharedString,
         display_value_type: DisplayValueTypeView,
-        memory_alignment_view: MemoryAlignmentView,
         scan_constraint: ScanConstraintTypeView,
     ) {
         let scan_view_model_state = &view_model.scan_view_model_state;
@@ -112,15 +106,14 @@ impl ScannerViewModel {
         let data_type_id = data_type_id.to_string();
         let display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&display_value_type);
         let scan_value = AnonymousValue::new(&scan_value, display_value_type);
-        let memory_alignment = MemoryAlignmentConverter {}.convert_from_view_data(&memory_alignment_view);
         let data_type_ref = DataTypeRef::new_from_anonymous_value(&data_type_id, &scan_value);
 
         match scan_view_model_state_value {
             ScanViewModelState::HasResults => {
-                Self::start_scan(view_model, data_type_ref, memory_alignment, scan_constraint, scan_value);
+                Self::start_scan(view_model, data_type_ref, scan_constraint, scan_value);
             }
             ScanViewModelState::NoResults => {
-                Self::new_scan(view_model, data_type_ref, memory_alignment, scan_constraint, scan_value);
+                Self::new_scan(view_model, data_type_ref, scan_constraint, scan_value);
             }
             ScanViewModelState::ScanInProgress => {
                 log::error!("Cannot start a new scan while a scan is in progress.");
@@ -137,7 +130,6 @@ impl ScannerViewModel {
     fn new_scan(
         view_model: Arc<ScannerViewModel>,
         data_type_ref: DataTypeRef,
-        memory_alignment: MemoryAlignment,
         scan_constraint: ScanConstraintTypeView,
         scan_value: AnonymousValue,
     ) {
@@ -147,14 +139,13 @@ impl ScannerViewModel {
 
         // Start a new scan, and recurse to start the scan once the new scan is made.
         scan_new_request.send(engine_execution_context, move |_scan_new_response| {
-            Self::start_scan(view_model, data_type_ref, memory_alignment, scan_constraint, scan_value);
+            Self::start_scan(view_model, data_type_ref, scan_constraint, scan_value);
         });
     }
 
     fn start_scan(
         view_model: Arc<ScannerViewModel>,
         data_type_ref: DataTypeRef,
-        memory_alignment: MemoryAlignment,
         scan_constraint: ScanConstraintTypeView,
         scan_value: AnonymousValue,
     ) {
@@ -162,9 +153,8 @@ impl ScannerViewModel {
         let view_model = view_model.clone();
         let scan_execute_request = ScanExecuteRequest {
             scan_value: Some(scan_value),
-            data_types_and_alignments: vec![DataTypeAndAlignment::new(data_type_ref, Some(memory_alignment))],
+            data_type_refs: vec![data_type_ref],
             compare_type: ScanConstraintConverter::new().convert_from_view_data(&scan_constraint),
-            memory_read_mode: MemoryReadMode::ReadBeforeScan, // JIRA: Setting for this
         };
 
         scan_execute_request.send(&engine_execution_context, move |scan_execute_response| {

@@ -47,6 +47,13 @@ impl DataTypeRef {
     ) -> Self {
         let registry = DataTypeRegistry::get_instance().get_registry();
         let data_type_meta_data = match registry.get(data_type_id) {
+            // JIRA: Wrong, there is a fallacy baked into this, which presumes that all meta data can be derived from the anonymous value
+            // This is 100% false, take for example an encoded string, in which the encoding exists outside of the anonymous value
+            // Thus, to decode an anonymous value, we actually need the metadata (or at least some of it) up front
+            // This is why the term metadata is, and will always be, fucking stupid, because it assumes data about the data
+            // can be grouped together as if its all just the same class citizenship, so to speak
+            // When this is clearly and obviously falls as per this example
+            // Get fucked, idiot
             Some(data_type) => data_type.get_meta_data_for_anonymous_value(anonymous_value),
             None => {
                 log::error!(
@@ -120,8 +127,6 @@ impl DataTypeRef {
             }
             // For container types, return the size of the container.
             DataTypeMetaData::SizedContainer(size) => *size,
-            // For encoded string types, return the size of the container.
-            DataTypeMetaData::EncodedString(size, _encoding) => *size,
             // For fixed string types, return the size of the string.
             DataTypeMetaData::FixedString(string) => string.len() as u64,
         }
@@ -146,6 +151,7 @@ impl DataTypeRef {
         }
     }
 
+    /// Gets a value indicating whether this value is discrete, ie non-floating point.
     pub fn is_discrete(&self) -> bool {
         let registry = DataTypeRegistry::get_instance().get_registry();
 
@@ -154,6 +160,16 @@ impl DataTypeRef {
             None => false,
         }
     }
+
+    /*
+    pub fn is_scan_remapped_to_byte_array(&self) -> bool {
+        let registry = DataTypeRegistry::get_instance().get_registry();
+
+        match registry.get(self.get_data_type_id()) {
+            Some(data_type) => data_type.is_scan_remapped_to_byte_array(),
+            None => false,
+        }
+    } */
 
     pub fn get_default_value(&self) -> Option<DataValue> {
         let registry = DataTypeRegistry::get_instance().get_registry();

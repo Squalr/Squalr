@@ -1,26 +1,17 @@
-use crate::structures::data_types::built_in_types::string::data_type_string::DataTypeString;
-use crate::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
 use crate::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
+use num_traits::{WrappingAdd, WrappingSub};
 use std::cmp::Ordering;
-use std::ops::BitAnd;
-use std::ops::BitOr;
-use std::ops::BitXor;
-use std::ops::Div;
-use std::ops::Mul;
-use std::ops::Rem;
-use std::ops::Shl;
-use std::ops::Shr;
+use std::ops::{BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr};
 
-/// Scalar comparison functions for comparing strings (encoded as byte arrays). Note that these functions operate on single array values.
+/// Scalar comparison functions for comparing byte arrays. Note that these functions operate on single array values.
 /// For performance-critical scans, specialized algorithms are implemented elsewhere.
 /// Additionally, many comparison functions for arrays are not defined, such as inequalities or delta scans,
 /// and are subject to change. The only clearly defined behaviors are: equal, not equal, changed, and unchanged.
-impl ScalarComparable for DataTypeString {
-    fn get_compare_equal(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnImmediate> {
+pub struct ScalarComparisonsByteArray {}
+
+impl ScalarComparisonsByteArray {
+    pub fn get_compare_equal(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
@@ -31,10 +22,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_not_equal(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_not_equal(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
@@ -45,10 +33,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_greater_than(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_greater_than(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
@@ -62,10 +47,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_greater_than_or_equal(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_greater_than_or_equal(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
@@ -77,10 +59,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_less_than(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_less_than(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
@@ -92,10 +71,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_less_than_or_equal(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_less_than_or_equal(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
@@ -107,10 +83,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_changed(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_changed(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnRelative> {
         let len = scan_parameters.get_data_type().get_size_in_bytes() as usize;
 
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
@@ -120,10 +93,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_unchanged(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_unchanged(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnRelative> {
         let len = scan_parameters.get_data_type().get_size_in_bytes() as usize;
 
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
@@ -134,10 +104,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_increased(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_increased(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnRelative> {
         let len = scan_parameters.get_data_type().get_size_in_bytes() as usize;
 
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
@@ -151,10 +118,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_decreased(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_decreased(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnRelative> {
         let len = scan_parameters.get_data_type().get_size_in_bytes() as usize;
 
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
@@ -168,10 +132,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_increased_by(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_increased_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -184,14 +145,11 @@ impl ScalarComparable for DataTypeString {
                 .iter()
                 .zip(previous_values.iter())
                 .zip(delta_values.iter())
-                .all(|((current_value, previous_value), delta_value)| current_value.wrapping_add(*delta_value) == *previous_value)
+                .all(|((current_value, previous_value), delta_value)| current_value.wrapping_add(delta_value) == *previous_value)
         }))
     }
 
-    fn get_compare_decreased_by(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_decreased_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -204,14 +162,11 @@ impl ScalarComparable for DataTypeString {
                 .iter()
                 .zip(previous_values.iter())
                 .zip(delta_values.iter())
-                .all(|((current_value, previous_value), delta_value)| current_value.wrapping_sub(*delta_value) == *previous_value)
+                .all(|((current_value, previous_value), delta_value)| current_value.wrapping_sub(delta_value) == *previous_value)
         }))
     }
 
-    fn get_compare_multiplied_by(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_multiplied_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -228,10 +183,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_divided_by(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_divided_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -252,10 +204,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_modulo_by(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_modulo_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -276,10 +225,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_shift_left_by(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_shift_left_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -296,10 +242,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_shift_right_by(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_shift_right_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -316,10 +259,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_logical_and_by(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_logical_and_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -336,10 +276,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_logical_or_by(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_logical_or_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -356,10 +293,7 @@ impl ScalarComparable for DataTypeString {
         }))
     }
 
-    fn get_compare_logical_xor_by(
-        &self,
-        scan_parameters: &MappedScanParameters,
-    ) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_logical_xor_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();

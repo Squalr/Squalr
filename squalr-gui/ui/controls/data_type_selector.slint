@@ -12,9 +12,7 @@ export component DataTypeSelector inherits Rectangle {
     border_width: 1px;
     width: 84px;
     pure function to_display_string(data_type_id: string) -> string {
-        if data_type_id == "byte_array" {
-            return "u8 []";
-        } else if data_type_id == "bit_field" {
+        if data_type_id == "bit_field" {
             return "bits";
         }
         return data_type_id;
@@ -27,7 +25,7 @@ export component DataTypeSelector inherits Rectangle {
         tooltip_text: @tr("Select a data type...");
         click_sound: "";
         clicked => {
-            context_menu.show();
+            data_types_context_menu.show();
         }
         HorizontalLayout {
             padding_top: 0px;
@@ -59,11 +57,11 @@ export component DataTypeSelector inherits Rectangle {
         }
     }
 
-    context_menu := ContextMenu {
+    data_types_context_menu := ContextMenu {
         x: data_type_button.x;
         y: data_type_button.y + data_type_button.height;
         width: 192px;
-        content := GridLayout {
+        built_in_data_types_grid := GridLayout {
             padding: 0px;
             spacing: 0px;
             Row {
@@ -265,26 +263,68 @@ export component DataTypeSelector inherits Rectangle {
             }
 
             Row {
-                data_type_bytes := DataTypeButton {
-                    text: @tr("u8 [ ]");
-                    icon: IconView.bytes;
-                    tooltip_text: @tr("Data Type: u8[]. Size depends on the number of bytes provided. Also known as a byte[] or array of bytes. Represents a contiguous array of bytes.");
+                data_type_string_button := DataTypeButton {
+                    text: @tr("String...");
+                    icon: IconView.string;
+                    tooltip_text: @tr("Select a string data type...");
                     clicked => {
-                        ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "byte_array";
+                        data_types_context_menu.close();
+                        strings_context_menu.show();
+                    }
+                }
+
+                // JIRA: Pop out menu
+                data_type_custom := DataTypeButton {
+                    text: @tr("Custom");
+                    icon: IconView.bytes;
+                    tooltip_text: @tr("Custom data types created by plugins.");
+                    clicked => {
+                        data_types_context_menu.close();
+                        custom_types_context_menu.show();
+                    }
+                }
+            }
+        }
+    }
+
+    strings_context_menu := ContextMenu {
+        x: data_type_button.x;
+        y: data_type_button.y + data_type_button.height;
+        width: 192px;
+        string_types_grid := GridLayout {
+            padding: 0px;
+            spacing: 0px;
+            Row {
+                data_type_string_utf8 := DataTypeButton {
+                    text: @tr("utf8");
+                    icon: IconView.string;
+                    tooltip_text: @tr("Data Type: string_utf8.");
+                    clicked => {
+                        ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "string_utf8";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
                     }
                 }
 
-                data_type_string := DataTypeButton {
-                    text: @tr("String");
+                data_type_string_ascii := DataTypeButton {
+                    text: @tr("ascii");
                     icon: IconView.string;
-                    tooltip_text: @tr("Data Type: String. Size depends on the encoding and length of text. Represents any text.");
+                    tooltip_text: @tr("Data Type: string_ascii.");
                     clicked => {
-                        ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "string";
+                        ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "string_ascii";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
                     }
                 }
             }
+        }
+    }
+
+    custom_types_context_menu := ContextMenu {
+        x: data_type_button.x;
+        y: data_type_button.y + data_type_button.height;
+        width: 192px;
+        custom_types_grid := GridLayout {
+            padding: 0px;
+            spacing: 0px;
         }
     }
 }

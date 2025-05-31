@@ -1,7 +1,6 @@
 pub mod bool32;
 pub mod bool8;
-pub mod byte_array;
-pub mod data_type;
+pub mod data_type_ref;
 pub mod f32;
 pub mod f32be;
 pub mod f64;

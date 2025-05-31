@@ -6,7 +6,7 @@ import { FocusTouchArea } from "../focus_touch_area.slint";
 import { StateLayer } from "../state_layer.slint";
 import { FakeCheckbox } from "../checkboxes/fake_checkbox.slint";
 import { DisplayValueTypeConverter } from "../../converters/display_value_type_converter.slint";
-import { DataValueViewData, DisplayValueViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings } from "../../view_model_bindings.slint";
+import { DataValueViewData, DisplayValueViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings, ScanSettingsViewModelBindings } from "../../view_model_bindings.slint";
 
 export component DataValueBoxOwned {
     in_out property <DataValueViewData> data_value;
@@ -34,6 +34,7 @@ export component DataValueBoxOwned {
         return text_input.text;
     }
     public pure function is_value_valid() -> bool {
+        // JIRA: A bit jank to have this depend on scan settings for string encoding. Should probably come as a parameter.
         return ValidationViewModelBindings.validate_data_value(text_input.text, data_value.data_type_ref.data_type_id, root.get_active_display_value_type());
     }
     pure function get_active_display_value_type() -> DisplayValueTypeView {

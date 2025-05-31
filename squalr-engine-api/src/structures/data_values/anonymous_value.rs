@@ -1,5 +1,5 @@
+use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::data_value::DataValue;
-use crate::structures::data_values::display_value_type::DisplayContainer;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::{registries::data_types::data_type_registry::DataTypeRegistry, structures::data_types::data_type_ref::DataTypeRef};
 use serde::{Deserialize, Serialize};
@@ -10,10 +10,9 @@ use std::str::FromStr;
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AnonymousValueContainer {
-    StringValue(String),
+    String(String),
     BinaryValue(String),
     HexadecimalValue(String),
-    ByteArray(Vec<u8>),
 }
 
 /// Represents a value as a string that can potentially be converted to an explicit type later.
@@ -22,6 +21,7 @@ pub enum AnonymousValueContainer {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AnonymousValue {
     container_value: AnonymousValueContainer,
+    container_type: ContainerType,
 }
 
 impl AnonymousValue {
@@ -29,23 +29,20 @@ impl AnonymousValue {
         value: &str,
         display_value_type: DisplayValueType,
     ) -> Self {
-        let container_value = match display_value_type {
-            DisplayValueType::Bool(display_container) => AnonymousValueContainer::StringValue(value.to_string()),
-            DisplayValueType::String(display_container) => AnonymousValueContainer::StringValue(value.to_string()),
-            DisplayValueType::Binary(display_container) => AnonymousValueContainer::BinaryValue(value.to_string()),
-            DisplayValueType::Decimal(display_container) => AnonymousValueContainer::StringValue(value.to_string()),
-            DisplayValueType::Hexadecimal(display_container) => AnonymousValueContainer::HexadecimalValue(value.to_string()),
-            DisplayValueType::Address(display_container) => AnonymousValueContainer::StringValue(value.to_string()),
-            DisplayValueType::DataTypeRef(display_container) => AnonymousValueContainer::StringValue(value.to_string()),
-            DisplayValueType::Enumeration => AnonymousValueContainer::StringValue(value.to_string()),
+        let (container_value, container_type) = match display_value_type {
+            DisplayValueType::Bool(container_type) => (AnonymousValueContainer::String(value.to_string()), container_type),
+            DisplayValueType::String(container_type) => (AnonymousValueContainer::String(value.to_string()), container_type),
+            DisplayValueType::Binary(container_type) => (AnonymousValueContainer::BinaryValue(value.to_string()), container_type),
+            DisplayValueType::Decimal(container_type) => (AnonymousValueContainer::String(value.to_string()), container_type),
+            DisplayValueType::Hexadecimal(container_type) => (AnonymousValueContainer::HexadecimalValue(value.to_string()), container_type),
+            DisplayValueType::Address(container_type) => (AnonymousValueContainer::String(value.to_string()), container_type),
+            DisplayValueType::DataTypeRef(container_type) => (AnonymousValueContainer::String(value.to_string()), container_type),
+            DisplayValueType::Enumeration(container_type) => (AnonymousValueContainer::String(value.to_string()), container_type),
         };
 
-        AnonymousValue { container_value }
-    }
-
-    pub fn new_bytes(bytes: Vec<u8>) -> Self {
         AnonymousValue {
-            container_value: AnonymousValueContainer::ByteArray(bytes),
+            container_value,
+            container_type,
         }
     }
 
@@ -77,8 +74,8 @@ impl FromStr for AnonymousValue {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        // JIRA: Support optional display type overrides.
-        Ok(AnonymousValue::new(string, DisplayValueType::String(DisplayContainer::None)))
+        // JIRA: Support parameters, container types, etc.
+        Ok(AnonymousValue::new(string, DisplayValueType::String(ContainerType::None)))
     }
 }
 
@@ -87,8 +84,9 @@ impl fmt::Display for AnonymousValue {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
+        // JIRA: container type
         match &self.container_value {
-            AnonymousValueContainer::StringValue(string) => {
+            AnonymousValueContainer::String(string) => {
                 write!(formatter, "{}", string)
             }
             AnonymousValueContainer::BinaryValue(string) => {
@@ -96,9 +94,6 @@ impl fmt::Display for AnonymousValue {
             }
             AnonymousValueContainer::HexadecimalValue(string) => {
                 write!(formatter, "{}", string)
-            }
-            AnonymousValueContainer::ByteArray(bytes) => {
-                write!(formatter, "{:?}", bytes)
             }
         }
     }

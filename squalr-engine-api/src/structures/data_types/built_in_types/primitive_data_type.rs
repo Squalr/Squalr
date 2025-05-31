@@ -1,6 +1,7 @@
 use crate::conversions::conversions::Conversions;
+use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::display_value::DisplayValue;
-use crate::structures::data_values::display_value_type::{DisplayContainer, DisplayValueType};
+use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::{
     data_types::{data_type_error::DataTypeError, data_type_meta_data::DataTypeMetaData, data_type_ref::DataTypeRef},
@@ -61,10 +62,10 @@ impl PrimitiveDataType {
         match anonymous_value.get_value() {
             AnonymousValueContainer::BinaryValue(value_string)
             | AnonymousValueContainer::HexadecimalValue(value_string)
-            | AnonymousValueContainer::StringValue(value_string) => {
+            | AnonymousValueContainer::String(value_string) => {
                 let normalized = value_string.trim().to_ascii_lowercase();
                 let boolean = match anonymous_value.get_value() {
-                    AnonymousValueContainer::StringValue(_) => match normalized.to_lowercase().as_str() {
+                    AnonymousValueContainer::String(string) => match normalized.to_lowercase().as_str() {
                         "true" | "1" => true,
                         "false" | "0" => false,
                         _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
@@ -78,24 +79,6 @@ impl PrimitiveDataType {
                 };
 
                 let primitive: T = if boolean { T::from(1) } else { T::from(0) };
-                let bytes = if is_big_endian { primitive.to_be_bytes() } else { primitive.to_le_bytes() };
-
-                Ok(DataValue::new(data_type_ref, bytes.into()))
-            }
-            AnonymousValueContainer::ByteArray(value_bytes) => {
-                let expected_size = std::mem::size_of::<T>() as u64;
-                let actual_size = value_bytes.len() as u64;
-
-                if actual_size != expected_size {
-                    return Err(DataTypeError::InvalidByteCount {
-                        expected: expected_size,
-                        actual: actual_size,
-                    });
-                }
-
-                // Any non-zero byte value is interpreted as true.
-                let is_true = value_bytes.iter().any(|&b| b != 0);
-                let primitive: T = if is_true { T::from(1) } else { T::from(0) };
                 let bytes = if is_big_endian { primitive.to_be_bytes() } else { primitive.to_le_bytes() };
 
                 Ok(DataValue::new(data_type_ref, bytes.into()))
@@ -143,7 +126,7 @@ impl PrimitiveDataType {
                 }
                 Err(err) => Err(DataTypeError::ParseError(format!("Failed to parse hex value '{}': {}", value_string, err))),
             },
-            AnonymousValueContainer::StringValue(value_string) => match value_string.parse::<T>() {
+            AnonymousValueContainer::String(value_string) => match value_string.parse::<T>() {
                 Ok(value) => {
                     let bytes = if is_big_endian { value.to_be_bytes() } else { value.to_le_bytes() };
                     Ok(DataValue::new(data_type_ref, bytes.into()))
@@ -155,7 +138,6 @@ impl PrimitiveDataType {
                     err
                 ))),
             },
-            AnonymousValueContainer::ByteArray(value_bytes) => Ok(DataValue::new(data_type_ref, value_bytes.clone())),
         }
     }
 
@@ -182,14 +164,11 @@ impl PrimitiveDataType {
                     let value_string_decimal = value.to_string();
                     let value_string_hexadecimal = Conversions::primitive_to_hexadecimal(&bits);
 
-                    results.push(DisplayValue::new(DisplayValueType::Binary(DisplayContainer::None), value_string_binary));
-                    results.push(DisplayValue::new(DisplayValueType::Decimal(DisplayContainer::None), value_string_decimal));
-                    results.push(DisplayValue::new(
-                        DisplayValueType::Hexadecimal(DisplayContainer::None),
-                        value_string_hexadecimal,
-                    ));
+                    results.push(DisplayValue::new(DisplayValueType::Binary(ContainerType::None), value_string_binary));
+                    results.push(DisplayValue::new(DisplayValueType::Decimal(ContainerType::None), value_string_decimal));
+                    results.push(DisplayValue::new(DisplayValueType::Hexadecimal(ContainerType::None), value_string_hexadecimal));
 
-                    Ok(DisplayValues::new(results, DisplayValueType::Decimal(DisplayContainer::None)))
+                    Ok(DisplayValues::new(results, DisplayValueType::Decimal(ContainerType::None)))
                 } else {
                     Err(DataTypeError::InvalidByteCount { expected, actual })
                 }
@@ -212,19 +191,19 @@ impl PrimitiveDataType {
                     if value_bytes[0] == 0 {
                         Ok(DisplayValues::new(
                             vec![DisplayValue::new(
-                                DisplayValueType::Bool(DisplayContainer::None),
+                                DisplayValueType::Bool(ContainerType::None),
                                 "false".into(),
                             )],
-                            DisplayValueType::Bool(DisplayContainer::None),
+                            DisplayValueType::Bool(ContainerType::None),
                         ))
                     } else {
                         // For our impl we consider non-zero to be true.
                         Ok(DisplayValues::new(
                             vec![DisplayValue::new(
-                                DisplayValueType::Bool(DisplayContainer::None),
+                                DisplayValueType::Bool(ContainerType::None),
                                 "true".into(),
                             )],
-                            DisplayValueType::Bool(DisplayContainer::None),
+                            DisplayValueType::Bool(ContainerType::None),
                         ))
                     }
                 } else {
@@ -237,9 +216,9 @@ impl PrimitiveDataType {
 
     pub fn get_supported_display_types() -> Vec<DisplayValueType> {
         vec![
-            DisplayValueType::Binary(DisplayContainer::None),
-            DisplayValueType::Decimal(DisplayContainer::None),
-            DisplayValueType::Hexadecimal(DisplayContainer::None),
+            DisplayValueType::Binary(ContainerType::None),
+            DisplayValueType::Decimal(ContainerType::None),
+            DisplayValueType::Hexadecimal(ContainerType::None),
         ]
     }
 }

@@ -4,6 +4,7 @@ use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecut
 use squalr_engine_api::commands::scan::execute::scan_execute_response::ScanExecuteResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
+use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::scanning::data_value_and_alignment::DataValueAndAlignment;
 use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters::UserScanParameters;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
@@ -23,30 +24,27 @@ impl EngineCommandRequestExecutor for ScanExecuteRequest {
             .get_opened_process()
         {
             let snapshot = engine_privileged_state.get_snapshot();
+            let alignment = ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1);
             let data_values_and_alignments = self
-                .data_types_and_alignments
+                .data_type_refs
                 .iter()
-                .map(|data_type_and_alignment| {
+                .map(|data_type_ref| {
                     // If a scan value was provided in the form of an anonymous value, deanonymize it into an actual value.
                     // Otherwise, fall back on a data value that just contains the data type information without value bytes.
                     let data_value = self
                         .scan_value
                         .as_ref()
-                        .and_then(|scan_value| {
-                            scan_value
-                                .deanonymize_value(data_type_and_alignment.get_data_type())
-                                .ok()
-                        })
-                        .unwrap_or_else(|| DataValue::new(data_type_and_alignment.get_data_type().clone(), vec![]));
+                        .and_then(|scan_value| scan_value.deanonymize_value(data_type_ref).ok())
+                        .unwrap_or_else(|| DataValue::new(data_type_ref.clone(), vec![]));
 
-                    DataValueAndAlignment::new(data_value, data_type_and_alignment.get_memory_alignment_or_default())
+                    DataValueAndAlignment::new(data_value, alignment)
                 })
                 .collect();
             let scan_parameters = UserScanParameters::new(
                 self.compare_type.to_owned(),
                 data_values_and_alignments,
                 ScanSettingsConfig::get_floating_point_tolerance(),
-                self.memory_read_mode,
+                ScanSettingsConfig::get_memory_read_mode(),
                 ScanSettingsConfig::get_is_single_threaded_scan(),
                 ScanSettingsConfig::get_debug_perform_validation_scan(),
             );

@@ -15,10 +15,10 @@ impl Conversions {
         to_display_value_type: DisplayValueType,
     ) -> Result<String, ConversionError> {
         match from_display_value_type {
-            DisplayValueType::Binary(display_container) => ConversionsFromBinary::convert_to_display_value(data_value, to_display_value_type),
-            DisplayValueType::Decimal(display_container) => ConversionsFromDecimal::convert_to_display_value(data_value, to_display_value_type),
-            DisplayValueType::Hexadecimal(display_container) => ConversionsFromHexadecimal::convert_to_display_value(data_value, to_display_value_type),
-            DisplayValueType::Address(display_container) => ConversionsFromHexadecimal::convert_to_display_value(data_value, to_display_value_type),
+            DisplayValueType::Binary(container_type) => ConversionsFromBinary::convert_to_display_value(data_value, to_display_value_type),
+            DisplayValueType::Decimal(container_type) => ConversionsFromDecimal::convert_to_display_value(data_value, to_display_value_type),
+            DisplayValueType::Hexadecimal(container_type) => ConversionsFromHexadecimal::convert_to_display_value(data_value, to_display_value_type),
+            DisplayValueType::Address(container_type) => ConversionsFromHexadecimal::convert_to_display_value(data_value, to_display_value_type),
             _ => Ok(data_value.to_string()),
         }
     }

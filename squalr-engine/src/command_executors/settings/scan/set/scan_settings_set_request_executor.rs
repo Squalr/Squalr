@@ -32,6 +32,10 @@ impl EngineCommandRequestExecutor for ScanSettingsSetRequest {
             ScanSettingsConfig::set_memory_alignment(Some(memory_alignment));
         }
 
+        if let Some(memory_read_mode) = self.memory_read_mode {
+            ScanSettingsConfig::set_memory_read_mode(memory_read_mode);
+        }
+
         if let Some(floating_point_tolerance) = self.floating_point_tolerance {
             ScanSettingsConfig::set_floating_point_tolerance(floating_point_tolerance);
         }

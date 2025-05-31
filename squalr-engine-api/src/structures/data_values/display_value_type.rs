@@ -1,23 +1,18 @@
+use crate::structures::data_values::container_type::ContainerType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum DisplayContainer {
-    None,
-    Array,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum DisplayValueType {
-    Bool(DisplayContainer),
-    String(DisplayContainer),
-    Binary(DisplayContainer),
-    Decimal(DisplayContainer),
-    Hexadecimal(DisplayContainer),
-    Address(DisplayContainer),
-    DataTypeRef(DisplayContainer),
-    Enumeration,
+    Bool(ContainerType),
+    String(ContainerType),
+    Binary(ContainerType),
+    Decimal(ContainerType),
+    Hexadecimal(ContainerType),
+    Address(ContainerType),
+    DataTypeRef(ContainerType),
+    Enumeration(ContainerType),
 }
 
 impl fmt::Display for DisplayValueType {
@@ -25,22 +20,22 @@ impl fmt::Display for DisplayValueType {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        fn container_str(container: &DisplayContainer) -> &'static str {
+        fn container_str(container: &ContainerType) -> &'static str {
             match container {
-                DisplayContainer::None => "",
-                DisplayContainer::Array => "[]",
+                ContainerType::None => "",
+                ContainerType::Array => "[]",
             }
         }
 
         let result = match self {
-            DisplayValueType::Bool(display_container) => format!("boolean{}", container_str(display_container)),
-            DisplayValueType::String(display_container) => format!("string{}", container_str(display_container)),
-            DisplayValueType::Binary(display_container) => format!("binary{}", container_str(display_container)),
-            DisplayValueType::Decimal(display_container) => format!("decimal{}", container_str(display_container)),
-            DisplayValueType::Hexadecimal(display_container) => format!("hexadecimal{}", container_str(display_container)),
-            DisplayValueType::Address(display_container) => format!("address{}", container_str(display_container)),
-            DisplayValueType::DataTypeRef(display_container) => format!("data_type_ref{}", container_str(display_container)),
-            DisplayValueType::Enumeration => "enumeration".to_string(),
+            DisplayValueType::Bool(container_type) => format!("boolean{}", container_str(container_type)),
+            DisplayValueType::String(container_type) => format!("string{}", container_str(container_type)),
+            DisplayValueType::Binary(container_type) => format!("binary{}", container_str(container_type)),
+            DisplayValueType::Decimal(container_type) => format!("decimal{}", container_str(container_type)),
+            DisplayValueType::Hexadecimal(container_type) => format!("hexadecimal{}", container_str(container_type)),
+            DisplayValueType::Address(container_type) => format!("address{}", container_str(container_type)),
+            DisplayValueType::DataTypeRef(container_type) => format!("data_type_ref{}", container_str(container_type)),
+            DisplayValueType::Enumeration(container_type) => format!("enumeration{}", container_str(container_type)),
         };
 
         write!(formatter, "{}", result)
@@ -51,11 +46,11 @@ impl FromStr for DisplayValueType {
     type Err = ();
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        fn extract_container(input: &str) -> (DisplayContainer, &str) {
+        fn extract_container(input: &str) -> (ContainerType, &str) {
             if let Some(stripped_input) = input.strip_suffix("[]") {
-                (DisplayContainer::Array, stripped_input)
+                (ContainerType::Array, stripped_input)
             } else {
-                (DisplayContainer::None, input)
+                (ContainerType::None, input)
             }
         }
 
@@ -69,7 +64,7 @@ impl FromStr for DisplayValueType {
             "hex" | "hexadecimal" => Ok(DisplayValueType::Hexadecimal(container)),
             "address" => Ok(DisplayValueType::Address(container)),
             "data_type_ref" => Ok(DisplayValueType::DataTypeRef(container)),
-            "enumeration" => Ok(DisplayValueType::Enumeration),
+            "enumeration" => Ok(DisplayValueType::Enumeration(container)),
             _ => Err(()),
         }
     }

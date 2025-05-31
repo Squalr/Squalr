@@ -42,12 +42,13 @@ Launch Checklist:
 - [X] Periodic Vectorized overlapping scans.
 - [X] Settings system that respects command/response, IPC, etc.
 - [X] Freezing/deleting scan results directly from scan window.
-- [X] String scans, with various encoding support.
-- [ ] String Encoding selection from UI, use string encoding from settings in string scans.
+- [X] String scans.
 - [X] Robust conversion framework.
 - [X] Property viewer in the GUI that can register an active set of properties.
 - [X] Display type switching for property viewer data types.
 - [ ] String-based editing / committing of property viewer entries.
+- [ ] Separate data types for various string encodings (and remove old string encodings -- separate data types is cleaner).
+- [ ] Generic array scanning system (ie scan for array of floats, array of ints, array of strings...)
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 
 ## Post-launch tasklist

@@ -4,7 +4,6 @@ use crate::converters::display_value_converter::DisplayValueConverter;
 use slint::{ModelRc, VecModel};
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
-use squalr_engine_api::structures::data_values::display_value_type::DisplayValueType;
 
 pub struct DataValueConverter {}
 
