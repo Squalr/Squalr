@@ -3,7 +3,7 @@ import { Theme } from "../theme.slint";
 import { ContextMenu } from "../components/context_menu/context_menu.slint";
 import { Button } from "../components/buttons/button.slint";
 import { DataTypeButton } from "data_type_button.slint";
-import { ScannerViewModelBindings, IconView } from "../view_model_bindings.slint";
+import { ScannerViewModelBindings, ValidationViewModelBindings, IconView } from "../view_model_bindings.slint";
 import { IconConverter } from "../converters/icon_converter.slint";
 
 export component DataTypeSelector inherits Rectangle {
@@ -72,6 +72,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u8";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
 
@@ -82,6 +83,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i8";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
             }
@@ -94,6 +96,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i16";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
 
@@ -104,6 +107,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i16be";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
             }
@@ -116,6 +120,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i32";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
 
@@ -126,6 +131,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i32be";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
             }
@@ -138,6 +144,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i64";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
 
@@ -148,6 +155,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i64be";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
             }
@@ -160,6 +168,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u16";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
 
@@ -170,6 +179,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u16be";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
             }
@@ -182,6 +192,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u32";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
 
@@ -192,6 +203,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u32be";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
             }
@@ -204,6 +216,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u64";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
 
@@ -214,6 +227,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u64be";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
             }
@@ -226,6 +240,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "f32";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
 
@@ -236,6 +251,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "f32be";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
             }
@@ -248,6 +264,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "f64";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
 
@@ -258,6 +275,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "f64be";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
             }
@@ -273,7 +291,6 @@ export component DataTypeSelector inherits Rectangle {
                     }
                 }
 
-                // JIRA: Pop out menu
                 data_type_custom := DataTypeButton {
                     text: @tr("Custom");
                     icon: IconView.bytes;
@@ -302,6 +319,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "string_utf8";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
 
@@ -312,6 +330,7 @@ export component DataTypeSelector inherits Rectangle {
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "string_ascii";
                         ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
                     }
                 }
             }

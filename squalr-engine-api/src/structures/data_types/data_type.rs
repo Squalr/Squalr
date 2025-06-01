@@ -41,8 +41,11 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
         data_type_meta_data: &DataTypeMetaData,
     ) -> Result<DisplayValues, DataTypeError>;
 
-    /// Gets all supported dispaly types that this data type can be shown as.
+    /// Gets all supported display types that this data type can be shown as.
     fn get_supported_display_types(&self) -> Vec<DisplayValueType>;
+
+    /// Gets the default display type that this data type can be shown as.
+    fn get_default_display_type(&self) -> DisplayValueType;
 
     /// Gets the endianness of this data type.
     fn get_endian(&self) -> Endian;

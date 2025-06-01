@@ -83,7 +83,14 @@ impl DataType for DataTypeBool8 {
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
-        vec![DisplayValueType::Bool(ContainerType::Array)]
+        vec![
+            DisplayValueType::Bool(ContainerType::None),
+            DisplayValueType::Bool(ContainerType::Array),
+        ]
+    }
+
+    fn get_default_display_type(&self) -> DisplayValueType {
+        DisplayValueType::Bool(ContainerType::None)
     }
 
     fn get_endian(&self) -> Endian {

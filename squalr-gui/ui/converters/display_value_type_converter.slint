@@ -1,24 +1,81 @@
+import { Theme } from "./../theme.slint";
+
 import { DisplayValueTypeView } from "../view_model_bindings.slint";
 
 export component DisplayValueTypeConverter {
     public pure function display_value_type_to_string(display_value_type: DisplayValueTypeView) -> string {
         if display_value_type == DisplayValueTypeView.bool {
             return "boolean";
+        } else if display_value_type == DisplayValueTypeView.bool_array {
+            return "boolean[]";
         } else if display_value_type == DisplayValueTypeView.string {
             return "string";
+        } else if display_value_type == DisplayValueTypeView.string_array {
+            return "string[]";
         } else if display_value_type == DisplayValueTypeView.binary {
             return "binary";
+        } else if display_value_type == DisplayValueTypeView.binary_array {
+            return "binary[]";
         } else if display_value_type == DisplayValueTypeView.decimal {
             return "decimal";
+        } else if display_value_type == DisplayValueTypeView.decimal_array {
+            return "decimal[]";
         } else if display_value_type == DisplayValueTypeView.hexadecimal {
             return "hexadecimal";
+        } else if display_value_type == DisplayValueTypeView.hexadecimal_array {
+            return "hexadecimal[]";
         } else if display_value_type == DisplayValueTypeView.address {
             return "address";
+        } else if display_value_type == DisplayValueTypeView.address_array {
+            return "address[]";
         } else if display_value_type == DisplayValueTypeView.data_type_ref {
             return "data type";
+        } else if display_value_type == DisplayValueTypeView.data_type_ref_array {
+            return "data type[]";
         } else if display_value_type == DisplayValueTypeView.enumeration {
             return "enumeration";
+        } else if display_value_type == DisplayValueTypeView.enumeration_array {
+            return "enumeration[]";
         }
         return "unknown";
+    }
+    public pure function display_value_type_to_color(display_value_type: DisplayValueTypeView) -> color {
+        if display_value_type == DisplayValueTypeView.bool {
+            return Theme.bin_blue;
+        } else if display_value_type == DisplayValueTypeView.bool_array {
+            return Theme.bin_blue;
+        } else if display_value_type == DisplayValueTypeView.string {
+            return Theme.foreground;
+        } else if display_value_type == DisplayValueTypeView.string_array {
+            return Theme.foreground;
+        } else if display_value_type == DisplayValueTypeView.binary {
+            return Theme.bin_blue;
+        } else if display_value_type == DisplayValueTypeView.binary_array {
+            return Theme.bin_blue;
+        } else if display_value_type == DisplayValueTypeView.decimal {
+            return Theme.foreground;
+        } else if display_value_type == DisplayValueTypeView.decimal_array {
+            return Theme.foreground;
+        } else if display_value_type == DisplayValueTypeView.hexadecimal {
+            return Theme.hex_green;
+        } else if display_value_type == DisplayValueTypeView.hexadecimal_array {
+            return Theme.hex_green;
+        } else if display_value_type == DisplayValueTypeView.address {
+            return Theme.hex_green;
+        } else if display_value_type == DisplayValueTypeView.address_array {
+            return Theme.hex_green;
+        } else if display_value_type == DisplayValueTypeView.data_type_ref {
+            return Theme.foreground;
+        } else if display_value_type == DisplayValueTypeView.data_type_ref_array {
+            return Theme.foreground;
+        } else if display_value_type == DisplayValueTypeView.enumeration {
+            return Theme.foreground;
+        } else if display_value_type == DisplayValueTypeView.enumeration_array {
+            return Theme.foreground;
+        }
+        return Theme.foreground;
+    }
+    public pure function display_value_type_to_brush(display_value_type: DisplayValueTypeView) -> brush {
+        self.display_value_type_to_color(display_value_type)
     }
 }

@@ -14,6 +14,8 @@ use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
+use squalr_engine_api::structures::data_values::container_type::ContainerType;
+use squalr_engine_api::structures::data_values::display_value_type::DisplayValueType;
 use std::sync::Arc;
 
 pub struct ValidationViewModel {
@@ -39,6 +41,8 @@ impl ValidationViewModel {
             ValidationViewModelBindings => {
                 on_validate_data_value(data_value: SharedString, data_type_id: SharedString, display_value_type: DisplayValueTypeView) -> [] -> Self::on_validate_data_value,
                 on_get_supported_display_types_for_data_type(data_type_id: SharedString) -> [] -> Self::on_get_supported_display_types_for_data_type,
+                on_get_default_display_type_for_data_type(data_type_id: SharedString) -> [] -> Self::on_get_default_display_type_for_data_type,
+                on_get_default_display_type_index_for_data_type(data_type_id: SharedString) -> [] -> Self::on_get_default_display_type_index_for_data_type,
             }
         });
 
@@ -71,5 +75,33 @@ impl ValidationViewModel {
         };
 
         ModelRc::new(VecModel::from(DisplayValueTypeConverter {}.convert_collection(&display_types)))
+    }
+
+    fn on_get_default_display_type_for_data_type(data_type_id: SharedString) -> DisplayValueTypeView {
+        let registry = DataTypeRegistry::get_instance().get_registry();
+
+        let default_display_type = if let Some(data_type) = registry.get(&data_type_id.to_string()) {
+            data_type.get_default_display_type()
+        } else {
+            DisplayValueType::Decimal(ContainerType::None)
+        };
+
+        DisplayValueTypeConverter {}.convert_to_view_data(&default_display_type)
+    }
+
+    fn on_get_default_display_type_index_for_data_type(data_type_id: SharedString) -> i32 {
+        let registry = DataTypeRegistry::get_instance().get_registry();
+
+        let (default_display_type, display_types) = if let Some(data_type) = registry.get(&data_type_id.to_string()) {
+            (data_type.get_default_display_type(), data_type.get_supported_display_types())
+        } else {
+            (DisplayValueType::Decimal(ContainerType::None), vec![])
+        };
+
+        display_types
+            .iter()
+            .position(|next_display_type| next_display_type == &default_display_type)
+            .map(|index| index as i32)
+            .unwrap_or(-1)
     }
 }

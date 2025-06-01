@@ -34,7 +34,6 @@ export component DataValueBoxOwned {
         return text_input.text;
     }
     public pure function is_value_valid() -> bool {
-        // JIRA: A bit jank to have this depend on scan settings for string encoding. Should probably come as a parameter.
         return ValidationViewModelBindings.validate_data_value(text_input.text, data_value.data_type_ref.data_type_id, root.get_active_display_value_type());
     }
     pure function get_active_display_value_type() -> DisplayValueTypeView {
@@ -110,7 +109,7 @@ export component DataValueBoxOwned {
                         height: 16px;
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        source: @image_url("../../images/scans/convert_data_type.png");
+                        source: @image_url("../../images/navigation/down_arrow_small.png");
                     }
                 }
             }
@@ -157,7 +156,7 @@ export component DataValueBoxOwned {
                         horizontal_alignment: center;
                         vertical_alignment: center;
                         text: "Interpret as " + display_value_typer_converter.display_value_type_to_string(root.supported_display_types[supported_display_type_index]);
-                        color: Theme.foreground;
+                        color: display_value_typer_converter.display_value_type_to_brush(root.supported_display_types[supported_display_type_index]);
                     }
                 }
             }

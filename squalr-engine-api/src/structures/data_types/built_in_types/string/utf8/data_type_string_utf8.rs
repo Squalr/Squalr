@@ -126,7 +126,14 @@ impl DataType for DataTypeStringUtf8 {
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
-        vec![DisplayValueType::String(ContainerType::None)]
+        vec![
+            DisplayValueType::String(ContainerType::None),
+            DisplayValueType::String(ContainerType::Array),
+        ]
+    }
+
+    fn get_default_display_type(&self) -> DisplayValueType {
+        DisplayValueType::String(ContainerType::None)
     }
 
     fn is_discrete(&self) -> bool {

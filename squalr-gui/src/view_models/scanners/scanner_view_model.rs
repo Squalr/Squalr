@@ -3,11 +3,13 @@ use crate::MainWindowView;
 use crate::ScanConstraintTypeView;
 use crate::ScannerViewModelBindings;
 use crate::ValueCollectorViewModelBindings;
+use crate::converters::data_value_converter::DataValueConverter;
 use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
 use crate::converters::scan_constraint_converter::ScanConstraintConverter;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::convert_from_view_data::ConvertFromViewData;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
@@ -17,6 +19,7 @@ use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecut
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::reset::scan_reset_request::ScanResetRequest;
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use squalr_engine_api::structures::data_types::built_in_types::i32::data_type_i32::DataTypeI32;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use std::sync::Arc;
@@ -64,7 +67,20 @@ impl ScannerViewModel {
             });
         }
 
+        Self::set_default_selection(view_model.clone());
+
         dependency_container.register::<ScannerViewModel>(view_model);
+    }
+
+    fn set_default_selection(view_model: Arc<ScannerViewModel>) {
+        view_model
+            .view_binding
+            .execute_on_ui_thread(move |main_window_view, _view_binding| {
+                let scanner_view_model_bindings = main_window_view.global::<ScannerViewModelBindings>();
+                let data_value = DataTypeI32::get_value_from_primitive(0);
+
+                scanner_view_model_bindings.set_active_data_value(DataValueConverter {}.convert_to_view_data(&data_value));
+            });
     }
 
     fn on_reset_scan(view_model: Arc<ScannerViewModel>) {

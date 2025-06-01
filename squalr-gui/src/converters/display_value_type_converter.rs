@@ -33,8 +33,8 @@ impl ConvertToViewData<DisplayValueType, DisplayValueTypeView> for DisplayValueT
                 ContainerType::Array => DisplayValueTypeView::BoolArray,
             },
             DisplayValueType::String(container_type) => match container_type {
-                ContainerType::None => DisplayValueTypeView::Bool,
-                ContainerType::Array => DisplayValueTypeView::BoolArray,
+                ContainerType::None => DisplayValueTypeView::String,
+                ContainerType::Array => DisplayValueTypeView::StringArray,
             },
             DisplayValueType::Binary(container_type) => match container_type {
                 ContainerType::None => DisplayValueTypeView::Binary,

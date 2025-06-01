@@ -59,31 +59,30 @@ impl PrimitiveDataType {
     where
         Vec<u8>: From<<T as num_traits::ToBytes>::Bytes>,
     {
-        match anonymous_value.get_value() {
-            AnonymousValueContainer::BinaryValue(value_string)
-            | AnonymousValueContainer::HexadecimalValue(value_string)
-            | AnonymousValueContainer::String(value_string) => {
+        let boolean = match anonymous_value.get_value() {
+            AnonymousValueContainer::BinaryValue(value_string) | AnonymousValueContainer::HexadecimalValue(value_string) => {
                 let normalized = value_string.trim().to_ascii_lowercase();
-                let boolean = match anonymous_value.get_value() {
-                    AnonymousValueContainer::String(string) => match normalized.to_lowercase().as_str() {
-                        "true" | "1" => true,
-                        "false" | "0" => false,
-                        _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
-                    },
-                    // For binary and hex, we only support '0'/'1' as the proper encoding for a bool.
-                    _ => match normalized.as_str() {
-                        "1" => true,
-                        "0" => false,
-                        _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
-                    },
-                };
-
-                let primitive: T = if boolean { T::from(1) } else { T::from(0) };
-                let bytes = if is_big_endian { primitive.to_be_bytes() } else { primitive.to_le_bytes() };
-
-                Ok(DataValue::new(data_type_ref, bytes.into()))
+                // For binary and hex, we only support '0'/'1' as the proper encoding for a bool.
+                match normalized.as_str() {
+                    "1" => true,
+                    "0" => false,
+                    _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
+                }
             }
-        }
+            AnonymousValueContainer::String(value_string) => {
+                let normalized = value_string.trim().to_ascii_lowercase();
+                match normalized.to_lowercase().as_str() {
+                    "true" | "1" => true,
+                    "false" | "0" => false,
+                    _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
+                }
+            }
+        };
+
+        let primitive: T = if boolean { T::from(1) } else { T::from(0) };
+        let bytes = if is_big_endian { primitive.to_be_bytes() } else { primitive.to_le_bytes() };
+
+        Ok(DataValue::new(data_type_ref, bytes.into()))
     }
 
     pub fn deanonymize_primitive<T: std::str::FromStr + Copy + num_traits::ToBytes>(
@@ -164,9 +163,16 @@ impl PrimitiveDataType {
                     let value_string_decimal = value.to_string();
                     let value_string_hexadecimal = Conversions::primitive_to_hexadecimal(&bits);
 
-                    results.push(DisplayValue::new(DisplayValueType::Binary(ContainerType::None), value_string_binary));
-                    results.push(DisplayValue::new(DisplayValueType::Decimal(ContainerType::None), value_string_decimal));
-                    results.push(DisplayValue::new(DisplayValueType::Hexadecimal(ContainerType::None), value_string_hexadecimal));
+                    for supported_display_type in Self::get_supported_display_types() {
+                        match supported_display_type {
+                            DisplayValueType::Binary(_) => results.push(DisplayValue::new(supported_display_type, value_string_binary.clone())),
+                            DisplayValueType::Decimal(_) => results.push(DisplayValue::new(supported_display_type, value_string_decimal.clone())),
+                            DisplayValueType::Hexadecimal(_) => results.push(DisplayValue::new(supported_display_type, value_string_hexadecimal.clone())),
+                            _ => {
+                                log::error!("Unhandled supported primitive display type!")
+                            }
+                        };
+                    }
 
                     Ok(DisplayValues::new(results, DisplayValueType::Decimal(ContainerType::None)))
                 } else {
@@ -217,8 +223,11 @@ impl PrimitiveDataType {
     pub fn get_supported_display_types() -> Vec<DisplayValueType> {
         vec![
             DisplayValueType::Binary(ContainerType::None),
+            DisplayValueType::Binary(ContainerType::Array),
             DisplayValueType::Decimal(ContainerType::None),
+            DisplayValueType::Decimal(ContainerType::Array),
             DisplayValueType::Hexadecimal(ContainerType::None),
+            DisplayValueType::Hexadecimal(ContainerType::Array),
         ]
     }
 }

@@ -6,7 +6,7 @@ import { FocusTouchArea } from "../focus_touch_area.slint";
 import { StateLayer } from "../state_layer.slint";
 import { FakeCheckbox } from "../checkboxes/fake_checkbox.slint";
 import { DisplayValueTypeConverter } from "../../converters/display_value_type_converter.slint";
-import { DataValueViewData, DisplayValueViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings, ScanSettingsViewModelBindings } from "../../view_model_bindings.slint";
+import { DataValueViewData, DisplayValueViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings } from "../../view_model_bindings.slint";
 
 export component DataValueBox {
     in_out property <DataValueViewData> data_value;
@@ -115,7 +115,7 @@ export component DataValueBox {
                         height: 16px;
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        source: @image_url("../../images/scans/convert_data_type.png");
+                        source: @image_url("../../images/navigation/down_arrow_small.png");
                     }
                 }
             }
