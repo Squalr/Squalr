@@ -45,15 +45,7 @@ impl DataTypeRef {
         data_type_id: &str,
         anonymous_value: &AnonymousValue,
     ) -> Self {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-        let data_type_meta_data = match registry.get(data_type_id) {
-            // JIRA: Wrong, there is a fallacy baked into this, which presumes that all meta data can be derived from the anonymous value
-            // This is 100% false, take for example an encoded string, in which the encoding exists outside of the anonymous value
-            // Thus, to decode an anonymous value, we actually need the metadata (or at least some of it) up front
-            // This is why the term metadata is, and will always be, fucking stupid, because it assumes data about the data
-            // can be grouped together as if its all just the same class citizenship, so to speak
-            // When this is clearly and obviously falls as per this example
-            // Get fucked, idiot
+        let data_type_meta_data = match DataTypeRegistry::get_instance().get(data_type_id) {
             Some(data_type) => data_type.get_meta_data_for_anonymous_value(anonymous_value),
             None => {
                 log::error!(
@@ -74,9 +66,7 @@ impl DataTypeRef {
     /// Creates a new reference to a registered `DataType`. The type must be registered to collect important metadata.
     /// If the type is not yet registered, or does not exist, then this will return `None`.
     pub fn new_from_data_type_defaults(data_type_id: &str) -> Self {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        let data_type_meta_data = match registry.get(data_type_id) {
+        let data_type_meta_data = match DataTypeRegistry::get_instance().get(data_type_id) {
             Some(data_type) => data_type.get_default_meta_data(),
             None => {
                 log::error!("Failed to resolve data type when initializing defaultmeta data: {}", data_type_id);
@@ -92,9 +82,9 @@ impl DataTypeRef {
 
     /// Determines if the `DataType` this struct represents is currently registered and available.
     pub fn is_valid(&self) -> bool {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        registry.get(self.get_data_type_id()).is_some()
+        DataTypeRegistry::get_instance()
+            .get(self.get_data_type_id())
+            .is_some()
     }
 
     pub fn get_data_type_id(&self) -> &str {
@@ -106,18 +96,14 @@ impl DataTypeRef {
     }
 
     pub fn get_icon_id(&self) -> String {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_data_type_id()) {
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => data_type.get_icon_id().to_string(),
             None => String::new(),
         }
     }
 
     pub fn get_default_size_in_bytes(&self) -> u64 {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_data_type_id()) {
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => data_type.get_default_size_in_bytes(),
             None => 0,
         }
@@ -138,9 +124,7 @@ impl DataTypeRef {
         &self,
         anonymous_value: &AnonymousValue,
     ) -> Result<DataValue, String> {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_data_type_id()) {
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => {
                 let deanonymized_value = data_type.deanonymize_value(anonymous_value, self.clone());
 
@@ -155,28 +139,14 @@ impl DataTypeRef {
 
     /// Gets a value indicating whether this value is discrete, ie non-floating point.
     pub fn is_discrete(&self) -> bool {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_data_type_id()) {
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => data_type.is_discrete(),
             None => false,
         }
     }
 
-    /*
-    pub fn is_scan_remapped_to_byte_array(&self) -> bool {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_data_type_id()) {
-            Some(data_type) => data_type.is_scan_remapped_to_byte_array(),
-            None => false,
-        }
-    } */
-
     pub fn get_default_value(&self) -> Option<DataValue> {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_data_type_id()) {
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => Some(data_type.get_default_value(self.clone())),
             None => None,
         }
@@ -187,9 +157,7 @@ impl DataTypeRef {
         scan_compare_type: &ScanCompareTypeImmediate,
         scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_data_type_id()) {
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
                 ScanCompareTypeImmediate::Equal => data_type.get_compare_equal(scan_parameters),
                 ScanCompareTypeImmediate::NotEqual => data_type.get_compare_not_equal(scan_parameters),
@@ -207,9 +175,7 @@ impl DataTypeRef {
         scan_compare_type: &ScanCompareTypeRelative,
         scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_data_type_id()) {
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
                 ScanCompareTypeRelative::Changed => data_type.get_compare_changed(scan_parameters),
                 ScanCompareTypeRelative::Unchanged => data_type.get_compare_unchanged(scan_parameters),
@@ -225,9 +191,7 @@ impl DataTypeRef {
         scan_compare_type: &ScanCompareTypeDelta,
         scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_data_type_id()) {
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
                 ScanCompareTypeDelta::IncreasedByX => data_type.get_compare_increased_by(scan_parameters),
                 ScanCompareTypeDelta::DecreasedByX => data_type.get_compare_decreased_by(scan_parameters),
@@ -252,9 +216,7 @@ impl DataTypeRef {
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_data_type_id()) {
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => {
                 <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(&data_type, &scan_compare_type_immediate, scan_parameters)
             }
@@ -270,9 +232,7 @@ impl DataTypeRef {
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_data_type_id()) {
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_relative(&data_type, &scan_compare_type_relative, scan_parameters),
             None => None,
         }
@@ -286,9 +246,7 @@ impl DataTypeRef {
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        match registry.get(self.get_data_type_id()) {
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_delta(&data_type, &scan_compare_type_delta, scan_parameters),
             None => None,
         }
@@ -311,8 +269,7 @@ impl FromStr for DataTypeRef {
         let data_type_meta_data = if parts.len() < 2 {
             DataTypeMetaData::None
         } else {
-            let registry = DataTypeRegistry::get_instance().get_registry();
-            match registry.get(data_type_id) {
+            match DataTypeRegistry::get_instance().get(data_type_id) {
                 Some(data_type) => data_type.get_meta_data_from_string(parts[1])?,
                 None => {
                     return Err(format!("Failed to resolve data type when parsing meta data: {}", data_type_id));

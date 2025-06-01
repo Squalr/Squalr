@@ -10,11 +10,13 @@ use crate::structures::data_types::{
     },
     data_type::DataType,
 };
-use dashmap::DashMap;
-use std::sync::{Arc, Once};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Once, RwLock},
+};
 
 pub struct DataTypeRegistry {
-    registry: DashMap<String, Arc<dyn DataType>>,
+    registry: RwLock<HashMap<String, Arc<dyn DataType>>>,
 }
 
 impl DataTypeRegistry {
@@ -39,12 +41,25 @@ impl DataTypeRegistry {
         }
     }
 
-    pub fn get_registry(&self) -> &DashMap<String, Arc<dyn DataType>> {
+    pub fn get_registry(&self) -> &RwLock<HashMap<String, Arc<dyn DataType>>> {
         &self.registry
     }
 
-    fn create_built_in_types() -> DashMap<String, Arc<dyn DataType>> {
-        let registry: DashMap<String, Arc<dyn DataType>> = DashMap::new();
+    pub fn get(
+        &self,
+        data_type_id: &str,
+    ) -> Option<Arc<dyn DataType>> {
+        match &self.registry.read() {
+            Ok(registry) => registry.get(data_type_id).cloned(),
+            Err(err) => {
+                log::error!("Error reading from data type registry: {}", err);
+                None
+            }
+        }
+    }
+
+    fn create_built_in_types() -> RwLock<HashMap<String, Arc<dyn DataType>>> {
+        let mut registry: HashMap<String, Arc<dyn DataType>> = HashMap::new();
 
         let built_in_data_types: Vec<Arc<dyn DataType>> = vec![
             Arc::new(DataTypeRefDataType {}),
@@ -75,6 +90,6 @@ impl DataTypeRegistry {
             registry.insert(built_in_data_type.get_data_type_id().to_string(), built_in_data_type);
         }
 
-        registry
+        RwLock::new(registry)
     }
 }

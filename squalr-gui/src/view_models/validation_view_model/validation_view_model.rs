@@ -56,9 +56,8 @@ impl ValidationViewModel {
     ) -> bool {
         let display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&display_value_type);
         let anonymous_value = AnonymousValue::new(&data_value, display_value_type);
-        let registry = DataTypeRegistry::get_instance().get_registry();
 
-        if let Some(data_type) = registry.get(&data_type_id.to_string()) {
+        if let Some(data_type) = DataTypeRegistry::get_instance().get(&data_type_id.to_string()) {
             data_type.validate_value(&anonymous_value)
         } else {
             false
@@ -66,9 +65,7 @@ impl ValidationViewModel {
     }
 
     fn on_get_supported_display_types_for_data_type(data_type_id: SharedString) -> ModelRc<DisplayValueTypeView> {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        let display_types = if let Some(data_type) = registry.get(&data_type_id.to_string()) {
+        let display_types = if let Some(data_type) = DataTypeRegistry::get_instance().get(&data_type_id.to_string()) {
             data_type.get_supported_display_types()
         } else {
             vec![]
@@ -78,9 +75,7 @@ impl ValidationViewModel {
     }
 
     fn on_get_default_display_type_for_data_type(data_type_id: SharedString) -> DisplayValueTypeView {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        let default_display_type = if let Some(data_type) = registry.get(&data_type_id.to_string()) {
+        let default_display_type = if let Some(data_type) = DataTypeRegistry::get_instance().get(&data_type_id.to_string()) {
             data_type.get_default_display_type()
         } else {
             DisplayValueType::Decimal(ContainerType::None)
@@ -90,9 +85,7 @@ impl ValidationViewModel {
     }
 
     fn on_get_default_display_type_index_for_data_type(data_type_id: SharedString) -> i32 {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        let (default_display_type, display_types) = if let Some(data_type) = registry.get(&data_type_id.to_string()) {
+        let (default_display_type, display_types) = if let Some(data_type) = DataTypeRegistry::get_instance().get(&data_type_id.to_string()) {
             (data_type.get_default_display_type(), data_type.get_supported_display_types())
         } else {
             (DisplayValueType::Decimal(ContainerType::None), vec![])

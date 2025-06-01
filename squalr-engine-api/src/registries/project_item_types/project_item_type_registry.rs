@@ -5,11 +5,13 @@ use crate::structures::projects::project_items::{
     },
     project_item_type::ProjectItemType,
 };
-use dashmap::DashMap;
-use std::sync::{Arc, Once};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Once, RwLock},
+};
 
 pub struct ProjectItemTypeRegistry {
-    registry: DashMap<String, Arc<dyn ProjectItemType>>,
+    registry: RwLock<HashMap<String, Arc<dyn ProjectItemType>>>,
 }
 
 impl ProjectItemTypeRegistry {
@@ -34,12 +36,12 @@ impl ProjectItemTypeRegistry {
         }
     }
 
-    pub fn get_registry(&self) -> &DashMap<String, Arc<dyn ProjectItemType>> {
+    pub fn get_registry(&self) -> &RwLock<HashMap<String, Arc<dyn ProjectItemType>>> {
         &self.registry
     }
 
-    fn create_built_in_types() -> DashMap<String, Arc<dyn ProjectItemType>> {
-        let registry: DashMap<String, Arc<dyn ProjectItemType>> = DashMap::new();
+    fn create_built_in_types() -> RwLock<HashMap<String, Arc<dyn ProjectItemType>>> {
+        let mut registry: HashMap<String, Arc<dyn ProjectItemType>> = HashMap::new();
 
         let built_in_project_item_types: Vec<Arc<dyn ProjectItemType>> = vec![
             Arc::new(ProjectItemTypeDirectory {}),
@@ -56,6 +58,6 @@ impl ProjectItemTypeRegistry {
             );
         }
 
-        registry
+        RwLock::new(registry)
     }
 }

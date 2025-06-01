@@ -101,9 +101,7 @@ impl DataValue {
         data_type_ref: &DataTypeRef,
         value_bytes: &[u8],
     ) -> DisplayValues {
-        let registry = DataTypeRegistry::get_instance().get_registry();
-
-        registry
+        DataTypeRegistry::get_instance()
             .get(data_type_ref.get_data_type_id())
             .and_then(|data_type| {
                 data_type

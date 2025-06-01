@@ -11,7 +11,6 @@ squalr-engine-common = { path = "../squalr-engine-common" }
 squalr-engine-memory = { path = "../squalr-engine-memory" }
 bitflags = ">=2.6.0"
 bytemuck = ">=1.17.0"
-dashmap = { version = ">=6.0.1", features = ["inline", "rayon"] }
 futures = ">=0.3.30"
 lazy_static = ">=1.5.0"
 log = { version = ">=0.4.26" }
