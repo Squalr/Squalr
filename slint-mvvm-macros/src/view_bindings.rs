@@ -23,7 +23,7 @@ impl Parse for CreateViewBindingsInput {
         let content;
         braced!(content in input);
 
-        let mut groups = Vec::new();
+        let mut groups = vec![];
         while !content.is_empty() {
             let group: BindingGroup = content.parse()?;
             if content.peek(Token![,]) {
@@ -68,7 +68,7 @@ impl Parse for BindingGroup {
         let callbacks_block;
         braced!(callbacks_block in input);
 
-        let mut callbacks = Vec::new();
+        let mut callbacks = vec![];
         while !callbacks_block.is_empty() {
             let callback_def: CallbackDefinition = callbacks_block.parse()?;
             if callbacks_block.peek(Token![,]) {
@@ -168,7 +168,7 @@ impl Parse for CallbackDefinition {
 
 // Helper to parse a comma-separated list of `(ident: Type)` pairs
 fn parse_args(input: ParseStream) -> SynResult<Vec<(Ident, Type)>> {
-    let mut args = Vec::new();
+    let mut args = vec![];
 
     while !input.is_empty() {
         let arg_name: Ident = input.parse()?;

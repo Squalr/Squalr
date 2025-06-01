@@ -36,7 +36,7 @@ pub struct MappedScanParameters {
 }
 
 impl MappedScanParameters {
-    /// Creates optimized scan paramaters for a given snapshot region filter, given user provided global/local scan parameters.
+    /// Creates optimized scan paramaters for a given snapshot region filter, given user provided scan parameters.
     /// Internally, the user parameters are processed into more optimal parameters that help select the most optimal scan implementation.
     pub fn new(
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
@@ -60,38 +60,28 @@ impl MappedScanParameters {
             return mapped_params;
         }
 
-        // JIRA: Well, we don't actually want a byte array type, we would rather flag all incoming types as arrays or not.
-        // This of course adds burden, because we can, in theory, have like a u8[2], which we would want to remap to primtiive
-        // Shit is super annoying.
-        // Okay so yes, we should be operating on data values, not data types. DataValue can be considered source of truth
-        // and is type agnostic. Way better, way easier.
-        // This means we may need to map the parameters on a per-data type basis, rather than for the whole group.
-        // (are we not already doing that? time to relearn this architecture)
-        /*
-        // Next handle string scans. These are always just remapped to byte array scans.
-        if mapped_params.get_data_type().get_data_type_id() == DataTypeString::get_data_type_id() {
-            let byte_count = mapped_params.data_value.get_size_in_bytes();
-            mapped_params.data_value.remap_data_type(DataTypeRef::new(
-                DataTypeByteArray::get_data_type_id(),
-                DataTypeMetaData::SizedContainer(byte_count),
-            ));
-        }
-
-        // Next handle byte array scans. These can potentially be remapped to primitive scans for performance gains.
-        if mapped_params.get_data_type().get_data_type_id() == DataTypeByteArray::get_data_type_id() {
-            match Self::try_map_byte_array_to_primitive(&mapped_params.get_data_type()) {
-                None => {
-                    // Perform a standard byte array scan, since we were unable to map the byte array to a primitive type.
-                    mapped_params.mapped_scan_type = MappedScanType::ByteArray(ScanParametersByteArray::ByteArrayBooyerMoore);
-
-                    return mapped_params;
-                }
-                Some(mapped_data_type_ref) => {
-                    // Mapping onto a primitive type map was successful. Update our new internal data type, and proceed with this as the new type.
-                    mapped_params.data_value.remap_data_type(mapped_data_type_ref);
-                }
+        // Try to map the scan value to primitive scans for performance gains.
+        // For example, a byte array scan of 2 bytes can be mapped to a u16 scan.
+        match Self::try_map_to_primitive(&mapped_params.get_data_value()) {
+            Some(mapped_data_type_ref) => {
+                // Mapping onto a primitive type map was successful. Update our new internal data type, and proceed with this as the new type.
+                mapped_params.data_value.remap_data_type(mapped_data_type_ref);
             }
-        } */
+            None => {
+                // JIRA: Okay but this breaks if they scan for an array of floats, since float comparisons are actually non-discrete.
+                if mapped_params.data_value.get_data_type().is_discrete() {
+                    log::warn!(
+                        "Float array type scans are currently not fully supported! These scans currently lack tolerance checks and perform byte-wise exact comparisons. Scan accuracy may suffer."
+                    )
+                }
+
+                // Perform a byte array scan, since we were unable to map the byte array to a primitive type.
+                // These are the only acceptable options, either the type is a primitive, or its a byte array.
+                mapped_params.mapped_scan_type = MappedScanType::ByteArray(ScanParametersByteArray::ByteArrayBooyerMoore);
+
+                return mapped_params;
+            }
+        }
 
         // Now we decide whether to use a scalar or SIMD scan based on filter region size.
         mapped_params.vectorization_size =
@@ -254,12 +244,29 @@ impl MappedScanParameters {
         element_count == 1
     }
 
-    fn try_map_byte_array_to_primitive(data_type: &DataTypeRef) -> Option<DataTypeRef> {
-        let original_data_type_size = data_type.get_size_in_bytes();
+    fn try_map_to_primitive(data_value: &DataValue) -> Option<DataTypeRef> {
+        // Non discrete / floating point types cannot be remapped. For example, if we have an array of two f32 values,
+        // we absolutely cannot remap this to a single u64 (nor an f64) since these require tolerance comparisons.
+        if !data_value.get_data_type().is_discrete() {
+            return None;
+        }
+
+        let data_type_size = data_value.get_size_in_bytes();
+        let data_type_default_size = data_value.get_data_type().get_default_size_in_bytes();
+
+        // If the data type size is the default for that type, and its already a valid primitive size,
+        // there is no need to perform a remapping. We do this check to avoid meaningless remappings,
+        // such as remapping i16 to u16, even though this is technically acceptable.
+        if data_type_size == data_type_default_size {
+            match data_type_size {
+                1 | 2 | 4 | 8 => return None,
+                _ => {}
+            };
+        }
 
         // If applicable, try to reinterpret array of byte scans as a primitive type of the same size.
         // These are much more efficient than array of byte scans, so for scans of these sizes performance will be improved greatly.
-        match original_data_type_size {
+        match data_type_size {
             8 => Some(DataTypeRef::new(DataTypeU64be::get_data_type_id(), DataTypeMetaData::None)),
             4 => Some(DataTypeRef::new(DataTypeU32be::get_data_type_id(), DataTypeMetaData::None)),
             2 => Some(DataTypeRef::new(DataTypeU16be::get_data_type_id(), DataTypeMetaData::None)),

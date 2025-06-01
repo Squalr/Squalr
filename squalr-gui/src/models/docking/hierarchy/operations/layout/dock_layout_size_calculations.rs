@@ -21,7 +21,7 @@ impl DockLayout {
         path: &[usize],
     ) -> Option<(f32, f32, f32, f32)> {
         let mut found = None;
-        let mut path_stack = Vec::new();
+        let mut path_stack = vec![];
         self.walk_with_layout_and_path(
             &node,
             0.0,

@@ -92,14 +92,14 @@ impl DataType for DataTypeString {
                     let mut string_bytes = match string_encoding {
                         StringEncoding::Utf8 => value_string_utf8.as_bytes().to_vec(),
                         StringEncoding::Utf16 => {
-                            let mut bytes = Vec::new();
+                            let mut bytes = vec![];
                             for utf16 in value_string_utf8.encode_utf16() {
                                 bytes.extend_from_slice(&utf16.to_le_bytes());
                             }
                             bytes
                         }
                         StringEncoding::Utf16be => {
-                            let mut bytes = Vec::new();
+                            let mut bytes = vec![];
                             for utf16 in value_string_utf8.encode_utf16() {
                                 bytes.extend_from_slice(&utf16.to_be_bytes());
                             }

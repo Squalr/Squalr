@@ -67,29 +67,28 @@ impl DataType for DataTypeStringUtf8 {
         }
 
         match data_type_ref.get_meta_data() {
-            DataTypeMetaData::SizedContainer(size) => match anonymous_value.get_value() {
-                AnonymousValueContainer::BinaryValue(value_string_utf8) => {
-                    let mut value_bytes = Conversions::binary_to_bytes(value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
+            DataTypeMetaData::SizedContainer(size) => {
+                let mut bytes = vec![];
 
-                    value_bytes.truncate(*size as usize);
+                for next_value in anonymous_value.parse_values() {
+                    let mut next_bytes = match next_value {
+                        AnonymousValueContainer::BinaryValue(value_string_utf8) => {
+                            Conversions::binary_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
+                        }
+                        AnonymousValueContainer::HexadecimalValue(value_string_utf8) => {
+                            Conversions::hex_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
+                        }
+                        AnonymousValueContainer::String(value_string_utf8) => value_string_utf8.as_bytes().to_vec(),
+                    };
 
-                    return Ok(DataValue::new(data_type_ref, value_bytes));
+                    bytes.append(&mut next_bytes);
                 }
-                AnonymousValueContainer::HexadecimalValue(value_string_utf8) => {
-                    let mut value_bytes = Conversions::hex_to_bytes(value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
 
-                    value_bytes.truncate(*size as usize);
+                // Truncate to container size
+                bytes.truncate(*size as usize);
 
-                    return Ok(DataValue::new(data_type_ref, value_bytes));
-                }
-                AnonymousValueContainer::String(value_string_utf8) => {
-                    let mut string_bytes = value_string_utf8.as_bytes().to_vec();
-
-                    string_bytes.truncate(*size as usize);
-
-                    Ok(DataValue::new(data_type_ref, string_bytes))
-                }
-            },
+                Ok(DataValue::new(data_type_ref, bytes))
+            }
             _ => Err(DataTypeError::InvalidMetaData),
         }
     }

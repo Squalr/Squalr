@@ -6,7 +6,7 @@ impl DockNode {
         &self,
         window_id: &str,
     ) -> Option<Vec<usize>> {
-        let mut path_stack = Vec::new();
+        let mut path_stack = vec![];
         let mut result = None;
 
         self.walk(&mut path_stack, &mut |node, current_path| {

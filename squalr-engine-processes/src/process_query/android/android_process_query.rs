@@ -87,7 +87,7 @@ impl AndroidProcessQuery {
             }
         };
 
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         if let Err(err) = BufReader::new(file).read_to_end(&mut buffer) {
             Logger::log(LogLevel::Error, &format!("Error reading packages.xml: {}", err), None);
             return;
@@ -136,7 +136,7 @@ impl AndroidProcessQuery {
 
         for icon_path in ICON_PATHS {
             if let Ok(mut icon_file) = archive.by_name(icon_path) {
-                let mut icon_data = Vec::new();
+                let mut icon_data = vec![];
                 if icon_file.read_to_end(&mut icon_data).is_ok() {
                     let reader = ImageReader::new(Cursor::new(icon_data))
                         .with_guessed_format()
@@ -225,7 +225,7 @@ impl ProcessQueryer for AndroidProcessQuery {
 
         let all_processes = all_processes_guard.clone();
         let zygote_processes = zygote_processes_guard.clone();
-        let mut results = Vec::new();
+        let mut results = vec![];
 
         for android_process_info in all_processes.values() {
             let apk_path = Self::get_apk_path(&android_process_info.package_name);

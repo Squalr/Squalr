@@ -55,7 +55,7 @@ impl DockNode {
         if let Some(parent_node) = self.get_node_from_path(parent_path) {
             if let DockNode::Tab { tabs, .. } = parent_node {
                 // Collect all siblings in this Tab, filtering by visibility if requested.
-                let mut siblings = Vec::new();
+                let mut siblings = vec![];
                 for tab_node in tabs {
                     if let DockNode::Window {
                         window_identifier, is_visible, ..

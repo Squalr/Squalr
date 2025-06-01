@@ -114,17 +114,19 @@ impl DataTypeRef {
         }
     }
 
+    pub fn get_default_size_in_bytes(&self) -> u64 {
+        let registry = DataTypeRegistry::get_instance().get_registry();
+
+        match registry.get(self.get_data_type_id()) {
+            Some(data_type) => data_type.get_default_size_in_bytes(),
+            None => 0,
+        }
+    }
+
     pub fn get_size_in_bytes(&self) -> u64 {
         match &self.data_type_meta_data {
             // For standard types, return the default / primitive size from the data type in the registry.
-            DataTypeMetaData::None | DataTypeMetaData::Primitive() => {
-                let registry = DataTypeRegistry::get_instance().get_registry();
-
-                match registry.get(self.get_data_type_id()) {
-                    Some(data_type) => data_type.get_default_size_in_bytes(),
-                    None => 0,
-                }
-            }
+            DataTypeMetaData::None | DataTypeMetaData::Primitive() => self.get_default_size_in_bytes(),
             // For container types, return the size of the container.
             DataTypeMetaData::SizedContainer(size) => *size,
             // For fixed string types, return the size of the string.

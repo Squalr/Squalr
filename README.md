@@ -48,7 +48,7 @@ Launch Checklist:
 - [X] Display type switching for property viewer data types.
 - [ ] String-based editing / committing of property viewer entries.
 - [ ] Separate data types for various string encodings (and remove old string encodings -- separate data types is cleaner).
-- [ ] Generic array scanning system (ie scan for array of floats, array of ints, array of strings...)
+- [X] Generic array scanning system (ie scan for array of floats, array of ints, array of strings...)
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 
 ## Post-launch tasklist
@@ -60,6 +60,7 @@ Post-launch Features:
 - [ ] Editing scan results directly (via property viewer).
 - [ ] Deleting scan results directly.
 - [ ] Case insensitive string scans.
+- [ ] Tolerance handling for float array scans.
 - [ ] Pointer Scans.
 - [ ] Memory viewer.
 - [ ] Masked byte scans.

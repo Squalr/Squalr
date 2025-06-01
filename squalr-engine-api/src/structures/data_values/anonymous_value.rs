@@ -65,7 +65,7 @@ impl AnonymousValue {
         }
     }
 
-    pub fn get_value(&self) -> &AnonymousValueContainer {
+    pub fn get_raw_value(&self) -> &AnonymousValueContainer {
         &self.container_value
     }
 

@@ -36,7 +36,7 @@ impl AndroidMemoryQueryer {
         let file = File::open(&path)?;
         let reader = BufReader::new(file);
 
-        let mut regions = Vec::new();
+        let mut regions = vec![];
 
         // Each line in `/proc/<process_id>/maps` typically looks like:
         // 00400000-00452000 r-xp 00000000 fc:01 1234   /system/bin/app_process32
@@ -219,7 +219,7 @@ impl IMemoryQueryer for AndroidMemoryQueryer {
             return vec![];
         };
 
-        let mut out = Vec::new();
+        let mut out = vec![];
 
         for reg in regions {
             let protection = Self::to_memory_protection(&reg.perms);
@@ -313,7 +313,7 @@ impl IMemoryQueryer for AndroidMemoryQueryer {
             return vec![];
         };
 
-        let mut modules = Vec::new();
+        let mut modules = vec![];
         for reg in regions {
             // If perms has 'x' (execute) and pathname is not empty
             if reg.perms.len() >= 3 && &reg.perms[2..3] == "x" && !reg.pathname.is_empty() {
