@@ -68,23 +68,17 @@ impl DataType for DataTypeStringUtf8 {
 
         match data_type_ref.get_meta_data() {
             DataTypeMetaData::SizedContainer(size) => {
-                let mut bytes = vec![];
+                let mut bytes = match anonymous_value.get_value() {
+                    AnonymousValueContainer::BinaryValue(value_string_utf8) => {
+                        Conversions::binary_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
+                    }
+                    AnonymousValueContainer::HexadecimalValue(value_string_utf8) => {
+                        Conversions::hex_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
+                    }
+                    AnonymousValueContainer::String(value_string_utf8) => value_string_utf8.as_bytes().to_vec(),
+                };
 
-                for next_value in anonymous_value.parse_values() {
-                    let mut next_bytes = match next_value {
-                        AnonymousValueContainer::BinaryValue(value_string_utf8) => {
-                            Conversions::binary_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
-                        }
-                        AnonymousValueContainer::HexadecimalValue(value_string_utf8) => {
-                            Conversions::hex_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
-                        }
-                        AnonymousValueContainer::String(value_string_utf8) => value_string_utf8.as_bytes().to_vec(),
-                    };
-
-                    bytes.append(&mut next_bytes);
-                }
-
-                // Truncate to container size
+                // Truncate to container size.
                 bytes.truncate(*size as usize);
 
                 Ok(DataValue::new(data_type_ref, bytes))
@@ -151,16 +145,18 @@ impl DataType for DataTypeStringUtf8 {
     }
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {
-        DataTypeMetaData::SizedContainer(1)
+        DataTypeMetaData::SizedContainer(self.get_default_size_in_bytes())
     }
 
     fn get_meta_data_for_anonymous_value(
         &self,
         anonymous_value: &AnonymousValue,
     ) -> DataTypeMetaData {
-        let data_type_ref = DataTypeRef::new_from_anonymous_value(self.get_data_type_id(), anonymous_value);
-
-        data_type_ref.get_meta_data().to_owned()
+        match anonymous_value.get_value() {
+            AnonymousValueContainer::String(string) | AnonymousValueContainer::BinaryValue(string) | AnonymousValueContainer::HexadecimalValue(string) => {
+                DataTypeMetaData::SizedContainer(string.bytes().len() as u64)
+            }
+        }
     }
 
     fn get_meta_data_from_string(

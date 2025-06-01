@@ -76,22 +76,10 @@ impl DataType for DataTypeRefDataType {
         }
 
         match data_type_ref.get_meta_data() {
-            DataTypeMetaData::FixedString(_) => {
-                let mut bytes = vec![];
-
-                for next_value in anonymous_value.parse_values() {
-                    match next_value {
-                        AnonymousValueContainer::String(value_string) => {
-                            bytes.extend_from_slice(value_string.as_bytes());
-                        }
-                        _ => {
-                            return Err(DataTypeError::InvalidMetaData);
-                        }
-                    }
-                }
-
-                Ok(DataValue::new(data_type_ref, bytes))
-            }
+            DataTypeMetaData::FixedString(_) => match anonymous_value.get_value() {
+                AnonymousValueContainer::String(value_string) => Ok(DataValue::new(data_type_ref, value_string.as_bytes().to_vec())),
+                _ => Err(DataTypeError::InvalidMetaData),
+            },
             _ => Err(DataTypeError::InvalidMetaData),
         }
     }
@@ -151,7 +139,7 @@ impl DataType for DataTypeRefDataType {
         &self,
         anonymous_value: &AnonymousValue,
     ) -> DataTypeMetaData {
-        match anonymous_value.get_raw_value() {
+        match anonymous_value.get_value() {
             AnonymousValueContainer::String(string) => DataTypeMetaData::FixedString(string.into()),
 
             // These anonymous container types are not supported.

@@ -1,6 +1,5 @@
 use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_values::DisplayValues;
@@ -11,7 +10,7 @@ use std::{
     str::FromStr,
 };
 
-use super::display_value_type::DisplayValueType;
+use super::{anonymous_values::AnonymousValues, display_value_type::DisplayValueType};
 
 /// Represents a value for a `DataType`. Additionally, new `DataType` and `DataValue` pairs can be registered by plugins.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -122,10 +121,10 @@ impl FromStr for DataValue {
             return Err("Invalid data value string provided. Expected {data_type{;optional_container_size}}={value}".into());
         }
 
-        let data_type = DataTypeRef::from_str(parts[0])?;
-        let anonymous_value = AnonymousValue::from_str(parts[1])?;
+        let data_type_ref = DataTypeRef::from_str(parts[0])?;
+        let anonymous_values = AnonymousValues::from_str(parts[1])?;
 
-        match data_type.deanonymize_value(&anonymous_value) {
+        match anonymous_values.deanonymize_value(&data_type_ref) {
             Ok(value) => Ok(value),
             Err(err) => Err(format!("Unable to parse value: {}", err)),
         }

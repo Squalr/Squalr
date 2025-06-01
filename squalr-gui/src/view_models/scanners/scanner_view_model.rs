@@ -22,6 +22,7 @@ use squalr_engine_api::dependency_injection::dependency_container::DependencyCon
 use squalr_engine_api::structures::data_types::built_in_types::i32::data_type_i32::DataTypeI32;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
+use squalr_engine_api::structures::data_values::anonymous_values::AnonymousValues;
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -121,7 +122,8 @@ impl ScannerViewModel {
         let scan_value = scan_value.to_string();
         let data_type_id = data_type_id.to_string();
         let display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&display_value_type);
-        let scan_value = AnonymousValue::new(&scan_value, display_value_type);
+        let scan_value = AnonymousValues::new(&scan_value, display_value_type);
+        /*
         let data_type_ref = DataTypeRef::new_from_anonymous_value(&data_type_id, &scan_value);
 
         match scan_view_model_state_value {
@@ -134,7 +136,7 @@ impl ScannerViewModel {
             ScanViewModelState::ScanInProgress => {
                 log::error!("Cannot start a new scan while a scan is in progress.");
             }
-        };
+        }; */
     }
 
     fn on_collect_values(view_model: Arc<ScannerViewModel>) {

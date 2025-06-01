@@ -1,7 +1,6 @@
-use crate::structures::data_values::container_type::ContainerType;
+use crate::registries::data_types::data_type_registry::DataTypeRegistry;
+use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::data_value::DataValue;
-use crate::structures::data_values::display_value_type::DisplayValueType;
-use crate::{registries::data_types::data_type_registry::DataTypeRegistry, structures::data_types::data_type_ref::DataTypeRef};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -20,30 +19,16 @@ pub enum AnonymousValueContainer {
 /// many data types. This is helpful for supporting values passed via command line / GUI.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AnonymousValue {
-    container_value: AnonymousValueContainer,
-    container_type: ContainerType,
+    anonymous_value_container: AnonymousValueContainer,
 }
 
 impl AnonymousValue {
-    pub fn new(
-        value: &str,
-        display_value_type: DisplayValueType,
-    ) -> Self {
-        let (container_value, container_type) = match display_value_type {
-            DisplayValueType::Bool(container_type) => (AnonymousValueContainer::String(value.to_string()), container_type),
-            DisplayValueType::String(container_type) => (AnonymousValueContainer::String(value.to_string()), container_type),
-            DisplayValueType::Binary(container_type) => (AnonymousValueContainer::BinaryValue(value.to_string()), container_type),
-            DisplayValueType::Decimal(container_type) => (AnonymousValueContainer::String(value.to_string()), container_type),
-            DisplayValueType::Hexadecimal(container_type) => (AnonymousValueContainer::HexadecimalValue(value.to_string()), container_type),
-            DisplayValueType::Address(container_type) => (AnonymousValueContainer::String(value.to_string()), container_type),
-            DisplayValueType::DataTypeRef(container_type) => (AnonymousValueContainer::String(value.to_string()), container_type),
-            DisplayValueType::Enumeration(container_type) => (AnonymousValueContainer::String(value.to_string()), container_type),
-        };
+    pub fn new(anonymous_value_container: AnonymousValueContainer) -> Self {
+        AnonymousValue { anonymous_value_container }
+    }
 
-        AnonymousValue {
-            container_value,
-            container_type,
-        }
+    pub fn get_value(&self) -> &AnonymousValueContainer {
+        &self.anonymous_value_container
     }
 
     pub fn deanonymize_value(
@@ -62,42 +47,23 @@ impl AnonymousValue {
             None => Err("Cannot deanonymize value: data type is not registered.".into()),
         }
     }
-
-    pub fn get_raw_value(&self) -> &AnonymousValueContainer {
-        &self.container_value
-    }
-
-    pub fn parse_values(&self) -> Vec<AnonymousValueContainer> {
-        match self.container_type {
-            ContainerType::Array => match &self.container_value {
-                AnonymousValueContainer::BinaryValue(value_string) => value_string
-                    .split(|character| character == ' ' || character == ',')
-                    .filter(|substring| !substring.is_empty())
-                    .map(|substring| AnonymousValueContainer::BinaryValue(substring.to_string()))
-                    .collect(),
-                AnonymousValueContainer::HexadecimalValue(value_string) => value_string
-                    .split(|character| character == ' ' || character == ',')
-                    .filter(|substring| !substring.is_empty())
-                    .map(|substring| AnonymousValueContainer::HexadecimalValue(substring.to_string()))
-                    .collect(),
-                AnonymousValueContainer::String(value_string) => value_string
-                    .split(|character| character == ' ' || character == ',')
-                    .filter(|substring| !substring.is_empty())
-                    .map(|substring| AnonymousValueContainer::String(substring.to_string()))
-                    .collect(),
-            },
-
-            ContainerType::None => vec![self.container_value.clone()],
-        }
-    }
 }
 
 impl FromStr for AnonymousValue {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        // JIRA: Support for container type specification
-        Ok(AnonymousValue::new(string, DisplayValueType::String(ContainerType::None)))
+        if let Some((value, suffix)) = string.rsplit_once(';') {
+            match suffix {
+                "str" => Ok(AnonymousValue::new(AnonymousValueContainer::String(value.to_string()))),
+                "bin" => Ok(AnonymousValue::new(AnonymousValueContainer::BinaryValue(value.to_string()))),
+                "hex" => Ok(AnonymousValue::new(AnonymousValueContainer::HexadecimalValue(value.to_string()))),
+                _ => Ok(AnonymousValue::new(AnonymousValueContainer::String(value.to_string()))),
+            }
+        } else {
+            // No suffix — default to String
+            Ok(AnonymousValue::new(AnonymousValueContainer::String(string.to_string())))
+        }
     }
 }
 
@@ -106,16 +72,15 @@ impl fmt::Display for AnonymousValue {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        // JIRA: container type
-        match &self.container_value {
+        match &self.anonymous_value_container {
             AnonymousValueContainer::String(string) => {
-                write!(formatter, "{}", string)
+                write!(formatter, "{};str", string)
             }
             AnonymousValueContainer::BinaryValue(string) => {
-                write!(formatter, "{}", string)
+                write!(formatter, "{};bin", string)
             }
             AnonymousValueContainer::HexadecimalValue(string) => {
-                write!(formatter, "{}", string)
+                write!(formatter, "{};hex", string)
             }
         }
     }

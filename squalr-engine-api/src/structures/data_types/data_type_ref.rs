@@ -265,15 +265,17 @@ impl FromStr for DataTypeRef {
 
         let data_type_id = parts[0];
 
-        // Parse out any sized container data if it was present.
-        let data_type_meta_data = if parts.len() < 2 {
-            DataTypeMetaData::None
-        } else {
-            match DataTypeRegistry::get_instance().get(data_type_id) {
-                Some(data_type) => data_type.get_meta_data_from_string(parts[1])?,
-                None => {
-                    return Err(format!("Failed to resolve data type when parsing meta data: {}", data_type_id));
+        // Parse out metadata if present.
+        let data_type_meta_data = match DataTypeRegistry::get_instance().get(data_type_id) {
+            Some(data_type) => {
+                if parts.len() >= 2 {
+                    data_type.get_meta_data_from_string(parts[1])?
+                } else {
+                    data_type.get_default_meta_data()
                 }
+            }
+            None => {
+                return Err(format!("Failed to resolve data type when parsing meta data: {}", data_type_id));
             }
         };
 
