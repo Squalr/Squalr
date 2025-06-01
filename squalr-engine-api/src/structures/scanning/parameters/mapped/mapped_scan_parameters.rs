@@ -63,6 +63,10 @@ impl MappedScanParameters {
         // JIRA: Well, we don't actually want a byte array type, we would rather flag all incoming types as arrays or not.
         // This of course adds burden, because we can, in theory, have like a u8[2], which we would want to remap to primtiive
         // Shit is super annoying.
+        // Okay so yes, we should be operating on data values, not data types. DataValue can be considered source of truth
+        // and is type agnostic. Way better, way easier.
+        // This means we may need to map the parameters on a per-data type basis, rather than for the whole group.
+        // (are we not already doing that? time to relearn this architecture)
         /*
         // Next handle string scans. These are always just remapped to byte array scans.
         if mapped_params.get_data_type().get_data_type_id() == DataTypeString::get_data_type_id() {

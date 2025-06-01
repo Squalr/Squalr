@@ -57,10 +57,11 @@ Lower priority features that we can defer, for now.
 Post-launch Features:
 - [ ] Improve coverage of conversion framework.
 - [ ] Custom and built in editors for property viewer data types.
-- [ ] Editing scan results directly (via property viewer)
+- [ ] Editing scan results directly (via property viewer).
 - [ ] Deleting scan results directly.
-- [ ] Pointer Scans
-- [ ] Memory viewer
+- [ ] Case insensitive string scans.
+- [ ] Pointer Scans.
+- [ ] Memory viewer.
 - [ ] Masked byte scans.
 - [ ] Bitfield scans.
 - [ ] Plugin system for new data types. The engine is already designed with this feature in mind, so actually this should be fairly easy.

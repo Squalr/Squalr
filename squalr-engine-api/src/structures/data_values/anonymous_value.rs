@@ -68,13 +68,37 @@ impl AnonymousValue {
     pub fn get_value(&self) -> &AnonymousValueContainer {
         &self.container_value
     }
+
+    pub fn parse_values(&self) -> Vec<AnonymousValueContainer> {
+        match self.container_type {
+            ContainerType::Array => match &self.container_value {
+                AnonymousValueContainer::BinaryValue(value_string) => value_string
+                    .split(|character| character == ' ' || character == ',')
+                    .filter(|substring| !substring.is_empty())
+                    .map(|substring| AnonymousValueContainer::BinaryValue(substring.to_string()))
+                    .collect(),
+                AnonymousValueContainer::HexadecimalValue(value_string) => value_string
+                    .split(|character| character == ' ' || character == ',')
+                    .filter(|substring| !substring.is_empty())
+                    .map(|substring| AnonymousValueContainer::HexadecimalValue(substring.to_string()))
+                    .collect(),
+                AnonymousValueContainer::String(value_string) => value_string
+                    .split(|character| character == ' ' || character == ',')
+                    .filter(|substring| !substring.is_empty())
+                    .map(|substring| AnonymousValueContainer::String(substring.to_string()))
+                    .collect(),
+            },
+
+            ContainerType::None => vec![self.container_value.clone()],
+        }
+    }
 }
 
 impl FromStr for AnonymousValue {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        // JIRA: Support parameters, container types, etc.
+        // JIRA: Support for container type specification
         Ok(AnonymousValue::new(string, DisplayValueType::String(ContainerType::None)))
     }
 }

@@ -59,30 +59,41 @@ impl PrimitiveDataType {
     where
         Vec<u8>: From<<T as num_traits::ToBytes>::Bytes>,
     {
-        let boolean = match anonymous_value.get_value() {
-            AnonymousValueContainer::BinaryValue(value_string) | AnonymousValueContainer::HexadecimalValue(value_string) => {
-                let normalized = value_string.trim().to_ascii_lowercase();
-                // For binary and hex, we only support '0'/'1' as the proper encoding for a bool.
-                match normalized.as_str() {
-                    "1" => true,
-                    "0" => false,
-                    _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
-                }
-            }
-            AnonymousValueContainer::String(value_string) => {
-                let normalized = value_string.trim().to_ascii_lowercase();
-                match normalized.to_lowercase().as_str() {
-                    "true" | "1" => true,
-                    "false" | "0" => false,
-                    _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
-                }
-            }
-        };
+        let mut bytes = Vec::new();
 
-        let primitive: T = if boolean { T::from(1) } else { T::from(0) };
-        let bytes = if is_big_endian { primitive.to_be_bytes() } else { primitive.to_le_bytes() };
+        // Generally this is one iteration, but in the case where doing an array scan, we concat all the values together.
+        for next_value in anonymous_value.parse_values() {
+            let boolean = match next_value {
+                AnonymousValueContainer::BinaryValue(value_string) | AnonymousValueContainer::HexadecimalValue(value_string) => {
+                    let normalized = value_string.trim().to_ascii_lowercase();
+                    // For binary and hex, we only support '0'/'1' as the proper encoding for a bool.
+                    match normalized.as_str() {
+                        "1" => true,
+                        "0" => false,
+                        _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
+                    }
+                }
+                AnonymousValueContainer::String(value_string) => {
+                    let normalized = value_string.trim().to_ascii_lowercase();
+                    match normalized.to_lowercase().as_str() {
+                        "true" | "1" => true,
+                        "false" | "0" => false,
+                        _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
+                    }
+                }
+            };
 
-        Ok(DataValue::new(data_type_ref, bytes.into()))
+            let primitive: T = if boolean { T::from(1) } else { T::from(0) };
+            let next_bytes: Vec<u8> = if is_big_endian {
+                primitive.to_be_bytes().into()
+            } else {
+                primitive.to_le_bytes().into()
+            };
+
+            bytes.extend(next_bytes);
+        }
+
+        Ok(DataValue::new(data_type_ref, bytes))
     }
 
     pub fn deanonymize_primitive<T: std::str::FromStr + Copy + num_traits::ToBytes>(
