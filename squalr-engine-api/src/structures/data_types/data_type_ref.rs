@@ -121,9 +121,9 @@ impl DataTypeRef {
     }
 
     /// Gets a value indicating whether this value is discrete, ie non-floating point.
-    pub fn is_discrete(&self) -> bool {
+    pub fn is_floating_point(&self) -> bool {
         match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
-            Some(data_type) => data_type.is_discrete(),
+            Some(data_type) => data_type.is_floating_point(),
             None => false,
         }
     }

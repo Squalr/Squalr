@@ -70,7 +70,7 @@ impl MappedScanParameters {
             None => {
                 if Self::can_remap_to_byte_array(mapped_params.get_compare_type(), &mapped_params.get_data_value()) {
                     // JIRA: Okay but this breaks if they scan for an array of floats, since float comparisons are actually non-discrete.
-                    if mapped_params.data_value.get_data_type().is_discrete() {
+                    if mapped_params.data_value.get_data_type().is_floating_point() {
                         log::warn!(
                             "Float array type scans are currently not fully supported! These scans currently lack tolerance checks and perform byte-wise exact comparisons. Scan accuracy may suffer."
                         )
@@ -102,7 +102,7 @@ impl MappedScanParameters {
 
         if data_type_size > memory_alignment_size {
             // For discrete, multi-byte, primitive types (non-floating point), we can fall back on optimized scans if explicitly performing == or != scans.
-            if mapped_params.data_value.get_data_type().is_discrete()
+            if !mapped_params.data_value.get_data_type().is_floating_point()
                 && mapped_params.data_value.get_size_in_bytes() > 1
                 && Self::is_checking_equal_or_not_equal(&mapped_params.scan_compare_type)
             {
@@ -258,7 +258,7 @@ impl MappedScanParameters {
 
         // Non discrete / floating point types cannot be remapped. For example, if we have an array of two f32 values,
         // we absolutely cannot remap this to a single u64 (nor an f64) since these require tolerance comparisons.
-        if !data_value.get_data_type().is_discrete() {
+        if data_value.get_data_type().is_floating_point() {
             return None;
         }
 
@@ -295,10 +295,6 @@ impl MappedScanParameters {
             ScanCompareType::Immediate(_) => {}
         };
 
-        if data_value.get_data_type().is_discrete() {
-            return false;
-        }
-
         true
     }
 
@@ -329,8 +325,7 @@ impl MappedScanParameters {
     fn is_checking_equal_or_not_equal(scan_compare_type: &ScanCompareType) -> bool {
         match scan_compare_type {
             ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
-                ScanCompareTypeImmediate::Equal => true,
-                ScanCompareTypeImmediate::NotEqual => true,
+                ScanCompareTypeImmediate::Equal | ScanCompareTypeImmediate::NotEqual => true,
                 _ => false,
             },
             _ => false,

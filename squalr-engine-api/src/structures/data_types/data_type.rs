@@ -55,7 +55,7 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
     fn get_endian(&self) -> Endian;
 
     /// Gets a value indicating whether this value is discrete, ie non-floating point.
-    fn is_discrete(&self) -> bool;
+    fn is_floating_point(&self) -> bool;
 
     /// Gets a value indicating whether this scan should use byte array scans internally.
     /// For complex data types, this is almost always the case.

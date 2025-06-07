@@ -93,7 +93,7 @@ impl DataType for DataTypeI8 {
         Endian::Little
     }
 
-    fn is_discrete(&self) -> bool {
+    fn is_floating_point(&self) -> bool {
         true
     }
 

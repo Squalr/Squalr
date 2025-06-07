@@ -20,6 +20,12 @@ Additionally, Squalr has been rewritten from the ground up in Rust.
 
 ![SqualrGUI](docs/Squalr.png)
 
+## Features
+- [X] Primitive scans
+- [X] Array scans, including arrays of primitives (ie u8[], i32[], string_utf8[])
+- [X] String scans
+
+
 ## Pre-launch tasklist
 For platforms like Android, Squalr runs in a dual process mode with an unprivileged GUI and a privileged shell (given that the device has been rooted). The privileged shell obviously does most of the heavy lifting. This naturally gives rise to a command/response architecture, which makes for clear separation of concerns, but is a headache in other ways.
 
@@ -44,11 +50,11 @@ Launch Checklist:
 - [X] Freezing/deleting scan results directly from scan window.
 - [X] String scans.
 - [X] Robust conversion framework.
+- [X] Separate data types for various string encodings (and remove old string encodings -- separate data types is cleaner).
+- [X] Generic array scanning system (ie scan for array of floats, array of ints, array of strings...)
 - [X] Property viewer in the GUI that can register an active set of properties.
 - [X] Display type switching for property viewer data types.
 - [ ] String-based editing / committing of property viewer entries.
-- [X] Separate data types for various string encodings (and remove old string encodings -- separate data types is cleaner).
-- [X] Generic array scanning system (ie scan for array of floats, array of ints, array of strings...)
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 
 ## Post-launch tasklist

@@ -98,8 +98,8 @@ impl DataType for DataTypeBool8 {
         Endian::Little
     }
 
-    fn is_discrete(&self) -> bool {
-        true
+    fn is_floating_point(&self) -> bool {
+        false
     }
 
     fn get_default_value(

@@ -113,8 +113,8 @@ impl DataType for DataTypeStringUtf8 {
         DisplayValueType::String(ContainerType::None)
     }
 
-    fn is_discrete(&self) -> bool {
-        true
+    fn is_floating_point(&self) -> bool {
+        false
     }
 
     fn get_endian(&self) -> Endian {

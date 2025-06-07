@@ -95,8 +95,8 @@ impl DataType for DataTypeF32 {
         Endian::Little
     }
 
-    fn is_discrete(&self) -> bool {
-        false
+    fn is_floating_point(&self) -> bool {
+        true
     }
 
     fn get_default_value(
