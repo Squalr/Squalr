@@ -54,7 +54,7 @@ impl DataType for DataTypeString {
 
     fn validate_value(
         &self,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> bool {
         let data_type_ref = DataTypeRef::new_from_anonymous_value(self.get_data_type_id(), anonymous_value);
 

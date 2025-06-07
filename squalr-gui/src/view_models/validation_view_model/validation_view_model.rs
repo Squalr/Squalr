@@ -13,7 +13,7 @@ use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
-use squalr_engine_api::structures::data_values::anonymous_values::AnonymousValues;
+use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::data_values::display_value_type::DisplayValueType;
 use std::sync::Arc;
@@ -55,9 +55,9 @@ impl ValidationViewModel {
         display_value_type: DisplayValueTypeView,
     ) -> bool {
         let display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&display_value_type);
-        let anonymous_values = AnonymousValues::new(&data_value, display_value_type);
+        let anonymous_value = AnonymousValue::new(&data_value, display_value_type);
 
-        for anonymous_value in anonymous_values.get_values() {
+        for anonymous_value in anonymous_value.get_values() {
             if let Some(data_type) = DataTypeRegistry::get_instance().get(&data_type_id.to_string()) {
                 if !data_type.validate_value(&anonymous_value) {
                     return false;

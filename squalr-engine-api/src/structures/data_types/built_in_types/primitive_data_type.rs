@@ -1,12 +1,13 @@
 use crate::conversions::conversions::Conversions;
-use crate::structures::data_values::anonymous_value::AnonymousValue;
+use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::container_type::ContainerType;
+use crate::structures::data_values::data_value::DataValue;
 use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::{
-    data_types::{data_type_error::DataTypeError, data_type_meta_data::DataTypeMetaData, data_type_ref::DataTypeRef},
-    data_values::{anonymous_value::AnonymousValueContainer, data_value::DataValue},
+    data_types::{data_type_error::DataTypeError, data_type_meta_data::DataTypeMetaData},
+    data_values::anonymous_value::AnonymousValueContainer,
 };
 use std::fmt;
 use std::{any::type_name, mem::size_of, str::FromStr};
@@ -51,15 +52,14 @@ pub struct PrimitiveDataType {}
 
 impl PrimitiveDataType {
     pub fn deanonymize_bool<T: Copy + num_traits::ToBytes + From<u8>>(
-        anonymous_value: &AnonymousValue,
-        data_type_ref: DataTypeRef,
+        anonymous_value_container: &AnonymousValueContainer,
         is_big_endian: bool,
-    ) -> Result<DataValue, DataTypeError>
+    ) -> Result<Vec<u8>, DataTypeError>
     where
         Vec<u8>: From<<T as num_traits::ToBytes>::Bytes>,
     {
         // Generally this is one iteration, but in the case where doing an array scan, we concat all the values together.
-        let boolean = match anonymous_value.get_value() {
+        let boolean = match anonymous_value_container {
             AnonymousValueContainer::BinaryValue(value_string) | AnonymousValueContainer::HexadecimalValue(value_string) => {
                 let normalized = value_string.trim().to_ascii_lowercase();
                 // For binary and hex, we only support '0'/'1' as the proper encoding for a bool.
@@ -80,25 +80,20 @@ impl PrimitiveDataType {
         };
 
         let primitive: T = if boolean { T::from(1) } else { T::from(0) };
-        let bytes = if is_big_endian {
-            primitive.to_be_bytes().into()
-        } else {
-            primitive.to_le_bytes().into()
-        };
+        let bytes = if is_big_endian { primitive.to_be_bytes() } else { primitive.to_le_bytes() };
 
-        Ok(DataValue::new(data_type_ref, bytes))
+        Ok(bytes.into())
     }
 
     pub fn deanonymize_primitive<T: std::str::FromStr + Copy + num_traits::ToBytes>(
-        anonymous_value: &AnonymousValue,
-        data_type_ref: DataTypeRef,
+        anonymous_value_container: &AnonymousValueContainer,
         is_big_endian: bool,
-    ) -> Result<DataValue, DataTypeError>
+    ) -> Result<Vec<u8>, DataTypeError>
     where
         T::Bytes: Into<Vec<u8>>,
         <T as FromStr>::Err: std::fmt::Display,
     {
-        let bytes = match anonymous_value.get_value() {
+        let bytes = match anonymous_value_container {
             AnonymousValueContainer::BinaryValue(value_string) => match Conversions::binary_to_primitive_bytes::<T>(&value_string, is_big_endian) {
                 Ok(val_bytes) => {
                     if val_bytes.len() < size_of::<T>() {
@@ -152,7 +147,81 @@ impl PrimitiveDataType {
             },
         };
 
-        Ok(DataValue::new(data_type_ref, bytes))
+        Ok(bytes)
+    }
+
+    pub fn decode_string<F>(
+        anonymous_value_container: &AnonymousValueContainer,
+        data_type_ref: &DataTypeRef,
+        decode_string_func: F,
+    ) -> Result<Vec<u8>, DataTypeError>
+    where
+        F: Fn(&String) -> Vec<u8>,
+    {
+        match data_type_ref.get_meta_data() {
+            DataTypeMetaData::SizedContainer(size) => {
+                let mut bytes = match anonymous_value_container {
+                    // For binary strings, we directly map the binary to bytes.
+                    AnonymousValueContainer::BinaryValue(value_string_utf8) => {
+                        Conversions::binary_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
+                    }
+                    // For hex strings, we directly map the hex to bytes.
+                    AnonymousValueContainer::HexadecimalValue(value_string_utf8) => {
+                        Conversions::hex_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
+                    }
+                    // For normal strings, we decode into the appropriate provided encoding.
+                    AnonymousValueContainer::String(value_string_utf8) => decode_string_func(value_string_utf8),
+                };
+
+                // Truncate to container size.
+                bytes.truncate(*size as usize);
+
+                Ok(bytes)
+            }
+            _ => Err(DataTypeError::InvalidMetaData),
+        }
+    }
+
+    /// Merges an array of data values of the same data type into a singular data value.
+    pub fn array_merge(data_values: Vec<DataValue>) -> Result<DataValue, DataTypeError> {
+        if let Some(merged_values) = data_values.first() {
+            let merged_data_type = merged_values.get_data_type();
+            let mut merged_data_type_meta_data = merged_data_type.get_meta_data().clone();
+            let mut merged_bytes = merged_values.get_value_bytes().clone();
+
+            for next in data_values.iter().skip(1) {
+                if merged_values.get_data_type_id() != next.get_data_type_id() {
+                    return Err(DataTypeError::DataValueMergeError {
+                        error: "Data type mismatch in array merge!".to_string(),
+                    });
+                }
+
+                let mut next_bytes = next.get_value_bytes().clone();
+
+                merged_bytes.append(&mut next_bytes);
+
+                merged_data_type_meta_data = match merged_data_type_meta_data {
+                    DataTypeMetaData::SizedContainer(size) => match next.get_data_type().get_meta_data() {
+                        DataTypeMetaData::SizedContainer(next_size) => DataTypeMetaData::SizedContainer(size + *next_size),
+                        _ => {
+                            return Err(DataTypeError::DataValueMergeError {
+                                error: "Mismatched data type metadata in array merge!".to_string(),
+                            });
+                        }
+                    },
+                    _ => merged_data_type_meta_data,
+                };
+            }
+
+            return Ok(DataValue::new(
+                DataTypeRef::new(merged_data_type.get_data_type_id(), merged_data_type_meta_data),
+                merged_bytes,
+            ));
+        }
+
+        Err(DataTypeError::DataValueMergeError {
+            error: "No values provided to array merge!".to_string(),
+        })
     }
 
     pub fn create_display_values<T, F>(

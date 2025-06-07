@@ -3,7 +3,6 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecuteRequest;
 use squalr_engine_api::commands::scan::execute::scan_execute_response::ScanExecuteResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
-use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::scanning::data_value_and_alignment::DataValueAndAlignment;
 use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters::UserScanParameters;
@@ -26,18 +25,17 @@ impl EngineCommandRequestExecutor for ScanExecuteRequest {
             let snapshot = engine_privileged_state.get_snapshot();
             let alignment = ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1);
             let data_values_and_alignments = self
-                .data_type_refs
+                .data_type_ids
                 .iter()
-                .map(|data_type_ref| {
-                    // If a scan value was provided in the form of an anonymous value, deanonymize it into an actual value.
-                    // Otherwise, fall back on a data value that just contains the data type information without value bytes.
-                    let data_value = self
-                        .scan_value
-                        .as_ref()
-                        .and_then(|scan_value| scan_value.deanonymize_value(data_type_ref).ok())
-                        .unwrap_or_else(|| DataValue::new(data_type_ref.clone(), vec![]));
-
-                    DataValueAndAlignment::new(data_value, alignment)
+                .filter_map(|data_type_id| match &self.scan_value {
+                    Some(anonymous_value) => match anonymous_value.deanonymize_value(data_type_id) {
+                        Ok(data_value) => Some(DataValueAndAlignment::new(data_value, alignment)),
+                        Err(err) => {
+                            log::error!("Error mapping data value: {}", err);
+                            None
+                        }
+                    },
+                    None => None,
                 })
                 .collect();
             let scan_parameters = UserScanParameters::new(

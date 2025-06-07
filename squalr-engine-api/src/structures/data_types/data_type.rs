@@ -3,7 +3,7 @@ use crate::structures::data_types::comparisons::vector_comparable::VectorCompara
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value::AnonymousValue;
+use crate::structures::data_values::anonymous_value::AnonymousValueContainer;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
@@ -24,14 +24,18 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
     /// Determines if an anonymous value can be interpreted as this data type.
     fn validate_value(
         &self,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> bool;
 
     /// Attempts to interpret an anonymous value as this data type, returning a `DataValue` on success.
     fn deanonymize_value(
         &self,
-        anonymous_value: &AnonymousValue,
-        data_type_ref: DataTypeRef,
+        anonymous_value_container: &AnonymousValueContainer,
+    ) -> Result<DataValue, DataTypeError>;
+
+    fn array_merge(
+        &self,
+        data_values: Vec<DataValue>,
     ) -> Result<DataValue, DataTypeError>;
 
     /// Creates all supported display values for this data types (ie bin/dec/hex).
@@ -66,7 +70,7 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
 
     fn get_meta_data_for_anonymous_value(
         &self,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> DataTypeMetaData;
 
     fn get_meta_data_from_string(

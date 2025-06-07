@@ -1,7 +1,7 @@
 use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::generics::vector_comparer::VectorComparer;
-use crate::structures::data_values::anonymous_value::AnonymousValue;
+use crate::structures::data_values::anonymous_value::AnonymousValueContainer;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
@@ -43,33 +43,16 @@ impl DataTypeRef {
     /// If the type is not yet registered, or does not exist, then this will return `None`.
     pub fn new_from_anonymous_value(
         data_type_id: &str,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> Self {
         let data_type_meta_data = match DataTypeRegistry::get_instance().get(data_type_id) {
-            Some(data_type) => data_type.get_meta_data_for_anonymous_value(anonymous_value),
+            Some(data_type) => data_type.get_meta_data_for_anonymous_value(anonymous_value_container),
             None => {
                 log::error!(
-                    "Failed to resolve data type when initializing meta data from anonymous value: {}: {}",
+                    "Failed to resolve data type when initializing meta data from anonymous value: {}: {:?}",
                     data_type_id,
-                    anonymous_value
+                    anonymous_value_container
                 );
-                DataTypeMetaData::None
-            }
-        };
-
-        Self {
-            data_type_id: data_type_id.to_string(),
-            data_type_meta_data,
-        }
-    }
-
-    /// Creates a new reference to a registered `DataType`. The type must be registered to collect important metadata.
-    /// If the type is not yet registered, or does not exist, then this will return `None`.
-    pub fn new_from_data_type_defaults(data_type_id: &str) -> Self {
-        let data_type_meta_data = match DataTypeRegistry::get_instance().get(data_type_id) {
-            Some(data_type) => data_type.get_default_meta_data(),
-            None => {
-                log::error!("Failed to resolve data type when initializing defaultmeta data: {}", data_type_id);
                 DataTypeMetaData::None
             }
         };
@@ -122,11 +105,11 @@ impl DataTypeRef {
 
     pub fn deanonymize_value(
         &self,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> Result<DataValue, String> {
         match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => {
-                let deanonymized_value = data_type.deanonymize_value(anonymous_value, self.clone());
+                let deanonymized_value = data_type.deanonymize_value(anonymous_value_container);
 
                 match deanonymized_value {
                     Ok(value) => Ok(value),

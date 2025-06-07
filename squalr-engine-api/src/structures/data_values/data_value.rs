@@ -10,7 +10,7 @@ use std::{
     str::FromStr,
 };
 
-use super::{anonymous_values::AnonymousValues, display_value_type::DisplayValueType};
+use super::{anonymous_value::AnonymousValue, display_value_type::DisplayValueType};
 
 /// Represents a value for a `DataType`. Additionally, new `DataType` and `DataValue` pairs can be registered by plugins.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -122,9 +122,9 @@ impl FromStr for DataValue {
         }
 
         let data_type_ref = DataTypeRef::from_str(parts[0])?;
-        let anonymous_values = AnonymousValues::from_str(parts[1])?;
+        let anonymous_value = AnonymousValue::from_str(parts[1])?;
 
-        match anonymous_values.deanonymize_value(&data_type_ref) {
+        match anonymous_value.deanonymize_value(data_type_ref.get_data_type_id()) {
             Ok(value) => Ok(value),
             Err(err) => Err(format!("Unable to parse value: {}", err)),
         }

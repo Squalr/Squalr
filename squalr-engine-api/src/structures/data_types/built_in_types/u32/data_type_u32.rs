@@ -2,7 +2,7 @@ use crate::structures::data_types::built_in_types::primitive_data_type::Primitiv
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value::AnonymousValue;
+use crate::structures::data_values::anonymous_value::AnonymousValueContainer;
 use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
@@ -48,11 +48,9 @@ impl DataType for DataTypeU32 {
 
     fn validate_value(
         &self,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> bool {
-        let data_type_ref = DataTypeRef::new_from_anonymous_value(self.get_data_type_id(), anonymous_value);
-
-        match self.deanonymize_value(anonymous_value, data_type_ref) {
+        match PrimitiveDataType::deanonymize_primitive::<PrimitiveType>(anonymous_value_container, false) {
             Ok(_) => true,
             Err(_) => false,
         }
@@ -60,16 +58,19 @@ impl DataType for DataTypeU32 {
 
     fn deanonymize_value(
         &self,
-        anonymous_value: &AnonymousValue,
-        data_type_ref: DataTypeRef,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> Result<DataValue, DataTypeError> {
-        if data_type_ref.get_data_type_id() != Self::get_data_type_id() {
-            return Err(DataTypeError::InvalidDataTypeRef {
-                data_type_ref: data_type_ref.get_data_type_id().to_string(),
-            });
-        }
+        Ok(DataValue::new(
+            DataTypeRef::new(Self::get_data_type_id(), self.get_meta_data_for_anonymous_value(anonymous_value_container)),
+            PrimitiveDataType::deanonymize_primitive::<PrimitiveType>(anonymous_value_container, false)?,
+        ))
+    }
 
-        PrimitiveDataType::deanonymize_primitive::<PrimitiveType>(anonymous_value, data_type_ref, false)
+    fn array_merge(
+        &self,
+        data_values: Vec<DataValue>,
+    ) -> Result<DataValue, DataTypeError> {
+        PrimitiveDataType::array_merge(data_values)
     }
 
     fn create_display_values(
@@ -111,7 +112,7 @@ impl DataType for DataTypeU32 {
 
     fn get_meta_data_for_anonymous_value(
         &self,
-        _anonymous_value: &AnonymousValue,
+        _anonymous_value_container: &AnonymousValueContainer,
     ) -> DataTypeMetaData {
         DataTypeMetaData::Primitive()
     }

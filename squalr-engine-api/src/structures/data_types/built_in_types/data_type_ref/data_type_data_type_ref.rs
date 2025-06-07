@@ -1,7 +1,7 @@
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
+use crate::structures::data_values::anonymous_value::AnonymousValueContainer;
 use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
@@ -53,33 +53,25 @@ impl DataType for DataTypeRefDataType {
 
     fn validate_value(
         &self,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> bool {
-        let data_type_ref = DataTypeRef::new_from_anonymous_value(self.get_data_type_id(), anonymous_value);
-
-        // Validating a UTF string really just boils down to "can we parse the anonymous value as a string".
-        match self.deanonymize_value(anonymous_value, data_type_ref) {
-            Ok(_) => true,
-            Err(_) => false,
+        // All non-empty data type refs are considered valid. At least for now, we do not require that the type be registered yet.
+        // If there is a compelling reason to change this, we can re-evaluate this in the future.
+        match anonymous_value_container {
+            AnonymousValueContainer::String(value_string) => !value_string.is_empty(),
+            _ => false,
         }
     }
 
     fn deanonymize_value(
         &self,
-        anonymous_value: &AnonymousValue,
-        data_type_ref: DataTypeRef,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> Result<DataValue, DataTypeError> {
-        if data_type_ref.get_data_type_id() != Self::get_data_type_id() {
-            return Err(DataTypeError::InvalidDataTypeRef {
-                data_type_ref: data_type_ref.get_data_type_id().to_string(),
-            });
-        }
-
-        match data_type_ref.get_meta_data() {
-            DataTypeMetaData::FixedString(_) => match anonymous_value.get_value() {
-                AnonymousValueContainer::String(value_string) => Ok(DataValue::new(data_type_ref, value_string.as_bytes().to_vec())),
-                _ => Err(DataTypeError::InvalidMetaData),
-            },
+        match anonymous_value_container {
+            AnonymousValueContainer::String(value_string) => Ok(DataValue::new(
+                DataTypeRef::new(Self::get_data_type_id(), self.get_meta_data_for_anonymous_value(anonymous_value_container)),
+                value_string.as_bytes().to_vec(),
+            )),
             _ => Err(DataTypeError::InvalidMetaData),
         }
     }
@@ -103,6 +95,15 @@ impl DataType for DataTypeRefDataType {
             )),
             _ => Err(DataTypeError::InvalidMetaData),
         }
+    }
+
+    fn array_merge(
+        &self,
+        _data_values: Vec<DataValue>,
+    ) -> Result<DataValue, DataTypeError> {
+        Err(DataTypeError::DataValueMergeError {
+            error: "Array merge is unsupported for data type references!".to_string(),
+        })
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
@@ -137,9 +138,9 @@ impl DataType for DataTypeRefDataType {
 
     fn get_meta_data_for_anonymous_value(
         &self,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> DataTypeMetaData {
-        match anonymous_value.get_value() {
+        match anonymous_value_container {
             AnonymousValueContainer::String(string) => DataTypeMetaData::FixedString(string.into()),
 
             // These anonymous container types are not supported.

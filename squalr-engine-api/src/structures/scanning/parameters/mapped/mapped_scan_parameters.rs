@@ -62,24 +62,26 @@ impl MappedScanParameters {
 
         // Try to map the scan value to primitive scans for performance gains.
         // For example, a byte array scan of 2 bytes can be mapped to a u16 scan.
-        match Self::try_map_to_primitive(&mapped_params.get_data_value()) {
+        match Self::try_map_to_primitive(mapped_params.get_compare_type(), &mapped_params.get_data_value()) {
             Some(mapped_data_type_ref) => {
                 // Mapping onto a primitive type map was successful. Update our new internal data type, and proceed with this as the new type.
                 mapped_params.data_value.remap_data_type(mapped_data_type_ref);
             }
             None => {
-                // JIRA: Okay but this breaks if they scan for an array of floats, since float comparisons are actually non-discrete.
-                if mapped_params.data_value.get_data_type().is_discrete() {
-                    log::warn!(
-                        "Float array type scans are currently not fully supported! These scans currently lack tolerance checks and perform byte-wise exact comparisons. Scan accuracy may suffer."
-                    )
+                if Self::can_remap_to_byte_array(mapped_params.get_compare_type(), &mapped_params.get_data_value()) {
+                    // JIRA: Okay but this breaks if they scan for an array of floats, since float comparisons are actually non-discrete.
+                    if mapped_params.data_value.get_data_type().is_discrete() {
+                        log::warn!(
+                            "Float array type scans are currently not fully supported! These scans currently lack tolerance checks and perform byte-wise exact comparisons. Scan accuracy may suffer."
+                        )
+                    }
+
+                    // Perform a byte array scan, since we were unable to map the byte array to a primitive type.
+                    // These are the only acceptable options, either the type is a primitive, or its a byte array.
+                    mapped_params.mapped_scan_type = MappedScanType::ByteArray(ScanParametersByteArray::ByteArrayBooyerMoore);
+
+                    return mapped_params;
                 }
-
-                // Perform a byte array scan, since we were unable to map the byte array to a primitive type.
-                // These are the only acceptable options, either the type is a primitive, or its a byte array.
-                mapped_params.mapped_scan_type = MappedScanType::ByteArray(ScanParametersByteArray::ByteArrayBooyerMoore);
-
-                return mapped_params;
             }
         }
 
@@ -244,7 +246,16 @@ impl MappedScanParameters {
         element_count == 1
     }
 
-    fn try_map_to_primitive(data_value: &DataValue) -> Option<DataTypeRef> {
+    fn try_map_to_primitive(
+        scan_compare_type: &ScanCompareType,
+        data_value: &DataValue,
+    ) -> Option<DataTypeRef> {
+        // Only immediate scans can be remapped, if the scan is relative, then the original data type is crucial.
+        match scan_compare_type {
+            ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => return None,
+            ScanCompareType::Immediate(_) => {}
+        };
+
         // Non discrete / floating point types cannot be remapped. For example, if we have an array of two f32 values,
         // we absolutely cannot remap this to a single u64 (nor an f64) since these require tolerance comparisons.
         if !data_value.get_data_type().is_discrete() {
@@ -273,6 +284,22 @@ impl MappedScanParameters {
             1 => Some(DataTypeRef::new(DataTypeU8::get_data_type_id(), DataTypeMetaData::None)),
             _ => None,
         }
+    }
+
+    fn can_remap_to_byte_array(
+        scan_compare_type: &ScanCompareType,
+        data_value: &DataValue,
+    ) -> bool {
+        match scan_compare_type {
+            ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => return false,
+            ScanCompareType::Immediate(_) => {}
+        };
+
+        if data_value.get_data_type().is_discrete() {
+            return false;
+        }
+
+        true
     }
 
     fn create_vectorization_size(

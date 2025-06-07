@@ -20,6 +20,9 @@ pub enum DataTypeError {
     #[error("Decoding error")]
     DecodingError,
 
+    #[error("Data value merge error")]
+    DataValueMergeError { error: String },
+
     #[error("Invalid value '{value}', is_hex: {is_value_hex} => {source}")]
     ValueParseError {
         value: String,

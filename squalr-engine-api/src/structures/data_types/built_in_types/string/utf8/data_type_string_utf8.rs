@@ -1,8 +1,8 @@
-use crate::conversions::conversions::Conversions;
+use crate::structures::data_types::built_in_types::primitive_data_type::PrimitiveDataType;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
+use crate::structures::data_values::anonymous_value::AnonymousValueContainer;
 use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
@@ -45,46 +45,30 @@ impl DataType for DataTypeStringUtf8 {
 
     fn validate_value(
         &self,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> bool {
-        let data_type_ref = DataTypeRef::new_from_anonymous_value(self.get_data_type_id(), anonymous_value);
-
-        match self.deanonymize_value(anonymous_value, data_type_ref) {
-            Ok(_) => true,
-            Err(_) => false,
+        match anonymous_value_container {
+            AnonymousValueContainer::BinaryValue(value_string) => !value_string.is_empty(),
+            AnonymousValueContainer::HexadecimalValue(value_string) => !value_string.is_empty(),
+            AnonymousValueContainer::String(value_string) => !value_string.is_empty(),
         }
     }
 
     fn deanonymize_value(
         &self,
-        anonymous_value: &AnonymousValue,
-        data_type_ref: DataTypeRef,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> Result<DataValue, DataTypeError> {
-        if data_type_ref.get_data_type_id() != Self::get_data_type_id() {
-            return Err(DataTypeError::InvalidDataTypeRef {
-                data_type_ref: data_type_ref.get_data_type_id().to_string(),
-            });
-        }
+        let data_type_ref = DataTypeRef::new(Self::get_data_type_id(), self.get_meta_data_for_anonymous_value(anonymous_value_container));
+        let decoded_bytes = PrimitiveDataType::decode_string(anonymous_value_container, &data_type_ref, |value_string| value_string.as_bytes().to_vec())?;
 
-        match data_type_ref.get_meta_data() {
-            DataTypeMetaData::SizedContainer(size) => {
-                let mut bytes = match anonymous_value.get_value() {
-                    AnonymousValueContainer::BinaryValue(value_string_utf8) => {
-                        Conversions::binary_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
-                    }
-                    AnonymousValueContainer::HexadecimalValue(value_string_utf8) => {
-                        Conversions::hex_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
-                    }
-                    AnonymousValueContainer::String(value_string_utf8) => value_string_utf8.as_bytes().to_vec(),
-                };
+        Ok(DataValue::new(data_type_ref, decoded_bytes))
+    }
 
-                // Truncate to container size.
-                bytes.truncate(*size as usize);
-
-                Ok(DataValue::new(data_type_ref, bytes))
-            }
-            _ => Err(DataTypeError::InvalidMetaData),
-        }
+    fn array_merge(
+        &self,
+        data_values: Vec<DataValue>,
+    ) -> Result<DataValue, DataTypeError> {
+        PrimitiveDataType::array_merge(data_values)
     }
 
     fn create_display_values(
@@ -150,9 +134,9 @@ impl DataType for DataTypeStringUtf8 {
 
     fn get_meta_data_for_anonymous_value(
         &self,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_container: &AnonymousValueContainer,
     ) -> DataTypeMetaData {
-        match anonymous_value.get_value() {
+        match anonymous_value_container {
             AnonymousValueContainer::String(string) | AnonymousValueContainer::BinaryValue(string) | AnonymousValueContainer::HexadecimalValue(string) => {
                 DataTypeMetaData::SizedContainer(string.bytes().len() as u64)
             }

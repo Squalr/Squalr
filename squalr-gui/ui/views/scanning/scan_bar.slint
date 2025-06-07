@@ -85,7 +85,7 @@ export component ScanBarView inherits Rectangle {
             clicked => {
                 ScannerViewModelBindings.start_scan(
                     scan_value.get_value_text(),
-                    ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id,
+                    [ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id],
                     ScannerViewModelBindings.active_data_value.display_values[ScannerViewModelBindings.active_data_value.active_display_value_index].display_value_type,
                     ScannerViewModelBindings.active_scan_type);
             }

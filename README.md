@@ -47,7 +47,7 @@ Launch Checklist:
 - [X] Property viewer in the GUI that can register an active set of properties.
 - [X] Display type switching for property viewer data types.
 - [ ] String-based editing / committing of property viewer entries.
-- [ ] Separate data types for various string encodings (and remove old string encodings -- separate data types is cleaner).
+- [X] Separate data types for various string encodings (and remove old string encodings -- separate data types is cleaner).
 - [X] Generic array scanning system (ie scan for array of floats, array of ints, array of strings...)
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 
@@ -56,6 +56,7 @@ Lower priority features that we can defer, for now.
 
 Post-launch Features:
 - [ ] Improve coverage of conversion framework.
+- [ ] More string encodings
 - [ ] Custom and built in editors for property viewer data types.
 - [ ] Editing scan results directly (via property viewer).
 - [ ] Deleting scan results directly.
