@@ -17,6 +17,9 @@ pub enum DataTypeError {
     #[error("Invalid meta data")]
     InvalidMetaData,
 
+    #[error("Unsupported display type")]
+    UnsupportedDisplayType,
+
     #[error("Decoding error")]
     DecodingError,
 

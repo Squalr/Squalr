@@ -31,7 +31,7 @@ impl DataTypeBool32 {
     pub fn get_value_from_primitive(value: ExposedType) -> DataValue {
         let value_bytes = PrimitiveType::to_le_bytes(value as PrimitiveType);
 
-        DataValue::new(DataTypeRef::new(Self::get_data_type_id(), DataTypeMetaData::Primitive()), value_bytes.to_vec())
+        DataValue::new(DataTypeRef::new(Self::get_data_type_id(), DataTypeMetaData::Primitive(1)), value_bytes.to_vec())
     }
 }
 
@@ -62,9 +62,14 @@ impl DataType for DataTypeBool32 {
         &self,
         anonymous_value_container: &AnonymousValueContainer,
     ) -> Result<DataValue, DataTypeError> {
+        let value_bytes = PrimitiveDataType::deanonymize_bool::<PrimitiveType>(anonymous_value_container, false)?;
+
         Ok(DataValue::new(
-            DataTypeRef::new(Self::get_data_type_id(), self.get_meta_data_for_anonymous_value(anonymous_value_container)),
-            PrimitiveDataType::deanonymize_bool::<PrimitiveType>(anonymous_value_container, false)?,
+            DataTypeRef::new(
+                Self::get_data_type_id(),
+                DataTypeMetaData::Primitive(value_bytes.len() as u64 / self.get_default_size_in_bytes()),
+            ),
+            value_bytes,
         ))
     }
 
@@ -110,20 +115,6 @@ impl DataType for DataTypeBool32 {
     }
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {
-        DataTypeMetaData::Primitive()
-    }
-
-    fn get_meta_data_for_anonymous_value(
-        &self,
-        _anonymous_value_container: &AnonymousValueContainer,
-    ) -> DataTypeMetaData {
-        DataTypeMetaData::Primitive()
-    }
-
-    fn get_meta_data_from_string(
-        &self,
-        _string: &str,
-    ) -> Result<DataTypeMetaData, String> {
-        Ok(DataTypeMetaData::Primitive())
+        DataTypeMetaData::Primitive(1)
     }
 }

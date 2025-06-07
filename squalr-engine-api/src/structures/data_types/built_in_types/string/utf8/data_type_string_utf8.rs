@@ -58,7 +58,12 @@ impl DataType for DataTypeStringUtf8 {
         &self,
         anonymous_value_container: &AnonymousValueContainer,
     ) -> Result<DataValue, DataTypeError> {
-        let data_type_ref = DataTypeRef::new(Self::get_data_type_id(), self.get_meta_data_for_anonymous_value(anonymous_value_container));
+        let data_type_meta_data: DataTypeMetaData = match anonymous_value_container {
+            AnonymousValueContainer::String(string) | AnonymousValueContainer::BinaryValue(string) | AnonymousValueContainer::HexadecimalValue(string) => {
+                DataTypeMetaData::SizedContainer(string.bytes().len() as u64)
+            }
+        };
+        let data_type_ref = DataTypeRef::new(Self::get_data_type_id(), data_type_meta_data);
         let decoded_bytes = PrimitiveDataType::decode_string(anonymous_value_container, &data_type_ref, |value_string| value_string.as_bytes().to_vec())?;
 
         Ok(DataValue::new(data_type_ref, decoded_bytes))
@@ -130,36 +135,5 @@ impl DataType for DataTypeStringUtf8 {
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {
         DataTypeMetaData::SizedContainer(self.get_default_size_in_bytes())
-    }
-
-    fn get_meta_data_for_anonymous_value(
-        &self,
-        anonymous_value_container: &AnonymousValueContainer,
-    ) -> DataTypeMetaData {
-        match anonymous_value_container {
-            AnonymousValueContainer::String(string) | AnonymousValueContainer::BinaryValue(string) | AnonymousValueContainer::HexadecimalValue(string) => {
-                DataTypeMetaData::SizedContainer(string.bytes().len() as u64)
-            }
-        }
-    }
-
-    fn get_meta_data_from_string(
-        &self,
-        string: &str,
-    ) -> Result<DataTypeMetaData, String> {
-        let parts: Vec<&str> = string.split(';').collect();
-
-        if parts.len() < 1 {
-            return Err("Invalid string data type format, expected string;{byte_count}".into());
-        }
-
-        let string_size = match parts[1].trim().parse::<u64>() {
-            Ok(string_size) => string_size,
-            Err(err) => {
-                return Err(format!("Failed to parse string size: {}", err));
-            }
-        };
-
-        Ok(DataTypeMetaData::SizedContainer(string_size))
     }
 }

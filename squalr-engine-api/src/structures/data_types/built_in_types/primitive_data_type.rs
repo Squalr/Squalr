@@ -209,6 +209,14 @@ impl PrimitiveDataType {
                             });
                         }
                     },
+                    DataTypeMetaData::Primitive(element_count) => match next.get_data_type().get_meta_data() {
+                        DataTypeMetaData::Primitive(next_element_count) => DataTypeMetaData::Primitive(element_count + next_element_count),
+                        _ => {
+                            return Err(DataTypeError::DataValueMergeError {
+                                error: "Mismatched data type metadata in array merge!".to_string(),
+                            });
+                        }
+                    },
                     _ => merged_data_type_meta_data,
                 };
             }
@@ -230,22 +238,33 @@ impl PrimitiveDataType {
         convert_bytes_unchecked: F,
     ) -> Result<DisplayValues, DataTypeError>
     where
-        F: Fn() -> T,
+        F: Fn(&[u8]) -> T,
         T: AsBits + ToString + fmt::Display,
     {
         match data_type_meta_data {
-            DataTypeMetaData::Primitive() => {
-                let expected = std::mem::size_of::<T>() as u64;
+            DataTypeMetaData::Primitive(element_count) => {
+                let element_size = std::mem::size_of::<T>();
+                let expected = element_count * (element_size as u64);
                 let actual = value_bytes.len() as u64;
 
                 if actual == expected {
-                    let mut results = vec![];
-                    let value = convert_bytes_unchecked();
-                    let bits = value.as_bits();
+                    let mut binary_strings = vec![];
+                    let mut decimal_strings = vec![];
+                    let mut hexadecimal_strings = vec![];
 
-                    let value_string_binary = Conversions::primitive_to_binary(&bits);
-                    let value_string_decimal = value.to_string();
-                    let value_string_hexadecimal = Conversions::primitive_to_hexadecimal(&bits);
+                    for chunk in value_bytes.chunks_exact(element_size) {
+                        let value = convert_bytes_unchecked(chunk);
+                        let bits = value.as_bits();
+
+                        binary_strings.push(Conversions::primitive_to_binary(&bits));
+                        decimal_strings.push(value.to_string());
+                        hexadecimal_strings.push(Conversions::primitive_to_hexadecimal(&bits));
+                    }
+
+                    let value_string_binary = binary_strings.join(", ");
+                    let value_string_decimal = decimal_strings.join(", ");
+                    let value_string_hexadecimal = hexadecimal_strings.join(", ");
+                    let mut results = vec![];
 
                     for supported_display_type in Self::get_supported_display_types() {
                         match supported_display_type {
@@ -269,33 +288,33 @@ impl PrimitiveDataType {
 
     pub fn create_display_values_bool(
         value_bytes: &[u8],
-        default_size_in_bytes: u64,
+        bool_primitive_size: u64,
         data_type_meta_data: &DataTypeMetaData,
     ) -> Result<DisplayValues, DataTypeError> {
         match data_type_meta_data {
-            DataTypeMetaData::Primitive() => {
-                let expected = default_size_in_bytes;
+            DataTypeMetaData::Primitive(element_count) => {
+                let element_size = bool_primitive_size as usize;
+                let expected = element_count * bool_primitive_size;
                 let actual = value_bytes.len() as u64;
 
                 if actual == expected {
-                    if value_bytes[0] == 0 {
-                        Ok(DisplayValues::new(
-                            vec![DisplayValue::new(
-                                DisplayValueType::Bool(ContainerType::None),
-                                "false".into(),
-                            )],
-                            DisplayValueType::Bool(ContainerType::None),
-                        ))
-                    } else {
-                        // For our impl we consider non-zero to be true.
-                        Ok(DisplayValues::new(
-                            vec![DisplayValue::new(
-                                DisplayValueType::Bool(ContainerType::None),
-                                "true".into(),
-                            )],
-                            DisplayValueType::Bool(ContainerType::None),
-                        ))
+                    let mut bool_strings = vec![];
+
+                    for chunk in value_bytes.chunks_exact(element_size) {
+                        let is_true = chunk.iter().any(|&byte| byte != 0);
+
+                        bool_strings.push(if is_true { "true" } else { "false" });
                     }
+
+                    let value_string_bool = bool_strings.join(", ");
+
+                    Ok(DisplayValues::new(
+                        vec![DisplayValue::new(
+                            DisplayValueType::Bool(ContainerType::None),
+                            value_string_bool,
+                        )],
+                        DisplayValueType::Bool(ContainerType::None),
+                    ))
                 } else {
                     Err(DataTypeError::InvalidByteCount { expected, actual })
                 }

@@ -67,9 +67,15 @@ impl DataType for DataTypeRefDataType {
         &self,
         anonymous_value_container: &AnonymousValueContainer,
     ) -> Result<DataValue, DataTypeError> {
+        let data_type_meta_data = match anonymous_value_container {
+            AnonymousValueContainer::String(string) => DataTypeMetaData::FixedString(string.into()),
+            AnonymousValueContainer::BinaryValue(_) => return Err(DataTypeError::UnsupportedDisplayType),
+            AnonymousValueContainer::HexadecimalValue(_) => return Err(DataTypeError::UnsupportedDisplayType),
+        };
+
         match anonymous_value_container {
             AnonymousValueContainer::String(value_string) => Ok(DataValue::new(
-                DataTypeRef::new(Self::get_data_type_id(), self.get_meta_data_for_anonymous_value(anonymous_value_container)),
+                DataTypeRef::new(Self::get_data_type_id(), data_type_meta_data),
                 value_string.as_bytes().to_vec(),
             )),
             _ => Err(DataTypeError::InvalidMetaData),
@@ -134,25 +140,5 @@ impl DataType for DataTypeRefDataType {
 
     fn get_default_meta_data(&self) -> DataTypeMetaData {
         DataTypeMetaData::FixedString(DataTypeRefDataType::get_data_type_id().to_string())
-    }
-
-    fn get_meta_data_for_anonymous_value(
-        &self,
-        anonymous_value_container: &AnonymousValueContainer,
-    ) -> DataTypeMetaData {
-        match anonymous_value_container {
-            AnonymousValueContainer::String(string) => DataTypeMetaData::FixedString(string.into()),
-
-            // These anonymous container types are not supported.
-            AnonymousValueContainer::BinaryValue(_) => DataTypeMetaData::FixedString("".into()),
-            AnonymousValueContainer::HexadecimalValue(_) => DataTypeMetaData::FixedString("".into()),
-        }
-    }
-
-    fn get_meta_data_from_string(
-        &self,
-        string: &str,
-    ) -> Result<DataTypeMetaData, String> {
-        Ok(DataTypeMetaData::FixedString(string.to_string()))
     }
 }

@@ -28,35 +28,11 @@ pub struct DataTypeRef {
 }
 
 impl DataTypeRef {
-    /// Creates a new reference to a registered `DataType` with the explicit
+    /// Creates a new reference to a registered `DataType` with the explicit.
     pub fn new(
         data_type_id: &str,
         data_type_meta_data: DataTypeMetaData,
     ) -> Self {
-        Self {
-            data_type_id: data_type_id.to_string(),
-            data_type_meta_data,
-        }
-    }
-
-    /// Creates a new reference to a registered `DataType`. The type must be registered to collect important metadata.
-    /// If the type is not yet registered, or does not exist, then this will return `None`.
-    pub fn new_from_anonymous_value(
-        data_type_id: &str,
-        anonymous_value_container: &AnonymousValueContainer,
-    ) -> Self {
-        let data_type_meta_data = match DataTypeRegistry::get_instance().get(data_type_id) {
-            Some(data_type) => data_type.get_meta_data_for_anonymous_value(anonymous_value_container),
-            None => {
-                log::error!(
-                    "Failed to resolve data type when initializing meta data from anonymous value: {}: {:?}",
-                    data_type_id,
-                    anonymous_value_container
-                );
-                DataTypeMetaData::None
-            }
-        };
-
         Self {
             data_type_id: data_type_id.to_string(),
             data_type_meta_data,
@@ -94,8 +70,10 @@ impl DataTypeRef {
 
     pub fn get_size_in_bytes(&self) -> u64 {
         match &self.data_type_meta_data {
-            // For standard types, return the default / primitive size from the data type in the registry.
-            DataTypeMetaData::None | DataTypeMetaData::Primitive() => self.get_default_size_in_bytes(),
+            // For unspecified metadata, return the default size.
+            DataTypeMetaData::None => self.get_default_size_in_bytes(),
+            // For primitive types, return the primitive size * the number of elements.
+            DataTypeMetaData::Primitive(element_count) => self.get_default_size_in_bytes() * element_count,
             // For container types, return the size of the container.
             DataTypeMetaData::SizedContainer(size) => *size,
             // For fixed string types, return the size of the string.
@@ -252,7 +230,7 @@ impl FromStr for DataTypeRef {
         let data_type_meta_data = match DataTypeRegistry::get_instance().get(data_type_id) {
             Some(data_type) => {
                 if parts.len() >= 2 {
-                    data_type.get_meta_data_from_string(parts[1])?
+                    parts[1].parse::<DataTypeMetaData>()?
                 } else {
                     data_type.get_default_meta_data()
                 }
