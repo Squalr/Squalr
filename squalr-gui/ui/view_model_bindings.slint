@@ -264,9 +264,23 @@ export global ValueCollectorViewModelBindings {
     callback collect_values();
 }
 
+export enum DataTypeMetaDataView {
+    none,
+    primitive,
+    sized_container,
+    fixed_string,
+}
+
+export struct DataTypeMetaDataViewData {
+    size: int,
+    data: string,
+}
+
 export struct DataTypeRefViewData {
     data_type_id: string,
     icon_id: string,
+    meta_data_view: DataTypeMetaDataView,
+    meta_data: DataTypeMetaDataViewData,
 }
 
 export struct DisplayValueViewData {
@@ -414,7 +428,8 @@ export global ConversionsViewModelBindings {
 }
 
 export global ValidationViewModelBindings {
-    pure callback validate_data_value(data_value: string, data_type_id: string, display_value_type: DisplayValueTypeView) -> bool;
+    pure callback validate_data_value(value_string: string, data_type_ref: DataTypeRefViewData, display_value_type: DisplayValueTypeView) -> bool;
+    pure callback validate_anonymous_value(anonymous_value: string, data_type_id: string, display_value_type: DisplayValueTypeView) -> bool;
     pure callback get_supported_display_types_for_data_type(data_type_id: string) -> [DisplayValueTypeView];
     pure callback get_default_display_type_for_data_type(data_type_id: string) -> DisplayValueTypeView;
     pure callback get_default_display_type_index_for_data_type(data_type_id: string) -> int;

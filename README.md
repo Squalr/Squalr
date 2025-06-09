@@ -41,7 +41,7 @@ Launch Checklist:
 - [X] Float Scans.
 - [X] Big Endian Scans.
 - [X] Vector Aligned Scans.
-- [X] HexDecBox support for entering scan values (similar to C# version).
+- [X] DataValueBox support for entering scan values (Supporting arrays, bin, and hex).
 - [X] Sparse Scans.
 - [X] Array of byte scans.
 - [X] Vectorized overlapping scans.

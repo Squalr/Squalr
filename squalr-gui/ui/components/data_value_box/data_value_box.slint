@@ -34,7 +34,7 @@ export component DataValueBox {
         return text_input.text;
     }
     public pure function is_value_valid() -> bool {
-        return ValidationViewModelBindings.validate_data_value(text_input.text, data_value.data_type_ref.data_type_id, root.get_active_display_value_type());
+        return ValidationViewModelBindings.validate_data_value(text_input.text, data_value.data_type_ref, root.get_active_display_value_type());
     }
     pure function get_active_display_value() -> DisplayValueViewData {
         return root.data_value.display_values[data_value.active_display_value_index];

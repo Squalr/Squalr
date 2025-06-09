@@ -1,6 +1,8 @@
+use crate::DataTypeRefViewData;
 use crate::DisplayValueTypeView;
 use crate::MainWindowView;
 use crate::ValidationViewModelBindings;
+use crate::converters::data_type_ref_converter::DataTypeRefConverter;
 use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
 use slint::ComponentHandle;
 use slint::ModelRc;
@@ -39,7 +41,8 @@ impl ValidationViewModel {
 
         create_view_bindings!(view_binding, {
             ValidationViewModelBindings => {
-                on_validate_data_value(data_value: SharedString, data_type_id: SharedString, display_value_type: DisplayValueTypeView) -> [] -> Self::on_validate_data_value,
+                on_validate_data_value(value_string: SharedString, data_type_ref: DataTypeRefViewData, display_value_type: DisplayValueTypeView) -> [] -> Self::on_validate_data_value,
+                on_validate_anonymous_value(anonymous_value: SharedString, data_type_id: SharedString, display_value_type: DisplayValueTypeView) -> [] -> Self::on_validate_anonymous_value,
                 on_get_supported_display_types_for_data_type(data_type_id: SharedString) -> [] -> Self::on_get_supported_display_types_for_data_type,
                 on_get_default_display_type_for_data_type(data_type_id: SharedString) -> [] -> Self::on_get_default_display_type_for_data_type,
                 on_get_default_display_type_index_for_data_type(data_type_id: SharedString) -> [] -> Self::on_get_default_display_type_index_for_data_type,
@@ -50,13 +53,27 @@ impl ValidationViewModel {
     }
 
     fn on_validate_data_value(
-        data_value: SharedString,
+        value_string: SharedString,
+        data_type_ref: DataTypeRefViewData,
+        display_value_type: DisplayValueTypeView,
+    ) -> bool {
+        let display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&display_value_type);
+        let anonymous_value = AnonymousValue::new(&value_string, display_value_type);
+        let data_type_ref = DataTypeRefConverter {}.convert_from_view_data(&data_type_ref);
+
+        // Since we have a data type ref with metadata, we can validate more explicitly (ie number of elements in an array).
+        data_type_ref.validate_value(&anonymous_value)
+    }
+
+    fn on_validate_anonymous_value(
+        anonymous_value: SharedString,
         data_type_id: SharedString,
         display_value_type: DisplayValueTypeView,
     ) -> bool {
         let display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&display_value_type);
-        let anonymous_value = AnonymousValue::new(&data_value, display_value_type);
+        let anonymous_value = AnonymousValue::new(&anonymous_value, display_value_type);
 
+        // For anonymous values, we do not have any data type with meta data that we are validating against, so we just validate each part.
         for anonymous_value in anonymous_value.get_values() {
             if let Some(data_type) = DataTypeRegistry::get_instance().get(&data_type_id.to_string()) {
                 if !data_type.validate_value(&anonymous_value) {

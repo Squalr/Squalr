@@ -1,6 +1,7 @@
 use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::generics::vector_comparer::VectorComparer;
+use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::data_values::anonymous_value::AnonymousValueContainer;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
@@ -79,6 +80,38 @@ impl DataTypeRef {
             // For fixed string types, return the size of the string.
             DataTypeMetaData::FixedString(string) => string.len() as u64,
         }
+    }
+
+    pub fn validate_value(
+        &self,
+        anonymous_value: &AnonymousValue,
+    ) -> bool {
+        let anonymous_values = anonymous_value.get_values();
+
+        // Validate meta data
+        match &self.data_type_meta_data {
+            DataTypeMetaData::None => {}
+            DataTypeMetaData::Primitive(element_count) => {
+                if anonymous_values.len() as u64 != *element_count {
+                    return false;
+                }
+            }
+            DataTypeMetaData::SizedContainer(size) => {}
+            DataTypeMetaData::FixedString(string) => {}
+        }
+
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
+            Some(data_type) => {
+                for anonymous_value_container in anonymous_values {
+                    if !data_type.validate_value(anonymous_value_container) {
+                        return false;
+                    }
+                }
+            }
+            None => return false,
+        }
+
+        true
     }
 
     pub fn deanonymize_value(

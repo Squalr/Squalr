@@ -1,6 +1,8 @@
-use crate::DataTypeRefViewData;
-use slint_mvvm::convert_to_view_data::ConvertToViewData;
-use squalr_engine_api::structures::data_types::{built_in_types::data_type_ref::data_type_data_type_ref::DataTypeRefDataType, data_type_ref::DataTypeRef};
+use crate::{DataTypeMetaDataView, DataTypeMetaDataViewData, DataTypeRefViewData};
+use slint_mvvm::{convert_from_view_data::ConvertFromViewData, convert_to_view_data::ConvertToViewData};
+use squalr_engine_api::structures::data_types::{
+    built_in_types::data_type_ref::data_type_data_type_ref::DataTypeRefDataType, data_type_meta_data::DataTypeMetaData, data_type_ref::DataTypeRef,
+};
 
 pub struct DataTypeRefConverter {}
 
@@ -33,9 +35,36 @@ impl ConvertToViewData<DataTypeRef, DataTypeRefViewData> for DataTypeRefConverte
             icon_id = DataTypeRefDataType::resolve_data_type_reference(data_type_ref.get_meta_data()).get_icon_id();
         }
 
+        let (data_type_meta_data_view, data, size): (DataTypeMetaDataView, &str, u64) = match data_type_ref.get_meta_data() {
+            DataTypeMetaData::None => (DataTypeMetaDataView::None, "", 1),
+            DataTypeMetaData::Primitive(element_count) => (DataTypeMetaDataView::Primitive, "", *element_count),
+            DataTypeMetaData::SizedContainer(size) => (DataTypeMetaDataView::SizedContainer, "", *size),
+            DataTypeMetaData::FixedString(string) => (DataTypeMetaDataView::FixedString, string, 1),
+        };
+
         DataTypeRefViewData {
             data_type_id: data_type_id.into(),
             icon_id: icon_id.into(),
+            meta_data: DataTypeMetaDataViewData {
+                data: data.into(),
+                size: size as i32,
+            },
+            meta_data_view: data_type_meta_data_view,
         }
+    }
+}
+
+impl ConvertFromViewData<DataTypeRef, DataTypeRefViewData> for DataTypeRefConverter {
+    fn convert_from_view_data(
+        &self,
+        data_type_ref: &DataTypeRefViewData,
+    ) -> DataTypeRef {
+        let data_type_meta_data = match data_type_ref.meta_data_view {
+            DataTypeMetaDataView::None => DataTypeMetaData::None,
+            DataTypeMetaDataView::Primitive => DataTypeMetaData::Primitive(data_type_ref.meta_data.size as u64),
+            DataTypeMetaDataView::SizedContainer => DataTypeMetaData::SizedContainer(data_type_ref.meta_data.size as u64),
+            DataTypeMetaDataView::FixedString => DataTypeMetaData::FixedString(data_type_ref.meta_data.data.clone().into()),
+        };
+        DataTypeRef::new(&data_type_ref.data_type_id, data_type_meta_data)
     }
 }

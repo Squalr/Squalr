@@ -52,6 +52,7 @@ impl ScanResult {
             true,
             None,
         );
+        // The current value if available, otherwise fall back to a read only default string.
         let property_value = match self.valued_result.get_current_value() {
             Some(current_value) => Property::new(Self::PROPERTY_NAME_VALUE.to_string(), current_value.clone(), false, None),
             None => Property::new(

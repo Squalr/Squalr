@@ -62,6 +62,7 @@ impl SnapshotRegionScanResults {
         }
 
         // JIRA: Incomplete solution that processes 1 data type at a time. We need to zipper the results together by address.
+        // Edit: Actually, we want to track scan results for each data type separate, and show these as tabs or something in the GUI.
         while let Some(Reverse((collection_index, filter_index))) = heap.pop() {
             let iterator = &mut iterators[collection_index];
             let filter = iterator.next().unwrap(); // JIRA: Should be always safe, although I'd prefer to eliminate this.

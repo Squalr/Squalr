@@ -295,6 +295,8 @@ impl MappedScanParameters {
             ScanCompareType::Immediate(_) => {}
         };
 
+        // JIRA: Disallow floating point types? It is unclear how to make array of floating points work for immediate scans.
+
         true
     }
 
