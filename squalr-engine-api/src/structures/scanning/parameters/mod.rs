@@ -1,2 +1,3 @@
+pub mod element_scan;
 pub mod mapped;
-pub mod user;
+pub mod struct_scan;

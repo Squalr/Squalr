@@ -1,8 +1,8 @@
 use crate::scanners::snapshot_scanner::Scanner;
-use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
+use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 
 pub struct ScannerScalarSingleElement {}
 
@@ -16,11 +16,11 @@ impl Scanner for ScannerScalarSingleElement {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let mut compare_result = false;
 
-        if let Some(scalar_compare_func) = scan_parameters.get_scan_function_scalar() {
+        if let Some(scalar_compare_func) = mapped_scan_parameters.get_scan_function_scalar() {
             match scalar_compare_func {
                 ScanFunctionScalar::Immediate(compare_func) => {
                     let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);

@@ -5,20 +5,20 @@ use crate::structures::tasks::trackable_task_handle::TrackableTaskHandle;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ScanExecuteResponse {
+pub struct ElementScanResponse {
     pub trackable_task_handle: Option<TrackableTaskHandle>,
 }
 
-impl TypedEngineCommandResponse for ScanExecuteResponse {
+impl TypedEngineCommandResponse for ElementScanResponse {
     fn to_engine_response(&self) -> EngineCommandResponse {
-        EngineCommandResponse::Scan(ScanResponse::Execute {
-            scan_execute_response: self.clone(),
+        EngineCommandResponse::Scan(ScanResponse::ElementScan {
+            element_scan_response: self.clone(),
         })
     }
 
     fn from_engine_response(response: EngineCommandResponse) -> Result<Self, EngineCommandResponse> {
-        if let EngineCommandResponse::Scan(ScanResponse::Execute { scan_execute_response }) = response {
-            Ok(scan_execute_response)
+        if let EngineCommandResponse::Scan(ScanResponse::ElementScan { element_scan_response }) = response {
+            Ok(element_scan_response)
         } else {
             Err(response)
         }

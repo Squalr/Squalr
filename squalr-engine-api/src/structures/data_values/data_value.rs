@@ -1,16 +1,15 @@
-use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::display_value::DisplayValue;
+use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
+use crate::{registries::data_types::data_type_registry::DataTypeRegistry, structures::data_values::anonymous_value_container::AnonymousValueContainer};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{self, Debug},
     mem,
     str::FromStr,
 };
-
-use super::{anonymous_value::AnonymousValue, display_value_type::DisplayValueType};
 
 /// Represents a value for a `DataType`. Additionally, new `DataType` and `DataValue` pairs can be registered by plugins.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -55,15 +54,6 @@ impl DataValue {
         &self.data_type_ref
     }
 
-    pub fn remap_data_type(
-        &mut self,
-        data_type_ref: DataTypeRef,
-    ) {
-        self.value_bytes
-            .truncate(data_type_ref.get_size_in_bytes() as usize);
-        self.data_type_ref = data_type_ref;
-    }
-
     pub fn get_data_type_id(&self) -> &str {
         &self.data_type_ref.get_data_type_id()
     }
@@ -102,11 +92,7 @@ impl DataValue {
     ) -> DisplayValues {
         DataTypeRegistry::get_instance()
             .get(data_type_ref.get_data_type_id())
-            .and_then(|data_type| {
-                data_type
-                    .create_display_values(value_bytes, data_type_ref.get_meta_data())
-                    .ok()
-            })
+            .and_then(|data_type| data_type.create_display_values(value_bytes).ok())
             .unwrap_or_else(|| DisplayValues::new(vec![], DisplayValueType::String(ContainerType::None)))
     }
 }
@@ -122,9 +108,9 @@ impl FromStr for DataValue {
         }
 
         let data_type_ref = DataTypeRef::from_str(parts[0])?;
-        let anonymous_value = AnonymousValue::from_str(parts[1])?;
+        let anonymous_value_container = AnonymousValueContainer::from_str(parts[1])?;
 
-        match anonymous_value.deanonymize_value(data_type_ref.get_data_type_id()) {
+        match anonymous_value_container.deanonymize_value(data_type_ref.get_data_type_id()) {
             Ok(value) => Ok(value),
             Err(err) => Err(format!("Unable to parse value: {}", err)),
         }

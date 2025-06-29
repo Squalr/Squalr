@@ -1,6 +1,5 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
@@ -8,6 +7,7 @@ use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::Sca
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
+use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::ptr;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
@@ -71,14 +71,14 @@ where
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type = scan_parameters.get_data_type();
+        let data_type = mapped_scan_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
 
         let vector_size_in_bytes = N as u64;
@@ -89,8 +89,8 @@ where
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
 
-        let scan_immedate = scan_parameters.get_data_value();
-        let check_equal = match scan_parameters.get_compare_type() {
+        let scan_immedate = mapped_scan_parameters.get_data_value();
+        let check_equal = match mapped_scan_parameters.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
                 ScanCompareTypeImmediate::Equal => true,
                 ScanCompareTypeImmediate::NotEqual => false,
@@ -121,7 +121,7 @@ where
             }
         };
 
-        let periodicity = scan_parameters.get_periodicity();
+        let periodicity = mapped_scan_parameters.get_periodicity();
 
         match periodicity {
             1 => {

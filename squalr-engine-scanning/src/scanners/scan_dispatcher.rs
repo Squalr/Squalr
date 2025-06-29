@@ -1,5 +1,3 @@
-use std::cmp;
-
 use crate::scanners::scalar::scanner_scalar_byte_array_booyer_moore::ScannerScalarByteArrayBooyerMoore;
 use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
@@ -9,16 +7,17 @@ use crate::scanners::vector::scanner_vector_overlapping::ScannerVectorOverlappin
 use crate::scanners::vector::scanner_vector_overlapping_bytewise_periodic::ScannerVectorOverlappingBytewisePeriodic;
 use crate::scanners::vector::scanner_vector_overlapping_bytewise_staggered::ScannerVectorOverlappingBytewiseStaggered;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
-use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::ParallelIterator;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
+use squalr_engine_api::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_type::{
     MappedScanType, ScanParametersByteArray, ScanParametersScalar, ScanParametersVector,
 };
 use squalr_engine_api::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
-use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters::UserScanParameters;
+use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
+use std::cmp;
 
 pub struct ScanDispatcher {}
 
@@ -29,36 +28,38 @@ impl ScanDispatcher {
     pub fn dispatch_scan(
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
-        user_scan_parameters: &UserScanParameters,
+        element_scan_parameters: &ElementScanParameters,
     ) -> SnapshotRegionFilterCollection {
-        if !user_scan_parameters.is_valid_for_data_type(snapshot_region_filter_collection.get_data_type()) {
+        // JIRA: Fixme
+        /*
+        if !element_scan_parameters.is_valid_for_data_type(snapshot_region_filter_collection.get_data_type()) {
             log::error!("Error in provided scan parameters, unable to start scan!");
             return SnapshotRegionFilterCollection::new(
                 vec![],
                 snapshot_region_filter_collection.get_data_type().clone(),
                 snapshot_region_filter_collection.get_memory_alignment(),
             );
-        }
+        }*/
 
         // The main body of the scan routine performed on a given filter.
-        let snapshot_region_scanner = |snapshot_region_filter| {
-            // Combine the global and local parameters into a single container that optimizes the parameters for selecting the best scanner implementation.
-            let scan_parameters = MappedScanParameters::new(snapshot_region_filter_collection, snapshot_region_filter, user_scan_parameters);
+        let snapshot_region_scanner = |snapshot_region_filter: &SnapshotRegionFilter| {
+            // Map the user scan parameters into an optimized form for improved scanning efficiency.
+            let mapped_scan_parameters = MappedScanParameters::new(snapshot_region_filter_collection, element_scan_parameters);
 
             // Execute the scanner that corresponds to the mapped parameters.
-            let scanner_instance = Self::aquire_scanner_instance(&scan_parameters);
-            let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, &scan_parameters);
+            let scanner_instance = Self::aquire_scanner_instance(&mapped_scan_parameters);
+            let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, &mapped_scan_parameters);
 
             // If the debug flag is provided, perform a scalar scan to ensure that our specialized scanner has the same results.
-            if user_scan_parameters.get_debug_perform_validation_scan() {
-                Self::perform_debug_scan(scanner_instance, &filters, snapshot_region, snapshot_region_filter, &scan_parameters);
+            if element_scan_parameters.get_debug_perform_validation_scan() {
+                Self::perform_debug_scan(scanner_instance, &filters, snapshot_region, snapshot_region_filter, &mapped_scan_parameters);
             }
 
             if filters.len() > 0 { Some(filters) } else { None }
         };
 
         // Run the scan either single-threaded or parallel based on settings. Single-thread is not advised unless debugging.
-        let single_thread_scan = user_scan_parameters.is_single_thread_scan();
+        let single_thread_scan = element_scan_parameters.is_single_thread_scan();
         let result_snapshot_region_filters = if single_thread_scan {
             snapshot_region_filter_collection
                 .iter()
@@ -78,30 +79,30 @@ impl ScanDispatcher {
         )
     }
 
-    fn aquire_scanner_instance(scan_parameters: &MappedScanParameters) -> &'static dyn Scanner {
+    fn aquire_scanner_instance(mapped_scan_parameters: &MappedScanParameters) -> &'static dyn Scanner {
         // Execute the scanner that corresponds to the mapped parameters.
-        match scan_parameters.get_mapped_scan_type() {
+        match mapped_scan_parameters.get_mapped_scan_type() {
             MappedScanType::Scalar(scan_parameters_scalar) => match scan_parameters_scalar {
                 ScanParametersScalar::SingleElement => &ScannerScalarSingleElement {},
                 ScanParametersScalar::ScalarIterative => &ScannerScalarIterative {},
             },
             MappedScanType::Vector(scan_parameters_vector) => match scan_parameters_vector {
-                ScanParametersVector::Overlapping => match scan_parameters.get_vectorization_size() {
+                ScanParametersVector::Overlapping => match mapped_scan_parameters.get_vectorization_size() {
                     VectorizationSize::Vector16 => &ScannerVectorOverlapping::<16> {},
                     VectorizationSize::Vector32 => &ScannerVectorOverlapping::<32> {},
                     VectorizationSize::Vector64 => &ScannerVectorOverlapping::<64> {},
                 },
-                ScanParametersVector::Aligned => match scan_parameters.get_vectorization_size() {
+                ScanParametersVector::Aligned => match mapped_scan_parameters.get_vectorization_size() {
                     VectorizationSize::Vector16 => &ScannerVectorAligned::<16> {},
                     VectorizationSize::Vector32 => &ScannerVectorAligned::<32> {},
                     VectorizationSize::Vector64 => &ScannerVectorAligned::<64> {},
                 },
-                ScanParametersVector::Sparse => match scan_parameters.get_vectorization_size() {
+                ScanParametersVector::Sparse => match mapped_scan_parameters.get_vectorization_size() {
                     VectorizationSize::Vector16 => &ScannerVectorSparse::<16> {},
                     VectorizationSize::Vector32 => &ScannerVectorSparse::<32> {},
                     VectorizationSize::Vector64 => &ScannerVectorSparse::<64> {},
                 },
-                ScanParametersVector::OverlappingBytewiseStaggered => match scan_parameters.get_vectorization_size() {
+                ScanParametersVector::OverlappingBytewiseStaggered => match mapped_scan_parameters.get_vectorization_size() {
                     VectorizationSize::Vector16 => &ScannerVectorOverlapping::<16> {},
                     VectorizationSize::Vector32 => &ScannerVectorOverlapping::<32> {},
                     VectorizationSize::Vector64 => &ScannerVectorOverlapping::<64> {},
@@ -110,7 +111,7 @@ impl ScanDispatcher {
                     VectorizationSize::Vector32 => &ScannerVectorOverlappingBytewiseStaggered::<32> {},
                     VectorizationSize::Vector64 => &ScannerVectorOverlappingBytewiseStaggered::<64> {},*/
                 },
-                ScanParametersVector::OverlappingBytewisePeriodic => match scan_parameters.get_vectorization_size() {
+                ScanParametersVector::OverlappingBytewisePeriodic => match mapped_scan_parameters.get_vectorization_size() {
                     VectorizationSize::Vector16 => &ScannerVectorOverlapping::<16> {},
                     VectorizationSize::Vector32 => &ScannerVectorOverlapping::<32> {},
                     VectorizationSize::Vector64 => &ScannerVectorOverlapping::<64> {},
@@ -133,10 +134,10 @@ impl ScanDispatcher {
         filters: &Vec<SnapshotRegionFilter>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) {
         let debug_scanner_instance = &ScannerScalarIterative {};
-        let debug_filters = debug_scanner_instance.scan_region(snapshot_region, snapshot_region_filter, scan_parameters);
+        let debug_filters = debug_scanner_instance.scan_region(snapshot_region, snapshot_region_filter, mapped_scan_parameters);
         let has_length_match = debug_filters.len() == filters.len();
 
         if !has_length_match {

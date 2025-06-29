@@ -1,8 +1,7 @@
 use crate::structures::data_types::built_in_types::primitive_data_type::PrimitiveDataType;
 use crate::structures::data_types::data_type_error::DataTypeError;
-use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value::AnonymousValueContainer;
+use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
@@ -28,7 +27,7 @@ impl DataTypeI32be {
     pub fn get_value_from_primitive(value: PrimitiveType) -> DataValue {
         let value_bytes = PrimitiveType::to_be_bytes(value);
 
-        DataValue::new(DataTypeRef::new(Self::get_data_type_id(), DataTypeMetaData::Primitive(1)), value_bytes.to_vec())
+        DataValue::new(DataTypeRef::new(Self::get_data_type_id()), value_bytes.to_vec())
     }
 }
 
@@ -41,7 +40,7 @@ impl DataType for DataTypeI32be {
         Self::get_data_type_id()
     }
 
-    fn get_default_size_in_bytes(&self) -> u64 {
+    fn get_size_in_bytes(&self) -> u64 {
         size_of::<PrimitiveType>() as u64
     }
 
@@ -61,30 +60,18 @@ impl DataType for DataTypeI32be {
     ) -> Result<DataValue, DataTypeError> {
         let value_bytes = PrimitiveDataType::deanonymize_primitive::<PrimitiveType>(anonymous_value_container, false)?;
 
-        Ok(DataValue::new(
-            DataTypeRef::new(
-                Self::get_data_type_id(),
-                DataTypeMetaData::Primitive(value_bytes.len() as u64 / self.get_default_size_in_bytes()),
-            ),
-            value_bytes,
-        ))
-    }
-
-    fn array_merge(
-        &self,
-        data_values: Vec<DataValue>,
-    ) -> Result<DataValue, DataTypeError> {
-        PrimitiveDataType::array_merge(data_values)
+        Ok(DataValue::new(DataTypeRef::new(Self::get_data_type_id()), value_bytes))
     }
 
     fn create_display_values(
         &self,
         value_bytes: &[u8],
-        data_type_meta_data: &DataTypeMetaData,
     ) -> Result<DisplayValues, DataTypeError> {
-        PrimitiveDataType::create_display_values(value_bytes, data_type_meta_data, |value_bytes| {
+        Err(DataTypeError::DecodingError)
+        /*
+        PrimitiveDataType::create_display_values(value_bytes, |value_bytes| {
             PrimitiveType::from_be_bytes([value_bytes[0], value_bytes[1], value_bytes[2], value_bytes[3]])
-        })
+        })*/
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
@@ -108,9 +95,5 @@ impl DataType for DataTypeI32be {
         data_type_ref: DataTypeRef,
     ) -> DataValue {
         DataValue::new(data_type_ref, Self::to_vec(0))
-    }
-
-    fn get_default_meta_data(&self) -> DataTypeMetaData {
-        DataTypeMetaData::Primitive(1)
     }
 }

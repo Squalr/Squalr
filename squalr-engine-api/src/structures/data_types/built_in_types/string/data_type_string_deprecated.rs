@@ -48,7 +48,7 @@ impl DataType for DataTypeString {
         Self::get_data_type_id()
     }
 
-    fn get_default_size_in_bytes(&self) -> u64 {
+    fn get_size_in_bytes(&self) -> u64 {
         1
     }
 

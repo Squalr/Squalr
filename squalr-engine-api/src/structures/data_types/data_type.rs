@@ -1,9 +1,8 @@
 use crate::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
 use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
 use crate::structures::data_types::data_type_error::DataTypeError;
-use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value::AnonymousValueContainer;
+use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
@@ -19,7 +18,7 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
     fn get_icon_id(&self) -> &str;
 
     /// Gets the default size of this data type. For variable sized types, this is often 1.
-    fn get_default_size_in_bytes(&self) -> u64;
+    fn get_size_in_bytes(&self) -> u64;
 
     /// Determines if an anonymous value can be interpreted as this data type.
     fn validate_value(
@@ -33,16 +32,10 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
         anonymous_value_container: &AnonymousValueContainer,
     ) -> Result<DataValue, DataTypeError>;
 
-    fn array_merge(
-        &self,
-        data_values: Vec<DataValue>,
-    ) -> Result<DataValue, DataTypeError>;
-
     /// Creates all supported display values for this data types (ie bin/dec/hex).
     fn create_display_values(
         &self,
         value_bytes: &[u8],
-        data_type_meta_data: &DataTypeMetaData,
     ) -> Result<DisplayValues, DataTypeError>;
 
     /// Gets all supported display types that this data type can be shown as.
@@ -66,9 +59,7 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
         data_type_ref: DataTypeRef,
     ) -> DataValue;
 
-    fn get_default_meta_data(&self) -> DataTypeMetaData;
-
     fn get_ref(&self) -> DataTypeRef {
-        DataTypeRef::new(self.get_data_type_id(), self.get_default_meta_data())
+        DataTypeRef::new(self.get_data_type_id())
     }
 }

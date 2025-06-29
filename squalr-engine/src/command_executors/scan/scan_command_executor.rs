@@ -22,7 +22,10 @@ impl EngineCommandExecutor for ScanCommand {
             ScanCommand::CollectValues { scan_value_collector_request } => scan_value_collector_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
-            ScanCommand::Execute { scan_execute_request } => scan_execute_request
+            ScanCommand::ElementScan { element_scan_request } => element_scan_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
+            ScanCommand::StructScan { struct_scan_request } => struct_scan_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
         }

@@ -1,22 +1,22 @@
-use crate::structures::data_types::data_type_ref::DataTypeRef;
+use crate::structures::dynamic_struct::dynamic_struct_field::DynamicStructField;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DynamicStruct {
-    fields: Vec<DataTypeRef>,
+    fields: Vec<DynamicStructField>,
 }
 
 impl DynamicStruct {
-    pub fn new() -> Self {
-        DynamicStruct { fields: vec![] }
+    pub fn new(fields: Vec<DynamicStructField>) -> Self {
+        DynamicStruct { fields }
     }
 
     pub fn add_field(
         &mut self,
-        struct_field: DataTypeRef,
+        dynamic_struct_field: DynamicStructField,
     ) {
-        self.fields.push(struct_field);
+        self.fields.push(dynamic_struct_field);
     }
 
     pub fn get_size_in_bytes(&self) -> u64 {
@@ -27,16 +27,13 @@ impl DynamicStruct {
 impl FromStr for DynamicStruct {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut dynamic_struct = DynamicStruct::new();
-        let fields: Vec<&str> = s.split(';').filter(|&f| !f.is_empty()).collect();
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let fields: Result<Vec<DynamicStructField>, Self::Err> = string
+            .split(';')
+            .filter(|&field_string| !field_string.is_empty())
+            .map(|field_string| DynamicStructField::from_str(field_string))
+            .collect();
 
-        for field in fields {
-            let struct_field = DataTypeRef::from_str(&field)?;
-
-            dynamic_struct.add_field(struct_field);
-        }
-
-        Ok(dynamic_struct)
+        Ok(DynamicStruct::new(fields?))
     }
 }

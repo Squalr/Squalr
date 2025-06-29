@@ -95,3 +95,23 @@ These are the supported editor types:
 Display types must be custom sent as a list, ie:
 - Bin/Dec/Hex/Address
 With each type opting into what they support, and specifying a default.
+
+## Brain Dump for data types
+Okay we actually want to be a bit more like Ghidra on this one. Every type needs to support pointers and arrays.
+Now, unlike Ghidra, we support native string types (ie string_utf8)
+Also, we have to think about whether we support jagged arrays.
+The answer I suspect needs to be yes, but it has to come in the form of arrays of arrays natively, meaning rather than baking in arrays into meta data, it must exist at some struct level.
+Which then brings us to reconsidering our entire model of data type metadata.
+So alas, the metadata bullshit is catching up to us.
+
+DataTypeRef data type is the most annoying, as this only exists for the convenience of projects and the property editor.
+
+Ideally we would entirely kill these concepts, kill metadata, and push it into something higher.
+
+Does that actually work though? Like lets say the user fires off a scan for a string_utf8. Well, we can wrap this in a struct, say that this particular field is an array of size n (byte-wise, not element-wise), then string-utf8 no longer needs to hold onto metadata.
+
+Same with arrays, ie an array of int. We scan for 1,1,1,1 or something, and what happens? We populate a struct, with 4 fields. There actually is no array in this case necessarily, but sure, we can make one. Okay, so an array of 4 ints, same difference between a struct of 4 ints. Regardless, this struct eventually hits the parameter mapper that decomposes it into an array of byte scan for booyer moore.
+
+So far no holes. Just need to address the god forsaken edge case of the DataTypeRefDataType, and simplify everything to match the above. So what is this struct type? We now need some new, clever type. This was the DynamicStruct we once had, but threw away. Edit: Nope, we still have it, unused. Okay, so revive the dynamic struct.
+
+Anonymous values are now decomposed into DynamicStructs, not DataValues. Scans no longer operate on DataValues, but on DynamicStructs (at the high levels). This is probably fine. For structs of 1 element, we can easily dispatch to the appropriate scanner. Everything else, we dispatch to booyer moore. Structs containing more than 1 element and floats will be broken and regress to exact matches for now, but we'll fix that when we do masking and chaining.

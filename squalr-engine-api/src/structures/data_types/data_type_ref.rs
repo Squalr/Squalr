@@ -1,8 +1,7 @@
 use crate::registries::data_types::data_type_registry::DataTypeRegistry;
-use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::generics::vector_comparer::VectorComparer;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
-use crate::structures::data_values::anonymous_value::AnonymousValueContainer;
+use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
@@ -25,18 +24,13 @@ use std::{
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DataTypeRef {
     data_type_id: String,
-    data_type_meta_data: DataTypeMetaData,
 }
 
 impl DataTypeRef {
     /// Creates a new reference to a registered `DataType` with the explicit.
-    pub fn new(
-        data_type_id: &str,
-        data_type_meta_data: DataTypeMetaData,
-    ) -> Self {
+    pub fn new(data_type_id: &str) -> Self {
         Self {
             data_type_id: data_type_id.to_string(),
-            data_type_meta_data,
         }
     }
 
@@ -51,10 +45,6 @@ impl DataTypeRef {
         &self.data_type_id
     }
 
-    pub fn get_meta_data(&self) -> &DataTypeMetaData {
-        &self.data_type_meta_data
-    }
-
     pub fn get_icon_id(&self) -> String {
         match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => data_type.get_icon_id().to_string(),
@@ -62,23 +52,10 @@ impl DataTypeRef {
         }
     }
 
-    pub fn get_default_size_in_bytes(&self) -> u64 {
-        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
-            Some(data_type) => data_type.get_default_size_in_bytes(),
-            None => 0,
-        }
-    }
-
     pub fn get_size_in_bytes(&self) -> u64 {
-        match &self.data_type_meta_data {
-            // For unspecified metadata, return the default size.
-            DataTypeMetaData::None => self.get_default_size_in_bytes(),
-            // For primitive types, return the primitive size * the number of elements.
-            DataTypeMetaData::Primitive(element_count) => self.get_default_size_in_bytes() * element_count,
-            // For container types, return the size of the container.
-            DataTypeMetaData::SizedContainer(size) => *size,
-            // For fixed string types, return the size of the string.
-            DataTypeMetaData::FixedString(string) => string.len() as u64,
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
+            Some(data_type) => data_type.get_size_in_bytes(),
+            None => 0,
         }
     }
 
@@ -87,18 +64,6 @@ impl DataTypeRef {
         anonymous_value: &AnonymousValue,
     ) -> bool {
         let anonymous_values = anonymous_value.get_values();
-
-        // Validate meta data
-        match &self.data_type_meta_data {
-            DataTypeMetaData::None => {}
-            DataTypeMetaData::Primitive(element_count) => {
-                if anonymous_values.len() as u64 != *element_count {
-                    return false;
-                }
-            }
-            DataTypeMetaData::SizedContainer(size) => {}
-            DataTypeMetaData::FixedString(string) => {}
-        }
 
         match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => {
@@ -149,16 +114,16 @@ impl DataTypeRef {
     pub fn get_scalar_compare_func_immediate(
         &self,
         scan_compare_type: &ScanCompareTypeImmediate,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
         match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
-                ScanCompareTypeImmediate::Equal => data_type.get_compare_equal(scan_parameters),
-                ScanCompareTypeImmediate::NotEqual => data_type.get_compare_not_equal(scan_parameters),
-                ScanCompareTypeImmediate::GreaterThan => data_type.get_compare_greater_than(scan_parameters),
-                ScanCompareTypeImmediate::GreaterThanOrEqual => data_type.get_compare_greater_than_or_equal(scan_parameters),
-                ScanCompareTypeImmediate::LessThan => data_type.get_compare_less_than(scan_parameters),
-                ScanCompareTypeImmediate::LessThanOrEqual => data_type.get_compare_less_than_or_equal(scan_parameters),
+                ScanCompareTypeImmediate::Equal => data_type.get_compare_equal(mapped_scan_parameters),
+                ScanCompareTypeImmediate::NotEqual => data_type.get_compare_not_equal(mapped_scan_parameters),
+                ScanCompareTypeImmediate::GreaterThan => data_type.get_compare_greater_than(mapped_scan_parameters),
+                ScanCompareTypeImmediate::GreaterThanOrEqual => data_type.get_compare_greater_than_or_equal(mapped_scan_parameters),
+                ScanCompareTypeImmediate::LessThan => data_type.get_compare_less_than(mapped_scan_parameters),
+                ScanCompareTypeImmediate::LessThanOrEqual => data_type.get_compare_less_than_or_equal(mapped_scan_parameters),
             },
             None => None,
         }
@@ -167,14 +132,14 @@ impl DataTypeRef {
     pub fn get_scalar_compare_func_relative(
         &self,
         scan_compare_type: &ScanCompareTypeRelative,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
         match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
-                ScanCompareTypeRelative::Changed => data_type.get_compare_changed(scan_parameters),
-                ScanCompareTypeRelative::Unchanged => data_type.get_compare_unchanged(scan_parameters),
-                ScanCompareTypeRelative::Increased => data_type.get_compare_increased(scan_parameters),
-                ScanCompareTypeRelative::Decreased => data_type.get_compare_decreased(scan_parameters),
+                ScanCompareTypeRelative::Changed => data_type.get_compare_changed(mapped_scan_parameters),
+                ScanCompareTypeRelative::Unchanged => data_type.get_compare_unchanged(mapped_scan_parameters),
+                ScanCompareTypeRelative::Increased => data_type.get_compare_increased(mapped_scan_parameters),
+                ScanCompareTypeRelative::Decreased => data_type.get_compare_decreased(mapped_scan_parameters),
             },
             None => None,
         }
@@ -183,20 +148,20 @@ impl DataTypeRef {
     pub fn get_scalar_compare_func_delta(
         &self,
         scan_compare_type: &ScanCompareTypeDelta,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
         match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
-                ScanCompareTypeDelta::IncreasedByX => data_type.get_compare_increased_by(scan_parameters),
-                ScanCompareTypeDelta::DecreasedByX => data_type.get_compare_decreased_by(scan_parameters),
-                ScanCompareTypeDelta::MultipliedByX => data_type.get_compare_multiplied_by(scan_parameters),
-                ScanCompareTypeDelta::DividedByX => data_type.get_compare_divided_by(scan_parameters),
-                ScanCompareTypeDelta::ModuloByX => data_type.get_compare_modulo_by(scan_parameters),
-                ScanCompareTypeDelta::ShiftLeftByX => data_type.get_compare_shift_left_by(scan_parameters),
-                ScanCompareTypeDelta::ShiftRightByX => data_type.get_compare_shift_right_by(scan_parameters),
-                ScanCompareTypeDelta::LogicalAndByX => data_type.get_compare_logical_and_by(scan_parameters),
-                ScanCompareTypeDelta::LogicalOrByX => data_type.get_compare_logical_or_by(scan_parameters),
-                ScanCompareTypeDelta::LogicalXorByX => data_type.get_compare_logical_xor_by(scan_parameters),
+                ScanCompareTypeDelta::IncreasedByX => data_type.get_compare_increased_by(mapped_scan_parameters),
+                ScanCompareTypeDelta::DecreasedByX => data_type.get_compare_decreased_by(mapped_scan_parameters),
+                ScanCompareTypeDelta::MultipliedByX => data_type.get_compare_multiplied_by(mapped_scan_parameters),
+                ScanCompareTypeDelta::DividedByX => data_type.get_compare_divided_by(mapped_scan_parameters),
+                ScanCompareTypeDelta::ModuloByX => data_type.get_compare_modulo_by(mapped_scan_parameters),
+                ScanCompareTypeDelta::ShiftLeftByX => data_type.get_compare_shift_left_by(mapped_scan_parameters),
+                ScanCompareTypeDelta::ShiftRightByX => data_type.get_compare_shift_right_by(mapped_scan_parameters),
+                ScanCompareTypeDelta::LogicalAndByX => data_type.get_compare_logical_and_by(mapped_scan_parameters),
+                ScanCompareTypeDelta::LogicalOrByX => data_type.get_compare_logical_or_by(mapped_scan_parameters),
+                ScanCompareTypeDelta::LogicalXorByX => data_type.get_compare_logical_xor_by(mapped_scan_parameters),
             },
             None => None,
         }
@@ -205,14 +170,14 @@ impl DataTypeRef {
     pub fn get_vector_compare_func_immediate<const N: usize>(
         &self,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
         match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => {
-                <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(&data_type, &scan_compare_type_immediate, scan_parameters)
+                <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(&data_type, &scan_compare_type_immediate, mapped_scan_parameters)
             }
             None => None,
         }
@@ -221,13 +186,15 @@ impl DataTypeRef {
     pub fn get_vector_compare_func_relative<const N: usize>(
         &self,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
         match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
-            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_relative(&data_type, &scan_compare_type_relative, scan_parameters),
+            Some(data_type) => {
+                <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_relative(&data_type, &scan_compare_type_relative, mapped_scan_parameters)
+            }
             None => None,
         }
     }
@@ -235,13 +202,13 @@ impl DataTypeRef {
     pub fn get_vector_compare_func_delta<const N: usize>(
         &self,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
         match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
-            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_delta(&data_type, &scan_compare_type_delta, scan_parameters),
+            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_delta(&data_type, &scan_compare_type_delta, mapped_scan_parameters),
             None => None,
         }
     }
@@ -251,29 +218,9 @@ impl FromStr for DataTypeRef {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = string.splitn(2, ';').collect();
+        let data_type_id = string;
 
-        if parts.len() <= 0 {
-            return Err("Invalid data type ref format, expected {data_type};{conditional_data_type_meta_data}".into());
-        }
-
-        let data_type_id = parts[0];
-
-        // Parse out metadata if present.
-        let data_type_meta_data = match DataTypeRegistry::get_instance().get(data_type_id) {
-            Some(data_type) => {
-                if parts.len() >= 2 {
-                    parts[1].parse::<DataTypeMetaData>()?
-                } else {
-                    data_type.get_default_meta_data()
-                }
-            }
-            None => {
-                return Err(format!("Failed to resolve data type when parsing meta data: {}", data_type_id));
-            }
-        };
-
-        Ok(DataTypeRef::new(data_type_id, data_type_meta_data))
+        Ok(DataTypeRef::new(data_type_id))
     }
 }
 

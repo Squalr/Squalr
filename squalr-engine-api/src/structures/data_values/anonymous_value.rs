@@ -1,19 +1,10 @@
-use crate::registries::data_types::data_type_registry::DataTypeRegistry;
+use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::data_value::DataValue;
+use crate::structures::data_values::display_value_type::DisplayValueType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
-
-use super::display_value_type::DisplayValueType;
-
-/// Contains an individual part of an anonymous value.
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub enum AnonymousValueContainer {
-    String(String),
-    BinaryValue(String),
-    HexadecimalValue(String),
-}
 
 /// Represents a value as a string that can potentially be converted to an explicit type later.
 /// This is particularly useful when scannining for a value such as `0`, which is valid across
@@ -40,25 +31,18 @@ impl AnonymousValue {
     pub fn deanonymize_value(
         &self,
         data_type_id: &str,
-    ) -> Result<DataValue, String> {
-        match DataTypeRegistry::get_instance().get(data_type_id) {
-            Some(data_type) => {
-                let deanonymized_values = self
-                    .anonymous_value_containers
-                    .iter()
-                    .map(|anonymous_value_container| {
-                        data_type
-                            .deanonymize_value(&anonymous_value_container)
-                            .map_err(|err| format!("Value deanonymization error: {:?}", err))
-                    })
-                    .collect::<Result<Vec<_>, String>>()?;
+    ) -> Result<Vec<DataValue>, String> {
+        let deanonymized_values = self
+            .anonymous_value_containers
+            .iter()
+            .map(|anonymous_value_container| {
+                anonymous_value_container
+                    .deanonymize_value(data_type_id)
+                    .map_err(|err: String| format!("Value deanonymization error: {:?}", err))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
 
-                data_type
-                    .array_merge(deanonymized_values)
-                    .map_err(|err| format!("Value array merge error: {:?}", err))
-            }
-            None => Err("Cannot deanonymize value: data type is not registered.".into()),
-        }
+        Ok(deanonymized_values)
     }
 
     fn parse_anonymous_value(
@@ -110,20 +94,16 @@ impl FromStr for AnonymousValue {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        match string.rfind(';') {
-            Some(pos) => {
-                let (value_part, display_part) = string.split_at(pos);
-                let display_part = &display_part[1..];
+        let containers = string
+            .split(',')
+            .map(str::trim)
+            .filter(|part| !part.is_empty())
+            .map(|part| part.parse::<AnonymousValueContainer>())
+            .collect::<Result<Vec<_>, _>>()?;
 
-                // Try to parse DisplayValueType from the display_part
-                let display_value_type = display_part
-                    .parse::<DisplayValueType>()
-                    .map_err(|err| format!("Failed to parse DisplayValueType: {}", err))?;
-
-                Ok(AnonymousValue::new(value_part, display_value_type))
-            }
-            None => Err("Input string must take format of {value};{display_type}".to_string()),
-        }
+        Ok(AnonymousValue {
+            anonymous_value_containers: containers,
+        })
     }
 }
 
@@ -135,21 +115,9 @@ impl fmt::Display for AnonymousValue {
         let formatted_values: Vec<String> = self
             .anonymous_value_containers
             .iter()
-            .map(|value| match value {
-                AnonymousValueContainer::String(s) => format!("{}", s),
-                AnonymousValueContainer::BinaryValue(s) => format!("{}", s),
-                AnonymousValueContainer::HexadecimalValue(s) => format!("{}", s),
-            })
+            .map(|anonymous_value_container| anonymous_value_container.to_string())
             .collect();
 
-        let suffix = match self.anonymous_value_containers.first() {
-            Some(AnonymousValueContainer::String(_)) => "str",
-            Some(AnonymousValueContainer::BinaryValue(_)) => "bin",
-            Some(AnonymousValueContainer::HexadecimalValue(_)) => "hex",
-            // Default / fallback to string.
-            None => "str",
-        };
-
-        write!(formatter, "{};{}", formatted_values.join(", "), suffix)
+        write!(formatter, "{}", formatted_values.join(","))
     }
 }

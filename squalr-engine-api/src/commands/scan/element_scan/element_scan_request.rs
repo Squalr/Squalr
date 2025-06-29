@@ -1,6 +1,6 @@
 use crate::commands::engine_command::EngineCommand;
 use crate::commands::engine_command_request::EngineCommandRequest;
-use crate::commands::scan::execute::scan_execute_response::ScanExecuteResponse;
+use crate::commands::scan::element_scan::element_scan_response::ElementScanResponse;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
-pub struct ScanExecuteRequest {
+pub struct ElementScanRequest {
     #[structopt(short = "v", long)]
     pub scan_value: Option<AnonymousValue>,
     #[structopt(short = "d", long)]
@@ -18,18 +18,18 @@ pub struct ScanExecuteRequest {
     pub compare_type: ScanCompareType,
 }
 
-impl EngineCommandRequest for ScanExecuteRequest {
-    type ResponseType = ScanExecuteResponse;
+impl EngineCommandRequest for ElementScanRequest {
+    type ResponseType = ElementScanResponse;
 
     fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Scan(ScanCommand::Execute {
-            scan_execute_request: self.clone(),
+        EngineCommand::Scan(ScanCommand::ElementScan {
+            element_scan_request: self.clone(),
         })
     }
 }
 
-impl From<ScanExecuteResponse> for ScanResponse {
-    fn from(scan_execute_response: ScanExecuteResponse) -> Self {
-        ScanResponse::Execute { scan_execute_response }
+impl From<ElementScanResponse> for ScanResponse {
+    fn from(element_scan_response: ElementScanResponse) -> Self {
+        ScanResponse::ElementScan { element_scan_response }
     }
 }

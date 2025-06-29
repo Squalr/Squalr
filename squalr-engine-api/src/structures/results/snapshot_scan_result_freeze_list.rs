@@ -1,4 +1,4 @@
-use squalr_engine_api::structures::data_values::data_value::DataValue;
+use crate::structures::data_values::data_value::DataValue;
 use std::{collections::HashMap, sync::RwLock};
 
 pub struct SnapshotScanResultFreezeList {

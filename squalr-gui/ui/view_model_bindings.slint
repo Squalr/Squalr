@@ -264,23 +264,9 @@ export global ValueCollectorViewModelBindings {
     callback collect_values();
 }
 
-export enum DataTypeMetaDataView {
-    none,
-    primitive,
-    sized_container,
-    fixed_string,
-}
-
-export struct DataTypeMetaDataViewData {
-    size: int,
-    data: string,
-}
-
 export struct DataTypeRefViewData {
     data_type_id: string,
     icon_id: string,
-    meta_data_view: DataTypeMetaDataView,
-    meta_data: DataTypeMetaDataViewData,
 }
 
 export struct DisplayValueViewData {

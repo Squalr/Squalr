@@ -1,3 +1,1 @@
-pub mod snapshot_region_scan_results;
-pub mod snapshot_scan_result_freeze_list;
 pub mod snapshot_scan_result_freeze_task;

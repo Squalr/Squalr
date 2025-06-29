@@ -1,5 +1,5 @@
-use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_api::structures::{
+use crate::structures::snapshots::snapshot_region::SnapshotRegion;
+use crate::structures::{
     data_types::data_type_ref::DataTypeRef, scan_results::scan_result_valued::ScanResultValued,
     scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection,
 };

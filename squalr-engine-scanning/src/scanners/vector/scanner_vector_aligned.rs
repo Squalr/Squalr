@@ -1,10 +1,10 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
+use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
@@ -69,7 +69,7 @@ where
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
@@ -77,9 +77,9 @@ where
         let region_size = snapshot_region_filter.get_region_size();
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type = scan_parameters.get_data_type();
+        let data_type = mapped_scan_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
-        let memory_alignment_size = scan_parameters.get_memory_alignment() as u64;
+        let memory_alignment_size = mapped_scan_parameters.get_memory_alignment() as u64;
 
         let vector_size_in_bytes = N as u64;
         let vectorizable_iterations = region_size / vector_size_in_bytes as u64;
@@ -93,7 +93,7 @@ where
         debug_assert!(data_type_size == memory_alignment_size);
         debug_assert!(memory_alignment_size == 1 || memory_alignment_size == 2 || memory_alignment_size == 4 || memory_alignment_size == 8);
 
-        if let Some(vector_compare_func) = scan_parameters.get_scan_function_vector() {
+        if let Some(vector_compare_func) = mapped_scan_parameters.get_scan_function_vector() {
             match vector_compare_func {
                 ScanFunctionVector::Immediate(compare_func) => {
                     // Compare as many full vectors as we can.

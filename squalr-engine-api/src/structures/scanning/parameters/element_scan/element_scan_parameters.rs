@@ -1,13 +1,14 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::data_values::data_value::DataValue;
+use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use crate::structures::scanning::data_value_and_alignment::DataValueAndAlignment;
+use crate::structures::scanning::dynamic_struct_and_alignment::DataValueAndAlignment;
 use crate::structures::scanning::memory_read_mode::MemoryReadMode;
 
-/// Represents the global scan arguments that are used by all current scans, regardless of `DataType`.
+/// Represents the scan arguments for an element-wise scan.
 #[derive(Debug, Clone)]
-pub struct UserScanParameters {
+pub struct ElementScanParameters {
     compare_type: ScanCompareType,
     data_values_and_alignments: Vec<DataValueAndAlignment>,
     floating_point_tolerance: FloatingPointTolerance,
@@ -19,7 +20,7 @@ pub struct UserScanParameters {
     debug_perform_validation_scan: bool,
 }
 
-impl UserScanParameters {
+impl ElementScanParameters {
     pub fn new(
         compare_type: ScanCompareType,
         data_values_and_alignments: Vec<DataValueAndAlignment>,
@@ -46,20 +47,20 @@ impl UserScanParameters {
         &self.data_values_and_alignments
     }
 
-    pub fn get_compare_immediate_for_data_type(
+    pub fn get_data_value_and_alignment_for_data_type(
         &self,
         data_type_ref: &DataTypeRef,
-    ) -> DataValue {
+    ) -> DataValueAndAlignment {
         match self.get_compare_type() {
             ScanCompareType::Immediate(_) | ScanCompareType::Delta(_) => {
                 for data_value_and_alignment in &self.data_values_and_alignments {
-                    if data_value_and_alignment.get_data_type() == data_type_ref {
-                        return data_value_and_alignment.get_data_value().clone();
+                    if data_value_and_alignment.get_data_value().get_data_type() == data_type_ref {
+                        return data_value_and_alignment.clone();
                     }
                 }
-                DataValue::new(data_type_ref.clone(), vec![])
+                DataValueAndAlignment::new(DataValue::new(data_type_ref.clone(), vec![]), MemoryAlignment::Alignment1)
             }
-            ScanCompareType::Relative(_) => DataValue::new(data_type_ref.clone(), vec![]),
+            ScanCompareType::Relative(_) => DataValueAndAlignment::new(DataValue::new(data_type_ref.clone(), vec![]), MemoryAlignment::Alignment1),
         }
     }
 
@@ -77,36 +78,5 @@ impl UserScanParameters {
 
     pub fn get_debug_perform_validation_scan(&self) -> bool {
         self.debug_perform_validation_scan
-    }
-
-    pub fn is_valid(&self) -> bool {
-        match self.get_compare_type() {
-            ScanCompareType::Immediate(_) | ScanCompareType::Delta(_) => {
-                for data_value_and_alignment in &self.data_values_and_alignments {
-                    if data_value_and_alignment.get_data_value().get_size_in_bytes() <= 0 {
-                        return false;
-                    }
-                }
-                true
-            }
-            ScanCompareType::Relative(_) => true,
-        }
-    }
-
-    pub fn is_valid_for_data_type(
-        &self,
-        data_type_ref: &DataTypeRef,
-    ) -> bool {
-        match self.get_compare_type() {
-            ScanCompareType::Immediate(_) | ScanCompareType::Delta(_) => {
-                for data_value_and_alignment in &self.data_values_and_alignments {
-                    if data_value_and_alignment.get_data_type() == data_type_ref {
-                        return data_value_and_alignment.get_data_value().get_size_in_bytes() > 0;
-                    }
-                }
-                false
-            }
-            ScanCompareType::Relative(_) => true,
-        }
     }
 }

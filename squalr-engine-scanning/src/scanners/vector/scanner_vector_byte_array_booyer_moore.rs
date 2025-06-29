@@ -1,11 +1,11 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::boyer_moore_table::BoyerMooreTable;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
+use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 
 pub struct ScannerVectorByteArrayBooyerMoore {}
 
@@ -25,11 +25,11 @@ impl Scanner for ScannerVectorByteArrayBooyerMoore {
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_value = match scan_parameters.get_compare_type() {
+        let data_value = match mapped_scan_parameters.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
-                ScanCompareTypeImmediate::Equal => scan_parameters.get_data_value(),
+                ScanCompareTypeImmediate::Equal => mapped_scan_parameters.get_data_value(),
                 _ => {
                     log::error!("Unsupported immediate scan constraint. Only equality is supported for array of byte scans.");
                     return vec![];
@@ -48,7 +48,7 @@ impl Scanner for ScannerVectorByteArrayBooyerMoore {
         let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
-        let memory_alignment_size = scan_parameters.get_memory_alignment() as u64;
+        let memory_alignment_size = mapped_scan_parameters.get_memory_alignment() as u64;
 
         let scan_pattern = data_value.get_value_bytes();
         let pattern_length = scan_pattern.len() as u64;

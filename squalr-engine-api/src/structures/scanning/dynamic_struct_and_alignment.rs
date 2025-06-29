@@ -2,7 +2,7 @@ use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
 
-/// Defines a unique pair of `DataValue` and `MemoryAlignment` used in a scan within a larger scan job.
+/// Defines a unique pair of `DynamicStruct` and `MemoryAlignment` used in a scan within a larger scan job.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataValueAndAlignment {
     data_value: DataValue,

@@ -1,9 +1,9 @@
-use crate::snapshots::snapshot::Snapshot;
-use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
 use squalr_engine_api::conversions::conversions::Conversions;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
+use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -71,7 +71,8 @@ impl ValueCollectorTask {
 
             // Attempt to read new (or initial) memory values. Ignore failed regions, as these are generally just deallocated pages.
             // JIRA: We probably want some way of tombstoning deallocated pages.
-            let _ = snapshot_region.read_all_memory(&process_info);
+            // JIRA: Fixme
+            // let _ = snapshot_region.read_all_memory(&process_info);
 
             // Report progress periodically (not every time for performance)
             let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);

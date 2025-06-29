@@ -4,12 +4,12 @@ use crate::engine_mode::EngineMode;
 use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
 use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
+use squalr_engine_api::structures::results::snapshot_scan_result_freeze_list::SnapshotScanResultFreezeList;
+use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_processes::process::process_manager::ProcessManager;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_projects::project::project_manager::ProjectManager;
-use squalr_engine_scanning::results::snapshot_scan_result_freeze_list::SnapshotScanResultFreezeList;
 use squalr_engine_scanning::results::snapshot_scan_result_freeze_task::SnapshotScanResultFreezeTask;
-use squalr_engine_scanning::snapshots::snapshot::Snapshot;
 use std::sync::{Arc, RwLock};
 
 /// Tracks critical engine state for internal use. This includes executing engine tasks, commands, and events.

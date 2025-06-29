@@ -1,6 +1,6 @@
-use crate::results::snapshot_scan_result_freeze_list::SnapshotScanResultFreezeList;
 use crate::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::results::snapshot_scan_result_freeze_list::SnapshotScanResultFreezeList;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use squalr_engine_memory::memory_writer::MemoryWriter;
 use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;

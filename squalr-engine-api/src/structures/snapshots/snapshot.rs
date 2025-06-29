@@ -1,5 +1,5 @@
-use crate::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_api::structures::scan_results::scan_result_valued::ScanResultValued;
+use crate::structures::scan_results::scan_result_valued::ScanResultValued;
+use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::cmp;
 
 pub struct Snapshot {

@@ -3,9 +3,9 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::new::scan_new_response::ScanNewResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
+use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::page_retrieval_mode::PageRetrievalMode;
-use squalr_engine_scanning::snapshots::snapshot_region::SnapshotRegion;
 use std::sync::Arc;
 
 impl EngineCommandRequestExecutor for ScanNewRequest {

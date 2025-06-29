@@ -17,7 +17,7 @@ use slint_mvvm_macros::create_view_bindings;
 use squalr_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest;
-use squalr_engine_api::commands::scan::execute::scan_execute_request::ScanExecuteRequest;
+use squalr_engine_api::commands::scan::element_scan::element_scan_request::ElementScanRequest;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::reset::scan_reset_request::ScanResetRequest;
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
@@ -170,13 +170,13 @@ impl ScannerViewModel {
     ) {
         let engine_execution_context = &view_model.engine_execution_context;
         let view_model = view_model.clone();
-        let scan_execute_request = ScanExecuteRequest {
+        let element_scan_request = ElementScanRequest {
             scan_value: Some(anonymous_value),
             data_type_ids: data_type_ids,
             compare_type: ScanConstraintConverter::new().convert_from_view_data(&scan_constraint),
         };
 
-        scan_execute_request.send(&engine_execution_context, move |scan_execute_response| {
+        element_scan_request.send(&engine_execution_context, move |scan_execute_response| {
             let scan_view_model_state = &view_model.scan_view_model_state;
 
             if let Ok(mut scan_view_model_state) = scan_view_model_state.write() {

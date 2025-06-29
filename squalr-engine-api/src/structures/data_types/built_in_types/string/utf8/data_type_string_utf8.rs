@@ -1,8 +1,7 @@
 use crate::structures::data_types::built_in_types::primitive_data_type::PrimitiveDataType;
 use crate::structures::data_types::data_type_error::DataTypeError;
-use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value::AnonymousValueContainer;
+use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
@@ -21,12 +20,8 @@ impl DataTypeStringUtf8 {
         Self::DATA_TYPE_ID
     }
 
-    pub fn get_value_from_primitive(str: &str) -> DataValue {
-        let value_bytes = str.as_bytes();
-        DataValue::new(
-            DataTypeRef::new(Self::get_data_type_id(), DataTypeMetaData::SizedContainer(value_bytes.len() as u64)),
-            value_bytes.to_vec(),
-        )
+    pub fn get_value_from_primitive(string_byte: u8) -> DataValue {
+        DataValue::new(DataTypeRef::new(Self::get_data_type_id()), vec![string_byte])
     }
 }
 
@@ -39,8 +34,8 @@ impl DataType for DataTypeStringUtf8 {
         "string"
     }
 
-    fn get_default_size_in_bytes(&self) -> u64 {
-        0
+    fn get_size_in_bytes(&self) -> u64 {
+        1
     }
 
     fn validate_value(
@@ -58,53 +53,38 @@ impl DataType for DataTypeStringUtf8 {
         &self,
         anonymous_value_container: &AnonymousValueContainer,
     ) -> Result<DataValue, DataTypeError> {
+        /*
         let data_type_meta_data: DataTypeMetaData = match anonymous_value_container {
             AnonymousValueContainer::String(string) | AnonymousValueContainer::BinaryValue(string) | AnonymousValueContainer::HexadecimalValue(string) => {
                 DataTypeMetaData::SizedContainer(string.bytes().len() as u64)
             }
         };
-        let data_type_ref = DataTypeRef::new(Self::get_data_type_id(), data_type_meta_data);
+        let data_type_ref = DataTypeRef::new(Self::get_data_type_id());
         let decoded_bytes = PrimitiveDataType::decode_string(anonymous_value_container, &data_type_ref, |value_string| value_string.as_bytes().to_vec())?;
 
-        Ok(DataValue::new(data_type_ref, decoded_bytes))
-    }
-
-    fn array_merge(
-        &self,
-        data_values: Vec<DataValue>,
-    ) -> Result<DataValue, DataTypeError> {
-        PrimitiveDataType::array_merge(data_values)
+        Ok(DataValue::new(data_type_ref, decoded_bytes))*/
+        Err(DataTypeError::DecodingError)
     }
 
     fn create_display_values(
         &self,
         value_bytes: &[u8],
-        data_type_meta_data: &DataTypeMetaData,
     ) -> Result<DisplayValues, DataTypeError> {
         if value_bytes.is_empty() {
             return Err(DataTypeError::NoBytes);
         }
 
-        match data_type_meta_data {
-            DataTypeMetaData::SizedContainer(size) => {
-                let mut value_bytes_vec = value_bytes.to_vec();
+        let decoded_string = std::str::from_utf8(value_bytes)
+            .map_err(|_err| DataTypeError::DecodingError)?
+            .to_string();
 
-                value_bytes_vec.truncate(*size as usize);
-
-                let decoded_string = std::str::from_utf8(&value_bytes_vec)
-                    .map_err(|_err| DataTypeError::DecodingError)?
-                    .to_string();
-
-                Ok(DisplayValues::new(
-                    vec![DisplayValue::new(
-                        DisplayValueType::String(ContainerType::None),
-                        decoded_string,
-                    )],
-                    DisplayValueType::String(ContainerType::None),
-                ))
-            }
-            _ => Err(DataTypeError::InvalidMetaData),
-        }
+        Ok(DisplayValues::new(
+            vec![DisplayValue::new(
+                DisplayValueType::String(ContainerType::None),
+                decoded_string,
+            )],
+            DisplayValueType::String(ContainerType::None),
+        ))
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
@@ -131,9 +111,5 @@ impl DataType for DataTypeStringUtf8 {
         data_type_ref: DataTypeRef,
     ) -> DataValue {
         DataValue::new(data_type_ref.clone(), vec![])
-    }
-
-    fn get_default_meta_data(&self) -> DataTypeMetaData {
-        DataTypeMetaData::SizedContainer(self.get_default_size_in_bytes())
     }
 }

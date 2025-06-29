@@ -1,20 +1,20 @@
-use crate::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::scanners::scan_dispatcher::ScanDispatcher;
 use crate::scanners::value_collector_task::ValueCollectorTask;
-use crate::snapshots::snapshot::Snapshot;
-use crate::snapshots::snapshot_region::SnapshotRegion;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_api::conversions::conversions::Conversions;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
-use squalr_engine_api::structures::scanning::parameters::user::user_scan_parameters::UserScanParameters;
+use squalr_engine_api::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
+use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
+use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Instant;
 
-pub struct ScanExecutorTask;
+pub struct ScanExecutorTask {}
 
 const TASK_NAME: &'static str = "Scan Executor";
 
@@ -24,15 +24,15 @@ impl ScanExecutorTask {
     pub fn start_task(
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        user_scan_parameters: &UserScanParameters,
+        element_scan_parameters: &ElementScanParameters,
         with_logging: bool,
     ) -> Arc<TrackableTask> {
         let task = TrackableTask::create(TASK_NAME.to_string(), None);
         let task_clone = task.clone();
-        let user_scan_parameters_clone = user_scan_parameters.clone();
+        let element_scan_parameters_clone = element_scan_parameters.clone();
 
         thread::spawn(move || {
-            Self::scan_task(&task_clone, process_info, snapshot, &user_scan_parameters_clone, with_logging);
+            Self::scan_task(&task_clone, process_info, snapshot, &element_scan_parameters_clone, with_logging);
 
             task_clone.complete();
         });
@@ -44,14 +44,14 @@ impl ScanExecutorTask {
         trackable_task: &Arc<TrackableTask>,
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        user_scan_parameters: &UserScanParameters,
+        element_scan_parameters: &ElementScanParameters,
         with_logging: bool,
     ) {
         let total_start_time = Instant::now();
 
         // If the parameter is set, first collect values before the scan.
         // This is slower overall than interleaving the reads, but better for capturing values that may soon change.
-        if user_scan_parameters.get_memory_read_mode() == MemoryReadMode::ReadBeforeScan {
+        if element_scan_parameters.get_memory_read_mode() == MemoryReadMode::ReadBeforeScan {
             ValueCollectorTask::start_task(process_info.clone(), snapshot.clone(), with_logging).wait_for_completion();
         }
 
@@ -83,26 +83,46 @@ impl ScanExecutorTask {
             }
 
             // Creates initial results if none exist yet.
-            snapshot_region.initialize_scan_results(user_scan_parameters.get_data_values_and_alignments());
+            snapshot_region.initialize_scan_results(element_scan_parameters.get_data_values_and_alignments());
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
-            if user_scan_parameters.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
+            // JIRA: Fixme
+            /*
+            if element_scan_parameters.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
                 let _ = snapshot_region.read_all_memory(&process_info);
+            }*/
+
+            /*
+            pub fn can_compare_using_parameters(
+                &self,
+                snapshot_region: &SnapshotRegion,
+            ) -> bool {
+                if !element_scan_parameters.is_valid() || !self.has_current_values() {
+                    false
+                } else {
+                    match element_scan_parameters.get_compare_type() {
+                        ScanCompareType::Immediate(_) => true,
+                        ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => self.has_previous_values(),
+                    }
+                }
             }
+            */
 
             // Skip the region if it is impossible to perform the scan (ie previous values are missing).
-            if !snapshot_region.can_compare_using_parameters(user_scan_parameters) {
+            // JIRA: Fixme
+            /*
+            if !snapshot_region.can_compare_using_parameters(element_scan_parameters) {
                 processed_region_count.fetch_add(1, Ordering::SeqCst);
                 return;
-            }
+            }*/
 
             // Create a function to dispatch our scan to the best scanner implementation for the current region.
             let scan_dispatcher =
-                |snapshot_region_filter_collection| ScanDispatcher::dispatch_scan(snapshot_region, snapshot_region_filter_collection, user_scan_parameters);
+                |snapshot_region_filter_collection| ScanDispatcher::dispatch_scan(snapshot_region, snapshot_region_filter_collection, element_scan_parameters);
 
             // Again, select the parallel or sequential iterator to iterate over each data type in the scan. Generally there is only 1, but multi-type scans are supported.
             let scan_results_collection = snapshot_region.get_scan_results().get_filter_collections();
-            let single_thread_scan = user_scan_parameters.is_single_thread_scan() || scan_results_collection.len() == 1;
+            let single_thread_scan = element_scan_parameters.is_single_thread_scan() || scan_results_collection.len() == 1;
             let scan_results = SnapshotRegionScanResults::new(if single_thread_scan {
                 scan_results_collection.iter().map(scan_dispatcher).collect()
             } else {
@@ -124,7 +144,7 @@ impl ScanExecutorTask {
         };
 
         // Select either the parallel or sequential iterator. Single-thread is not advised unless debugging.
-        let single_thread_scan = user_scan_parameters.is_single_thread_scan() || snapshot_regions.len() == 1;
+        let single_thread_scan = element_scan_parameters.is_single_thread_scan() || snapshot_regions.len() == 1;
         if single_thread_scan {
             snapshot_regions.iter_mut().for_each(snapshot_iterator);
         } else {

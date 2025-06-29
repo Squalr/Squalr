@@ -1,6 +1,5 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use crate::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
@@ -8,6 +7,7 @@ use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::Sca
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
+use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::ptr;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
@@ -79,7 +79,7 @@ where
         &self,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
@@ -89,10 +89,10 @@ where
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
 
-        let data_type = scan_parameters.get_data_type();
+        let data_type = mapped_scan_parameters.get_data_type();
         let data_type_size = data_type.get_size_in_bytes();
-        let data_type_size_padding = data_type_size.saturating_sub(scan_parameters.get_memory_alignment() as u64);
-        let memory_alignment = scan_parameters.get_memory_alignment();
+        let data_type_size_padding = data_type_size.saturating_sub(mapped_scan_parameters.get_memory_alignment() as u64);
+        let memory_alignment = mapped_scan_parameters.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
 
         let vector_size_in_bytes = N;
@@ -104,8 +104,8 @@ where
         let remainder_element_count: u64 = (remainder_bytes / memory_alignment_size).saturating_sub(data_type_size.saturating_sub(1));
         let vectorizable_element_count = element_count.saturating_sub(remainder_element_count);
 
-        let scan_immedate = scan_parameters.get_data_value();
-        let scan_compare_type_immediate = match scan_parameters.get_compare_type() {
+        let scan_immedate = mapped_scan_parameters.get_data_value();
+        let scan_compare_type_immediate = match mapped_scan_parameters.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => scan_compare_type_immediate,
             _ => {
                 log::error!("Invalid scan compare type provided to bytewise staggered scan.");
@@ -232,7 +232,7 @@ where
         }
 
         // Handle remainder elements.
-        if let Some(compare_func) = data_type.get_scalar_compare_func_immediate(&scan_compare_type_immediate, scan_parameters) {
+        if let Some(compare_func) = data_type.get_scalar_compare_func_immediate(&scan_compare_type_immediate, mapped_scan_parameters) {
             for index in vectorizable_element_count..element_count {
                 let current_value_pointer = unsafe { current_values_pointer.add(index as usize * memory_alignment_size as usize) };
                 let compare_result = compare_func(current_value_pointer);

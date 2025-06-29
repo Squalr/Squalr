@@ -1,7 +1,8 @@
 use crate::commands::scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest;
-use crate::commands::scan::execute::scan_execute_request::ScanExecuteRequest;
+use crate::commands::scan::element_scan::element_scan_request::ElementScanRequest;
 use crate::commands::scan::new::scan_new_request::ScanNewRequest;
 use crate::commands::scan::reset::scan_reset_request::ScanResetRequest;
+use crate::commands::scan::struct_scan::struct_scan_request::StructScanRequest;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -23,9 +24,14 @@ pub enum ScanCommand {
         #[structopt(flatten)]
         scan_value_collector_request: ScanCollectValuesRequest,
     },
-    /// Performs a scan, potentially collecting values depending on the provided parameters.
-    Execute {
+    /// Performs an element-wise scan, potentially collecting values depending on the provided parameters.
+    ElementScan {
         #[structopt(flatten)]
-        scan_execute_request: ScanExecuteRequest,
+        element_scan_request: ElementScanRequest,
+    },
+    /// Performs an struct-wise scan, potentially collecting values depending on the provided parameters.
+    StructScan {
+        #[structopt(flatten)]
+        struct_scan_request: StructScanRequest,
     },
 }

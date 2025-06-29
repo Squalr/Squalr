@@ -10,141 +10,141 @@ type PrimitiveType = u32;
 impl ScalarComparable for DataTypeBool32 {
     fn get_compare_equal(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
-        ScalarComparisonsInteger::get_compare_equal::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_equal::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_not_equal(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
-        ScalarComparisonsInteger::get_compare_not_equal::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_not_equal::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_greater_than(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
-        ScalarComparisonsInteger::get_compare_greater_than::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_greater_than::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_greater_than_or_equal(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
-        ScalarComparisonsInteger::get_compare_greater_than_or_equal::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_greater_than_or_equal::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_less_than(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
-        ScalarComparisonsInteger::get_compare_less_than::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_less_than::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_less_than_or_equal(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
-        ScalarComparisonsInteger::get_compare_less_than_or_equal::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_less_than_or_equal::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_changed(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
-        ScalarComparisonsInteger::get_compare_changed::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_changed::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_unchanged(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
-        ScalarComparisonsInteger::get_compare_unchanged::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_unchanged::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_increased(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
-        ScalarComparisonsInteger::get_compare_increased::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_increased::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_decreased(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
-        ScalarComparisonsInteger::get_compare_decreased::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_decreased::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_increased_by(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
-        ScalarComparisonsInteger::get_compare_increased_by::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_increased_by::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_decreased_by(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
-        ScalarComparisonsInteger::get_compare_decreased_by::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_decreased_by::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_multiplied_by(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
-        ScalarComparisonsInteger::get_compare_multiplied_by::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_multiplied_by::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_divided_by(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
-        ScalarComparisonsInteger::get_compare_divided_by::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_divided_by::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_modulo_by(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
-        ScalarComparisonsInteger::get_compare_modulo_by::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_modulo_by::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_shift_left_by(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
-        ScalarComparisonsInteger::get_compare_shift_left_by::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_shift_left_by::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_shift_right_by(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
-        ScalarComparisonsInteger::get_compare_shift_right_by::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_shift_right_by::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_logical_and_by(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
-        ScalarComparisonsInteger::get_compare_logical_and_by::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_logical_and_by::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_logical_or_by(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
-        ScalarComparisonsInteger::get_compare_logical_or_by::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_logical_or_by::<PrimitiveType>(mapped_scan_parameters)
     }
 
     fn get_compare_logical_xor_by(
         &self,
-        scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnDelta> {
-        ScalarComparisonsInteger::get_compare_logical_xor_by::<PrimitiveType>(scan_parameters)
+        ScalarComparisonsInteger::get_compare_logical_xor_by::<PrimitiveType>(mapped_scan_parameters)
     }
 }

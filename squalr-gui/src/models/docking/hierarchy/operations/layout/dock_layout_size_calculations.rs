@@ -102,7 +102,10 @@ impl DockLayout {
                 }
             }
             DockNode::Tab { tabs, .. } => {
-                let visible_children: Vec<&DockNode> = tabs.iter().filter(|c| c.is_visible()).collect();
+                let visible_children: Vec<&DockNode> = tabs
+                    .iter()
+                    .filter(|child_node| child_node.is_visible())
+                    .collect();
                 if visible_children.is_empty() {
                     return;
                 }

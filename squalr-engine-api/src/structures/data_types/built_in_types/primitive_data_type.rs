@@ -1,14 +1,12 @@
 use crate::conversions::conversions::Conversions;
+use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
+use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
-use crate::structures::{
-    data_types::{data_type_error::DataTypeError, data_type_meta_data::DataTypeMetaData},
-    data_values::anonymous_value::AnonymousValueContainer,
-};
 use std::fmt;
 use std::{any::type_name, mem::size_of, str::FromStr};
 
@@ -158,6 +156,7 @@ impl PrimitiveDataType {
     where
         F: Fn(&String) -> Vec<u8>,
     {
+        /*
         match data_type_ref.get_meta_data() {
             DataTypeMetaData::SizedContainer(size) => {
                 let mut bytes = match anonymous_value_container {
@@ -179,10 +178,12 @@ impl PrimitiveDataType {
                 Ok(bytes)
             }
             _ => Err(DataTypeError::InvalidMetaData),
-        }
+        }*/
+        Err(DataTypeError::DecodingError)
     }
 
     /// Merges an array of data values of the same data type into a singular data value.
+    /*
     pub fn array_merge(data_values: Vec<DataValue>) -> Result<DataValue, DataTypeError> {
         if let Some(merged_values) = data_values.first() {
             let merged_data_type = merged_values.get_data_type();
@@ -230,11 +231,11 @@ impl PrimitiveDataType {
         Err(DataTypeError::DataValueMergeError {
             error: "No values provided to array merge!".to_string(),
         })
-    }
+    } */
 
+    /*
     pub fn create_display_values<T, F>(
         value_bytes: &[u8],
-        data_type_meta_data: &DataTypeMetaData,
         convert_bytes_unchecked: F,
     ) -> Result<DisplayValues, DataTypeError>
     where
@@ -289,7 +290,6 @@ impl PrimitiveDataType {
     pub fn create_display_values_bool(
         value_bytes: &[u8],
         bool_primitive_size: u64,
-        data_type_meta_data: &DataTypeMetaData,
     ) -> Result<DisplayValues, DataTypeError> {
         match data_type_meta_data {
             DataTypeMetaData::Primitive(element_count) => {
@@ -321,7 +321,7 @@ impl PrimitiveDataType {
             }
             _ => Err(DataTypeError::InvalidMetaData),
         }
-    }
+    }*/
 
     pub fn get_supported_display_types() -> Vec<DisplayValueType> {
         vec![
