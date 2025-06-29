@@ -1,4 +1,5 @@
-use crate::scanners::scan_dispatcher::ScanDispatcher;
+use crate::scanners::element_scan_dispatcher::ElementScanDispatcher;
+use crate::scanners::snapshot_region_memory_reader::SnapshotRegionMemoryReader;
 use crate::scanners::value_collector_task::ValueCollectorTask;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_api::conversions::conversions::Conversions;
@@ -14,13 +15,13 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Instant;
 
-pub struct ScanExecutorTask {}
+pub struct ElementScanExecutorTask {}
 
 const TASK_NAME: &'static str = "Scan Executor";
 
 /// Implementation of a task that performs a scan against the provided snapshot. Does not collect new values.
 /// Caller is assumed to have already done this if desired.
-impl ScanExecutorTask {
+impl ElementScanExecutorTask {
     pub fn start_task(
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
@@ -86,11 +87,9 @@ impl ScanExecutorTask {
             snapshot_region.initialize_scan_results(element_scan_parameters.get_data_values_and_alignments());
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
-            // JIRA: Fixme
-            /*
             if element_scan_parameters.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
                 let _ = snapshot_region.read_all_memory(&process_info);
-            }*/
+            }
 
             /*
             pub fn can_compare_using_parameters(
@@ -116,19 +115,23 @@ impl ScanExecutorTask {
                 return;
             }*/
 
-            // Create a function to dispatch our scan to the best scanner implementation for the current region.
-            let scan_dispatcher =
-                |snapshot_region_filter_collection| ScanDispatcher::dispatch_scan(snapshot_region, snapshot_region_filter_collection, element_scan_parameters);
+            // Create a function to dispatch our element scan to the best scanner implementation for the current region.
+            let element_scan_dispatcher = |snapshot_region_filter_collection| {
+                ElementScanDispatcher::dispatch_scan(snapshot_region, snapshot_region_filter_collection, element_scan_parameters)
+            };
 
             // Again, select the parallel or sequential iterator to iterate over each data type in the scan. Generally there is only 1, but multi-type scans are supported.
             let scan_results_collection = snapshot_region.get_scan_results().get_filter_collections();
             let single_thread_scan = element_scan_parameters.is_single_thread_scan() || scan_results_collection.len() == 1;
             let scan_results = SnapshotRegionScanResults::new(if single_thread_scan {
-                scan_results_collection.iter().map(scan_dispatcher).collect()
+                scan_results_collection
+                    .iter()
+                    .map(element_scan_dispatcher)
+                    .collect()
             } else {
                 scan_results_collection
                     .par_iter()
-                    .map(scan_dispatcher)
+                    .map(element_scan_dispatcher)
                     .collect()
             });
 

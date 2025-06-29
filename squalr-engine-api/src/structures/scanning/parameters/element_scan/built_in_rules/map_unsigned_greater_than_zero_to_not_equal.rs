@@ -1,14 +1,23 @@
-use crate::execution_planner::element_scan::element_scan_execution_rule::ScanParameterMappingRule;
-use squalr_engine_api::structures::scanning::{
+use crate::registries::scan_rules::element_scan_mapping_rule::ElementScanMappingRule;
+use crate::structures::scanning::{
     comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
     filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
     parameters::{element_scan::element_scan_parameters::ElementScanParameters, mapped::mapped_scan_parameters::MappedScanParameters},
 };
 
-struct MapUnsignedGreaterThanZeroToNotEqual {}
+pub struct MapUnsignedGreaterThanZeroToNotEqual {}
 
-impl ScanParameterMappingRule for MapUnsignedGreaterThanZeroToNotEqual {
+impl MapUnsignedGreaterThanZeroToNotEqual {
+    pub const RULE_ID: &str = "map_unsigned_greater_than_zero_to_not_equal";
+}
+
+impl ElementScanMappingRule for MapUnsignedGreaterThanZeroToNotEqual {
+    fn get_id(&self) -> &str {
+        &Self::RULE_ID
+    }
+
     fn map_parameters(
+        &self,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
         original_scan_parameters: &ElementScanParameters,

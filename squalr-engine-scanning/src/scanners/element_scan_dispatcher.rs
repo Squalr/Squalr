@@ -1,3 +1,4 @@
+use crate::execution_planner::element_scan::element_scan_execution_planner::ElementScanExecutionPlanner;
 use crate::scanners::scalar::scanner_scalar_byte_array_booyer_moore::ScannerScalarByteArrayBooyerMoore;
 use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
@@ -19,11 +20,11 @@ use squalr_engine_api::structures::scanning::parameters::mapped::vectorization_s
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::cmp;
 
-pub struct ScanDispatcher {}
+pub struct ElementScanDispatcher {}
 
 /// Implements a scan dispatcher, which picks the best scanner based on the scan constraints and the region being scanned.
 /// Choosing the best scanner is critical to maintaining high performance scans.
-impl ScanDispatcher {
+impl ElementScanDispatcher {
     /// Performs a scan over a provided filter collection, returning a new filter collection with the results.
     pub fn dispatch_scan(
         snapshot_region: &SnapshotRegion,
@@ -44,7 +45,7 @@ impl ScanDispatcher {
         // The main body of the scan routine performed on a given filter.
         let snapshot_region_scanner = |snapshot_region_filter: &SnapshotRegionFilter| {
             // Map the user scan parameters into an optimized form for improved scanning efficiency.
-            let mapped_scan_parameters = MappedScanParameters::new(snapshot_region_filter_collection, element_scan_parameters);
+            let mapped_scan_parameters = ElementScanExecutionPlanner::map(snapshot_region_filter, snapshot_region_filter_collection, element_scan_parameters);
 
             // Execute the scanner that corresponds to the mapped parameters.
             let scanner_instance = Self::aquire_scanner_instance(&mapped_scan_parameters);

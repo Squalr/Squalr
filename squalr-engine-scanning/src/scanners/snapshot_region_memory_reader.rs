@@ -4,7 +4,7 @@ use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 
-trait SnapshotRegionMemoryReader {
+pub trait SnapshotRegionMemoryReader {
     fn read_all_memory(
         &mut self,
         process_info: &OpenedProcessInfo,

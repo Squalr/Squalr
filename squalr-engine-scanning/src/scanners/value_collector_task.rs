@@ -1,3 +1,4 @@
+use crate::scanners::snapshot_region_memory_reader::SnapshotRegionMemoryReader;
 use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
 use squalr_engine_api::conversions::conversions::Conversions;
@@ -71,8 +72,7 @@ impl ValueCollectorTask {
 
             // Attempt to read new (or initial) memory values. Ignore failed regions, as these are generally just deallocated pages.
             // JIRA: We probably want some way of tombstoning deallocated pages.
-            // JIRA: Fixme
-            // let _ = snapshot_region.read_all_memory(&process_info);
+            let _ = snapshot_region.read_all_memory(&process_info);
 
             // Report progress periodically (not every time for performance)
             let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);

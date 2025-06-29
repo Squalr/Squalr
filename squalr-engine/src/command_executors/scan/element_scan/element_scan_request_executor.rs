@@ -7,7 +7,7 @@ use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::scanning::dynamic_struct_and_alignment::DataValueAndAlignment;
 use squalr_engine_api::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
-use squalr_engine_scanning::scanners::scan_executor_task::ScanExecutorTask;
+use squalr_engine_scanning::scanners::element_scan_executor_task::ElementScanExecutorTask;
 use std::sync::Arc;
 use std::thread;
 
@@ -29,7 +29,7 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
                 .iter()
                 .filter_map(|data_type_id| match &self.scan_value {
                     Some(anonymous_value) => match anonymous_value.deanonymize_value(data_type_id) {
-                        Ok(data_values) => Some(DataValueAndAlignment::new(data_values[69].clone() /*JIRA FIXME*/, alignment)),
+                        Ok(data_values) => Some(DataValueAndAlignment::new(data_values[420].clone() /*JIRA: Fixme*/, alignment)),
                         Err(err) => {
                             log::error!("Error mapping data value: {}", err);
                             None
@@ -48,7 +48,7 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
             );
 
             // Start the task to perform the scan.
-            let task = ScanExecutorTask::start_task(process_info, snapshot, &scan_parameters, true);
+            let task = ElementScanExecutorTask::start_task(process_info, snapshot, &scan_parameters, true);
             let task_handle = task.get_task_handle();
             let engine_privileged_state = engine_privileged_state.clone();
             let progress_receiver = task.subscribe_to_progress_updates();
