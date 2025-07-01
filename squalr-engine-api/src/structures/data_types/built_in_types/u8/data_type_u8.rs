@@ -68,8 +68,7 @@ impl DataType for DataTypeU8 {
         &self,
         value_bytes: &[u8],
     ) -> Result<DisplayValues, DataTypeError> {
-        Err(DataTypeError::DecodingError)
-        // PrimitiveDataType::create_display_values(value_bytes, |value_bytes| PrimitiveType::from_le_bytes([value_bytes[0]]))
+        PrimitiveDataType::create_display_values(value_bytes, |value_bytes| PrimitiveType::from_le_bytes([value_bytes[0]]))
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
@@ -85,6 +84,10 @@ impl DataType for DataTypeU8 {
     }
 
     fn is_floating_point(&self) -> bool {
+        false
+    }
+
+    fn is_signed(&self) -> bool {
         false
     }
 

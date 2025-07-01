@@ -2,11 +2,12 @@ use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::memory::normalized_region::NormalizedRegion;
 use crate::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
-use crate::structures::scanning::dynamic_struct_and_alignment::DataValueAndAlignment;
 use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
+use crate::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;
 
 /// Defines a contiguous region of memory within a snapshot.
+/// JIRA: Please no public fields. These were made public to support pushing memory reading functionality into a trait.
 pub struct SnapshotRegion {
     /// The underlying region that contains the start address and length of this snapshot.
     normalized_region: NormalizedRegion,
@@ -146,9 +147,10 @@ impl SnapshotRegion {
         !self.previous_values.is_empty()
     }
 
+    // JIRA: Okay great, what about struct scans and whatnot.
     pub fn initialize_scan_results(
         &mut self,
-        data_values_and_alignments: &Vec<DataValueAndAlignment>,
+        data_values_and_alignments: &Vec<ElementScanValue>,
     ) {
         if self.scan_results.get_filter_collections().len() > 0 {
             return;

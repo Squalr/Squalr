@@ -3,7 +3,6 @@ use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::data_values::container_type::ContainerType;
-use crate::structures::data_values::data_value::DataValue;
 use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
@@ -233,7 +232,6 @@ impl PrimitiveDataType {
         })
     } */
 
-    /*
     pub fn create_display_values<T, F>(
         value_bytes: &[u8],
         convert_bytes_unchecked: F,
@@ -242,86 +240,62 @@ impl PrimitiveDataType {
         F: Fn(&[u8]) -> T,
         T: AsBits + ToString + fmt::Display,
     {
-        match data_type_meta_data {
-            DataTypeMetaData::Primitive(element_count) => {
-                let element_size = std::mem::size_of::<T>();
-                let expected = element_count * (element_size as u64);
-                let actual = value_bytes.len() as u64;
+        let element_size = std::mem::size_of::<T>();
+        let mut binary_strings = vec![];
+        let mut decimal_strings = vec![];
+        let mut hexadecimal_strings = vec![];
 
-                if actual == expected {
-                    let mut binary_strings = vec![];
-                    let mut decimal_strings = vec![];
-                    let mut hexadecimal_strings = vec![];
+        for chunk in value_bytes.chunks_exact(element_size) {
+            let value = convert_bytes_unchecked(chunk);
+            let bits = value.as_bits();
 
-                    for chunk in value_bytes.chunks_exact(element_size) {
-                        let value = convert_bytes_unchecked(chunk);
-                        let bits = value.as_bits();
-
-                        binary_strings.push(Conversions::primitive_to_binary(&bits));
-                        decimal_strings.push(value.to_string());
-                        hexadecimal_strings.push(Conversions::primitive_to_hexadecimal(&bits));
-                    }
-
-                    let value_string_binary = binary_strings.join(", ");
-                    let value_string_decimal = decimal_strings.join(", ");
-                    let value_string_hexadecimal = hexadecimal_strings.join(", ");
-                    let mut results = vec![];
-
-                    for supported_display_type in Self::get_supported_display_types() {
-                        match supported_display_type {
-                            DisplayValueType::Binary(_) => results.push(DisplayValue::new(supported_display_type, value_string_binary.clone())),
-                            DisplayValueType::Decimal(_) => results.push(DisplayValue::new(supported_display_type, value_string_decimal.clone())),
-                            DisplayValueType::Hexadecimal(_) => results.push(DisplayValue::new(supported_display_type, value_string_hexadecimal.clone())),
-                            _ => {
-                                log::error!("Unhandled supported primitive display type!")
-                            }
-                        };
-                    }
-
-                    Ok(DisplayValues::new(results, DisplayValueType::Decimal(ContainerType::None)))
-                } else {
-                    Err(DataTypeError::InvalidByteCount { expected, actual })
-                }
-            }
-            _ => Err(DataTypeError::InvalidMetaData),
+            binary_strings.push(Conversions::primitive_to_binary(&bits));
+            decimal_strings.push(value.to_string());
+            hexadecimal_strings.push(Conversions::primitive_to_hexadecimal(&bits));
         }
+
+        let value_string_binary = binary_strings.join(", ");
+        let value_string_decimal = decimal_strings.join(", ");
+        let value_string_hexadecimal = hexadecimal_strings.join(", ");
+        let mut results = vec![];
+
+        for supported_display_type in Self::get_supported_display_types() {
+            match supported_display_type {
+                DisplayValueType::Binary(_) => results.push(DisplayValue::new(supported_display_type, value_string_binary.clone())),
+                DisplayValueType::Decimal(_) => results.push(DisplayValue::new(supported_display_type, value_string_decimal.clone())),
+                DisplayValueType::Hexadecimal(_) => results.push(DisplayValue::new(supported_display_type, value_string_hexadecimal.clone())),
+                _ => {
+                    log::error!("Unhandled supported primitive display type!")
+                }
+            };
+        }
+
+        Ok(DisplayValues::new(results, DisplayValueType::Decimal(ContainerType::None)))
     }
 
     pub fn create_display_values_bool(
         value_bytes: &[u8],
         bool_primitive_size: u64,
     ) -> Result<DisplayValues, DataTypeError> {
-        match data_type_meta_data {
-            DataTypeMetaData::Primitive(element_count) => {
-                let element_size = bool_primitive_size as usize;
-                let expected = element_count * bool_primitive_size;
-                let actual = value_bytes.len() as u64;
+        let element_size = bool_primitive_size as usize;
+        let mut bool_strings = vec![];
 
-                if actual == expected {
-                    let mut bool_strings = vec![];
+        for chunk in value_bytes.chunks_exact(element_size) {
+            let is_true = chunk.iter().any(|&byte| byte != 0);
 
-                    for chunk in value_bytes.chunks_exact(element_size) {
-                        let is_true = chunk.iter().any(|&byte| byte != 0);
-
-                        bool_strings.push(if is_true { "true" } else { "false" });
-                    }
-
-                    let value_string_bool = bool_strings.join(", ");
-
-                    Ok(DisplayValues::new(
-                        vec![DisplayValue::new(
-                            DisplayValueType::Bool(ContainerType::None),
-                            value_string_bool,
-                        )],
-                        DisplayValueType::Bool(ContainerType::None),
-                    ))
-                } else {
-                    Err(DataTypeError::InvalidByteCount { expected, actual })
-                }
-            }
-            _ => Err(DataTypeError::InvalidMetaData),
+            bool_strings.push(if is_true { "true" } else { "false" });
         }
-    }*/
+
+        let value_string_bool = bool_strings.join(", ");
+
+        Ok(DisplayValues::new(
+            vec![DisplayValue::new(
+                DisplayValueType::Bool(ContainerType::None),
+                value_string_bool,
+            )],
+            DisplayValueType::Bool(ContainerType::None),
+        ))
+    }
 
     pub fn get_supported_display_types() -> Vec<DisplayValueType> {
         vec![

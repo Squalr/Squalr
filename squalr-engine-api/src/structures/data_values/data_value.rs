@@ -54,6 +54,13 @@ impl DataValue {
         &self.data_type_ref
     }
 
+    pub fn set_data_type(
+        &mut self,
+        data_type_ref: DataTypeRef,
+    ) {
+        self.data_type_ref = data_type_ref;
+    }
+
     pub fn get_data_type_id(&self) -> &str {
         &self.data_type_ref.get_data_type_id()
     }

@@ -102,6 +102,10 @@ impl DataType for DataTypeStringUtf8 {
         false
     }
 
+    fn is_signed(&self) -> bool {
+        false
+    }
+
     fn get_endian(&self) -> Endian {
         Endian::Little
     }

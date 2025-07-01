@@ -84,36 +84,17 @@ impl ElementScanExecutorTask {
             }
 
             // Creates initial results if none exist yet.
-            snapshot_region.initialize_scan_results(element_scan_parameters.get_data_values_and_alignments());
+            snapshot_region.initialize_scan_results(element_scan_parameters.get_element_scan_values());
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
             if element_scan_parameters.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
                 let _ = snapshot_region.read_all_memory(&process_info);
             }
 
-            /*
-            pub fn can_compare_using_parameters(
-                &self,
-                snapshot_region: &SnapshotRegion,
-            ) -> bool {
-                if !element_scan_parameters.is_valid() || !self.has_current_values() {
-                    false
-                } else {
-                    match element_scan_parameters.get_compare_type() {
-                        ScanCompareType::Immediate(_) => true,
-                        ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => self.has_previous_values(),
-                    }
-                }
-            }
-            */
-
-            // Skip the region if it is impossible to perform the scan (ie previous values are missing).
-            // JIRA: Fixme
-            /*
-            if !snapshot_region.can_compare_using_parameters(element_scan_parameters) {
+            if !element_scan_parameters.is_valid_for_snapshot_region(snapshot_region) {
                 processed_region_count.fetch_add(1, Ordering::SeqCst);
                 return;
-            }*/
+            }
 
             // Create a function to dispatch our element scan to the best scanner implementation for the current region.
             let element_scan_dispatcher = |snapshot_region_filter_collection| {

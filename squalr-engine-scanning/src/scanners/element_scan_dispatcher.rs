@@ -31,8 +31,6 @@ impl ElementScanDispatcher {
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         element_scan_parameters: &ElementScanParameters,
     ) -> SnapshotRegionFilterCollection {
-        // JIRA: Fixme
-        /*
         if !element_scan_parameters.is_valid_for_data_type(snapshot_region_filter_collection.get_data_type()) {
             log::error!("Error in provided scan parameters, unable to start scan!");
             return SnapshotRegionFilterCollection::new(
@@ -40,7 +38,7 @@ impl ElementScanDispatcher {
                 snapshot_region_filter_collection.get_data_type().clone(),
                 snapshot_region_filter_collection.get_memory_alignment(),
             );
-        }*/
+        }
 
         // The main body of the scan routine performed on a given filter.
         let snapshot_region_scanner = |snapshot_region_filter: &SnapshotRegionFilter| {

@@ -4,8 +4,8 @@ use squalr_engine_api::commands::scan::element_scan::element_scan_request::Eleme
 use squalr_engine_api::commands::scan::element_scan::element_scan_response::ElementScanResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
-use squalr_engine_api::structures::scanning::dynamic_struct_and_alignment::DataValueAndAlignment;
 use squalr_engine_api::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
+use squalr_engine_api::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_scanning::scanners::element_scan_executor_task::ElementScanExecutorTask;
 use std::sync::Arc;
@@ -29,7 +29,7 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
                 .iter()
                 .filter_map(|data_type_id| match &self.scan_value {
                     Some(anonymous_value) => match anonymous_value.deanonymize_value(data_type_id) {
-                        Ok(data_values) => Some(DataValueAndAlignment::new(data_values[420].clone() /*JIRA: Fixme*/, alignment)),
+                        Ok(data_value) => Some(ElementScanValue::new(data_value, alignment)),
                         Err(err) => {
                             log::error!("Error mapping data value: {}", err);
                             None

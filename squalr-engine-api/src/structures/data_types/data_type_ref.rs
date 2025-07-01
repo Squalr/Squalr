@@ -63,14 +63,12 @@ impl DataTypeRef {
         &self,
         anonymous_value: &AnonymousValue,
     ) -> bool {
-        let anonymous_values = anonymous_value.get_values();
+        let anonymous_value_container = anonymous_value.get_value();
 
         match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
             Some(data_type) => {
-                for anonymous_value_container in anonymous_values {
-                    if !data_type.validate_value(anonymous_value_container) {
-                        return false;
-                    }
+                if !data_type.validate_value(anonymous_value_container) {
+                    return false;
                 }
             }
             None => return false,
@@ -93,6 +91,14 @@ impl DataTypeRef {
                 }
             }
             None => Err("Cannot deanonymize value: data type is not registered.".into()),
+        }
+    }
+
+    /// Gets a value indicating whether this value is signed, ie can be negative.
+    pub fn is_signed(&self) -> bool {
+        match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
+            Some(data_type) => data_type.is_signed(),
+            None => false,
         }
     }
 

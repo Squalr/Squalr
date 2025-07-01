@@ -11,10 +11,10 @@ use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use crate::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
-use crate::structures::scanning::dynamic_struct_and_alignment::DataValueAndAlignment;
 use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
+use crate::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::MappedScanType;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParametersScalar;
 use crate::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
@@ -24,7 +24,7 @@ use std::simd::SupportedLaneCount;
 /// Represents processed scan parameters derived from user provided scan parameters.
 #[derive(Debug, Clone)]
 pub struct MappedScanParameters {
-    data_value_and_alignment: DataValueAndAlignment,
+    data_value_and_alignment: ElementScanValue,
     scan_compare_type: ScanCompareType,
     floating_point_tolerance: FloatingPointTolerance,
     vectorization_size: VectorizationSize,
@@ -55,6 +55,10 @@ impl MappedScanParameters {
         &self.data_value_and_alignment.get_data_value()
     }
 
+    pub fn get_data_value_mut(&mut self) -> &mut DataValue {
+        self.data_value_and_alignment.get_data_value_mut()
+    }
+
     pub fn get_data_type(&self) -> &DataTypeRef {
         &self.get_data_value().get_data_type()
     }
@@ -82,12 +86,33 @@ impl MappedScanParameters {
         &self.vectorization_size
     }
 
+    pub fn set_vectorization_size(
+        &mut self,
+        vectorization_size: VectorizationSize,
+    ) {
+        self.vectorization_size = vectorization_size;
+    }
+
     pub fn get_periodicity(&self) -> u64 {
         self.periodicity
     }
 
+    pub fn set_periodicity(
+        &mut self,
+        periodicity: u64,
+    ) {
+        self.periodicity = periodicity;
+    }
+
     pub fn get_mapped_scan_type(&self) -> &MappedScanType {
         &self.mapped_scan_type
+    }
+
+    pub fn set_mapped_scan_type(
+        &mut self,
+        mapped_scan_type: MappedScanType,
+    ) {
+        self.mapped_scan_type = mapped_scan_type;
     }
 
     pub fn get_scan_function_scalar(&self) -> Option<ScanFunctionScalar> {
@@ -153,141 +178,5 @@ impl MappedScanParameters {
         }
 
         None
-    }
-
-    fn is_single_element_scan(
-        snapshot_region_filter: &SnapshotRegionFilter,
-        data_type: &DataTypeRef,
-        memory_alignment: MemoryAlignment,
-    ) -> bool {
-        let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
-
-        element_count == 1
-    }
-
-    fn try_map_to_primitive(
-        scan_compare_type: &ScanCompareType,
-        data_value: &DataValue,
-    ) -> Option<DataTypeRef> {
-        // Only immediate scans can be remapped, if the scan is relative, then the original data type is crucial.
-        match scan_compare_type {
-            ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => return None,
-            ScanCompareType::Immediate(_) => {}
-        };
-
-        // Non discrete / floating point types cannot be remapped. For example, if we have an array of two f32 values,
-        // we absolutely cannot remap this to a single u64 (nor an f64) since these require tolerance comparisons.
-        if data_value.get_data_type().is_floating_point() {
-            return None;
-        }
-
-        let data_type_size = data_value.get_size_in_bytes();
-        let data_type_default_size = data_value.get_data_type().get_size_in_bytes();
-
-        // If the data type size is the default for that type, and its already a valid primitive size,
-        // there is no need to perform a remapping. We do this check to avoid meaningless remappings,
-        // such as remapping i16 to u16, even though this is technically acceptable.
-        if data_type_size == data_type_default_size {
-            match data_type_size {
-                1 | 2 | 4 | 8 => return None,
-                _ => {}
-            };
-        }
-
-        // If applicable, try to reinterpret array of byte scans as a primitive type of the same size.
-        // These are much more efficient than array of byte scans, so for scans of these sizes performance will be improved greatly.
-        match data_type_size {
-            8 => Some(DataTypeRef::new(DataTypeU64be::get_data_type_id())),
-            4 => Some(DataTypeRef::new(DataTypeU32be::get_data_type_id())),
-            2 => Some(DataTypeRef::new(DataTypeU16be::get_data_type_id())),
-            1 => Some(DataTypeRef::new(DataTypeU8::get_data_type_id())),
-            _ => None,
-        }
-    }
-
-    fn can_remap_to_byte_array(
-        scan_compare_type: &ScanCompareType,
-        data_value: &DataValue,
-    ) -> bool {
-        match scan_compare_type {
-            ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => return false,
-            ScanCompareType::Immediate(_) => {}
-        };
-
-        // JIRA: Disallow floating point types? It is unclear how to make array of floating points work for immediate scans.
-
-        true
-    }
-
-    fn create_vectorization_size(
-        snapshot_region_filter: &SnapshotRegionFilter,
-        data_type: &DataTypeRef,
-        memory_alignment: MemoryAlignment,
-    ) -> Option<VectorizationSize> {
-        // Rather than using the snapshot_region_filter.get_region_size() directly, we try to be smart about ensuring
-        // There is enough space to actually read a full vector of elements.
-        // For example, if scanning for i32, 1-byte aligned, a single region of 64 bytes is not actually very helpful.
-        // This is because we would actually want to overlap based on alignment, and thus would need at least 67 bytes.
-        // This is derived from scanning for four i32 values at alignments 0, 1, 2, and 3.
-        let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
-        let usable_region_size = element_count * (memory_alignment as u64);
-
-        if usable_region_size >= 64 {
-            Some(VectorizationSize::Vector64)
-        } else if usable_region_size >= 32 {
-            Some(VectorizationSize::Vector32)
-        } else if usable_region_size >= 16 {
-            Some(VectorizationSize::Vector16)
-        } else {
-            None
-        }
-    }
-
-    fn is_checking_equal_or_not_equal(scan_compare_type: &ScanCompareType) -> bool {
-        match scan_compare_type {
-            ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
-                ScanCompareTypeImmediate::Equal | ScanCompareTypeImmediate::NotEqual => true,
-                _ => false,
-            },
-            _ => false,
-        }
-    }
-
-    fn calculate_periodicity(
-        data_value: &DataValue,
-        scan_compare_type: &ScanCompareType,
-    ) -> Option<u64> {
-        match scan_compare_type {
-            ScanCompareType::Immediate(_scan_compare_type_immediate) => Some(Self::calculate_periodicity_from_immediate(
-                &data_value.get_value_bytes(),
-                data_value.get_data_type(),
-            )),
-            ScanCompareType::Delta(_scan_compare_type_immediate) => Some(Self::calculate_periodicity_from_immediate(
-                &data_value.get_value_bytes(),
-                data_value.get_data_type(),
-            )),
-            _ => None,
-        }
-    }
-
-    /// Calculates the length of repeating byte patterns within a given data type and value combination.
-    /// If there are no repeating patterns, the periodicity will be equal to the data type size.
-    /// For example, 7C 01 7C 01 has a data typze size of 4, but a periodicity of 2.
-    fn calculate_periodicity_from_immediate(
-        immediate_value_bytes: &[u8],
-        data_type: &DataTypeRef,
-    ) -> u64 {
-        // Assume optimal periodicity to begin with
-        let mut period = 1;
-        let data_type_size_bytes = data_type.get_size_in_bytes();
-
-        // Loop through all remaining bytes, and increase the periodicity when we encounter a byte that violates the current assumption.
-        for byte_index in 1..data_type_size_bytes as usize {
-            if immediate_value_bytes[byte_index] != immediate_value_bytes[byte_index % period] {
-                period = byte_index + 1;
-            }
-        }
-
-        period as u64
     }
 }

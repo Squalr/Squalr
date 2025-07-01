@@ -74,14 +74,12 @@ impl ValidationViewModel {
         let anonymous_value = AnonymousValue::new(&anonymous_value, display_value_type);
 
         // For anonymous values, we do not have any data type with meta data that we are validating against, so we just validate each part.
-        for anonymous_value in anonymous_value.get_values() {
-            if let Some(data_type) = DataTypeRegistry::get_instance().get(&data_type_id.to_string()) {
-                if !data_type.validate_value(&anonymous_value) {
-                    return false;
-                }
-            } else {
+        if let Some(data_type) = DataTypeRegistry::get_instance().get(&data_type_id.to_string()) {
+            if !data_type.validate_value(anonymous_value.get_value()) {
                 return false;
             }
+        } else {
+            return false;
         }
 
         true

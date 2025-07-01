@@ -70,8 +70,7 @@ impl DataType for DataTypeBool32 {
         &self,
         value_bytes: &[u8],
     ) -> Result<DisplayValues, DataTypeError> {
-        // PrimitiveDataType::create_display_values_bool(value_bytes, self.get_size_in_bytes())
-        Err(DataTypeError::DecodingError)
+        PrimitiveDataType::create_display_values_bool(value_bytes, self.get_size_in_bytes())
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
@@ -90,6 +89,10 @@ impl DataType for DataTypeBool32 {
     }
 
     fn is_floating_point(&self) -> bool {
+        false
+    }
+
+    fn is_signed(&self) -> bool {
         false
     }
 

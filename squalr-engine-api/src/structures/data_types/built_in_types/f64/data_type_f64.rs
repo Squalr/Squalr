@@ -68,8 +68,6 @@ impl DataType for DataTypeF64 {
         &self,
         value_bytes: &[u8],
     ) -> Result<DisplayValues, DataTypeError> {
-        Err(DataTypeError::DecodingError)
-        /*
         PrimitiveDataType::create_display_values(value_bytes, |value_bytes| {
             PrimitiveType::from_le_bytes([
                 value_bytes[0],
@@ -81,7 +79,7 @@ impl DataType for DataTypeF64 {
                 value_bytes[6],
                 value_bytes[7],
             ])
-        })*/
+        })
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
@@ -97,6 +95,10 @@ impl DataType for DataTypeF64 {
     }
 
     fn is_floating_point(&self) -> bool {
+        true
+    }
+
+    fn is_signed(&self) -> bool {
         true
     }
 

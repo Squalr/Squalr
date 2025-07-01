@@ -11,7 +11,7 @@ use std::str::FromStr;
 /// many data types. This is helpful for supporting values passed via command line / GUI.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AnonymousValue {
-    anonymous_value_containers: Vec<AnonymousValueContainer>,
+    anonymous_value_container: AnonymousValueContainer,
 }
 
 impl AnonymousValue {
@@ -20,27 +20,22 @@ impl AnonymousValue {
         display_value_type: DisplayValueType,
     ) -> Self {
         AnonymousValue {
-            anonymous_value_containers: Self::parse_anonymous_value(value_string, display_value_type),
+            anonymous_value_container: Self::parse_anonymous_value(value_string, display_value_type),
         }
     }
 
-    pub fn get_values(&self) -> &Vec<AnonymousValueContainer> {
-        &self.anonymous_value_containers
+    pub fn get_value(&self) -> &AnonymousValueContainer {
+        &self.anonymous_value_container
     }
 
     pub fn deanonymize_value(
         &self,
         data_type_id: &str,
-    ) -> Result<Vec<DataValue>, String> {
+    ) -> Result<DataValue, String> {
         let deanonymized_values = self
-            .anonymous_value_containers
-            .iter()
-            .map(|anonymous_value_container| {
-                anonymous_value_container
-                    .deanonymize_value(data_type_id)
-                    .map_err(|err: String| format!("Value deanonymization error: {:?}", err))
-            })
-            .collect::<Result<Vec<_>, String>>()?;
+            .anonymous_value_container
+            .deanonymize_value(data_type_id)
+            .map_err(|err: String| format!("Value deanonymization error: {:?}", err))?;
 
         Ok(deanonymized_values)
     }
@@ -48,34 +43,28 @@ impl AnonymousValue {
     fn parse_anonymous_value(
         value_string: &str,
         display_value_type: DisplayValueType,
-    ) -> Vec<AnonymousValueContainer> {
+    ) -> AnonymousValueContainer {
         match display_value_type.get_container_type() {
             ContainerType::Array => {
                 // Split the input string into separate parts for the array
-                value_string
-                    .split(|character| character == ' ' || character == ',')
-                    .filter(|anonymous_string| !anonymous_string.is_empty())
-                    .map(|anonymous_value| {
-                        let anonymous_value_string = anonymous_value.to_string();
-                        let anonymous_value_container = match display_value_type {
-                            DisplayValueType::Binary(_) => AnonymousValueContainer::BinaryValue(anonymous_value_string),
-                            DisplayValueType::Hexadecimal(_) => AnonymousValueContainer::HexadecimalValue(anonymous_value_string),
-                            DisplayValueType::String(_) => AnonymousValueContainer::String(anonymous_value_string),
-                            DisplayValueType::Bool(_) => AnonymousValueContainer::String(anonymous_value_string),
-                            DisplayValueType::Decimal(_) => AnonymousValueContainer::String(anonymous_value_string),
-                            DisplayValueType::Address(_) => AnonymousValueContainer::String(anonymous_value_string),
-                            DisplayValueType::DataTypeRef(_) => AnonymousValueContainer::String(anonymous_value_string),
-                            DisplayValueType::Enumeration(_) => AnonymousValueContainer::String(anonymous_value_string),
-                        };
+                let anonymous_value_string = value_string.to_string();
+                let anonymous_value_container = match display_value_type {
+                    DisplayValueType::Binary(_) => AnonymousValueContainer::BinaryValue(anonymous_value_string),
+                    DisplayValueType::Hexadecimal(_) => AnonymousValueContainer::HexadecimalValue(anonymous_value_string),
+                    DisplayValueType::String(_) => AnonymousValueContainer::String(anonymous_value_string),
+                    DisplayValueType::Bool(_) => AnonymousValueContainer::String(anonymous_value_string),
+                    DisplayValueType::Decimal(_) => AnonymousValueContainer::String(anonymous_value_string),
+                    DisplayValueType::Address(_) => AnonymousValueContainer::String(anonymous_value_string),
+                    DisplayValueType::DataTypeRef(_) => AnonymousValueContainer::String(anonymous_value_string),
+                    DisplayValueType::Enumeration(_) => AnonymousValueContainer::String(anonymous_value_string),
+                };
 
-                        anonymous_value_container
-                    })
-                    .collect()
+                anonymous_value_container
             }
             ContainerType::None => {
                 let data_value_string = value_string.to_string();
 
-                vec![match display_value_type {
+                match display_value_type {
                     DisplayValueType::Binary(_) => AnonymousValueContainer::BinaryValue(data_value_string),
                     DisplayValueType::Hexadecimal(_) => AnonymousValueContainer::HexadecimalValue(data_value_string),
                     DisplayValueType::String(_) => AnonymousValueContainer::String(data_value_string),
@@ -84,7 +73,7 @@ impl AnonymousValue {
                     DisplayValueType::Address(_) => AnonymousValueContainer::String(data_value_string),
                     DisplayValueType::DataTypeRef(_) => AnonymousValueContainer::String(data_value_string),
                     DisplayValueType::Enumeration(_) => AnonymousValueContainer::String(data_value_string),
-                }]
+                }
             }
         }
     }
@@ -94,15 +83,10 @@ impl FromStr for AnonymousValue {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let containers = string
-            .split(',')
-            .map(str::trim)
-            .filter(|part| !part.is_empty())
-            .map(|part| part.parse::<AnonymousValueContainer>())
-            .collect::<Result<Vec<_>, _>>()?;
+        let containers = string.parse::<AnonymousValueContainer>()?;
 
         Ok(AnonymousValue {
-            anonymous_value_containers: containers,
+            anonymous_value_container: containers,
         })
     }
 }
@@ -112,12 +96,8 @@ impl fmt::Display for AnonymousValue {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        let formatted_values: Vec<String> = self
-            .anonymous_value_containers
-            .iter()
-            .map(|anonymous_value_container| anonymous_value_container.to_string())
-            .collect();
+        let formatted_value = self.anonymous_value_container.to_string();
 
-        write!(formatter, "{}", formatted_values.join(","))
+        write!(formatter, "{}", formatted_value)
     }
 }

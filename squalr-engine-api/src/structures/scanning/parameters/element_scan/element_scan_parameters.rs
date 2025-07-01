@@ -3,14 +3,15 @@ use crate::structures::data_types::floating_point_tolerance::FloatingPointTolera
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use crate::structures::scanning::dynamic_struct_and_alignment::DataValueAndAlignment;
 use crate::structures::scanning::memory_read_mode::MemoryReadMode;
+use crate::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;
+use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 
 /// Represents the scan arguments for an element-wise scan.
 #[derive(Debug, Clone)]
 pub struct ElementScanParameters {
     compare_type: ScanCompareType,
-    data_values_and_alignments: Vec<DataValueAndAlignment>,
+    element_scan_values: Vec<ElementScanValue>,
     floating_point_tolerance: FloatingPointTolerance,
     memory_read_mode: MemoryReadMode,
     is_single_thread_scan: bool,
@@ -23,7 +24,7 @@ pub struct ElementScanParameters {
 impl ElementScanParameters {
     pub fn new(
         compare_type: ScanCompareType,
-        data_values_and_alignments: Vec<DataValueAndAlignment>,
+        element_scan_values: Vec<ElementScanValue>,
         floating_point_tolerance: FloatingPointTolerance,
         memory_read_mode: MemoryReadMode,
         is_single_thread_scan: bool,
@@ -31,7 +32,7 @@ impl ElementScanParameters {
     ) -> Self {
         Self {
             compare_type,
-            data_values_and_alignments,
+            element_scan_values,
             floating_point_tolerance,
             memory_read_mode,
             is_single_thread_scan,
@@ -39,28 +40,55 @@ impl ElementScanParameters {
         }
     }
 
+    pub fn is_valid_for_snapshot_region(
+        &self,
+        snapshot_region: &SnapshotRegion,
+    ) -> bool {
+        if snapshot_region.has_current_values() {
+            match self.get_compare_type() {
+                ScanCompareType::Immediate(_) => return true,
+                ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => snapshot_region.has_previous_values(),
+            }
+        } else {
+            false
+        }
+    }
+
+    pub fn is_valid_for_data_type(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> bool {
+        for data_value_and_alignment in &self.element_scan_values {
+            if data_value_and_alignment.get_data_value().get_data_type() == data_type_ref {
+                return true;
+            }
+        }
+
+        false
+    }
+
     pub fn get_compare_type(&self) -> ScanCompareType {
         self.compare_type.clone()
     }
 
-    pub fn get_data_values_and_alignments(&self) -> &Vec<DataValueAndAlignment> {
-        &self.data_values_and_alignments
+    pub fn get_element_scan_values(&self) -> &Vec<ElementScanValue> {
+        &self.element_scan_values
     }
 
     pub fn get_data_value_and_alignment_for_data_type(
         &self,
         data_type_ref: &DataTypeRef,
-    ) -> DataValueAndAlignment {
+    ) -> ElementScanValue {
         match self.get_compare_type() {
             ScanCompareType::Immediate(_) | ScanCompareType::Delta(_) => {
-                for data_value_and_alignment in &self.data_values_and_alignments {
+                for data_value_and_alignment in &self.element_scan_values {
                     if data_value_and_alignment.get_data_value().get_data_type() == data_type_ref {
                         return data_value_and_alignment.clone();
                     }
                 }
-                DataValueAndAlignment::new(DataValue::new(data_type_ref.clone(), vec![]), MemoryAlignment::Alignment1)
+                ElementScanValue::new(DataValue::new(data_type_ref.clone(), vec![]), MemoryAlignment::Alignment1)
             }
-            ScanCompareType::Relative(_) => DataValueAndAlignment::new(DataValue::new(data_type_ref.clone(), vec![]), MemoryAlignment::Alignment1),
+            ScanCompareType::Relative(_) => ElementScanValue::new(DataValue::new(data_type_ref.clone(), vec![]), MemoryAlignment::Alignment1),
         }
     }
 

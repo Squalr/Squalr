@@ -18,36 +18,38 @@ impl ElementScanMappingRule for MapUnsignedGreaterThanZeroToNotEqual {
 
     fn map_parameters(
         &self,
-        snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
-        snapshot_region_filter: &SnapshotRegionFilter,
-        original_scan_parameters: &ElementScanParameters,
+        _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
+        _snapshot_region_filter: &SnapshotRegionFilter,
+        _original_scan_parameters: &ElementScanParameters,
         mapped_parameters: &mut MappedScanParameters,
     ) {
-        /*
-        if mapped_parameters.get_dynamic_struct() {
-            //
-        }*/
+        let is_signed = mapped_parameters.get_data_value().get_data_type().is_signed();
+        let is_floating_point = mapped_parameters
+            .get_data_value()
+            .get_data_type()
+            .is_floating_point();
+        let is_all_zero = mapped_parameters
+            .get_data_value()
+            .get_value_bytes()
+            .iter()
+            .all(|byte| *byte == 0);
 
-        match mapped_parameters.get_compare_type() {
-            ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
-                ScanCompareTypeImmediate::GreaterThan => {
-                    //
-                    mapped_parameters.set_compare_type(ScanCompareType::Immediate(ScanCompareTypeImmediate::NotEqual));
-                }
+        // Remap unsigned scans that are checking "> 0" to be "!= 0" since this is actually faster internally.
+        if !is_signed && !is_floating_point && is_all_zero {
+            match mapped_parameters.get_compare_type() {
+                ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
+                    ScanCompareTypeImmediate::GreaterThan => {
+                        mapped_parameters.set_compare_type(ScanCompareType::Immediate(ScanCompareTypeImmediate::NotEqual));
+                    }
+                    _ => {}
+                },
                 _ => {}
-            },
-            _ => {}
+            }
         }
     }
 }
 
 /*
-
-        // First try a single element scanner. This is valid even for cases like array of byte scans, as all data types support basic equality checks.
-        if Self::is_single_element_scan(snapshot_region_filter, data_type_ref, memory_alignment) {
-            return mapped_params;
-        }
-
         // Try to map the scan value to primitive scans for performance gains.
         // For example, a byte array scan of 2 bytes can be mapped to a u16 scan.
         match Self::try_map_to_primitive(mapped_params.get_compare_type(), &mapped_params.get_data_value()) {
