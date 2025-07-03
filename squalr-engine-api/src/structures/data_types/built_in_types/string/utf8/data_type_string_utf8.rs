@@ -53,17 +53,10 @@ impl DataType for DataTypeStringUtf8 {
         &self,
         anonymous_value_container: &AnonymousValueContainer,
     ) -> Result<DataValue, DataTypeError> {
-        /*
-        let data_type_meta_data: DataTypeMetaData = match anonymous_value_container {
-            AnonymousValueContainer::String(string) | AnonymousValueContainer::BinaryValue(string) | AnonymousValueContainer::HexadecimalValue(string) => {
-                DataTypeMetaData::SizedContainer(string.bytes().len() as u64)
-            }
-        };
         let data_type_ref = DataTypeRef::new(Self::get_data_type_id());
-        let decoded_bytes = PrimitiveDataType::decode_string(anonymous_value_container, &data_type_ref, |value_string| value_string.as_bytes().to_vec())?;
+        let decoded_bytes = PrimitiveDataType::decode_string(anonymous_value_container, |value_string| value_string.as_bytes().to_vec())?;
 
-        Ok(DataValue::new(data_type_ref, decoded_bytes))*/
-        Err(DataTypeError::DecodingError)
+        Ok(DataValue::new(data_type_ref, decoded_bytes))
     }
 
     fn create_display_values(

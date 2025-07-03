@@ -1,15 +1,15 @@
-use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
-use crate::structures::dynamic_struct::dynamic_struct::DynamicStruct;
+use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use crate::structures::scanning::memory_read_mode::MemoryReadMode;
-use crate::structures::scanning::parameters::struct_scan::struct_scan_value::StructScanValue;
+use crate::structures::structs::valued_struct::ValuedStruct;
 
 /// Represents the scan arguments for an element-wise scan.
 #[derive(Debug, Clone)]
 pub struct StructScanParameters {
     compare_type: ScanCompareType,
-    struct_scan_values: Vec<StructScanValue>,
+    valued_struct: ValuedStruct,
+    memory_alignment: MemoryAlignment,
     floating_point_tolerance: FloatingPointTolerance,
     memory_read_mode: MemoryReadMode,
     is_single_thread_scan: bool,
@@ -22,7 +22,8 @@ pub struct StructScanParameters {
 impl StructScanParameters {
     pub fn new(
         compare_type: ScanCompareType,
-        struct_scan_values: Vec<StructScanValue>,
+        valued_struct: ValuedStruct,
+        memory_alignment: MemoryAlignment,
         floating_point_tolerance: FloatingPointTolerance,
         memory_read_mode: MemoryReadMode,
         is_single_thread_scan: bool,
@@ -30,7 +31,8 @@ impl StructScanParameters {
     ) -> Self {
         Self {
             compare_type,
-            struct_scan_values,
+            valued_struct,
+            memory_alignment,
             floating_point_tolerance,
             memory_read_mode,
             is_single_thread_scan,
@@ -42,15 +44,12 @@ impl StructScanParameters {
         self.compare_type.clone()
     }
 
-    pub fn get_struct_scan_values(&self) -> &Vec<StructScanValue> {
-        &self.struct_scan_values
+    pub fn get_valued_struct(&self) -> &ValuedStruct {
+        &self.valued_struct
     }
 
-    pub fn get_dynamic_struct_and_alignment_for_data_type(
-        &self,
-        data_type_ref: &DataTypeRef,
-    ) -> Option<DynamicStruct> {
-        None
+    pub fn get_memory_alignment(&self) -> MemoryAlignment {
+        self.memory_alignment
     }
 
     pub fn get_floating_point_tolerance(&self) -> FloatingPointTolerance {

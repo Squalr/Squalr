@@ -1,4 +1,6 @@
-use squalr_engine_api::structures::{data_values::data_value::DataValue, processes::opened_process_info::OpenedProcessInfo};
+use squalr_engine_api::structures::{
+    data_values::data_value::DataValue, processes::opened_process_info::OpenedProcessInfo, structs::valued_struct::ValuedStruct,
+};
 
 pub trait IMemoryReader {
     fn read(
@@ -7,13 +9,12 @@ pub trait IMemoryReader {
         address: u64,
         data_value: &mut DataValue,
     ) -> bool;
-    /*
     fn read_struct(
         &self,
         process_info: &OpenedProcessInfo,
         address: u64,
-        dynamic_struct: &mut DynamicStruct,
-    ) -> bool;*/
+        valued_struct: &mut ValuedStruct,
+    ) -> bool;
     fn read_bytes(
         &self,
         process_info: &OpenedProcessInfo,

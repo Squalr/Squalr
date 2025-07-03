@@ -1,17 +1,11 @@
-use crate::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
-use crate::structures::data_types::built_in_types::u16be::data_type_u16be::DataTypeU16be;
-use crate::structures::data_types::built_in_types::u32be::data_type_u32be::DataTypeU32be;
-use crate::structures::data_types::built_in_types::u64be::data_type_u64be::DataTypeU64be;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::data_types::generics::vector_comparer::VectorComparer;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use crate::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
-use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
 use crate::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;

@@ -1,6 +1,5 @@
 pub mod data_types;
 pub mod data_values;
-pub mod dynamic_struct;
 pub mod memory;
 pub mod processes;
 pub mod projects;
@@ -10,4 +9,5 @@ pub mod scan_results;
 pub mod scanning;
 pub mod settings;
 pub mod snapshots;
+pub mod structs;
 pub mod tasks;

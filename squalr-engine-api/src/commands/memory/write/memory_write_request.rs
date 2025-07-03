@@ -12,6 +12,9 @@ pub struct MemoryWriteRequest {
     // JIRA: Seems sus to just have generic int or hex parser.
     #[structopt(short = "a", long, parse(try_from_str = Conversions::parse_hex_or_int))]
     pub address: u64,
+
+    #[structopt(short = "v")]
+    pub value: Vec<u8>,
 }
 
 impl EngineCommandRequest for MemoryWriteRequest {

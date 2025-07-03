@@ -17,18 +17,11 @@ impl EngineCommandRequestExecutor for MemoryWriteRequest {
             .get_process_manager()
             .get_opened_process()
         {
-            /*
-            // Log the memory write operation
             log::info!("Writing value {:?} to address {}", self.value, self.address);
 
-            // Convert value to bytes and write to memory
-            let value_bytes = self.value.to_bytes();
+            let success = MemoryWriter::get_instance().write_bytes(&process_info, self.address, &self.value);
 
-            // Perform the memory write operation
-            let success = MemoryWriter::get_instance().write_bytes(process_info.handle, self.address, &value_bytes);
-
-            MemoryWriteResponse { success }*/
-            MemoryWriteResponse { success: false }
+            MemoryWriteResponse { success }
         } else {
             log::error!("No process is opened to write to.");
             MemoryWriteResponse { success: false }

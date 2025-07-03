@@ -83,30 +83,3 @@ impl ElementScanMappingRule for MapPeriodicScans {
         }
     }
 }
-
-/*
-        // Try to map the scan value to primitive scans for performance gains.
-        // For example, a byte array scan of 2 bytes can be mapped to a u16 scan.
-        match Self::try_map_to_primitive(mapped_params.get_compare_type(), &mapped_params.get_data_value()) {
-            Some(mapped_data_type_ref) => {
-                // Mapping onto a primitive type map was successful. Update our new internal data type, and proceed with this as the new type.
-                mapped_params.data_value.remap_data_type(mapped_data_type_ref);
-            }
-            None => {
-                if Self::can_remap_to_byte_array(mapped_params.get_compare_type(), &mapped_params.get_data_value()) {
-                    // JIRA: Okay but this breaks if they scan for an array of floats, since float comparisons are actually non-discrete.
-                    if mapped_params.data_value.get_data_type().is_floating_point() {
-                        log::warn!(
-                            "Float array type scans are currently not fully supported! These scans currently lack tolerance checks and perform byte-wise exact comparisons. Scan accuracy may suffer."
-                        )
-                    }
-
-                    // Perform a byte array scan, since we were unable to map the byte array to a primitive type.
-                    // These are the only acceptable options, either the type is a primitive, or its a byte array.
-                    mapped_params.mapped_scan_type = MappedScanType::ByteArray(ScanParametersByteArray::ByteArrayBooyerMoore);
-
-                    return mapped_params;
-                }
-            }
-        }
-*/

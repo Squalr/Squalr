@@ -3,13 +3,13 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DynamicStructField {
+pub struct SymbolicStructFieldDefinition {
     data_type: DataTypeRef,
 }
 
-impl DynamicStructField {
+impl SymbolicStructFieldDefinition {
     pub fn new(data_type: DataTypeRef) -> Self {
-        DynamicStructField { data_type }
+        SymbolicStructFieldDefinition { data_type }
     }
 
     pub fn get_size_in_bytes(&self) -> u64 {
@@ -21,12 +21,12 @@ impl DynamicStructField {
     }
 }
 
-impl FromStr for DynamicStructField {
+impl FromStr for SymbolicStructFieldDefinition {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let data_type = DataTypeRef::from_str(string)?;
 
-        Ok(DynamicStructField::new(data_type))
+        Ok(SymbolicStructFieldDefinition::new(data_type))
     }
 }

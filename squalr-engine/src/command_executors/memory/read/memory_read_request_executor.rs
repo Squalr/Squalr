@@ -2,7 +2,8 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
-// use squalr_engine_api::structures::dynamic_struct::dynamic_struct::DynamicStruct;
+use squalr_engine_api::structures::structs::symbolic_struct_ref::SymbolicStructRef;
+use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use std::sync::Arc;
@@ -20,20 +21,19 @@ impl EngineCommandRequestExecutor for MemoryReadRequest {
         {
             log::info!("Reading value from address {}", self.address);
 
-            // let mut out_value = self.value.clone();
-            // let success = MemoryReader::get_instance().read_struct(&process_info, self.address, &mut out_value);
+            let mut out_valued_struct = self.valued_struct.clone();
+            let success = MemoryReader::get_instance().read_struct(&process_info, self.address, &mut out_valued_struct);
 
             MemoryReadResponse {
-                // value: out_value,
+                valued_struct: out_valued_struct,
                 address: self.address,
-                // success: success,
-                success: false,
+                success,
             }
         } else {
             log::error!("No opened process available.");
 
             MemoryReadResponse {
-                // value: DynamicStruct::new(),
+                valued_struct: ValuedStruct::new(SymbolicStructRef::new("".to_string()), vec![]),
                 address: self.address,
                 success: false,
             }

@@ -1,12 +1,12 @@
 use crate::commands::engine_command_response::EngineCommandResponse;
 use crate::commands::engine_command_response::TypedEngineCommandResponse;
 use crate::commands::memory::memory_response::MemoryResponse;
+use crate::structures::structs::valued_struct::ValuedStruct;
 use serde::{Deserialize, Serialize};
-// use squalr_engine_api::structures::dynamic_struct::dynamic_struct::DynamicStruct;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MemoryReadResponse {
-    // pub value: DynamicStruct,
+    pub valued_struct: ValuedStruct,
     pub address: u64,
     pub success: bool,
 }

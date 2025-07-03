@@ -1,6 +1,5 @@
 use crate::conversions::conversions::Conversions;
 use crate::structures::data_types::data_type_error::DataTypeError;
-use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::display_value::DisplayValue;
@@ -149,36 +148,25 @@ impl PrimitiveDataType {
 
     pub fn decode_string<F>(
         anonymous_value_container: &AnonymousValueContainer,
-        data_type_ref: &DataTypeRef,
         decode_string_func: F,
     ) -> Result<Vec<u8>, DataTypeError>
     where
         F: Fn(&String) -> Vec<u8>,
     {
-        /*
-        match data_type_ref.get_meta_data() {
-            DataTypeMetaData::SizedContainer(size) => {
-                let mut bytes = match anonymous_value_container {
-                    // For binary strings, we directly map the binary to bytes.
-                    AnonymousValueContainer::BinaryValue(value_string_utf8) => {
-                        Conversions::binary_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
-                    }
-                    // For hex strings, we directly map the hex to bytes.
-                    AnonymousValueContainer::HexadecimalValue(value_string_utf8) => {
-                        Conversions::hex_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
-                    }
-                    // For normal strings, we decode into the appropriate provided encoding.
-                    AnonymousValueContainer::String(value_string_utf8) => decode_string_func(value_string_utf8),
-                };
-
-                // Truncate to container size.
-                bytes.truncate(*size as usize);
-
-                Ok(bytes)
+        let bytes = match anonymous_value_container {
+            // For binary strings, we directly map the binary to bytes.
+            AnonymousValueContainer::BinaryValue(value_string_utf8) => {
+                Conversions::binary_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
             }
-            _ => Err(DataTypeError::InvalidMetaData),
-        }*/
-        Err(DataTypeError::DecodingError)
+            // For hex strings, we directly map the hex to bytes.
+            AnonymousValueContainer::HexadecimalValue(value_string_utf8) => {
+                Conversions::hex_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
+            }
+            // For normal strings, we decode into the appropriate provided encoding.
+            AnonymousValueContainer::String(value_string_utf8) => decode_string_func(value_string_utf8),
+        };
+
+        Ok(bytes)
     }
 
     /// Merges an array of data values of the same data type into a singular data value.

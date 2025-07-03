@@ -1,6 +1,7 @@
 use crate::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use std::ffi::c_void;
 use std::mem;
 use windows_sys::Win32::Foundation::GetLastError;
@@ -61,22 +62,21 @@ impl IMemoryReader for WindowsMemoryReaderNt {
         return success;
     }
 
-    /*
     fn read_struct(
         &self,
         process_info: &OpenedProcessInfo,
         address: u64,
-        dynamic_struct: &mut DynamicStruct,
+        valued_struct: &mut ValuedStruct,
     ) -> bool {
-        let mut buffer = vec![0u8; dynamic_struct.get_size_in_bytes() as usize];
+        let mut buffer = vec![0u8; valued_struct.get_size_in_bytes() as usize];
 
         let success = self.read_bytes(process_info, address, &mut buffer);
         if success {
-            dynamic_struct.copy_from_bytes(&buffer);
+            valued_struct.copy_from_bytes(&buffer);
         }
 
         return success;
-    } */
+    }
 
     fn read_bytes(
         &self,
