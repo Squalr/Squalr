@@ -5,7 +5,6 @@ use crate::structures::data_values::anonymous_value_container::AnonymousValueCon
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
-use crate::structures::structs::container_type::ContainerType;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
 
@@ -74,14 +73,11 @@ impl DataType for DataTypeBool8 {
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
-        vec![
-            DisplayValueType::Bool(ContainerType::None),
-            DisplayValueType::Bool(ContainerType::Array),
-        ]
+        vec![DisplayValueType::Bool]
     }
 
     fn get_default_display_type(&self) -> DisplayValueType {
-        DisplayValueType::Bool(ContainerType::None)
+        DisplayValueType::Bool
     }
 
     fn get_endian(&self) -> Endian {

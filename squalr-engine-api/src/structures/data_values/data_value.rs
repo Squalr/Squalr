@@ -2,7 +2,6 @@ use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
-use crate::structures::structs::container_type::ContainerType;
 use crate::{registries::data_types::data_type_registry::DataTypeRegistry, structures::data_values::anonymous_value_container::AnonymousValueContainer};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -100,7 +99,7 @@ impl DataValue {
         DataTypeRegistry::get_instance()
             .get(data_type_ref.get_data_type_id())
             .and_then(|data_type| data_type.create_display_values(value_bytes).ok())
-            .unwrap_or_else(|| DisplayValues::new(vec![], DisplayValueType::String(ContainerType::None)))
+            .unwrap_or_else(|| DisplayValues::new(vec![], DisplayValueType::String))
     }
 }
 

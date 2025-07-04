@@ -1,8 +1,10 @@
 use crate::DataTypeRefViewData;
 use crate::DisplayValueTypeView;
+use crate::DisplayValueViewData;
 use crate::MainWindowView;
 use crate::ValidationViewModelBindings;
 use crate::converters::data_type_ref_converter::DataTypeRefConverter;
+use crate::converters::display_value_converter::DisplayValueConverter;
 use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
 use slint::ComponentHandle;
 use slint::ModelRc;
@@ -17,7 +19,6 @@ use squalr_engine_api::dependency_injection::dependency_container::DependencyCon
 use squalr_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use squalr_engine_api::structures::data_values::display_value_type::DisplayValueType;
-use squalr_engine_api::structures::structs::container_type::ContainerType;
 use std::sync::Arc;
 
 pub struct ValidationViewModel {
@@ -41,8 +42,8 @@ impl ValidationViewModel {
 
         create_view_bindings!(view_binding, {
             ValidationViewModelBindings => {
-                on_validate_data_value(value_string: SharedString, data_type_ref: DataTypeRefViewData, display_value_type: DisplayValueTypeView) -> [] -> Self::on_validate_data_value,
-                on_validate_anonymous_value(anonymous_value: SharedString, data_type_id: SharedString, display_value_type: DisplayValueTypeView) -> [] -> Self::on_validate_anonymous_value,
+                on_validate_data_value(value_string: SharedString, data_type_ref: DataTypeRefViewData, display_value: DisplayValueViewData) -> [] -> Self::on_validate_data_value,
+                on_validate_anonymous_value(anonymous_value: SharedString, data_type_id: SharedString, display_value: DisplayValueViewData) -> [] -> Self::on_validate_anonymous_value,
                 on_get_supported_display_types_for_data_type(data_type_id: SharedString) -> [] -> Self::on_get_supported_display_types_for_data_type,
                 on_get_default_display_type_for_data_type(data_type_id: SharedString) -> [] -> Self::on_get_default_display_type_for_data_type,
                 on_get_default_display_type_index_for_data_type(data_type_id: SharedString) -> [] -> Self::on_get_default_display_type_index_for_data_type,
@@ -55,10 +56,10 @@ impl ValidationViewModel {
     fn on_validate_data_value(
         value_string: SharedString,
         data_type_ref: DataTypeRefViewData,
-        display_value_type: DisplayValueTypeView,
+        display_value: DisplayValueViewData,
     ) -> bool {
-        let display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&display_value_type);
-        let anonymous_value = AnonymousValue::new(&value_string, display_value_type);
+        let display_value = DisplayValueConverter {}.convert_from_view_data(&display_value);
+        let anonymous_value = AnonymousValue::new(&value_string, display_value);
         let data_type_ref = DataTypeRefConverter {}.convert_from_view_data(&data_type_ref);
 
         // Since we have a data type ref with metadata, we can validate more explicitly (ie number of elements in an array).
@@ -68,10 +69,10 @@ impl ValidationViewModel {
     fn on_validate_anonymous_value(
         anonymous_value: SharedString,
         data_type_id: SharedString,
-        display_value_type: DisplayValueTypeView,
+        display_value: DisplayValueViewData,
     ) -> bool {
-        let display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&display_value_type);
-        let anonymous_value = AnonymousValue::new(&anonymous_value, display_value_type);
+        let display_value = DisplayValueConverter {}.convert_from_view_data(&display_value);
+        let anonymous_value = AnonymousValue::new(&anonymous_value, display_value);
 
         // For anonymous values, we do not have any data type with meta data that we are validating against, so we just validate each part.
         if let Some(data_type) = DataTypeRegistry::get_instance().get(&data_type_id.to_string()) {
@@ -99,7 +100,7 @@ impl ValidationViewModel {
         let default_display_type = if let Some(data_type) = DataTypeRegistry::get_instance().get(&data_type_id.to_string()) {
             data_type.get_default_display_type()
         } else {
-            DisplayValueType::Decimal(ContainerType::None)
+            DisplayValueType::Decimal
         };
 
         DisplayValueTypeConverter {}.convert_to_view_data(&default_display_type)
@@ -109,7 +110,7 @@ impl ValidationViewModel {
         let (default_display_type, display_types) = if let Some(data_type) = DataTypeRegistry::get_instance().get(&data_type_id.to_string()) {
             (data_type.get_default_display_type(), data_type.get_supported_display_types())
         } else {
-            (DisplayValueType::Decimal(ContainerType::None), vec![])
+            (DisplayValueType::Decimal, vec![])
         };
 
         display_types

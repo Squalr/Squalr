@@ -73,22 +73,20 @@ impl DataType for DataTypeStringUtf8 {
 
         Ok(DisplayValues::new(
             vec![DisplayValue::new(
-                DisplayValueType::String(ContainerType::None),
                 decoded_string,
+                DisplayValueType::String,
+                ContainerType::None,
             )],
-            DisplayValueType::String(ContainerType::None),
+            DisplayValueType::String,
         ))
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
-        vec![
-            DisplayValueType::String(ContainerType::None),
-            DisplayValueType::String(ContainerType::Array),
-        ]
+        vec![DisplayValueType::String]
     }
 
     fn get_default_display_type(&self) -> DisplayValueType {
-        DisplayValueType::String(ContainerType::None)
+        DisplayValueType::String
     }
 
     fn is_floating_point(&self) -> bool {

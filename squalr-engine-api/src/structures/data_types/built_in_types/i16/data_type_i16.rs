@@ -5,7 +5,6 @@ use crate::structures::data_values::anonymous_value_container::AnonymousValueCon
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
-use crate::structures::structs::container_type::ContainerType;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
 
@@ -76,7 +75,7 @@ impl DataType for DataTypeI16 {
     }
 
     fn get_default_display_type(&self) -> DisplayValueType {
-        DisplayValueType::Decimal(ContainerType::None)
+        DisplayValueType::Decimal
     }
 
     fn get_endian(&self) -> Endian {

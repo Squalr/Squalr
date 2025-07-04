@@ -1,10 +1,10 @@
-use crate::DisplayValueTypeView;
+use crate::DisplayValueViewData;
 use crate::MainWindowView;
 use crate::ScanConstraintTypeView;
 use crate::ScannerViewModelBindings;
 use crate::ValueCollectorViewModelBindings;
 use crate::converters::data_value_converter::DataValueConverter;
-use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
+use crate::converters::display_value_converter::DisplayValueConverter;
 use crate::converters::scan_constraint_converter::ScanConstraintConverter;
 use slint::ComponentHandle;
 use slint::Model;
@@ -60,7 +60,7 @@ impl ScannerViewModel {
             create_view_bindings!(view_model.view_binding, {
                 ScannerViewModelBindings => {
                     on_reset_scan() -> [view_model] -> Self::on_reset_scan,
-                    on_start_scan(scan_value: SharedString, data_type_ids: ModelRc<SharedString>, display_value_type: DisplayValueTypeView, scan_constraint: ScanConstraintTypeView) -> [view_model] -> Self::on_start_scan,
+                    on_start_scan(scan_value: SharedString, data_type_ids: ModelRc<SharedString>, display_value: DisplayValueViewData, scan_constraint: ScanConstraintTypeView) -> [view_model] -> Self::on_start_scan,
                 },
                 ValueCollectorViewModelBindings => {
                     on_collect_values() -> [view_model] -> Self::on_collect_values,
@@ -104,7 +104,7 @@ impl ScannerViewModel {
         view_model: Arc<ScannerViewModel>,
         scan_value: SharedString,
         data_type_ids: ModelRc<SharedString>,
-        display_value_type: DisplayValueTypeView,
+        display_value: DisplayValueViewData,
         scan_constraint: ScanConstraintTypeView,
     ) {
         let scan_view_model_state = &view_model.scan_view_model_state;
@@ -124,8 +124,8 @@ impl ScannerViewModel {
             .iter()
             .map(|data_type_id| data_type_id.to_string())
             .collect();
-        let display_value_type = DisplayValueTypeConverter {}.convert_from_view_data(&display_value_type);
-        let anonymous_value = AnonymousValue::new(&scan_value, display_value_type);
+        let display_value = DisplayValueConverter {}.convert_from_view_data(&display_value);
+        let anonymous_value = AnonymousValue::new(&scan_value, display_value);
 
         match scan_view_model_state_value {
             ScanViewModelState::HasResults => {

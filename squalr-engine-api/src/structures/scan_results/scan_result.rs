@@ -6,7 +6,6 @@ use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::properties::property_collection::PropertyCollection;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
-use crate::structures::structs::container_type::ContainerType;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, properties::property::Property};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -64,7 +63,7 @@ impl ScanResult {
             Self::PROPERTY_NAME_ADDRESS.to_string(),
             DataTypeU64::get_value_from_primitive(self.valued_result.get_address()),
             true,
-            Some(DisplayValueType::Address(ContainerType::None)),
+            Some(DisplayValueType::Address),
         );
         /*
         let property_module = Property::new(
@@ -77,7 +76,7 @@ impl ScanResult {
             Self::PROPERTY_NAME_MODULE_OFFSET.to_string(),
             DataTypeU64::get_value_from_primitive(self.module_offset),
             true,
-            Some(DisplayValueType::Hexadecimal(ContainerType::None)),
+            Some(DisplayValueType::Hexadecimal),
         );
 
         PropertyCollection::new(vec![

@@ -10,9 +10,9 @@ impl ConversionsFromHexadecimal {
         to_display_value_type: DisplayValueType,
     ) -> Result<String, ConversionError> {
         match to_display_value_type {
-            DisplayValueType::Binary(container_type) => Self::convert_to_binary(data_value),
-            DisplayValueType::Decimal(container_type) => Self::convert_to_decimal(data_value),
-            DisplayValueType::Address(container_type) => Self::convert_to_address(data_value),
+            DisplayValueType::Binary => Self::convert_to_binary(data_value),
+            DisplayValueType::Decimal => Self::convert_to_decimal(data_value),
+            DisplayValueType::Address => Self::convert_to_address(data_value),
             _ => Err(ConversionError::UnsupportedConversion),
         }
     }

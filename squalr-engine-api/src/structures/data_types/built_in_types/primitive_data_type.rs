@@ -249,16 +249,16 @@ impl PrimitiveDataType {
 
         for supported_display_type in Self::get_supported_display_types() {
             match supported_display_type {
-                DisplayValueType::Binary(_) => results.push(DisplayValue::new(supported_display_type, value_string_binary.clone())),
-                DisplayValueType::Decimal(_) => results.push(DisplayValue::new(supported_display_type, value_string_decimal.clone())),
-                DisplayValueType::Hexadecimal(_) => results.push(DisplayValue::new(supported_display_type, value_string_hexadecimal.clone())),
+                DisplayValueType::Binary => results.push(DisplayValue::new(value_string_binary.clone(), supported_display_type, ContainerType::None)),
+                DisplayValueType::Decimal => results.push(DisplayValue::new(value_string_decimal.clone(), supported_display_type, ContainerType::None)),
+                DisplayValueType::Hexadecimal => results.push(DisplayValue::new(value_string_hexadecimal.clone(), supported_display_type, ContainerType::None)),
                 _ => {
                     log::error!("Unhandled supported primitive display type!")
                 }
             };
         }
 
-        Ok(DisplayValues::new(results, DisplayValueType::Decimal(ContainerType::None)))
+        Ok(DisplayValues::new(results, DisplayValueType::Decimal))
     }
 
     pub fn create_display_values_bool(
@@ -278,21 +278,19 @@ impl PrimitiveDataType {
 
         Ok(DisplayValues::new(
             vec![DisplayValue::new(
-                DisplayValueType::Bool(ContainerType::None),
                 value_string_bool,
+                DisplayValueType::Bool,
+                ContainerType::None,
             )],
-            DisplayValueType::Bool(ContainerType::None),
+            DisplayValueType::Bool,
         ))
     }
 
     pub fn get_supported_display_types() -> Vec<DisplayValueType> {
         vec![
-            DisplayValueType::Binary(ContainerType::None),
-            DisplayValueType::Binary(ContainerType::Array),
-            DisplayValueType::Decimal(ContainerType::None),
-            DisplayValueType::Decimal(ContainerType::Array),
-            DisplayValueType::Hexadecimal(ContainerType::None),
-            DisplayValueType::Hexadecimal(ContainerType::Array),
+            DisplayValueType::Binary,
+            DisplayValueType::Decimal,
+            DisplayValueType::Hexadecimal,
         ]
     }
 }

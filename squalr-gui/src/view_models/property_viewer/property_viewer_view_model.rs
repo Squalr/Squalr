@@ -5,7 +5,6 @@ use crate::comparers::property_comparer::PropertyComparer;
 use crate::converters::property_converter::PropertyConverter;
 use slint::ComponentHandle;
 use slint::SharedString;
-use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm_macros::create_view_bindings;

@@ -464,8 +464,9 @@ impl DataType for DataTypeString {
 
                 Ok(DisplayValues::new(
                     vec![DisplayValue::new(
-                        DisplayValueType::String(ContainerType::None),
                         decoded_string,
+                        DisplayValueType::String,
+                        ContainerType::None,
                     )],
                     DisplayValueType::String(ContainerType::None),
                 ))

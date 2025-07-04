@@ -243,29 +243,19 @@ export enum MemoryReadModeView {
 
 export enum DisplayValueTypeView {
     bool,
-    bool_array,
-    bool_pointer,
     string,
-    string_array,
-    string_pointer,
     binary,
-    binary_array,
-    binary_pointer,
     decimal,
-    decimal_array,
-    decimal_pointer,
     hexadecimal,
-    hexadecimal_array,
-    hexadecimal_pointer,
     address,
-    address_array,
-    address_pointer,
     data_type_ref,
-    data_type_ref_array,
-    data_type_ref_pointer,
     enumeration,
-    enumeration_array,
-    enumeration_pointer,
+}
+
+export enum ContainerTypeView {
+    none,
+    array,
+    pointer,
 }
 
 export global ValueCollectorViewModelBindings {
@@ -280,6 +270,7 @@ export struct DataTypeRefViewData {
 export struct DisplayValueViewData {
     display_value: string,
     display_value_type: DisplayValueTypeView,
+    container_type: ContainerTypeView,
 }
 
 export struct DataValueViewData {
@@ -292,7 +283,7 @@ export global ScannerViewModelBindings {
     in_out property <DataValueViewData> active_data_value;
     in_out property <ScanConstraintTypeView> active_scan_type: equal;
     callback reset_scan();
-    callback start_scan(scan_value: string, data_type_ids: [string], display_value_type: DisplayValueTypeView, scan_constraint: ScanConstraintTypeView);
+    callback start_scan(scan_value: string, data_type_ids: [string], display_value: DisplayValueViewData, scan_constraint: ScanConstraintTypeView);
     callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
 }
 
@@ -422,8 +413,8 @@ export global ConversionsViewModelBindings {
 }
 
 export global ValidationViewModelBindings {
-    pure callback validate_data_value(value_string: string, data_type_ref: DataTypeRefViewData, display_value_type: DisplayValueTypeView) -> bool;
-    pure callback validate_anonymous_value(anonymous_value: string, data_type_id: string, display_value_type: DisplayValueTypeView) -> bool;
+    pure callback validate_data_value(value_string: string, data_type_ref: DataTypeRefViewData, display_value: DisplayValueViewData) -> bool;
+    pure callback validate_anonymous_value(anonymous_value: string, data_type_id: string, display_value: DisplayValueViewData) -> bool;
     pure callback get_supported_display_types_for_data_type(data_type_id: string) -> [DisplayValueTypeView];
     pure callback get_default_display_type_for_data_type(data_type_id: string) -> DisplayValueTypeView;
     pure callback get_default_display_type_index_for_data_type(data_type_id: string) -> int;

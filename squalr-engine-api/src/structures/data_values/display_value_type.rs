@@ -5,29 +5,14 @@ use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum DisplayValueType {
-    Bool(ContainerType),
-    String(ContainerType),
-    Binary(ContainerType),
-    Decimal(ContainerType),
-    Hexadecimal(ContainerType),
-    Address(ContainerType),
-    DataTypeRef(ContainerType),
-    Enumeration(ContainerType),
-}
-
-impl DisplayValueType {
-    pub fn get_container_type(&self) -> ContainerType {
-        match &self {
-            DisplayValueType::Bool(container_type) => container_type.to_owned(),
-            DisplayValueType::String(container_type) => container_type.to_owned(),
-            DisplayValueType::Binary(container_type) => container_type.to_owned(),
-            DisplayValueType::Decimal(container_type) => container_type.to_owned(),
-            DisplayValueType::Hexadecimal(container_type) => container_type.to_owned(),
-            DisplayValueType::Address(container_type) => container_type.to_owned(),
-            DisplayValueType::DataTypeRef(container_type) => container_type.to_owned(),
-            DisplayValueType::Enumeration(container_type) => container_type.to_owned(),
-        }
-    }
+    Bool,
+    String,
+    Binary,
+    Decimal,
+    Hexadecimal,
+    Address,
+    DataTypeRef,
+    Enumeration,
 }
 
 impl fmt::Display for DisplayValueType {
@@ -35,23 +20,15 @@ impl fmt::Display for DisplayValueType {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        fn container_str(container: &ContainerType) -> &'static str {
-            match container {
-                ContainerType::None => "",
-                ContainerType::Array => "[]",
-                ContainerType::Pointer => "*",
-            }
-        }
-
         let result = match self {
-            DisplayValueType::Bool(container_type) => format!("boolean{}", container_str(container_type)),
-            DisplayValueType::String(container_type) => format!("string{}", container_str(container_type)),
-            DisplayValueType::Binary(container_type) => format!("binary{}", container_str(container_type)),
-            DisplayValueType::Decimal(container_type) => format!("decimal{}", container_str(container_type)),
-            DisplayValueType::Hexadecimal(container_type) => format!("hexadecimal{}", container_str(container_type)),
-            DisplayValueType::Address(container_type) => format!("address{}", container_str(container_type)),
-            DisplayValueType::DataTypeRef(container_type) => format!("data_type_ref{}", container_str(container_type)),
-            DisplayValueType::Enumeration(container_type) => format!("enumeration{}", container_str(container_type)),
+            DisplayValueType::Bool => "boolean",
+            DisplayValueType::String => "string",
+            DisplayValueType::Binary => "binary",
+            DisplayValueType::Decimal => "decimal",
+            DisplayValueType::Hexadecimal => "hexadecimal",
+            DisplayValueType::Address => "address",
+            DisplayValueType::DataTypeRef => "data_type_ref",
+            DisplayValueType::Enumeration => "enumeration",
         };
 
         write!(formatter, "{}", result)
@@ -75,14 +52,14 @@ impl FromStr for DisplayValueType {
         let (container, base_type) = extract_container(input);
 
         match base_type {
-            "bool" | "boolean" => Ok(DisplayValueType::Bool(container)),
-            "string" => Ok(DisplayValueType::String(container)),
-            "bin" | "binary" => Ok(DisplayValueType::Binary(container)),
-            "dec" | "decimal" => Ok(DisplayValueType::Decimal(container)),
-            "hex" | "hexadecimal" => Ok(DisplayValueType::Hexadecimal(container)),
-            "address" => Ok(DisplayValueType::Address(container)),
-            "data_type_ref" => Ok(DisplayValueType::DataTypeRef(container)),
-            "enumeration" => Ok(DisplayValueType::Enumeration(container)),
+            "bool" | "boolean" => Ok(DisplayValueType::Bool),
+            "string" => Ok(DisplayValueType::String),
+            "bin" | "binary" => Ok(DisplayValueType::Binary),
+            "dec" | "decimal" => Ok(DisplayValueType::Decimal),
+            "hex" | "hexadecimal" => Ok(DisplayValueType::Hexadecimal),
+            "address" => Ok(DisplayValueType::Address),
+            "data_type_ref" => Ok(DisplayValueType::DataTypeRef),
+            "enumeration" => Ok(DisplayValueType::Enumeration),
             _ => Err(format!("Unknown display type: {}", base_type)),
         }
     }
