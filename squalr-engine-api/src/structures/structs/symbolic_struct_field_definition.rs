@@ -1,15 +1,19 @@
-use crate::structures::data_types::data_type_ref::DataTypeRef;
+use crate::structures::{data_types::data_type_ref::DataTypeRef, structs::container_type::ContainerType};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SymbolicStructFieldDefinition {
     data_type: DataTypeRef,
+    container_type: ContainerType,
 }
 
 impl SymbolicStructFieldDefinition {
-    pub fn new(data_type: DataTypeRef) -> Self {
-        SymbolicStructFieldDefinition { data_type }
+    pub fn new(
+        data_type: DataTypeRef,
+        container_type: ContainerType,
+    ) -> Self {
+        SymbolicStructFieldDefinition { data_type, container_type }
     }
 
     pub fn get_size_in_bytes(&self) -> u64 {
@@ -25,8 +29,17 @@ impl FromStr for SymbolicStructFieldDefinition {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let data_type = DataTypeRef::from_str(string)?;
+        // Determine container type based on string suffix.
+        let (type_str, container_type) = if let Some(stripped) = string.strip_suffix("[]") {
+            (stripped, ContainerType::Array)
+        } else if let Some(stripped) = string.strip_suffix('*') {
+            (stripped, ContainerType::Pointer)
+        } else {
+            (string, ContainerType::None)
+        };
 
-        Ok(SymbolicStructFieldDefinition::new(data_type))
+        let data_type = DataTypeRef::from_str(type_str.trim())?;
+
+        Ok(SymbolicStructFieldDefinition::new(data_type, container_type))
     }
 }

@@ -1,4 +1,4 @@
-use crate::structures::data_values::container_type::ContainerType;
+use crate::structures::structs::container_type::ContainerType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -39,18 +39,19 @@ impl fmt::Display for DisplayValueType {
             match container {
                 ContainerType::None => "",
                 ContainerType::Array => "[]",
+                ContainerType::Pointer => "*",
             }
         }
 
         let result = match self {
-            DisplayValueType::Bool(container_type) => format!("boolean;{}", container_str(container_type)),
-            DisplayValueType::String(container_type) => format!("string;{}", container_str(container_type)),
-            DisplayValueType::Binary(container_type) => format!("binary;{}", container_str(container_type)),
-            DisplayValueType::Decimal(container_type) => format!("decimal;{}", container_str(container_type)),
-            DisplayValueType::Hexadecimal(container_type) => format!("hexadecimal;{}", container_str(container_type)),
-            DisplayValueType::Address(container_type) => format!("address;{}", container_str(container_type)),
-            DisplayValueType::DataTypeRef(container_type) => format!("data_type_ref;{}", container_str(container_type)),
-            DisplayValueType::Enumeration(container_type) => format!("enumeration;{}", container_str(container_type)),
+            DisplayValueType::Bool(container_type) => format!("boolean{}", container_str(container_type)),
+            DisplayValueType::String(container_type) => format!("string{}", container_str(container_type)),
+            DisplayValueType::Binary(container_type) => format!("binary{}", container_str(container_type)),
+            DisplayValueType::Decimal(container_type) => format!("decimal{}", container_str(container_type)),
+            DisplayValueType::Hexadecimal(container_type) => format!("hexadecimal{}", container_str(container_type)),
+            DisplayValueType::Address(container_type) => format!("address{}", container_str(container_type)),
+            DisplayValueType::DataTypeRef(container_type) => format!("data_type_ref{}", container_str(container_type)),
+            DisplayValueType::Enumeration(container_type) => format!("enumeration{}", container_str(container_type)),
         };
 
         write!(formatter, "{}", result)
@@ -64,6 +65,8 @@ impl FromStr for DisplayValueType {
         fn extract_container(input: &str) -> (ContainerType, &str) {
             if let Some(stripped_input) = input.strip_suffix("[]") {
                 (ContainerType::Array, stripped_input)
+            } else if let Some(stripped_input) = input.strip_suffix("*") {
+                (ContainerType::Pointer, stripped_input)
             } else {
                 (ContainerType::None, input)
             }

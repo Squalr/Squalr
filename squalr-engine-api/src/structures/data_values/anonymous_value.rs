@@ -1,7 +1,7 @@
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
-use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
+use crate::structures::structs::container_type::ContainerType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -46,7 +46,7 @@ impl AnonymousValue {
     ) -> AnonymousValueContainer {
         match display_value_type.get_container_type() {
             ContainerType::Array => {
-                // Split the input string into separate parts for the array
+                // Split the input string into separate parts for the array.
                 let anonymous_value_string = value_string.to_string();
                 let anonymous_value_container = match display_value_type {
                     DisplayValueType::Binary(_) => AnonymousValueContainer::BinaryValue(anonymous_value_string),
@@ -54,12 +54,26 @@ impl AnonymousValue {
                     DisplayValueType::String(_) => AnonymousValueContainer::String(anonymous_value_string),
                     DisplayValueType::Bool(_) => AnonymousValueContainer::String(anonymous_value_string),
                     DisplayValueType::Decimal(_) => AnonymousValueContainer::String(anonymous_value_string),
-                    DisplayValueType::Address(_) => AnonymousValueContainer::String(anonymous_value_string),
+                    DisplayValueType::Address(_) => AnonymousValueContainer::HexadecimalValue(anonymous_value_string),
                     DisplayValueType::DataTypeRef(_) => AnonymousValueContainer::String(anonymous_value_string),
                     DisplayValueType::Enumeration(_) => AnonymousValueContainer::String(anonymous_value_string),
                 };
 
                 anonymous_value_container
+            }
+            ContainerType::Pointer => {
+                let data_value_string = value_string.to_string();
+
+                match display_value_type {
+                    DisplayValueType::Binary(_) => AnonymousValueContainer::BinaryValue(data_value_string),
+                    DisplayValueType::Hexadecimal(_) => AnonymousValueContainer::HexadecimalValue(data_value_string),
+                    DisplayValueType::String(_) => AnonymousValueContainer::String(data_value_string),
+                    DisplayValueType::Bool(_) => AnonymousValueContainer::String(data_value_string),
+                    DisplayValueType::Decimal(_) => AnonymousValueContainer::String(data_value_string),
+                    DisplayValueType::Address(_) => AnonymousValueContainer::HexadecimalValue(data_value_string),
+                    DisplayValueType::DataTypeRef(_) => AnonymousValueContainer::String(data_value_string),
+                    DisplayValueType::Enumeration(_) => AnonymousValueContainer::String(data_value_string),
+                }
             }
             ContainerType::None => {
                 let data_value_string = value_string.to_string();
@@ -70,7 +84,7 @@ impl AnonymousValue {
                     DisplayValueType::String(_) => AnonymousValueContainer::String(data_value_string),
                     DisplayValueType::Bool(_) => AnonymousValueContainer::String(data_value_string),
                     DisplayValueType::Decimal(_) => AnonymousValueContainer::String(data_value_string),
-                    DisplayValueType::Address(_) => AnonymousValueContainer::String(data_value_string),
+                    DisplayValueType::Address(_) => AnonymousValueContainer::HexadecimalValue(data_value_string),
                     DisplayValueType::DataTypeRef(_) => AnonymousValueContainer::String(data_value_string),
                     DisplayValueType::Enumeration(_) => AnonymousValueContainer::String(data_value_string),
                 }

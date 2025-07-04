@@ -16,8 +16,8 @@ use squalr_engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
 use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
-use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::data_values::display_value_type::DisplayValueType;
+use squalr_engine_api::structures::structs::container_type::ContainerType;
 use std::sync::Arc;
 
 pub struct ValidationViewModel {

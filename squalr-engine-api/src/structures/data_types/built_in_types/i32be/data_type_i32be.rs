@@ -2,10 +2,10 @@ use crate::structures::data_types::built_in_types::primitive_data_type::Primitiv
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
-use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::memory::endian::Endian;
+use crate::structures::structs::container_type::ContainerType;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
 type PrimitiveType = i32;

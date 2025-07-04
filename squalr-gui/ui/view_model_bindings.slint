@@ -244,20 +244,28 @@ export enum MemoryReadModeView {
 export enum DisplayValueTypeView {
     bool,
     bool_array,
+    bool_pointer,
     string,
     string_array,
+    string_pointer,
     binary,
     binary_array,
+    binary_pointer,
     decimal,
     decimal_array,
+    decimal_pointer,
     hexadecimal,
     hexadecimal_array,
+    hexadecimal_pointer,
     address,
     address_array,
+    address_pointer,
     data_type_ref,
     data_type_ref_array,
+    data_type_ref_pointer,
     enumeration,
     enumeration_array,
+    enumeration_pointer,
 }
 
 export global ValueCollectorViewModelBindings {

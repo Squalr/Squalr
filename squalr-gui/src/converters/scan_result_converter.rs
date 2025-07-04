@@ -1,9 +1,7 @@
 use crate::ScanResultViewData;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
-use squalr_engine_api::structures::{
-    data_values::{container_type::ContainerType, display_value_type::DisplayValueType},
-    scan_results::scan_result::ScanResult,
-};
+use squalr_engine_api::structures::structs::container_type::ContainerType;
+use squalr_engine_api::structures::{data_values::display_value_type::DisplayValueType, scan_results::scan_result::ScanResult};
 
 pub struct ScanResultConverter {}
 
