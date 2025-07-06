@@ -36,8 +36,8 @@ impl UndockedWindowViewModel {
     pub fn show(&self) {
         self.view_binding
             .execute_on_ui_thread(move |undocked_window_view, _| {
-                if let Err(err) = undocked_window_view.show() {
-                    log::error!("Error showing an undocked window: {err}");
+                if let Err(error) = undocked_window_view.show() {
+                    log::error!("Error showing an undocked window: {}", error);
                 }
             });
     }
@@ -46,8 +46,8 @@ impl UndockedWindowViewModel {
     pub fn hide(&self) {
         self.view_binding
             .execute_on_ui_thread(move |undocked_window_view, _| {
-                if let Err(err) = undocked_window_view.hide() {
-                    log::error!("Error hiding an undocked window: {err}");
+                if let Err(error) = undocked_window_view.hide() {
+                    log::error!("Error hiding an undocked window: {}", error);
                 }
             });
     }
@@ -67,8 +67,8 @@ impl UndockedWindowViewModel {
     }
 
     fn on_close() {
-        if let Err(err) = slint::quit_event_loop() {
-            log::error!("Failed to quit event loop: {}", err);
+        if let Err(error) = slint::quit_event_loop() {
+            log::error!("Failed to quit event loop: {}", error);
         }
     }
 

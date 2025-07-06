@@ -26,8 +26,8 @@ impl EngineCommandRequestExecutor for ProcessCloseRequest {
                         .get_process_manager()
                         .clear_opened_process();
                 }
-                Err(err) => {
-                    log::error!("Failed to close process handle {}: {}", process_info.get_handle(), err);
+                Err(error) => {
+                    log::error!("Failed to close process handle {}: {}", process_info.get_handle(), error);
                 }
             }
 

@@ -103,8 +103,8 @@ impl PrimitiveDataType {
                     }
                     val_bytes
                 }
-                Err(err) => {
-                    return Err(DataTypeError::ParseError(format!("Failed to parse binary value '{}': {}", value_string, err)));
+                Err(error) => {
+                    return Err(DataTypeError::ParseError(format!("Failed to parse binary value '{}': {}", value_string, error)));
                 }
             },
             AnonymousValueContainer::HexadecimalValue(value_string) => match Conversions::hex_to_primitive_bytes::<T>(&value_string, is_big_endian) {
@@ -120,8 +120,8 @@ impl PrimitiveDataType {
                     }
                     val_bytes
                 }
-                Err(err) => {
-                    return Err(DataTypeError::ParseError(format!("Failed to parse hex value '{}': {}", value_string, err)));
+                Err(error) => {
+                    return Err(DataTypeError::ParseError(format!("Failed to parse hex value '{}': {}", value_string, error)));
                 }
             },
             AnonymousValueContainer::String(value_string) => match value_string.parse::<T>() {
@@ -132,12 +132,12 @@ impl PrimitiveDataType {
                         value.to_le_bytes().into()
                     }
                 }
-                Err(err) => {
+                Err(error) => {
                     return Err(DataTypeError::ParseError(format!(
                         "Failed to parse {} value '{}': {}",
                         type_name::<T>(),
                         value_string,
-                        err
+                        error
                     )));
                 }
             },

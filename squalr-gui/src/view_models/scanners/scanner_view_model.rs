@@ -112,8 +112,8 @@ impl ScannerViewModel {
         let scan_view_model_state_value = {
             *match scan_view_model_state.read() {
                 Ok(guard) => guard,
-                Err(err) => {
-                    log::error!("Failed to acquire UI state lock to start scan: {}", err);
+                Err(error) => {
+                    log::error!("Failed to acquire UI state lock to start scan: {}", error);
                     return;
                 }
             }

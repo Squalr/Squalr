@@ -22,8 +22,8 @@ impl EngineCommandRequestExecutor for ScanResetRequest {
                     Ok(snapshot_scan_result_freeze_list) => {
                         snapshot_scan_result_freeze_list.clear();
                     }
-                    Err(err) => {
-                        log::error!("Failed to acquire write lock on snapshot: {}", err);
+                    Err(error) => {
+                        log::error!("Failed to acquire write lock on snapshot: {}", error);
                     }
                 }
 
@@ -35,8 +35,8 @@ impl EngineCommandRequestExecutor for ScanResetRequest {
 
                 ScanResetResponse { success: true }
             }
-            Err(err) => {
-                log::error!("Failed to acquire write lock on snapshot: {}", err);
+            Err(error) => {
+                log::error!("Failed to acquire write lock on snapshot: {}", error);
 
                 ScanResetResponse { success: false }
             }

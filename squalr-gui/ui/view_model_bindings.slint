@@ -29,8 +29,6 @@ export struct DockedWindowViewData {
 export enum RedockTarget { left, right, up, down, center }
 
 export global DockRootViewModelBindings {
-    in_out property <length> initial_dock_root_width;
-    in_out property <length> initial_dock_root_height;
     in_out property <string> active_dragged_window_id;
     in_out property <bool> is_dragging_window;
     in_out property <DockedWindowViewData> memory_viewer_window;

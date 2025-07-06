@@ -45,8 +45,8 @@ impl SnapshotScanResultFreezeTask {
     ) {
         let process_info_lock = match process_info.read() {
             Ok(guard) => guard,
-            Err(err) => {
-                log::error!("Failed to acquire read lock on process info for result freezing: {}", err);
+            Err(error) => {
+                log::error!("Failed to acquire read lock on process info for result freezing: {}", error);
 
                 return;
             }
@@ -59,8 +59,8 @@ impl SnapshotScanResultFreezeTask {
 
         let snapshot_scan_result_freeze_list = match snapshot_scan_result_freeze_list.read() {
             Ok(guard) => guard,
-            Err(err) => {
-                log::error!("Failed to acquire write lock on snapshot for result freezing: {}", err);
+            Err(error) => {
+                log::error!("Failed to acquire write lock on snapshot for result freezing: {}", error);
 
                 return;
             }

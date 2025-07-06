@@ -60,8 +60,8 @@ impl MainWindowViewModel {
     pub fn show(view_binding: Arc<ViewBinding<MainWindowView>>) {
         if let Ok(handle) = view_binding.get_view_handle().lock() {
             if let Some(view) = handle.upgrade() {
-                if let Err(err) = view.show() {
-                    log::error!("Error showing the main window: {err}");
+                if let Err(error) = view.show() {
+                    log::error!("Error showing the main window: {}", error);
                 }
             }
         }
@@ -70,8 +70,8 @@ impl MainWindowViewModel {
     pub fn hide(view_binding: Arc<ViewBinding<MainWindowView>>) {
         if let Ok(handle) = view_binding.get_view_handle().lock() {
             if let Some(view) = handle.upgrade() {
-                if let Err(err) = view.hide() {
-                    log::error!("Error hiding the main window: {err}");
+                if let Err(error) = view.hide() {
+                    log::error!("Error hiding the main window: {}", error);
                 }
             }
         }
@@ -92,8 +92,8 @@ impl MainWindowViewModel {
     }
 
     fn on_close() {
-        if let Err(err) = slint::quit_event_loop() {
-            log::error!("Failed to quit event loop: {}", err);
+        if let Err(error) = slint::quit_event_loop() {
+            log::error!("Failed to quit event loop: {}", error);
         }
     }
 

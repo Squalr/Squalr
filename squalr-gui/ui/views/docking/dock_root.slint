@@ -10,7 +10,6 @@ import { SettingsView } from "../../views/settings/settings_view.slint";
 import { DockRootViewModelBindings } from "./../../view_model_bindings.slint";
 
 export component DockRoot inherits Rectangle {
-    // JIRA: These fail to fire until the window is done being dragged. It would be nice if we had real time.
     changed width => {
         DockRootViewModelBindings.update_dock_root_width(root.width);
     }
@@ -18,12 +17,7 @@ export component DockRoot inherits Rectangle {
         DockRootViewModelBindings.update_dock_root_height(root.height);
     }
     background: Theme.background_primary;
-    init => {
-        // These may no longer be needed.
-        DockRootViewModelBindings.initial_dock_root_width = root.width;
-        DockRootViewModelBindings.initial_dock_root_height = root.height;
-    }
-
+    
     // 'Settings' window
     settings_window := DockedWindowView {
         docked_window_data <=> DockRootViewModelBindings.settings_window;

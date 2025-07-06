@@ -18,7 +18,7 @@ fn main() {
     // Start Squalr engine.
     let mut squalr_engine = match SqualrEngine::new(EngineMode::Standalone) {
         Ok(squalr_engine) => squalr_engine,
-        Err(err) => panic!("Fatal error initializing Squalr engine: {}", err),
+        Err(error) => panic!("Fatal error initializing Squalr engine: {}", error),
     };
 
     // Hook into engine logging for the cli to display.
@@ -31,8 +31,8 @@ fn main() {
             .subscribe_to_logs()
         {
             Ok(listener) => listener,
-            Err(err) => {
-                panic!("Fatal error hooking into engine log events: {}", err);
+            Err(error) => {
+                panic!("Fatal error hooking into engine log events: {}", error);
             }
         },
     );

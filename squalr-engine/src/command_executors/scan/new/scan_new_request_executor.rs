@@ -30,8 +30,8 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
         let snapshot = engine_privileged_state.get_snapshot();
         let mut snapshot = match snapshot.write() {
             Ok(guard) => guard,
-            Err(err) => {
-                log::error!("Failed to acquire write lock on snapshot: {}", err);
+            Err(error) => {
+                log::error!("Failed to acquire write lock on snapshot: {}", error);
 
                 return ScanNewResponse {};
             }
@@ -44,8 +44,8 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
             Ok(snapshot_scan_result_freeze_list) => {
                 snapshot_scan_result_freeze_list.clear();
             }
-            Err(err) => {
-                log::error!("Failed to acquire write lock on snapshot: {}", err);
+            Err(error) => {
+                log::error!("Failed to acquire write lock on snapshot: {}", error);
             }
         }
 

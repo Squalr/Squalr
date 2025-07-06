@@ -35,8 +35,8 @@ impl DependencyContainer {
                 container.services.insert(key, instance);
                 container.collect_ready_callbacks()
             }
-            Err(err) => {
-                log::error!("Error acquiring dependency register lock: {}", err);
+            Err(error) => {
+                log::error!("Error acquiring dependency register lock: {}", error);
                 return;
             }
         };
@@ -58,7 +58,7 @@ impl DependencyContainer {
                 .clone()
                 .downcast::<T>()
                 .map_err(|_| anyhow!("Dependency type mismatch for type: {}", key)),
-            Err(err) => Err(anyhow!("Failed to acquire lock when getting dependency instance: {}", err)),
+            Err(error) => Err(anyhow!("Failed to acquire lock when getting dependency instance: {}", error)),
         }
     }
 
@@ -74,19 +74,19 @@ impl DependencyContainer {
         if missing.is_empty() {
             match resolved {
                 Ok(resolved) => callback(self.clone(), resolved),
-                Err(err) => log::error!("Fatal error resolving dependency for immediate resolve: {}", err),
+                Err(error) => log::error!("Fatal error resolving dependency for immediate resolve: {}", error),
             }
         } else {
             let stored_callback = Box::new({
                 move |container: DependencyContainer| match T::resolve_from(&container) {
                     Ok(resolved) => callback(container, resolved),
-                    Err(err) => log::error!("Fatal error resolving dependency for stored resolve: {}", err),
+                    Err(error) => log::error!("Fatal error resolving dependency for stored resolve: {}", error),
                 }
             });
 
             match self.inner.write() {
                 Ok(mut container) => container.pending_callbacks.push((missing, stored_callback)),
-                Err(err) => log::error!("Failed to acquire lock when resolving dependency instance: {}", err),
+                Err(error) => log::error!("Failed to acquire lock when resolving dependency instance: {}", error),
             }
         }
     }

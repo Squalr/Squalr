@@ -525,8 +525,8 @@ impl DataType for DataTypeString {
 
         let string_size = match parts[1].trim().parse::<u64>() {
             Ok(string_size) => string_size,
-            Err(err) => {
-                return Err(format!("Failed to parse string size: {}", err));
+            Err(error) => {
+                return Err(format!("Failed to parse string size: {}", error));
             }
         };
         let encoding_string = if parts.len() >= 2 { parts[2].trim() } else { "" };

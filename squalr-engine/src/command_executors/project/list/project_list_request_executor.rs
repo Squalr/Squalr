@@ -32,8 +32,8 @@ impl EngineCommandRequestExecutor for ProjectListRequest {
                     }
                 }
             }
-            Err(err) => {
-                log::error!("Failed to list projects: {}", err);
+            Err(error) => {
+                log::error!("Failed to list projects: {}", error);
             }
         }
 

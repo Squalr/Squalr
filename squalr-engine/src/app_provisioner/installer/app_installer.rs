@@ -38,8 +38,8 @@ impl AppInstaller {
                 // Create temporary directory for downloads.
                 let tmp_dir = match tempfile::Builder::new().prefix("app").tempdir() {
                     Ok(dir) => dir,
-                    Err(err) => {
-                        log::error!("Failed to create temp directory: {err}");
+                    Err(error) => {
+                        log::error!("Failed to create temp directory: {}", error);
                         return;
                     }
                 };
@@ -64,15 +64,15 @@ impl AppInstaller {
 
                 // Download the new version.
                 let downloader = UpdateOperationDownload::new(progress_tracker.get_progress().clone(), download_progress_callback);
-                if let Err(err) = downloader.download_file(&download_url, &tmp_file_path) {
-                    log::error!("Failed to download app: {err}");
+                if let Err(error) = downloader.download_file(&download_url, &tmp_file_path) {
+                    log::error!("Failed to download app: {}", error);
                     return;
                 }
 
                 // Extract to a temporary location first.
                 let tmp_extract_dir = tmp_dir.path().join("extracted");
-                if let Err(err) = std::fs::create_dir_all(&tmp_extract_dir) {
-                    log::error!("Failed to create temporary extraction directory: {err}");
+                if let Err(error) = std::fs::create_dir_all(&tmp_extract_dir) {
+                    log::error!("Failed to create temporary extraction directory: {}", error);
                     return;
                 }
 
@@ -91,14 +91,14 @@ impl AppInstaller {
 
                 // Extract the archive.
                 let extractor = UpdateOperationExtract::new(&tmp_extract_dir, extract_progress_callback);
-                if let Err(err) = extractor.extract_archive(&tmp_file_path) {
-                    log::error!("Failed to extract zip archive: {err}");
+                if let Err(error) = extractor.extract_archive(&tmp_file_path) {
+                    log::error!("Failed to extract zip archive: {}", error);
                     return;
                 }
 
                 // Regular installation - clear directory and copy new files.
-                if let Err(err) = Self::replace_installation_directory_contents(&tmp_extract_dir, &install_dir) {
-                    log::error!("Failed to update installation directory: {err}");
+                if let Err(error) = Self::replace_installation_directory_contents(&tmp_extract_dir, &install_dir) {
+                    log::error!("Failed to update installation directory: {}", error);
                     return;
                 }
 

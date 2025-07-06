@@ -73,8 +73,8 @@ impl AppUpdater {
                 // Create temporary directory for downloads.
                 let tmp_dir = match tempfile::Builder::new().prefix("squalr").tempdir() {
                     Ok(dir) => dir,
-                    Err(err) => {
-                        log::error!("Failed to create temp directory: {err}");
+                    Err(error) => {
+                        log::error!("Failed to create temp directory: {}", error);
                         return;
                     }
                 };
@@ -99,15 +99,15 @@ impl AppUpdater {
 
                 // Download the new version
                 let downloader = UpdateOperationDownload::new(progress_tracker.get_progress().clone(), download_progress_callback);
-                if let Err(err) = downloader.download_file(&download_url, &tmp_file_path) {
-                    log::error!("Failed to download app: {err}");
+                if let Err(error) = downloader.download_file(&download_url, &tmp_file_path) {
+                    log::error!("Failed to download app: {}", error);
                     return;
                 }
 
                 // Extract to a temporary location first
                 let tmp_extract_dir = tmp_dir.path().join("extracted");
-                if let Err(err) = std::fs::create_dir_all(&tmp_extract_dir) {
-                    log::error!("Failed to create temporary extraction directory: {err}");
+                if let Err(error) = std::fs::create_dir_all(&tmp_extract_dir) {
+                    log::error!("Failed to create temporary extraction directory: {}", error);
                     return;
                 }
 
@@ -126,8 +126,8 @@ impl AppUpdater {
 
                 // Extract the archive
                 let extractor = UpdateOperationExtract::new(&tmp_extract_dir, extract_progress_callback);
-                if let Err(err) = extractor.extract_archive(&tmp_file_path) {
-                    log::error!("Failed to extract zip archive: {err}");
+                if let Err(error) = extractor.extract_archive(&tmp_file_path) {
+                    log::error!("Failed to extract zip archive: {}", error);
                     return;
                 }
 
@@ -149,14 +149,14 @@ impl AppUpdater {
                             Ok(_) => {
                                 log::info!("Successfully replaced main executable!");
                             }
-                            Err(err) => {
-                                log::error!("Failed to replace main executable: {err}");
+                            Err(error) => {
+                                log::error!("Failed to replace main executable: {}", error);
                                 return;
                             }
                         }
                     }
-                    Err(err) => {
-                        log::error!("Failed to update installation directory: {err}");
+                    Err(error) => {
+                        log::error!("Failed to update installation directory: {}", error);
                     }
                 }
 
@@ -200,12 +200,12 @@ impl AppUpdater {
                 if path.is_dir() {
                     match std::fs::remove_dir_all(&path) {
                         Ok(_) => log::info!("Removed directory: {}", path.display()),
-                        Err(err) => log::warn!("Failed to remove directory {}: {}", path.display(), err),
+                        Err(error) => log::warn!("Failed to remove directory {}: {}", path.display(), error),
                     }
                 } else {
                     match std::fs::remove_file(&path) {
                         Ok(_) => log::info!("Removed file: {}", path.display()),
-                        Err(err) => log::warn!("Failed to remove file {}: {}", path.display(), err),
+                        Err(error) => log::warn!("Failed to remove file {}: {}", path.display(), error),
                     }
                 }
             }
@@ -229,9 +229,14 @@ impl AppUpdater {
 
                 match std::fs::copy(&source_file_path, &destination_file_path) {
                     Ok(_) => log::info!("Copied {} to {}", source_file_path.display(), destination_file_path.display()),
-                    Err(err) => {
-                        log::error!("Failed to copy {} to {}: {}", source_file_path.display(), destination_file_path.display(), err);
-                        return Err(err);
+                    Err(error) => {
+                        log::error!(
+                            "Failed to copy {} to {}: {}",
+                            source_file_path.display(),
+                            destination_file_path.display(),
+                            error
+                        );
+                        return Err(error);
                     }
                 }
             }
@@ -243,16 +248,16 @@ impl AppUpdater {
     fn is_main_exe(target_exe_path: &PathBuf) -> bool {
         let current_exe_path = match FileSystemUtils::get_executable_path().canonicalize() {
             Ok(path) => path,
-            Err(err) => {
-                log::warn!("Failed to resolve current executable path: {}", err);
+            Err(error) => {
+                log::warn!("Failed to resolve current executable path: {}", error);
                 return false;
             }
         };
 
         let target_exe_path = match target_exe_path.canonicalize() {
             Ok(path) => path,
-            Err(err) => {
-                log::warn!("Failed to resolve target executable path, but the installation can still proceed: {}", err);
+            Err(error) => {
+                log::warn!("Failed to resolve target executable path, but the installation can still proceed: {}", error);
                 return true;
             }
         };

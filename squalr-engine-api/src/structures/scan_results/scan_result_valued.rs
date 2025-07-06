@@ -58,8 +58,8 @@ impl FromStr for ScanResultValued {
 
         let address = match parts[0].trim().parse::<u64>() {
             Ok(address) => address,
-            Err(err) => {
-                return Err(format!("Failed to parse address: {}", err));
+            Err(error) => {
+                return Err(format!("Failed to parse address: {}", error));
             }
         };
 

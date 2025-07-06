@@ -34,8 +34,8 @@ impl EngineCommandRequestExecutor for ProjectOpenRequest {
                     opened_project_info: Some(project_info),
                 }
             }
-            Err(err) => {
-                log::error!("Failed to open project: {}", err);
+            Err(error) => {
+                log::error!("Failed to open project: {}", error);
 
                 ProjectOpenResponse { opened_project_info: None }
             }

@@ -22,8 +22,8 @@ impl FileSystemLogger {
             log_dispatcher_receiver,
         };
 
-        if let Err(err) = file_system_logger.initialize(log_dispatcher_sender) {
-            log::error!("Failed to initialize file system logging: {err}");
+        if let Err(error) = file_system_logger.initialize(log_dispatcher_sender) {
+            log::error!("Failed to initialize file system logging: {}", error);
         }
 
         file_system_logger
@@ -31,7 +31,10 @@ impl FileSystemLogger {
 
     pub fn subscribe_to_logs(&self) -> Result<Receiver<String>, String> {
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let mut sender_lock = self.log_event_senders.write().map_err(|err| err.to_string())?;
+        let mut sender_lock = self
+            .log_event_senders
+            .write()
+            .map_err(|error| error.to_string())?;
         sender_lock.push(sender);
         Ok(receiver)
     }
@@ -102,8 +105,8 @@ impl FileSystemLogger {
             Some(mut path) => {
                 path.push("Squalr");
                 path.push("logs");
-                std::fs::create_dir_all(&path).unwrap_or_else(|err| {
-                    log::error!("Failed to create logs directory: {err}");
+                std::fs::create_dir_all(&path).unwrap_or_else(|error| {
+                    log::error!("Failed to create logs directory: {}", error);
                 });
                 path
             }

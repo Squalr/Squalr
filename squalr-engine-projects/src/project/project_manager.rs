@@ -36,8 +36,8 @@ impl ProjectManager {
             watcher: None,
         };
 
-        if let Err(err) = instance.watch_projects_directory() {
-            log::error!("Failed to watch projects directory! Projects may not be listed properly: {}", err);
+        if let Err(error) = instance.watch_projects_directory() {
+            log::error!("Failed to watch projects directory! Projects may not be listed properly: {}", error);
         }
 
         instance
@@ -168,7 +168,7 @@ impl ProjectManager {
                         },
                         _ => {}
                     },
-                    Err(err) => eprintln!("Watch error: {:?}", err),
+                    Err(error) => eprintln!("Watch error: {:?}", error),
                 }
             }
         });

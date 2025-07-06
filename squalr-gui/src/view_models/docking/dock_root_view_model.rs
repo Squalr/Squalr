@@ -44,18 +44,6 @@ impl DockRootViewModel {
             docking_manager: docking_manager.clone(),
         });
 
-        // Initialize the dock root size.
-        let docking_manager_clone = docking_manager.clone();
-        view_binding.execute_on_ui_thread(move |main_window_view, _| {
-            if let Ok(mut docking_manager) = docking_manager_clone.write() {
-                let dock_root_bindings = main_window_view.global::<DockRootViewModelBindings>();
-                docking_manager.get_main_window_layout_mut().set_available_size(
-                    dock_root_bindings.get_initial_dock_root_width(),
-                    dock_root_bindings.get_initial_dock_root_height(),
-                );
-            }
-        });
-
         {
             let view_model = view_model.clone();
 
@@ -109,8 +97,8 @@ impl DockRootViewModel {
     }
 
     fn on_close() {
-        if let Err(err) = slint::quit_event_loop() {
-            log::error!("Failed to quit event loop: {}", err);
+        if let Err(error) = slint::quit_event_loop() {
+            log::error!("Failed to quit event loop: {}", error);
         }
     }
 
@@ -334,8 +322,8 @@ impl DockRootViewModel {
 
         let mut layout_guard = match docking_manager.write() {
             Ok(guard) => guard,
-            Err(err) => {
-                log::error!("Could not acquire docking_manager write lock: {err}");
+            Err(error) => {
+                log::error!("Could not acquire docking_manager write lock: {}", error);
                 return;
             }
         };
@@ -368,8 +356,8 @@ impl DockRootViewModel {
             // Acquire the read lock once for all operations.
             let layout_guard = match docking_manager.read() {
                 Ok(guard) => guard,
-                Err(err) => {
-                    log::error!("Failed to acquire read lock on docking_manager: {}", err);
+                Err(error) => {
+                    log::error!("Failed to acquire read lock on docking_manager: {}", error);
                     return;
                 }
             };

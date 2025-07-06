@@ -34,8 +34,8 @@ impl OutputViewModel {
                     }
                 });
             }
-            Err(err) => {
-                log::error!("Error subscribing to engine logs: {}", err);
+            Err(error) => {
+                log::error!("Error subscribing to engine logs: {}", error);
             }
         }
 

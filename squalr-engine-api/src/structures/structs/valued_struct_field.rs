@@ -163,11 +163,11 @@ impl FromStr for ValuedStructField {
             // JIRA: 32 bit support, explicitly, more explicit field type.
             u64::from_str_radix(&value_str[2..], 16)
                 .map(ValuedStructFieldData::Pointer64)
-                .map_err(|e| e.to_string())?
+                .map_err(|error| error.to_string())?
         } else {
             DataValue::from_str(value_str)
                 .map(ValuedStructFieldData::Value)
-                .map_err(|e| e.to_string())?
+                .map_err(|error| error.to_string())?
         };
 
         Ok(ValuedStructField::new(name, field_data))

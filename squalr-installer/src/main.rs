@@ -24,8 +24,8 @@ pub fn main() {
 
     match slint::run_event_loop() {
         Ok(_) => {}
-        Err(err) => {
-            log::error!("Fatal error starting Squalr Installer GUI: {err}");
+        Err(error) => {
+            log::error!("Fatal error starting Squalr Installer GUI: {}", error);
         }
     }
 }

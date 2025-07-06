@@ -43,8 +43,8 @@ impl EngineCommandRequestExecutor for ProcessOpenRequest {
                         opened_process_info: Some(opened_process_info),
                     };
                 }
-                Err(err) => {
-                    log::info!("Failed to open process {}: {}", process_info.get_process_id_raw(), err);
+                Err(error) => {
+                    log::info!("Failed to open process {}: {}", process_info.get_process_id_raw(), error);
                 }
             }
         } else {

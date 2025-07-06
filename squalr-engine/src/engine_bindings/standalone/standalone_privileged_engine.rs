@@ -24,8 +24,8 @@ impl EnginePrivilegedBindings for StandalonePrivilegedEngine {
     ) -> Result<(), String> {
         if let Ok(senders) = self.event_senders.read() {
             for sender in senders.iter() {
-                if let Err(err) = sender.send(engine_event.clone()) {
-                    log::error!("Error emitting engine event: {}", err);
+                if let Err(error) = sender.send(engine_event.clone()) {
+                    log::error!("Error emitting engine event: {}", error);
                 }
             }
         }
@@ -35,7 +35,7 @@ impl EnginePrivilegedBindings for StandalonePrivilegedEngine {
 
     fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let mut sender_lock = self.event_senders.write().map_err(|err| err.to_string())?;
+        let mut sender_lock = self.event_senders.write().map_err(|error| error.to_string())?;
         sender_lock.push(sender);
 
         Ok(receiver)

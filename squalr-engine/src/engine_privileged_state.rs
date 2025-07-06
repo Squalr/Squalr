@@ -68,17 +68,17 @@ impl EnginePrivilegedState {
     ) {
         match self.engine_bindings.write() {
             Ok(mut engine_bindings) => {
-                if let Err(err) = engine_bindings.initialize(engine_privileged_state) {
-                    log::error!("Error initializing privileged engine bindings: {}", err);
+                if let Err(error) = engine_bindings.initialize(engine_privileged_state) {
+                    log::error!("Error initializing privileged engine bindings: {}", error);
                 }
             }
-            Err(err) => {
-                log::error!("Failed to acquire privileged engine bindings write lock: {}", err);
+            Err(error) => {
+                log::error!("Failed to acquire privileged engine bindings write lock: {}", error);
             }
         }
 
-        if let Err(err) = ProcessQuery::start_monitoring() {
-            log::error!("Failed to monitor system processes: {}", err);
+        if let Err(error) = ProcessQuery::start_monitoring() {
+            log::error!("Failed to monitor system processes: {}", error);
         }
     }
 
@@ -110,7 +110,7 @@ impl EnginePrivilegedState {
     pub fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
         match self.engine_bindings.read() {
             Ok(engine_bindings) => engine_bindings.subscribe_to_engine_events(),
-            Err(err) => Err(format!("Failed to acquire privileged engine bindings read lock: {}", err)),
+            Err(error) => Err(format!("Failed to acquire privileged engine bindings read lock: {}", error)),
         }
     }
 
@@ -123,12 +123,12 @@ impl EnginePrivilegedState {
     {
         match self.engine_bindings.read() {
             Ok(engine_bindings) => {
-                if let Err(err) = engine_bindings.emit_event(engine_event.to_engine_event()) {
-                    log::error!("Error dispatching engine event: {}", err);
+                if let Err(error) = engine_bindings.emit_event(engine_event.to_engine_event()) {
+                    log::error!("Error dispatching engine event: {}", error);
                 }
             }
-            Err(err) => {
-                log::error!("Failed to acquire privileged engine bindings read lock: {}", err);
+            Err(error) => {
+                log::error!("Failed to acquire privileged engine bindings read lock: {}", error);
             }
         }
     }
@@ -137,8 +137,8 @@ impl EnginePrivilegedState {
         let engine_bindings = engine_bindings.clone();
         Arc::new(move |event: EngineEvent| {
             if let Ok(bindings) = engine_bindings.read() {
-                if let Err(err) = bindings.emit_event(event) {
-                    log::error!("Error dispatching engine event: {}", err);
+                if let Err(error) = bindings.emit_event(event) {
+                    log::error!("Error dispatching engine event: {}", error);
                 }
             }
         }) as Arc<dyn Fn(EngineEvent) + Send + Sync>

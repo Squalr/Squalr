@@ -18,9 +18,9 @@ impl PerformUpdateTask {
         let notify_status = Arc::new(notify_status);
 
         std::thread::spawn(move || {
-            if let Err(err) = Self::execute(task_clone.clone(), notify_status.clone()) {
-                log::error!("Update failed: {}", err);
-                notify_status(UpdateStatus::Error(err.to_string()));
+            if let Err(error) = Self::execute(task_clone.clone(), notify_status.clone()) {
+                log::error!("Update failed: {}", error);
+                notify_status(UpdateStatus::Error(error.to_string()));
                 task_clone.complete();
             }
         });

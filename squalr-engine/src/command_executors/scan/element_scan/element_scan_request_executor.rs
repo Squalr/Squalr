@@ -30,8 +30,8 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
                 .filter_map(|data_type_id| match &self.scan_value {
                     Some(anonymous_value) => match anonymous_value.deanonymize_value(data_type_id) {
                         Ok(data_value) => Some(ElementScanValue::new(data_value, alignment)),
-                        Err(err) => {
-                            log::error!("Error mapping data value: {}", err);
+                        Err(error) => {
+                            log::error!("Error mapping data value: {}", error);
                             None
                         }
                     },

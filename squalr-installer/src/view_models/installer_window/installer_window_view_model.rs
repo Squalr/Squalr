@@ -21,8 +21,8 @@ impl InstallerWindowViewModel {
         let view_binding = ViewBinding::new(ComponentHandle::as_weak(&view));
 
         // Initialize the logger such that we can bind logs to the view.
-        if let Err(err) = InstallLogger::init(view_binding.clone()) {
-            eprintln!("Failed to initialize UI logger: {}", err);
+        if let Err(error) = InstallLogger::init(view_binding.clone()) {
+            eprintln!("Failed to initialize UI logger: {}", error);
         }
 
         let view = InstallerWindowViewModel {
@@ -55,8 +55,8 @@ impl InstallerWindowViewModel {
     pub fn show(&self) {
         self.view_binding
             .execute_on_ui_thread(move |installer_window_view, _view_binding| {
-                if let Err(err) = installer_window_view.show() {
-                    log::error!("Error showing the installer window: {err}");
+                if let Err(error) = installer_window_view.show() {
+                    log::error!("Error showing the installer window: {}", error);
                 }
             });
     }
@@ -64,8 +64,8 @@ impl InstallerWindowViewModel {
     pub fn hide(&self) {
         self.view_binding
             .execute_on_ui_thread(move |installer_window_view, _view_binding| {
-                if let Err(err) = installer_window_view.hide() {
-                    log::error!("Error hiding the installer window: {err}");
+                if let Err(error) = installer_window_view.hide() {
+                    log::error!("Error hiding the installer window: {}", error);
                 }
             });
     }
@@ -94,7 +94,7 @@ impl InstallerWindowViewModel {
 
                 AppInstaller::run_installation(install_dir, progress_tracker)
             }
-            Err(err) => log::error!("Failed to get default install directory: {}", err),
+            Err(error) => log::error!("Failed to get default install directory: {}", error),
         }
     }
     fn on_minimize(view_binding: ViewBinding<InstallerWindowView>) {
@@ -111,8 +111,8 @@ impl InstallerWindowViewModel {
     }
 
     fn on_close() {
-        if let Err(err) = slint::quit_event_loop() {
-            log::error!("Failed to quit event loop: {}", err);
+        if let Err(error) = slint::quit_event_loop() {
+            log::error!("Failed to quit event loop: {}", error);
         }
     }
 
@@ -143,8 +143,8 @@ impl InstallerWindowViewModel {
                 let app_path = app_dir.join("squalr.exe");
                 UpdateOperationLaunch::launch_app(&app_path);
             }
-            Err(err) => {
-                log::error!("Failed to launch app: {err}");
+            Err(error) => {
+                log::error!("Failed to launch app: {}", error);
             }
         }
     }

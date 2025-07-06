@@ -25,8 +25,8 @@ impl EngineCommandRequestExecutor for ProjectCreateRequest {
 
             match FileSystemUtils::create_unique_folder(project_root.as_path(), "New Project") {
                 Ok(path) => path,
-                Err(err) => {
-                    log::error!("Failed to create a unique default project name: {}", err);
+                Err(error) => {
+                    log::error!("Failed to create a unique default project name: {}", error);
                     return ProjectCreateResponse { created_project_info: None };
                 }
             }
@@ -40,8 +40,8 @@ impl EngineCommandRequestExecutor for ProjectCreateRequest {
                     created_project_info: Some(project_info),
                 }
             }
-            Err(err) => {
-                log::error!("Failed to create project: {}", err);
+            Err(error) => {
+                log::error!("Failed to create project: {}", error);
 
                 ProjectCreateResponse { created_project_info: None }
             }

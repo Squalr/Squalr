@@ -50,8 +50,8 @@ impl DataTypeRegistry {
     ) -> Option<Arc<dyn DataType>> {
         match &self.registry.read() {
             Ok(registry) => registry.get(data_type_id).cloned(),
-            Err(err) => {
-                log::error!("Error reading from data type registry: {}", err);
+            Err(error) => {
+                log::error!("Error reading from data type registry: {}", error);
                 None
             }
         }

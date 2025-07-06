@@ -36,8 +36,8 @@ impl FileSystemUtils {
             Ok(exe_path) => {
                 return exe_path;
             }
-            Err(err) => {
-                log::error!("Failed to get executable directory: {err}");
+            Err(error) => {
+                log::error!("Failed to get executable directory: {}", error);
                 return PathBuf::new();
             }
         }

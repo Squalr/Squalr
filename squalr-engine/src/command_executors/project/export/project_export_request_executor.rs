@@ -50,12 +50,12 @@ impl EngineCommandRequestExecutor for ProjectExportRequest {
 
                         return ProjectExportResponse { success: true };
                     }
-                    Err(err) => {
-                        log::error!("Failed to write exported project: {}", err);
+                    Err(error) => {
+                        log::error!("Failed to write exported project: {}", error);
                     }
                 },
-                Err(err) => {
-                    log::error!("Failed to export project: {}", err);
+                Err(error) => {
+                    log::error!("Failed to export project: {}", error);
                 }
             }
         }

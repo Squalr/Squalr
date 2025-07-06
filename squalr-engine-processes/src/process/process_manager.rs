@@ -62,8 +62,8 @@ impl ProcessManager {
     pub fn get_opened_process(&self) -> Option<OpenedProcessInfo> {
         match self.opened_process.read() {
             Ok(opened_process) => opened_process.clone(),
-            Err(err) => {
-                log::error!("Failed to access opened process: {}", err);
+            Err(error) => {
+                log::error!("Failed to access opened process: {}", error);
                 None
             }
         }

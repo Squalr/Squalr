@@ -14,8 +14,8 @@ impl UpdateOperationLaunch {
                 log::info!("Successfully launched Squalr");
                 std::process::exit(0);
             }
-            Err(err) => {
-                log::error!("Failed to launch Squalr: {err}");
+            Err(error) => {
+                log::error!("Failed to launch Squalr: {}", error);
             }
         }
     }

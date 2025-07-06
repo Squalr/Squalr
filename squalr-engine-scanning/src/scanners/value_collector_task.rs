@@ -49,9 +49,9 @@ impl ValueCollectorTask {
 
         let mut snapshot = match snapshot.write() {
             Ok(guard) => guard,
-            Err(err) => {
+            Err(error) => {
                 if with_logging {
-                    log::error!("Failed to acquire write lock on snapshot: {}", err);
+                    log::error!("Failed to acquire write lock on snapshot: {}", error);
                 }
 
                 return;

@@ -55,9 +55,9 @@ impl VersionCheckerTask {
                 }
                 task.complete();
             }
-            Err(err) => {
-                log::error!("Failed to check for updates: {}", err);
-                notify_status(VersionCheckerStatus::Error(err.to_string()));
+            Err(error) => {
+                log::error!("Failed to check for updates: {}", error);
+                notify_status(VersionCheckerStatus::Error(error.to_string()));
                 task.complete();
             }
         }

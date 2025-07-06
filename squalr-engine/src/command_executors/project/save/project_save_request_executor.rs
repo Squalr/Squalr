@@ -36,8 +36,8 @@ impl EngineCommandRequestExecutor for ProjectSaveRequest {
                     Ok(_) => {
                         return ProjectSaveResponse { success: true };
                     }
-                    Err(err) => {
-                        log::error!("Failed to save project: {}", err);
+                    Err(error) => {
+                        log::error!("Failed to save project: {}", error);
                     }
                 }
             }

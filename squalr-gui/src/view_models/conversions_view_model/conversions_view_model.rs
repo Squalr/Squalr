@@ -57,8 +57,8 @@ impl ConversionsViewModel {
 
         match Conversions::convert_data_value(&data_value_string, from_display_value_type, to_display_value_type) {
             Ok(converted_data_value) => converted_data_value.into(),
-            Err(err) => {
-                log::error!("Error converting data value for display type {}, error: {}", data_value_string, err);
+            Err(error) => {
+                log::error!("Error converting data value for display type {}, error: {}", data_value_string, error);
                 data_value
             }
         }

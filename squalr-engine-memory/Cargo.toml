@@ -9,7 +9,6 @@ edition = "2024"
 squalr-engine-api = { path = "../squalr-engine-api" }
 squalr-engine-common = { path = "../squalr-engine-common" }
 bitflags = ">=2.6.0"
-dll-syringe = { version = ">=0.15.2", features = ["into-x86-from-x64", "payload-utils"] }
 libc = ">=0.2.169"
 log = { version = ">=0.4.26" }
 serde = { version = ">=1.0.219", features = ["derive"] }

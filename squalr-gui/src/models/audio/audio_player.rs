@@ -30,8 +30,8 @@ impl AudioPlayer {
 
                 Some(stream_handle)
             }
-            Err(err) => {
-                log::error!("Failed to initialize audio player: {}", err);
+            Err(error) => {
+                log::error!("Failed to initialize audio player: {}", error);
                 None
             }
         };
@@ -55,14 +55,14 @@ impl AudioPlayer {
                                 sink.append(source);
                                 sink.detach();
                             }
-                            Err(err) => {
-                                log::error!("Error creating audio sink: {}", err);
+                            Err(error) => {
+                                log::error!("Error creating audio sink: {}", error);
                             }
                         }
                     }
                 }
-                Err(err) => {
-                    log::error!("Error creating audio decoder: {}", err);
+                Err(error) => {
+                    log::error!("Error creating audio decoder: {}", error);
                 }
             }
         }

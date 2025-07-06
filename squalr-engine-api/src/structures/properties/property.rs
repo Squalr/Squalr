@@ -69,7 +69,7 @@ impl FromStr for Property {
                         "readonly" => {
                             is_read_only = value
                                 .parse::<bool>()
-                                .map_err(|err| format!("Invalid readonly flag: {err}"))?;
+                                .map_err(|error| format!("Invalid readonly flag: {error}"))?;
                         }
                         _ => return Err(format!("Unknown field: {key}")),
                     }
@@ -77,7 +77,7 @@ impl FromStr for Property {
             }
         }
 
-        let value = ValuedStruct::from_str(value_str).map_err(|err| format!("Invalid DataValue: {err}"))?;
+        let value = ValuedStruct::from_str(value_str).map_err(|error| format!("Invalid DataValue: {error}"))?;
 
         Ok(Property::new(name, value, is_read_only))
     }

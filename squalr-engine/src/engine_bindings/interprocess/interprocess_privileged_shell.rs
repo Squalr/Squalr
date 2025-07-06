@@ -33,7 +33,7 @@ impl EnginePrivilegedBindings for InterprocessPrivilegedShell {
                         self.listen_for_host_requests(&engine_privileged_state);
                         Ok(())
                     }
-                    Err(err) => Err(err),
+                    Err(error) => Err(error),
                 }
             } else {
                 Err("Failed to acquire write lock on bidirectional interprocess connection.".to_string())
@@ -50,8 +50,8 @@ impl EnginePrivilegedBindings for InterprocessPrivilegedShell {
         // First dispatch the invent internally to any listeners.
         if let Ok(senders) = self.event_senders.read() {
             for sender in senders.iter() {
-                if let Err(err) = sender.send(engine_event.clone()) {
-                    log::error!("Error internally dispatching engine event: {}", err);
+                if let Err(error) = sender.send(engine_event.clone()) {
+                    log::error!("Error internally dispatching engine event: {}", error);
                 }
             }
         }
@@ -62,7 +62,7 @@ impl EnginePrivilegedBindings for InterprocessPrivilegedShell {
 
     fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let mut sender_lock = self.event_senders.write().map_err(|err| err.to_string())?;
+        let mut sender_lock = self.event_senders.write().map_err(|error| error.to_string())?;
         sender_lock.push(sender);
 
         Ok(receiver)

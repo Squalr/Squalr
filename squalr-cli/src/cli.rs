@@ -15,14 +15,14 @@ impl Cli {
         let mut stdout = io::stdout();
 
         loop {
-            if let Err(err) = stdout.flush() {
-                log::error!("Error flushing stdout {}", err);
+            if let Err(error) = stdout.flush() {
+                log::error!("Error flushing stdout {}", error);
                 break;
             }
 
             let mut input = String::new();
-            if let Err(err) = stdin.read_line(&mut input) {
-                log::error!("Error reading input {}", err);
+            if let Err(error) = stdin.read_line(&mut input) {
+                log::error!("Error reading input {}", error);
                 break;
             }
 
@@ -36,8 +36,8 @@ impl Cli {
         let stdin = io::stdin();
         let mut stdout = io::stdout();
 
-        if let Err(err) = stdout.flush() {
-            log::error!("Error flushing stdout {}", err);
+        if let Err(error) = stdout.flush() {
+            log::error!("Error flushing stdout {}", error);
             return;
         }
 
@@ -72,8 +72,8 @@ impl Cli {
 
         let engine_command = match EngineCommand::from_iter_safe(&cli_command) {
             Ok(engine_command) => engine_command,
-            Err(err) => {
-                log::error!("Error parsing engine command: {}", err);
+            Err(error) => {
+                log::error!("Error parsing engine command: {}", error);
                 return true;
             }
         };

@@ -26,8 +26,8 @@ impl TrackableTaskManager {
             Ok(mut tasks_guard) => {
                 tasks_guard.insert(trackable_task.get_task_identifier(), trackable_task);
             }
-            Err(err) => {
-                error!("Err: Failed to acquire write lock in register_task: {}", err);
+            Err(error) => {
+                error!("Err: Failed to acquire write lock in register_task: {}", error);
             }
         }
     }
@@ -41,8 +41,8 @@ impl TrackableTaskManager {
             Ok(mut tasks_guard) => {
                 tasks_guard.remove(task_identifier);
             }
-            Err(err) => {
-                error!("Err: Failed to acquire write lock in unregister_task: {}", err);
+            Err(error) => {
+                error!("Err: Failed to acquire write lock in unregister_task: {}", error);
             }
         }
     }
@@ -59,8 +59,8 @@ impl TrackableTaskManager {
                     task.cancel();
                 }
             }
-            Err(err) => {
-                error!("Err: Failed to acquire read lock in cancel_task: {}", err);
+            Err(error) => {
+                error!("Err: Failed to acquire read lock in cancel_task: {}", error);
                 return;
             }
         }
@@ -78,8 +78,8 @@ impl TrackableTaskManager {
             Ok(tasks_guard) => tasks_guard
                 .get(task_identifier)
                 .map(|task| task.get_task_handle()),
-            Err(err) => {
-                error!("Err: Failed to acquire read lock in get_task_handle: {}", err);
+            Err(error) => {
+                error!("Err: Failed to acquire read lock in get_task_handle: {}", error);
                 None
             }
         }

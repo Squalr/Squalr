@@ -12,7 +12,7 @@ fn main() {
     // Start Squalr engine.
     let mut squalr_engine = match SqualrEngine::new(EngineMode::Standalone) {
         Ok(squalr_engine) => squalr_engine,
-        Err(err) => panic!("Fatal error initializing Squalr engine: {}", err),
+        Err(error) => panic!("Fatal error initializing Squalr engine: {}", error),
     };
 
     // Start the log event sending now that both the CLI and engine are ready to receive log messages.

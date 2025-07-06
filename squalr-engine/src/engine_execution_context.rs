@@ -52,12 +52,12 @@ impl EngineExecutionContext {
     ) {
         match self.engine_bindings.write() {
             Ok(mut engine_bindings) => {
-                if let Err(err) = engine_bindings.initialize(engine_privileged_state) {
-                    log::error!("Error initializing unprivileged engine bindings: {}", err);
+                if let Err(error) = engine_bindings.initialize(engine_privileged_state) {
+                    log::error!("Error initializing unprivileged engine bindings: {}", error);
                 }
             }
-            Err(err) => {
-                log::error!("Failed to acquire unprivileged engine bindings write lock: {}", err);
+            Err(error) => {
+                log::error!("Failed to acquire unprivileged engine bindings write lock: {}", error);
             }
         }
 
@@ -84,12 +84,12 @@ impl EngineExecutionContext {
     {
         match self.engine_bindings.read() {
             Ok(engine_bindings) => {
-                if let Err(err) = engine_bindings.dispatch_command(engine_command, Box::new(callback)) {
-                    log::error!("Error dispatching engine command: {}", err);
+                if let Err(error) = engine_bindings.dispatch_command(engine_command, Box::new(callback)) {
+                    log::error!("Error dispatching engine command: {}", error);
                 }
             }
-            Err(err) => {
-                log::error!("Failed to acquire unprivileged engine bindings read lock for commands: {}", err);
+            Err(error) => {
+                log::error!("Failed to acquire unprivileged engine bindings read lock for commands: {}", error);
             }
         }
     }
@@ -110,8 +110,8 @@ impl EngineExecutionContext {
                     }
                 }));
             }
-            Err(err) => {
-                log::error!("Error listening for engine event: {}", err);
+            Err(error) => {
+                log::error!("Error listening for engine event: {}", error);
             }
         }
     }
@@ -121,13 +121,13 @@ impl EngineExecutionContext {
         let event_receiver = match self.engine_bindings.read() {
             Ok(bindings) => match bindings.subscribe_to_engine_events() {
                 Ok(receiver) => receiver,
-                Err(err) => {
-                    log::error!("Failed to subscribe to engine events: {}", err);
+                Err(error) => {
+                    log::error!("Failed to subscribe to engine events: {}", error);
                     return;
                 }
             },
-            Err(err) => {
-                log::error!("Failed to acquire engine bindings read lock: {}", err);
+            Err(error) => {
+                log::error!("Failed to acquire engine bindings read lock: {}", error);
                 return;
             }
         };
@@ -137,8 +137,8 @@ impl EngineExecutionContext {
             loop {
                 match event_receiver.recv() {
                     Ok(engine_event) => Self::route_engine_event(&event_listeners, engine_event),
-                    Err(err) => {
-                        log::error!("Fatal error listening for engine events: {}", err);
+                    Err(error) => {
+                        log::error!("Fatal error listening for engine events: {}", error);
                         return;
                     }
                 }
@@ -194,8 +194,8 @@ impl EngineExecutionContext {
                     }
                 }
             }
-            Err(err) => {
-                log::error!("Error dispatching engine event: {}", err);
+            Err(error) => {
+                log::error!("Error dispatching engine event: {}", error);
             }
         }
     }

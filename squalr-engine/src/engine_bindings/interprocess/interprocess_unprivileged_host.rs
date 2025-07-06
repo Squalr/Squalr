@@ -54,8 +54,8 @@ impl EngineUnprivilegedBindings for InterprocessUnprivilegedHost {
 
         if let Ok(ipc_connection) = self.ipc_connection.read() {
             if let Some(ipc_connection) = ipc_connection.as_ref() {
-                if let Err(err) = ipc_connection.send(command, request_id) {
-                    return Err(err.to_string());
+                if let Err(error) = ipc_connection.send(command, request_id) {
+                    return Err(error.to_string());
                 } else {
                     return Ok(());
                 }
@@ -68,7 +68,7 @@ impl EngineUnprivilegedBindings for InterprocessUnprivilegedHost {
     /// Requests to listen to all engine events.
     fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let mut sender_lock = self.event_senders.write().map_err(|err| err.to_string())?;
+        let mut sender_lock = self.event_senders.write().map_err(|error| error.to_string())?;
         sender_lock.push(sender);
 
         Ok(receiver)
@@ -96,12 +96,12 @@ impl InterprocessUnprivilegedHost {
         let event_senders = self.event_senders.clone();
 
         thread::spawn(move || {
-            if let Err(err) = Self::spawn_privileged_cli(privileged_shell_process) {
-                log::error!("Failed to spawn privileged cli: {}", err);
+            if let Err(error) = Self::spawn_privileged_cli(privileged_shell_process) {
+                log::error!("Failed to spawn privileged cli: {}", error);
             }
 
-            if let Err(err) = Self::bind_to_interprocess_pipe(ipc_connection.clone()) {
-                log::error!("Failed to bind to inter process pipe: {}", err);
+            if let Err(error) = Self::bind_to_interprocess_pipe(ipc_connection.clone()) {
+                log::error!("Failed to bind to inter process pipe: {}", error);
             }
 
             Self::listen_for_shell_responses(request_handles, event_senders, ipc_connection);
@@ -126,8 +126,8 @@ impl InterprocessUnprivilegedHost {
     ) {
         if let Ok(senders) = event_senders.read() {
             for sender in senders.iter() {
-                if let Err(err) = sender.send(engine_event.clone()) {
-                    log::error!("Error broadcasting received engine event: {}", err);
+                if let Err(error) = sender.send(engine_event.clone()) {
+                    log::error!("Error broadcasting received engine event: {}", error);
                 }
             }
         }
@@ -174,7 +174,7 @@ impl InterprocessUnprivilegedHost {
 
                 Ok(())
             }
-            Err(err) => Err(err),
+            Err(error) => Err(error),
         }
     }
 
@@ -185,7 +185,7 @@ impl InterprocessUnprivilegedHost {
                     *ipc_connection = Some(bound_connection);
                     Ok(())
                 }
-                Err(err) => Err(err),
+                Err(error) => Err(error),
             }
         } else {
             Err("Failed to acquire write lock on bidirectional interprocess connection.".to_string())

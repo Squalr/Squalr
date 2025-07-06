@@ -15,7 +15,7 @@ pub fn main() {
     // Create a standalone engine (same process for gui and engine).
     let mut squalr_engine = match SqualrEngine::new(EngineMode::Standalone) {
         Ok(squalr_engine) => squalr_engine,
-        Err(err) => panic!("Fatal error initializing Squalr engine: {}", err),
+        Err(error) => panic!("Fatal error initializing Squalr engine: {}", error),
     };
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
@@ -28,8 +28,8 @@ pub fn main() {
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {
         Ok(_) => {}
-        Err(err) => {
-            panic!("Fatal error in Squalr event loop: {}", err);
+        Err(error) => {
+            panic!("Fatal error in Squalr event loop: {}", error);
         }
     }
 }

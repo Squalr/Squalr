@@ -26,15 +26,15 @@ impl EngineCommandRequestExecutor for ProjectRenameRequest {
                 Some(current_project) => current_project.get_project_info().get_path() == project_path,
                 None => false,
             },
-            Err(err) => {
-                log::error!("Failed to check if renaming current project, aborting: {}", err);
+            Err(error) => {
+                log::error!("Failed to check if renaming current project, aborting: {}", error);
                 return ProjectRenameResponse { renamed_project_info: None };
             }
         };
 
         let new_project_path = parent_path.join(&self.new_project_name);
-        if let Err(err) = fs::rename(project_path, &new_project_path) {
-            log::error!("Failed to rename project: {}", err);
+        if let Err(error) = fs::rename(project_path, &new_project_path) {
+            log::error!("Failed to rename project: {}", error);
             return ProjectRenameResponse { renamed_project_info: None };
         }
 

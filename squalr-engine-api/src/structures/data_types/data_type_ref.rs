@@ -87,7 +87,7 @@ impl DataTypeRef {
 
                 match deanonymized_value {
                     Ok(value) => Ok(value),
-                    Err(err) => Err(err.to_string()),
+                    Err(error) => Err(error.to_string()),
                 }
             }
             None => Err("Cannot deanonymize value: data type is not registered.".into()),

@@ -156,7 +156,7 @@ impl FromStr for DataValue {
 
         match anonymous_value_container.deanonymize_value(data_type_ref.get_data_type_id()) {
             Ok(value) => Ok(value),
-            Err(err) => Err(format!("Unable to parse value: {}", err)),
+            Err(error) => Err(format!("Unable to parse value: {}", error)),
         }
     }
 }

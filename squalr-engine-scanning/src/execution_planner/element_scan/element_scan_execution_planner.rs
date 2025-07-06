@@ -25,7 +25,7 @@ impl ElementScanExecutionPlanner {
                     );
                 }
             }
-            Err(err) => log::error!("Error acquiring element scan registry: {}", err),
+            Err(error) => log::error!("Error acquiring element scan registry: {}", error),
         }
 
         mapped_scan_parameters

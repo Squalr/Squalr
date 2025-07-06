@@ -20,7 +20,7 @@ impl AnonymousValueContainer {
         match DataTypeRegistry::get_instance().get(data_type_id) {
             Some(data_type) => match data_type.deanonymize_value(&self) {
                 Ok(data_value) => Ok(data_value),
-                Err(err) => Err(format!("Value deanonymization error: {:?}", err)),
+                Err(error) => Err(format!("Value deanonymization error: {:?}", error)),
             },
             None => Err("Cannot deanonymize value: data type is not registered.".into()),
         }

@@ -195,7 +195,7 @@ impl ProcessQueryer for WindowsProcessQuery {
     fn start_monitoring() -> Result<(), String> {
         let mut monitor = PROCESS_MONITOR
             .lock()
-            .map_err(|err| format!("Failed to acquire process monitor lock: {}", err))?;
+            .map_err(|error| format!("Failed to acquire process monitor lock: {}", error))?;
 
         monitor.start_monitoring();
 
@@ -205,7 +205,7 @@ impl ProcessQueryer for WindowsProcessQuery {
     fn stop_monitoring() -> Result<(), String> {
         let mut monitor = PROCESS_MONITOR
             .lock()
-            .map_err(|err| format!("Failed to acquire process monitor lock: {}", err))?;
+            .map_err(|error| format!("Failed to acquire process monitor lock: {}", error))?;
 
         monitor.stop_monitoring();
 
@@ -244,8 +244,8 @@ impl ProcessQueryer for WindowsProcessQuery {
     fn get_processes(process_query_options: ProcessQueryOptions) -> Vec<ProcessInfo> {
         let process_monitor_guard = match PROCESS_MONITOR.lock() {
             Ok(guard) => guard,
-            Err(err) => {
-                log::error!("Failed to acquire process monitor lock: {}", err);
+            Err(error) => {
+                log::error!("Failed to acquire process monitor lock: {}", error);
                 return Vec::new();
             }
         };
@@ -253,8 +253,8 @@ impl ProcessQueryer for WindowsProcessQuery {
         let system = process_monitor_guard.get_system();
         let system_guard = match system.read() {
             Ok(guard) => guard,
-            Err(err) => {
-                log::error!("Failed to acquire system read lock: {}", err);
+            Err(error) => {
+                log::error!("Failed to acquire system read lock: {}", error);
                 return Vec::new();
             }
         };

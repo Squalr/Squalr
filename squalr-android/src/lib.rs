@@ -7,26 +7,26 @@ static SQUALR_CLI: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/../../../sq
 
 #[unsafe(no_mangle)]
 fn android_main(app: slint::android::AndroidApp) {
-    if let Err(err) = slint::android::init(app) {
-        log::error!("Failed to initialize Slint Android: {}", err);
+    if let Err(error) = slint::android::init(app) {
+        log::error!("Failed to initialize Slint Android: {}", error);
         return;
     }
 
-    if let Err(err) = unpack_cli() {
-        log::error!("Fatal error unpacking privileged cli: {}", err);
+    if let Err(error) = unpack_cli() {
+        log::error!("Fatal error unpacking privileged cli: {}", error);
         return;
     }
 
     // Create an unprivileged engine host (on android, the privileged engine is spawned as a new process).
     let mut squalr_engine = match SqualrEngine::new(EngineMode::UnprivilegedHost) {
         Ok(squalr_engine) => squalr_engine,
-        Err(err) => panic!("Fatal error initializing Squalr engine: {}", err),
+        Err(error) => panic!("Fatal error initializing Squalr engine: {}", error),
     };
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
     let _main_window_view = match MainWindowViewModel::new(squalr_engine.get_dependency_container_mut()) {
         Ok(main_window_view) => main_window_view,
-        Err(err) => panic!("Fatal error creating Squalr GUI: {}", err),
+        Err(error) => panic!("Fatal error creating Squalr GUI: {}", error),
     };
 
     // Now that gui dependencies are registered, start the engine fully.
@@ -35,8 +35,8 @@ fn android_main(app: slint::android::AndroidApp) {
     // Run the slint window event loop until slint::quit_event_loop() is called.
     match slint::run_event_loop() {
         Ok(_) => {}
-        Err(err) => {
-            log::error!("Fatal error starting Squalr: {}", err);
+        Err(error) => {
+            log::error!("Fatal error starting Squalr: {}", error);
         }
     }
 }

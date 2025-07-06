@@ -61,8 +61,8 @@ impl TrackableTask {
         if let Ok(mut progress_guard) = self.progress.lock() {
             *progress_guard = progress;
 
-            if let Err(err) = self.progress_sender.send(progress) {
-                log::error!("Failed set task progress: {}", err);
+            if let Err(error) = self.progress_sender.send(progress) {
+                log::error!("Failed set task progress: {}", error);
             }
         } else {
             log::error!("Failed to get lock to set task progress.");
@@ -110,8 +110,8 @@ impl TrackableTask {
         let mutex = Mutex::new(());
         let mut lock = match mutex.lock() {
             Ok(lock) => lock,
-            Err(err) => {
-                log::error!("Error waiting for event completion: {}", err);
+            Err(error) => {
+                log::error!("Error waiting for event completion: {}", error);
                 return;
             }
         };

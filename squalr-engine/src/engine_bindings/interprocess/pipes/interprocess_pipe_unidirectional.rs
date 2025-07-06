@@ -48,7 +48,7 @@ impl InterprocessPipeUnidirectional {
             Ok(socket_stream) => Ok(Self {
                 socket_stream: Arc::new(Mutex::new(Some(socket_stream))),
             }),
-            Err(err) => Err(err),
+            Err(error) => Err(error),
         }
     }
 
@@ -57,7 +57,7 @@ impl InterprocessPipeUnidirectional {
             Ok(socket_stream) => Ok(Self {
                 socket_stream: Arc::new(Mutex::new(Some(socket_stream))),
             }),
-            Err(err) => Err(err),
+            Err(error) => Err(error),
         }
     }
 
@@ -77,31 +77,31 @@ impl InterprocessPipeUnidirectional {
         #[cfg(not(target_os = "android"))]
         let name: Name<'_> = match ipc_socket_path.to_fs_name::<NamedPipeType>() {
             Ok(name) => name,
-            Err(err) => {
-                return Err(err.to_string());
+            Err(error) => {
+                return Err(error.to_string());
             }
         };
 
         #[cfg(target_os = "android")]
         let name: Name<'_> = match ipc_socket_path.to_ns_name::<NamedPipeType>() {
             Ok(name) => name,
-            Err(err) => {
-                return Err(err.to_string());
+            Err(error) => {
+                return Err(error.to_string());
             }
         };
 
         // Create the listener using ListenerOptions
         let listener = match ListenerOptions::new().name(name).create_sync() {
             Ok(listener) => listener,
-            Err(err) => {
-                return Err(err.to_string());
+            Err(error) => {
+                return Err(error.to_string());
             }
         };
 
         // Accept one connection
         let stream = match listener.incoming().next() {
             Some(Ok(conn)) => conn,
-            Some(Err(err)) => return Err(err.to_string()),
+            Some(Err(error)) => return Err(error.to_string()),
             None => return Err("Manager: no connection arrived.".to_string()),
         };
 
@@ -116,16 +116,16 @@ impl InterprocessPipeUnidirectional {
         #[cfg(not(target_os = "android"))]
         let name: Name<'_> = match ipc_socket_path.to_fs_name::<NamedPipeType>() {
             Ok(name) => name,
-            Err(err) => {
-                return Err(err.to_string());
+            Err(error) => {
+                return Err(error.to_string());
             }
         };
 
         #[cfg(target_os = "android")]
         let name: Name<'_> = match ipc_socket_path.to_ns_name::<NamedPipeType>() {
             Ok(name) => name,
-            Err(err) => {
-                return Err(err.to_string());
+            Err(error) => {
+                return Err(error.to_string());
             }
         };
 
@@ -152,7 +152,7 @@ impl InterprocessPipeUnidirectional {
         request_id: Uuid,
     ) -> Result<(), String> {
         // Serialize the data.
-        let serialized_data = bincode::serialize(&value).map_err(|err| format!("Serialize error: {}", err))?;
+        let serialized_data = bincode::serialize(&value).map_err(|error| format!("Serialize error: {}", error))?;
 
         // Acquire write lock on the connection to send in a thread-safe manner.
         if let Ok(stream) = self.socket_stream.lock() {
@@ -163,19 +163,21 @@ impl InterprocessPipeUnidirectional {
                 // First send length as u32 in little-endian.
                 stream
                     .write_all(&len.to_le_bytes())
-                    .map_err(|err| format!("Write length error: {}", err))?;
+                    .map_err(|error| format!("Write length error: {}", error))?;
 
                 // Next send identifier as uuid bytes.
                 stream
                     .write_all(request_id_bytes)
-                    .map_err(|err| format!("Write request id error: {}", err))?;
+                    .map_err(|error| format!("Write request id error: {}", error))?;
 
                 // Then send the actual data.
                 stream
                     .write_all(&serialized_data)
-                    .map_err(|err| format!("Write serialized data error: {}", err))?;
+                    .map_err(|error| format!("Write serialized data error: {}", error))?;
 
-                stream.flush().map_err(|err| format!("Flush error: {}", err))?;
+                stream
+                    .flush()
+                    .map_err(|error| format!("Flush error: {}", error))?;
 
                 Ok(())
             } else {
@@ -195,14 +197,14 @@ impl InterprocessPipeUnidirectional {
                 let mut len_buf = [0u8; size_of::<u32>()];
                 stream
                     .read_exact(&mut len_buf)
-                    .map_err(|err| format!("Read length error: {}", err))?;
+                    .map_err(|error| format!("Read length error: {}", error))?;
                 let total_len = u32::from_le_bytes(len_buf);
 
                 // Next read the uuid (16 bytes).
                 let mut request_id_buf = [0u8; size_of::<Uuid>()];
                 stream
                     .read_exact(&mut request_id_buf)
-                    .map_err(|err| format!("Read request id error: {}", err))?;
+                    .map_err(|error| format!("Read request id error: {}", error))?;
                 let request_id = Uuid::from_bytes(request_id_buf);
 
                 // Finally read the remaining data (total_len - request_id size).
@@ -210,10 +212,10 @@ impl InterprocessPipeUnidirectional {
                 let mut data_buf = vec![0u8; data_len];
                 stream
                     .read_exact(&mut data_buf)
-                    .map_err(|err| format!("Read data error: {}", err))?;
+                    .map_err(|error| format!("Read data error: {}", error))?;
 
                 // Deserialize the data into T
-                let value = bincode::deserialize::<T>(&data_buf).map_err(|err| format!("Deserialize error: {}", err))?;
+                let value = bincode::deserialize::<T>(&data_buf).map_err(|error| format!("Deserialize error: {}", error))?;
 
                 Ok((value, request_id))
             } else {
