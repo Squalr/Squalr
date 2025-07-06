@@ -18,7 +18,7 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
     fn get_icon_id(&self) -> &str;
 
     /// Gets the default size of this data type. For variable sized types, this is often 1.
-    fn get_size_in_bytes(&self) -> u64;
+    fn get_unit_size_in_bytes(&self) -> u64;
 
     /// Determines if an anonymous value can be interpreted as this data type.
     fn validate_value(

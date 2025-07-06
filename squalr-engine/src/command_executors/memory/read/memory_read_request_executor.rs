@@ -33,7 +33,7 @@ impl EngineCommandRequestExecutor for MemoryReadRequest {
             log::error!("No opened process available.");
 
             MemoryReadResponse {
-                valued_struct: ValuedStruct::new(SymbolicStructRef::new("".to_string()), vec![]),
+                valued_struct: ValuedStruct::new(SymbolicStructRef::new(String::new()), vec![]),
                 address: self.address,
                 success: false,
             }

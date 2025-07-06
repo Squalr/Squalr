@@ -1,5 +1,5 @@
 use crate::PropertyEntryViewData;
-use crate::converters::data_value_converter::DataValueConverter;
+use crate::converters::valued_struct_converter::ValuedStructConverter;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use squalr_engine_api::structures::properties::property::Property;
 
@@ -26,11 +26,11 @@ impl ConvertToViewData<Property, PropertyEntryViewData> for PropertyConverter {
         &self,
         property: &Property,
     ) -> PropertyEntryViewData {
-        let data_value = property.get_value();
+        let valued_struct = property.get_valued_struct();
 
         PropertyEntryViewData {
             name: property.get_name().to_string().into(),
-            data_value: DataValueConverter {}.convert_to_view_data(data_value),
+            valued_struct: ValuedStructConverter {}.convert_to_view_data(valued_struct),
             is_read_only: property.get_is_read_only(),
         }
     }

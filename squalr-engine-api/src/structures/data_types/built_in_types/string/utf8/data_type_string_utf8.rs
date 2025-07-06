@@ -23,6 +23,10 @@ impl DataTypeStringUtf8 {
     pub fn get_value_from_primitive(string_byte: u8) -> DataValue {
         DataValue::new(DataTypeRef::new(Self::get_data_type_id()), vec![string_byte])
     }
+
+    pub fn get_value_from_primitive_array(string_bytes: Vec<u8>) -> DataValue {
+        DataValue::new(DataTypeRef::new(Self::get_data_type_id()), string_bytes)
+    }
 }
 
 impl DataType for DataTypeStringUtf8 {
@@ -34,7 +38,7 @@ impl DataType for DataTypeStringUtf8 {
         "string"
     }
 
-    fn get_size_in_bytes(&self) -> u64 {
+    fn get_unit_size_in_bytes(&self) -> u64 {
         1
     }
 

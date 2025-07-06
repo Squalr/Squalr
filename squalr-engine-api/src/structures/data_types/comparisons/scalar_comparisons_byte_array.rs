@@ -84,7 +84,7 @@ impl ScalarComparisonsByteArray {
     }
 
     pub fn get_compare_changed(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnRelative> {
-        let len = scan_parameters.get_data_type().get_size_in_bytes() as usize;
+        let len = scan_parameters.get_data_type().get_unit_size_in_bytes() as usize;
 
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
@@ -94,7 +94,7 @@ impl ScalarComparisonsByteArray {
     }
 
     pub fn get_compare_unchanged(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnRelative> {
-        let len = scan_parameters.get_data_type().get_size_in_bytes() as usize;
+        let len = scan_parameters.get_data_type().get_unit_size_in_bytes() as usize;
 
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
@@ -105,7 +105,7 @@ impl ScalarComparisonsByteArray {
     }
 
     pub fn get_compare_increased(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnRelative> {
-        let len = scan_parameters.get_data_type().get_size_in_bytes() as usize;
+        let len = scan_parameters.get_data_type().get_unit_size_in_bytes() as usize;
 
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
@@ -119,7 +119,7 @@ impl ScalarComparisonsByteArray {
     }
 
     pub fn get_compare_decreased(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnRelative> {
-        let len = scan_parameters.get_data_type().get_size_in_bytes() as usize;
+        let len = scan_parameters.get_data_type().get_unit_size_in_bytes() as usize;
 
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);

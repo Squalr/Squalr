@@ -39,7 +39,7 @@ impl DataType for DataTypeI32be {
         Self::get_data_type_id()
     }
 
-    fn get_size_in_bytes(&self) -> u64 {
+    fn get_unit_size_in_bytes(&self) -> u64 {
         size_of::<PrimitiveType>() as u64
     }
 

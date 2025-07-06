@@ -61,6 +61,7 @@ Launch Checklist:
 Lower priority features that we can defer, for now.
 
 Post-launch Features:
+- [ ] Struct Scans.
 - [ ] Improve coverage of conversion framework.
 - [ ] More string encodings
 - [ ] Custom and built in editors for property viewer data types.

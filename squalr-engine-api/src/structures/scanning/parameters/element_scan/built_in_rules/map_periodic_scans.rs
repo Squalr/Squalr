@@ -39,7 +39,7 @@ impl MapPeriodicScans {
     ) -> u64 {
         // Assume optimal periodicity to begin with
         let mut period = 1;
-        let data_type_size_bytes = data_type.get_size_in_bytes();
+        let data_type_size_bytes = data_type.get_unit_size_in_bytes();
 
         // Loop through all remaining bytes, and increase the periodicity when we encounter a byte that violates the current assumption.
         for byte_index in 1..data_type_size_bytes as usize {

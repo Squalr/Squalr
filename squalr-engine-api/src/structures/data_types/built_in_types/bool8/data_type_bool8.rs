@@ -42,7 +42,7 @@ impl DataType for DataTypeBool8 {
         "bool"
     }
 
-    fn get_size_in_bytes(&self) -> u64 {
+    fn get_unit_size_in_bytes(&self) -> u64 {
         size_of::<PrimitiveType>() as u64
     }
 
@@ -69,7 +69,7 @@ impl DataType for DataTypeBool8 {
         &self,
         value_bytes: &[u8],
     ) -> Result<DisplayValues, DataTypeError> {
-        PrimitiveDataType::create_display_values_bool(value_bytes, self.get_size_in_bytes())
+        PrimitiveDataType::create_display_values_bool(value_bytes, self.get_unit_size_in_bytes())
     }
 
     fn get_supported_display_types(&self) -> Vec<DisplayValueType> {

@@ -1,27 +1,24 @@
-use crate::structures::data_values::{data_value::DataValue, display_value_type::DisplayValueType};
+use crate::structures::structs::valued_struct::ValuedStruct;
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Property {
     name: String,
-    value: DataValue,
+    valued_struct: ValuedStruct,
     is_read_only: bool,
-    display_value_type_override: Option<DisplayValueType>,
 }
 
 impl Property {
     pub fn new(
         name: String,
-        value: DataValue,
+        valued_struct: ValuedStruct,
         is_read_only: bool,
-        display_value_type_override: Option<DisplayValueType>,
     ) -> Self {
         Self {
             name,
-            value,
+            valued_struct,
             is_read_only,
-            display_value_type_override,
         }
     }
 
@@ -29,24 +26,15 @@ impl Property {
         &self.name
     }
 
-    pub fn get_value(&self) -> &DataValue {
-        &self.value
+    pub fn get_valued_struct(&self) -> &ValuedStruct {
+        &self.valued_struct
     }
 
-    pub fn get_display_value(&self) -> &str {
-        match &self.display_value_type_override {
-            Some(display_value_type) => {
-                match &self
-                    .value
-                    .get_display_values()
-                    .get_display_value(display_value_type)
-                {
-                    Some(display_value) => display_value.get_display_value(),
-                    None => "??",
-                }
-            }
-            None => self.value.get_default_display_value_string(),
-        }
+    pub fn get_display_string(
+        &self,
+        pretty_print: bool,
+    ) -> String {
+        self.valued_struct.get_display_string(pretty_print)
     }
 
     pub fn get_is_read_only(&self) -> bool {
@@ -70,7 +58,6 @@ impl FromStr for Property {
         // Extract value before any optional metadata.
         let mut value_str = rest;
         let mut is_read_only = false;
-        let mut display_value_type_override = None;
 
         // If there are additional fields, extract them.
         if let Some(index) = rest.find(",readonly=") {
@@ -84,18 +71,15 @@ impl FromStr for Property {
                                 .parse::<bool>()
                                 .map_err(|err| format!("Invalid readonly flag: {err}"))?;
                         }
-                        "display_value_type" => {
-                            display_value_type_override = Some(DisplayValueType::from_str(value).map_err(|_| format!("Invalid display_value_type: {value}"))?);
-                        }
                         _ => return Err(format!("Unknown field: {key}")),
                     }
                 }
             }
         }
 
-        let value = DataValue::from_str(value_str).map_err(|err| format!("Invalid DataValue: {err}"))?;
+        let value = ValuedStruct::from_str(value_str).map_err(|err| format!("Invalid DataValue: {err}"))?;
 
-        Ok(Property::new(name, value, is_read_only, display_value_type_override))
+        Ok(Property::new(name, value, is_read_only))
     }
 }
 
@@ -105,9 +89,9 @@ impl fmt::Display for Property {
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         if self.is_read_only {
-            write!(formatter, "{}={},readonly=true", self.name, self.value)
+            write!(formatter, "{}={},readonly=true", self.name, self.valued_struct)
         } else {
-            write!(formatter, "{}={}", self.name, self.value)
+            write!(formatter, "{}={}", self.name, self.valued_struct)
         }
     }
 }

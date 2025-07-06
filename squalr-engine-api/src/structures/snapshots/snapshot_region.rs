@@ -56,7 +56,7 @@ impl SnapshotRegion {
         data_type: &DataTypeRef,
     ) -> Option<DataValue> {
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
-        let data_type_size = data_type.get_size_in_bytes();
+        let data_type_size = data_type.get_unit_size_in_bytes();
 
         if byte_offset.saturating_add(data_type_size) <= self.current_values.len() as u64 {
             if let Some(mut data_value) = data_type.get_default_value() {
@@ -80,7 +80,7 @@ impl SnapshotRegion {
         data_type: &DataTypeRef,
     ) -> Option<DataValue> {
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
-        let data_type_size = data_type.get_size_in_bytes();
+        let data_type_size = data_type.get_unit_size_in_bytes();
 
         if byte_offset.saturating_add(data_type_size) <= self.previous_values.len() as u64 {
             if let Some(mut data_value) = data_type.get_default_value() {

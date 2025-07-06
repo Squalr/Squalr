@@ -17,8 +17,8 @@ impl EngineCommandRequestExecutor for ScanResultsSetPropertyRequest {
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         match self.property.get_name() {
             ScanResult::PROPERTY_NAME_VALUE => {
-                let data_value = self.property.get_value();
-                let value_bytes = data_value.get_value_bytes();
+                let valued_struct = self.property.get_valued_struct();
+                let value_bytes = valued_struct.get_bytes();
 
                 for scan_result in &self.scan_results {
                     let address = scan_result.get_address();
@@ -27,7 +27,7 @@ impl EngineCommandRequestExecutor for ScanResultsSetPropertyRequest {
                         .get_opened_process()
                     {
                         // Best-effort attempt to write the property bytes.
-                        let _ = MemoryWriter::get_instance().write_bytes(&opened_process_info, address, value_bytes);
+                        let _ = MemoryWriter::get_instance().write_bytes(&opened_process_info, address, &value_bytes);
                     }
                 }
             }

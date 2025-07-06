@@ -2,6 +2,9 @@ use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
+use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
+use crate::structures::structs::valued_struct::ValuedStruct;
+use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
 use crate::{registries::data_types::data_type_registry::DataTypeRegistry, structures::data_values::anonymous_value_container::AnonymousValueContainer};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -22,6 +25,9 @@ pub struct DataValue {
 
     /// The display values. These are created when the underlying value bytes change to prevent repeatedly allocating new strings when refreshing a value.
     display_values: DisplayValues,
+
+    /// Override to the default display value.
+    display_value_type_override: Option<DisplayValueType>,
 }
 
 impl DataValue {
@@ -35,6 +41,7 @@ impl DataValue {
             data_type_ref,
             value_bytes,
             display_values,
+            display_value_type_override: None,
         }
     }
 
@@ -80,6 +87,29 @@ impl DataValue {
         &self.display_values
     }
 
+    pub fn get_display_value_type(&self) -> Option<DisplayValueType> {
+        if let Some(display_value_type) = self.display_value_type_override {
+            Some(display_value_type)
+        } else if let Some(display_value) = self.display_values.get_default_display_value() {
+            Some(*display_value.get_display_value_type())
+        } else {
+            None
+        }
+    }
+
+    pub fn get_display_value(
+        &self,
+        display_value_type: &DisplayValueType,
+    ) -> Option<DisplayValue> {
+        for display_value in self.display_values.get_display_values() {
+            if display_value.get_display_value_type() == display_value_type {
+                return Some(display_value.clone());
+            }
+        }
+
+        None
+    }
+
     pub fn get_default_display_value(&self) -> Option<&DisplayValue> {
         self.display_values.get_default_display_value()
     }
@@ -90,6 +120,14 @@ impl DataValue {
 
     pub fn as_ptr(&self) -> *const u8 {
         self.value_bytes.as_ptr()
+    }
+
+    pub fn to_anonymous_valued_struct(&self) -> ValuedStruct {
+        ValuedStruct::new(SymbolicStructRef::new_anonymous(), vec![self.to_anonymous_valued_struct_field()])
+    }
+
+    pub fn to_anonymous_valued_struct_field(&self) -> ValuedStructField {
+        ValuedStructField::new(String::new(), ValuedStructFieldData::Value(self.clone()))
     }
 
     fn create_display_values(

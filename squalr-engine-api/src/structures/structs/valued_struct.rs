@@ -1,27 +1,39 @@
-use crate::structures::data_values::data_value::DataValue;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
+use crate::structures::structs::valued_struct_field::ValuedStructField;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
+use std::{fmt, str::FromStr};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ValuedStruct {
     symbolic_struct_ref: SymbolicStructRef,
-    values: Vec<DataValue>,
+    fields: Vec<ValuedStructField>,
 }
 
 impl ValuedStruct {
     pub fn new(
         symbolic_struct_ref: SymbolicStructRef,
-        values: Vec<DataValue>,
+        fields: Vec<ValuedStructField>,
     ) -> Self {
-        ValuedStruct { symbolic_struct_ref, values }
+        ValuedStruct { symbolic_struct_ref, fields }
     }
 
     pub fn get_size_in_bytes(&self) -> u64 {
-        self.values
+        self.fields.iter().map(|field| field.get_size_in_bytes()).sum()
+    }
+
+    pub fn get_display_string(
+        &self,
+        pretty_print: bool,
+    ) -> String {
+        self.fields
             .iter()
-            .map(|data_value| data_value.get_size_in_bytes())
-            .sum()
+            .map(|field| field.get_display_string(pretty_print, 0))
+            .collect::<Vec<_>>()
+            .join(if pretty_print { ",\n" } else { "," })
+    }
+
+    pub fn get_bytes(&self) -> Vec<u8> {
+        self.fields.iter().flat_map(|field| field.get_bytes()).collect()
     }
 
     pub fn copy_from_bytes(
@@ -32,20 +44,21 @@ impl ValuedStruct {
         let total_size = bytes.len() as u64;
         let expected_size = self.get_size_in_bytes();
 
-        if expected_size != expected_size {
+        debug_assert!(total_size == expected_size);
+
+        if total_size != expected_size {
             return false;
         }
 
-        for data_value in self.values.iter_mut() {
-            let next_size = data_value.get_size_in_bytes();
+        for field in self.fields.iter_mut() {
+            let field_size = field.get_size_in_bytes() as u64;
 
-            if accumulated_size + next_size > expected_size {
+            if accumulated_size + field_size > total_size {
                 return false;
             }
 
-            let accumulated_size_end = accumulated_size + next_size;
-            data_value.copy_from_bytes(&bytes[accumulated_size as usize..accumulated_size_end as usize]);
-            accumulated_size = accumulated_size_end as u64;
+            field.copy_from_bytes(&bytes[accumulated_size as usize..(accumulated_size + field_size) as usize]);
+            accumulated_size += field_size;
         }
 
         debug_assert!(accumulated_size == total_size);
@@ -54,16 +67,36 @@ impl ValuedStruct {
     }
 }
 
+impl fmt::Display for ValuedStruct {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        let field_strings = self
+            .fields
+            .iter()
+            .map(|field| field.to_string())
+            .collect::<Vec<_>>()
+            .join(";");
+
+        write!(formatter, "{}:{}", self.symbolic_struct_ref, field_strings)
+    }
+}
+
 impl FromStr for ValuedStruct {
     type Err = String;
 
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let fields: Result<Vec<DataValue>, Self::Err> = string
-            .split(';')
-            .filter(|&data_value_string| !data_value_string.is_empty())
-            .map(|data_value_string| DataValue::from_str(data_value_string))
-            .collect();
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = input.splitn(2, ':').collect();
+        let struct_ref = SymbolicStructRef::new(parts.get(0).unwrap_or(&"").to_string());
 
-        Ok(ValuedStruct::new(SymbolicStructRef::new("".to_string()), fields?))
+        let field_data = parts.get(1).unwrap_or(&"");
+        let fields = field_data
+            .split(';')
+            .filter(|s| !s.trim().is_empty())
+            .map(ValuedStructField::from_str)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(ValuedStruct::new(struct_ref, fields))
     }
 }

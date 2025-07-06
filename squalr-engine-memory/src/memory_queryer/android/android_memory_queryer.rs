@@ -55,7 +55,7 @@ impl AndroidMemoryQueryer {
             let dev_part = parts[3];
             let inode_part = parts[4];
             // If there's more, join the rest as the pathname
-            let pathname_part = if parts.len() > 5 { parts[5..].join(" ") } else { "".to_string() };
+            let pathname_part = if parts.len() > 5 { parts[5..].join(" ") } else { String::new() };
 
             // Parse address range
             let mut range_split = range_part.split('-');

@@ -1,4 +1,3 @@
-use crate::structures::structs::container_type::ContainerType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -39,19 +38,7 @@ impl FromStr for DisplayValueType {
     type Err = String;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        fn extract_container(input: &str) -> (ContainerType, &str) {
-            if let Some(stripped_input) = input.strip_suffix("[]") {
-                (ContainerType::Array, stripped_input)
-            } else if let Some(stripped_input) = input.strip_suffix("*") {
-                (ContainerType::Pointer, stripped_input)
-            } else {
-                (ContainerType::None, input)
-            }
-        }
-
-        let (container, base_type) = extract_container(input);
-
-        match base_type {
+        match input {
             "bool" | "boolean" => Ok(DisplayValueType::Bool),
             "string" => Ok(DisplayValueType::String),
             "bin" | "binary" => Ok(DisplayValueType::Binary),
@@ -60,7 +47,7 @@ impl FromStr for DisplayValueType {
             "address" => Ok(DisplayValueType::Address),
             "data_type_ref" => Ok(DisplayValueType::DataTypeRef),
             "enumeration" => Ok(DisplayValueType::Enumeration),
-            _ => Err(format!("Unknown display type: {}", base_type)),
+            _ => Err(format!("Unknown display type: {}", input)),
         }
     }
 }

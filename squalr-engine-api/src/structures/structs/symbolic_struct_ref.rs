@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
+use std::{fmt, str::FromStr};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SymbolicStructRef {
@@ -10,6 +10,12 @@ impl SymbolicStructRef {
     pub fn new(symbolic_struct_namespace: String) -> Self {
         SymbolicStructRef { symbolic_struct_namespace }
     }
+
+    pub fn new_anonymous() -> Self {
+        SymbolicStructRef {
+            symbolic_struct_namespace: String::new(),
+        }
+    }
 }
 
 impl FromStr for SymbolicStructRef {
@@ -17,5 +23,14 @@ impl FromStr for SymbolicStructRef {
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         Ok(SymbolicStructRef::new(string.to_string()))
+    }
+}
+
+impl fmt::Display for SymbolicStructRef {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(formatter, "{}", self.symbolic_struct_namespace)
     }
 }

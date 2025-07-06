@@ -28,7 +28,7 @@ impl ConvertToViewData<ContainerType, ContainerTypeView> for ContainerTypeConver
     ) -> ContainerTypeView {
         match container_type {
             ContainerType::None => ContainerTypeView::None,
-            ContainerType::Array => ContainerTypeView::Array,
+            ContainerType::Array(length) => ContainerTypeView::Array,
             ContainerType::Pointer => ContainerTypeView::Pointer,
         }
     }
@@ -41,7 +41,7 @@ impl ConvertFromViewData<ContainerType, ContainerTypeView> for ContainerTypeConv
     ) -> ContainerType {
         match container_type {
             ContainerTypeView::None => ContainerType::None,
-            ContainerTypeView::Array => ContainerType::Array,
+            ContainerTypeView::Array => ContainerType::Array(69),
             ContainerTypeView::Pointer => ContainerType::Pointer,
         }
     }

@@ -30,14 +30,14 @@ export component PropertyEntryView inherits Rectangle {
                 height: 16px;
                 horizontal_alignment: center;
                 vertical_alignment: center;
-                source: icon_converter.icon_view_to_image(icon_converter.icon_id_to_view(property_entry.data_value.data_type_ref.icon_id));
+                // source: icon_converter.icon_view_to_image(icon_converter.icon_id_to_view(property_entry.valued_struct.data_type_ref.icon_id));
             }
         }
 
         VerticalLayout {
             alignment: center;
             DataValueBox {
-                data_value: root.property_entry.data_value;
+                // data_value: root.property_entry.data_value;
                 width: root.width - entry.x - icon.width - entry.spacing;
                 is_read_only: root.property_entry.is_read_only;
             }

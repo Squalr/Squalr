@@ -96,7 +96,7 @@ where
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type = mapped_scan_parameters.get_data_type();
-        let data_type_size = data_type.get_size_in_bytes();
+        let data_type_size = data_type.get_unit_size_in_bytes();
         let memory_alignment = mapped_scan_parameters.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment_size);

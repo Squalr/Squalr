@@ -43,7 +43,7 @@ impl ElementScanMappingRule for MapToPrimitiveType {
         }
 
         let data_type_size = data_value.get_size_in_bytes();
-        let data_type_default_size = data_value.get_data_type().get_size_in_bytes();
+        let data_type_default_size = data_value.get_data_type().get_unit_size_in_bytes();
 
         // If the data type size is the default for that type, and its already a valid primitive size,
         // there is no need to perform a remapping. We do this check to avoid meaningless remappings,

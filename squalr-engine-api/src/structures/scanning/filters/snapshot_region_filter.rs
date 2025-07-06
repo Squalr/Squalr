@@ -57,7 +57,7 @@ impl SnapshotRegionFilter {
         data_type_ref: &DataTypeRef,
         memory_alignment: MemoryAlignment,
     ) -> u64 {
-        let data_type_size = data_type_ref.get_size_in_bytes();
+        let data_type_size = data_type_ref.get_unit_size_in_bytes();
         let misalignment = self.get_misaligned_starting_byte_count(memory_alignment);
         let memory_alignment: u64 = max(memory_alignment as u64, 1);
         let trailing_bytes = data_type_size.saturating_sub(memory_alignment);

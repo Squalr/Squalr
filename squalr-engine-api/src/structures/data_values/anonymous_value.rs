@@ -46,7 +46,7 @@ impl AnonymousValue {
         display_value: DisplayValue,
     ) -> AnonymousValueContainer {
         match display_value.get_container_type() {
-            ContainerType::Array => {
+            ContainerType::Array(length) => {
                 // Split the input string into separate parts for the array.
                 let anonymous_value_string = value_string.to_string();
                 let anonymous_value_container = match display_value.get_display_value_type() {

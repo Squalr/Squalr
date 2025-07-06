@@ -52,9 +52,9 @@ impl DataTypeRef {
         }
     }
 
-    pub fn get_size_in_bytes(&self) -> u64 {
+    pub fn get_unit_size_in_bytes(&self) -> u64 {
         match DataTypeRegistry::get_instance().get(self.get_data_type_id()) {
-            Some(data_type) => data_type.get_size_in_bytes(),
+            Some(data_type) => data_type.get_unit_size_in_bytes(),
             None => 0,
         }
     }

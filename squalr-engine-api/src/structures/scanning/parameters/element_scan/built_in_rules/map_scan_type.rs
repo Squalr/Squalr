@@ -31,7 +31,7 @@ impl ElementScanMappingRule for MapScanType {
         // This is because we would actually want to overlap based on alignment, and thus would need at least 67 bytes.
         // This is derived from scanning for four i32 values at alignments 0, 1, 2, and 3.
         let data_type = mapped_parameters.get_data_type();
-        let data_type_size = data_type.get_size_in_bytes();
+        let data_type_size = data_type.get_unit_size_in_bytes();
         let memory_alignment = mapped_parameters.get_memory_alignment();
         let memory_alignment_size = mapped_parameters.get_memory_alignment() as u64;
         let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
