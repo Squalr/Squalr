@@ -32,6 +32,10 @@ impl ValuedStruct {
             .join(if pretty_print { ",\n" } else { "," })
     }
 
+    pub fn get_fields(&self) -> &Vec<ValuedStructField> {
+        &self.fields
+    }
+
     pub fn get_bytes(&self) -> Vec<u8> {
         self.fields.iter().flat_map(|field| field.get_bytes()).collect()
     }
@@ -86,8 +90,8 @@ impl fmt::Display for ValuedStruct {
 impl FromStr for ValuedStruct {
     type Err = String;
 
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = input.splitn(2, ':').collect();
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = string.splitn(2, ':').collect();
         let struct_ref = SymbolicStructRef::new(parts.get(0).unwrap_or(&"").to_string());
 
         let field_data = parts.get(1).unwrap_or(&"");

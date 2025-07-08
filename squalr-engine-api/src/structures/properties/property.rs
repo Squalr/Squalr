@@ -26,6 +26,18 @@ impl Property {
         &self.name
     }
 
+    pub fn get_icon_id(&self) -> String {
+        if self.valued_struct.get_fields().len() == 1
+            && let Some(field) = self.valued_struct.get_fields().first()
+        {
+            if let Some(data_value) = field.get_data_value() {
+                return data_value.get_data_type().get_icon_id();
+            }
+        }
+
+        "struct".to_string()
+    }
+
     pub fn get_valued_struct(&self) -> &ValuedStruct {
         &self.valued_struct
     }
@@ -45,9 +57,9 @@ impl Property {
 impl FromStr for Property {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
         // Split name and the rest.
-        let parts: Vec<&str> = s.splitn(2, '=').collect();
+        let parts: Vec<&str> = string.splitn(2, '=').collect();
         if parts.len() != 2 {
             return Err("Invalid format: missing '='".to_string());
         }

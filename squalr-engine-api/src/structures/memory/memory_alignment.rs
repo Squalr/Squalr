@@ -30,13 +30,13 @@ impl From<i32> for MemoryAlignment {
 impl FromStr for MemoryAlignment {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        match string {
             "1" => Ok(MemoryAlignment::Alignment1),
             "2" => Ok(MemoryAlignment::Alignment2),
             "4" => Ok(MemoryAlignment::Alignment4),
             "8" => Ok(MemoryAlignment::Alignment8),
-            _ => Err(format!("Invalid memory alignment: '{}'", s)),
+            _ => Err(format!("Invalid memory alignment: '{}'", string)),
         }
     }
 }

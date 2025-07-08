@@ -26,6 +26,20 @@ impl ValuedStructField {
         Self { name, field_data }
     }
 
+    pub fn get_data_value(&self) -> Option<&DataValue> {
+        match &self.field_data {
+            ValuedStructFieldData::NestedStruct(_nested_struct) => None,
+            ValuedStructFieldData::Value(data_value) => Some(data_value),
+            ValuedStructFieldData::Array(data_value) => Some(data_value),
+            ValuedStructFieldData::Pointer32(_value) => None,
+            ValuedStructFieldData::Pointer64(_value) => None,
+        }
+    }
+
+    pub fn get_field_data(&self) -> &ValuedStructFieldData {
+        &self.field_data
+    }
+
     pub fn get_size_in_bytes(&self) -> u64 {
         match &self.field_data {
             ValuedStructFieldData::NestedStruct(nested_struct) => nested_struct.as_ref().get_size_in_bytes(),
@@ -147,8 +161,8 @@ impl fmt::Display for ValuedStructField {
 impl FromStr for ValuedStructField {
     type Err = String;
 
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let mut parts = input.splitn(2, ':');
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let mut parts = string.splitn(2, ':');
         let name = parts
             .next()
             .ok_or_else(|| "Missing field name".to_string())?

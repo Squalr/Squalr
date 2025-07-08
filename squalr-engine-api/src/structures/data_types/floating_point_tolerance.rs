@@ -61,15 +61,15 @@ impl fmt::Debug for FloatingPointTolerance {
 impl FromStr for FloatingPointTolerance {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        match string {
             "0.1" => Ok(FloatingPointTolerance::Tolerance10E1),
             "0.01" => Ok(FloatingPointTolerance::Tolerance10E2),
             "0.001" => Ok(FloatingPointTolerance::Tolerance10E3),
             "0.0001" => Ok(FloatingPointTolerance::Tolerance10E4),
             "0.00001" => Ok(FloatingPointTolerance::Tolerance10E5),
             "epsilon" => Ok(FloatingPointTolerance::ToleranceEpsilon),
-            _ => Err(format!("Invalid tolerance string: '{}'", s)),
+            _ => Err(format!("Invalid tolerance string: '{}'", string)),
         }
     }
 }

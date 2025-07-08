@@ -30,6 +30,7 @@ impl ConvertToViewData<Property, PropertyEntryViewData> for PropertyConverter {
 
         PropertyEntryViewData {
             name: property.get_name().to_string().into(),
+            icon_id: property.get_icon_id().to_string().into(),
             valued_struct: ValuedStructConverter {}.convert_to_view_data(valued_struct),
             is_read_only: property.get_is_read_only(),
         }
