@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/squalr_workspace.iml" filepath="$PROJECT_DIR$/.idea/squalr_workspace.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/olorin_workspace.iml" filepath="$PROJECT_DIR$/.idea/olorin_workspace.iml" />
     </modules>
   </component>
 </project>

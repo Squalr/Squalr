@@ -1,0 +1,17 @@
+[package]
+name = "olorin-engine-scripting"
+version = "0.1.1"
+authors = ["Zachary Canann"]
+edition = "2024"
+# build = "build.rs"
+
+[dependencies]
+olorin-engine-architecture = { path = "../olorin-engine-architecture" }
+olorin-engine-common = { path = "../olorin-engine-common" }
+olorin-engine-debuggers = { path = "../olorin-engine-debuggers" }
+olorin-engine-memory = { path = "../olorin-engine-memory" }
+olorin-engine-processes = { path = "../olorin-engine-processes" }
+olorin-engine-scanning = { path = "../olorin-engine-scanning" }
+
+[build-dependencies]
+

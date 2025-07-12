@@ -1,0 +1,41 @@
+[package]
+name = "olorin-engine"
+version = "0.1.1"
+authors = ["Zachary Canann"]
+edition = "2024"
+# build = "build.rs"
+
+[dependencies]
+olorin-engine-api = { path = "../olorin-engine-api" }
+olorin-engine-architecture = { path = "../olorin-engine-architecture" }
+olorin-engine-common = { path = "../olorin-engine-common" }
+olorin-engine-debuggers = { path = "../olorin-engine-debuggers" }
+olorin-engine-memory = { path = "../olorin-engine-memory" }
+olorin-engine-processes = { path = "../olorin-engine-processes" }
+olorin-engine-projects = { path = "../olorin-engine-projects" }
+olorin-engine-scanning = { path = "../olorin-engine-scanning" }
+olorin-engine-scripting = { path = "../olorin-engine-scripting" }
+anyhow = ">=1.0.98"
+bincode = "=1.3.3"
+crossbeam-channel = ">=0.5.15"
+dirs = ">=6.0.0"
+interprocess = ">=2.2.2"
+futures-util = ">= 0.3.31"
+log = ">=0.4.27"
+native-tls = "0.2.14" 
+opener = "0.7.2"
+self-replace = ">=1.5.0"
+semver = ">=1.0.26"
+serde = { version = ">=1.0.219", features = ["derive"] }
+serde_json = ">=1.0.140"
+structopt = ">=0.3.26"
+sysinfo = "=0.34.2"
+tempfile = ">=3.19.1"
+ureq = { version = "3.0.11", default-features = false, features = ["native-tls"] }
+url = ">=2.5.4"
+urlencoding = ">=2.1.3"
+uuid = { version = "1.16.0", features = ["serde", "v4"] }
+zip = { version = "2.6.1", default-features = false, features = ["deflate"] }
+
+[build-dependencies]
+

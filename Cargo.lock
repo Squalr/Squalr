@@ -3698,6 +3698,273 @@ dependencies = [
 ]
 
 [[package]]
+name = "olorin"
+version = "0.1.1"
+dependencies = [
+ "log",
+ "olorin-engine",
+ "olorin-engine-api",
+ "olorin-gui",
+ "slint",
+ "slint-mvvm",
+ "slint-mvvm-macros",
+ "winresource",
+]
+
+[[package]]
+name = "olorin-android"
+version = "0.1.1"
+dependencies = [
+ "futures",
+ "log",
+ "olorin-engine",
+ "olorin-engine-api",
+ "olorin-engine-architecture",
+ "olorin-engine-common",
+ "olorin-gui",
+ "rayon",
+ "serde",
+ "serde_json",
+ "slint",
+ "slint-mvvm",
+ "slint-mvvm-macros",
+ "structopt",
+ "sysinfo",
+ "winresource",
+]
+
+[[package]]
+name = "olorin-cli"
+version = "0.1.1"
+dependencies = [
+ "crossbeam-channel",
+ "futures",
+ "log",
+ "olorin-engine",
+ "olorin-engine-api",
+ "olorin-engine-common",
+ "serde",
+ "serde_json",
+ "shlex",
+ "structopt",
+]
+
+[[package]]
+name = "olorin-engine"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "crossbeam-channel",
+ "dirs",
+ "futures-util",
+ "interprocess",
+ "log",
+ "native-tls",
+ "olorin-engine-api",
+ "olorin-engine-architecture",
+ "olorin-engine-common",
+ "olorin-engine-debuggers",
+ "olorin-engine-memory",
+ "olorin-engine-processes",
+ "olorin-engine-projects",
+ "olorin-engine-scanning",
+ "olorin-engine-scripting",
+ "opener",
+ "self-replace",
+ "semver",
+ "serde",
+ "serde_json",
+ "structopt",
+ "sysinfo",
+ "tempfile",
+ "ureq",
+ "url",
+ "urlencoding",
+ "uuid",
+ "zip",
+]
+
+[[package]]
+name = "olorin-engine-api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "crossbeam-channel",
+ "directories",
+ "encoding",
+ "encoding_rs",
+ "log",
+ "num-traits",
+ "olorin-engine-common",
+ "rayon",
+ "serde",
+ "serde_json",
+ "slab",
+ "structopt",
+ "sysinfo",
+ "thiserror 2.0.12",
+ "typetag",
+ "uuid",
+]
+
+[[package]]
+name = "olorin-engine-architecture"
+version = "0.1.1"
+dependencies = [
+ "log",
+ "olorin-engine-common",
+]
+
+[[package]]
+name = "olorin-engine-common"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "crossbeam-channel",
+ "dirs",
+ "log",
+ "log4rs",
+ "num-traits",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "olorin-engine-debuggers"
+version = "0.1.1"
+dependencies = [
+ "olorin-engine-api",
+ "olorin-engine-common",
+]
+
+[[package]]
+name = "olorin-engine-memory"
+version = "0.1.1"
+dependencies = [
+ "bitflags 2.9.0",
+ "libc",
+ "log",
+ "olorin-engine-api",
+ "olorin-engine-common",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "olorin-engine-processes"
+version = "0.1.1"
+dependencies = [
+ "image",
+ "log",
+ "olorin-engine-api",
+ "once_cell",
+ "rayon",
+ "regex",
+ "serde",
+ "sysinfo",
+ "windows-sys 0.59.0",
+ "zip",
+]
+
+[[package]]
+name = "olorin-engine-projects"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "log",
+ "notify",
+ "olorin-engine-api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "olorin-engine-scanning"
+version = "0.1.1"
+dependencies = [
+ "bitflags 2.9.0",
+ "bytemuck",
+ "futures",
+ "lazy_static",
+ "log",
+ "olorin-engine-api",
+ "olorin-engine-common",
+ "olorin-engine-memory",
+ "rayon",
+ "seq-macro",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "sysinfo",
+]
+
+[[package]]
+name = "olorin-engine-scripting"
+version = "0.1.1"
+dependencies = [
+ "olorin-engine-architecture",
+ "olorin-engine-common",
+ "olorin-engine-debuggers",
+ "olorin-engine-memory",
+ "olorin-engine-processes",
+ "olorin-engine-scanning",
+]
+
+[[package]]
+name = "olorin-gui"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "futures",
+ "log",
+ "olorin-engine",
+ "olorin-engine-api",
+ "olorin-engine-common",
+ "rayon",
+ "rodio",
+ "serde",
+ "serde_json",
+ "slint",
+ "slint-build",
+ "slint-mvvm",
+ "slint-mvvm-macros",
+ "structopt",
+ "sysinfo",
+]
+
+[[package]]
+name = "olorin-installer"
+version = "0.1.1"
+dependencies = [
+ "log",
+ "olorin-engine",
+ "slint",
+ "slint-build",
+ "slint-mvvm",
+ "slint-mvvm-macros",
+ "winresource",
+]
+
+[[package]]
+name = "olorin-tui"
+version = "0.1.1"
+dependencies = [
+ "crossbeam-channel",
+ "futures",
+ "log",
+ "olorin-engine",
+ "olorin-engine-api",
+ "olorin-engine-common",
+ "serde",
+ "serde_json",
+ "shlex",
+ "structopt",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4838,273 +5105,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "076e103ed41b9864aa838287efe5f4e3a7a0362dd00671ae62a212e5e4612da2"
 dependencies = [
  "pin-utils",
-]
-
-[[package]]
-name = "squalr"
-version = "0.1.1"
-dependencies = [
- "log",
- "slint",
- "slint-mvvm",
- "slint-mvvm-macros",
- "squalr-engine",
- "squalr-engine-api",
- "squalr-gui",
- "winresource",
-]
-
-[[package]]
-name = "squalr-android"
-version = "0.1.1"
-dependencies = [
- "futures",
- "log",
- "rayon",
- "serde",
- "serde_json",
- "slint",
- "slint-mvvm",
- "slint-mvvm-macros",
- "squalr-engine",
- "squalr-engine-api",
- "squalr-engine-architecture",
- "squalr-engine-common",
- "squalr-gui",
- "structopt",
- "sysinfo",
- "winresource",
-]
-
-[[package]]
-name = "squalr-cli"
-version = "0.1.1"
-dependencies = [
- "crossbeam-channel",
- "futures",
- "log",
- "serde",
- "serde_json",
- "shlex",
- "squalr-engine",
- "squalr-engine-api",
- "squalr-engine-common",
- "structopt",
-]
-
-[[package]]
-name = "squalr-engine"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "bincode",
- "crossbeam-channel",
- "dirs",
- "futures-util",
- "interprocess",
- "log",
- "native-tls",
- "opener",
- "self-replace",
- "semver",
- "serde",
- "serde_json",
- "squalr-engine-api",
- "squalr-engine-architecture",
- "squalr-engine-common",
- "squalr-engine-debuggers",
- "squalr-engine-memory",
- "squalr-engine-processes",
- "squalr-engine-projects",
- "squalr-engine-scanning",
- "squalr-engine-scripting",
- "structopt",
- "sysinfo",
- "tempfile",
- "ureq",
- "url",
- "urlencoding",
- "uuid",
- "zip",
-]
-
-[[package]]
-name = "squalr-engine-api"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "crossbeam-channel",
- "directories",
- "encoding",
- "encoding_rs",
- "log",
- "num-traits",
- "rayon",
- "serde",
- "serde_json",
- "slab",
- "squalr-engine-common",
- "structopt",
- "sysinfo",
- "thiserror 2.0.12",
- "typetag",
- "uuid",
-]
-
-[[package]]
-name = "squalr-engine-architecture"
-version = "0.1.1"
-dependencies = [
- "log",
- "squalr-engine-common",
-]
-
-[[package]]
-name = "squalr-engine-common"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "crossbeam-channel",
- "dirs",
- "log",
- "log4rs",
- "num-traits",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "squalr-engine-debuggers"
-version = "0.1.1"
-dependencies = [
- "squalr-engine-api",
- "squalr-engine-common",
-]
-
-[[package]]
-name = "squalr-engine-memory"
-version = "0.1.1"
-dependencies = [
- "bitflags 2.9.0",
- "libc",
- "log",
- "serde",
- "serde_json",
- "squalr-engine-api",
- "squalr-engine-common",
- "sysinfo",
- "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "squalr-engine-processes"
-version = "0.1.1"
-dependencies = [
- "image",
- "log",
- "once_cell",
- "rayon",
- "regex",
- "serde",
- "squalr-engine-api",
- "sysinfo",
- "windows-sys 0.59.0",
- "zip",
-]
-
-[[package]]
-name = "squalr-engine-projects"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "log",
- "notify",
- "serde",
- "serde_json",
- "squalr-engine-api",
-]
-
-[[package]]
-name = "squalr-engine-scanning"
-version = "0.1.1"
-dependencies = [
- "bitflags 2.9.0",
- "bytemuck",
- "futures",
- "lazy_static",
- "log",
- "rayon",
- "seq-macro",
- "serde",
- "serde_json",
- "smallvec",
- "squalr-engine-api",
- "squalr-engine-common",
- "squalr-engine-memory",
- "sysinfo",
-]
-
-[[package]]
-name = "squalr-engine-scripting"
-version = "0.1.1"
-dependencies = [
- "squalr-engine-architecture",
- "squalr-engine-common",
- "squalr-engine-debuggers",
- "squalr-engine-memory",
- "squalr-engine-processes",
- "squalr-engine-scanning",
-]
-
-[[package]]
-name = "squalr-gui"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "futures",
- "log",
- "rayon",
- "rodio",
- "serde",
- "serde_json",
- "slint",
- "slint-build",
- "slint-mvvm",
- "slint-mvvm-macros",
- "squalr-engine",
- "squalr-engine-api",
- "squalr-engine-common",
- "structopt",
- "sysinfo",
-]
-
-[[package]]
-name = "squalr-installer"
-version = "0.1.1"
-dependencies = [
- "log",
- "slint",
- "slint-build",
- "slint-mvvm",
- "slint-mvvm-macros",
- "squalr-engine",
- "winresource",
-]
-
-[[package]]
-name = "squalr-tui"
-version = "0.1.1"
-dependencies = [
- "crossbeam-channel",
- "futures",
- "log",
- "serde",
- "serde_json",
- "shlex",
- "squalr-engine",
- "squalr-engine-api",
- "squalr-engine-common",
- "structopt",
 ]
 
 [[package]]

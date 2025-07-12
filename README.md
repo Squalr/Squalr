@@ -8,7 +8,7 @@ Join us on our [Discord Channel](https://discord.gg/Pq2msTx)
 
 **Olorin** is a highly performant dynamic analysis tool for software. This includes memory scanning, pointer mapping, x86/x64 assembly injection, and so on.
 
-Olorin is a spiritual successor to Squalr, and is currently being re-written from the ground up in Rust. A release is coming soon!
+Olorin is a spiritual successor to Olorin, and is currently being re-written from the ground up in Rust. A release is coming soon!
 
 Looking for the old C# repo? See [Squalr-Sharp](https://github.com/Squalr/Squalr-Sharp)
 

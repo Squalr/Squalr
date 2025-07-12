@@ -2,21 +2,21 @@
 
 [workspace]
 members = [
-    "squalr-engine",
-    "squalr-engine-architecture",
-    "squalr-engine-common",
-    "squalr-engine-debuggers",
-    "squalr-engine-memory",
-    "squalr-engine-processes",
-    "squalr-engine-projects",
-    "squalr-engine-scanning",
-    "squalr-engine-scripting",
-    "squalr-gui",
-    "squalr-android",
-    "squalr-cli",
-    "squalr-tui",
-    "squalr-installer",
-    "squalr",
+    "olorin-engine",
+    "olorin-engine-architecture",
+    "olorin-engine-common",
+    "olorin-engine-debuggers",
+    "olorin-engine-memory",
+    "olorin-engine-processes",
+    "olorin-engine-projects",
+    "olorin-engine-scanning",
+    "olorin-engine-scripting",
+    "olorin-gui",
+    "olorin-android",
+    "olorin-cli",
+    "olorin-tui",
+    "olorin-installer",
+    "olorin",
 ]
 resolver = "3"
 

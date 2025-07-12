@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'squalr-cli'",
+            "name": "Debug executable 'olorin-cli'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=squalr-cli",
-                    "--package=squalr-cli"
+                    "--bin=olorin-cli",
+                    "--package=olorin-cli"
                 ],
                 "filter": {
-                    "name": "squalr-cli",
+                    "name": "olorin-cli",
                     "kind": "bin"
                 }
             },
@@ -25,16 +25,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release executable 'squalr-cli'",
+            "name": "Release executable 'olorin-cli'",
             "cargo": {
                 "args": [
                     "build",
                     "--release",
-                    "--bin=squalr-cli",
-                    "--package=squalr-cli"
+                    "--bin=olorin-cli",
+                    "--package=olorin-cli"
                 ],
                 "filter": {
-                    "name": "squalr-cli",
+                    "name": "olorin-cli",
                     "kind": "bin"
                 }
             },
@@ -44,16 +44,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release (with debug info) executable 'squalr-cli'",
+            "name": "Release (with debug info) executable 'olorin-cli'",
             "cargo": {
                 "args": [
                     "build",
                     "--release",
-                    "--bin=squalr-cli",
-                    "--package=squalr-cli"
+                    "--bin=olorin-cli",
+                    "--package=olorin-cli"
                 ],
                 "filter": {
-                    "name": "squalr-cli",
+                    "name": "olorin-cli",
                     "kind": "bin"
                 }
             },
@@ -66,15 +66,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'squalr-tui'",
+            "name": "Debug executable 'olorin-tui'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=squalr-tui",
-                    "--package=squalr-tui"
+                    "--bin=olorin-tui",
+                    "--package=olorin-tui"
                 ],
                 "filter": {
-                    "name": "squalr-tui",
+                    "name": "olorin-tui",
                     "kind": "bin"
                 }
             },
@@ -84,16 +84,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release executable 'squalr-tui'",
+            "name": "Release executable 'olorin-tui'",
             "cargo": {
                 "args": [
                     "build",
                     "--release",
-                    "--bin=squalr-tui",
-                    "--package=squalr-tui"
+                    "--bin=olorin-tui",
+                    "--package=olorin-tui"
                 ],
                 "filter": {
-                    "name": "squalr-tui",
+                    "name": "olorin-tui",
                     "kind": "bin"
                 }
             },
@@ -103,16 +103,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release (with debug info) executable 'squalr-tui'",
+            "name": "Release (with debug info) executable 'olorin-tui'",
             "cargo": {
                 "args": [
                     "build",
                     "--release",
-                    "--bin=squalr-tui",
-                    "--package=squalr-tui"
+                    "--bin=olorin-tui",
+                    "--package=olorin-tui"
                 ],
                 "filter": {
-                    "name": "squalr-tui",
+                    "name": "olorin-tui",
                     "kind": "bin"
                 }
             },
@@ -125,15 +125,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'squalr'",
+            "name": "Debug executable 'olorin'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=squalr",
-                    "--package=squalr"
+                    "--bin=olorin",
+                    "--package=olorin"
                 ],
                 "filter": {
-                    "name": "squalr",
+                    "name": "olorin",
                     "kind": "bin"
                 }
             },
@@ -143,16 +143,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release executable 'squalr'",
+            "name": "Release executable 'olorin'",
             "cargo": {
                 "args": [
                     "build",
                     "--release",
-                    "--bin=squalr",
-                    "--package=squalr"
+                    "--bin=olorin",
+                    "--package=olorin"
                 ],
                 "filter": {
-                    "name": "squalr",
+                    "name": "olorin",
                     "kind": "bin"
                 }
             },
@@ -162,16 +162,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release (with debug info) executable 'squalr'",
+            "name": "Release (with debug info) executable 'olorin'",
             "cargo": {
                 "args": [
                     "build",
                     "--release",
-                    "--bin=squalr",
-                    "--package=squalr"
+                    "--bin=olorin",
+                    "--package=olorin"
                 ],
                 "filter": {
-                    "name": "squalr",
+                    "name": "olorin",
                     "kind": "bin"
                 }
             },
@@ -184,8 +184,8 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug squalr-android",
-            "preLaunchTask": "Build squalr-cli (Android)",
+            "name": "Debug olorin-android",
+            "preLaunchTask": "Build olorin-cli (Android)",
             "cargo": {
                 "args": [
                     "ndk",
@@ -195,7 +195,7 @@
                     "aarch64-linux-android",
                     "build",
                     "--bin",
-                    "squalr-cli"
+                    "olorin-cli"
                 ]
             },
             "args": [],
@@ -204,15 +204,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'squalr-installer'",
+            "name": "Debug executable 'olorin-installer'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=squalr-installer",
-                    "--package=squalr-installer"
+                    "--bin=olorin-installer",
+                    "--package=olorin-installer"
                 ],
                 "filter": {
-                    "name": "squalr-installer",
+                    "name": "olorin-installer",
                     "kind": "bin"
                 }
             },
@@ -222,16 +222,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release executable 'squalr-installer'",
+            "name": "Release executable 'olorin-installer'",
             "cargo": {
                 "args": [
                     "build",
                     "--release",
-                    "--bin=squalr-installer",
-                    "--package=squalr-installer"
+                    "--bin=olorin-installer",
+                    "--package=olorin-installer"
                 ],
                 "filter": {
-                    "name": "squalr-installer",
+                    "name": "olorin-installer",
                     "kind": "bin"
                 }
             },
@@ -241,16 +241,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release (with debug info) executable 'squalr-installer'",
+            "name": "Release (with debug info) executable 'olorin-installer'",
             "cargo": {
                 "args": [
                     "build",
                     "--release",
-                    "--bin=squalr-installer",
-                    "--package=squalr-installer"
+                    "--bin=olorin-installer",
+                    "--package=olorin-installer"
                 ],
                 "filter": {
-                    "name": "squalr-installer",
+                    "name": "olorin-installer",
                     "kind": "bin"
                 }
             },

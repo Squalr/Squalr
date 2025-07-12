@@ -1,0 +1,12 @@
+[package]
+name = "olorin-engine-architecture"
+version = "0.1.1"
+authors = ["Zachary Canann"]
+edition = "2024"
+# build = "build.rs"
+
+[dependencies]
+olorin-engine-common = { path = "../olorin-engine-common" }
+log = ">=0.4.27"
+
+[build-dependencies]

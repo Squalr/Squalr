@@ -13,9 +13,9 @@ def get_workspace_members(root_dir):
     return cargo_toml.get("workspace", {}).get("members", [])
 
 def get_current_version(root_dir):
-    """Get current version from squalr/Cargo.toml."""
-    squalr_cargo = toml.load(os.path.join(root_dir, "squalr", "Cargo.toml"))
-    return squalr_cargo.get("package", {}).get("version")
+    """Get current version from olorin/Cargo.toml."""
+    olorin_cargo = toml.load(os.path.join(root_dir, "olorin", "Cargo.toml"))
+    return olorin_cargo.get("package", {}).get("version")
 
 def increment_version(current_version, release_type):
     """Increment version based on release type."""
@@ -73,20 +73,20 @@ def copy_binaries_and_resources(root_dir, dist_dir):
     # Assuming release builds
     target_dir = os.path.join(root_dir, "target", "release")
     
-    # Create squalr directory in dist for the full package
-    squalr_dist_dir = os.path.join(dist_dir, "squalr")
-    os.makedirs(squalr_dist_dir, exist_ok=True)
+    # Create olorin directory in dist for the full package
+    olorin_dist_dir = os.path.join(dist_dir, "olorin")
+    os.makedirs(olorin_dist_dir, exist_ok=True)
     
-    # Copy squalr binary
-    squalr_binary = "squalr.exe" if os.name == 'nt' else "squalr"
-    if os.path.exists(os.path.join(target_dir, squalr_binary)):
+    # Copy olorin binary
+    olorin_binary = "olorin.exe" if os.name == 'nt' else "olorin"
+    if os.path.exists(os.path.join(target_dir, olorin_binary)):
         shutil.copy2(
-            os.path.join(target_dir, squalr_binary),
-            os.path.join(squalr_dist_dir, squalr_binary)
+            os.path.join(target_dir, olorin_binary),
+            os.path.join(olorin_dist_dir, olorin_binary)
         )
     
-    # Copy squalr-installer binary and latest_version to dist root
-    installer_binary = "squalr-installer.exe" if os.name == 'nt' else "squalr-installer"
+    # Copy olorin-installer binary and latest_version to dist root
+    installer_binary = "olorin-installer.exe" if os.name == 'nt' else "olorin-installer"
     if os.path.exists(os.path.join(target_dir, installer_binary)):
         shutil.copy2(
             os.path.join(target_dir, installer_binary),
@@ -107,23 +107,23 @@ def copy_binaries_and_resources(root_dir, dist_dir):
     for dir_name in resource_dirs:
         src_dir = os.path.join(target_dir, dir_name)
         if os.path.exists(src_dir):
-            dst_dir = os.path.join(squalr_dist_dir, dir_name)
+            dst_dir = os.path.join(olorin_dist_dir, dir_name)
             print(f"Copying {dir_name}...")
             shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
         else:
             print(f"Warning: Required directory {dir_name} not found in build output at {src_dir}")
     
     # Create zip archive
-    print("Creating squalr.zip archive...")
+    print("Creating olorin.zip archive...")
     shutil.make_archive(
-        os.path.join(dist_dir, "squalr"),  # base name
+        os.path.join(dist_dir, "olorin"),  # base name
         'zip',                           # format
-        squalr_dist_dir                    # root_dir
+        olorin_dist_dir                    # root_dir
     )
     
-    # Delete the squalr directory after creating the zip
-    print("Cleaning up squalr directory...")
-    shutil.rmtree(squalr_dist_dir)
+    # Delete the olorin directory after creating the zip
+    print("Cleaning up olorin directory...")
+    shutil.rmtree(olorin_dist_dir)
 
 def main():
     root_dir = os.getcwd()
@@ -154,13 +154,13 @@ def main():
     # Ensure dist directory exists and is empty
     dist_dir = ensure_dist_directory(root_dir)
     
-    # Build squalr (Win64)
-    print("Building squalr (Win64)...")
-    run_cargo_command(os.path.join(root_dir, "squalr"), ["build", "--release"])
+    # Build olorin (Win64)
+    print("Building olorin (Win64)...")
+    run_cargo_command(os.path.join(root_dir, "olorin"), ["build", "--release"])
     
-    # Build squalr-installer
-    print("Building squalr-installer...")
-    run_cargo_command(os.path.join(root_dir, "squalr-installer"), ["build", "--release"])
+    # Build olorin-installer
+    print("Building olorin-installer...")
+    run_cargo_command(os.path.join(root_dir, "olorin-installer"), ["build", "--release"])
     
     # Copy binaries and resources to dist directory
     print("Copying binaries and resources to dist directory...")
@@ -169,8 +169,8 @@ def main():
     print("""
 Build complete! 
 Location of files:
-- dist/squalr-installer.exe - Standalone installer
-- dist/squalr.zip - Complete package including squalr executable and resources
+- dist/olorin-installer.exe - Standalone installer
+- dist/olorin.zip - Complete package including olorin executable and resources
 - dist/latest_version - Version information for the installer
     """)
     print(f"New version is: {new_version}")
