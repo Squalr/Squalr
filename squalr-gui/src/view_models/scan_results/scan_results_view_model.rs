@@ -5,7 +5,7 @@ use crate::comparers::scan_result_comparer::ScanResultComparer;
 use crate::converters::scan_result_converter::ScanResultConverter;
 use crate::models::audio::audio_player::AudioPlayer;
 use crate::models::audio::audio_player::SoundType;
-use crate::view_models::property_viewer::property_viewer_view_model::PropertyViewerViewModel;
+use crate::view_models::struct_viewer::struct_viewer_view_model::StructViewerViewModel;
 use slint::ComponentHandle;
 use slint::Model;
 use slint::ModelRc;
@@ -41,7 +41,7 @@ pub struct ScanResultsViewModel {
     engine_execution_context: Arc<EngineExecutionContext>,
     current_page_index: Arc<AtomicU64>,
     cached_last_page_index: Arc<AtomicU64>,
-    property_viewer_view_model: Arc<PropertyViewerViewModel>,
+    struct_viewer_view_model: Arc<StructViewerViewModel>,
 }
 
 impl ScanResultsViewModel {
@@ -51,11 +51,11 @@ impl ScanResultsViewModel {
 
     fn on_dependencies_resolved(
         dependency_container: DependencyContainer,
-        (view_binding, engine_execution_context, audio_player, property_viewer_view_model): (
+        (view_binding, engine_execution_context, audio_player, struct_viewer_view_model): (
             Arc<ViewBinding<MainWindowView>>,
             Arc<EngineExecutionContext>,
             Arc<AudioPlayer>,
-            Arc<PropertyViewerViewModel>,
+            Arc<StructViewerViewModel>,
         ),
     ) {
         // Create a binding that allows us to easily update the view's scan results.
@@ -78,7 +78,7 @@ impl ScanResultsViewModel {
             engine_execution_context: engine_execution_context.clone(),
             current_page_index: current_page_index.clone(),
             cached_last_page_index: cached_last_page_index.clone(),
-            property_viewer_view_model,
+            struct_viewer_view_model,
         });
 
         {
@@ -277,14 +277,14 @@ impl ScanResultsViewModel {
         view_model: Arc<ScanResultsViewModel>,
         local_scan_result_indices: ModelRc<i32>,
     ) {
-        let property_viewer_view_model = &view_model.property_viewer_view_model;
+        let struct_viewer_view_model = &view_model.struct_viewer_view_model;
         let scan_results = Self::collect_scan_results_by_indicies(&view_model, local_scan_result_indices);
 
         if !scan_results.is_empty() {
-            property_viewer_view_model.set_selected_properties(
+            struct_viewer_view_model.set_selected_structs(
                 scan_results
                     .iter()
-                    .map(|scan_result| scan_result.as_properties())
+                    .map(|scan_result| scan_result.as_property_struct())
                     .collect(),
             );
         }

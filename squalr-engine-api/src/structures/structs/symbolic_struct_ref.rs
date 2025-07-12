@@ -16,6 +16,10 @@ impl SymbolicStructRef {
             symbolic_struct_namespace: String::new(),
         }
     }
+
+    pub fn get_symbolic_struct_namespace(&self) -> &str {
+        &self.symbolic_struct_namespace
+    }
 }
 
 impl FromStr for SymbolicStructRef {

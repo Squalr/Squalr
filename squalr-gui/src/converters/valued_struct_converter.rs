@@ -30,6 +30,10 @@ impl ConvertToViewData<ValuedStruct, ValuedStructViewData> for ValuedStructConve
         valued_struct: &ValuedStruct,
     ) -> ValuedStructViewData {
         ValuedStructViewData {
+            name: valued_struct
+                .get_symbolic_struct_ref()
+                .get_symbolic_struct_namespace()
+                .into(),
             symbolic_struct_ref: SymbolicStructRefViewData {
                 symbolic_struct_ref: "".into(),
             },

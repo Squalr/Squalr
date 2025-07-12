@@ -3,7 +3,6 @@ pub mod data_values;
 pub mod memory;
 pub mod processes;
 pub mod projects;
-pub mod properties;
 pub mod results;
 pub mod scan_results;
 pub mod scanning;

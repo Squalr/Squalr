@@ -1,10 +1,9 @@
+use crate::structures::data_values::{data_value::DataValue, display_value::DisplayValue};
+use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
 
-use crate::structures::data_values::data_value::DataValue;
-use serde::{Deserialize, Serialize};
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum ValuedStructFieldData {
+pub enum ValuedStructFieldNode {
     NestedStruct(Box<ValuedStructField>),
     Value(DataValue),
     Array(DataValue),
@@ -15,48 +14,72 @@ pub enum ValuedStructFieldData {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ValuedStructField {
     name: String,
-    field_data: ValuedStructFieldData,
+    field_node: ValuedStructFieldNode,
+    is_read_only: bool,
 }
 
 impl ValuedStructField {
     pub fn new(
         name: String,
-        field_data: ValuedStructFieldData,
+        field_node: ValuedStructFieldNode,
+        is_read_only: bool,
     ) -> Self {
-        Self { name, field_data }
-    }
-
-    pub fn get_data_value(&self) -> Option<&DataValue> {
-        match &self.field_data {
-            ValuedStructFieldData::NestedStruct(_nested_struct) => None,
-            ValuedStructFieldData::Value(data_value) => Some(data_value),
-            ValuedStructFieldData::Array(data_value) => Some(data_value),
-            ValuedStructFieldData::Pointer32(_value) => None,
-            ValuedStructFieldData::Pointer64(_value) => None,
+        Self {
+            name,
+            field_node,
+            is_read_only,
         }
     }
 
-    pub fn get_field_data(&self) -> &ValuedStructFieldData {
-        &self.field_data
+    pub fn get_data_value(&self) -> Option<&DataValue> {
+        match &self.field_node {
+            ValuedStructFieldNode::NestedStruct(_nested_struct) => None,
+            ValuedStructFieldNode::Value(data_value) => Some(data_value),
+            ValuedStructFieldNode::Array(data_value) => Some(data_value),
+            ValuedStructFieldNode::Pointer32(_value) => None,
+            ValuedStructFieldNode::Pointer64(_value) => None,
+        }
+    }
+
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn get_field_node(&self) -> &ValuedStructFieldNode {
+        &self.field_node
+    }
+
+    pub fn get_is_read_only(&self) -> bool {
+        self.is_read_only
+    }
+
+    pub fn get_display_value(&self) -> Option<&DisplayValue> {
+        match &self.field_node {
+            ValuedStructFieldNode::NestedStruct(_nested_struct) => None,
+            ValuedStructFieldNode::Value(data_value) => data_value.get_default_display_value(),
+            ValuedStructFieldNode::Array(data_value) => data_value.get_default_display_value(),
+            ValuedStructFieldNode::Pointer32(_value) => None,
+            ValuedStructFieldNode::Pointer64(_value) => None,
+        }
     }
 
     pub fn get_size_in_bytes(&self) -> u64 {
-        match &self.field_data {
-            ValuedStructFieldData::NestedStruct(nested_struct) => nested_struct.as_ref().get_size_in_bytes(),
-            ValuedStructFieldData::Value(data_value) => data_value.get_size_in_bytes(),
-            ValuedStructFieldData::Array(data_value) => data_value.get_size_in_bytes(),
-            ValuedStructFieldData::Pointer32(value) => size_of_val(value) as u64,
-            ValuedStructFieldData::Pointer64(value) => size_of_val(value) as u64,
+        match &self.field_node {
+            ValuedStructFieldNode::NestedStruct(nested_struct) => nested_struct.as_ref().get_size_in_bytes(),
+            ValuedStructFieldNode::Value(data_value) => data_value.get_size_in_bytes(),
+            ValuedStructFieldNode::Array(data_value) => data_value.get_size_in_bytes(),
+            ValuedStructFieldNode::Pointer32(value) => size_of_val(value) as u64,
+            ValuedStructFieldNode::Pointer64(value) => size_of_val(value) as u64,
         }
     }
 
     pub fn get_bytes(&self) -> Vec<u8> {
-        match &self.field_data {
-            ValuedStructFieldData::NestedStruct(nested_struct) => nested_struct.get_bytes(),
-            ValuedStructFieldData::Value(data_value) => data_value.get_value_bytes().to_owned(),
-            ValuedStructFieldData::Array(data_value) => data_value.get_value_bytes().to_owned(),
-            ValuedStructFieldData::Pointer32(value) => value.to_le_bytes().to_vec(),
-            ValuedStructFieldData::Pointer64(value) => value.to_le_bytes().to_vec(),
+        match &self.field_node {
+            ValuedStructFieldNode::NestedStruct(nested_struct) => nested_struct.get_bytes(),
+            ValuedStructFieldNode::Value(data_value) => data_value.get_value_bytes().to_owned(),
+            ValuedStructFieldNode::Array(data_value) => data_value.get_value_bytes().to_owned(),
+            ValuedStructFieldNode::Pointer32(value) => value.to_le_bytes().to_vec(),
+            ValuedStructFieldNode::Pointer64(value) => value.to_le_bytes().to_vec(),
         }
     }
 
@@ -64,28 +87,28 @@ impl ValuedStructField {
         &mut self,
         bytes: &[u8],
     ) {
-        match &mut self.field_data {
-            ValuedStructFieldData::NestedStruct(nested) => {
+        match &mut self.field_node {
+            ValuedStructFieldNode::NestedStruct(nested) => {
                 nested.copy_from_bytes(bytes);
             }
-            ValuedStructFieldData::Value(data_value) => {
+            ValuedStructFieldNode::Value(data_value) => {
                 debug_assert!(bytes.len() as u64 >= data_value.get_size_in_bytes());
 
                 data_value.copy_from_bytes(bytes);
             }
-            ValuedStructFieldData::Array(data_value) => {
+            ValuedStructFieldNode::Array(data_value) => {
                 debug_assert!(bytes.len() as u64 >= data_value.get_size_in_bytes());
 
                 data_value.copy_from_bytes(bytes);
             }
-            ValuedStructFieldData::Pointer32(value) => {
+            ValuedStructFieldNode::Pointer32(value) => {
                 debug_assert!(bytes.len() >= size_of_val(value));
 
                 if bytes.len() >= size_of_val(value) {
                     *value = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
                 }
             }
-            ValuedStructFieldData::Pointer64(value) => {
+            ValuedStructFieldNode::Pointer64(value) => {
                 debug_assert!(bytes.len() >= size_of_val(value));
 
                 if bytes.len() >= size_of_val(value) {
@@ -104,8 +127,8 @@ impl ValuedStructField {
     ) -> String {
         let indent = if pretty_print { "  ".repeat(tab_depth as usize) } else { String::new() };
 
-        match &self.field_data {
-            ValuedStructFieldData::NestedStruct(nested_struct) => {
+        match &self.field_node {
+            ValuedStructFieldNode::NestedStruct(nested_struct) => {
                 let nested_str = nested_struct
                     .as_ref()
                     .get_display_string(pretty_print, tab_depth.saturating_add(1));
@@ -115,7 +138,7 @@ impl ValuedStructField {
                     format!("{{{}}}", nested_str)
                 }
             }
-            ValuedStructFieldData::Value(data_value) | ValuedStructFieldData::Array(data_value) => match data_value.get_default_display_value() {
+            ValuedStructFieldNode::Value(data_value) | ValuedStructFieldNode::Array(data_value) => match data_value.get_default_display_value() {
                 Some(display_value) => {
                     if pretty_print {
                         format!("{}{}\n", indent, display_value.get_display_value())
@@ -131,14 +154,14 @@ impl ValuedStructField {
                     }
                 }
             },
-            ValuedStructFieldData::Pointer64(value) => {
+            ValuedStructFieldNode::Pointer64(value) => {
                 if pretty_print {
                     format!("{}0x{:016X}\n", indent, value)
                 } else {
                     format!("{}0x{:016X}", indent, value)
                 }
             }
-            ValuedStructFieldData::Pointer32(value) => {
+            ValuedStructFieldNode::Pointer32(value) => {
                 if pretty_print {
                     format!("{}0x{:08X}\n", indent, value)
                 } else {
@@ -173,17 +196,19 @@ impl FromStr for ValuedStructField {
             .ok_or_else(|| "Missing field value".to_string())?
             .trim();
 
-        let field_data = if value_str.starts_with("0x") {
+        let field_node = if value_str.starts_with("0x") {
             // JIRA: 32 bit support, explicitly, more explicit field type.
             u64::from_str_radix(&value_str[2..], 16)
-                .map(ValuedStructFieldData::Pointer64)
+                .map(ValuedStructFieldNode::Pointer64)
                 .map_err(|error| error.to_string())?
         } else {
             DataValue::from_str(value_str)
-                .map(ValuedStructFieldData::Value)
+                .map(ValuedStructFieldNode::Value)
                 .map_err(|error| error.to_string())?
         };
 
-        Ok(ValuedStructField::new(name, field_data))
+        let is_read_only = false;
+
+        Ok(ValuedStructField::new(name, field_node, is_read_only))
     }
 }

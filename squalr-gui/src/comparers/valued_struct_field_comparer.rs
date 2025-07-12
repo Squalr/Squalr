@@ -1,19 +1,19 @@
-use crate::PropertyEntryViewData;
+use crate::ValuedStructFieldViewData;
 use slint_mvvm::view_data_comparer::ViewDataComparer;
 
-pub struct PropertyComparer {}
+pub struct ValuedStructFieldViewDataComparer {}
 
-impl PropertyComparer {
+impl ValuedStructFieldViewDataComparer {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl ViewDataComparer<PropertyEntryViewData> for PropertyComparer {
+impl ViewDataComparer<ValuedStructFieldViewData> for ValuedStructFieldViewDataComparer {
     fn compare(
         &self,
-        a: &PropertyEntryViewData,
-        b: &PropertyEntryViewData,
+        a: &ValuedStructFieldViewData,
+        b: &ValuedStructFieldViewData,
     ) -> bool {
         let JIRA = 420;
         a.name == b.name

@@ -11,7 +11,7 @@ pub mod memory_read_mode_converter;
 pub mod opened_process_info_converter;
 pub mod process_info_converter;
 pub mod project_info_converter;
-pub mod property_converter;
 pub mod scan_constraint_converter;
 pub mod scan_result_converter;
 pub mod valued_struct_converter;
+pub mod valued_struct_field_converter;

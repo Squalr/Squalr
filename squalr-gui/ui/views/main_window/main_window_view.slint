@@ -51,9 +51,9 @@ export component MainWindowView inherits Window {
                                 check_state: DockRootViewModelBindings.project_explorer_window.is_visible ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
                             },
                             {
-                                id: DockRootViewModelBindings.property_viewer_window.identifier,
+                                id: DockRootViewModelBindings.struct_viewer_window.identifier,
                                 text:"Property Viewer",
-                                check_state: DockRootViewModelBindings.property_viewer_window.is_visible ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                                check_state: DockRootViewModelBindings.struct_viewer_window.is_visible ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
                             },
                             {
                                 id: DockRootViewModelBindings.memory_viewer_window.identifier,
@@ -104,8 +104,8 @@ export component MainWindowView inherits Window {
                         DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.process_selector_window.identifier);
                     } else if id == DockRootViewModelBindings.project_explorer_window.identifier {
                         DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.project_explorer_window.identifier);
-                    } else if id == DockRootViewModelBindings.property_viewer_window.identifier {
-                        DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.property_viewer_window.identifier);
+                    } else if id == DockRootViewModelBindings.struct_viewer_window.identifier {
+                        DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.struct_viewer_window.identifier);
                     } else if id == DockRootViewModelBindings.memory_viewer_window.identifier {
                         DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.memory_viewer_window.identifier);
                     } else if id == DockRootViewModelBindings.output_window.identifier {

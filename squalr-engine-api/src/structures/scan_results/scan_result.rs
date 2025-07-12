@@ -1,14 +1,11 @@
 use crate::structures::data_types::built_in_types::bool8::data_type_bool8::DataTypeBool8;
 use crate::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
+use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::data_value::DataValue;
-use crate::structures::properties::property_collection::PropertyCollection;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
-use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::structs::valued_struct::ValuedStruct;
-use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
-use crate::structures::{data_types::data_type_ref::DataTypeRef, properties::property::Property};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -44,47 +41,28 @@ impl ScanResult {
         }
     }
 
-    pub fn as_properties(&self) -> PropertyCollection {
+    pub fn as_property_struct(&self) -> ValuedStruct {
         // The current value if available, otherwise fall back to a read only default string.
-        let property_value = match self.valued_result.get_current_value() {
-            Some(current_value) => Property::new(Self::PROPERTY_NAME_VALUE.to_string(), current_value.clone().to_anonymous_valued_struct(), false),
-            None => Property::new(
-                Self::PROPERTY_NAME_VALUE.to_string(),
-                DataTypeStringUtf8::get_value_from_primitive('?' as u8).to_anonymous_valued_struct(),
-                true,
-            ),
+        let field_value = match self.valued_result.get_current_value() {
+            Some(current_value) => current_value
+                .clone()
+                .to_named_valued_struct_field(Self::PROPERTY_NAME_VALUE.to_string()),
+            None => DataTypeStringUtf8::get_value_from_primitive('?' as u8).to_named_valued_struct_field(Self::PROPERTY_NAME_VALUE.to_string()),
         };
-        let property_is_frozen = Property::new(
-            Self::PROPERTY_NAME_IS_FROZEN.to_string(),
-            DataTypeBool8::get_value_from_primitive(self.is_frozen).to_anonymous_valued_struct(),
-            false,
-        );
-        let property_address = Property::new(
-            Self::PROPERTY_NAME_ADDRESS.to_string(),
-            DataTypeU64::get_value_from_primitive(self.valued_result.get_address()).to_anonymous_valued_struct(),
-            true,
-        );
+        let field_is_frozen = DataTypeBool8::get_value_from_primitive(self.is_frozen).to_named_valued_struct_field(Self::PROPERTY_NAME_IS_FROZEN.to_string());
+        let field_address =
+            DataTypeU64::get_value_from_primitive(self.valued_result.get_address()).to_named_valued_struct_field(Self::PROPERTY_NAME_ADDRESS.to_string());
+        let field_module = DataTypeStringUtf8::get_value_from_primitive_array(self.module.as_bytes().to_vec())
+            .to_named_valued_struct_field(Self::PROPERTY_NAME_MODULE.to_string());
+        let field_module_offset =
+            DataTypeU64::get_value_from_primitive(self.module_offset).to_named_valued_struct_field(Self::PROPERTY_NAME_MODULE_OFFSET.to_string());
 
-        let property_module = Property::new(
-            Self::PROPERTY_NAME_MODULE.to_string(),
-            ValuedStruct::new(SymbolicStructRef::new_anonymous(), vec![ValuedStructField::new(
-                String::new(),
-                ValuedStructFieldData::Array(DataTypeStringUtf8::get_value_from_primitive_array(self.module.as_bytes().to_vec())),
-            )]),
-            true,
-        );
-        let property_module_offset = Property::new(
-            Self::PROPERTY_NAME_MODULE_OFFSET.to_string(),
-            DataTypeU64::get_value_from_primitive(self.module_offset).to_anonymous_valued_struct(),
-            true,
-        );
-
-        PropertyCollection::new(vec![
-            property_value,
-            property_is_frozen,
-            property_address,
-            property_module,
-            property_module_offset,
+        ValuedStruct::new_anonymous(vec![
+            field_value,
+            field_is_frozen,
+            field_address,
+            field_module,
+            field_module_offset,
         ])
     }
 

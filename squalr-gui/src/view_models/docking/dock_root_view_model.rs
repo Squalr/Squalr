@@ -183,7 +183,7 @@ impl DockRootViewModel {
             "scan_results" => "Memory Scanner".into(),
             "output" => "Output".into(),
             "process_selector" => "Process Selector".into(),
-            "property_viewer" => "Property Viewer".into(),
+            "struct_viewer" => "Property Viewer".into(),
             "project_explorer" => "Project Explorer".into(),
             _ => identifier,
         }
@@ -382,8 +382,8 @@ impl DockRootViewModel {
                     "process_selector" => {
                         dock_root_bindings.set_process_selector_window(view_data);
                     }
-                    "property_viewer" => {
-                        dock_root_bindings.set_property_viewer_window(view_data);
+                    "struct_viewer" => {
+                        dock_root_bindings.set_struct_viewer_window(view_data);
                     }
                     "project_explorer" => {
                         dock_root_bindings.set_project_explorer_window(view_data);

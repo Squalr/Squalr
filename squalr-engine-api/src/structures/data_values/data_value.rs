@@ -4,7 +4,7 @@ use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::structs::valued_struct::ValuedStruct;
-use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
+use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldNode};
 use crate::{registries::data_types::data_type_registry::DataTypeRegistry, structures::data_values::anonymous_value_container::AnonymousValueContainer};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -14,7 +14,7 @@ use std::{
 };
 
 /// Represents a value for a `DataType`. Additionally, new `DataType` and `DataValue` pairs can be registered by plugins.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct DataValue {
     /// The data type that this value represents.
     data_type_ref: DataTypeRef,
@@ -127,7 +127,14 @@ impl DataValue {
     }
 
     pub fn to_anonymous_valued_struct_field(&self) -> ValuedStructField {
-        ValuedStructField::new(String::new(), ValuedStructFieldData::Value(self.clone()))
+        ValuedStructField::new(String::new(), ValuedStructFieldNode::Value(self.clone()), false)
+    }
+
+    pub fn to_named_valued_struct_field(
+        &self,
+        name: String,
+    ) -> ValuedStructField {
+        ValuedStructField::new(name, ValuedStructFieldNode::Value(self.clone()), false)
     }
 
     fn create_display_values(

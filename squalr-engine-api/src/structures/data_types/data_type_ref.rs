@@ -21,7 +21,7 @@ use std::{
 /// Represents a handle to a data type. This is kept as a weak reference, as DataTypes can be registered/unregistered by plugins.
 /// As such, `DataType` is a `Box<dyn>` type, so it is much easier to abstract them behind `DataTypeRef` and just pass around handles.
 /// This is also important for serialization/deserialization, as if a plugin that defines a type is disabled, we can still deserialize it.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct DataTypeRef {
     data_type_id: String,
 }

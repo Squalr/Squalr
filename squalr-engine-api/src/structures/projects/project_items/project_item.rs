@@ -1,5 +1,4 @@
 use crate::structures::projects::project_items::project_item_type_ref::ProjectItemTypeRef;
-use crate::structures::properties::property::Property;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -12,7 +11,8 @@ pub struct ProjectItem {
     item_type: ProjectItemTypeRef,
 
     /// The list of properties on this project item.
-    properties: Vec<Property>,
+    /// JIRA: As trait
+    // properties: Vec<Property>,
 
     /// A value indicating whether this item has been activated / enabled.
     is_activated: bool,
@@ -35,7 +35,6 @@ impl ProjectItem {
         Self {
             path,
             item_type,
-            properties: vec![],
             is_activated: false,
             children: vec![],
             is_container_type: false,

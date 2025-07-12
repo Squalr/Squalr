@@ -2,7 +2,7 @@ use crate::structures::scanning::comparisons::scan_function_scalar::{ScalarCompa
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use num_traits::Float;
 use std::ops::{Add, Sub};
-use std::{mem, ptr};
+use std::ptr;
 
 pub trait ReadFloatBigEndian: Sized {
     fn read_float_be(value_ptr: *const u8) -> Self;
@@ -10,13 +10,13 @@ pub trait ReadFloatBigEndian: Sized {
 
 impl ReadFloatBigEndian for f32 {
     fn read_float_be(value_ptr: *const u8) -> Self {
-        unsafe { mem::transmute::<u32, f32>(u32::swap_bytes(ptr::read_unaligned(value_ptr as *const u32))) }
+        unsafe { f32::from_bits(u32::swap_bytes(ptr::read_unaligned(value_ptr as *const u32))) }
     }
 }
 
 impl ReadFloatBigEndian for f64 {
     fn read_float_be(value_ptr: *const u8) -> Self {
-        unsafe { mem::transmute::<u64, f64>(u64::swap_bytes(ptr::read_unaligned(value_ptr as *const u64))) }
+        unsafe { f64::from_bits(u64::swap_bytes(ptr::read_unaligned(value_ptr as *const u64))) }
     }
 }
 

@@ -1,20 +1,20 @@
-# Squalr
+# Olorin
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0)
 
-[Squalr Official Website](https://www.squalr.com)
+[Olorin Official Website](https://www.squalr.com)
 
 Join us on our [Discord Channel](https://discord.gg/Pq2msTx)
 
-**Squalr** is a highly performant dynamic analysis tool for software. This includes memory scanning, pointer mapping, x86/x64 assembly injection, and so on.
+**Olorin** is a highly performant dynamic analysis tool for software. This includes memory scanning, pointer mapping, x86/x64 assembly injection, and so on.
 
-Squalr is currently being re-written from the ground up in Rust. A release is coming soon!
+Olorin is a spiritual successor to Squalr, and is currently being re-written from the ground up in Rust. A release is coming soon!
 
 Looking for the old C# repo? See [Squalr-Sharp](https://github.com/Squalr/Squalr-Sharp)
 
-Squalr achieves fast scans through multi-threading combined with SIMD instructions. To take advantage of these gains, your CPU needs to have support for either SSE, AVX, or AVX-512. Even if your PC lacks support for SSE, the scans will still be incredibly fast due to an internal scan dispatcher that takes high-level user scan requests and maps them to the most optimal version of a scan through a powerful rules engine.
+Olorin achieves fast scans through multi-threading combined with SIMD instructions. To take advantage of these gains, your CPU needs to have support for either SSE, AVX, or AVX-512. Even if your PC lacks support for SSE, the scans will still be incredibly fast due to an internal scan dispatcher that takes high-level user scan requests and maps them to the most optimal version of a scan through a powerful rules engine.
 
-![SqualrGUI](docs/Squalr.png)
+![OlorinGUI](docs/Olorin.png)
 
 ## Features
 - [X] Primitive scans
@@ -31,7 +31,7 @@ Squalr achieves fast scans through multi-threading combined with SIMD instructio
 - [ ] MCP endpoints
 
 ## Pre-launch tasklist
-For platforms like Android, Squalr runs in a dual process mode with an unprivileged GUI and a privileged shell (given that the device has been rooted). The privileged shell obviously does most of the heavy lifting. This naturally gives rise to a command/response architecture, which makes for clear separation of concerns, but is a headache in other ways.
+For platforms like Android, Olorin runs in a dual process mode with an unprivileged GUI and a privileged shell (given that the device has been rooted). The privileged shell obviously does most of the heavy lifting. This naturally gives rise to a command/response architecture, which makes for clear separation of concerns, but is a headache in other ways.
 
 Additionally, we aim to support CLI and TUI builds, along with MCP endpoints for LLM integration. This is actually pretty easy to do, since we're already going for the command/response architecture. This just adds 1 more step of making all commands structopts, meaning all commands can be created from a string (and therefore from user input). So, we just dispatch the raw commands users input, and implement handlers for all the responses that simply output to the command responses console.
 
@@ -56,9 +56,9 @@ Additionally, we aim to support CLI and TUI builds, along with MCP endpoints for
 - [X] Robust conversion framework.
 - [X] Separate data types for various string encodings (and remove old string encodings -- separate data types is cleaner).
 - [X] Generic array scanning system (ie scan for array of floats, array of ints, array of strings...)
-- [X] Property viewer in the GUI that can register an active set of properties.
-- [X] Display type switching for property viewer data types.
-- [ ] String-based editing / committing of property viewer entries.
+- [X] Struct viewer in the GUI that can register an active set of properties.
+- [X] Display type switching for struct viewer data types.
+- [ ] String-based editing / committing of struct viewer entries.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 
 ## Post-launch Tasklist
@@ -145,3 +145,5 @@ So tl;dr there are two models:
 2) Properties cease to exist, and the property editor operates on ValuedStructs. Everything Terminates in DataValue or Pointer.
 
 Okay, seems like #2 wins, so we're killing Property/PropertyCollection in favor of a generic struct editor.
+
+That said, then we have to start annotating structs with shit for the UI, which could mean bloating these. Whatever, cross that bridge when we get there.

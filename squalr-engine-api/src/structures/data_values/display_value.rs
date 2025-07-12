@@ -2,7 +2,7 @@ use crate::structures::{data_values::display_value_type::DisplayValueType, struc
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Debug};
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct DisplayValue {
     display_value: String,
     display_value_type: DisplayValueType,

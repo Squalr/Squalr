@@ -1,9 +1,9 @@
 import { Theme } from "../../theme.slint";
 
-import { PropertyViewerViewModelBindings, PropertyEntryViewData } from "../../view_model_bindings.slint";
-import { PropertyEntryView } from "property_entry_view.slint";
+import { StructViewerViewModelBindings } from "../../view_model_bindings.slint";
+import { StructEntryView } from "struct_entry_view.slint";
 
-export component PropertyViewerView inherits Rectangle {
+export component StructViewerView inherits Rectangle {
     property <length> resizer_size: 4px;
     property <length> divider_size: 2px;
     pure function get_splitter_location() -> length {
@@ -12,9 +12,11 @@ export component PropertyViewerView inherits Rectangle {
     content := VerticalLayout {
         padding: 0px;
         spacing: 0px;
-        for selected_property in PropertyViewerViewModelBindings.selected_properties: PropertyEntryView {
-            property_entry: selected_property;
-            splitter_location: root.get_splitter_location();
+        for next_struct in StructViewerViewModelBindings.structs_under_view: Rectangle {
+            for next_field in next_struct.fields: StructEntryView {
+                struct_entry: next_field;
+                splitter_location: root.get_splitter_location();
+            }
         }
     }
 

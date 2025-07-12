@@ -35,7 +35,7 @@ export global DockRootViewModelBindings {
     in_out property <DockedWindowViewData> output_window;
     in_out property <DockedWindowViewData> pointer_scan_results_window;
     in_out property <DockedWindowViewData> process_selector_window;
-    in_out property <DockedWindowViewData> property_viewer_window;
+    in_out property <DockedWindowViewData> struct_viewer_window;
     in_out property <DockedWindowViewData> project_explorer_window;
     in_out property <DockedWindowViewData> scan_results_window;
     in_out property <DockedWindowViewData> snapshot_manager_window;
@@ -281,14 +281,18 @@ export struct SymbolicStructRefViewData {
     symbolic_struct_ref: string,
 }
 
-export struct FlattenedStructField {
+export struct ValuedStructFieldViewData {
+    name: string,
     namespaced_name: string,
-    display_value: string,
+    display_value: DisplayValueViewData,
+    data_value: DataValueViewData,
+    is_read_only: bool,
 }
 
 export struct ValuedStructViewData {
+    name: string,
     symbolic_struct_ref: SymbolicStructRefViewData,
-    fields: [FlattenedStructField],
+    fields: [ValuedStructFieldViewData],
 }
 
 export global ScannerViewModelBindings {
@@ -406,15 +410,8 @@ export global ScanResultsViewModelBindings {
 
 export global PointerScanResultsViewModelBindings { }
 
-export struct PropertyEntryViewData {
-    name: string,
-    icon_id: string,
-    valued_struct: ValuedStructViewData,
-    is_read_only: bool,
-}
-
-export global PropertyViewerViewModelBindings {
-    in property <[PropertyEntryViewData]> selected_properties;
+export global StructViewerViewModelBindings {
+    in property <[ValuedStructViewData]> structs_under_view;
     pure callback set_property_value(new_value: string);
 }
 

@@ -2,7 +2,7 @@ use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct DisplayValues {
     display_values: Vec<DisplayValue>,
     default_display_value_type: DisplayValueType,

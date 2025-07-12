@@ -2,10 +2,10 @@ use crate::structures::data_types::generics::vector_generics::VectorGenerics;
 use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use num_traits::Float;
 use std::ops::{Add, Div, Mul, Rem, Sub};
+use std::ptr;
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
 use std::simd::num::{SimdFloat, SimdUint};
 use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
-use std::{mem, ptr};
 
 pub trait ReadFloatBigEndian: Sized + SimdElement {
     fn read_float_be(value_ptr: *const u8) -> Self;
@@ -17,7 +17,7 @@ pub trait ReadFloatBigEndian: Sized + SimdElement {
 
 impl ReadFloatBigEndian for f32 {
     fn read_float_be(value_ptr: *const u8) -> Self {
-        unsafe { mem::transmute::<u32, f32>(u32::swap_bytes(ptr::read_unaligned(value_ptr as *const u32))) }
+        unsafe { f32::from_bits(u32::swap_bytes(ptr::read_unaligned(value_ptr as *const u32))) }
     }
 
     fn read_float_vector_be<const E: usize>(value_ptr: *const u8) -> Simd<Self, E>
@@ -30,7 +30,7 @@ impl ReadFloatBigEndian for f32 {
 
 impl ReadFloatBigEndian for f64 {
     fn read_float_be(value_ptr: *const u8) -> Self {
-        unsafe { mem::transmute::<u64, f64>(u64::swap_bytes(ptr::read_unaligned(value_ptr as *const u64))) }
+        unsafe { f64::from_bits(u64::swap_bytes(ptr::read_unaligned(value_ptr as *const u64))) }
     }
 
     fn read_float_vector_be<const E: usize>(value_ptr: *const u8) -> Simd<Self, E>

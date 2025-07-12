@@ -6,11 +6,11 @@ use crate::view_models::docking::dock_root_view_model::DockRootViewModel;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
 use crate::view_models::project_explorer::project_explorer_view_model::ProjectExplorerViewModel;
-use crate::view_models::property_viewer::property_viewer_view_model::PropertyViewerViewModel;
 use crate::view_models::scan_results::scan_results_view_model::ScanResultsViewModel;
 use crate::view_models::scanners::scanner_view_model::ScannerViewModel;
 use crate::view_models::settings::memory_settings_view_model::MemorySettingsViewModel;
 use crate::view_models::settings::scan_settings_view_model::ScanSettingsViewModel;
+use crate::view_models::struct_viewer::struct_viewer_view_model::StructViewerViewModel;
 use crate::view_models::validation_view_model::validation_view_model::ValidationViewModel;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
@@ -34,9 +34,9 @@ impl MainWindowViewModel {
         OutputViewModel::register(dependency_container);
         ProcessSelectorViewModel::register(dependency_container);
         ProjectExplorerViewModel::register(dependency_container);
-        PropertyViewerViewModel::register(dependency_container);
         ScanSettingsViewModel::register(dependency_container);
         ScanResultsViewModel::register(dependency_container);
+        StructViewerViewModel::register(dependency_container);
         ConversionsViewModel::register(dependency_container);
         ValidationViewModel::register(dependency_container);
 

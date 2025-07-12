@@ -17,6 +17,17 @@ impl ValuedStruct {
         ValuedStruct { symbolic_struct_ref, fields }
     }
 
+    pub fn new_anonymous(fields: Vec<ValuedStructField>) -> Self {
+        ValuedStruct {
+            symbolic_struct_ref: SymbolicStructRef::new_anonymous(),
+            fields,
+        }
+    }
+
+    pub fn get_symbolic_struct_ref(&self) -> &SymbolicStructRef {
+        &self.symbolic_struct_ref
+    }
+
     pub fn get_size_in_bytes(&self) -> u64 {
         self.fields.iter().map(|field| field.get_size_in_bytes()).sum()
     }

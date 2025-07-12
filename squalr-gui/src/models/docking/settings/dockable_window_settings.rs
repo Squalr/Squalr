@@ -38,7 +38,7 @@ impl DockSettingsConfig {
                                     .visible(false)
                                     .push_tab(DockBuilder::window("project_explorer")),
                             )
-                            .push_child(0.5, DockBuilder::window("property_viewer")),
+                            .push_child(0.5, DockBuilder::window("struct_viewer")),
                     )
                     .push_child(0.5, DockBuilder::window("output")),
             )
@@ -68,7 +68,7 @@ impl DockSettingsConfig {
                             .push_tab(DockBuilder::window("settings")),
                     ),
             )
-            .push_child(0.25, DockBuilder::window("property_viewer"))
+            .push_child(0.25, DockBuilder::window("struct_viewer"))
             .push_child(0.2, DockBuilder::window("output"))
             .build();
 
