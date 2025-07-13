@@ -53,7 +53,23 @@ impl ElementScanMappingRule for MapScanType {
         }
 
         if data_type_size > memory_alignment_size {
-            mapped_parameters.set_mapped_scan_type(MappedScanType::Vector(ScanParametersVector::Overlapping));
+            // Check if we can leverage periodicity, which is calculated in the `MapPeriodicScans` rule.
+            // See that particular rule for additional information on the concept of periodicity.
+            match mapped_parameters.get_periodicity() {
+                1 => {
+                    // Better for debug mode.
+                    // mapped_parameters.set_mapped_scan_type(MappedScanType::Vector(ScanParametersVector::OverlappingBytewisePeriodic));
+
+                    // Better for release mode.
+                    mapped_parameters.set_mapped_scan_type(MappedScanType::Vector(ScanParametersVector::OverlappingBytewiseStaggered));
+                }
+                2 | 4 | 8 => {
+                    mapped_parameters.set_mapped_scan_type(MappedScanType::Vector(ScanParametersVector::OverlappingBytewiseStaggered));
+                }
+                _ => {
+                    mapped_parameters.set_mapped_scan_type(MappedScanType::Vector(ScanParametersVector::Overlapping));
+                }
+            }
         } else if data_type_size < memory_alignment_size {
             mapped_parameters.set_mapped_scan_type(MappedScanType::Vector(ScanParametersVector::Sparse));
         } else {

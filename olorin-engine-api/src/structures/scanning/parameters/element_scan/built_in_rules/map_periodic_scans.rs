@@ -1,7 +1,6 @@
 use crate::registries::scan_rules::element_scan_mapping_rule::ElementScanMappingRule;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::data_value::DataValue;
-use crate::structures::scanning::parameters::mapped::mapped_scan_type::{MappedScanType, ScanParametersVector};
 use crate::structures::scanning::{
     comparisons::scan_compare_type::ScanCompareType,
     filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
@@ -66,20 +65,6 @@ impl ElementScanMappingRule for MapPeriodicScans {
     ) {
         if let Some(periodicity) = Self::calculate_periodicity(mapped_parameters.get_data_value(), &mapped_parameters.get_compare_type()) {
             mapped_parameters.set_periodicity(periodicity);
-
-            match periodicity {
-                1 => {
-                    // Better for debug mode.
-                    // mapped_parameters.set_mapped_scan_type(MappedScanType::Vector(ScanParametersVector::OverlappingBytewisePeriodic));
-
-                    // Better for release mode.
-                    mapped_parameters.set_mapped_scan_type(MappedScanType::Vector(ScanParametersVector::OverlappingBytewiseStaggered));
-                }
-                2 | 4 | 8 => {
-                    mapped_parameters.set_mapped_scan_type(MappedScanType::Vector(ScanParametersVector::OverlappingBytewiseStaggered));
-                }
-                _ => {}
-            }
         }
     }
 }

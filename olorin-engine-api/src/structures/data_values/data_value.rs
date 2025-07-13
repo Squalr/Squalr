@@ -122,19 +122,26 @@ impl DataValue {
         self.value_bytes.as_ptr()
     }
 
-    pub fn to_anonymous_valued_struct(&self) -> ValuedStruct {
-        ValuedStruct::new(SymbolicStructRef::new_anonymous(), vec![self.to_anonymous_valued_struct_field()])
+    pub fn to_anonymous_valued_struct(
+        &self,
+        is_read_only: bool,
+    ) -> ValuedStruct {
+        ValuedStruct::new(SymbolicStructRef::new_anonymous(), vec![self.to_anonymous_valued_struct_field(is_read_only)])
     }
 
-    pub fn to_anonymous_valued_struct_field(&self) -> ValuedStructField {
-        ValuedStructField::new(String::new(), ValuedStructFieldNode::Value(self.clone()), false)
+    pub fn to_anonymous_valued_struct_field(
+        &self,
+        is_read_only: bool,
+    ) -> ValuedStructField {
+        ValuedStructField::new(String::new(), ValuedStructFieldNode::Value(self.clone()), is_read_only)
     }
 
     pub fn to_named_valued_struct_field(
         &self,
         name: String,
+        is_read_only: bool,
     ) -> ValuedStructField {
-        ValuedStructField::new(name, ValuedStructFieldNode::Value(self.clone()), false)
+        ValuedStructField::new(name, ValuedStructFieldNode::Value(self.clone()), is_read_only)
     }
 
     fn create_display_values(

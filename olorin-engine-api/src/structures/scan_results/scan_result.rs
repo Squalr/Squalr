@@ -46,16 +46,17 @@ impl ScanResult {
         let field_value = match self.valued_result.get_current_value() {
             Some(current_value) => current_value
                 .clone()
-                .to_named_valued_struct_field(Self::PROPERTY_NAME_VALUE.to_string()),
-            None => DataTypeStringUtf8::get_value_from_primitive('?' as u8).to_named_valued_struct_field(Self::PROPERTY_NAME_VALUE.to_string()),
+                .to_named_valued_struct_field(Self::PROPERTY_NAME_VALUE.to_string(), false),
+            None => DataTypeStringUtf8::get_value_from_primitive('?' as u8).to_named_valued_struct_field(Self::PROPERTY_NAME_VALUE.to_string(), true),
         };
-        let field_is_frozen = DataTypeBool8::get_value_from_primitive(self.is_frozen).to_named_valued_struct_field(Self::PROPERTY_NAME_IS_FROZEN.to_string());
+        let field_is_frozen =
+            DataTypeBool8::get_value_from_primitive(self.is_frozen).to_named_valued_struct_field(Self::PROPERTY_NAME_IS_FROZEN.to_string(), false);
         let field_address =
-            DataTypeU64::get_value_from_primitive(self.valued_result.get_address()).to_named_valued_struct_field(Self::PROPERTY_NAME_ADDRESS.to_string());
+            DataTypeU64::get_value_from_primitive(self.valued_result.get_address()).to_named_valued_struct_field(Self::PROPERTY_NAME_ADDRESS.to_string(), true);
         let field_module = DataTypeStringUtf8::get_value_from_primitive_array(self.module.as_bytes().to_vec())
-            .to_named_valued_struct_field(Self::PROPERTY_NAME_MODULE.to_string());
+            .to_named_valued_struct_field(Self::PROPERTY_NAME_MODULE.to_string(), true);
         let field_module_offset =
-            DataTypeU64::get_value_from_primitive(self.module_offset).to_named_valued_struct_field(Self::PROPERTY_NAME_MODULE_OFFSET.to_string());
+            DataTypeU64::get_value_from_primitive(self.module_offset).to_named_valued_struct_field(Self::PROPERTY_NAME_MODULE_OFFSET.to_string(), true);
 
         ValuedStruct::new_anonymous(vec![
             field_value,

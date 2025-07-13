@@ -4,7 +4,7 @@ use crate::converters::valued_struct_field_converter::ValuedStructFieldConverter
 use olorin_engine_api::structures::structs::valued_struct::ValuedStruct;
 use slint::ModelRc;
 use slint::VecModel;
-use slint_mvvm::{convert_from_view_data::ConvertFromViewData, convert_to_view_data::ConvertToViewData};
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 
 pub struct ValuedStructConverter {}
 
@@ -42,18 +42,5 @@ impl ConvertToViewData<ValuedStruct, ValuedStructViewData> for ValuedStructConve
             symbolic_struct_ref: SymbolicStructRefConverter {}.convert_to_view_data(valued_struct.get_symbolic_struct_ref()),
             fields: ModelRc::new(VecModel::from(fields)),
         }
-    }
-}
-
-impl ConvertFromViewData<ValuedStruct, ValuedStructViewData> for ValuedStructConverter {
-    fn convert_from_view_data(
-        &self,
-        valued_struct: &ValuedStructViewData,
-    ) -> ValuedStruct {
-        let symbolic_struct_ref = SymbolicStructRefConverter {}.convert_from_view_data(&valued_struct.symbolic_struct_ref);
-
-        // JIRA: Not implemented.
-        let JIRA = 420;
-        ValuedStruct::new(symbolic_struct_ref, vec![])
     }
 }
