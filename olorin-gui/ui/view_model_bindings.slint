@@ -411,7 +411,7 @@ export global ScanResultsViewModelBindings {
 export global PointerScanResultsViewModelBindings { }
 
 export global StructViewerViewModelBindings {
-    in property <[ValuedStructViewData]> structs_under_view;
+    in property <ValuedStructViewData> struct_under_view;
     pure callback set_property_value(new_value: string);
 }
 

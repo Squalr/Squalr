@@ -12,11 +12,9 @@ export component StructViewerView inherits Rectangle {
     content := VerticalLayout {
         padding: 0px;
         spacing: 0px;
-        for next_struct in StructViewerViewModelBindings.structs_under_view: Rectangle {
-            for next_field in next_struct.fields: StructEntryView {
-                struct_entry: next_field;
-                splitter_location: root.get_splitter_location();
-            }
+        for next_field in StructViewerViewModelBindings.struct_under_view.fields: StructEntryView {
+            struct_entry: next_field;
+            splitter_location: root.get_splitter_location();
         }
     }
 

@@ -43,7 +43,7 @@ impl ValuedStruct {
             .join(if pretty_print { ",\n" } else { "," })
     }
 
-    pub fn get_fields(&self) -> &Vec<ValuedStructField> {
+    pub fn get_fields(&self) -> &[ValuedStructField] {
         &self.fields
     }
 
@@ -79,6 +79,21 @@ impl ValuedStruct {
         debug_assert!(accumulated_size == total_size);
 
         true
+    }
+
+    pub fn combine_exclusive(valued_structs: &[ValuedStruct]) -> ValuedStruct {
+        let Some(mut first_struct) = valued_structs.first().cloned() else {
+            return ValuedStruct::new_anonymous(vec![]);
+        };
+
+        first_struct.fields.retain(|field_a| {
+            valued_structs
+                .iter()
+                .skip(1)
+                .all(|vs| vs.fields.iter().any(|field_b| field_a == field_b))
+        });
+
+        ValuedStruct::new_anonymous(std::mem::take(&mut first_struct.fields))
     }
 }
 

@@ -1,22 +1,18 @@
 use crate::MainWindowView;
 use crate::StructViewerViewModelBindings;
-use crate::ValuedStructViewData;
-use crate::comparers::valued_struct_comparer::ValuedStructComparer;
 use crate::converters::valued_struct_converter::ValuedStructConverter;
 use olorin_engine::engine_execution_context::EngineExecutionContext;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use olorin_engine_api::structures::structs::valued_struct::ValuedStruct;
 use slint::ComponentHandle;
 use slint::SharedString;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use slint_mvvm::view_binding::ViewBinding;
-use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm_macros::create_view_bindings;
-use slint_mvvm_macros::create_view_model_collection;
 use std::sync::Arc;
 
 pub struct StructViewerViewModel {
     view_binding: Arc<ViewBinding<MainWindowView>>,
-    structs_under_view_collection: ViewCollectionBinding<ValuedStructViewData, ValuedStruct, MainWindowView>,
     engine_execution_context: Arc<EngineExecutionContext>,
 }
 
@@ -29,17 +25,8 @@ impl StructViewerViewModel {
         dependency_container: DependencyContainer,
         (view_binding, engine_execution_context): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>),
     ) {
-        // Create a binding that allows us to easily update the view's selected properties.
-        let structs_under_view_collection = create_view_model_collection!(
-            view_binding -> MainWindowView,
-            StructViewerViewModelBindings -> { set_structs_under_view, get_structs_under_view },
-            ValuedStructConverter -> [],
-            ValuedStructComparer -> [],
-        );
-
         let view_model = Arc::new(StructViewerViewModel {
             view_binding: view_binding.clone(),
-            structs_under_view_collection: structs_under_view_collection.clone(),
             engine_execution_context: engine_execution_context.clone(),
         });
 
@@ -61,12 +48,14 @@ impl StructViewerViewModel {
         &self,
         selected_structs: Vec<ValuedStruct>,
     ) {
-        // JIRA: This is a hack, figure out why it is needed and fix it.
-        self.structs_under_view_collection.update_from_source(vec![]);
+        let view_binding = &self.view_binding;
+        let selected_struct = ValuedStruct::combine_exclusive(&selected_structs);
 
-        // JIRA: FIXME
-        // self.structs_under_view_collection
-        // .update_from_source(ValuedStruct::combine_property_collections(&selected_properties));
+        view_binding.execute_on_ui_thread(move |main_window_view, _view_binding| {
+            let struct_viewer_bindings = main_window_view.global::<StructViewerViewModelBindings>();
+
+            struct_viewer_bindings.set_struct_under_view(ValuedStructConverter {}.convert_to_view_data(&selected_struct))
+        });
     }
 
     fn on_set_property_value(

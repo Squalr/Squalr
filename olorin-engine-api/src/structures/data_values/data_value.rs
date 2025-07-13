@@ -14,7 +14,7 @@ use std::{
 };
 
 /// Represents a value for a `DataType`. Additionally, new `DataType` and `DataValue` pairs can be registered by plugins.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DataValue {
     /// The data type that this value represents.
     data_type_ref: DataTypeRef,

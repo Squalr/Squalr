@@ -1,10 +1,10 @@
-use crate::SymbolicStructRefViewData;
 use crate::ValuedStructViewData;
+use crate::converters::symbolic_struct_ref_converter::SymbolicStructRefConverter;
+use crate::converters::valued_struct_field_converter::ValuedStructFieldConverter;
+use olorin_engine_api::structures::structs::valued_struct::ValuedStruct;
 use slint::ModelRc;
 use slint::VecModel;
 use slint_mvvm::{convert_from_view_data::ConvertFromViewData, convert_to_view_data::ConvertToViewData};
-use olorin_engine_api::structures::structs::symbolic_struct_ref::SymbolicStructRef;
-use olorin_engine_api::structures::structs::valued_struct::ValuedStruct;
 
 pub struct ValuedStructConverter {}
 
@@ -29,15 +29,18 @@ impl ConvertToViewData<ValuedStruct, ValuedStructViewData> for ValuedStructConve
         &self,
         valued_struct: &ValuedStruct,
     ) -> ValuedStructViewData {
+        let fields = valued_struct
+            .get_fields()
+            .iter()
+            .map(|field| ValuedStructFieldConverter {}.convert_to_view_data(&field))
+            .collect::<Vec<_>>();
         ValuedStructViewData {
             name: valued_struct
                 .get_symbolic_struct_ref()
                 .get_symbolic_struct_namespace()
                 .into(),
-            symbolic_struct_ref: SymbolicStructRefViewData {
-                symbolic_struct_ref: "".into(),
-            },
-            fields: ModelRc::new(VecModel::from(vec![])),
+            symbolic_struct_ref: SymbolicStructRefConverter {}.convert_to_view_data(valued_struct.get_symbolic_struct_ref()),
+            fields: ModelRc::new(VecModel::from(fields)),
         }
     }
 }
@@ -47,8 +50,10 @@ impl ConvertFromViewData<ValuedStruct, ValuedStructViewData> for ValuedStructCon
         &self,
         valued_struct: &ValuedStructViewData,
     ) -> ValuedStruct {
-        // let symbolic_struct_ref = SymbolicStructRefConverter {}.convert_from_view_data(&valued_struct.symbolic_struct_ref);
+        let symbolic_struct_ref = SymbolicStructRefConverter {}.convert_from_view_data(&valued_struct.symbolic_struct_ref);
 
-        ValuedStruct::new(SymbolicStructRef::new_anonymous(), vec![])
+        // JIRA: Not implemented.
+        let JIRA = 420;
+        ValuedStruct::new(symbolic_struct_ref, vec![])
     }
 }

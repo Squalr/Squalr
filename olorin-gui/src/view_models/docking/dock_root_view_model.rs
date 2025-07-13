@@ -9,14 +9,14 @@ use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
+use olorin_engine::engine_execution_context::EngineExecutionContext;
+use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
-use olorin_engine::engine_execution_context::EngineExecutionContext;
-use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -183,7 +183,7 @@ impl DockRootViewModel {
             "scan_results" => "Memory Scanner".into(),
             "output" => "Output".into(),
             "process_selector" => "Process Selector".into(),
-            "struct_viewer" => "Property Viewer".into(),
+            "struct_viewer" => "Struct Viewer".into(),
             "project_explorer" => "Project Explorer".into(),
             _ => identifier,
         }

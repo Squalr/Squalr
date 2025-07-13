@@ -37,7 +37,7 @@ export component StructEntryView inherits Rectangle {
         VerticalLayout {
             alignment: center;
             DataValueBox {
-                // data_value: root.struct_entry.data_value;
+                data_value: root.struct_entry.data_value;
                 width: root.width - entry.x - icon.width - entry.spacing;
                 is_read_only: root.struct_entry.is_read_only;
             }

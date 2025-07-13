@@ -2,7 +2,7 @@ use crate::structures::data_values::{data_value::DataValue, display_value::Displ
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ValuedStructFieldNode {
     NestedStruct(Box<ValuedStructField>),
     Value(DataValue),
@@ -11,7 +11,7 @@ pub enum ValuedStructFieldNode {
     Pointer64(u64),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ValuedStructField {
     name: String,
     field_node: ValuedStructFieldNode,

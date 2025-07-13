@@ -13,5 +13,6 @@ pub mod process_info_converter;
 pub mod project_info_converter;
 pub mod scan_constraint_converter;
 pub mod scan_result_converter;
+pub mod symbolic_struct_ref_converter;
 pub mod valued_struct_converter;
 pub mod valued_struct_field_converter;
