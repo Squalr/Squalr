@@ -31,10 +31,12 @@ impl EngineCommandRequestExecutor for ScanResultsSetPropertyRequest {
                 }
             }
             ScanResult::PROPERTY_NAME_IS_FROZEN => {
+                let is_frozen = self.data_value.get_value_bytes().iter().any(|&byte| byte != 0);
+
                 // Fire an internal request to freeze.
                 let scan_results_freeze_request = ScanResultsFreezeRequest {
                     scan_results: self.scan_results.clone(),
-                    is_frozen: false,
+                    is_frozen,
                 };
 
                 scan_results_freeze_request.execute(engine_privileged_state);

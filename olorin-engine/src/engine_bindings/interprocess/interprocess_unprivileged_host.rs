@@ -152,7 +152,7 @@ impl InterprocessUnprivilegedHost {
                                 }
                                 EngineEgress::EngineEvent(engine_event) => Self::handle_engine_event(&event_senders, engine_event),
                             },
-                            Err(_err) => {
+                            Err(_error) => {
                                 std::process::exit(1);
                             }
                         }

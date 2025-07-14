@@ -156,11 +156,11 @@ impl PrimitiveDataType {
         let bytes = match anonymous_value_container {
             // For binary strings, we directly map the binary to bytes.
             AnonymousValueContainer::BinaryValue(value_string_utf8) => {
-                Conversions::binary_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
+                Conversions::binary_to_bytes(&value_string_utf8).map_err(|error: &str| DataTypeError::ParseError(error.to_string()))?
             }
             // For hex strings, we directly map the hex to bytes.
             AnonymousValueContainer::HexadecimalValue(value_string_utf8) => {
-                Conversions::hex_to_bytes(&value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?
+                Conversions::hex_to_bytes(&value_string_utf8).map_err(|error: &str| DataTypeError::ParseError(error.to_string()))?
             }
             // For normal strings, we decode into the appropriate provided encoding.
             AnonymousValueContainer::String(value_string_utf8) => decode_string_func(value_string_utf8),
@@ -168,57 +168,6 @@ impl PrimitiveDataType {
 
         Ok(bytes)
     }
-
-    /// Merges an array of data values of the same data type into a singular data value.
-    /*
-    pub fn array_merge(data_values: Vec<DataValue>) -> Result<DataValue, DataTypeError> {
-        if let Some(merged_values) = data_values.first() {
-            let merged_data_type = merged_values.get_data_type();
-            let mut merged_data_type_meta_data = merged_data_type.get_meta_data().clone();
-            let mut merged_bytes = merged_values.get_value_bytes().clone();
-
-            for next in data_values.iter().skip(1) {
-                if merged_values.get_data_type_id() != next.get_data_type_id() {
-                    return Err(DataTypeError::DataValueMergeError {
-                        error: "Data type mismatch in array merge!".to_string(),
-                    });
-                }
-
-                let mut next_bytes = next.get_value_bytes().clone();
-
-                merged_bytes.append(&mut next_bytes);
-
-                merged_data_type_meta_data = match merged_data_type_meta_data {
-                    DataTypeMetaData::SizedContainer(size) => match next.get_data_type().get_meta_data() {
-                        DataTypeMetaData::SizedContainer(next_size) => DataTypeMetaData::SizedContainer(size + *next_size),
-                        _ => {
-                            return Err(DataTypeError::DataValueMergeError {
-                                error: "Mismatched data type metadata in array merge!".to_string(),
-                            });
-                        }
-                    },
-                    DataTypeMetaData::Primitive(element_count) => match next.get_data_type().get_meta_data() {
-                        DataTypeMetaData::Primitive(next_element_count) => DataTypeMetaData::Primitive(element_count + next_element_count),
-                        _ => {
-                            return Err(DataTypeError::DataValueMergeError {
-                                error: "Mismatched data type metadata in array merge!".to_string(),
-                            });
-                        }
-                    },
-                    _ => merged_data_type_meta_data,
-                };
-            }
-
-            return Ok(DataValue::new(
-                DataTypeRef::new(merged_data_type.get_data_type_id(), merged_data_type_meta_data),
-                merged_bytes,
-            ));
-        }
-
-        Err(DataTypeError::DataValueMergeError {
-            error: "No values provided to array merge!".to_string(),
-        })
-    } */
 
     pub fn create_display_values<T, F>(
         value_bytes: &[u8],

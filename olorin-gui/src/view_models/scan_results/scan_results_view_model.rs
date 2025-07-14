@@ -18,7 +18,6 @@ use olorin_engine_api::commands::scan_results::set_property::scan_results_set_pr
 use olorin_engine_api::conversions::conversions::Conversions;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use olorin_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
-use olorin_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use olorin_engine_api::structures::data_values::data_value::DataValue;
 use olorin_engine_api::structures::scan_results::scan_result::ScanResult;
 use olorin_engine_api::structures::scan_results::scan_result_base::ScanResultBase;

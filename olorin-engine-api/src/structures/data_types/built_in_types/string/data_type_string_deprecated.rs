@@ -79,12 +79,12 @@ impl DataType for DataTypeString {
         match data_type_ref.get_meta_data() {
             DataTypeMetaData::EncodedString(size, string_encoding) => match anonymous_value.get_value() {
                 AnonymousValueContainer::BinaryValue(value_string_utf8, container_type) => {
-                    let value_bytes = Conversions::binary_to_bytes(value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
+                    let value_bytes = Conversions::binary_to_bytes(value_string_utf8).map_err(|error: &str| DataTypeError::ParseError(error.to_string()))?;
 
                     return Ok(DataValue::new(data_type_ref, value_bytes));
                 }
                 AnonymousValueContainer::HexadecimalValue(value_string_utf8, container_type) => {
-                    let value_bytes = Conversions::hex_to_bytes(value_string_utf8).map_err(|err: &str| DataTypeError::ParseError(err.to_string()))?;
+                    let value_bytes = Conversions::hex_to_bytes(value_string_utf8).map_err(|error: &str| DataTypeError::ParseError(error.to_string()))?;
 
                     return Ok(DataValue::new(data_type_ref, value_bytes));
                 }

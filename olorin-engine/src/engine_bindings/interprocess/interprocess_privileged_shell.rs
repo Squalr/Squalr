@@ -115,7 +115,7 @@ impl InterprocessPrivilegedShell {
                                     let _ = Self::dispatch_response(ipc_connection.clone(), interprocess_response, request_id);
                                 }
                             },
-                            Err(_err) => {
+                            Err(_error) => {
                                 std::process::exit(1);
                             }
                         }

@@ -36,7 +36,7 @@ impl AnonymousValue {
         let deanonymized_values = self
             .anonymous_value_container
             .deanonymize_value(data_type_id)
-            .map_err(|err: String| format!("Value deanonymization error: {:?}", err))?;
+            .map_err(|error: String| format!("Value deanonymization error: {:?}", error))?;
 
         Ok(deanonymized_values)
     }

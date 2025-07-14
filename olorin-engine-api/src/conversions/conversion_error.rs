@@ -11,7 +11,7 @@ pub enum ConversionError {
 }
 
 impl From<ParseIntError> for ConversionError {
-    fn from(err: ParseIntError) -> Self {
-        ConversionError::ParseError(err.to_string())
+    fn from(error: ParseIntError) -> Self {
+        ConversionError::ParseError(error.to_string())
     }
 }
