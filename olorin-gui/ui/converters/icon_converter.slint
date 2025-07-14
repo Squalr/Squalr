@@ -235,118 +235,124 @@ export component IconConverter {
     }
     public pure function icon_view_to_image(icon_view: IconView) -> image {
         if (icon_view == IconView.bool) {
-            return @image_url("../images/data_types/bool.png");
+            return @image_url("../images/app/data_types/bool.png");
         } else if (icon_view == IconView.i8) {
-            return @image_url("../images/data_types/blue_blocks_1.png");
+            return @image_url("../images/app/data_types/blue_blocks_1.png");
         } else if (icon_view == IconView.i8be) {
-            return @image_url("../images/data_types/blue_blocks_reverse_1.png");
+            return @image_url("../images/app/data_types/blue_blocks_reverse_1.png");
         } else if (icon_view == IconView.u8) {
-            return @image_url("../images/data_types/purple_blocks_1.png");
+            return @image_url("../images/app/data_types/purple_blocks_1.png");
         } else if (icon_view == IconView.u8be) {
-            return @image_url("../images/data_types/purple_blocks_reverse_1.png");
+            return @image_url("../images/app/data_types/purple_blocks_reverse_1.png");
         } else if (icon_view == IconView.i16) {
-            return @image_url("../images/data_types/blue_blocks_2.png");
+            return @image_url("../images/app/data_types/blue_blocks_2.png");
         } else if (icon_view == IconView.i16be) {
-            return @image_url("../images/data_types/blue_blocks_reverse_2.png");
+            return @image_url("../images/app/data_types/blue_blocks_reverse_2.png");
         } else if (icon_view == IconView.u16) {
-            return @image_url("../images/data_types/purple_blocks_2.png");
+            return @image_url("../images/app/data_types/purple_blocks_2.png");
         } else if (icon_view == IconView.u16be) {
-            return @image_url("../images/data_types/purple_blocks_reverse_2.png");
+            return @image_url("../images/app/data_types/purple_blocks_reverse_2.png");
         } else if (icon_view == IconView.i32) {
-            return @image_url("../images/data_types/blue_blocks_4.png");
+            return @image_url("../images/app/data_types/blue_blocks_4.png");
         } else if (icon_view == IconView.i32be) {
-            return @image_url("../images/data_types/blue_blocks_reverse_4.png");
+            return @image_url("../images/app/data_types/blue_blocks_reverse_4.png");
         } else if (icon_view == IconView.u32) {
-            return @image_url("../images/data_types/purple_blocks_4.png");
+            return @image_url("../images/app/data_types/purple_blocks_4.png");
         } else if (icon_view == IconView.u32be) {
-            return @image_url("../images/data_types/purple_blocks_reverse_4.png");
+            return @image_url("../images/app/data_types/purple_blocks_reverse_4.png");
         } else if (icon_view == IconView.i64) {
-            return @image_url("../images/data_types/blue_blocks_8.png");
+            return @image_url("../images/app/data_types/blue_blocks_8.png");
         } else if (icon_view == IconView.i64be) {
-            return @image_url("../images/data_types/blue_blocks_reverse_8.png");
+            return @image_url("../images/app/data_types/blue_blocks_reverse_8.png");
         } else if (icon_view == IconView.u64) {
-            return @image_url("../images/data_types/purple_blocks_8.png");
+            return @image_url("../images/app/data_types/purple_blocks_8.png");
         } else if (icon_view == IconView.u64be) {
-            return @image_url("../images/data_types/purple_blocks_reverse_8.png");
+            return @image_url("../images/app/data_types/purple_blocks_reverse_8.png");
         } else if (icon_view == IconView.f32) {
-            return @image_url("../images/data_types/orange_blocks_4.png");
+            return @image_url("../images/app/data_types/orange_blocks_4.png");
         } else if (icon_view == IconView.f32be) {
-            return @image_url("../images/data_types/orange_blocks_reverse_4.png");
+            return @image_url("../images/app/data_types/orange_blocks_reverse_4.png");
         } else if (icon_view == IconView.f64) {
-            return @image_url("../images/data_types/orange_blocks_8.png");
+            return @image_url("../images/app/data_types/orange_blocks_8.png");
         } else if (icon_view == IconView.f64be) {
-            return @image_url("../images/data_types/orange_blocks_reverse_8.png");
+            return @image_url("../images/app/data_types/orange_blocks_reverse_8.png");
         } else if (icon_view == IconView.bytes) {
-            return @image_url("../images/data_types/purple_blocks_array.png");
+            return @image_url("../images/app/data_types/purple_blocks_array.png");
         } else if (icon_view == IconView.string) {
-            return @image_url("../images/data_types/string.png");
+            return @image_url("../images/app/display_types/string.png");
         } else if (icon_view == IconView.changed) {
-            return @image_url("../images/scans/scan_relative_changed.png");
+            return @image_url("../images/app/scans/scan_relative_changed.png");
         } else if (icon_view == IconView.unchanged) {
-            return @image_url("../images/scans/scan_relative_unchanged.png");
+            return @image_url("../images/app/scans/scan_relative_unchanged.png");
         } else if (icon_view == IconView.increased) {
-            return @image_url("../images/scans/scan_relative_increased.png");
+            return @image_url("../images/app/scans/scan_relative_increased.png");
         } else if (icon_view == IconView.decreased) {
-            return @image_url("../images/scans/scan_relative_decreased.png");
+            return @image_url("../images/app/scans/scan_relative_decreased.png");
         } else if (icon_view == IconView.equal) {
-            return @image_url("../images/scans/scan_immediate_equal.png");
+            return @image_url("../images/app/scans/scan_immediate_equal.png");
         } else if (icon_view == IconView.not_equal) {
-            return @image_url("../images/scans/scan_immediate_not_equal.png");
+            return @image_url("../images/app/scans/scan_immediate_not_equal.png");
         } else if (icon_view == IconView.greater_than) {
-            return @image_url("../images/scans/scan_immediate_greater_than.png");
+            return @image_url("../images/app/scans/scan_immediate_greater_than.png");
         } else if (icon_view == IconView.greater_than_or_equal) {
-            return @image_url("../images/scans/scan_immediate_greater_than_or_equal.png");
+            return @image_url("../images/app/scans/scan_immediate_greater_than_or_equal.png");
         } else if (icon_view == IconView.less_than) {
-            return @image_url("../images/scans/scan_immediate_less_than.png");
+            return @image_url("../images/app/scans/scan_immediate_less_than.png");
         } else if (icon_view == IconView.less_than_or_equal) {
-            return @image_url("../images/scans/scan_immediate_less_than_or_equal.png");
+            return @image_url("../images/app/scans/scan_immediate_less_than_or_equal.png");
         } else if (icon_view == IconView.increased_by_x) {
-            return @image_url("../images/scans/scan_delta_increased_by_x.png");
+            return @image_url("../images/app/scans/scan_delta_increased_by_x.png");
         } else if (icon_view == IconView.decreased_by_x) {
-            return @image_url("../images/scans/scan_delta_decreased_by_x.png");
+            return @image_url("../images/app/scans/scan_delta_decreased_by_x.png");
         } else if (icon_view == IconView.multiplied_by_x) {
-            return @image_url("../images/scans/scan_delta_multiplied_by_x.png");
+            return @image_url("../images/app/scans/scan_delta_multiplied_by_x.png");
         } else if (icon_view == IconView.divided_by_x) {
-            return @image_url("../images/scans/scan_delta_divided_by_x.png");
+            return @image_url("../images/app/scans/scan_delta_divided_by_x.png");
         } else if (icon_view == IconView.modulo_by_x) {
-            return @image_url("../images/scans/scan_delta_modulo_by_x.png");
+            return @image_url("../images/app/scans/scan_delta_modulo_by_x.png");
         } else if (icon_view == IconView.shift_left_by_x) {
-            return @image_url("../images/scans/scan_delta_shift_left_by_x.png");
+            return @image_url("../images/app/scans/scan_delta_shift_left_by_x.png");
         } else if (icon_view == IconView.shift_right_by_x) {
-            return @image_url("../images/scans/scan_delta_shift_right_by_x.png");
+            return @image_url("../images/app/scans/scan_delta_shift_right_by_x.png");
         } else if (icon_view == IconView.logical_and_by_x) {
-            return @image_url("../images/scans/scan_delta_logical_and_by_x.png");
+            return @image_url("../images/app/scans/scan_delta_logical_and_by_x.png");
         } else if (icon_view == IconView.logical_or_by_x) {
-            return @image_url("../images/scans/scan_delta_logical_or_by_x.png");
+            return @image_url("../images/app/scans/scan_delta_logical_or_by_x.png");
         } else if (icon_view == IconView.logical_xor_by_x) {
-            return @image_url("../images/scans/scan_delta_logical_xor_by_x.png");
+            return @image_url("../images/app/scans/scan_delta_logical_xor_by_x.png");
         } else if (icon_view == IconView.alignment_1) {
-            return @image_url("../images/data_types/purple_blocks_1.png");
+            return @image_url("../images/app/data_types/purple_blocks_1.png");
         } else if (icon_view == IconView.alignment_2) {
-            return @image_url("../images/data_types/purple_blocks_2.png");
+            return @image_url("../images/app/data_types/purple_blocks_2.png");
         } else if (icon_view == IconView.alignment_4) {
-            return @image_url("../images/data_types/purple_blocks_4.png");
+            return @image_url("../images/app/data_types/purple_blocks_4.png");
         } else if (icon_view == IconView.alignment_8) {
-            return @image_url("../images/data_types/purple_blocks_8.png");
+            return @image_url("../images/app/data_types/purple_blocks_8.png");
         } else if (icon_view == IconView.tolerance_10e1) {
-            return @image_url("../images/settings/tolerance_1.png");
+            return @image_url("../images/app/settings/tolerance_1.png");
         } else if (icon_view == IconView.tolerance_10e2) {
-            return @image_url("../images/settings/tolerance_2.png");
+            return @image_url("../images/app/settings/tolerance_2.png");
         } else if (icon_view == IconView.tolerance_10e3) {
-            return @image_url("../images/settings/tolerance_3.png");
+            return @image_url("../images/app/settings/tolerance_3.png");
         } else if (icon_view == IconView.tolerance_10e4) {
-            return @image_url("../images/settings/tolerance_4.png");
+            return @image_url("../images/app/settings/tolerance_4.png");
         } else if (icon_view == IconView.tolerance_10e5) {
-            return @image_url("../images/settings/tolerance_5.png");
+            return @image_url("../images/app/settings/tolerance_5.png");
         } else if (icon_view == IconView.tolerance_epsilon) {
-            return @image_url("../images/settings/tolerance_6.png");
+            return @image_url("../images/app/settings/tolerance_6.png");
         } else if (icon_view == IconView.skip) {
             return @image_url("../images/navigation/cancel.png");
         } else if (icon_view == IconView.read_interleaved_with_scan) {
             return @image_url("../images/navigation/double_right_overlapped_arrows.png");
         } else if (icon_view == IconView.read_before_scan) {
             return @image_url("../images/navigation/left_arrow_small.png");
+        } else if (icon_view == IconView.binary) {
+            return @image_url("../images/app/display_types/binary.png");
+        } else if (icon_view == IconView.decimal) {
+            return @image_url("../images/app/display_types/decimal.png");
+        } else if (icon_view == IconView.hexadecimal) {
+            return @image_url("../images/app/display_types/hexadecimal.png");
         }
-        return @image_url("../images/unknown.png");
+        return @image_url("../images/app/data_types/unknown.png");
     }
 }

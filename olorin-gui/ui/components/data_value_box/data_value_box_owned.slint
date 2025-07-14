@@ -100,7 +100,6 @@ export component DataValueBoxOwned {
 
         HorizontalLayout {
             alignment: end;
-            padding_right: 4px;
             VerticalLayout {
                 alignment: center;
                 base_systems_button := Button {
@@ -119,6 +118,15 @@ export component DataValueBoxOwned {
                         source: @image_url("../../images/navigation/down_arrow_small.png");
                     }
                 }
+            }
+        }
+
+        HorizontalLayout {
+            alignment: end;
+            padding_right: 24px;
+            Rectangle {
+                background: Theme.submenu_border;
+                width: 1px;
             }
         }
     }

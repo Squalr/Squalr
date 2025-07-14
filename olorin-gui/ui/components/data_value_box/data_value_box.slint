@@ -6,6 +6,7 @@ import { FocusTouchArea } from "../focus_touch_area.slint";
 import { StateLayer } from "../state_layer.slint";
 import { FakeCheckbox } from "../checkboxes/fake_checkbox.slint";
 import { DisplayValueTypeConverter } from "../../converters/display_value_type_converter.slint";
+import { IconConverter } from "../../converters/icon_converter.slint";
 import { DataValueViewData, DisplayValueViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings } from "../../view_model_bindings.slint";
 
 export component DataValueBox {
@@ -27,7 +28,9 @@ export component DataValueBox {
     in property <color> invalid_color: Theme.error_red;
     in property <color> read_only_color: Theme.foreground_preview;
     property <[DisplayValueTypeView]> supported_display_types: ValidationViewModelBindings.get_supported_display_types_for_data_type(root.data_value.data_type_ref.data_type_id);
-    display_value_typer_converter := DisplayValueTypeConverter { }
+    icon_converter := IconConverter { }
+
+    display_value_type_converter := DisplayValueTypeConverter { }
 
     callback on_value_submitted(value: string);
     public pure function get_value_text() -> string {
@@ -99,7 +102,25 @@ export component DataValueBox {
 
         HorizontalLayout {
             alignment: end;
-            padding_right: 4px;
+            VerticalLayout {
+                alignment: center;
+                commit_button := Button {
+                    height: 24px;
+                    width: 24px;
+                    tooltip_text: @tr("Commit changes...");
+                    click_sound: "";
+                    clicked => {
+                    }
+                    Image {
+                        width: 16px;
+                        height: 16px;
+                        horizontal_alignment: center;
+                        vertical_alignment: center;
+                        source: @image_url("../../images/app/check_mark.png");
+                    }
+                }
+            }
+
             VerticalLayout {
                 alignment: center;
                 base_systems_button := Button {
@@ -118,6 +139,15 @@ export component DataValueBox {
                         source: @image_url("../../images/navigation/down_arrow_small.png");
                     }
                 }
+            }
+        }
+
+        HorizontalLayout {
+            alignment: end;
+            padding_right: 24px;
+            Rectangle {
+                background: Theme.submenu_border;
+                width: 1px;
             }
         }
     }
@@ -161,7 +191,7 @@ export component DataValueBox {
                     Text {
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        text: "Display as " + display_value_typer_converter.display_value_type_to_string(root.data_value.display_values[display_value_index].display_value_type);
+                        text: "Display as " + display_value_type_converter.display_value_type_to_string(root.data_value.display_values[display_value_index].display_value_type);
                         color: Theme.foreground;
                     }
                 }

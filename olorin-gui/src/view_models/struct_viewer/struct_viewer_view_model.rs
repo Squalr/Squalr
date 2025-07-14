@@ -1,11 +1,11 @@
 use crate::MainWindowView;
 use crate::StructViewerViewModelBindings;
+use crate::ValuedStructFieldViewData;
 use crate::converters::valued_struct_converter::ValuedStructConverter;
 use olorin_engine::engine_execution_context::EngineExecutionContext;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use olorin_engine_api::structures::structs::valued_struct::ValuedStruct;
 use slint::ComponentHandle;
-use slint::SharedString;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
@@ -36,7 +36,7 @@ impl StructViewerViewModel {
             // Route all view bindings to Rust.
             create_view_bindings!(view_binding, {
                 StructViewerViewModelBindings => {
-                    on_set_property_value(new_value: SharedString) -> [view_model] -> Self::on_set_property_value
+                    on_commit_field_change(field: ValuedStructFieldViewData) -> [view_model] -> Self::on_commit_field_change
                 }
             });
         }
@@ -58,9 +58,9 @@ impl StructViewerViewModel {
         });
     }
 
-    fn on_set_property_value(
+    fn on_commit_field_change(
         view_model: Arc<StructViewerViewModel>,
-        new_value: SharedString,
+        field: ValuedStructFieldViewData,
     ) {
     }
 }

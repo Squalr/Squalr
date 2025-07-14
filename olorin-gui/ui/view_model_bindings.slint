@@ -146,6 +146,11 @@ export enum IconView {
     skip,
     read_interleaved_with_scan,
     read_before_scan,
+
+    // Display types.
+    binary,
+    decimal,
+    hexadecimal,
 }
 
 export enum ScanConstraintTypeView {
@@ -412,7 +417,7 @@ export global PointerScanResultsViewModelBindings { }
 
 export global StructViewerViewModelBindings {
     in property <ValuedStructViewData> struct_under_view;
-    pure callback set_property_value(new_value: string);
+    pure callback commit_field_change(field: ValuedStructFieldViewData);
 }
 
 export global ConversionsViewModelBindings {

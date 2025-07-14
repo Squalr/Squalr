@@ -1,8 +1,28 @@
 import { Theme } from "./../theme.slint";
 
-import { DisplayValueTypeView } from "../view_model_bindings.slint";
+import { IconView, DisplayValueTypeView } from "../view_model_bindings.slint";
 
 export component DisplayValueTypeConverter {
+    public pure function display_value_type_to_icon(display_value_type: DisplayValueTypeView) -> IconView {
+        if display_value_type == DisplayValueTypeView.bool {
+            return IconView.bool;
+        } else if display_value_type == DisplayValueTypeView.string {
+            return IconView.string;
+        } else if display_value_type == DisplayValueTypeView.binary {
+            return IconView.binary;
+        } else if display_value_type == DisplayValueTypeView.decimal {
+            return IconView.decimal;
+        } else if display_value_type == DisplayValueTypeView.hexadecimal {
+            return IconView.hexadecimal;
+        } else if display_value_type == DisplayValueTypeView.address {
+            // JIRA
+        } else if display_value_type == DisplayValueTypeView.data_type_ref {
+            // JIRA
+        } else if display_value_type == DisplayValueTypeView.enumeration {
+            // JIRA
+        }
+        return IconView.unknown;
+    }
     public pure function display_value_type_to_string(display_value_type: DisplayValueTypeView) -> string {
         if display_value_type == DisplayValueTypeView.bool {
             return "boolean";
