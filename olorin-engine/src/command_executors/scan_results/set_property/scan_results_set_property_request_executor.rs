@@ -15,9 +15,9 @@ impl EngineCommandRequestExecutor for ScanResultsSetPropertyRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        match self.valued_struct.get_name() {
+        match self.field_namespace.as_str() {
             ScanResult::PROPERTY_NAME_VALUE => {
-                let value_bytes = self.valued_struct.get_bytes();
+                let value_bytes = self.data_value.get_value_bytes();
 
                 for scan_result in &self.scan_results {
                     let address = scan_result.get_address();
@@ -40,7 +40,7 @@ impl EngineCommandRequestExecutor for ScanResultsSetPropertyRequest {
                 scan_results_freeze_request.execute(engine_privileged_state);
             }
             ScanResult::PROPERTY_NAME_ADDRESS | ScanResult::PROPERTY_NAME_MODULE | ScanResult::PROPERTY_NAME_MODULE_OFFSET => {
-                log::warn!("Cannot set read-only property {}", self.valued_struct.get_name());
+                log::warn!("Cannot set read-only property {}", self.field_namespace);
             }
             _ => {
                 log::warn!("Attempted to set unsupported property on scan result.");

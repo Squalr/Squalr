@@ -58,7 +58,7 @@ Additionally, we aim to support CLI and TUI builds, along with MCP endpoints for
 - [X] Generic array scanning system (ie scan for array of floats, array of ints, array of strings...)
 - [X] Struct viewer in the GUI that can register an active set of properties.
 - [X] Display type switching for struct viewer data types.
-- [ ] String-based editing / committing of struct viewer entries.
+- [X] String-based editing / committing of struct viewer entries.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 
 ## Post-launch Tasklist

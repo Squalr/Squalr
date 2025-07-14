@@ -5,6 +5,7 @@ use crate::comparers::scan_result_comparer::ScanResultComparer;
 use crate::converters::scan_result_converter::ScanResultConverter;
 use crate::models::audio::audio_player::AudioPlayer;
 use crate::models::audio::audio_player::SoundType;
+use crate::view_models::struct_viewer::struct_viewer_domain::StructViewerDomain;
 use crate::view_models::struct_viewer::struct_viewer_view_model::StructViewerViewModel;
 use olorin_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use olorin_engine::engine_execution_context::EngineExecutionContext;
@@ -13,9 +14,12 @@ use olorin_engine_api::commands::scan_results::delete::scan_results_delete_reque
 use olorin_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use olorin_engine_api::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
 use olorin_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
+use olorin_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use olorin_engine_api::conversions::conversions::Conversions;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use olorin_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
+use olorin_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use olorin_engine_api::structures::data_values::data_value::DataValue;
 use olorin_engine_api::structures::scan_results::scan_result::ScanResult;
 use olorin_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
 use slint::ComponentHandle;
@@ -102,6 +106,31 @@ impl ScanResultsViewModel {
         Self::poll_scan_results(view_model.clone());
 
         dependency_container.register::<ScanResultsViewModel>(view_model);
+    }
+
+    pub fn set_selected_scan_results_value(
+        &self,
+        field_namespace: String,
+        data_value: DataValue,
+    ) {
+        let scan_results = self
+            .base_scan_results_collection
+            .read()
+            .map(|collection| {
+                collection
+                    .iter()
+                    .map(|scan_result| scan_result.get_base_result().clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let scan_results_set_property_request = ScanResultsSetPropertyRequest {
+            scan_results,
+            field_namespace,
+            data_value,
+        };
+
+        scan_results_set_property_request.send(&self.engine_execution_context, move |scan_results_set_property_response| {});
     }
 
     fn poll_scan_results(view_model: Arc<ScanResultsViewModel>) {
@@ -282,6 +311,7 @@ impl ScanResultsViewModel {
 
         if !scan_results.is_empty() {
             struct_viewer_view_model.set_selected_structs(
+                StructViewerDomain::ScanResult,
                 scan_results
                     .iter()
                     .map(|scan_result| scan_result.as_property_struct())

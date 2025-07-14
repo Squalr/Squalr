@@ -1,9 +1,9 @@
 use crate::DataValueViewData;
 use crate::converters::data_type_ref_converter::DataTypeRefConverter;
 use crate::converters::display_value_converter::DisplayValueConverter;
-use slint::{ModelRc, VecModel};
-use slint_mvvm::{convert_from_view_data::ConvertFromViewData, convert_to_view_data::ConvertToViewData};
 use olorin_engine_api::structures::data_values::data_value::DataValue;
+use slint::{ModelRc, VecModel};
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 
 pub struct DataValueConverter {}
 
@@ -48,16 +48,5 @@ impl ConvertToViewData<DataValue, DataValueViewData> for DataValueConverter {
             display_values: ModelRc::new(VecModel::from(DisplayValueConverter {}.convert_collection(display_values))),
             active_display_value_index: active_display_value_index as i32,
         }
-    }
-}
-
-impl ConvertFromViewData<DataValue, DataValueViewData> for DataValueConverter {
-    fn convert_from_view_data(
-        &self,
-        data_value: &DataValueViewData,
-    ) -> DataValue {
-        let data_type_ref = DataTypeRefConverter {}.convert_from_view_data(&data_value.data_type_ref);
-
-        DataValue::new(data_type_ref, vec![])
     }
 }

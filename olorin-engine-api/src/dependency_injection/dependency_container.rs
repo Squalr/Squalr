@@ -1,4 +1,5 @@
 use crate::dependency_injection::dep_tuple::DepTuple;
+use crate::dependency_injection::lazy::Lazy;
 use anyhow::{Result, anyhow};
 use std::any::{Any, type_name};
 use std::collections::{HashMap, HashSet};
@@ -60,6 +61,13 @@ impl DependencyContainer {
                 .map_err(|_| anyhow!("Dependency type mismatch for type: {}", key)),
             Err(error) => Err(anyhow!("Failed to acquire lock when getting dependency instance: {}", error)),
         }
+    }
+
+    pub fn get_lazy<T>(&self) -> Lazy<T>
+    where
+        T: Send + Sync + 'static,
+    {
+        Lazy::new(self.clone())
     }
 
     pub fn resolve_all<T, F>(

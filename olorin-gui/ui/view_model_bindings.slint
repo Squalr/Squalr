@@ -417,7 +417,7 @@ export global PointerScanResultsViewModelBindings { }
 
 export global StructViewerViewModelBindings {
     in property <ValuedStructViewData> struct_under_view;
-    pure callback commit_field_change(field: ValuedStructFieldViewData);
+    pure callback commit_field_change(field_namespace: string, new_value: string, display_value: DisplayValueViewData, data_type_ref: DataTypeRefViewData);
 }
 
 export global ConversionsViewModelBindings {

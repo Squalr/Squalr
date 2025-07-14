@@ -32,7 +32,7 @@ export component DataValueBox {
 
     display_value_type_converter := DisplayValueTypeConverter { }
 
-    callback on_value_submitted(value: string);
+    callback on_value_committed(new_value: string);
     public pure function get_value_text() -> string {
         return text_input.text;
     }
@@ -110,6 +110,7 @@ export component DataValueBox {
                     tooltip_text: @tr("Commit changes...");
                     click_sound: "";
                     clicked => {
+                        root.on_value_committed(text_input.text);
                     }
                     Image {
                         width: 16px;

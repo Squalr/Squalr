@@ -33,6 +33,13 @@ impl DisplayValue {
     pub fn get_display_value(&self) -> &str {
         &self.display_value
     }
+
+    pub fn set_display_value(
+        &mut self,
+        display_value: String,
+    ) {
+        self.display_value = display_value;
+    }
 }
 
 impl fmt::Display for DisplayValue {

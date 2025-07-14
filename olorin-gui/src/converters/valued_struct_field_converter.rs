@@ -2,8 +2,9 @@ use crate::{
     ValuedStructFieldViewData,
     converters::{data_value_converter::DataValueConverter, display_value_converter::DisplayValueConverter},
 };
-use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use olorin_engine_api::structures::structs::valued_struct_field::ValuedStructField;
+use slint_mvvm::convert_from_view_data::ConvertFromViewData;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 
 pub struct ValuedStructFieldConverter {}
 
