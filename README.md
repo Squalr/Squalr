@@ -6,37 +6,136 @@
 
 Join us on our [Discord Channel](https://discord.gg/Pq2msTx)
 
-**Olorin** is a highly performant dynamic analysis tool for software. This includes memory scanning, pointer mapping, x86/x64 assembly injection, and so on.
+**Olorin** is a highly performant dynamic analysis reverse-engineering tool written in Rust. Olorin believes that dynamic analysis should be a first-class citizen. A living program has substantially more information to leverage than a dead one. The long term ambition is not to compete with static tools directly, but instead unlock incredibly productive workflows that could only come from a dynamic world.
 
-Olorin is a spiritual successor to Olorin, and is currently being re-written from the ground up in Rust. A release is coming soon!
+First and foremost, Olorin is a memory scanner. Olorin achieves fast scans through multi-threading combined with SIMD instructions, allowing it to rip through Gigabytes of data in seconds. To take advantage of these gains, your CPU needs to have support for either SSE, AVX, or AVX-512. Even if your PC lacks support for SSE, the scans will still be incredibly fast due to an internal scan dispatcher that takes high-level user scan requests and maps them to the most optimal version of a scan through a powerful rules engine.
 
-Looking for the old C# repo? See [Squalr-Sharp](https://github.com/Squalr/Squalr-Sharp)
+However, Olorin has ambitions beyond just basic memory hacking, such as:
+- Plaintext hacking. Just tell the agent what you want to hack over a normal conversation, and have it dispatch low-level commands to do the heavy lifting. This can be very effective in domains like video game reverse-engineering.
+- Automated data symbol discovery. By analyzing how values change over snapshots in time, analyzing screenshots, etc., we believe that agents can help you build a full map of all data and functions in a process.
+- Extensibility with a modern plugin system. This means an actual marketplace, including plenty of free and easy to install plugins. No more unzipping plugins to esoteric locations and manually upgrading all your plugins when a new version of Olorin comes out.
+- Low-latency AI. We want developers to be able to make bots that can take in screen data, memory data, and run this in a rapid enough loop to do everything from play games, to navigate desktop software, without exessive delays.
 
-Olorin achieves fast scans through multi-threading combined with SIMD instructions. To take advantage of these gains, your CPU needs to have support for either SSE, AVX, or AVX-512. Even if your PC lacks support for SSE, the scans will still be incredibly fast due to an internal scan dispatcher that takes high-level user scan requests and maps them to the most optimal version of a scan through a powerful rules engine.
+Its also important to note what Olorin is NOT doing. We intend to make everything possible through plugins, but we do not intend to ship any of the following directly:
+- We are not building an ASM to C++ decompiler, or any of the other static analysis tools.
+- We are not building out a code graph.
+- We are not building out a debugger.
+
+These may change at some point, but only on a much larger time horizon.
+
+-----------------------
+
+Olorin is a spiritual successor to Squalr. Looking for the old C# repo? See [Squalr-Sharp](https://github.com/Squalr/Squalr-Sharp). Note that Squalr is no longer maintained, as Olorin has become the focus. It turns out that when doing systems level work, always a systems level language. No amount of language convenience is worth getting hard blocked by a garbage collector or latency in marshalling. Enjoy the free life lesson!
 
 ![OlorinGUI](docs/Olorin.png)
 
 ## Features
+
+### Builds
+- [X] GUI build. Uses Slint for the GUI, giving us the benefits of a markup language, while still compiling to native.
+- [X] Android build, also slint.
+- [X] CLI build.
+- [ ] TUI build (tech stack TBD).
+
+### Developer-Facing Features
+- [ ] Plugin system: Data Types
+- [ ] Plugin system: Middleware (Filters for emu support, filter down virtual memory through custom logic)
+- [ ] Plugin system: Virtual Modules (custom defined static bases -- could be threadstack, special emulator memory regions, etc)
+- [ ] Plugin system: Project item types
+- [ ] MCP for LLM integrations (Needs architecting work)
+
+### User-Facing Features
 - [X] Primitive scans
 - [X] Array scans, including arrays of primitives (ie u8[], i32[], string_utf8[])
 - [X] String scans
+- [X] Struct viewer
+- [X] Dockable window system
+- [ ] Struct scans
 - [ ] Pointer scans
-- [ ] MCP for LLM integrations
+- [ ] Project system
 
-## Domains
-- [X] GUI build
-- [X] Android build
-- [X] CLI build
-- [ ] TUI build
-- [ ] MCP endpoints
+## Architectural Overview
 
-## Pre-launch tasklist
-For platforms like Android, Olorin runs in a dual process mode with an unprivileged GUI and a privileged shell (given that the device has been rooted). The privileged shell obviously does most of the heavy lifting. This naturally gives rise to a command/response architecture, which makes for clear separation of concerns, but is a headache in other ways.
+### Command Response System
+Olorin has two components, a privileged interface, and an unprivileged core. This naturally gives rise to a command/response architecture, which makes for clear separation of concerns. To do this cleanly, we use structopts to make all commands have a text input equivalent, meaning that both a GUI and CLI can invoke the command fairly easily.
 
-Additionally, we aim to support CLI and TUI builds, along with MCP endpoints for LLM integration. This is actually pretty easy to do, since we're already going for the command/response architecture. This just adds 1 more step of making all commands structopts, meaning all commands can be created from a string (and therefore from user input). So, we just dispatch the raw commands users input, and implement handlers for all the responses that simply output to the command responses console.
+This allows for various configurations for each platform:
+- Desktop: Single process mode, where the privileged/unprivileged parts call one another directly.
+- Desktop: (Not implemented yet) Remote mode, where an unprivileged UI can call a privileged shell on any platform over an API (ie REST).
+- Android: Dual process mode, where the unprivileged GUI interacts with a privileged shell. Requires the device being rooted. The privileged shell obviously does most of the heavy lifting.
+- iPhone: TBD, may never happen due to their security model.
+- CLI: Single process mode. All commands support a textual representation through structopt, so this is trivial to support.
+- CLI: (Not implemented yet) Remote mode. Same as desktop.
+- TUI: Single process mode. Same as desktop.
+- TUI: (Not implemented yet) Remote mode. Same as desktop.
+- MCP: (Not implemented yet) Support for MCP endpoints by listing all available text commands and allowing an LLM to invoke them.
 
-## Launch Checklist
-- [X] Custom installer and auto updater from Git tags. (The auto updater Rust crate is not GCC compatible, and MSVC sucks with Rust, and eventually we're going to want to change 1 measly line of code and get gigafucked by some external dependency. It's really not that hard to build this).
+### Snapshot Glossary
+- A **snapshot** is a full query of all virtual memory regions in an internal process. This is generally done in two passes, once to determine the virtual page addresses and sizes, and another pass to collect the values.
+- An **snapshot region** represents 1-n adjacent virtual memory regions in an external process. Adjacent virtual memory pages are considered part of the same snapshot region.
+- An **snapshot filter** represents a window into a snapshot region, and are created by scan implementations. These can be considered as an efficient collection of scan results.
+- An **scan result** is the value obtained when indexing into a snapshot region through a snapshot filter.
+- An **element** an abstract concept similar to a scan result, but more generally just refers to an arbitrary value within a filter. While this does not exist as a concrete type, this is commonly used in the code conceptually. Elements are best illustrated by example: if scanning for a 1-byte value over a 2000 byte region of memory, with an alignment of 2-bytes, we expect to find 1000 elements. Now, if our value is 4-bytes, this changes the element count to 997. This is because the 4-byte value cannot read outside of the region bounds!
+
+### Snapshot System
+The snapshot system is designed to intelligently snapshot process memory, while arranging the memory in a way that is optimal for scans. This is done by merging adjacent virtual memory pages. For example, if we have 3 back to back region of 0x2000 length, then this yeilds a single 0x6000 region. We still split up the process memory read calls, but we read the bytes directly into the larger array at the correct indicies.
+
+This has a few advantages. First, scans no longer need to worry about edge conditions. Scanning for an array of bytes that crosses a page boundary is trivially supported!
+
+The only complexity is that if one of the read memory calls fail, we need to then split this region and consider the unread portion as tombstoned.
+
+Additionally, we use a "red black" system for snapshot results. The first two times we take a snapshot, we have to allocate memory, but for subsequent snapshots we can simply reuse existing arrays.
+
+A potential optimization is deciding when to shard these snapshots. Currently, if our filters have an element at the beginning of a snapshot region, and an element at the end, we still capture all in between elements when we go to read memory. This is rare in practice and a bit premature to solve now, so it is left as is.
+
+### Scan Filter System
+Scan results are discovered through the concepts of filters. This is a clever way to support many simultaneous scans, of various data types. Once we have a snapshot, we can then interpret the bytes in many different ways. For example, we can scan for the value 1 as an i8, i16, i32, i64, u8, u16, u32, u64, f32, and f64! We just create a new set of filters for each data type. This is also extremely parallelizable, especially when coupled with SIMD friendly scans.
+
+In fact, the entire bottleneck of the scan system is in value collection. Reading process memory takes far more time than scanning for every single data type, even when scanning with 1-byte alignment.
+
+Additionally, filters are tracked as a Vec of Vecs as a scanning optimization. This allows us to rip through each snapshot region in parallel (the high level Vec), and then collect the results into a Vec for each of these regions. This avoids any painful runtime bottlenecks of reorganizing this information into a "cleaner" form later.
+
+### Scan Run-Length Encoder
+The way that scan works is through a run-length encoding algorithm. This allows for extreme compression of scan results. The vast majority of most process memory is 0x00, and the distribution of bytes is heavily skewed to other common values like 0x01 and 0xFF. So if we scanned a region of memory for the value 0x00, and that region was entirely zeros with a size 0x2000 at address 0x10000, it would yield a single result of (0x10000, 0x2000).
+
+Even better, using a run length encoder allows us to very quickly discard non-matching results. For example, if scanning for the value 1 as an i32, most of the memory will be 0. When we do a SIMD comparison, most of the SIMD vectors will be entirely false since all of the comparisons are likely to fail, allowing us to skip SIMD-sized chunks in our run length encoder. Even better, we can do the same for matches! If scanning for 0, we expect to get many full matches, allowing us to encode SIMD sized chunks in a positive way as well. This allows us to gain extremely high throughput on scans.
+
+Additionally, other features like alignment allow us to skip elements and avoid fragmentation. Imagine we scanned for a 1-byte value of 0x00 in a massive 1GB region of memory that was simply 0x00 and 0xFF alternating, but we scan with an alignment of 2-bytes. One would expect fragmented scan results with a significant number of filters, but we can avoid this! This is done by storing the alignment. Because of this, we actually would store 1 result to cover this entire region!
+
+Now, when we index into the filter to retrieve a result, we always step by the alignment, dodging all of these ignored 0xFF values.
+
+### Scan Results
+Scan results cost no meaningful space overhead. Space is scarce, as we already store huge snapshots of process RAM. Consequentially, we prefer to avoid using extra space wherever possible. Instead, we rely on basic search aligorithms to extract paginated scan results. For example, once a scan completes, each snapshot region now has a collection of snapshot filters organized by data type, as well as extra data like the alignment. We can derive the number of scan results based on the data type, the size of the filters, and the alignment. This value is cached within the snapshot filter collection. Fetching a scan result is done in an efficient two step algorithm:
+1) Linear seek to the snapshot region containing the nth result for a specified data type. This can be done quickly, as each snapshot region tracks the number of results in its filters for each data type. There are not enough snapshot regions to ever warrant storing extra data and switching to a binary search. Linear is fine.
+2) Linear seek to the window containing the nth result. Similar to above, this is also fast.
+
+Coupled with pagination, this is lightning fast without needing to store extra data within our snapshot filters. We can store some data at the filter collection level, but this is fine since we only expect to have ~10 filter collections max at any given time.
+
+// TODO: Currently we actually construct a heap and do a binary search try to combine multiple scan results across data types into the same results. We actually are better off omitting this and sticking to the dual linear seek solution above, and keeping data types as separate tabs of results. Maybe. It could be worth zippering the results together if we can keep the efficiency good, but I'll have to think on it more.
+
+### Scan Rules Engine
+All scans are decomposed into an intermediate form, allowing for us to choose an optimal scan strategy for maximum throughput. Many factors are considered, such as:
+- The size of the region being scanned, and whether it fits in a 512, 256, or 128 bit SIMD register.
+- Whether the value has a tolerance, ie floats.
+- Whether the value has optimizable features. Examples:
+    - If scanning for i32 of value 0, but with 1-byte alignment, then we actually decompose this into a scan for u8 == 0, and can leverage our run length encoder to discard all regions less than i32 in size (4 bytes). This is substantially more SIMD friendly, as we no longer need to keep shifting our SIMD register over by 1, instead we can load and compare large chunks at a time.
+    - If scanning for u32 > 0, then we can actually reframe this as u32 != 0. Then this actually decomposes into the rule above, allowing us to do 1-byte checks with RLE discard! As you can see, many rules can chain together to yield much faster scans.
+    - If scanning for a 4-byte values like 0x12341234, but 2-byte aligned, we can gain significant performance by decomposing this into 0x1234 of 2-bytes. This is referred to as **periodicity** internally. Again, we use the RLE discard trick to throw away regions less than 4-bytes since we can get a few false positive 2-byte matches. This again avoids overlapping, and we no longer need to shift our SIMD register.
+
+### Scan Implementations
+Internally, we use the rules engine above to select a scanner implementation for each snapshot filter under consideration. Note that scans operate on snapshot filters, not snapshot regions. For the first scan, the snapshot filter will encompass the entire snapshot region. For subsequent scans, as the results are wittled down, the scan implementations scan smaller and smaller filters.
+
+This is why selecting the best scanner is crucial, we have many such as:
+- Single scalar element scanner: Just scans 1 element, using direct scalar comparisons for values.
+- Iterative scalar element scanner: Scans for values, one element at a time. Necessary when the chunk does not fit into a SIMD register. Also considered the gold standard implementation, which other scanners can be evaluated against with the 'Enable shadow scan' setting, which logs errors if the advanced scanner produces different results than this one.
+- Vector scanner (sparse): Performs a SIMD masked scan that skips in-between elements based on alignment, ie scanning for an i32 with an 8-byte alignment.
+- Vector scanner (aligned): Performs a SIMD scan for perfectly aligned values, ie scanning for a u8 with 1-byte alignment, or an i16 with 2-byte alignment, or u32 with 4-byte alignment, etc.
+- Vector scanner (overlapping): Performs a SIMD scan for overlapping values, ie scanning for an i32 with a 2-byte alignment. This combines scan results by loading multiple vectors, shifting some of them, and ORing the results together. Slower than the other SIMD scans, but still reasonably fast.
+- Vector scanner (overlapping periodic): Performs a SIMD overlapping scan, but discards run lengths below a specified size as part of the periodic optimization mentioned earlier.
+- Booyer-Moore: Performs an arbitrary array of byte scan, using the scalar Booyer-Moore search algorithm.
+
+## Launch Tasklist
+- [X] Custom installer and auto updater from Git tags.
 - [X] Dockable window system.
 - [X] Dependency Injection framework for GUI and engine.
 - [X] Command/Response system, with IPC support for rooted Android devices.
@@ -61,10 +160,11 @@ Additionally, we aim to support CLI and TUI builds, along with MCP endpoints for
 - [X] String-based editing / committing of struct viewer entries.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 
-## Post-launch Tasklist
+## Post-Launch Tasklist
 Lower priority features that we can defer, for now.
 
 Post-launch Features:
+- [ ] Sortable project items.
 - [ ] Struct Scans.
 - [ ] Improve coverage of conversion framework.
 - [ ] More string encodings
@@ -90,60 +190,3 @@ Post-launch Features:
 - How should we allow plugins to register custom windows? Slint supports an interpreter, but unclear if we can fully register a dockable window without serious changes to Slint.
 - How would we allow plugins to register custom editors for custom data types? Similar challenges to custom windows.
 - Implementing the comparer for all view types is extremely error prone (easy to add a field and forget to update comparer). Surely the default comparer is fine, no? Why did we opt to have a custom comparer? Please delve into whether this is acceptable.
-
-## Brain Dump for Property Editor
-These are the supported editor types:
-- True/false (or genericize to an Enumeration type)
-- Data type (Re-use existing data type editor, which needs to be sync'd to the backend registry)
-- Direct value
-
-Display types must be custom sent as a list, ie:
-- Bin/Dec/Hex/Address
-With each type opting into what they support, and specifying a default.
-
-## Brain Dump for data types
-Okay we actually want to be a bit more like Ghidra on this one. Every type needs to support pointers and arrays.
-Now, unlike Ghidra, we support native string types (ie string_utf8)
-Also, we have to think about whether we support jagged arrays.
-The answer I suspect needs to be yes, but it has to come in the form of arrays of arrays natively, meaning rather than baking in arrays into meta data, it must exist at some struct level.
-Which then brings us to reconsidering our entire model of data type metadata.
-So alas, the metadata bullshit is catching up to us.
-
-DataTypeRef data type is the most annoying, as this only exists for the convenience of projects and the property editor.
-
-Ideally we would entirely kill these concepts, kill metadata, and push it into something higher.
-
-Does that actually work though? Like lets say the user fires off a scan for a string_utf8. Well, we can wrap this in a struct, say that this particular field is an array of size n (byte-wise, not element-wise), then string-utf8 no longer needs to hold onto metadata.
-
-Same with arrays, ie an array of int. We scan for 1,1,1,1 or something, and what happens? We populate a struct, with 4 fields. There actually is no array in this case necessarily, but sure, we can make one. Okay, so an array of 4 ints, same difference between a struct of 4 ints. Regardless, this struct eventually hits the parameter mapper that decomposes it into an array of byte scan for booyer moore.
-
-So far no holes. Just need to address the god forsaken edge case of the DataTypeRefDataType, and simplify everything to match the above. So what is this struct type? We now need some new, clever type. This was the ValuedStruct we once had, but threw away. Edit: Nope, we still have it, unused. Okay, so revive the valued struct.
-
-Anonymous values are now decomposed into ValuedStruct, not DataValues. Scans no longer operate on DataValues, but on ValuedStruct (at the high levels). This is probably fine. For structs of 1 element, we can easily dispatch to the appropriate scanner. Everything else, we dispatch to booyer moore. Structs containing more than 1 element and floats will be broken and regress to exact matches for now, but we'll fix that when we do masking and chaining.
-
-## Brain dump for Valued Struct and Properties / Property Viewer
-Okay, so we have this concept of a valued struct, which can either be anonymous, or reference a symbol. For simplicity, anonymous is just an empty string symbol ref.
-
-So voila, we have a struct that can be modified, fields appended, removed, whatever. This can potentially be written back to the symbol schema, but that is not important.
-
-Now, when we want to view something in the property viewer, it will ultimately be DataValues displayed. Now this becomes annoying as shit when you then want to show a struct -- all struct fields terminate at leafs with DataValues or pointers.
-
-ie nested structs eventually become Value(DataValue), Array(DataValue), Pointer32, or Pointer64. DataValue can have an arbitrary number of bytes, so if its of DataTypeRef int32, but has 16 bytes, then there are 4 of them.
-
-Now if you want to view something like a ScanResult, which is ALWAYS a struct, we would then want to somehow manifest this in the property viewer.
-
-I think, perhaps, its better to base the property viewer on structs, and force everything through the struct system. The classic windows forms property viewer being key/value only sucks for my use case.
-
-The alternative is to in fact stay with key/value, and structs have an edit button that pops out into a new special struct editor.
-
-This is maybe OK, but it does mean there are more types floating around. Now we're throwing in Property, PropertyCollection, etc. If we just operate on structs, then everything gets thrown through ValuedStruct, anonymous or otherwise.
-
-Now the downside of going through structs is when we want properties for things that are not external-process data types. ie lets say we are inspecting a project item, and the property viewer now has to convert that to a dynamic struct, so that we can edit information about our project. Going through a struct is a little weird, although perhaps not any less difficult than converting these to properties.
-
-So tl;dr there are two models:
-1) Everything is a Property, terminating in DataValues contained by the property. This means making a Struct DataValue, which contains more DataValues, and requires a standalone editor. Insanity.
-2) Properties cease to exist, and the property editor operates on ValuedStructs. Everything Terminates in DataValue or Pointer.
-
-Okay, seems like #2 wins, so we're killing Property/PropertyCollection in favor of a generic struct editor.
-
-That said, then we have to start annotating structs with shit for the UI, which could mean bloating these. Whatever, cross that bridge when we get there.
