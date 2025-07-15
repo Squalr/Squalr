@@ -6,9 +6,19 @@
 
 Join us on our [Discord Channel](https://discord.gg/Pq2msTx)
 
-**Olorin** is a highly performant dynamic analysis reverse-engineering tool written in Rust. Olorin believes that dynamic analysis should be a first-class citizen. A living program has substantially more information to leverage than a dead one. The long term ambition is not to compete with static tools directly, but instead unlock incredibly productive workflows that could only come from a dynamic world.
+**Olorin** is a highly performant dynamic analysis reverse-engineering tool written in Rust.
+
+We believe that dynamic analysis should be a first-class citizen. A living program has substantially more information to leverage than a dead one. The long term ambition is not to compete with static tools directly, but instead unlock incredibly productive workflows that could only come from a dynamic world.
 
 First and foremost, Olorin is a memory scanner. Olorin achieves fast scans through multi-threading combined with SIMD instructions, allowing it to rip through Gigabytes of data in seconds. To take advantage of these gains, your CPU needs to have support for either SSE, AVX, or AVX-512. Even if your PC lacks support for SSE, the scans will still be incredibly fast due to an internal scan dispatcher that takes high-level user scan requests and maps them to the most optimal version of a scan through a powerful rules engine.
+
+-----------------------
+
+Olorin is a spiritual successor to Squalr. Looking for the old C# repo? See [Squalr-Sharp](https://github.com/Squalr/Squalr-Sharp). Note that Squalr is no longer maintained, as Olorin has become the focus. It turns out that when doing systems level work, always a systems level language. No amount of language convenience is worth getting hard blocked by a garbage collector or latency in marshalling. Enjoy the free life lesson!
+
+![OlorinGUI](docs/Olorin.png)
+
+## Long Term Ambitions
 
 However, Olorin has ambitions beyond just basic memory hacking, such as:
 - Plaintext hacking. Just tell the agent what you want to hack over a normal conversation, and have it dispatch low-level commands to do the heavy lifting. This can be very effective in domains like video game reverse-engineering.
@@ -22,12 +32,6 @@ Its also important to note what Olorin is NOT doing. We intend to make everythin
 - We are not building out a debugger.
 
 These may change at some point, but only on a much larger time horizon.
-
------------------------
-
-Olorin is a spiritual successor to Squalr. Looking for the old C# repo? See [Squalr-Sharp](https://github.com/Squalr/Squalr-Sharp). Note that Squalr is no longer maintained, as Olorin has become the focus. It turns out that when doing systems level work, always a systems level language. No amount of language convenience is worth getting hard blocked by a garbage collector or latency in marshalling. Enjoy the free life lesson!
-
-![OlorinGUI](docs/Olorin.png)
 
 ## Features
 
