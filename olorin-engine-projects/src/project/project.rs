@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use olorin_engine_api::structures::{
     processes::process_icon::ProcessIcon,
     projects::{
@@ -10,6 +9,7 @@ use olorin_engine_api::structures::{
         project_manifest::ProjectManifest,
     },
 };
+use serde::{Deserialize, Serialize};
 use std::{
     fs::{self},
     path::Path,
@@ -27,7 +27,7 @@ pub struct Project {
 
 impl Project {
     pub const PROJECT_FILE: &'static str = "project.json";
-    pub const TABLE_DIR: &'static str = "table";
+    pub const PROJECT_DIR: &'static str = "project";
 
     pub fn new(
         project_info: ProjectInfo,
@@ -50,10 +50,10 @@ impl Project {
                 .get_project_item_type_id()
                 .to_string(),
         );
-        let project_root = ProjectItem::new(path.to_path_buf(), directory_type);
+        let project_root = ProjectItem::new(path.to_path_buf(), directory_type, true);
         let mut project = Self { project_info, project_root };
 
-        project.save_to_path(path, false, false)?;
+        project.save_to_path(path, false, true)?;
 
         Ok(project)
     }

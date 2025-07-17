@@ -1,9 +1,9 @@
 use crate::project::{project::Project, serialization::serializable_project_file::SerializableProjectFile};
-use serde::{Deserialize, Serialize};
 use olorin_engine_api::structures::{
     processes::process_icon::ProcessIcon,
     projects::{project_info::ProjectInfo, project_manifest::ProjectManifest},
 };
+use serde::{Deserialize, Serialize};
 use std::{
     fs::{File, OpenOptions},
     path::Path,
@@ -36,9 +36,9 @@ impl SerializableProjectFile for ProjectInfo {
         &mut self,
         directory: &Path,
         allow_overwrite: bool,
-        save_changed_only: bool,
+        force_save: bool,
     ) -> anyhow::Result<()> {
-        if save_changed_only && self.get_has_unsaved_changes() {
+        if force_save || self.get_has_unsaved_changes() {
             let project_file_path = directory.join(Project::PROJECT_FILE);
 
             if project_file_path.exists() && !allow_overwrite {

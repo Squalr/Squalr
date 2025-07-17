@@ -16,7 +16,7 @@ impl SerializableProjectFile for ProjectItem {
                     .get_project_item_type_id()
                     .to_string(),
             );
-            let mut directory_item = ProjectItem::new(directory.to_path_buf(), directory_type);
+            let mut directory_item = ProjectItem::new(directory.to_path_buf(), directory_type, true);
 
             for entry in fs::read_dir(directory)? {
                 let entry_path = entry?.path();
@@ -43,9 +43,9 @@ impl SerializableProjectFile for ProjectItem {
         &mut self,
         directory: &Path,
         allow_overwrite: bool,
-        save_changed_only: bool,
+        force_save: bool,
     ) -> anyhow::Result<()> {
-        if save_changed_only && self.get_has_unsaved_changes() {
+        if force_save || self.get_has_unsaved_changes() {
             if directory.exists() {
                 if !allow_overwrite {
                     anyhow::bail!("Failed to save directory item, the directory already exists: {:?}", directory);

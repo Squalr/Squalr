@@ -5,7 +5,7 @@ pub trait SerializableProjectFile {
         &mut self,
         directory: &Path,
         allow_overwrite: bool,
-        save_changed_only: bool,
+        force_save: bool,
     ) -> anyhow::Result<()>;
     fn load_from_path(directory: &Path) -> anyhow::Result<Self>
     where

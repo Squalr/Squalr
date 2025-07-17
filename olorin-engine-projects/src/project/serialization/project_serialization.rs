@@ -5,7 +5,7 @@ use std::path::Path;
 impl SerializableProjectFile for Project {
     fn load_from_path(directory: &Path) -> anyhow::Result<Self> {
         let project_info = ProjectInfo::load_from_path(&directory.join(Project::PROJECT_FILE))?;
-        let project_root = ProjectItem::load_from_path(&directory.join(Project::TABLE_DIR))?;
+        let project_root = ProjectItem::load_from_path(&directory.join(Project::PROJECT_DIR))?;
 
         Ok(Project::new(project_info, project_root))
     }
@@ -14,15 +14,15 @@ impl SerializableProjectFile for Project {
         &mut self,
         directory: &Path,
         allow_overwrite: bool,
-        save_changed_only: bool,
+        force_save: bool,
     ) -> anyhow::Result<()> {
         // Save the main project file.
         self.get_project_info_mut()
-            .save_to_path(directory, allow_overwrite, save_changed_only)?;
+            .save_to_path(directory, allow_overwrite, force_save)?;
 
         // Recursively save all project items.
         self.get_project_root_mut()
-            .save_to_path(&directory.join(Project::TABLE_DIR), allow_overwrite, save_changed_only)?;
+            .save_to_path(&directory.join(Project::PROJECT_DIR), allow_overwrite, force_save)?;
 
         Ok(())
     }

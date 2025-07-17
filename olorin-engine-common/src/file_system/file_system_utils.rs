@@ -22,7 +22,7 @@ impl FileSystemUtils {
 
             let new_path = base.join(&folder_name);
             if !new_path.exists() {
-                fs::create_dir(&new_path)?;
+                fs::create_dir_all(&new_path)?;
                 return Ok(new_path);
             }
 

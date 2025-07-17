@@ -31,13 +31,14 @@ impl ProjectItem {
     pub fn new(
         path: PathBuf,
         item_type: ProjectItemTypeRef,
+        is_container_type: bool,
     ) -> Self {
         Self {
             path,
             item_type,
             is_activated: false,
             children: vec![],
-            is_container_type: false,
+            is_container_type,
             has_unsaved_changes: true,
         }
     }
