@@ -11,60 +11,69 @@ export component ScanResultEntry inherits Button {
     in property <length> current_values_splitter_location;
     in property <length> previous_values_splitter_location;
     in property <int> index;
-    callback on_click();
+    in property <bool> is_selected;
+    callback on_select_start();
+    callback on_select_end();
     height: 24px;
     icon_converter := IconConverter { }
 
-    clicked => {
-        root.on_click();
-    }
-    Checkbox {
-        x: 8px;
-        is_checked: scan_result_view_data.is_frozen;
-        check_changed(value) => {
-            ScanResultsViewModelBindings.set_scan_results_frozen([root.index], value);
+    clicked(event, x, y) => {
+        if event.modifiers.shift {
+            root.on_select_end();
+        } else {
+            root.on_select_start();
         }
     }
+    Rectangle {
+        background: root.is_selected ? Theme.selected_background : Theme.transparent;
+        Checkbox {
+            x: 8px;
+            is_checked: scan_result_view_data.is_frozen;
+            check_changed(value) => {
+                ScanResultsViewModelBindings.set_scan_result_frozen(root.index, value);
+            }
+        }
 
-    HorizontalLayout {
-        x: root.address_splitter_location + 8px;
-        padding: 0px;
-        spacing: 4px;
-        VerticalLayout {
-            alignment: center;
-            Image {
-                width: 16px;
-                height: 16px;
-                horizontal_alignment: center;
+        HorizontalLayout {
+            x: root.address_splitter_location + 8px;
+            padding: 0px;
+            spacing: 4px;
+            VerticalLayout {
+                alignment: center;
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    horizontal_alignment: center;
+                    vertical_alignment: center;
+                    source: icon_converter.icon_view_to_image(icon_converter.icon_id_to_view(scan_result_view_data.icon_id));
+                }
+            }
+
+            Text {
+                color: Theme.hex_green;
+                horizontal_alignment: left;
                 vertical_alignment: center;
-                source: icon_converter.icon_view_to_image(icon_converter.icon_id_to_view(scan_result_view_data.icon_id));
+                text: scan_result_view_data.address;
+                font_family: Theme.mono_font_family;
             }
         }
 
         Text {
-            color: Theme.hex_green;
+            x: current_values_splitter_location + 8px;
+            color: Theme.foreground;
             horizontal_alignment: left;
             vertical_alignment: center;
-            text: scan_result_view_data.address;
+            text: scan_result_view_data.current_value;
             font_family: Theme.mono_font_family;
         }
-    }
 
-    Text {
-        x: current_values_splitter_location + 8px;
-        color: Theme.foreground;
-        horizontal_alignment: left;
-        vertical_alignment: center;
-        text: scan_result_view_data.current_value;
-        font_family: Theme.mono_font_family;
-    }
-
-    Text {
-        x: previous_values_splitter_location + 8px;
-        color: Theme.foreground;
-        horizontal_alignment: left;
-        vertical_alignment: center;
-        text: scan_result_view_data.previous_value;
-        font_family: Theme.mono_font_family;
+        Text {
+            x: previous_values_splitter_location + 8px;
+            color: Theme.foreground;
+            horizontal_alignment: left;
+            vertical_alignment: center;
+            text: scan_result_view_data.previous_value;
+            font_family: Theme.mono_font_family;
+        }
     }
 }

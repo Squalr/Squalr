@@ -23,14 +23,15 @@ use olorin_engine_api::structures::scan_results::scan_result::ScanResult;
 use olorin_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
 use slint::ComponentHandle;
 use slint::Model;
-use slint::ModelRc;
 use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_collection_binding::ViewCollectionBinding;
 use slint_mvvm_macros::create_view_bindings;
 use slint_mvvm_macros::create_view_model_collection;
+use std::cmp;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::atomic::AtomicI32;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::thread;
@@ -45,6 +46,8 @@ pub struct ScanResultsViewModel {
     current_page_index: Arc<AtomicU64>,
     cached_last_page_index: Arc<AtomicU64>,
     struct_viewer_view_model: Arc<StructViewerViewModel>,
+    selection_index_start: Arc<AtomicI32>,
+    selection_index_end: Arc<AtomicI32>,
 }
 
 impl ScanResultsViewModel {
@@ -82,6 +85,8 @@ impl ScanResultsViewModel {
             current_page_index: current_page_index.clone(),
             cached_last_page_index: cached_last_page_index.clone(),
             struct_viewer_view_model,
+            selection_index_start: Arc::new(AtomicI32::new(-1)),
+            selection_index_end: Arc::new(AtomicI32::new(-1)),
         });
 
         {
@@ -94,10 +99,12 @@ impl ScanResultsViewModel {
                     on_navigate_previous_page() -> [view_model] -> Self::on_navigate_previous_page,
                     on_navigate_next_page() -> [view_model] -> Self::on_navigate_next_page,
                     on_page_index_text_changed(new_page_index_text: SharedString) -> [view_model] -> Self::on_page_index_text_changed,
-                    on_select_scan_results(local_scan_result_indices: ModelRc<i32>) -> [view_model] -> Self::on_select_scan_results,
-                    on_add_scan_results_to_project(local_scan_result_indices: ModelRc<i32>) -> [view_model] -> Self::on_add_scan_results_to_project,
-                    on_delete_scan_results(local_scan_result_index: ModelRc<i32>) -> [view_model] -> Self::on_delete_scan_results,
-                    on_set_scan_results_frozen(local_scan_result_indices: ModelRc<i32>, is_frozen: bool) -> [view_model] -> Self::on_set_scan_results_frozen,
+                    on_set_scan_result_selection_start(local_scan_result_indices: i32) -> [view_model] -> Self::on_set_scan_result_selection_start,
+                    on_set_scan_result_selection_end(local_scan_result_indices: i32) -> [view_model] -> Self::on_set_scan_result_selection_end,
+                    on_add_scan_results_to_project() -> [view_model] -> Self::on_add_scan_results_to_project,
+                    on_delete_selected_scan_results() -> [view_model] -> Self::on_delete_selected_scan_results,
+                    on_set_scan_result_frozen(local_scan_result_index: i32, is_frozen: bool) -> [view_model] -> Self::on_set_scan_result_frozen,
+                    on_toggle_selected_scan_results_frozen() -> [view_model] -> Self::on_toggle_selected_scan_results_frozen,
                 },
             });
         }
@@ -301,12 +308,16 @@ impl ScanResultsViewModel {
         Self::set_page_index(view_model, new_page_index);
     }
 
-    fn on_select_scan_results(
+    fn on_set_scan_result_selection_start(
         view_model: Arc<ScanResultsViewModel>,
-        local_scan_result_indices: ModelRc<i32>,
+        scan_result_collection_start_index: i32,
     ) {
+        view_model
+            .selection_index_start
+            .store(scan_result_collection_start_index, Ordering::Release);
+
         let struct_viewer_view_model = &view_model.struct_viewer_view_model;
-        let scan_results = Self::collect_scan_results_by_indicies(&view_model, local_scan_result_indices);
+        let scan_results = Self::collect_selected_scan_results(&view_model);
 
         if !scan_results.is_empty() {
             struct_viewer_view_model.set_selected_structs(
@@ -319,11 +330,30 @@ impl ScanResultsViewModel {
         }
     }
 
-    fn on_add_scan_results_to_project(
+    fn on_set_scan_result_selection_end(
         view_model: Arc<ScanResultsViewModel>,
-        local_scan_result_indices: ModelRc<i32>,
+        scan_result_collection_end_index: i32,
     ) {
-        let scan_results = Self::collect_scan_result_bases_by_indicies(&view_model, local_scan_result_indices);
+        view_model
+            .selection_index_end
+            .store(scan_result_collection_end_index, Ordering::Release);
+
+        let struct_viewer_view_model = &view_model.struct_viewer_view_model;
+        let scan_results = Self::collect_selected_scan_results(&view_model);
+
+        if !scan_results.is_empty() {
+            struct_viewer_view_model.set_selected_structs(
+                StructViewerDomain::ScanResult,
+                scan_results
+                    .iter()
+                    .map(|scan_result| scan_result.as_property_struct())
+                    .collect(),
+            );
+        }
+    }
+
+    fn on_add_scan_results_to_project(view_model: Arc<ScanResultsViewModel>) {
+        let scan_results = Self::collect_selected_scan_result_bases(&view_model);
 
         if !scan_results.is_empty() {
             let engine_execution_context = &view_model.engine_execution_context;
@@ -333,11 +363,8 @@ impl ScanResultsViewModel {
         }
     }
 
-    fn on_delete_scan_results(
-        view_model: Arc<ScanResultsViewModel>,
-        local_scan_result_indices: ModelRc<i32>,
-    ) {
-        let scan_results = Self::collect_scan_result_bases_by_indicies(&view_model, local_scan_result_indices);
+    fn on_delete_selected_scan_results(view_model: Arc<ScanResultsViewModel>) {
+        let scan_results = Self::collect_selected_scan_result_bases(&view_model);
 
         if !scan_results.is_empty() {
             let engine_execution_context = &view_model.engine_execution_context;
@@ -347,12 +374,13 @@ impl ScanResultsViewModel {
         }
     }
 
-    fn on_set_scan_results_frozen(
+    fn on_set_scan_result_frozen(
         view_model: Arc<ScanResultsViewModel>,
-        local_scan_result_indices: ModelRc<i32>,
+        local_scan_result_index: i32,
         is_frozen: bool,
     ) {
-        let scan_results = Self::collect_scan_result_bases_by_indicies(&view_model, local_scan_result_indices);
+        let local_scan_result_indices_vec = (local_scan_result_index..=local_scan_result_index).collect::<Vec<_>>();
+        let scan_results = Self::collect_scan_result_bases_by_indicies(&view_model, &local_scan_result_indices_vec);
 
         if !scan_results.is_empty() {
             let engine_execution_context = &view_model.engine_execution_context;
@@ -362,41 +390,69 @@ impl ScanResultsViewModel {
         }
     }
 
-    fn collect_scan_results_by_indicies(
-        view_model: &Arc<ScanResultsViewModel>,
-        local_scan_result_indices: ModelRc<i32>,
-    ) -> Vec<ScanResult> {
+    fn on_toggle_selected_scan_results_frozen(view_model: Arc<ScanResultsViewModel>) {
+        /*
+        let scan_results = Self::collect_selected_scan_result_bases(&view_model);
+
+        if !scan_results.is_empty() {
+            let engine_execution_context = &view_model.engine_execution_context;
+            let scan_results_freeze_request = ScanResultsFreezeRequest { scan_results, is_frozen };
+
+            scan_results_freeze_request.send(engine_execution_context, |_response| {});
+        }*/
+    }
+
+    fn collect_selected_scan_result_bases(view_model: &Arc<ScanResultsViewModel>) -> Vec<ScanResultBase> {
+        Self::collect_selected_scan_results(view_model)
+            .into_iter()
+            .map(|scan_result| scan_result.get_base_result().clone())
+            .collect()
+    }
+
+    fn collect_selected_scan_results(view_model: &Arc<ScanResultsViewModel>) -> Vec<ScanResult> {
         let base_scan_results_collection = &view_model.base_scan_results_collection;
         let current_scan_results = match base_scan_results_collection.read() {
             Ok(base_scan_results_collection) => base_scan_results_collection.clone(),
             Err(_) => vec![],
         };
-        let scan_results = (0..local_scan_result_indices.row_count())
-            .filter_map(|index| local_scan_result_indices.row_data(index))
-            .filter_map(|index| {
-                current_scan_results
-                    .get(index as usize)
-                    .map(|scan_result| scan_result.clone())
-            })
-            .collect();
+        let mut selection_index_start = view_model.selection_index_start.load(Ordering::Acquire);
+        let mut selection_index_end = view_model.selection_index_end.load(Ordering::Acquire);
 
-        scan_results
+        // If either start or end is invalid, set the start and end to the same value (single selection).
+        if selection_index_start < 0 && selection_index_end >= 0 {
+            selection_index_start = selection_index_end;
+        } else if selection_index_end < 0 && selection_index_start >= 0 {
+            selection_index_end = selection_index_start;
+        }
+
+        // If both are invalid, return empty
+        if selection_index_start < 0 || selection_index_end < 0 {
+            return vec![];
+        }
+
+        let selection_index_start = cmp::min(selection_index_start, selection_index_end);
+        let selection_index_end = cmp::max(selection_index_start, selection_index_end);
+
+        let local_scan_result_indices = selection_index_start..=selection_index_end;
+        local_scan_result_indices
+            .filter_map(|index| current_scan_results.get(index as usize).cloned())
+            .collect()
     }
 
     fn collect_scan_result_bases_by_indicies(
         view_model: &Arc<ScanResultsViewModel>,
-        local_scan_result_indices: ModelRc<i32>,
+        local_scan_result_indices: &[i32],
     ) -> Vec<ScanResultBase> {
         let base_scan_results_collection = &view_model.base_scan_results_collection;
         let current_scan_results = match base_scan_results_collection.read() {
             Ok(base_scan_results_collection) => base_scan_results_collection.clone(),
             Err(_) => vec![],
         };
-        let scan_results = (0..local_scan_result_indices.row_count())
-            .filter_map(|index| local_scan_result_indices.row_data(index))
+        let scan_results = local_scan_result_indices
+            .iter()
             .filter_map(|index| {
                 current_scan_results
-                    .get(index as usize)
+                    .get(*index as usize)
                     .map(|scan_result| scan_result.get_base_result().clone())
             })
             .collect();

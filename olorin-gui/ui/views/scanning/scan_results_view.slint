@@ -15,6 +15,8 @@ export component ScanResultsView inherits Rectangle {
     property <float> ratio_previous_value: 0.33;
     property <length> resizer_size: 4px;
     property <length> divider_size: 2px;
+    property <int> selected_index_start: -1;
+    property <int> selected_index_end: -1;
     pure function get_total_ratio() -> float {
         root.ratio_address + root.ratio_current_value + root.ratio_previous_value
     }
@@ -56,8 +58,16 @@ export component ScanResultsView inherits Rectangle {
                             previous_values_splitter_location: root.get_previous_value_splitter_location() + resizer_size;
                             scan_result_view_data: ScanResultsViewModelBindings.scan_results[index];
                             index: index;
-                            on_click => {
-                                ScanResultsViewModelBindings.select_scan_results([index])
+                            is_selected: index >= root.selected_index_start && index <= root.selected_index_end;
+                            on_select_start => {
+                                root.selected_index_start = index;
+                                root.selected_index_end = index;
+                                ScanResultsViewModelBindings.set_scan_result_selection_end(root.selected_index_end);
+                                ScanResultsViewModelBindings.set_scan_result_selection_start(root.selected_index_start);
+                            }
+                            on_select_end => {
+                                root.selected_index_end = index;
+                                ScanResultsViewModelBindings.set_scan_result_selection_end(root.selected_index_end);
                             }
                         }
                     }

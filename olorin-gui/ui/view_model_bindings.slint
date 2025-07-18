@@ -407,10 +407,12 @@ export global ScanResultsViewModelBindings {
     callback navigate_next_page();
     callback navigate_previous_page();
     callback page_index_text_changed(new_page_index_text: string);
-    callback select_scan_results(local_scan_result_indices: [int]);
-    callback add_scan_results_to_project(local_scan_result_indices: [int]);
-    callback delete_scan_results(local_scan_result_indices: [int]);
-    callback set_scan_results_frozen(local_scan_result_indices: [int], is_frozen: bool);
+    callback set_scan_result_selection_start(scan_result_collection_start_index: int);
+    callback set_scan_result_selection_end(scan_result_collection_end_index: int);
+    callback add_scan_results_to_project();
+    callback delete_selected_scan_results();
+    callback set_scan_result_frozen(local_scan_result_index: int, is_frozen: bool);
+    callback toggle_selected_scan_results_frozen();
 }
 
 export global PointerScanResultsViewModelBindings { }
