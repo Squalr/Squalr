@@ -8,9 +8,9 @@ Join us on our [Discord Channel](https://discord.gg/Pq2msTx)
 
 **Olorin** is a highly performant dynamic analysis reverse-engineering tool written in Rust.
 
-We believe that dynamic analysis should be a first-class citizen. A living program has substantially more information to leverage than a dead one. The long term ambition is not to compete with static tools directly, but instead unlock incredibly productive workflows that could only come from a dynamic world.
+First and foremost, Olorin is a memory scanner. Olorin achieves fast scans through multi-threading combined with SIMD instructions, allowing it to rip through Gigabytes of data in seconds. While all CPUs are supported, for maximum performance your CPU needs support for SSE, AVX, or AVX-512.
 
-First and foremost, Olorin is a memory scanner. Olorin achieves fast scans through multi-threading combined with SIMD instructions, allowing it to rip through Gigabytes of data in seconds. To take advantage of these gains, your CPU needs to have support for either SSE (common), AVX (rare), or AVX-512 (very rare).
+We believe that dynamic analysis should be a first-class citizen. A living program has substantially more information to leverage than just a binary. The long term ambition is not to compete with static tools directly, but instead unlock incredibly productive workflows that could only come from a dynamic world.
 
 -----------------------
 
@@ -23,7 +23,7 @@ Systems level work demands a systems level language. Rust was chosen because it 
 
 Slint was chosen for the GUI since it gives us the benefits of a markup language, while still compiling to native for maximum performance and UX.
 
-Medium term, Olorin aims to be extensible with a modern plugin system. This means an actual marketplace, including plenty of free and easy to install plugins. No more unzipping plugins to esoteric locations and manually upgrading all your plugins when a new version of Olorin comes out. While not there yet, Olorin is being developed knowing that developers will want to be able to extend the type system, project system, and register custom tools.
+Medium term, Olorin aims to be extensible with a modern plugin system. No more unzipping plugins to esoteric locations and manually upgrading them each release. This means an actual marketplace, including plenty of free and easy to install plugins. While not there yet, Olorin is being developed knowing that developers will want to be able to extend the type system, project system, register custom tools, and register middleware to support scanning emulator memory or other niche use cases.
 
 Eventually Olorin will eventually compete on the static front, but not initially. For now, Olorin is deliberately not building out an ASM to C++ decompiler, a code graph, nor a debugger.
 
@@ -45,7 +45,7 @@ Some long term ambitions are to integrate:
 - [ ] Plugin system: Middleware (Filters for emu support, filter down virtual memory through custom logic)
 - [ ] Plugin system: Virtual Modules (custom defined static bases -- could be threadstack, special emulator memory regions, etc)
 - [ ] Plugin system: Project item types
-- [ ] MCP for LLM integrations (Needs architecting work)
+- [ ] MCP APIs for LLM integrations (Needs architecting work)
 
 ### User-Facing Features
 - [X] Primitive scans
@@ -189,4 +189,3 @@ Post-launch Features:
 - Should we allow engine event hooking? If we support plugins later, this might prove valuable. But lambdas are stored almost exclusively as FnOnce for easier stack capture. It also muddies the command/response architecture a bit.
 - How should we allow plugins to register custom windows? Slint supports an interpreter, but unclear if we can fully register a dockable window without serious changes to Slint.
 - How would we allow plugins to register custom editors for custom data types? Similar challenges to custom windows.
-- Implementing the comparer for all view types is extremely error prone (easy to add a field and forget to update comparer). Surely the default comparer is fine, no? Why did we opt to have a custom comparer? Please delve into whether this is acceptable.

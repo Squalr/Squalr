@@ -1,7 +1,6 @@
 use crate::MainWindowView;
 use crate::ProjectExplorerViewModelBindings;
 use crate::ProjectViewData;
-use crate::comparers::project_info_comparer::ProjectInfoComparer;
 use crate::converters::project_info_converter::ProjectInfoConverter;
 use olorin_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use olorin_engine::engine_execution_context::EngineExecutionContext;
@@ -49,7 +48,6 @@ impl ProjectExplorerViewModel {
             view_binding -> MainWindowView,
             ProjectExplorerViewModelBindings -> { set_projects, get_projects },
             ProjectInfoConverter -> [],
-            ProjectInfoComparer -> [],
         );
 
         // JIRA: Create view binding to the opened project item list.
@@ -57,7 +55,6 @@ impl ProjectExplorerViewModel {
             view_binding -> MainWindowView,
             ProjectExplorerViewModelBindings -> { set_projects, get_projects },
             ProjectInfoConverter -> [],
-            ProjectInfoComparer -> [],
         );
 
         let view_model = Arc::new(ProjectExplorerViewModel {

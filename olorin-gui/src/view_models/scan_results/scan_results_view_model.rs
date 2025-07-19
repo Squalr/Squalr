@@ -1,7 +1,6 @@
 use crate::MainWindowView;
 use crate::ScanResultViewData;
 use crate::ScanResultsViewModelBindings;
-use crate::comparers::scan_result_comparer::ScanResultComparer;
 use crate::converters::scan_result_converter::ScanResultConverter;
 use crate::models::audio::audio_player::AudioPlayer;
 use crate::models::audio::audio_player::SoundType;
@@ -22,7 +21,6 @@ use olorin_engine_api::structures::data_values::data_value::DataValue;
 use olorin_engine_api::structures::scan_results::scan_result::ScanResult;
 use olorin_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
 use slint::ComponentHandle;
-use slint::Model;
 use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm::view_collection_binding::ViewCollectionBinding;
@@ -69,7 +67,6 @@ impl ScanResultsViewModel {
             view_binding -> MainWindowView,
             ScanResultsViewModelBindings -> { set_scan_results, get_scan_results },
             ScanResultConverter -> [],
-            ScanResultComparer -> [],
         );
 
         let current_page_index = Arc::new(AtomicU64::new(0));

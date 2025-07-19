@@ -1,7 +1,6 @@
 use crate::MainWindowView;
 use crate::ProcessSelectorViewModelBindings;
 use crate::ProcessViewData;
-use crate::comparers::process_info_comparer::ProcessInfoComparer;
 use crate::converters::opened_process_info_converter::OpenedProcessInfoConverter;
 use crate::converters::process_info_converter::ProcessInfoConverter;
 use olorin_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
@@ -42,7 +41,6 @@ impl ProcessSelectorViewModel {
             view_binding -> MainWindowView,
             ProcessSelectorViewModelBindings -> { set_processes, get_processes },
             ProcessInfoConverter -> [],
-            ProcessInfoComparer -> [],
         );
 
         // Create a binding that allows us to easily update the view's windowed process list.
@@ -50,7 +48,6 @@ impl ProcessSelectorViewModel {
             view_binding -> MainWindowView,
             ProcessSelectorViewModelBindings -> { set_windowed_processes, get_windowed_processes },
             ProcessInfoConverter -> [],
-            ProcessInfoComparer -> [],
         );
 
         let view_model = Arc::new(ProcessSelectorViewModel {

@@ -5,7 +5,6 @@ use syn::{
     braced, bracketed,
     parse::{Parse, ParseStream, Result},
     punctuated::Punctuated,
-    token::Comma,
     Ident, Path, Token,
 };
 
@@ -15,7 +14,6 @@ use syn::{
 ///     view_binding -> MainWindowView,
 ///     ViewModelBindings -> { set_processes, get_processes }
 ///     Converter,
-///     Comparer,
 /// );
 ///
 /// The fields below store each piece of that invocation.
@@ -27,8 +25,6 @@ pub struct CreateViewCollectionBindingInput {
     pub getter_ident: Ident,
     pub converter_type: Path,
     pub converter_fields: Vec<Ident>,
-    pub comparer_type: Path,
-    pub comparer_fields: Vec<Ident>,
 }
 
 impl Parse for CreateViewCollectionBindingInput {
@@ -39,7 +35,6 @@ impl Parse for CreateViewCollectionBindingInput {
         //   view_binding -> MainWindowView,
         //   ViewModelBindings -> { set_processes, get_processes },
         //   Converter,
-        //   Comparer,
         //
         // So we parse each piece in turn.
 
@@ -63,12 +58,6 @@ impl Parse for CreateViewCollectionBindingInput {
         // parse: Converter -> [some_field],
         let (converter_type, converter_fields) = parse_type_and_injections(input)?;
 
-        // 4) `ProcessInfoComparer,` (optional trailing comma)
-        // parse: Comparer -> [maybe_other_field]
-        let (comparer_type, comparer_fields) = parse_type_and_injections(input)?;
-        // optional trailing comma
-        let _ = input.parse::<Option<Comma>>();
-
         Ok(Self {
             view_binding_ident,
             view_type,
@@ -77,8 +66,6 @@ impl Parse for CreateViewCollectionBindingInput {
             getter_ident,
             converter_type,
             converter_fields,
-            comparer_type,
-            comparer_fields,
         })
     }
 }
@@ -109,15 +96,11 @@ impl CreateViewCollectionBindingInput {
             getter_ident,
             converter_type,
             converter_fields,
-            comparer_type,
-            comparer_fields,
         } = self;
 
         let converter_ident = format_ident!("converter");
-        let comparer_ident = format_ident!("comparer");
 
         let converter_injections = converter_fields.iter().map(|f| quote! { #f.clone() });
-        let comparer_injections = comparer_fields.iter().map(|f| quote! { #f.clone() });
 
         // Generate the desired code:
         //
@@ -135,7 +118,6 @@ impl CreateViewCollectionBindingInput {
                     );
 
                 let #converter_ident = ::std::sync::Arc::new(#converter_type::new(#(#converter_injections),*));
-                let #comparer_ident = ::std::sync::Arc::new(#comparer_type::new(#(#comparer_injections),*));
 
                 // Use the absolute path so the user doesn't have to import it.
                 ::slint_mvvm::view_collection_binding::ViewCollectionBinding::new(
@@ -153,15 +135,7 @@ impl CreateViewCollectionBindingInput {
                             use slint_mvvm::convert_to_view_data::ConvertToViewData;
                             converter.convert_collection(&source_collection)
                         }
-                    },
-                    {
-                        // Capture Arc in a move closure
-                        let comparer = #comparer_ident.clone();
-                        move |a, b| {
-                            use slint_mvvm::view_data_comparer::ViewDataComparer;
-                            comparer.compare(a, b)
-                        }
-                    },
+                    }
                 )
             }
         }

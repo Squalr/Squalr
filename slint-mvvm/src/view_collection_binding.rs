@@ -13,10 +13,6 @@ where
     /// A function that converts your `U` collection into a `T` collection recognized by the UI.
     converter: Arc<dyn Fn(&Vec<U>) -> Vec<T> + Send + Sync>,
 
-    /// An optional custom comparer for T. If `None`, fall back to `==`.
-    /// If provided, should return true if the two T items are "equal" in your sense of equality.
-    comparer: Arc<dyn Fn(&T, &T) -> bool + Send + Sync>,
-
     /// The handle to the UI component (for scheduling updates).
     view_handle: Arc<Mutex<Weak<V>>>,
 
@@ -37,17 +33,14 @@ where
     /// - A converter: `U -> T`
     /// - A setter for storing the final `ModelRc<T>` (if we create a new one)
     /// - A getter for retrieving the existing `ModelRc<T>` (if any)
-    /// - An optional comparer for T. If `None`, we default to using `==`.
     pub fn new(
         view_handle: &Weak<V>,
         model_setter: impl Fn(&V, ModelRc<T>) + Send + Sync + 'static,
         model_getter: impl Fn(&V) -> ModelRc<T> + Send + Sync + 'static,
         converter: impl Fn(&Vec<U>) -> Vec<T> + Send + Sync + 'static,
-        comparer: impl Fn(&T, &T) -> bool + Send + Sync + 'static,
     ) -> Self {
         ViewCollectionBinding {
             converter: Arc::new(converter),
-            comparer: Arc::new(comparer),
             view_handle: Arc::new(Mutex::new(view_handle.clone())),
             model_setter: Arc::new(model_setter),
             model_getter: Arc::new(model_getter),
@@ -76,7 +69,6 @@ where
         source_data: Vec<U>,
     ) {
         let converter = self.converter.clone();
-        let comparer = self.comparer.clone();
         let view_handle = self.view_handle.clone();
         let model_setter = self.model_setter.clone();
         let model_getter = self.model_getter.clone();
@@ -118,7 +110,7 @@ where
                 while index < converted.len() && index < vec_model.row_count() {
                     let current_row = vec_model.row_data(index).unwrap();
                     let new_row = &converted[index];
-                    if !comparer(&current_row, new_row) {
+                    if current_row != *new_row {
                         vec_model.set_row_data(index, new_row.clone());
                     }
                     index += 1;
@@ -152,7 +144,6 @@ where
     fn clone(&self) -> Self {
         ViewCollectionBinding {
             converter: self.converter.clone(),
-            comparer: self.comparer.clone(),
             view_handle: self.view_handle.clone(),
             model_setter: self.model_setter.clone(),
             model_getter: self.model_getter.clone(),
