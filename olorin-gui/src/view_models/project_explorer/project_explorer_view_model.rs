@@ -31,6 +31,7 @@ use std::sync::Arc;
 pub struct ProjectExplorerViewModel {
     view_binding: Arc<ViewBinding<MainWindowView>>,
     project_list_collection: ViewCollectionBinding<ProjectViewData, ProjectInfo, MainWindowView>,
+    opened_project_items_list_collection: ViewCollectionBinding<ProjectViewData, ProjectInfo, MainWindowView>,
     engine_execution_context: Arc<EngineExecutionContext>,
 }
 
@@ -43,8 +44,16 @@ impl ProjectExplorerViewModel {
         dependency_container: DependencyContainer,
         (view_binding, engine_execution_context): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>),
     ) {
-        // Create a binding that allows us to easily update the view's project list.
+        // Create view binding to the project list.
         let project_list_collection = create_view_model_collection!(
+            view_binding -> MainWindowView,
+            ProjectExplorerViewModelBindings -> { set_projects, get_projects },
+            ProjectInfoConverter -> [],
+            ProjectInfoComparer -> [],
+        );
+
+        // JIRA: Create view binding to the opened project item list.
+        let opened_project_items_list_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
             ProjectExplorerViewModelBindings -> { set_projects, get_projects },
             ProjectInfoConverter -> [],
@@ -54,6 +63,7 @@ impl ProjectExplorerViewModel {
         let view_model = Arc::new(ProjectExplorerViewModel {
             view_binding: view_binding.clone(),
             project_list_collection: project_list_collection.clone(),
+            opened_project_items_list_collection: opened_project_items_list_collection.clone(),
             engine_execution_context: engine_execution_context.clone(),
         });
 

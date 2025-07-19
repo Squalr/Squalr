@@ -2,10 +2,7 @@ use olorin_engine_api::structures::{
     processes::process_icon::ProcessIcon,
     projects::{
         project_info::ProjectInfo,
-        project_items::{
-            built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_item::ProjectItem, project_item_type::ProjectItemType,
-            project_item_type_ref::ProjectItemTypeRef,
-        },
+        project_items::{built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_item::ProjectItem},
         project_manifest::ProjectManifest,
     },
 };
@@ -45,17 +42,22 @@ impl Project {
         fs::create_dir_all(path)?;
 
         let project_info = ProjectInfo::new(path.to_path_buf(), None, ProjectManifest::default());
-        let directory_type = ProjectItemTypeRef::new(
-            ProjectItemTypeDirectory {}
-                .get_project_item_type_id()
-                .to_string(),
-        );
-        let project_root = ProjectItem::new(path.to_path_buf(), directory_type, true);
+
+        let project_root = ProjectItemTypeDirectory::new_project_item(path);
         let mut project = Self { project_info, project_root };
 
-        project.save_to_path(path, false, true)?;
+        project.save_to_path(path, true)?;
 
         Ok(project)
+    }
+
+    pub fn save(
+        &mut self,
+        save_even_if_unchanged: bool,
+    ) -> anyhow::Result<()> {
+        let project_path = self.project_info.get_path().to_owned();
+
+        self.save_to_path(&project_path, save_even_if_unchanged)
     }
 
     pub fn get_name(&self) -> &str {

@@ -21,7 +21,7 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
         let opened_process_info = match opened_process_info {
             Some(opened_process_info) => opened_process_info,
             None => {
-                log::error!("No opened process, cannot start new scan.");
+                log::error!("Cannot start new scan, no opened process.");
 
                 return ScanNewResponse {};
             }

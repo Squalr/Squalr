@@ -1,4 +1,4 @@
-use crate::structures::projects::project_items::project_item_type_ref::ProjectItemTypeRef;
+use crate::structures::{projects::project_items::project_item_type_ref::ProjectItemTypeRef, structs::valued_struct::ValuedStruct};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -10,9 +10,8 @@ pub struct ProjectItem {
 
     item_type: ProjectItemTypeRef,
 
-    /// The list of properties on this project item.
-    /// JIRA: As trait
-    // properties: Vec<Property>,
+    /// The container for all properties on this project item.
+    properties: ValuedStruct,
 
     /// A value indicating whether this item has been activated / enabled.
     is_activated: bool,
@@ -36,6 +35,7 @@ impl ProjectItem {
         Self {
             path,
             item_type,
+            properties: ValuedStruct::new_anonymous(vec![]),
             is_activated: false,
             children: vec![],
             is_container_type,
@@ -45,6 +45,14 @@ impl ProjectItem {
 
     pub fn get_path(&self) -> &PathBuf {
         &self.path
+    }
+
+    pub fn get_properties(&self) -> &ValuedStruct {
+        &self.properties
+    }
+
+    pub fn get_properties_mut(&mut self) -> &mut ValuedStruct {
+        &mut self.properties
     }
 
     pub fn get_has_unsaved_changes(&self) -> bool {

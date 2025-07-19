@@ -1,7 +1,6 @@
 use crate::project::serialization::serializable_project_file::SerializableProjectFile;
 use olorin_engine_api::structures::projects::project_items::{
-    built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_item::ProjectItem, project_item_type::ProjectItemType,
-    project_item_type_ref::ProjectItemTypeRef,
+    built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_item::ProjectItem,
 };
 use std::{
     fs::{self, File},
@@ -11,12 +10,7 @@ use std::{
 impl SerializableProjectFile for ProjectItem {
     fn load_from_path(directory: &Path) -> anyhow::Result<Self> {
         if directory.exists() {
-            let directory_type = ProjectItemTypeRef::new(
-                ProjectItemTypeDirectory {}
-                    .get_project_item_type_id()
-                    .to_string(),
-            );
-            let mut directory_item = ProjectItem::new(directory.to_path_buf(), directory_type, true);
+            let mut directory_item = ProjectItemTypeDirectory::new_project_item(directory);
 
             for entry in fs::read_dir(directory)? {
                 let entry_path = entry?.path();
@@ -42,15 +36,10 @@ impl SerializableProjectFile for ProjectItem {
     fn save_to_path(
         &mut self,
         directory: &Path,
-        allow_overwrite: bool,
-        force_save: bool,
+        save_even_if_unchanged: bool,
     ) -> anyhow::Result<()> {
-        if force_save || self.get_has_unsaved_changes() {
-            if directory.exists() {
-                if !allow_overwrite {
-                    anyhow::bail!("Failed to save directory item, the directory already exists: {:?}", directory);
-                }
-            } else {
+        if save_even_if_unchanged || self.get_has_unsaved_changes() {
+            if !directory.exists() {
                 fs::create_dir(&directory)?;
             }
 

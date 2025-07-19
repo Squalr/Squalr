@@ -145,5 +145,11 @@ export component ScanResultsView inherits Rectangle {
 
     scan_results_popout_window := ScanResultsPopoutWindow {
         visible <=> root.scan_results_popout_window_visible;
+        on_add_selected_results_to_project_clicked() => {
+            ScanResultsViewModelBindings.add_scan_results_to_project();
+        }
+        on_delete_selected_scan_results_clicked() => {
+            ScanResultsViewModelBindings.delete_selected_scan_results();
+        }
     }
 }

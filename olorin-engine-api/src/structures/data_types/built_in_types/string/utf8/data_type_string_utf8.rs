@@ -27,6 +27,10 @@ impl DataTypeStringUtf8 {
     pub fn get_value_from_primitive_array(string_bytes: Vec<u8>) -> DataValue {
         DataValue::new(DataTypeRef::new(Self::get_data_type_id()), string_bytes)
     }
+
+    pub fn get_value_from_primitive_string(string: &str) -> DataValue {
+        Self::get_value_from_primitive_array(string.as_bytes().to_vec())
+    }
 }
 
 impl DataType for DataTypeStringUtf8 {

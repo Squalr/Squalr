@@ -1,5 +1,5 @@
-use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::structs::valued_struct_field::ValuedStructField;
+use crate::structures::structs::{symbolic_struct_ref::SymbolicStructRef, valued_struct_field::ValuedStructFieldNode};
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
 
@@ -45,6 +45,36 @@ impl ValuedStruct {
 
     pub fn get_fields(&self) -> &[ValuedStructField] {
         &self.fields
+    }
+
+    pub fn get_field(
+        &self,
+        field_name: &str,
+    ) -> Option<&ValuedStructField> {
+        self.fields.iter().find(|field| field.get_name() == field_name)
+    }
+
+    pub fn get_field_mut(
+        &mut self,
+        field_name: &str,
+    ) -> Option<&mut ValuedStructField> {
+        self.fields
+            .iter_mut()
+            .find(|field| field.get_name() == field_name)
+    }
+
+    pub fn set_field_node(
+        &mut self,
+        field_name: &str,
+        valued_field_node: ValuedStructFieldNode,
+        is_read_only: bool,
+    ) {
+        if let Some(field) = self.fields.iter_mut().find(|f| f.get_name() == field_name) {
+            field.set_field_node(valued_field_node);
+        } else {
+            self.fields
+                .push(ValuedStructField::new(field_name.to_string(), valued_field_node, is_read_only));
+        }
     }
 
     pub fn get_bytes(&self) -> Vec<u8> {

@@ -13,16 +13,15 @@ impl SerializableProjectFile for Project {
     fn save_to_path(
         &mut self,
         directory: &Path,
-        allow_overwrite: bool,
-        force_save: bool,
+        save_even_if_unchanged: bool,
     ) -> anyhow::Result<()> {
         // Save the main project file.
         self.get_project_info_mut()
-            .save_to_path(directory, allow_overwrite, force_save)?;
+            .save_to_path(directory, save_even_if_unchanged)?;
 
         // Recursively save all project items.
         self.get_project_root_mut()
-            .save_to_path(&directory.join(Project::PROJECT_DIR), allow_overwrite, force_save)?;
+            .save_to_path(&directory.join(Project::PROJECT_DIR), save_even_if_unchanged)?;
 
         Ok(())
     }

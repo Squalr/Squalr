@@ -35,20 +35,15 @@ impl SerializableProjectFile for ProjectInfo {
     fn save_to_path(
         &mut self,
         directory: &Path,
-        allow_overwrite: bool,
-        force_save: bool,
+        save_even_if_unchanged: bool,
     ) -> anyhow::Result<()> {
-        if force_save || self.get_has_unsaved_changes() {
+        if save_even_if_unchanged || self.get_has_unsaved_changes() {
             let project_file_path = directory.join(Project::PROJECT_FILE);
-
-            if project_file_path.exists() && !allow_overwrite {
-                anyhow::bail!("Failed to save project info. A project already exists in this directory.");
-            }
 
             let file = OpenOptions::new()
                 .write(true)
                 .create(true)
-                .truncate(allow_overwrite)
+                .truncate(true)
                 .open(&project_file_path)?;
 
             let project_info_stub = ProjectInfoStub {

@@ -49,6 +49,13 @@ impl ValuedStructField {
         &self.field_node
     }
 
+    pub fn set_field_node(
+        &mut self,
+        valued_field_node: ValuedStructFieldNode,
+    ) {
+        self.field_node = valued_field_node;
+    }
+
     pub fn get_is_read_only(&self) -> bool {
         self.is_read_only
     }
