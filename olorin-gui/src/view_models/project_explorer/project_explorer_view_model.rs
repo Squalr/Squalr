@@ -17,6 +17,7 @@ use olorin_engine_api::dependency_injection::dependency_container::DependencyCon
 use olorin_engine_api::events::project::closed::project_closed_event::ProjectClosedEvent;
 use olorin_engine_api::events::project::created::project_created_event::ProjectCreatedEvent;
 use olorin_engine_api::events::project::deleted::project_deleted_event::ProjectDeletedEvent;
+use olorin_engine_api::events::project_items::changed::project_items_changed_event::ProjectItemsChangedEvent;
 use olorin_engine_api::structures::projects::project_info::ProjectInfo;
 use olorin_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use slint::ComponentHandle;
@@ -122,6 +123,17 @@ impl ProjectExplorerViewModel {
                         project_explorer_bindings.set_opened_project(ProjectInfoViewData::default());
                     });
                 });
+        }
+        {
+            let engine_execution_context = view_model.engine_execution_context.clone();
+            let view_model = view_model.clone();
+            let opened_project_items_list_collection = view_model.opened_project_items_list_collection.clone();
+
+            engine_execution_context.listen_for_engine_event::<ProjectItemsChangedEvent>(move |project_items_changed_event| {
+                if let Some(project_root) = &project_items_changed_event.project_root {
+                    opened_project_items_list_collection.update_from_source(project_root.get_children().to_owned());
+                }
+            });
         }
     }
 

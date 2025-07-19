@@ -13,28 +13,39 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         let project_manager = engine_privileged_state.get_project_manager();
-        let opened_project_lock = project_manager.get_opened_project();
-        let mut opened_project_guard = opened_project_lock.write().unwrap();
+        let mut project_changed = false;
 
-        if let Some(project) = opened_project_guard.as_mut() {
-            for scan_result in &self.scan_results {
-                let address = scan_result.get_address();
-                let data_type = scan_result.get_data_type().clone();
-                let data_value = data_type.get_default_value().unwrap_or_default();
-                let path = project.get_project_root().get_path().join("Address");
-                let module = scan_result.get_module();
-                let description = String::new();
-                let address_item = ProjectItemTypeAddress::new_project_item(&path, address, module, &description, data_value);
+        match project_manager.get_opened_project().write() {
+            Ok(mut opened_project) => {
+                if let Some(project) = opened_project.as_mut() {
+                    for scan_result in &self.scan_results {
+                        let address = scan_result.get_address();
+                        let data_type = scan_result.get_data_type().clone();
+                        let data_value = data_type.get_default_value().unwrap_or_default();
+                        let path = project.get_project_root().get_path().join("Address");
+                        let module = scan_result.get_module();
+                        let description = String::new();
+                        let address_item = ProjectItemTypeAddress::new_project_item(&path, address, module, &description, data_value);
 
-                // Add to project root.
-                project.get_project_root_mut().append_child(address_item);
+                        // Add to project root.
+                        project.get_project_root_mut().append_child(address_item);
+                        project_changed = true;
+                    }
+
+                    if let Err(err) = project.save(true) {
+                        log::error!("Failed to save project after adding scan results: {}", err);
+                    }
+                } else {
+                    log::warn!("Unable to add scan results, no opened project.");
+                }
             }
-
-            if let Err(err) = project.save(true) {
-                log::error!("Failed to save project after adding scan results: {}", err);
+            Err(error) => {
+                log::error!("Error opening project: {}", error);
             }
-        } else {
-            log::warn!("Unable to add scan results, no opened project.");
+        }
+
+        if project_changed {
+            project_manager.notify_project_items_changed();
         }
 
         ScanResultsAddToProjectResponse {}

@@ -3,6 +3,7 @@ use notify::{
     Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
     event::{CreateKind, ModifyKind, RemoveKind, RenameMode},
 };
+use olorin_engine_api::events::project_items::changed::project_items_changed_event::ProjectItemsChangedEvent;
 use olorin_engine_api::{
     events::{
         engine_event::{EngineEvent, EngineEventRequest},
@@ -48,26 +49,55 @@ impl ProjectManager {
         &self,
         project_info: Project,
     ) {
-        if let Ok(mut project) = self.opened_project.write() {
-            log::info!("Opened project: {}", project_info.get_name());
-            *project = Some(project_info);
+        match self.opened_project.write() {
+            Ok(mut project) => {
+                log::info!("Opened project: {}", project_info.get_name());
+                *project = Some(project_info);
+            }
+            Err(error) => {
+                log::error!("Error opening project: {}", error);
+                return;
+            }
         }
+
+        self.notify_project_items_changed();
     }
 
-    /// Clears the project to which we are currently attached.
-    pub fn clear_opened_project(&self) {
-        if let Ok(mut project) = self.opened_project.write() {
-            *project = None;
+    /// Closes the currently opened project.
+    pub fn close_opened_project(&self) {
+        match self.opened_project.write() {
+            Ok(mut project) => {
+                *project = None;
 
-            log::info!("Project closed.");
+                log::info!("Project closed.");
 
-            (self.event_emitter)(ProjectClosedEvent {}.to_engine_event());
+                (self.event_emitter)(ProjectClosedEvent {}.to_engine_event());
+            }
+            Err(error) => {
+                log::error!("Error closing project: {}", error);
+                return;
+            }
+        }
+
+        self.notify_project_items_changed();
+    }
+
+    /// Dispatches an engine event indicating that the project items have changed.
+    pub fn notify_project_items_changed(&self) {
+        if let Ok(project) = self.opened_project.read() {
+            let project_root = if let Some(project) = project.as_ref() {
+                Some(project.get_project_root().clone())
+            } else {
+                None
+            };
+
+            (self.event_emitter)(ProjectItemsChangedEvent { project_root }.to_engine_event());
         }
     }
 
     /// Gets a reference to the shared lock containing the currently opened project.
     /// Take caution not to directly set the project if the desire is to capture project events.
-    /// To capture these, call `set_opened_project` and `clear_opened_project` instead.
+    /// To capture these, call `set_opened_project` and `close_opened_project` instead.
     pub fn get_opened_project(&self) -> Arc<RwLock<Option<Project>>> {
         self.opened_project.clone()
     }

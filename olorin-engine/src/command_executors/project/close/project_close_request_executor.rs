@@ -13,7 +13,7 @@ impl EngineCommandRequestExecutor for ProjectCloseRequest {
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         engine_privileged_state
             .get_project_manager()
-            .clear_opened_project();
+            .close_opened_project();
 
         ProjectCloseResponse {}
     }

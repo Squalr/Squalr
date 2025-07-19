@@ -7,6 +7,7 @@ use olorin_engine_api::commands::engine_command_response::EngineCommandResponse;
 use olorin_engine_api::events::engine_event::EngineEventRequest;
 use olorin_engine_api::events::process::process_event::ProcessEvent;
 use olorin_engine_api::events::project::project_event::ProjectEvent;
+use olorin_engine_api::events::project_items::project_items_event::ProjectItemsEvent;
 use olorin_engine_api::events::scan_results::scan_results_event::ScanResultsEvent;
 use olorin_engine_api::events::trackable_task::trackable_task_event::TrackableTaskEvent;
 use olorin_engine_api::{commands::engine_command::EngineCommand, events::engine_event::EngineEvent};
@@ -166,6 +167,11 @@ impl EngineExecutionContext {
                 }
                 ProjectEvent::ProjectDeleted { project_deleted_event } => {
                     Self::dispatch_engine_event(&event_listeners, project_deleted_event);
+                }
+            },
+            EngineEvent::ProjectItems(project_items_event) => match project_items_event {
+                ProjectItemsEvent::ProjectItemsChanged { project_items_changed_event } => {
+                    Self::dispatch_engine_event(&event_listeners, project_items_changed_event);
                 }
             },
             EngineEvent::ScanResults(process_event) => match process_event {

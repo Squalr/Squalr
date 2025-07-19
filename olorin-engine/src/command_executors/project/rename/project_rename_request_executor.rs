@@ -48,7 +48,7 @@ impl EngineCommandRequestExecutor for ProjectRenameRequest {
                 }
                 Err(_) => {
                     log::error!("Error re-opening the current project after rename! Closing current project.");
-                    project_manager.clear_opened_project();
+                    project_manager.close_opened_project();
                 }
             }
         }
