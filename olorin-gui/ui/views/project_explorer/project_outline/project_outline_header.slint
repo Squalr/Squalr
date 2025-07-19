@@ -1,0 +1,69 @@
+import { ScrollView } from "std-widgets.slint";
+
+import { Theme } from "../../../theme.slint";
+
+import { ProjectExplorerViewModelBindings } from "../../../view_model_bindings.slint";
+import { Button } from "../../../components/buttons/button.slint";
+import { BevelButton } from "../../../components/buttons/bevel_button.slint";
+import { ProjectItemEntry } from "project_item_entry.slint";
+
+export component ProjectOutlineHeader inherits HorizontalLayout {
+    padding: 2px;
+    HorizontalLayout {
+        spacing: 4px;
+        save_project_button := Button {
+            height: 24px;
+            width: 36px;
+            tooltip_text: @tr("Save Project");
+            click_sound: "";
+            clicked => {
+                ProjectExplorerViewModelBindings.save_opened_project();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../../images/file_system/save.png");
+            }
+        }
+
+        export_project_button := Button {
+            height: 24px;
+            width: 36px;
+            tooltip_text: @tr("Export Project");
+            click_sound: "";
+            clicked => {
+                ProjectExplorerViewModelBindings.export_project(ProjectExplorerViewModelBindings.opened_project);
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../../images/navigation/up_arrow_small.png");
+            }
+        }
+    }
+
+    HorizontalLayout {
+        spacing: 4px;
+        alignment: end;
+        close_project_button := Button {
+            height: 24px;
+            width: 36px;
+            tooltip_text: @tr("Close Project");
+            click_sound: "";
+            clicked => {
+                ProjectExplorerViewModelBindings.close_opened_project();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../../images/window/close.png");
+            }
+        }
+    }
+}

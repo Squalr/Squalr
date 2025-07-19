@@ -1,7 +1,9 @@
 use crate::MainWindowView;
 use crate::ProjectExplorerViewModelBindings;
-use crate::ProjectViewData;
+use crate::ProjectInfoViewData;
+use crate::ProjectItemViewData;
 use crate::converters::project_info_converter::ProjectInfoConverter;
+use crate::converters::project_item_converter::ProjectItemConverter;
 use olorin_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use olorin_engine::engine_execution_context::EngineExecutionContext;
 use olorin_engine_api::commands::project::close::project_close_request::ProjectCloseRequest;
@@ -16,6 +18,7 @@ use olorin_engine_api::events::project::closed::project_closed_event::ProjectClo
 use olorin_engine_api::events::project::created::project_created_event::ProjectCreatedEvent;
 use olorin_engine_api::events::project::deleted::project_deleted_event::ProjectDeletedEvent;
 use olorin_engine_api::structures::projects::project_info::ProjectInfo;
+use olorin_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
@@ -29,8 +32,8 @@ use std::sync::Arc;
 
 pub struct ProjectExplorerViewModel {
     view_binding: Arc<ViewBinding<MainWindowView>>,
-    project_list_collection: ViewCollectionBinding<ProjectViewData, ProjectInfo, MainWindowView>,
-    opened_project_items_list_collection: ViewCollectionBinding<ProjectViewData, ProjectInfo, MainWindowView>,
+    project_list_collection: ViewCollectionBinding<ProjectInfoViewData, ProjectInfo, MainWindowView>,
+    opened_project_items_list_collection: ViewCollectionBinding<ProjectItemViewData, ProjectItem, MainWindowView>,
     engine_execution_context: Arc<EngineExecutionContext>,
 }
 
@@ -50,11 +53,11 @@ impl ProjectExplorerViewModel {
             ProjectInfoConverter -> [],
         );
 
-        // JIRA: Create view binding to the opened project item list.
+        // Create view binding to the opened project item list.
         let opened_project_items_list_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
-            ProjectExplorerViewModelBindings -> { set_projects, get_projects },
-            ProjectInfoConverter -> [],
+            ProjectExplorerViewModelBindings -> { set_project_items, get_project_items },
+            ProjectItemConverter -> [],
         );
 
         let view_model = Arc::new(ProjectExplorerViewModel {
@@ -74,11 +77,11 @@ impl ProjectExplorerViewModel {
                 ProjectExplorerViewModelBindings => {
                     on_refresh_project_list() -> [view_model] -> Self::on_refresh_project_list
                     on_browse_for_project() -> [view_model] -> Self::on_browse_for_project
-                    on_open_project(project_entry: ProjectViewData) -> [view_model] -> Self::on_open_project
+                    on_open_project(project_entry: ProjectInfoViewData) -> [view_model] -> Self::on_open_project
                     on_close_opened_project() -> [view_model] -> Self::on_close_opened_project
                     on_save_opened_project() -> [view_model] -> Self::on_save_opened_project
-                    on_export_project(project_entry: ProjectViewData) -> [view_model] -> Self::on_export_project
-                    on_rename_project(project_entry: ProjectViewData, new_project_name: SharedString) -> [view_model] -> Self::on_rename_project
+                    on_export_project(project_entry: ProjectInfoViewData) -> [view_model] -> Self::on_export_project
+                    on_rename_project(project_entry: ProjectInfoViewData, new_project_name: SharedString) -> [view_model] -> Self::on_rename_project
                     on_create_new_project() -> [view_model] -> Self::on_create_new_project
                 }
             });
@@ -116,7 +119,7 @@ impl ProjectExplorerViewModel {
                         let project_explorer_bindings = main_window_view.global::<ProjectExplorerViewModelBindings>();
 
                         project_explorer_bindings.set_is_project_open(false);
-                        project_explorer_bindings.set_opened_project(ProjectViewData::default());
+                        project_explorer_bindings.set_opened_project(ProjectInfoViewData::default());
                     });
                 });
         }
@@ -138,7 +141,7 @@ impl ProjectExplorerViewModel {
 
     fn on_open_project(
         view_model: Arc<ProjectExplorerViewModel>,
-        project_entry: ProjectViewData,
+        project_entry: ProjectInfoViewData,
     ) {
         let view_binding = view_model.view_binding.clone();
         let engine_execution_context = &view_model.engine_execution_context;
@@ -146,6 +149,7 @@ impl ProjectExplorerViewModel {
             project_path: Some(PathBuf::from_str(&project_entry.path.to_string()).unwrap_or_default()),
             project_name: None,
         };
+        let opened_project_items_list_collection = view_model.opened_project_items_list_collection.clone();
 
         project_open_request.send(engine_execution_context, move |project_open_response| {
             view_binding.execute_on_ui_thread(move |main_window_view, _| {
@@ -155,6 +159,10 @@ impl ProjectExplorerViewModel {
 
                 if let Some(opened_project_info) = project_open_response.opened_project_info {
                     project_explorer_bindings.set_opened_project(ProjectInfoConverter {}.convert_to_view_data(&opened_project_info));
+                }
+
+                if let Some(project_root) = project_open_response.opened_project_root {
+                    opened_project_items_list_collection.update_from_source(project_root.get_children().to_owned());
                 }
             });
         });
@@ -176,7 +184,7 @@ impl ProjectExplorerViewModel {
 
     fn on_export_project(
         view_model: Arc<ProjectExplorerViewModel>,
-        project_entry: ProjectViewData,
+        project_entry: ProjectInfoViewData,
     ) {
         let engine_execution_context = &view_model.engine_execution_context;
         let project_export_request = ProjectExportRequest {
@@ -190,7 +198,7 @@ impl ProjectExplorerViewModel {
 
     fn on_rename_project(
         view_model: Arc<ProjectExplorerViewModel>,
-        project_entry: ProjectViewData,
+        project_entry: ProjectInfoViewData,
         new_project_name: SharedString,
     ) {
         let engine_execution_context = &view_model.engine_execution_context;

@@ -22,8 +22,9 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
                 let data_type = scan_result.get_data_type().clone();
                 let data_value = data_type.get_default_value().unwrap_or_default();
                 let path = project.get_project_root().get_path().join("Address");
+                let module = scan_result.get_module();
                 let description = String::new();
-                let address_item = ProjectItemTypeAddress::new_project_item(&path, address, &description, data_value);
+                let address_item = ProjectItemTypeAddress::new_project_item(&path, address, module, &description, data_value);
 
                 // Add to project root.
                 project.get_project_root_mut().append_child(address_item);

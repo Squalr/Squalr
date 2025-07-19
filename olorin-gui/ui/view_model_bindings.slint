@@ -358,7 +358,7 @@ export global ScanSettingsViewModelBindings {
     callback debug_perform_validation_scan_changed(debug_perform_validation_scan: bool);
 }
 
-export struct ProjectViewData {
+export struct ProjectInfoViewData {
     name: string,
     path: string,
     icon: image,
@@ -367,7 +367,6 @@ export struct ProjectViewData {
 export struct ProjectItemViewData {
     name: string,
     path: string,
-    description: string,
     indentation: int,
     is_checked: bool,
 }
@@ -375,15 +374,15 @@ export struct ProjectItemViewData {
 export global ProjectExplorerViewModelBindings {
     callback refresh_project_list();
     callback browse_for_project();
-    callback open_project(project: ProjectViewData);
+    callback open_project(project: ProjectInfoViewData);
     callback close_opened_project();
     callback save_opened_project();
-    callback export_project(project: ProjectViewData);
+    callback export_project(project: ProjectInfoViewData);
     callback create_new_project();
-    callback rename_project(project: ProjectViewData, new_project_name: string);
+    callback rename_project(project: ProjectInfoViewData, new_project_name: string);
     in_out property <bool> is_project_open;
-    in property <ProjectViewData> opened_project;
-    in property <[ProjectViewData]> projects;
+    in property <ProjectInfoViewData> opened_project;
+    in property <[ProjectInfoViewData]> projects;
     in property <[ProjectItemViewData]> project_items;
 }
 

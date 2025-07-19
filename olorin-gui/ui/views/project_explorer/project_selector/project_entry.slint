@@ -1,12 +1,12 @@
 import { Theme } from "../../../theme.slint";
 
-import { ProjectExplorerViewModelBindings, ProjectViewData } from "../../../view_model_bindings.slint";
+import { ProjectExplorerViewModelBindings, ProjectInfoViewData } from "../../../view_model_bindings.slint";
 import { ContextMenu } from "../../../components/context_menu/context_menu.slint";
 import { Button } from "../../../components/buttons/button.slint";
 import { TextField } from "../../../components/input/text_field.slint";
 
 export component ProjectEntry inherits Button {
-    in property <ProjectViewData> project_view_data;
+    in property <ProjectInfoViewData> project_view_data;
     in property <bool> is_selected;
     in property <bool> is_editing;
     property <string> current_text: project_view_data.name;

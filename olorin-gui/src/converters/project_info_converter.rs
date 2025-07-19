@@ -1,7 +1,7 @@
-use crate::ProjectViewData;
+use crate::ProjectInfoViewData;
+use olorin_engine_api::structures::projects::project_info::ProjectInfo;
 use slint::{Image, SharedPixelBuffer, ToSharedString};
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
-use olorin_engine_api::structures::projects::project_info::ProjectInfo;
 
 pub struct ProjectInfoConverter {}
 
@@ -11,11 +11,11 @@ impl ProjectInfoConverter {
     }
 }
 
-impl ConvertToViewData<ProjectInfo, ProjectViewData> for ProjectInfoConverter {
+impl ConvertToViewData<ProjectInfo, ProjectInfoViewData> for ProjectInfoConverter {
     fn convert_collection(
         &self,
         project_info_list: &Vec<ProjectInfo>,
-    ) -> Vec<ProjectViewData> {
+    ) -> Vec<ProjectInfoViewData> {
         project_info_list
             .into_iter()
             .map(|item| self.convert_to_view_data(item))
@@ -25,7 +25,7 @@ impl ConvertToViewData<ProjectInfo, ProjectViewData> for ProjectInfoConverter {
     fn convert_to_view_data(
         &self,
         project_info: &ProjectInfo,
-    ) -> ProjectViewData {
+    ) -> ProjectInfoViewData {
         let icon = if let Some(icon_data) = &project_info.get_project_icon_rgba() {
             // Create new buffer and copy the data
             let mut icon_buffer = SharedPixelBuffer::new(icon_data.get_width(), icon_data.get_height());
@@ -40,7 +40,7 @@ impl ConvertToViewData<ProjectInfo, ProjectViewData> for ProjectInfoConverter {
             Image::from_rgba8(icon_data)
         };
 
-        ProjectViewData {
+        ProjectInfoViewData {
             name: project_info.get_name().to_string().into(),
             path: project_info.get_path().to_string_lossy().to_shared_string(),
             icon,

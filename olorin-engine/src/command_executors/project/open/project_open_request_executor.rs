@@ -25,6 +25,7 @@ impl EngineCommandRequestExecutor for ProjectOpenRequest {
         match Project::load_from_path(&project_path) {
             Ok(project) => {
                 let project_info = project.get_project_info().clone();
+                let project_root = project.get_project_root().clone();
 
                 engine_privileged_state
                     .get_project_manager()
@@ -32,12 +33,16 @@ impl EngineCommandRequestExecutor for ProjectOpenRequest {
 
                 ProjectOpenResponse {
                     opened_project_info: Some(project_info),
+                    opened_project_root: Some(project_root),
                 }
             }
             Err(error) => {
                 log::error!("Failed to open project: {}", error);
 
-                ProjectOpenResponse { opened_project_info: None }
+                ProjectOpenResponse {
+                    opened_project_info: None,
+                    opened_project_root: None,
+                }
             }
         }
     }

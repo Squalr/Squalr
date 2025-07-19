@@ -46,7 +46,7 @@ impl SerializableProjectFile for ProjectItem {
             for child in self.get_children_mut() {
                 let child_path = child.get_path();
 
-                if child.get_is_container_type() {
+                if child.get_is_container() {
                     fs::create_dir(child_path)?;
                 } else {
                     // Save individual file item

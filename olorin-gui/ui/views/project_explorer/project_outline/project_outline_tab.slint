@@ -5,74 +5,23 @@ import { Theme } from "../../../theme.slint";
 import { ProjectExplorerViewModelBindings } from "../../../view_model_bindings.slint";
 import { Button } from "../../../components/buttons/button.slint";
 import { BevelButton } from "../../../components/buttons/bevel_button.slint";
+import { ProjectItemEntry } from "project_item_entry.slint";
+import { ProjectOutlineHeader } from "project_outline_header.slint";
 
 export component ProjectOutlineTab inherits Rectangle {
-    HorizontalLayout {
-        padding: 2px;
-        HorizontalLayout {
-            spacing: 4px;
-            save_project_button := Button {
-                height: 24px;
-                width: 36px;
-                tooltip_text: @tr("Save Project");
-                click_sound: "";
-                clicked => {
-                    ProjectExplorerViewModelBindings.save_opened_project();
-                }
-                Image {
-                    width: 16px;
-                    height: 16px;
-                    horizontal_alignment: center;
-                    vertical_alignment: center;
-                    source: @image_url("../../../images/file_system/save.png");
+    VerticalLayout {
+        padding: 0px;
+        spacing: 0px;
+        ProjectOutlineHeader { }
+
+        ScrollView {
+            content := VerticalLayout {
+                padding: 0px;
+                spacing: 0px;
+                for index in ProjectExplorerViewModelBindings.project_items.length: ProjectItemEntry {
+                    project_view_data: ProjectExplorerViewModelBindings.project_items[index];
                 }
             }
-
-            export_project_button := Button {
-                height: 24px;
-                width: 36px;
-                tooltip_text: @tr("Export Project");
-                click_sound: "";
-                clicked => {
-                    ProjectExplorerViewModelBindings.export_project(ProjectExplorerViewModelBindings.opened_project);
-                }
-                Image {
-                    width: 16px;
-                    height: 16px;
-                    horizontal_alignment: center;
-                    vertical_alignment: center;
-                    source: @image_url("../../../images/navigation/up_arrow_small.png");
-                }
-            }
-        }
-
-        HorizontalLayout {
-            spacing: 4px;
-            alignment: end;
-            close_project_button := Button {
-                height: 24px;
-                width: 36px;
-                tooltip_text: @tr("Close Project");
-                click_sound: "";
-                clicked => {
-                    ProjectExplorerViewModelBindings.close_opened_project();
-                }
-                Image {
-                    width: 16px;
-                    height: 16px;
-                    horizontal_alignment: center;
-                    vertical_alignment: center;
-                    source: @image_url("../../../images/window/close.png");
-                }
-            }
-        }
-    }
-
-    ScrollView {
-        content := VerticalLayout {
-            padding: 0px;
-            spacing: 0px;
-            @children
         }
     }
 }

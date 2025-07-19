@@ -350,7 +350,7 @@ impl ScanResultsViewModel {
     }
 
     fn on_add_scan_results_to_project(view_model: Arc<ScanResultsViewModel>) {
-        let scan_results = Self::collect_selected_scan_result_bases(&view_model);
+        let scan_results = Self::collect_selected_scan_results(&view_model);
 
         if !scan_results.is_empty() {
             let engine_execution_context = &view_model.engine_execution_context;

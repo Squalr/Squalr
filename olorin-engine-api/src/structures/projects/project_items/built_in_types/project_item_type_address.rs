@@ -18,36 +18,48 @@ impl ProjectItemType for ProjectItemTypeAddress {
 
 impl ProjectItemTypeAddress {
     pub const PROJECT_ITEM_TYPE_ID: &str = "address";
-    pub const PROPERTY_DESCRIPTION: &str = "description";
+    pub const PROPERTY_ADDRESS: &str = "address";
+    pub const PROPERTY_MODULE: &str = "module";
     pub const PROPERTY_FREEZE_VALUE: &str = "freeze_value";
 
     pub fn new_project_item(
         path: &Path,
         address: u64,
+        module: &str,
         description: &str,
         freeze_value: DataValue,
     ) -> ProjectItem {
         let directory_type = ProjectItemTypeRef::new(Self::PROJECT_ITEM_TYPE_ID.to_string());
         let mut project_item = ProjectItem::new(path.to_path_buf(), directory_type, false);
 
+        project_item.set_field_description(description);
+        Self::set_field_module(&mut project_item, module);
         Self::set_field_address(&mut project_item, address);
-        Self::set_field_description(&mut project_item, description);
         Self::set_field_freeze_value(&mut project_item, freeze_value);
 
         project_item
     }
 
-    pub fn get_field_description(project_item: &ProjectItem) -> String {
+    pub fn get_field_address(project_item: &mut ProjectItem) -> u64 {
         if let Some(name_field) = project_item
             .get_properties()
             .get_fields()
             .iter()
-            .find(|field| field.get_name() == Self::PROPERTY_DESCRIPTION)
+            .find(|field| field.get_name() == Self::PROPERTY_ADDRESS)
         {
-            name_field.get_display_string(true, 0)
-        } else {
-            String::new()
+            let bytes = name_field.get_bytes();
+            match bytes.len() {
+                8 => return u64::from_le_bytes(bytes.try_into().unwrap_or([0u8; 8])),
+                4 => {
+                    let arr = [0u8; 4];
+
+                    return u32::from_le_bytes(arr) as u64;
+                }
+                _ => {}
+            }
         }
+
+        0
     }
 
     pub fn set_field_address(
@@ -59,19 +71,45 @@ impl ProjectItemTypeAddress {
 
         project_item
             .get_properties_mut()
-            .set_field_node(Self::PROPERTY_DESCRIPTION, field_node, false);
+            .set_field_node(Self::PROPERTY_ADDRESS, field_node, false);
     }
 
-    pub fn set_field_description(
+    pub fn get_field_module(project_item: &mut ProjectItem) -> String {
+        if let Some(name_field) = project_item
+            .get_properties()
+            .get_fields()
+            .iter()
+            .find(|field| field.get_name() == Self::PROPERTY_MODULE)
+        {
+            name_field.get_display_string(true, 0)
+        } else {
+            String::new()
+        }
+    }
+
+    pub fn set_field_module(
         project_item: &mut ProjectItem,
-        description: &str,
+        module: &str,
     ) {
-        let description_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&description);
-        let field_node = ValuedStructFieldNode::Value(description_data_value);
+        let module_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&module);
+        let field_node = ValuedStructFieldNode::Value(module_data_value);
 
         project_item
             .get_properties_mut()
-            .set_field_node(Self::PROPERTY_DESCRIPTION, field_node, false);
+            .set_field_node(Self::PROPERTY_MODULE, field_node, false);
+    }
+
+    pub fn get_field_freeze_value(project_item: &mut ProjectItem) -> String {
+        if let Some(name_field) = project_item
+            .get_properties()
+            .get_fields()
+            .iter()
+            .find(|field| field.get_name() == Self::PROPERTY_FREEZE_VALUE)
+        {
+            name_field.get_display_string(true, 0)
+        } else {
+            String::new()
+        }
     }
 
     pub fn set_field_freeze_value(
@@ -82,6 +120,6 @@ impl ProjectItemTypeAddress {
 
         project_item
             .get_properties_mut()
-            .set_field_node(Self::PROPERTY_DESCRIPTION, field_node, false);
+            .set_field_node(Self::PROPERTY_FREEZE_VALUE, field_node, false);
     }
 }

@@ -1,49 +1,68 @@
-use crate::ProjectViewData;
-use slint::{Image, SharedPixelBuffer, ToSharedString};
+use crate::ProjectItemViewData;
+use olorin_engine_api::structures::projects::project_items::project_item::ProjectItem;
+use slint::ToSharedString;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
-use olorin_engine_api::structures::projects::project_info::ProjectInfo;
 
-pub struct ProjectInfoConverter {}
+pub struct ProjectItemConverter {}
 
-impl ProjectInfoConverter {
+impl ProjectItemConverter {
     pub fn new() -> Self {
         Self {}
     }
+
+    fn convert_to_view_data_with_indentation(
+        &self,
+        project_item: &ProjectItem,
+        indentation: i32,
+    ) -> ProjectItemViewData {
+        ProjectItemViewData {
+            name: project_item.get_field_name().to_shared_string(),
+            path: project_item.get_path().to_string_lossy().to_shared_string(),
+            indentation,
+            is_checked: project_item.get_is_activated(),
+        }
+    }
 }
 
-impl ConvertToViewData<ProjectInfo, ProjectViewData> for ProjectInfoConverter {
+impl ConvertToViewData<ProjectItem, ProjectItemViewData> for ProjectItemConverter {
     fn convert_collection(
         &self,
-        project_info_list: &Vec<ProjectInfo>,
-    ) -> Vec<ProjectViewData> {
-        project_info_list
-            .into_iter()
-            .map(|item| self.convert_to_view_data(item))
-            .collect()
+        project_item_list: &Vec<ProjectItem>,
+    ) -> Vec<ProjectItemViewData> {
+        fn flatten_items(
+            converter: &ProjectItemConverter,
+            items: &Vec<ProjectItem>,
+            indentation: i32,
+        ) -> Vec<ProjectItemViewData> {
+            items
+                .iter()
+                .flat_map(|item| {
+                    let mut results = vec![converter.convert_to_view_data_with_indentation(item, indentation)];
+                    if item.get_is_container() {
+                        let children = item.get_children();
+
+                        if !children.is_empty() {
+                            results.extend(flatten_items(converter, &children, indentation + 1));
+                        }
+                    }
+
+                    results
+                })
+                .collect()
+        }
+
+        flatten_items(self, project_item_list, 0)
     }
 
     fn convert_to_view_data(
         &self,
-        project_info: &ProjectInfo,
-    ) -> ProjectViewData {
-        let icon = if let Some(icon_data) = &project_info.get_project_icon_rgba() {
-            // Create new buffer and copy the data
-            let mut icon_buffer = SharedPixelBuffer::new(icon_data.get_width(), icon_data.get_height());
-            let icon_buffer_bytes = icon_buffer.make_mut_bytes();
-            icon_buffer_bytes.copy_from_slice(icon_data.get_bytes_rgba());
-            Image::from_rgba8(icon_buffer)
-        } else {
-            // Create 1x1 transparent image as fallback
-            let mut icon_data = SharedPixelBuffer::new(1, 1);
-            let icon_data_bytes = icon_data.make_mut_bytes();
-            icon_data_bytes.copy_from_slice(&[0, 0, 0, 0]);
-            Image::from_rgba8(icon_data)
-        };
-
-        ProjectViewData {
-            name: project_info.get_name().to_string().into(),
-            path: project_info.get_path().to_string_lossy().to_shared_string(),
-            icon,
+        project_item: &ProjectItem,
+    ) -> ProjectItemViewData {
+        ProjectItemViewData {
+            name: project_item.get_field_name().to_shared_string(),
+            path: project_item.get_path().to_string_lossy().to_shared_string(),
+            indentation: 0,
+            is_checked: project_item.get_is_activated(),
         }
     }
 }
