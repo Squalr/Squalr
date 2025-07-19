@@ -415,23 +415,23 @@ impl ScanResultsViewModel {
             Ok(base_scan_results_collection) => base_scan_results_collection.clone(),
             Err(_) => vec![],
         };
-        let mut selection_index_start = view_model.selection_index_start.load(Ordering::Acquire);
-        let mut selection_index_end = view_model.selection_index_end.load(Ordering::Acquire);
+        let mut initial_selection_index_start = view_model.selection_index_start.load(Ordering::Acquire);
+        let mut initial_selection_index_end = view_model.selection_index_end.load(Ordering::Acquire);
 
         // If either start or end is invalid, set the start and end to the same value (single selection).
-        if selection_index_start < 0 && selection_index_end >= 0 {
-            selection_index_start = selection_index_end;
-        } else if selection_index_end < 0 && selection_index_start >= 0 {
-            selection_index_end = selection_index_start;
+        if initial_selection_index_start < 0 && initial_selection_index_end >= 0 {
+            initial_selection_index_start = initial_selection_index_end;
+        } else if initial_selection_index_end < 0 && initial_selection_index_start >= 0 {
+            initial_selection_index_end = initial_selection_index_start;
         }
 
         // If both are invalid, return empty
-        if selection_index_start < 0 || selection_index_end < 0 {
+        if initial_selection_index_start < 0 || initial_selection_index_end < 0 {
             return vec![];
         }
 
-        let selection_index_start = cmp::min(selection_index_start, selection_index_end);
-        let selection_index_end = cmp::max(selection_index_start, selection_index_end);
+        let selection_index_start = cmp::min(initial_selection_index_start, initial_selection_index_end);
+        let selection_index_end = cmp::max(initial_selection_index_start, initial_selection_index_end);
 
         let local_scan_result_indices = selection_index_start..=selection_index_end;
         local_scan_result_indices

@@ -12,16 +12,16 @@ export component ScanResultEntry inherits Button {
     in property <length> previous_values_splitter_location;
     in property <int> index;
     in property <bool> is_selected;
-    callback on_select_start();
-    callback on_select_end();
+    callback on_select_start(x: length, y: length);
+    callback on_select_end(x: length, y: length);
     height: 24px;
     icon_converter := IconConverter { }
 
     clicked(event, x, y) => {
         if event.modifiers.shift {
-            root.on_select_end();
+            root.on_select_end(x, y);
         } else {
-            root.on_select_start();
+            root.on_select_start(x, y);
         }
     }
     Rectangle {

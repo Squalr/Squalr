@@ -8,6 +8,7 @@ import { ScanResultEntry } from "scan_result_entry.slint";
 import { ScanResultsHeader } from "scan_results_header.slint";
 import { ScanResultsNavigationBar } from "scan_results_navigation_bar.slint";
 import { ScanResultsStatisticsBar } from "scan_results_statistics_bar.slint";
+import { ScanResultsPopoutWindow } from "scan_results_popout_window.slint";
 
 export component ScanResultsView inherits Rectangle {
     property <float> ratio_address: 0.33;
@@ -17,6 +18,7 @@ export component ScanResultsView inherits Rectangle {
     property <length> divider_size: 2px;
     property <int> selected_index_start: -1;
     property <int> selected_index_end: -1;
+    property <bool> scan_results_popout_window_visible: false;
     pure function get_total_ratio() -> float {
         root.ratio_address + root.ratio_current_value + root.ratio_previous_value
     }
@@ -32,7 +34,7 @@ export component ScanResultsView inherits Rectangle {
     VerticalLayout {
         padding: 0px;
         spacing: 0px;
-        ScanBarView { }
+        scan_bar := ScanBarView { }
 
         Rectangle {
             VerticalLayout {
@@ -58,16 +60,23 @@ export component ScanResultsView inherits Rectangle {
                             previous_values_splitter_location: root.get_previous_value_splitter_location() + resizer_size;
                             scan_result_view_data: ScanResultsViewModelBindings.scan_results[index];
                             index: index;
-                            is_selected: index >= root.selected_index_start && index <= root.selected_index_end;
-                            on_select_start => {
+                            is_selected: (index >= root.selected_index_start && index <= root.selected_index_end) || (index >= root.selected_index_end && index <= root.selected_index_start);
+                            function show_scan_results_popout_window(click_x: length, click_y: length) {
+                                scan_results_popout_window.x = click_x - 12px;
+                                scan_results_popout_window.y = self.y - self.height + scan_bar.height + scan_results_header.height;
+                                root.scan_results_popout_window_visible = true;
+                            }
+                            on_select_start(x, y) => {
                                 root.selected_index_start = index;
                                 root.selected_index_end = index;
                                 ScanResultsViewModelBindings.set_scan_result_selection_end(root.selected_index_end);
                                 ScanResultsViewModelBindings.set_scan_result_selection_start(root.selected_index_start);
+                                self.show_scan_results_popout_window(x, y);
                             }
-                            on_select_end => {
+                            on_select_end(x, y) => {
                                 root.selected_index_end = index;
                                 ScanResultsViewModelBindings.set_scan_result_selection_end(root.selected_index_end);
+                                self.show_scan_results_popout_window(x, y);
                             }
                         }
                     }
@@ -132,5 +141,9 @@ export component ScanResultsView inherits Rectangle {
 
         // Scan statistics
         ScanResultsStatisticsBar { }
+    }
+
+    scan_results_popout_window := ScanResultsPopoutWindow {
+        visible <=> root.scan_results_popout_window_visible;
     }
 }
