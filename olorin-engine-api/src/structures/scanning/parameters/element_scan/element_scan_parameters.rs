@@ -59,7 +59,7 @@ impl ElementScanParameters {
         data_type_ref: &DataTypeRef,
     ) -> bool {
         for data_value_and_alignment in &self.element_scan_values {
-            if data_value_and_alignment.get_data_value().get_data_type() == data_type_ref {
+            if data_value_and_alignment.get_data_value().get_data_type_ref() == data_type_ref {
                 return true;
             }
         }
@@ -82,7 +82,7 @@ impl ElementScanParameters {
         match self.get_compare_type() {
             ScanCompareType::Immediate(_) | ScanCompareType::Delta(_) => {
                 for data_value_and_alignment in &self.element_scan_values {
-                    if data_value_and_alignment.get_data_value().get_data_type() == data_type_ref {
+                    if data_value_and_alignment.get_data_value().get_data_type_ref() == data_type_ref {
                         return data_value_and_alignment.clone();
                     }
                 }

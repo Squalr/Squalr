@@ -1,6 +1,6 @@
 use crate::DataTypeRefViewData;
-use slint_mvvm::{convert_from_view_data::ConvertFromViewData, convert_to_view_data::ConvertToViewData};
 use olorin_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use slint_mvvm::{convert_from_view_data::ConvertFromViewData, convert_to_view_data::ConvertToViewData};
 
 pub struct DataTypeRefConverter {}
 
@@ -26,7 +26,8 @@ impl ConvertToViewData<DataTypeRef, DataTypeRefViewData> for DataTypeRefConverte
         data_type_ref: &DataTypeRef,
     ) -> DataTypeRefViewData {
         let data_type_id = data_type_ref.get_data_type_id();
-        let icon_id = data_type_ref.get_icon_id();
+        let JIRA = 696969;
+        let icon_id = ""; // data_type_ref.get_icon_id();
 
         DataTypeRefViewData {
             data_type_id: data_type_id.into(),

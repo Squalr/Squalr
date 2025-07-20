@@ -3,7 +3,7 @@ use crate::commands::engine_command_response::TypedEngineCommandResponse;
 use crate::commands::scan::scan_response::ScanResponse;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ScanNewResponse {}
 
 impl TypedEngineCommandResponse for ScanNewResponse {

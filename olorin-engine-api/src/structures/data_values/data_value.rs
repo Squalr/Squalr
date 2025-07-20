@@ -1,11 +1,12 @@
+use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
+use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::structs::valued_struct::ValuedStruct;
 use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldNode};
-use crate::{registries::data_types::data_type_registry::DataTypeRegistry, structures::data_values::anonymous_value_container::AnonymousValueContainer};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{self, Debug},
@@ -24,7 +25,7 @@ pub struct DataValue {
     value_bytes: Vec<u8>,
 
     /// The display values. These are created when the underlying value bytes change to prevent repeatedly allocating new strings when refreshing a value.
-    display_values: DisplayValues,
+    // display_values: DisplayValues,
 
     /// Override to the default display value.
     display_value_type_override: Option<DisplayValueType>,
@@ -35,12 +36,11 @@ impl DataValue {
         data_type_ref: DataTypeRef,
         value_bytes: Vec<u8>,
     ) -> Self {
-        let display_values = Self::create_display_values(&data_type_ref, &value_bytes);
+        // let display_values = data_type_registry.create_display_values(&data_type_ref, &value_bytes);
 
         Self {
             data_type_ref,
             value_bytes,
-            display_values,
             display_value_type_override: None,
         }
     }
@@ -52,11 +52,11 @@ impl DataValue {
         // Only update the array and refresh the display value if the bytes are actually changed.
         if self.value_bytes != value_bytes {
             self.value_bytes = value_bytes.to_vec();
-            self.display_values = Self::create_display_values(&self.data_type_ref, value_bytes);
+            // self.display_values = data_type_registry.create_display_values(&self.data_type_ref, value_bytes);
         }
     }
 
-    pub fn get_data_type(&self) -> &DataTypeRef {
+    pub fn get_data_type_ref(&self) -> &DataTypeRef {
         &self.data_type_ref
     }
 
@@ -83,6 +83,7 @@ impl DataValue {
         mem::take(&mut self.value_bytes)
     }
 
+    /*
     pub fn get_display_values(&self) -> &DisplayValues {
         &self.display_values
     }
@@ -116,7 +117,7 @@ impl DataValue {
 
     pub fn get_default_display_value_string(&self) -> &str {
         self.display_values.get_default_display_value_string()
-    }
+    }*/
 
     pub fn as_ptr(&self) -> *const u8 {
         self.value_bytes.as_ptr()
@@ -143,16 +144,6 @@ impl DataValue {
     ) -> ValuedStructField {
         ValuedStructField::new(name, ValuedStructFieldNode::Value(self.clone()), is_read_only)
     }
-
-    fn create_display_values(
-        data_type_ref: &DataTypeRef,
-        value_bytes: &[u8],
-    ) -> DisplayValues {
-        DataTypeRegistry::get_instance()
-            .get(data_type_ref.get_data_type_id())
-            .and_then(|data_type| data_type.create_display_values(value_bytes).ok())
-            .unwrap_or_else(|| DisplayValues::new(vec![], DisplayValueType::String))
-    }
 }
 
 impl FromStr for DataValue {
@@ -168,10 +159,14 @@ impl FromStr for DataValue {
         let data_type_ref = DataTypeRef::from_str(parts[0])?;
         let anonymous_value_container = AnonymousValueContainer::from_str(parts[1])?;
 
+        let JIRA = 420;
+        /*
         match anonymous_value_container.deanonymize_value(data_type_ref.get_data_type_id()) {
             Ok(value) => Ok(value),
             Err(error) => Err(format!("Unable to parse value: {}", error)),
-        }
+        }*/
+
+        Err("Not implemented".to_string())
     }
 }
 
@@ -180,6 +175,9 @@ impl fmt::Display for DataValue {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(formatter, "{}={:?}", self.get_data_type_id(), self.get_display_values())
+        let JIRA = 69;
+
+        // write!(formatter, "{}={:?}", self.get_data_type_id(), self.get_display_values())
+        write!(formatter, "{}={:?}", self.get_data_type_id(), JIRA)
     }
 }

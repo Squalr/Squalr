@@ -3,7 +3,7 @@ use crate::commands::engine_command_response::TypedEngineCommandResponse;
 use crate::commands::project_items::project_items_response::ProjectItemsResponse;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectItemsActivateResponse {}
 
 impl TypedEngineCommandResponse for ProjectItemsActivateResponse {

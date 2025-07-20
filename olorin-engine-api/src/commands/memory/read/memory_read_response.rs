@@ -4,7 +4,7 @@ use crate::commands::memory::memory_response::MemoryResponse;
 use crate::structures::structs::valued_struct::ValuedStruct;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct MemoryReadResponse {
     pub valued_struct: ValuedStruct,
     pub address: u64,

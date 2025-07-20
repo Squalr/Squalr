@@ -1,5 +1,6 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
+use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
 use olorin_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use olorin_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use olorin_engine_api::structures::data_values::data_value::DataValue;
@@ -11,6 +12,7 @@ use olorin_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::ptr;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
+use std::sync::{Arc, RwLock};
 
 pub struct ScannerVectorOverlappingBytewisePeriodic<const N: usize>
 where
@@ -69,17 +71,26 @@ where
 
     fn scan_region(
         &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return vec![];
+            }
+        };
         let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type = mapped_scan_parameters.get_data_type();
-        let data_type_size = data_type.get_unit_size_in_bytes();
+        let data_type_ref = mapped_scan_parameters.get_data_type_ref();
+        let data_type_size = data_type_registry_guard.get_unit_size_in_bytes(data_type_ref);
 
         let vector_size_in_bytes = N as u64;
         let iterations = region_size / vector_size_in_bytes as u64;

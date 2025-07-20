@@ -12,6 +12,15 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+        let data_type_registry = engine_privileged_state.get_data_type_registry();
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return ScanResultsAddToProjectResponse {};
+            }
+        };
         let project_manager = engine_privileged_state.get_project_manager();
         let mut project_changed = false;
 
@@ -19,21 +28,24 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
             Ok(mut opened_project) => {
                 if let Some(project) = opened_project.as_mut() {
                     for scan_result in &self.scan_results {
-                        let address = scan_result.get_address();
-                        let data_type = scan_result.get_data_type().clone();
-                        let data_value = data_type.get_default_value().unwrap_or_default();
-                        let path = project.get_project_root().get_path().join("Address");
-                        let module = scan_result.get_module();
-                        let description = String::new();
-                        let address_item = ProjectItemTypeAddress::new_project_item(&path, address, module, &description, data_value);
+                        let data_type_ref = scan_result.get_data_type_ref();
+                        if let Some(data_value) = data_type_registry_guard.get_default_value(data_type_ref) {
+                            let address = scan_result.get_address();
+                            let path = project.get_project_root().get_path().join("Address");
+                            let module = scan_result.get_module();
+                            let description = String::new();
+                            let address_item = ProjectItemTypeAddress::new_project_item(&path, address, module, &description, data_value);
 
-                        // Add to project root.
-                        project.get_project_root_mut().append_child(address_item);
-                        project_changed = true;
+                            // Add to project root.
+                            project.get_project_root_mut().append_child(address_item);
+                            project_changed = true;
+                        } else {
+                            log::error!("Error adding scan result, unable to get default value. The data type may no longer be registered.");
+                        }
                     }
 
-                    if let Err(err) = project.save(true) {
-                        log::error!("Failed to save project after adding scan results: {}", err);
+                    if let Err(error) = project.save(true) {
+                        log::error!("Failed to save project after adding scan results: {}", error);
                     }
                 } else {
                     log::warn!("Unable to add scan results, no opened project.");

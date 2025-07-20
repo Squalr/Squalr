@@ -22,7 +22,7 @@ impl ScanResultBase {
         self.address
     }
 
-    pub fn get_data_type(&self) -> &DataTypeRef {
+    pub fn get_data_type_ref(&self) -> &DataTypeRef {
         &self.data_type_ref
     }
 }

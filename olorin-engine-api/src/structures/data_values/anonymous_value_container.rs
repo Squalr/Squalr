@@ -1,5 +1,3 @@
-use crate::registries::data_types::data_type_registry::DataTypeRegistry;
-use crate::structures::data_values::data_value::DataValue;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -10,21 +8,6 @@ pub enum AnonymousValueContainer {
     String(String),
     BinaryValue(String),
     HexadecimalValue(String),
-}
-
-impl AnonymousValueContainer {
-    pub fn deanonymize_value(
-        &self,
-        data_type_id: &str,
-    ) -> Result<DataValue, String> {
-        match DataTypeRegistry::get_instance().get(data_type_id) {
-            Some(data_type) => match data_type.deanonymize_value(&self) {
-                Ok(data_value) => Ok(data_value),
-                Err(error) => Err(format!("Value deanonymization error: {:?}", error)),
-            },
-            None => Err("Cannot deanonymize value: data type is not registered.".into()),
-        }
-    }
 }
 
 impl FromStr for AnonymousValueContainer {

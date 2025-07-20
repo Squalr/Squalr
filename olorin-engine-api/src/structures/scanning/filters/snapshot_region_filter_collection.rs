@@ -1,3 +1,6 @@
+use std::sync::{Arc, RwLock};
+
+use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, scanning::filters::snapshot_region_filter::SnapshotRegionFilter};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -21,6 +24,7 @@ impl SnapshotRegionFilterCollection {
     /// Creates a new collection of filters over a snapshot region,
     /// representing regions of memory with the specified data type and alignment.
     pub fn new(
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         mut snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
         data_type_ref: DataTypeRef,
         memory_alignment: MemoryAlignment,
@@ -43,7 +47,7 @@ impl SnapshotRegionFilterCollection {
         let number_of_results = snapshot_region_filters
             .iter()
             .flatten()
-            .map(|filter| filter.get_element_count(&data_type_ref, memory_alignment))
+            .map(|filter| filter.get_element_count(data_type_registry, &data_type_ref, memory_alignment))
             .sum();
 
         Self {
@@ -84,7 +88,7 @@ impl SnapshotRegionFilterCollection {
     }
 
     /// Gets the data type of this snapshot region filter collection.
-    pub fn get_data_type(&self) -> &DataTypeRef {
+    pub fn get_data_type_ref(&self) -> &DataTypeRef {
         &self.data_type_ref
     }
 

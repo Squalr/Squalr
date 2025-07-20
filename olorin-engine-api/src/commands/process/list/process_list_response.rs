@@ -4,7 +4,7 @@ use crate::commands::process::process_response::ProcessResponse;
 use crate::structures::processes::process_info::ProcessInfo;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProcessListResponse {
     pub processes: Vec<ProcessInfo>,
 }

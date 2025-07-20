@@ -4,7 +4,7 @@ use crate::commands::project::project_response::ProjectResponse;
 use crate::structures::projects::project_info::ProjectInfo;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectCreateResponse {
     pub created_project_info: Option<ProjectInfo>,
 }

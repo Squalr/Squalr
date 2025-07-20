@@ -106,7 +106,12 @@ impl ProjectItem {
     ) {
         self.is_activated = is_activated;
 
-        // JIRA: Look up project item type and run the corresponding code...
+        /*
+        if let Ok(project_item_type_registry) = ProjectItemTypeRegistry::get_instance().get_registry().read() {
+            if let Some(project_item_type) = project_item_type_registry.get(self.item_type.get_project_item_type_id()) {
+                project_item_type.on_activated_changed(self);
+            }
+        }*/
     }
 
     pub fn get_is_container(&self) -> bool {

@@ -1,11 +1,13 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::boyer_moore_table::BoyerMooreTable;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
+use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
 use olorin_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use olorin_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use olorin_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use olorin_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use olorin_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
+use std::sync::{Arc, RwLock};
 
 pub struct ScannerScalarByteArrayBooyerMoore {}
 
@@ -23,6 +25,7 @@ impl Scanner for ScannerScalarByteArrayBooyerMoore {
     /// is used to generate new sub-regions as the scan progresses.
     fn scan_region(
         &self,
+        _data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,

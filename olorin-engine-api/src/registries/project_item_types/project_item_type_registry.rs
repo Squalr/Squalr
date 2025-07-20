@@ -7,7 +7,7 @@ use crate::structures::projects::project_items::{
 };
 use std::{
     collections::HashMap,
-    sync::{Arc, Once, RwLock},
+    sync::{Arc, RwLock},
 };
 
 pub struct ProjectItemTypeRegistry {
@@ -15,22 +15,7 @@ pub struct ProjectItemTypeRegistry {
 }
 
 impl ProjectItemTypeRegistry {
-    pub fn get_instance() -> &'static ProjectItemTypeRegistry {
-        static mut INSTANCE: Option<ProjectItemTypeRegistry> = None;
-        static INIT: Once = Once::new();
-
-        unsafe {
-            INIT.call_once(|| {
-                let instance = ProjectItemTypeRegistry::new();
-                INSTANCE = Some(instance);
-            });
-
-            #[allow(static_mut_refs)]
-            INSTANCE.as_ref().unwrap_unchecked()
-        }
-    }
-
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             registry: Self::create_built_in_types(),
         }

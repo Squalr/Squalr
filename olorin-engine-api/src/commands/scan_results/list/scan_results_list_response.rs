@@ -4,7 +4,7 @@ use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
 use crate::structures::scan_results::scan_result::ScanResult;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ScanResultsListResponse {
     pub scan_results: Vec<ScanResult>,
     pub page_index: u64,

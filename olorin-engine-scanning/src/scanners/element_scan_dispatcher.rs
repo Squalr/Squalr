@@ -8,7 +8,8 @@ use crate::scanners::vector::scanner_vector_overlapping::ScannerVectorOverlappin
 use crate::scanners::vector::scanner_vector_overlapping_bytewise_periodic::ScannerVectorOverlappingBytewisePeriodic;
 use crate::scanners::vector::scanner_vector_overlapping_bytewise_staggered::ScannerVectorOverlappingBytewiseStaggered;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
-use rayon::iter::ParallelIterator;
+use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
+use olorin_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use olorin_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use olorin_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use olorin_engine_api::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
@@ -18,7 +19,9 @@ use olorin_engine_api::structures::scanning::parameters::mapped::mapped_scan_typ
 };
 use olorin_engine_api::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
 use olorin_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
+use rayon::iter::ParallelIterator;
 use std::cmp;
+use std::sync::{Arc, RwLock};
 
 pub struct ElementScanDispatcher {}
 
@@ -27,15 +30,18 @@ pub struct ElementScanDispatcher {}
 impl ElementScanDispatcher {
     /// Performs a scan over a provided filter collection, returning a new filter collection with the results.
     pub fn dispatch_scan(
+        element_scan_rule_registry: &Arc<RwLock<ElementScanRuleRegistry>>,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         element_scan_parameters: &ElementScanParameters,
     ) -> SnapshotRegionFilterCollection {
-        if !element_scan_parameters.is_valid_for_data_type(snapshot_region_filter_collection.get_data_type()) {
+        if !element_scan_parameters.is_valid_for_data_type(snapshot_region_filter_collection.get_data_type_ref()) {
             log::error!("Error in provided scan parameters, unable to start scan!");
             return SnapshotRegionFilterCollection::new(
+                data_type_registry,
                 vec![],
-                snapshot_region_filter_collection.get_data_type().clone(),
+                snapshot_region_filter_collection.get_data_type_ref().clone(),
                 snapshot_region_filter_collection.get_memory_alignment(),
             );
         }
@@ -43,15 +49,28 @@ impl ElementScanDispatcher {
         // The main body of the scan routine performed on a given filter.
         let snapshot_region_scanner = |snapshot_region_filter: &SnapshotRegionFilter| {
             // Map the user scan parameters into an optimized form for improved scanning efficiency.
-            let mapped_scan_parameters = ElementScanExecutionPlanner::map(snapshot_region_filter, snapshot_region_filter_collection, element_scan_parameters);
+            let mapped_scan_parameters = ElementScanExecutionPlanner::map(
+                element_scan_rule_registry,
+                data_type_registry,
+                snapshot_region_filter,
+                snapshot_region_filter_collection,
+                &element_scan_parameters,
+            );
 
             // Execute the scanner that corresponds to the mapped parameters.
             let scanner_instance = Self::aquire_scanner_instance(&mapped_scan_parameters);
-            let filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, &mapped_scan_parameters);
+            let filters = scanner_instance.scan_region(data_type_registry, snapshot_region, snapshot_region_filter, &mapped_scan_parameters);
 
             // If the debug flag is provided, perform a scalar scan to ensure that our specialized scanner has the same results.
             if element_scan_parameters.get_debug_perform_validation_scan() {
-                Self::perform_debug_scan(scanner_instance, &filters, snapshot_region, snapshot_region_filter, &mapped_scan_parameters);
+                Self::perform_debug_scan(
+                    scanner_instance,
+                    data_type_registry,
+                    &filters,
+                    snapshot_region,
+                    snapshot_region_filter,
+                    &mapped_scan_parameters,
+                );
             }
 
             if filters.len() > 0 { Some(filters) } else { None }
@@ -72,8 +91,9 @@ impl ElementScanDispatcher {
         };
 
         SnapshotRegionFilterCollection::new(
+            data_type_registry,
             result_snapshot_region_filters,
-            snapshot_region_filter_collection.get_data_type().clone(),
+            snapshot_region_filter_collection.get_data_type_ref().clone(),
             snapshot_region_filter_collection.get_memory_alignment(),
         )
     }
@@ -130,13 +150,14 @@ impl ElementScanDispatcher {
     /// the results of the scalar scan. This is a way to unit test complex scanner implementations on real world data.
     fn perform_debug_scan(
         scanner_instance: &dyn Scanner,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         filters: &Vec<SnapshotRegionFilter>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,
     ) {
         let debug_scanner_instance = &ScannerScalarIterative {};
-        let debug_filters = debug_scanner_instance.scan_region(snapshot_region, snapshot_region_filter, mapped_scan_parameters);
+        let debug_filters = debug_scanner_instance.scan_region(data_type_registry, snapshot_region, snapshot_region_filter, mapped_scan_parameters);
         let has_length_match = debug_filters.len() == filters.len();
 
         if !has_length_match {

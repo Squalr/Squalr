@@ -1,6 +1,6 @@
 use crate::ScanResultViewData;
-use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use olorin_engine_api::structures::{data_values::display_value_type::DisplayValueType, scan_results::scan_result::ScanResult};
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
 
 pub struct ScanResultConverter {}
 
@@ -25,6 +25,7 @@ impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
         &self,
         scan_result: &ScanResult,
     ) -> ScanResultViewData {
+        let JIRA = 696969420;
         let address = scan_result.get_address();
 
         let address_string = if scan_result.is_module() {
@@ -35,6 +36,7 @@ impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
             format!("{:016X}", address)
         };
 
+        /*
         let current_value_string = match scan_result.get_recently_read_value() {
             Some(recently_read_value) => recently_read_value
                 .get_display_values()
@@ -59,7 +61,14 @@ impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
             current_value: current_value_string.into(),
             previous_value: previous_value_string.into(),
             is_frozen: scan_result.get_is_frozen(),
-            icon_id: scan_result.get_data_type().get_icon_id().into(),
+            icon_id: scan_result.get_data_type_ref().get_icon_id().into(),
+        } */
+        ScanResultViewData {
+            address: address_string.into(),
+            current_value: "CURR".into(),
+            previous_value: "PREV".into(),
+            is_frozen: scan_result.get_is_frozen(),
+            icon_id: "TODO".into(),
         }
     }
 }

@@ -14,6 +14,13 @@ impl ProjectItemType for ProjectItemTypeDirectory {
     fn get_project_item_type_id(&self) -> &str {
         &Self::PROJECT_ITEM_TYPE_ID
     }
+
+    fn on_activated_changed(
+        &self,
+        project_item: &ProjectItem,
+    ) {
+        // JIRA: Implement
+    }
 }
 
 impl ProjectItemTypeDirectory {

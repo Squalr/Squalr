@@ -3,7 +3,7 @@ use crate::commands::engine_command_response::TypedEngineCommandResponse;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ScanResultsDeleteResponse {}
 
 impl TypedEngineCommandResponse for ScanResultsDeleteResponse {

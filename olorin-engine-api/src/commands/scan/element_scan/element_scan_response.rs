@@ -4,7 +4,7 @@ use crate::commands::scan::scan_response::ScanResponse;
 use crate::structures::tasks::trackable_task_handle::TrackableTaskHandle;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ElementScanResponse {
     pub trackable_task_handle: Option<TrackableTaskHandle>,
 }

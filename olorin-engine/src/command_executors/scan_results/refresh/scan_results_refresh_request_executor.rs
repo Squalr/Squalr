@@ -53,11 +53,8 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
                 module_offset = address;
             }
 
-            let is_frozen = if let Ok(snapshot_scan_result_freeze_list) = engine_privileged_state
-                .get_snapshot_scan_result_freeze_list()
-                .read()
-            {
-                snapshot_scan_result_freeze_list.is_address_frozen(address)
+            let is_frozen = if let Ok(freeze_list_registry) = engine_privileged_state.get_freeze_list_registry().read() {
+                freeze_list_registry.is_address_frozen(address)
             } else {
                 false
             };

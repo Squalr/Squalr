@@ -11,6 +11,7 @@ use olorin_engine::engine_execution_context::EngineExecutionContext;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use olorin_engine_api::dependency_injection::lazy::Lazy;
 use olorin_engine_api::structures::data_values::anonymous_value::AnonymousValue;
+use olorin_engine_api::structures::data_values::data_value::DataValue;
 use olorin_engine_api::structures::structs::valued_struct::ValuedStruct;
 use slint::ComponentHandle;
 use slint::SharedString;
@@ -92,10 +93,13 @@ impl StructViewerViewModel {
 
         let anonymous_value = AnonymousValue::new(&new_value.to_string(), display_value);
 
+        /*
         let Ok(data_value) = anonymous_value.deanonymize_value(data_type_ref.get_data_type_id()) else {
             log::warn!("Failed to deanonymize value for data type id: {}", data_type_ref.get_data_type_id());
             return;
-        };
+        };*/
+        let JIRA = 6942069;
+        let data_value = DataValue::default();
 
         let Ok(struct_viewer_domain_lock) = view_model.struct_viewer_domain.read() else {
             log::error!("Failed to acquire read lock for struct viewer domain.");

@@ -1,6 +1,11 @@
-use crate::structures::structs::symbolic_struct_field_definition::SymbolicStructFieldDefinition;
+use crate::{
+    registries::data_types::data_type_registry::DataTypeRegistry, structures::structs::symbolic_struct_field_definition::SymbolicStructFieldDefinition,
+};
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
+use std::{
+    str::FromStr,
+    sync::{Arc, RwLock},
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SymbolicStructDefinition {
@@ -19,8 +24,14 @@ impl SymbolicStructDefinition {
         self.fields.push(symbolic_struct_field);
     }
 
-    pub fn get_size_in_bytes(&self) -> u64 {
-        self.fields.iter().map(|field| field.get_size_in_bytes()).sum()
+    pub fn get_size_in_bytes(
+        &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+    ) -> u64 {
+        self.fields
+            .iter()
+            .map(|field| field.get_size_in_bytes(data_type_registry))
+            .sum()
     }
 }
 

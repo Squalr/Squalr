@@ -1,5 +1,6 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
+use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
 use olorin_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use olorin_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use olorin_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
@@ -9,6 +10,7 @@ use olorin_engine_api::structures::scanning::parameters::mapped::mapped_scan_par
 use olorin_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
+use std::sync::{Arc, RwLock};
 
 pub struct ScannerVectorOverlapping<const N: usize>
 where
@@ -86,23 +88,32 @@ where
     /// A run-length encoding algorithm is used to generate new sub-regions as the scan progresses.
     fn scan_region(
         &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return vec![];
+            }
+        };
         let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_values_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type = mapped_scan_parameters.get_data_type();
-        let data_type_size = data_type.get_unit_size_in_bytes();
+        let data_type_ref = mapped_scan_parameters.get_data_type_ref();
+        let data_type_size = data_type_registry_guard.get_unit_size_in_bytes(data_type_ref);
         let memory_alignment = mapped_scan_parameters.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment_size);
 
         let vector_size_in_bytes = N as u64;
-        let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
+        let element_count = snapshot_region_filter.get_element_count(data_type_registry, data_type_ref, memory_alignment);
         let elements_per_vector = vector_size_in_bytes / memory_alignment_size;
         let vectorizable_iterations = element_count / elements_per_vector;
         let vector_element_count = vectorizable_iterations * elements_per_vector;
@@ -115,7 +126,7 @@ where
         debug_assert!(data_type_size > memory_alignment_size);
         debug_assert!(memory_alignment_size == 1 || memory_alignment_size == 2 || memory_alignment_size == 4);
 
-        if let Some(vector_compare_func) = mapped_scan_parameters.get_scan_function_vector() {
+        if let Some(vector_compare_func) = mapped_scan_parameters.get_scan_function_vector(data_type_registry) {
             match vector_compare_func {
                 ScanFunctionVector::Immediate(compare_func) => {
                     // Compare as many full vectors as we can.
@@ -154,7 +165,7 @@ where
             }
         }
 
-        if let Some(scalar_compare_func) = mapped_scan_parameters.get_scan_function_scalar() {
+        if let Some(scalar_compare_func) = mapped_scan_parameters.get_scan_function_scalar(data_type_registry) {
             match scalar_compare_func {
                 ScanFunctionScalar::Immediate(compare_func) => {
                     // Handle remainder elements (reverting to scalar comparisons.)

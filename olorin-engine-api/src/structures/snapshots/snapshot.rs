@@ -1,6 +1,8 @@
+use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::cmp;
+use std::sync::{Arc, RwLock};
 
 pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,
@@ -69,6 +71,7 @@ impl Snapshot {
     /// containing the index, followed by a binary search to find the exact filter, and finally the scan result.
     pub fn get_scan_result(
         &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         scan_result_index: u64,
     ) -> Option<ScanResultValued> {
         let mut scan_result_index = scan_result_index;
@@ -78,7 +81,7 @@ impl Snapshot {
             let number_of_region_results = snapshot_region_scan_results.get_number_of_results();
 
             if scan_result_index < number_of_region_results {
-                return snapshot_region_scan_results.get_scan_result(snapshot_region, scan_result_index);
+                return snapshot_region_scan_results.get_scan_result(data_type_registry, snapshot_region, scan_result_index);
             }
 
             scan_result_index = scan_result_index.saturating_sub(number_of_region_results);

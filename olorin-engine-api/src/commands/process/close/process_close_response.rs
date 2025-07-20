@@ -4,7 +4,7 @@ use crate::commands::process::process_response::ProcessResponse;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProcessCloseResponse {
     pub process_info: Option<OpenedProcessInfo>,
 }

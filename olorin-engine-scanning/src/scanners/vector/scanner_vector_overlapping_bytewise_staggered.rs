@@ -1,5 +1,6 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
+use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
 use olorin_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use olorin_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use olorin_engine_api::structures::data_values::data_value::DataValue;
@@ -11,6 +12,7 @@ use olorin_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::ptr;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
+use std::sync::{Arc, RwLock};
 
 pub struct ScannerVectorOverlappingBytewiseStaggered<const N: usize>
 where
@@ -77,10 +79,19 @@ where
 
     fn scan_region(
         &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return vec![];
+            }
+        };
         let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
@@ -89,8 +100,8 @@ where
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
 
-        let data_type = mapped_scan_parameters.get_data_type();
-        let data_type_size = data_type.get_unit_size_in_bytes();
+        let data_type_ref = mapped_scan_parameters.get_data_type_ref();
+        let data_type_size = data_type_registry_guard.get_unit_size_in_bytes(data_type_ref);
         let data_type_size_padding = data_type_size.saturating_sub(mapped_scan_parameters.get_memory_alignment() as u64);
         let memory_alignment = mapped_scan_parameters.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
@@ -98,7 +109,7 @@ where
         let vector_size_in_bytes = N;
         let vector_underflow = data_type_size as usize;
         let vector_compare_size = vector_size_in_bytes.saturating_sub(vector_underflow) as u64;
-        let element_count = snapshot_region_filter.get_element_count(data_type, memory_alignment);
+        let element_count = snapshot_region_filter.get_element_count(data_type_registry, data_type_ref, memory_alignment);
         let vectorizable_iterations = region_size / vector_compare_size; // JIRA: Memory alignment!
         let remainder_bytes = region_size % vector_compare_size;
         let remainder_element_count: u64 = (remainder_bytes / memory_alignment_size).saturating_sub(data_type_size.saturating_sub(1));
@@ -232,7 +243,9 @@ where
         }
 
         // Handle remainder elements.
-        if let Some(compare_func) = data_type.get_scalar_compare_func_immediate(&scan_compare_type_immediate, mapped_scan_parameters) {
+        if let Some(compare_func) =
+            data_type_registry_guard.get_scalar_compare_func_immediate(data_type_ref, &scan_compare_type_immediate, mapped_scan_parameters)
+        {
             for index in vectorizable_element_count..element_count {
                 let current_value_pointer = unsafe { current_values_pointer.add(index as usize * memory_alignment_size as usize) };
                 let compare_result = compare_func(current_value_pointer);

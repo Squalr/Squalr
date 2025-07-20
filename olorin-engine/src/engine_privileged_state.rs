@@ -4,7 +4,10 @@ use crate::engine_mode::EngineMode;
 use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
 use olorin_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
-use olorin_engine_api::structures::results::snapshot_scan_result_freeze_list::SnapshotScanResultFreezeList;
+use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
+use olorin_engine_api::registries::freeze_list::freeze_list_registry::FreezeListRegistry;
+use olorin_engine_api::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
+use olorin_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use olorin_engine_api::structures::snapshots::snapshot::Snapshot;
 use olorin_engine_processes::process::process_manager::ProcessManager;
 use olorin_engine_processes::process_query::process_queryer::ProcessQuery;
@@ -26,11 +29,20 @@ pub struct EnginePrivilegedState {
     /// The current snapshot of process memory, including any scan results.
     snapshot: Arc<RwLock<Snapshot>>,
 
-    // The list of frozen scan results.
-    snapshot_scan_result_freeze_list: Arc<RwLock<SnapshotScanResultFreezeList>>,
-
     /// Defines functionality that can be invoked by the engine for the GUI or CLI to handle.
     engine_bindings: Arc<RwLock<dyn EnginePrivilegedBindings>>,
+
+    // The list of frozen scan results.
+    freeze_list_registry: Arc<RwLock<FreezeListRegistry>>,
+
+    /// The registry for data types.
+    data_type_registry: Arc<RwLock<DataTypeRegistry>>,
+
+    /// The registry for project item types.
+    project_item_type_registry: Arc<RwLock<ProjectItemTypeRegistry>>,
+
+    /// The registry for element scan rules.
+    element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
 }
 
 impl EnginePrivilegedState {
@@ -46,17 +58,23 @@ impl EnginePrivilegedState {
         let project_manager = ProjectManager::new(event_emitter);
         let task_manager = TrackableTaskManager::new();
         let snapshot = Arc::new(RwLock::new(Snapshot::new()));
-        let snapshot_scan_result_freeze_list = Arc::new(RwLock::new(SnapshotScanResultFreezeList::new()));
+        let freeze_list_registry = Arc::new(RwLock::new(FreezeListRegistry::new()));
+        let data_type_registry = Arc::new(RwLock::new(DataTypeRegistry::new()));
+        let project_item_type_registry = Arc::new(RwLock::new(ProjectItemTypeRegistry::new()));
+        let element_scan_rule_registry = Arc::new(RwLock::new(ElementScanRuleRegistry::new()));
 
-        SnapshotScanResultFreezeTask::start_task(process_manager.get_opened_process_ref(), snapshot_scan_result_freeze_list.clone());
+        SnapshotScanResultFreezeTask::start_task(process_manager.get_opened_process_ref(), freeze_list_registry.clone());
 
         let execution_context = Arc::new(EnginePrivilegedState {
             process_manager,
             project_manager,
             task_manager,
             snapshot,
-            snapshot_scan_result_freeze_list,
             engine_bindings,
+            freeze_list_registry,
+            data_type_registry,
+            project_item_type_registry,
+            element_scan_rule_registry,
         });
 
         execution_context
@@ -101,9 +119,24 @@ impl EnginePrivilegedState {
         self.snapshot.clone()
     }
 
-    /// Gets the list of scan results that have been marked as frozen.
-    pub fn get_snapshot_scan_result_freeze_list(&self) -> Arc<RwLock<SnapshotScanResultFreezeList>> {
-        self.snapshot_scan_result_freeze_list.clone()
+    /// Gets the registry for the list of addresses that have been marked as frozen.
+    pub fn get_freeze_list_registry(&self) -> Arc<RwLock<FreezeListRegistry>> {
+        self.freeze_list_registry.clone()
+    }
+
+    /// Gets registry for data types.
+    pub fn get_data_type_registry(&self) -> Arc<RwLock<DataTypeRegistry>> {
+        self.data_type_registry.clone()
+    }
+
+    /// Gets registry for project item types.
+    pub fn get_project_item_type_registry(&self) -> Arc<RwLock<ProjectItemTypeRegistry>> {
+        self.project_item_type_registry.clone()
+    }
+
+    /// Gets registry for element scan rules.
+    pub fn get_element_scan_rule_registry(&self) -> Arc<RwLock<ElementScanRuleRegistry>> {
+        self.element_scan_rule_registry.clone()
     }
 
     /// Dispatches an event from the engine.

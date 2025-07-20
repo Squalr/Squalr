@@ -17,6 +17,15 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+        let data_type_registry = engine_privileged_state.get_data_type_registry();
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return ScanResultsListResponse::default();
+            }
+        };
         let results_page_size = (ScanSettingsConfig::get_results_page_size() as u64).max(1);
         let mut scan_results_list = vec![];
         let mut last_page_index = 0;
@@ -45,7 +54,8 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
                 .min(result_count);
 
             for result_index in index_of_first_page_entry..index_of_last_page_entry {
-                let scan_result_base = match snapshot.get_scan_result(result_index) {
+                let data_type_registry = engine_privileged_state.get_data_type_registry();
+                let scan_result_base = match snapshot.get_scan_result(&data_type_registry, result_index) {
                     None => break,
                     Some(scan_result_base) => scan_result_base,
                 };
@@ -60,7 +70,9 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
                     .get_process_manager()
                     .get_opened_process()
                 {
-                    if let Some(mut data_value) = scan_result_base.get_data_type().get_default_value() {
+                    let data_type_ref = scan_result_base.get_data_type_ref();
+
+                    if let Some(mut data_value) = data_type_registry_guard.get_default_value(data_type_ref) {
                         if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
                             recently_read_value = Some(data_value);
                         }
@@ -73,11 +85,8 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
                     module_offset = address;
                 }
 
-                let is_frozen = if let Ok(snapshot_scan_result_freeze_list) = engine_privileged_state
-                    .get_snapshot_scan_result_freeze_list()
-                    .read()
-                {
-                    snapshot_scan_result_freeze_list.is_address_frozen(address)
+                let is_frozen = if let Ok(freeze_list_registry) = engine_privileged_state.get_freeze_list_registry().read() {
+                    freeze_list_registry.is_address_frozen(address)
                 } else {
                     false
                 };

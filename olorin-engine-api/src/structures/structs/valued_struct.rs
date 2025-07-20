@@ -3,7 +3,7 @@ use crate::structures::structs::{symbolic_struct_ref::SymbolicStructRef, valued_
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ValuedStruct {
     symbolic_struct_ref: SymbolicStructRef,
     fields: Vec<ValuedStructField>,

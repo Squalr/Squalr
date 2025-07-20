@@ -1,8 +1,9 @@
 use crate::scanners::element_scan_dispatcher::ElementScanDispatcher;
 use crate::scanners::snapshot_region_memory_reader::SnapshotRegionMemoryReader;
 use crate::scanners::value_collector_task::ValueCollectorTask;
-use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use olorin_engine_api::conversions::conversions::Conversions;
+use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
+use olorin_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use olorin_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use olorin_engine_api::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use olorin_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
@@ -10,6 +11,7 @@ use olorin_engine_api::structures::scanning::parameters::element_scan::element_s
 use olorin_engine_api::structures::snapshots::snapshot::Snapshot;
 use olorin_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use olorin_engine_api::structures::tasks::trackable_task::TrackableTask;
+use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -25,15 +27,24 @@ impl ElementScanExecutorTask {
     pub fn start_task(
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        element_scan_parameters: &ElementScanParameters,
+        element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
+        data_type_registry: Arc<RwLock<DataTypeRegistry>>,
+        element_scan_parameters: ElementScanParameters,
         with_logging: bool,
     ) -> Arc<TrackableTask> {
         let task = TrackableTask::create(TASK_NAME.to_string(), None);
         let task_clone = task.clone();
-        let element_scan_parameters_clone = element_scan_parameters.clone();
 
         thread::spawn(move || {
-            Self::scan_task(&task_clone, process_info, snapshot, &element_scan_parameters_clone, with_logging);
+            Self::scan_task(
+                &task_clone,
+                process_info,
+                snapshot,
+                element_scan_rule_registry,
+                data_type_registry,
+                element_scan_parameters,
+                with_logging,
+            );
 
             task_clone.complete();
         });
@@ -45,7 +56,9 @@ impl ElementScanExecutorTask {
         trackable_task: &Arc<TrackableTask>,
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        element_scan_parameters: &ElementScanParameters,
+        element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
+        data_type_registry: Arc<RwLock<DataTypeRegistry>>,
+        element_scan_parameters: ElementScanParameters,
         with_logging: bool,
     ) {
         let total_start_time = Instant::now();
@@ -84,7 +97,7 @@ impl ElementScanExecutorTask {
             }
 
             // Creates initial results if none exist yet.
-            snapshot_region.initialize_scan_results(element_scan_parameters.get_element_scan_values());
+            snapshot_region.initialize_scan_results(&data_type_registry, element_scan_parameters.get_element_scan_values());
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
             if element_scan_parameters.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
@@ -98,7 +111,13 @@ impl ElementScanExecutorTask {
 
             // Create a function to dispatch our element scan to the best scanner implementation for the current region.
             let element_scan_dispatcher = |snapshot_region_filter_collection| {
-                ElementScanDispatcher::dispatch_scan(snapshot_region, snapshot_region_filter_collection, element_scan_parameters)
+                ElementScanDispatcher::dispatch_scan(
+                    &element_scan_rule_registry,
+                    &data_type_registry,
+                    snapshot_region,
+                    snapshot_region_filter_collection,
+                    &element_scan_parameters,
+                )
             };
 
             // Again, select the parallel or sequential iterator to iterate over each data type in the scan. Generally there is only 1, but multi-type scans are supported.

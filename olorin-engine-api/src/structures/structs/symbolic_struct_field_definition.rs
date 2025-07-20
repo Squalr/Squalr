@@ -1,27 +1,44 @@
-use crate::structures::{data_types::data_type_ref::DataTypeRef, structs::container_type::ContainerType};
+use crate::{
+    registries::data_types::data_type_registry::DataTypeRegistry,
+    structures::{data_types::data_type_ref::DataTypeRef, structs::container_type::ContainerType},
+};
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
+use std::{
+    str::FromStr,
+    sync::{Arc, RwLock},
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SymbolicStructFieldDefinition {
-    data_type: DataTypeRef,
+    data_type_ref: DataTypeRef,
     container_type: ContainerType,
 }
 
 impl SymbolicStructFieldDefinition {
     pub fn new(
-        data_type: DataTypeRef,
+        data_type_ref: DataTypeRef,
         container_type: ContainerType,
     ) -> Self {
-        SymbolicStructFieldDefinition { data_type, container_type }
+        SymbolicStructFieldDefinition { data_type_ref, container_type }
     }
 
-    pub fn get_size_in_bytes(&self) -> u64 {
-        self.data_type.get_unit_size_in_bytes()
+    pub fn get_size_in_bytes(
+        &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+    ) -> u64 {
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return 0;
+            }
+        };
+        data_type_registry_guard.get_unit_size_in_bytes(&self.data_type_ref)
     }
 
-    pub fn get_value(&self) -> &DataTypeRef {
-        &self.data_type
+    pub fn get_data_type_ref(&self) -> &DataTypeRef {
+        &self.data_type_ref
     }
 }
 

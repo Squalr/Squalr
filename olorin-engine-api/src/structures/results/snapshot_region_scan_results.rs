@@ -1,8 +1,10 @@
+use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef, scan_results::scan_result_valued::ScanResultValued,
     scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection,
 };
+use std::sync::{Arc, RwLock};
 use std::{cmp::Reverse, collections::BinaryHeap};
 
 /// Tracks the scan results for a region, and builds a lookup table that allows mapping a local index to a scan result.
@@ -31,7 +33,7 @@ impl SnapshotRegionScanResults {
         data_type: &DataTypeRef,
     ) -> Option<&SnapshotRegionFilterCollection> {
         for collection in &self.snapshot_region_filter_collections {
-            if collection.get_data_type() == data_type {
+            if collection.get_data_type_ref() == data_type {
                 return Some(&collection);
             }
         }
@@ -42,6 +44,7 @@ impl SnapshotRegionScanResults {
     /// Performs a binary search to find the specified scan result by index.
     pub fn get_scan_result(
         &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         snapshot_region: &SnapshotRegion,
         mut scan_result_index: u64,
     ) -> Option<ScanResultValued> {
@@ -68,8 +71,8 @@ impl SnapshotRegionScanResults {
             let filter = iterator.next().unwrap(); // JIRA: Should be always safe, although I'd prefer to eliminate this.
             let collection = &self.snapshot_region_filter_collections[collection_index];
             let memory_alignment = collection.get_memory_alignment();
-            let data_type = collection.get_data_type();
-            let result_count = filter.get_element_count(data_type, memory_alignment);
+            let data_type = collection.get_data_type_ref();
+            let result_count = filter.get_element_count(data_type_registry, data_type, memory_alignment);
 
             if scan_result_index < result_count {
                 // The desired result is within this filter.
@@ -79,8 +82,8 @@ impl SnapshotRegionScanResults {
                 return Some(ScanResultValued::new(
                     scan_result_address,
                     data_type.clone(),
-                    snapshot_region.get_current_value(scan_result_address, data_type),
-                    snapshot_region.get_previous_value(scan_result_address, data_type),
+                    snapshot_region.get_current_value(data_type_registry, scan_result_address, data_type),
+                    snapshot_region.get_previous_value(data_type_registry, scan_result_address, data_type),
                 ));
             }
 

@@ -45,7 +45,8 @@ impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
                 .min(result_count);
 
             for result_index in index_of_first_page_entry..index_of_last_page_entry {
-                let scan_result_base = match snapshot.get_scan_result(result_index) {
+                let data_type_registry = engine_privileged_state.get_data_type_registry();
+                let scan_result_base = match snapshot.get_scan_result(&data_type_registry, result_index) {
                     None => break,
                     Some(scan_result_base) => scan_result_base,
                 };
@@ -72,11 +73,8 @@ impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
                     module_offset = address;
                 }
 
-                let is_frozen = if let Ok(snapshot_scan_result_freeze_list) = engine_privileged_state
-                    .get_snapshot_scan_result_freeze_list()
-                    .read()
-                {
-                    snapshot_scan_result_freeze_list.is_address_frozen(address)
+                let is_frozen = if let Ok(freeze_list_registry) = engine_privileged_state.get_freeze_list_registry().read() {
+                    freeze_list_registry.is_address_frozen(address)
                 } else {
                     false
                 };

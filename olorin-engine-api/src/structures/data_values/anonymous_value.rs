@@ -1,5 +1,4 @@
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
-use crate::structures::data_values::data_value::DataValue;
 use crate::structures::data_values::display_value::DisplayValue;
 use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::structs::container_type::ContainerType;
@@ -27,18 +26,6 @@ impl AnonymousValue {
 
     pub fn get_value(&self) -> &AnonymousValueContainer {
         &self.anonymous_value_container
-    }
-
-    pub fn deanonymize_value(
-        &self,
-        data_type_id: &str,
-    ) -> Result<DataValue, String> {
-        let deanonymized_values = self
-            .anonymous_value_container
-            .deanonymize_value(data_type_id)
-            .map_err(|error: String| format!("Value deanonymization error: {:?}", error))?;
-
-        Ok(deanonymized_values)
     }
 
     fn parse_anonymous_value(

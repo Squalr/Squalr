@@ -34,8 +34,8 @@ impl ScanResultValued {
         self.scan_result_base.get_address()
     }
 
-    pub fn get_data_type(&self) -> &DataTypeRef {
-        &self.scan_result_base.get_data_type()
+    pub fn get_data_type_ref(&self) -> &DataTypeRef {
+        &self.scan_result_base.get_data_type_ref()
     }
 
     pub fn get_current_value(&self) -> &Option<DataValue> {

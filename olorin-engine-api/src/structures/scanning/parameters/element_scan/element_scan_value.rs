@@ -29,7 +29,7 @@ impl ElementScanValue {
         &mut self.data_value
     }
 
-    pub fn get_data_type(&self) -> &DataTypeRef {
-        &self.data_value.get_data_type()
+    pub fn get_data_type_ref(&self) -> &DataTypeRef {
+        &self.data_value.get_data_type_ref()
     }
 }

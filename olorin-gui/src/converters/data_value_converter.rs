@@ -28,6 +28,8 @@ impl ConvertToViewData<DataValue, DataValueViewData> for DataValueConverter {
         &self,
         data_value: &DataValue,
     ) -> DataValueViewData {
+        let JIRA = 696969420;
+        /*
         let default_display_value = data_value.get_default_display_value();
         let display_values = data_value.get_display_values().get_display_values();
         let mut active_display_value_index = 0;
@@ -44,9 +46,14 @@ impl ConvertToViewData<DataValue, DataValueViewData> for DataValueConverter {
         }
 
         DataValueViewData {
-            data_type_ref: DataTypeRefConverter {}.convert_to_view_data(data_value.get_data_type()),
+            data_type_ref: DataTypeRefConverter {}.convert_to_view_data(data_value.get_data_type_ref()),
             display_values: ModelRc::new(VecModel::from(DisplayValueConverter {}.convert_collection(display_values))),
             active_display_value_index: active_display_value_index as i32,
+        }*/
+        DataValueViewData {
+            data_type_ref: DataTypeRefConverter {}.convert_to_view_data(data_value.get_data_type_ref()),
+            display_values: ModelRc::new(VecModel::from(DisplayValueConverter {}.convert_collection(&vec![]))),
+            active_display_value_index: -1 as i32,
         }
     }
 }

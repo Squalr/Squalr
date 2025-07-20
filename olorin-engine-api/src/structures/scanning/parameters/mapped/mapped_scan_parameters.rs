@@ -1,3 +1,4 @@
+use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::data_types::generics::vector_comparer::VectorComparer;
@@ -14,6 +15,8 @@ use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParam
 use crate::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
 use std::simd::LaneCount;
 use std::simd::SupportedLaneCount;
+use std::sync::Arc;
+use std::sync::RwLock;
 
 /// Represents processed scan parameters derived from user provided scan parameters.
 #[derive(Debug, Clone)]
@@ -33,7 +36,7 @@ impl MappedScanParameters {
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         element_scan_parameters: &ElementScanParameters,
     ) -> Self {
-        let data_type_ref = snapshot_region_filter_collection.get_data_type();
+        let data_type_ref = snapshot_region_filter_collection.get_data_type_ref();
 
         Self {
             data_value_and_alignment: element_scan_parameters.get_data_value_and_alignment_for_data_type(data_type_ref),
@@ -53,8 +56,8 @@ impl MappedScanParameters {
         self.data_value_and_alignment.get_data_value_mut()
     }
 
-    pub fn get_data_type(&self) -> &DataTypeRef {
-        &self.get_data_value().get_data_type()
+    pub fn get_data_type_ref(&self) -> &DataTypeRef {
+        &self.get_data_value().get_data_type_ref()
     }
 
     pub fn get_memory_alignment(&self) -> MemoryAlignment {
@@ -109,29 +112,36 @@ impl MappedScanParameters {
         self.mapped_scan_type = mapped_scan_type;
     }
 
-    pub fn get_scan_function_scalar(&self) -> Option<ScanFunctionScalar> {
+    pub fn get_scan_function_scalar(
+        &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+    ) -> Option<ScanFunctionScalar> {
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return None;
+            }
+        };
+
         match self.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                if let Some(compare_func) = self
-                    .get_data_type()
-                    .get_scalar_compare_func_immediate(&scan_compare_type_immediate, &self)
+                if let Some(compare_func) =
+                    data_type_registry_guard.get_scalar_compare_func_immediate(self.get_data_type_ref(), &scan_compare_type_immediate, &self)
                 {
                     return Some(ScanFunctionScalar::Immediate(compare_func));
                 }
             }
             ScanCompareType::Relative(scan_compare_type_relative) => {
-                if let Some(compare_func) = self
-                    .get_data_type()
-                    .get_scalar_compare_func_relative(&scan_compare_type_relative, &self)
+                if let Some(compare_func) =
+                    data_type_registry_guard.get_scalar_compare_func_relative(self.get_data_type_ref(), &scan_compare_type_relative, &self)
                 {
                     return Some(ScanFunctionScalar::RelativeOrDelta(compare_func));
                 }
             }
             ScanCompareType::Delta(scan_compare_type_delta) => {
-                if let Some(compare_func) = self
-                    .get_data_type()
-                    .get_scalar_compare_func_delta(&scan_compare_type_delta, &self)
-                {
+                if let Some(compare_func) = data_type_registry_guard.get_scalar_compare_func_delta(self.get_data_type_ref(), &scan_compare_type_delta, &self) {
                     return Some(ScanFunctionScalar::RelativeOrDelta(compare_func));
                 }
             }
@@ -140,32 +150,39 @@ impl MappedScanParameters {
         None
     }
 
-    pub fn get_scan_function_vector<const N: usize>(&self) -> Option<ScanFunctionVector<N>>
+    pub fn get_scan_function_vector<const N: usize>(
+        &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+    ) -> Option<ScanFunctionVector<N>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return None;
+            }
+        };
+
         match self.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                if let Some(compare_func) = self
-                    .get_data_type()
-                    .get_vector_compare_func_immediate(&scan_compare_type_immediate, &self)
+                if let Some(compare_func) =
+                    data_type_registry_guard.get_vector_compare_func_immediate(self.get_data_type_ref(), &scan_compare_type_immediate, &self)
                 {
                     return Some(ScanFunctionVector::Immediate(compare_func));
                 }
             }
             ScanCompareType::Relative(scan_compare_type_relative) => {
-                if let Some(compare_func) = self
-                    .get_data_type()
-                    .get_vector_compare_func_relative(&scan_compare_type_relative, &self)
+                if let Some(compare_func) =
+                    data_type_registry_guard.get_vector_compare_func_relative(self.get_data_type_ref(), &scan_compare_type_relative, &self)
                 {
                     return Some(ScanFunctionVector::RelativeOrDelta(compare_func));
                 }
             }
             ScanCompareType::Delta(scan_compare_type_delta) => {
-                if let Some(compare_func) = self
-                    .get_data_type()
-                    .get_vector_compare_func_delta(&scan_compare_type_delta, &self)
-                {
+                if let Some(compare_func) = data_type_registry_guard.get_vector_compare_func_delta(self.get_data_type_ref(), &scan_compare_type_delta, &self) {
                     return Some(ScanFunctionVector::RelativeOrDelta(compare_func));
                 }
             }

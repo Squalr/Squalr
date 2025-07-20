@@ -1,8 +1,14 @@
-use crate::structures::{
-    data_types::data_type_ref::DataTypeRef,
-    memory::{memory_alignment::MemoryAlignment, normalized_region::NormalizedRegion},
+use crate::{
+    registries::data_types::data_type_registry::DataTypeRegistry,
+    structures::{
+        data_types::data_type_ref::DataTypeRef,
+        memory::{memory_alignment::MemoryAlignment, normalized_region::NormalizedRegion},
+    },
 };
-use std::cmp::max;
+use std::{
+    cmp::max,
+    sync::{Arc, RwLock},
+};
 
 /// Defines a range of filtered memory within a snapshot region. These filters are created by
 /// scans to narrow down on a set of desired addresses within the parent snapshot region.
@@ -54,20 +60,28 @@ impl SnapshotRegionFilter {
     /// Gets the number of elements contained by this filter for the given data type and alignment.
     pub fn get_element_count(
         &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         data_type_ref: &DataTypeRef,
         memory_alignment: MemoryAlignment,
     ) -> u64 {
-        let data_type_size = data_type_ref.get_unit_size_in_bytes();
+        let data_type_size_bytes = match data_type_registry.read() {
+            Ok(registry) => registry.get_unit_size_in_bytes(data_type_ref),
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return 0;
+            }
+        };
         let misalignment = self.get_misaligned_starting_byte_count(memory_alignment);
         let memory_alignment: u64 = max(memory_alignment as u64, 1);
-        let trailing_bytes = data_type_size.saturating_sub(memory_alignment);
+        let trailing_bytes = data_type_size_bytes.saturating_sub(memory_alignment);
         let size_in_bytes = self.get_region_size();
         let effective_size_in_bytes = size_in_bytes.saturating_sub(trailing_bytes);
 
         // Check for things that have gone horribly wrong. None of these should ever happen. Happy debugging!
         debug_assert!(memory_alignment > 0);
         debug_assert!(misalignment == 0);
-        debug_assert!(size_in_bytes >= data_type_size);
+        debug_assert!(size_in_bytes >= data_type_size_bytes);
         debug_assert!(size_in_bytes >= trailing_bytes);
 
         effective_size_in_bytes / memory_alignment

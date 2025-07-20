@@ -13,19 +13,20 @@ impl EngineCommandRequestExecutor for ScanResetRequest {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
         let snapshot = engine_privileged_state.get_snapshot();
-        let snapshot_scan_result_freeze_list = engine_privileged_state.get_snapshot_scan_result_freeze_list();
+        let freeze_list_registry = engine_privileged_state.get_freeze_list_registry();
+        let mut freeze_list_registry_guard = match freeze_list_registry.write() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire write lock on FreezeListRegistry: {}", error);
+
+                return ScanResetResponse { success: false };
+            }
+        };
 
         match snapshot.write() {
             Ok(mut snapshot) => {
-                // Best-effort to clear the freeze list.
-                match snapshot_scan_result_freeze_list.read() {
-                    Ok(snapshot_scan_result_freeze_list) => {
-                        snapshot_scan_result_freeze_list.clear();
-                    }
-                    Err(error) => {
-                        log::error!("Failed to acquire write lock on snapshot: {}", error);
-                    }
-                }
+                // Clear the freeze list.
+                freeze_list_registry_guard.clear();
 
                 // Clears snapshot regions to reset the scan.
                 snapshot.set_snapshot_regions(vec![]);

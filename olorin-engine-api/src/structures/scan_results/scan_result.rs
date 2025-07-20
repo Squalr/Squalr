@@ -80,8 +80,8 @@ impl ScanResult {
         self.valued_result.get_address()
     }
 
-    pub fn get_data_type(&self) -> &DataTypeRef {
-        &self.valued_result.get_data_type()
+    pub fn get_data_type_ref(&self) -> &DataTypeRef {
+        &self.valued_result.get_data_type_ref()
     }
 
     pub fn is_module(&self) -> bool {

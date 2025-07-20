@@ -15,6 +15,15 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+        let freeze_list_registry = engine_privileged_state.get_freeze_list_registry();
+        let mut freeze_list_registry_guard = match freeze_list_registry.write() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire write lock on FreezeListRegistry: {}", error);
+
+                return ScanNewResponse::default();
+            }
+        };
         let opened_process_info = engine_privileged_state
             .get_process_manager()
             .get_opened_process();
@@ -23,7 +32,7 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
             None => {
                 log::error!("Cannot start new scan, no opened process.");
 
-                return ScanNewResponse {};
+                return ScanNewResponse::default();
             }
         };
 
@@ -33,21 +42,12 @@ impl EngineCommandRequestExecutor for ScanNewRequest {
             Err(error) => {
                 log::error!("Failed to acquire write lock on snapshot: {}", error);
 
-                return ScanNewResponse {};
+                return ScanNewResponse::default();
             }
         };
 
-        let snapshot_scan_result_freeze_list = engine_privileged_state.get_snapshot_scan_result_freeze_list();
-
         // Best-effort to clear the freeze list.
-        match snapshot_scan_result_freeze_list.read() {
-            Ok(snapshot_scan_result_freeze_list) => {
-                snapshot_scan_result_freeze_list.clear();
-            }
-            Err(error) => {
-                log::error!("Failed to acquire write lock on snapshot: {}", error);
-            }
-        }
+        freeze_list_registry_guard.clear();
 
         // Query all memory pages for the process from the OS.
         let memory_pages = MemoryQueryer::get_memory_page_bounds(&opened_process_info, PageRetrievalMode::FromSettings);

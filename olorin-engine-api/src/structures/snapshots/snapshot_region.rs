@@ -1,3 +1,4 @@
+use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::memory::normalized_region::NormalizedRegion;
@@ -5,6 +6,8 @@ use crate::structures::results::snapshot_region_scan_results::SnapshotRegionScan
 use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;
+use std::sync::Arc;
+use std::sync::RwLock;
 
 /// Defines a contiguous region of memory within a snapshot.
 /// JIRA: Please no public fields. These were made public to support pushing memory reading functionality into a trait.
@@ -52,14 +55,23 @@ impl SnapshotRegion {
     /// Gets the most recent values collected from memory within this snapshot region bounds.
     pub fn get_current_value(
         &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         element_address: u64,
-        data_type: &DataTypeRef,
+        data_type_ref: &DataTypeRef,
     ) -> Option<DataValue> {
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return None;
+            }
+        };
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
-        let data_type_size = data_type.get_unit_size_in_bytes();
+        let data_type_size = data_type_registry_guard.get_unit_size_in_bytes(data_type_ref);
 
         if byte_offset.saturating_add(data_type_size) <= self.current_values.len() as u64 {
-            if let Some(mut data_value) = data_type.get_default_value() {
+            if let Some(mut data_value) = data_type_registry_guard.get_default_value(data_type_ref) {
                 let start = byte_offset as usize;
                 let end = start + data_type_size as usize;
                 data_value.copy_from_bytes(&self.current_values[start..end]);
@@ -76,14 +88,23 @@ impl SnapshotRegion {
     /// Gets the prior values collected from memory within this snapshot region bounds.
     pub fn get_previous_value(
         &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         element_address: u64,
-        data_type: &DataTypeRef,
+        data_type_ref: &DataTypeRef,
     ) -> Option<DataValue> {
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return None;
+            }
+        };
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
-        let data_type_size = data_type.get_unit_size_in_bytes();
+        let data_type_size = data_type_registry_guard.get_unit_size_in_bytes(data_type_ref);
 
         if byte_offset.saturating_add(data_type_size) <= self.previous_values.len() as u64 {
-            if let Some(mut data_value) = data_type.get_default_value() {
+            if let Some(mut data_value) = data_type_registry_guard.get_default_value(data_type_ref) {
                 let start = byte_offset as usize;
                 let end = start + data_type_size as usize;
                 data_value.copy_from_bytes(&self.previous_values[start..end]);
@@ -150,6 +171,7 @@ impl SnapshotRegion {
     // JIRA: Okay great, what about struct scans and whatnot.
     pub fn initialize_scan_results(
         &mut self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         data_values_and_alignments: &Vec<ElementScanValue>,
     ) {
         if self.scan_results.get_filter_collections().len() > 0 {
@@ -160,11 +182,12 @@ impl SnapshotRegion {
             .iter()
             .map(|data_value_and_alignment| {
                 SnapshotRegionFilterCollection::new(
+                    data_type_registry,
                     vec![vec![SnapshotRegionFilter::new(
                         self.get_base_address(),
                         self.get_region_size(),
                     )]],
-                    data_value_and_alignment.get_data_type().clone(),
+                    data_value_and_alignment.get_data_type_ref().clone(),
                     data_value_and_alignment.get_memory_alignment(),
                 )
             })

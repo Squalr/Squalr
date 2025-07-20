@@ -1,8 +1,10 @@
 use crate::scanners::snapshot_scanner::Scanner;
+use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
 use olorin_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use olorin_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use olorin_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use olorin_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
+use std::sync::{Arc, RwLock};
 
 pub struct ScannerScalarSingleElement {}
 
@@ -14,13 +16,14 @@ impl Scanner for ScannerScalarSingleElement {
 
     fn scan_region(
         &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         let mut compare_result = false;
 
-        if let Some(scalar_compare_func) = mapped_scan_parameters.get_scan_function_scalar() {
+        if let Some(scalar_compare_func) = mapped_scan_parameters.get_scan_function_scalar(data_type_registry) {
             match scalar_compare_func {
                 ScanFunctionScalar::Immediate(compare_func) => {
                     let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);

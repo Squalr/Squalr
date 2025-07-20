@@ -3,6 +3,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use olorin_engine_api::commands::scan::element_scan::element_scan_request::ElementScanRequest;
 use olorin_engine_api::commands::scan::element_scan::element_scan_response::ElementScanResponse;
 use olorin_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
+use olorin_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use olorin_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use olorin_engine_api::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
 use olorin_engine_api::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;
@@ -24,17 +25,30 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
         {
             let snapshot = engine_privileged_state.get_snapshot();
             let alignment = ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1);
+            let data_type_registry = engine_privileged_state.get_data_type_registry();
+            let data_type_registry_guard = match data_type_registry.read() {
+                Ok(registry) => registry,
+                Err(error) => {
+                    log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                    return ElementScanResponse { trackable_task_handle: None };
+                }
+            };
             let data_values_and_alignments = self
                 .data_type_ids
                 .iter()
                 .filter_map(|data_type_id| match &self.scan_value {
-                    Some(anonymous_value) => match anonymous_value.deanonymize_value(data_type_id) {
-                        Ok(data_value) => Some(ElementScanValue::new(data_value, alignment)),
-                        Err(error) => {
-                            log::error!("Error mapping data value: {}", error);
-                            None
+                    Some(anonymous_value) => {
+                        let data_type_ref = DataTypeRef::new(data_type_id);
+
+                        match data_type_registry_guard.deanonymize_value(&data_type_ref, anonymous_value.get_value()) {
+                            Ok(data_value) => Some(ElementScanValue::new(data_value, alignment)),
+                            Err(error) => {
+                                log::error!("Error mapping data value: {}", error);
+                                None
+                            }
                         }
-                    },
+                    }
                     None => None,
                 })
                 .collect();
@@ -48,7 +62,9 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
             );
 
             // Start the task to perform the scan.
-            let task = ElementScanExecutorTask::start_task(process_info, snapshot, &scan_parameters, true);
+            let element_scan_rule_registry = engine_privileged_state.get_element_scan_rule_registry();
+            let data_type_registry = engine_privileged_state.get_data_type_registry();
+            let task = ElementScanExecutorTask::start_task(process_info, snapshot, element_scan_rule_registry, data_type_registry, scan_parameters, true);
             let task_handle = task.get_task_handle();
             let engine_privileged_state = engine_privileged_state.clone();
             let progress_receiver = task.subscribe_to_progress_updates();

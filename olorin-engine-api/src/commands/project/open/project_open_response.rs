@@ -5,7 +5,7 @@ use crate::structures::projects::project_info::ProjectInfo;
 use crate::structures::projects::project_items::project_item::ProjectItem;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectOpenResponse {
     pub opened_project_info: Option<ProjectInfo>,
     pub opened_project_root: Option<ProjectItem>,
