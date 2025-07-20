@@ -380,6 +380,7 @@ export global ProjectExplorerViewModelBindings {
     callback export_project(project: ProjectInfoViewData);
     callback create_new_project();
     callback rename_project(project: ProjectInfoViewData, new_project_name: string);
+    callback set_project_entry_activated(project_item_id: string, is_activated: bool);
     in_out property <bool> is_project_open;
     in property <ProjectInfoViewData> opened_project;
     in property <[ProjectInfoViewData]> projects;

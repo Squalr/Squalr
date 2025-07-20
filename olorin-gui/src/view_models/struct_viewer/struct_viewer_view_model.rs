@@ -23,7 +23,7 @@ use std::sync::RwLock;
 
 pub struct StructViewerViewModel {
     view_binding: Arc<ViewBinding<MainWindowView>>,
-    engine_execution_context: Arc<EngineExecutionContext>,
+    _engine_execution_context: Arc<EngineExecutionContext>,
     scan_results_view_model: Lazy<ScanResultsViewModel>,
     struct_viewer_domain: RwLock<StructViewerDomain>,
 }
@@ -40,7 +40,7 @@ impl StructViewerViewModel {
         let scan_results_view_model = dependency_container.get_lazy::<ScanResultsViewModel>();
         let view_model = Arc::new(StructViewerViewModel {
             view_binding: view_binding.clone(),
-            engine_execution_context: engine_execution_context.clone(),
+            _engine_execution_context: engine_execution_context.clone(),
             struct_viewer_domain: RwLock::new(StructViewerDomain::None),
             scan_results_view_model,
         });

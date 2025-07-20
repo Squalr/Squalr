@@ -12,6 +12,7 @@ pub struct ProjectItem {
     /// The unique path to this project item.
     path: PathBuf,
 
+    // The type of this project item.
     item_type: ProjectItemTypeRef,
 
     /// The container for all properties on this project item.

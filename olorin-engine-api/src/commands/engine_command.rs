@@ -1,6 +1,7 @@
 use crate::commands::memory::memory_command::MemoryCommand;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::project::project_command::ProjectCommand;
+use crate::commands::project_items::project_items_command::ProjectItemsCommand;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan_results::scan_results_command::ScanResultsCommand;
 use crate::commands::settings::settings_command::SettingsCommand;
@@ -18,6 +19,9 @@ pub enum EngineCommand {
 
     #[structopt(alias = "proj", alias = "p")]
     Project(ProjectCommand),
+
+    #[structopt(alias = "proj_items", alias = "pi")]
+    ProjectItems(ProjectItemsCommand),
 
     #[structopt(alias = "res", alias = "r")]
     Results(ScanResultsCommand),

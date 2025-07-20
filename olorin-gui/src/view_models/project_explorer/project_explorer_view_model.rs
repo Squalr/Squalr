@@ -13,6 +13,7 @@ use olorin_engine_api::commands::project::list::project_list_request::ProjectLis
 use olorin_engine_api::commands::project::open::project_open_request::ProjectOpenRequest;
 use olorin_engine_api::commands::project::rename::project_rename_request::ProjectRenameRequest;
 use olorin_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
+use olorin_engine_api::commands::project_items::activate::project_items_activate_request::ProjectItemsActivateRequest;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use olorin_engine_api::events::project::closed::project_closed_event::ProjectClosedEvent;
 use olorin_engine_api::events::project::created::project_created_event::ProjectCreatedEvent;
@@ -84,6 +85,7 @@ impl ProjectExplorerViewModel {
                     on_export_project(project_entry: ProjectInfoViewData) -> [view_model] -> Self::on_export_project
                     on_rename_project(project_entry: ProjectInfoViewData, new_project_name: SharedString) -> [view_model] -> Self::on_rename_project
                     on_create_new_project() -> [view_model] -> Self::on_create_new_project
+                    on_set_project_entry_activated(project_item_id: SharedString, is_activated: bool) -> [view_model] -> Self::on_set_project_entry_activated
                 }
             });
         }
@@ -230,5 +232,19 @@ impl ProjectExplorerViewModel {
         };
 
         project_create_request.send(engine_execution_context, move |_project_create_response| {});
+    }
+
+    fn on_set_project_entry_activated(
+        view_model: Arc<ProjectExplorerViewModel>,
+        project_item_id: SharedString,
+        is_activated: bool,
+    ) {
+        let engine_execution_context = &view_model.engine_execution_context;
+        let project_items_activate_request = ProjectItemsActivateRequest {
+            project_item_ids: vec![project_item_id.to_string()],
+            is_activated,
+        };
+
+        project_items_activate_request.send(engine_execution_context, move |_project_items_activate_response| {});
     }
 }
