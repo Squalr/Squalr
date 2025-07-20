@@ -61,6 +61,14 @@ impl ProjectItem {
         project_item
     }
 
+    pub fn get_file_or_directory_name(&self) -> String {
+        self.path
+            .file_name()
+            .and_then(|os_str| os_str.to_str())
+            .unwrap_or("")
+            .to_string()
+    }
+
     pub fn get_path(&self) -> &PathBuf {
         &self.path
     }
@@ -97,6 +105,8 @@ impl ProjectItem {
         is_activated: bool,
     ) {
         self.is_activated = is_activated;
+
+        // JIRA: Look up project item type and run the corresponding code...
     }
 
     pub fn get_is_container(&self) -> bool {

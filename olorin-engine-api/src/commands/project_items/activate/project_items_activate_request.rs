@@ -9,7 +9,7 @@ use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProjectItemsActivateRequest {
     #[structopt(short = "p", long)]
-    pub project_item_ids: Vec<String>,
+    pub project_item_paths: Vec<String>,
     #[structopt(short = "a", long)]
     pub is_activated: bool,
 }

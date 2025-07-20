@@ -36,7 +36,7 @@ export component ProjectItemEntry inherits Button {
                     Checkbox {
                         is_checked: root.project_view_data.is_checked;
                         check_changed(value) => {
-                            ProjectExplorerViewModelBindings.set_project_entry_activated(root.index, value);
+                            ProjectExplorerViewModelBindings.set_project_entry_activated(root.project_view_data.path, value);
                         }
                     }
                 }

@@ -85,7 +85,7 @@ impl ProjectExplorerViewModel {
                     on_export_project(project_entry: ProjectInfoViewData) -> [view_model] -> Self::on_export_project
                     on_rename_project(project_entry: ProjectInfoViewData, new_project_name: SharedString) -> [view_model] -> Self::on_rename_project
                     on_create_new_project() -> [view_model] -> Self::on_create_new_project
-                    on_set_project_entry_activated(project_item_id: SharedString, is_activated: bool) -> [view_model] -> Self::on_set_project_entry_activated
+                    on_set_project_entry_activated(project_item_path: SharedString, is_activated: bool) -> [view_model] -> Self::on_set_project_entry_activated
                 }
             });
         }
@@ -236,12 +236,12 @@ impl ProjectExplorerViewModel {
 
     fn on_set_project_entry_activated(
         view_model: Arc<ProjectExplorerViewModel>,
-        project_item_id: SharedString,
+        project_item_path: SharedString,
         is_activated: bool,
     ) {
         let engine_execution_context = &view_model.engine_execution_context;
         let project_items_activate_request = ProjectItemsActivateRequest {
-            project_item_ids: vec![project_item_id.to_string()],
+            project_item_paths: vec![project_item_path.to_string()],
             is_activated,
         };
 

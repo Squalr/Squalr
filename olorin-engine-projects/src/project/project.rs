@@ -9,7 +9,7 @@ use olorin_engine_api::structures::{
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self},
-    path::Path,
+    path::{Component, Path},
 };
 
 use super::serialization::serializable_project_file::SerializableProjectFile;
@@ -89,5 +89,33 @@ impl Project {
 
     pub fn get_project_root_mut(&mut self) -> &mut ProjectItem {
         &mut self.project_root
+    }
+
+    pub fn find_project_item_mut(
+        &mut self,
+        project_item_path: &Path,
+    ) -> Option<&mut ProjectItem> {
+        // Ensure the path is within the root.
+        let root_path = self.project_root.get_path();
+        let relative_path = project_item_path.strip_prefix(root_path).ok()?;
+
+        // Start at the root and search linearly.
+        let mut current = &mut self.project_root;
+
+        // Iterate each path component (nested directories) of the relative path corresponding to the target project item.
+        for component in relative_path.components() {
+            let name = match component {
+                Component::Normal(os_str) => os_str.to_str()?,
+                _ => return None,
+            };
+
+            // Linear search for the next directory (or final node) among immediate children.
+            current = current
+                .get_children_mut()
+                .iter_mut()
+                .find(|child| child.get_file_or_directory_name() == name)?;
+        }
+
+        Some(current)
     }
 }
