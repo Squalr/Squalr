@@ -49,7 +49,7 @@ impl AnonymousValue {
 
                 anonymous_value_container
             }
-            ContainerType::Pointer => {
+            ContainerType::Pointer32 | ContainerType::Pointer64 => {
                 let data_value_string = value_string.to_string();
 
                 match display_value.get_display_value_type() {

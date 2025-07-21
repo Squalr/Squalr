@@ -21,7 +21,10 @@ impl EngineCommandRequestExecutor for MemoryReadRequest {
         {
             log::info!("Reading value from address {}", self.address);
 
-            let mut out_valued_struct = self.valued_struct.clone();
+            let data_type_registry = engine_privileged_state
+                .get_registries()
+                .get_data_type_registry();
+            let mut out_valued_struct = self.struct_definition.get_valued_struct(&data_type_registry);
             let success = MemoryReader::get_instance().read_struct(&process_info, self.address, &mut out_valued_struct);
 
             MemoryReadResponse {

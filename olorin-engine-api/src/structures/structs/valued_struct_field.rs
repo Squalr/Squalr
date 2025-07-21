@@ -8,14 +8,20 @@ use std::fmt;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ValuedStructFieldNode {
-    NestedStruct(Box<ValuedStructField>),
     Value(DataValue),
     Array(DataValue),
     Pointer32(u32),
     Pointer64(u64),
+    NestedStruct(Box<ValuedStructField>),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+impl Default for ValuedStructFieldNode {
+    fn default() -> Self {
+        ValuedStructFieldNode::Value(DataValue::default())
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ValuedStructField {
     name: String,
     field_node: ValuedStructFieldNode,
@@ -37,11 +43,11 @@ impl ValuedStructField {
 
     pub fn get_data_value(&self) -> Option<&DataValue> {
         match &self.field_node {
-            ValuedStructFieldNode::NestedStruct(_nested_struct) => None,
             ValuedStructFieldNode::Value(data_value) => Some(data_value),
             ValuedStructFieldNode::Array(data_value) => Some(data_value),
             ValuedStructFieldNode::Pointer32(_value) => None,
             ValuedStructFieldNode::Pointer64(_value) => None,
+            ValuedStructFieldNode::NestedStruct(_nested_struct) => None,
         }
     }
 

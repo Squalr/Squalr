@@ -1,6 +1,12 @@
 use crate::{
     registries::data_types::data_type_registry::DataTypeRegistry,
-    structures::{data_types::data_type_ref::DataTypeRef, structs::container_type::ContainerType},
+    structures::{
+        data_types::data_type_ref::DataTypeRef,
+        structs::{
+            container_type::ContainerType,
+            valued_struct_field::{ValuedStructField, ValuedStructFieldNode},
+        },
+    },
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -20,6 +26,44 @@ impl SymbolicStructFieldDefinition {
         container_type: ContainerType,
     ) -> Self {
         SymbolicStructFieldDefinition { data_type_ref, container_type }
+    }
+
+    pub fn get_valued_struct_field(
+        &self,
+        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        is_read_only: bool,
+    ) -> ValuedStructField {
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return ValuedStructField::default();
+            }
+        };
+        let field_node = match self.container_type {
+            ContainerType::None => {
+                let default_value = data_type_registry_guard
+                    .get_default_value(&self.data_type_ref)
+                    .unwrap_or_default();
+                ValuedStructFieldNode::Value(default_value)
+            }
+            ContainerType::Pointer32 => ValuedStructFieldNode::Pointer32(0),
+            ContainerType::Pointer64 => ValuedStructFieldNode::Pointer64(0),
+            ContainerType::Array(length) => {
+                let mut array_value = data_type_registry_guard
+                    .get_default_value(&self.data_type_ref)
+                    .unwrap_or_default();
+                let default_bytes = array_value.get_value_bytes();
+                let repeated_bytes = default_bytes.repeat(length as usize);
+
+                array_value.copy_from_bytes(&repeated_bytes);
+
+                ValuedStructFieldNode::Array(array_value)
+            }
+        };
+
+        ValuedStructField::new(String::new(), field_node, is_read_only)
     }
 
     pub fn get_size_in_bytes(
@@ -60,8 +104,12 @@ impl FromStr for SymbolicStructFieldDefinition {
             } else {
                 return Err("Missing closing ']' in array type".into());
             }
+        } else if let Some(stripped) = string.strip_suffix("*(32)") {
+            (stripped, ContainerType::Pointer32)
+        } else if let Some(stripped) = string.strip_suffix("*(64)") {
+            (stripped, ContainerType::Pointer64)
         } else if let Some(stripped) = string.strip_suffix('*') {
-            (stripped, ContainerType::Pointer)
+            (stripped, ContainerType::Pointer64)
         } else {
             (string, ContainerType::None)
         };

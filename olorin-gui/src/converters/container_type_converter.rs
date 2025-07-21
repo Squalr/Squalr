@@ -1,7 +1,7 @@
 use crate::ContainerTypeView;
+use olorin_engine_api::structures::structs::container_type::ContainerType;
 use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
-use olorin_engine_api::structures::structs::container_type::ContainerType;
 
 pub struct ContainerTypeConverter {}
 
@@ -29,7 +29,8 @@ impl ConvertToViewData<ContainerType, ContainerTypeView> for ContainerTypeConver
         match container_type {
             ContainerType::None => ContainerTypeView::None,
             ContainerType::Array(length) => ContainerTypeView::Array,
-            ContainerType::Pointer => ContainerTypeView::Pointer,
+            ContainerType::Pointer32 => ContainerTypeView::Pointer32,
+            ContainerType::Pointer64 => ContainerTypeView::Pointer64,
         }
     }
 }
@@ -39,10 +40,13 @@ impl ConvertFromViewData<ContainerType, ContainerTypeView> for ContainerTypeConv
         &self,
         container_type: &ContainerTypeView,
     ) -> ContainerType {
+        let JIRA = 69;
+
         match container_type {
             ContainerTypeView::None => ContainerType::None,
-            ContainerTypeView::Array => ContainerType::Array(69),
-            ContainerTypeView::Pointer => ContainerType::Pointer,
+            ContainerTypeView::Array => ContainerType::Array(JIRA),
+            ContainerTypeView::Pointer32 => ContainerType::Pointer32,
+            ContainerTypeView::Pointer64 => ContainerType::Pointer64,
         }
     }
 }

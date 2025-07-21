@@ -6,7 +6,8 @@ pub enum ContainerType {
     #[default]
     None,
     Array(u64),
-    Pointer,
+    Pointer32,
+    Pointer64,
 }
 
 impl fmt::Display for ContainerType {
@@ -17,7 +18,8 @@ impl fmt::Display for ContainerType {
         let container_type_str = match &self {
             ContainerType::None => String::new(),
             ContainerType::Array(length) => format!("[{}]", length).to_string(),
-            ContainerType::Pointer => "*".to_string(),
+            ContainerType::Pointer32 => "*(32)".to_string(),
+            ContainerType::Pointer64 => "*(64)".to_string(),
         };
 
         write!(formatter, "{}", container_type_str)
