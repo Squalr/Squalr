@@ -1,7 +1,8 @@
+use crate::registries::registries::Registries;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, data_values::data_value::DataValue};
+use crate::traits::from_string_privileged::FromStringPrivileged;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 
 /// Represents a base scan result containing only the address and data type.
 /// This will later need to be processed to determine modules, offsets, current values, etc.
@@ -47,10 +48,13 @@ impl ScanResultValued {
     }
 }
 
-impl FromStr for ScanResultValued {
+impl FromStringPrivileged for ScanResultValued {
     type Err = String;
 
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
+    fn from_string_privileged(
+        string: &str,
+        registries: &Registries,
+    ) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = string.split(',').collect();
         if parts.len() < 2 {
             return Err("Input string must contain at least an address and data type".to_string());
@@ -66,13 +70,13 @@ impl FromStr for ScanResultValued {
         let data_type = parts[1].trim().parse::<DataTypeRef>()?;
 
         let current_value = if parts.len() > 2 && !parts[2].trim().is_empty() {
-            Some(parts[2].trim().parse::<DataValue>()?)
+            Some(DataValue::from_string_privileged(parts[2].trim(), registries)?)
         } else {
             None
         };
 
         let previous_value = if parts.len() > 3 && !parts[3].trim().is_empty() {
-            Some(parts[3].trim().parse::<DataValue>()?)
+            Some(DataValue::from_string_privileged(parts[3].trim(), registries)?)
         } else {
             None
         };

@@ -1,4 +1,5 @@
 use crate::registries::data_types::data_type_registry::DataTypeRegistry;
+use crate::registries::registries::Registries;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::data_values::display_value::DisplayValue;
@@ -7,6 +8,8 @@ use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::structs::valued_struct::ValuedStruct;
 use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldNode};
+use crate::traits::from_string_privileged::FromStringPrivileged;
+use crate::traits::to_string_privileged::ToStringPrivileged;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{self, Debug},
@@ -146,10 +149,13 @@ impl DataValue {
     }
 }
 
-impl FromStr for DataValue {
+impl FromStringPrivileged for DataValue {
     type Err = String;
 
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
+    fn from_string_privileged(
+        string: &str,
+        registries: &Registries,
+    ) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = string.split('=').collect();
 
         if parts.len() < 1 {
@@ -158,22 +164,23 @@ impl FromStr for DataValue {
 
         let data_type_ref = DataTypeRef::from_str(parts[0])?;
         let anonymous_value_container = AnonymousValueContainer::from_str(parts[1])?;
+        let data_type_registry = registries.get_data_type_registry();
+        let data_type_registry_guard = data_type_registry
+            .read()
+            .map_err(|error| format!("Failed to acquire read lock on DataTypeRegistry: {}", error))?;
 
-        let JIRA = 420;
-        /*
-        match anonymous_value_container.deanonymize_value(data_type_ref.get_data_type_id()) {
+        match data_type_registry_guard.deanonymize_value(&data_type_ref, &anonymous_value_container) {
             Ok(value) => Ok(value),
             Err(error) => Err(format!("Unable to parse value: {}", error)),
-        }*/
-
-        Err("Not implemented".to_string())
+        }
     }
 }
 
-impl fmt::Display for DataValue {
-    fn fmt(
+impl ToStringPrivileged for DataValue {
+    fn to_string_privileged(
         &self,
         formatter: &mut fmt::Formatter<'_>,
+        registries: &Registries,
     ) -> fmt::Result {
         let JIRA = 69;
 

@@ -1,7 +1,9 @@
+use crate::registries::registries::Registries;
 use crate::structures::structs::valued_struct_field::ValuedStructField;
 use crate::structures::structs::{symbolic_struct_ref::SymbolicStructRef, valued_struct_field::ValuedStructFieldNode};
+use crate::traits::from_string_privileged::FromStringPrivileged;
 use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
+use std::fmt;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ValuedStruct {
@@ -143,18 +145,21 @@ impl fmt::Display for ValuedStruct {
     }
 }
 
-impl FromStr for ValuedStruct {
+impl FromStringPrivileged for ValuedStruct {
     type Err = String;
 
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
+    fn from_string_privileged(
+        string: &str,
+        registries: &Registries,
+    ) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = string.splitn(2, ':').collect();
         let struct_ref = SymbolicStructRef::new(parts.get(0).unwrap_or(&"").to_string());
 
         let field_data = parts.get(1).unwrap_or(&"");
         let fields = field_data
             .split(';')
-            .filter(|s| !s.trim().is_empty())
-            .map(ValuedStructField::from_str)
+            .filter(|string| !string.trim().is_empty())
+            .map(|string| ValuedStructField::from_string_privileged(string, registries))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(ValuedStruct::new(struct_ref, fields))

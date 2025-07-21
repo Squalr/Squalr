@@ -1,6 +1,10 @@
-use crate::structures::data_values::{data_value::DataValue, display_value::DisplayValue};
+use crate::{
+    registries::registries::Registries,
+    structures::data_values::{data_value::DataValue, display_value::DisplayValue},
+    traits::from_string_privileged::FromStringPrivileged,
+};
 use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
+use std::fmt;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ValuedStructFieldNode {
@@ -186,19 +190,13 @@ impl ValuedStructField {
     }
 }
 
-impl fmt::Display for ValuedStructField {
-    fn fmt(
-        &self,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        write!(formatter, "{}", self.get_display_string(false, 0))
-    }
-}
-
-impl FromStr for ValuedStructField {
+impl FromStringPrivileged for ValuedStructField {
     type Err = String;
 
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
+    fn from_string_privileged(
+        string: &str,
+        registries: &Registries,
+    ) -> Result<Self, Self::Err> {
         let mut parts = string.splitn(2, ':');
         let name = parts
             .next()
@@ -216,7 +214,7 @@ impl FromStr for ValuedStructField {
                 .map(ValuedStructFieldNode::Pointer64)
                 .map_err(|error| error.to_string())?
         } else {
-            DataValue::from_str(value_str)
+            DataValue::from_string_privileged(value_str, registries)
                 .map(ValuedStructFieldNode::Value)
                 .map_err(|error| error.to_string())?
         };
@@ -224,5 +222,14 @@ impl FromStr for ValuedStructField {
         let is_read_only = false;
 
         Ok(ValuedStructField::new(name, field_node, is_read_only))
+    }
+}
+
+impl fmt::Display for ValuedStructField {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(formatter, "{}", self.get_display_string(false, 0))
     }
 }

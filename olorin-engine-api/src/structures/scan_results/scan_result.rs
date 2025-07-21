@@ -1,4 +1,3 @@
-use crate::structures::data_types::built_in_types::bool8::data_type_bool8::DataTypeBool8;
 use crate::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
@@ -6,9 +5,10 @@ use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use crate::structures::structs::valued_struct::ValuedStruct;
+use crate::traits::from_string_privileged::FromStringPrivileged;
+use crate::{registries::registries::Registries, structures::data_types::built_in_types::bool8::data_type_bool8::DataTypeBool8};
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::str::FromStr;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ScanResult {
@@ -130,10 +130,13 @@ impl fmt::Debug for ScanResult {
     }
 }
 
-impl FromStr for ScanResult {
+impl FromStringPrivileged for ScanResult {
     type Err = String;
 
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
+    fn from_string_privileged(
+        string: &str,
+        registries: &Registries,
+    ) -> Result<Self, Self::Err> {
         // Split by comma, expecting 5 fields in order:
         // valued_result, module, module_offset, recently_read_value, is_frozen
         let parts: Vec<&str> = string.split(',').map(|part| part.trim()).collect();
@@ -141,9 +144,8 @@ impl FromStr for ScanResult {
             return Err("Input string must contain exactly 5 comma-separated fields".to_string());
         }
 
-        let valued_result = parts[0]
-            .parse::<ScanResultValued>()
-            .map_err(|error| format!("Failed to parse valued_result: {}", error))?;
+        let valued_result =
+            ScanResultValued::from_string_privileged(parts[0], registries).map_err(|error| format!("Failed to parse valued_result: {}", error))?;
         let module = parts[1]
             .parse::<String>()
             .map_err(|error| format!("Failed to parse module: {}", error))?;
@@ -153,11 +155,7 @@ impl FromStr for ScanResult {
         let recently_read_value = if parts[3].eq_ignore_ascii_case("none") {
             None
         } else {
-            Some(
-                parts[3]
-                    .parse::<DataValue>()
-                    .map_err(|error| format!("Failed to parse recently_read_value: {}", error))?,
-            )
+            Some(DataValue::from_string_privileged(parts[3], registries).map_err(|error| format!("Failed to parse recently_read_value: {}", error))?)
         };
         let is_frozen = parts[4]
             .parse::<bool>()

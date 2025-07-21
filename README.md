@@ -16,6 +16,8 @@ We believe that dynamic analysis should be a first-class citizen. A living progr
 
 Olorin is a spiritual successor to Squalr. Looking for the old C# repo? See [Squalr-Sharp](https://github.com/Squalr/Squalr-Sharp). Note that Squalr is no longer maintained, as Olorin has become the focus.
 
+This project is unaffiliated with any employers of our team members, past, present, or future.
+
 ![OlorinGUI](docs/Olorin.png)
 
 ## Development Philosophy
