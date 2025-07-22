@@ -17,6 +17,15 @@ impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+        let data_type_registry = engine_privileged_state.get_data_type_registry();
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return ScanResultsQueryResponse::default();
+            }
+        };
         let results_page_size = ScanSettingsConfig::get_results_page_size() as u64;
         let mut scan_results_list = vec![];
         let mut last_page_index = 0;
@@ -79,7 +88,20 @@ impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
                     false
                 };
 
-                scan_results_list.push(ScanResult::new(scan_result_base, module_name, module_offset, recently_read_value, is_frozen));
+                let recently_read_display_values = if let Some(data_value) = recently_read_value.as_ref() {
+                    Some(data_type_registry_guard.create_display_values(data_value.get_data_type_ref(), data_value.get_value_bytes()))
+                } else {
+                    None
+                };
+
+                scan_results_list.push(ScanResult::new(
+                    scan_result_base,
+                    module_name,
+                    module_offset,
+                    recently_read_value,
+                    recently_read_display_values,
+                    is_frozen,
+                ));
             }
         }
 

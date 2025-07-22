@@ -16,9 +16,15 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let data_type_registry = engine_privileged_state
-            .get_registries()
-            .get_data_type_registry();
+        let data_type_registry = engine_privileged_state.get_data_type_registry();
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return ScanResultsRefreshResponse::default();
+            }
+        };
         let snapshot = engine_privileged_state.get_snapshot();
         let snapshot_guard = match snapshot.read() {
             Ok(snapshot) => snapshot,
@@ -72,7 +78,20 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
                     false
                 };
 
-                scan_results_list.push(ScanResult::new(scan_result, module_name, module_offset, recently_read_value, is_frozen));
+                let recently_read_display_values = if let Some(data_value) = recently_read_value.as_ref() {
+                    Some(data_type_registry_guard.create_display_values(data_value.get_data_type_ref(), data_value.get_value_bytes()))
+                } else {
+                    None
+                };
+
+                scan_results_list.push(ScanResult::new(
+                    scan_result,
+                    module_name,
+                    module_offset,
+                    recently_read_value,
+                    recently_read_display_values,
+                    is_frozen,
+                ));
             }
         }
 

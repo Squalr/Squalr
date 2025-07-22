@@ -49,6 +49,14 @@ impl SnapshotRegionScanResults {
         snapshot_region: &SnapshotRegion,
         mut scan_result_index: u64,
     ) -> Option<ScanResultValued> {
+        let data_type_registry_guard = match data_type_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+
+                return None;
+            }
+        };
         let mut heap: BinaryHeap<Reverse<(usize, usize)>> = BinaryHeap::new();
 
         // Each entry in heap is (address, collection_index, filter_index).
@@ -72,19 +80,36 @@ impl SnapshotRegionScanResults {
             let filter = iterator.next().unwrap(); // JIRA: Should be always safe, although I'd prefer to eliminate this.
             let collection = &self.snapshot_region_filter_collections[collection_index];
             let memory_alignment = collection.get_memory_alignment();
-            let data_type = collection.get_data_type_ref();
-            let result_count = filter.get_element_count(data_type_registry, data_type, memory_alignment);
+            let data_type_ref = collection.get_data_type_ref();
+            let result_count = filter.get_element_count(data_type_registry, data_type_ref, memory_alignment);
 
             if scan_result_index < result_count {
                 // The desired result is within this filter.
                 let scan_result_address = filter
                     .get_base_address()
                     .saturating_add(scan_result_index * memory_alignment as u64);
+                let current_value = snapshot_region.get_current_value(data_type_registry, scan_result_address, data_type_ref);
+                let previous_value = snapshot_region.get_previous_value(data_type_registry, scan_result_address, data_type_ref);
+                let current_display_values = if let Some(data_value) = current_value.as_ref() {
+                    Some(data_type_registry_guard.create_display_values(data_type_ref, data_value.get_value_bytes()))
+                } else {
+                    None
+                };
+                let previous_display_values = if let Some(data_value) = previous_value.as_ref() {
+                    Some(data_type_registry_guard.create_display_values(data_type_ref, data_value.get_value_bytes()))
+                } else {
+                    None
+                };
+                let icon_id = data_type_registry_guard.get_icon_id(data_type_ref);
+
                 return Some(ScanResultValued::new(
                     scan_result_address,
-                    data_type.clone(),
-                    snapshot_region.get_current_value(data_type_registry, scan_result_address, data_type),
-                    snapshot_region.get_previous_value(data_type_registry, scan_result_address, data_type),
+                    data_type_ref.clone(),
+                    icon_id,
+                    current_value,
+                    current_display_values,
+                    previous_value,
+                    previous_display_values,
                     ScanResultRef::new(scan_result_index),
                 ));
             }

@@ -25,7 +25,6 @@ impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
         &self,
         scan_result: &ScanResult,
     ) -> ScanResultViewData {
-        let JIRA = 696969420;
         let address = scan_result.get_address();
 
         let address_string = if scan_result.is_module() {
@@ -36,23 +35,16 @@ impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
             format!("{:016X}", address)
         };
 
-        /*
-        let current_value_string = match scan_result.get_recently_read_value() {
-            Some(recently_read_value) => recently_read_value
-                .get_display_values()
-                .get_display_value_string(&DisplayValueType::Decimal),
-            None => match scan_result.get_current_value() {
-                Some(current_value) => current_value
-                    .get_display_values()
-                    .get_display_value_string(&DisplayValueType::Decimal),
+        let current_value_string = match scan_result.get_recently_read_display_values() {
+            Some(recently_read_value) => recently_read_value.get_display_value_string(&DisplayValueType::Decimal),
+            None => match scan_result.get_current_display_values() {
+                Some(current_value) => current_value.get_display_value_string(&DisplayValueType::Decimal),
                 None => "??",
             },
         };
 
-        let previous_value_string = match scan_result.get_previous_value() {
-            Some(previous_value) => previous_value
-                .get_display_values()
-                .get_display_value_string(&DisplayValueType::Decimal),
+        let previous_value_string = match scan_result.get_previous_display_values() {
+            Some(previous_value) => previous_value.get_display_value_string(&DisplayValueType::Decimal),
             None => "??",
         };
 
@@ -61,14 +53,7 @@ impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
             current_value: current_value_string.into(),
             previous_value: previous_value_string.into(),
             is_frozen: scan_result.get_is_frozen(),
-            icon_id: scan_result.get_data_type_ref().get_icon_id().into(),
-        } */
-        ScanResultViewData {
-            address: address_string.into(),
-            current_value: "CURR".into(),
-            previous_value: "PREV".into(),
-            is_frozen: scan_result.get_is_frozen(),
-            icon_id: "TODO".into(),
+            icon_id: scan_result.get_icon_id().into(),
         }
     }
 }

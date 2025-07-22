@@ -91,7 +91,20 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
                     false
                 };
 
-                scan_results_list.push(ScanResult::new(scan_result_base, module_name, module_offset, recently_read_value, is_frozen));
+                let recently_read_display_values = if let Some(data_value) = recently_read_value.as_ref() {
+                    Some(data_type_registry_guard.create_display_values(data_value.get_data_type_ref(), data_value.get_value_bytes()))
+                } else {
+                    None
+                };
+
+                scan_results_list.push(ScanResult::new(
+                    scan_result_base,
+                    module_name,
+                    module_offset,
+                    recently_read_value,
+                    recently_read_display_values,
+                    is_frozen,
+                ));
             }
         }
 

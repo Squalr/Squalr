@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct ScanResultBase {
     address: u64,
     data_type_ref: DataTypeRef,
+    icon_id: String,
     scan_result_ref: ScanResultRef,
 }
 
@@ -14,11 +15,13 @@ impl ScanResultBase {
     pub fn new(
         address: u64,
         data_type_ref: DataTypeRef,
+        icon_id: String,
         scan_result_ref: ScanResultRef,
     ) -> Self {
         Self {
             address,
             data_type_ref,
+            icon_id,
             scan_result_ref,
         }
     }
@@ -29,6 +32,10 @@ impl ScanResultBase {
 
     pub fn get_data_type_ref(&self) -> &DataTypeRef {
         &self.data_type_ref
+    }
+
+    pub fn get_icon_id(&self) -> &str {
+        &self.icon_id
     }
 
     pub fn get_scan_result_ref(&self) -> &ScanResultRef {
