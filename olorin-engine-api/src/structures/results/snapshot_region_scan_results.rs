@@ -1,4 +1,5 @@
 use crate::registries::data_types::data_type_registry::DataTypeRegistry;
+use crate::structures::scan_results::scan_result_ref::ScanResultRef;
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef, scan_results::scan_result_valued::ScanResultValued,
@@ -84,6 +85,7 @@ impl SnapshotRegionScanResults {
                     data_type.clone(),
                     snapshot_region.get_current_value(data_type_registry, scan_result_address, data_type),
                     snapshot_region.get_previous_value(data_type_registry, scan_result_address, data_type),
+                    ScanResultRef::new(scan_result_index),
                 ));
             }
 

@@ -1,7 +1,6 @@
-use crate::registries::registries::Registries;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
+use crate::structures::scan_results::scan_result_ref::ScanResultRef;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, data_values::data_value::DataValue};
-use crate::traits::from_string_privileged::FromStringPrivileged;
 use serde::{Deserialize, Serialize};
 
 /// Represents a base scan result containing only the address and data type.
@@ -19,9 +18,10 @@ impl ScanResultValued {
         data_type_ref: DataTypeRef,
         current_value: Option<DataValue>,
         previous_value: Option<DataValue>,
+        handle: ScanResultRef,
     ) -> Self {
         Self {
-            scan_result_base: ScanResultBase::new(address, data_type_ref),
+            scan_result_base: ScanResultBase::new(address, data_type_ref, handle),
             current_value,
             previous_value,
         }
@@ -45,48 +45,5 @@ impl ScanResultValued {
 
     pub fn get_previous_value(&self) -> &Option<DataValue> {
         &self.previous_value
-    }
-}
-
-impl FromStringPrivileged for ScanResultValued {
-    type Err = String;
-
-    fn from_string_privileged(
-        string: &str,
-        registries: &Registries,
-    ) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = string.split(',').collect();
-        if parts.len() < 2 {
-            return Err("Input string must contain at least an address and data type".to_string());
-        }
-
-        let address = match parts[0].trim().parse::<u64>() {
-            Ok(address) => address,
-            Err(error) => {
-                return Err(format!("Failed to parse address: {}", error));
-            }
-        };
-
-        let data_type = parts[1].trim().parse::<DataTypeRef>()?;
-
-        let current_value = if parts.len() > 2 && !parts[2].trim().is_empty() {
-            Some(DataValue::from_string_privileged(parts[2].trim(), registries)?)
-        } else {
-            None
-        };
-
-        let previous_value = if parts.len() > 3 && !parts[3].trim().is_empty() {
-            Some(DataValue::from_string_privileged(parts[3].trim(), registries)?)
-        } else {
-            None
-        };
-
-        let scan_result_base = ScanResultBase::new(address, data_type);
-
-        Ok(ScanResultValued {
-            scan_result_base,
-            current_value,
-            previous_value,
-        })
     }
 }

@@ -17,9 +17,10 @@ use olorin_engine_api::commands::scan_results::set_property::scan_results_set_pr
 use olorin_engine_api::conversions::conversions::Conversions;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use olorin_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
-use olorin_engine_api::structures::data_values::data_value::DataValue;
+use olorin_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use olorin_engine_api::structures::scan_results::scan_result::ScanResult;
 use olorin_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
+use olorin_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::view_binding::ViewBinding;
@@ -114,23 +115,23 @@ impl ScanResultsViewModel {
     pub fn set_selected_scan_results_value(
         &self,
         field_namespace: String,
-        data_value: DataValue,
+        anonymous_value: AnonymousValue,
     ) {
-        let scan_results = self
+        let scan_result_refs = self
             .base_scan_results_collection
             .read()
             .map(|collection| {
                 collection
                     .iter()
-                    .map(|scan_result| scan_result.get_base_result().clone())
+                    .map(|scan_result| scan_result.get_base_result().get_scan_result_ref().clone())
                     .collect()
             })
             .unwrap_or_default();
 
         let scan_results_set_property_request = ScanResultsSetPropertyRequest {
-            scan_results,
+            scan_result_refs,
             field_namespace,
-            data_value,
+            anonymous_value,
         };
 
         scan_results_set_property_request.send(&self.engine_execution_context, move |scan_results_set_property_response| {});
@@ -225,9 +226,9 @@ impl ScanResultsViewModel {
 
         // Fire a request to get all scan result data needed for display.
         let scan_results_refresh_request = ScanResultsRefreshRequest {
-            scan_results: scan_results_to_refresh
+            scan_result_refs: scan_results_to_refresh
                 .iter()
-                .map(|scan_result| scan_result.get_valued_result().clone())
+                .map(|scan_result| scan_result.get_base_result().get_scan_result_ref().clone())
                 .collect(),
         };
 
@@ -350,22 +351,22 @@ impl ScanResultsViewModel {
     }
 
     fn on_add_scan_results_to_project(view_model: Arc<ScanResultsViewModel>) {
-        let scan_results = Self::collect_selected_scan_results(&view_model);
+        let scan_result_refs = Self::collect_selected_scan_result_refs(&view_model);
 
-        if !scan_results.is_empty() {
+        if !scan_result_refs.is_empty() {
             let engine_execution_context = &view_model.engine_execution_context;
-            let scan_results_add_to_project_request = ScanResultsAddToProjectRequest { scan_results };
+            let scan_results_add_to_project_request = ScanResultsAddToProjectRequest { scan_result_refs };
 
             scan_results_add_to_project_request.send(engine_execution_context, |_response| {});
         }
     }
 
     fn on_delete_selected_scan_results(view_model: Arc<ScanResultsViewModel>) {
-        let scan_results = Self::collect_selected_scan_result_bases(&view_model);
+        let scan_result_refs = Self::collect_selected_scan_result_refs(&view_model);
 
-        if !scan_results.is_empty() {
+        if !scan_result_refs.is_empty() {
             let engine_execution_context = &view_model.engine_execution_context;
-            let scan_results_delete_request = ScanResultsDeleteRequest { scan_results };
+            let scan_results_delete_request = ScanResultsDeleteRequest { scan_result_refs };
 
             scan_results_delete_request.send(engine_execution_context, |_response| {});
         }
@@ -377,11 +378,11 @@ impl ScanResultsViewModel {
         is_frozen: bool,
     ) {
         let local_scan_result_indices_vec = (local_scan_result_index..=local_scan_result_index).collect::<Vec<_>>();
-        let scan_results = Self::collect_scan_result_bases_by_indicies(&view_model, &local_scan_result_indices_vec);
+        let scan_result_refs = Self::collect_scan_result_refs_by_indicies(&view_model, &local_scan_result_indices_vec);
 
-        if !scan_results.is_empty() {
+        if !scan_result_refs.is_empty() {
             let engine_execution_context = &view_model.engine_execution_context;
-            let scan_results_freeze_request = ScanResultsFreezeRequest { scan_results, is_frozen };
+            let scan_results_freeze_request = ScanResultsFreezeRequest { scan_result_refs, is_frozen };
 
             scan_results_freeze_request.send(engine_execution_context, |_response| {});
         }
@@ -397,6 +398,23 @@ impl ScanResultsViewModel {
 
             scan_results_freeze_request.send(engine_execution_context, |_response| {});
         }*/
+    }
+
+    fn collect_selected_scan_result_refs(view_model: &Arc<ScanResultsViewModel>) -> Vec<ScanResultRef> {
+        Self::collect_selected_scan_results(view_model)
+            .into_iter()
+            .map(|scan_result| scan_result.get_base_result().get_scan_result_ref().clone())
+            .collect()
+    }
+
+    fn collect_scan_result_refs_by_indicies(
+        view_model: &Arc<ScanResultsViewModel>,
+        local_scan_result_indices: &[i32],
+    ) -> Vec<ScanResultRef> {
+        Self::collect_scan_result_bases_by_indicies(view_model, local_scan_result_indices)
+            .into_iter()
+            .map(|scan_result| scan_result.get_scan_result_ref().clone())
+            .collect()
     }
 
     fn collect_selected_scan_result_bases(view_model: &Arc<ScanResultsViewModel>) -> Vec<ScanResultBase> {

@@ -19,7 +19,16 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
             Err(error) => {
                 log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
 
-                return ScanResultsFreezeResponse {};
+                return ScanResultsFreezeResponse::default();
+            }
+        };
+        let snapshot = engine_privileged_state.get_snapshot();
+        let snapshot_guard = match snapshot.read() {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on Snapshot: {}", error);
+
+                return ScanResultsFreezeResponse::default();
             }
         };
         let freeze_list_registry = engine_privileged_state.get_freeze_list_registry();
@@ -28,27 +37,30 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
             Err(error) => {
                 log::error!("Failed to acquire write lock on FreezeListRegistry: {}", error);
 
-                return ScanResultsFreezeResponse {};
+                return ScanResultsFreezeResponse::default();
             }
         };
 
-        for scan_result in &self.scan_results {
-            let address = scan_result.get_address();
-            if self.is_frozen {
-                if let Some(opened_process_info) = engine_privileged_state
-                    .get_process_manager()
-                    .get_opened_process()
-                {
-                    let data_type_ref = scan_result.get_data_type_ref();
+        for scan_result_ref in &self.scan_result_refs {
+            if let Some(scan_result) = snapshot_guard.get_scan_result(&data_type_registry, scan_result_ref.get_scan_result_index()) {
+                let address = scan_result.get_address();
 
-                    if let Some(mut data_value) = data_type_registry_guard.get_default_value(data_type_ref) {
-                        if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
-                            freeze_list_registry_guard.set_address_frozen(address, data_value);
+                if self.is_frozen {
+                    if let Some(opened_process_info) = engine_privileged_state
+                        .get_process_manager()
+                        .get_opened_process()
+                    {
+                        let data_type_ref = scan_result.get_data_type_ref();
+
+                        if let Some(mut data_value) = data_type_registry_guard.get_default_value(data_type_ref) {
+                            if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
+                                freeze_list_registry_guard.set_address_frozen(address, data_value);
+                            }
                         }
                     }
+                } else {
+                    freeze_list_registry_guard.set_address_unfrozen(address);
                 }
-            } else {
-                freeze_list_registry_guard.set_address_unfrozen(address);
             }
         }
 

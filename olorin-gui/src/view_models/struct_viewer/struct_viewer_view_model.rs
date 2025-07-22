@@ -93,14 +93,6 @@ impl StructViewerViewModel {
 
         let anonymous_value = AnonymousValue::new(&new_value.to_string(), display_value);
 
-        /*
-        let Ok(data_value) = anonymous_value.deanonymize_value(data_type_ref.get_data_type_id()) else {
-            log::warn!("Failed to deanonymize value for data type id: {}", data_type_ref.get_data_type_id());
-            return;
-        };*/
-        let JIRA = 6942069;
-        let data_value = DataValue::default();
-
         let Ok(struct_viewer_domain_lock) = view_model.struct_viewer_domain.read() else {
             log::error!("Failed to acquire read lock for struct viewer domain.");
             return;
@@ -117,7 +109,7 @@ impl StructViewerViewModel {
                     }
                 };
 
-                scan_results_view_model.set_selected_scan_results_value(field_namespace.to_string(), data_value);
+                scan_results_view_model.set_selected_scan_results_value(field_namespace.to_string(), anonymous_value);
             }
         }
     }
