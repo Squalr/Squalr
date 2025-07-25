@@ -45,7 +45,7 @@ impl DataType for DataTypeString {
     }
 
     fn get_icon_id(&self) -> &str {
-        Self::get_data_type_id()
+        Self::get_icon_id()
     }
 
     fn get_size_in_bytes(&self) -> u64 {

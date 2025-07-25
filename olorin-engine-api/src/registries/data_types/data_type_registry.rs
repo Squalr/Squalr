@@ -119,6 +119,24 @@ impl DataTypeRegistry {
         }
     }
 
+    pub fn get_supported_display_types(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Vec<DisplayValueType> {
+        self.get(data_type_ref.get_data_type_id())
+            .map(|data_type| data_type.get_supported_display_types())
+            .unwrap_or_default()
+    }
+
+    pub fn get_default_display_type(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> DisplayValueType {
+        self.get(data_type_ref.get_data_type_id())
+            .map(|data_type| data_type.get_default_display_type())
+            .unwrap_or_default()
+    }
+
     pub fn create_display_values(
         &self,
         data_type_ref: &DataTypeRef,

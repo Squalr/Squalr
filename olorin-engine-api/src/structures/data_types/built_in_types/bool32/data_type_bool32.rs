@@ -22,6 +22,10 @@ impl DataTypeBool32 {
         Self::DATA_TYPE_ID
     }
 
+    pub fn get_icon_id() -> &'static str {
+        "bool"
+    }
+
     fn to_vec(value: ExposedType) -> Vec<u8> {
         (value as PrimitiveType).to_le_bytes().to_vec()
     }
@@ -39,7 +43,7 @@ impl DataType for DataTypeBool32 {
     }
 
     fn get_icon_id(&self) -> &str {
-        "bool"
+        Self::get_icon_id()
     }
 
     fn get_unit_size_in_bytes(&self) -> u64 {

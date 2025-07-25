@@ -43,9 +43,10 @@ impl ConvertToViewData<ValuedStructField, ValuedStructFieldViewData> for ValuedS
 
         ValuedStructFieldViewData {
             name: valued_struct_field.get_name().to_string().into(),
+            namespaced_name: valued_struct_field.get_name().to_string().into(),
+            icon_id: "TODO".to_string().into(),
             data_value: data_value,
             display_value: display_value,
-            namespaced_name: valued_struct_field.get_name().to_string().into(),
             is_read_only: valued_struct_field.get_is_read_only(),
         }
     }

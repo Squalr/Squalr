@@ -19,6 +19,10 @@ impl DataTypeI32be {
         Self::DATA_TYPE_ID
     }
 
+    pub fn get_icon_id() -> &'static str {
+        Self::DATA_TYPE_ID
+    }
+
     fn to_vec(value: PrimitiveType) -> Vec<u8> {
         value.to_be_bytes().to_vec()
     }
@@ -36,7 +40,7 @@ impl DataType for DataTypeI32be {
     }
 
     fn get_icon_id(&self) -> &str {
-        Self::get_data_type_id()
+        Self::get_icon_id()
     }
 
     fn get_unit_size_in_bytes(&self) -> u64 {

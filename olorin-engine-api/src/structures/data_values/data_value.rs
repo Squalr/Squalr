@@ -1,21 +1,12 @@
-use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::registries::registries::Registries;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
-use crate::structures::data_values::display_value::DisplayValue;
-use crate::structures::data_values::display_value_type::DisplayValueType;
-use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::structs::valued_struct::ValuedStruct;
 use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldNode};
 use crate::traits::from_string_privileged::FromStringPrivileged;
-use crate::traits::to_string_privileged::ToStringPrivileged;
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt::{self, Debug},
-    mem,
-    str::FromStr,
-};
+use std::{fmt::Debug, mem, str::FromStr};
 
 /// Represents a value for a `DataType`. Additionally, new `DataType` and `DataValue` pairs can be registered by plugins.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -26,12 +17,6 @@ pub struct DataValue {
     /// The raw bytes of the data value. This could be a large number of underlying values, such as an int, string,
     /// or even a serialized bitfield and mask. It is the responsibility of the `DataType` object to interpret the bytes.
     value_bytes: Vec<u8>,
-
-    /// The display values. These are created when the underlying value bytes change to prevent repeatedly allocating new strings when refreshing a value.
-    // display_values: DisplayValues,
-
-    /// Override to the default display value.
-    display_value_type_override: Option<DisplayValueType>,
 }
 
 impl DataValue {
@@ -39,13 +24,7 @@ impl DataValue {
         data_type_ref: DataTypeRef,
         value_bytes: Vec<u8>,
     ) -> Self {
-        // let display_values = data_type_registry.create_display_values(&data_type_ref, &value_bytes);
-
-        Self {
-            data_type_ref,
-            value_bytes,
-            display_value_type_override: None,
-        }
+        Self { data_type_ref, value_bytes }
     }
 
     pub fn copy_from_bytes(
@@ -55,7 +34,6 @@ impl DataValue {
         // Only update the array and refresh the display value if the bytes are actually changed.
         if self.value_bytes != value_bytes {
             self.value_bytes = value_bytes.to_vec();
-            // self.display_values = data_type_registry.create_display_values(&self.data_type_ref, value_bytes);
         }
     }
 
@@ -85,42 +63,6 @@ impl DataValue {
     pub fn take_value_bytes(&mut self) -> Vec<u8> {
         mem::take(&mut self.value_bytes)
     }
-
-    /*
-    pub fn get_display_values(&self) -> &DisplayValues {
-        &self.display_values
-    }
-
-    pub fn get_display_value_type(&self) -> Option<DisplayValueType> {
-        if let Some(display_value_type) = self.display_value_type_override {
-            Some(display_value_type)
-        } else if let Some(display_value) = self.display_values.get_default_display_value() {
-            Some(*display_value.get_display_value_type())
-        } else {
-            None
-        }
-    }
-
-    pub fn get_display_value(
-        &self,
-        display_value_type: &DisplayValueType,
-    ) -> Option<DisplayValue> {
-        for display_value in self.display_values.get_display_values() {
-            if display_value.get_display_value_type() == display_value_type {
-                return Some(display_value.clone());
-            }
-        }
-
-        None
-    }
-
-    pub fn get_default_display_value(&self) -> Option<&DisplayValue> {
-        self.display_values.get_default_display_value()
-    }
-
-    pub fn get_default_display_value_string(&self) -> &str {
-        self.display_values.get_default_display_value_string()
-    }*/
 
     pub fn as_ptr(&self) -> *const u8 {
         self.value_bytes.as_ptr()
@@ -173,18 +115,5 @@ impl FromStringPrivileged for DataValue {
             Ok(value) => Ok(value),
             Err(error) => Err(format!("Unable to parse value: {}", error)),
         }
-    }
-}
-
-impl ToStringPrivileged for DataValue {
-    fn to_string_privileged(
-        &self,
-        formatter: &mut fmt::Formatter<'_>,
-        registries: &Registries,
-    ) -> fmt::Result {
-        let JIRA = 69;
-
-        // write!(formatter, "{}={:?}", self.get_data_type_id(), self.get_display_values())
-        write!(formatter, "{}={:?}", self.get_data_type_id(), JIRA)
     }
 }

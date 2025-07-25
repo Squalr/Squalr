@@ -41,14 +41,14 @@ export component DataTypeSelector inherits Rectangle {
                     height: 16px;
                     horizontal_alignment: left;
                     vertical_alignment: center;
-                    source: icon_converter.icon_view_to_image(icon_converter.icon_id_to_view(ScannerViewModelBindings.active_data_value.data_type_ref.icon_id));
+                    source: icon_converter.icon_view_to_image(icon_converter.icon_id_to_view(ScannerViewModelBindings.active_icon_id));
                 }
             }
 
             VerticalLayout {
                 alignment: center;
                 Text {
-                    text: root.to_display_string(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                    text: root.to_display_string(ScannerViewModelBindings.active_icon_id);
                     color: Theme.foreground;
                     horizontal_alignment: left;
                     vertical_alignment: center;
@@ -71,8 +71,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: u8. Size: 1 byte. Also known as an unsigned byte, or byte.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u8";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
 
@@ -82,8 +82,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: i8. Size: 1 byte. Also known as a signed byte, or sbyte.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i8";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
             }
@@ -95,8 +95,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: i16. Size: 2 bytes. Also known as a (signed) short integer, or short.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i16";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
 
@@ -106,8 +106,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: i16 (Big Endian). Size: 2 bytes. Also known as a (signed) short integer, or short. Big Endian is generally only used in certain console emulators.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i16be";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
             }
@@ -119,8 +119,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: i32. Size: 4 bytes. Also known as a (signed) integer, or int.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i32";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
 
@@ -130,8 +130,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: i32 (Big Endian). Size: 4 bytes. Also known as a (signed) integer, or int. Big Endian is generally only used in certain console emulators.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i32be";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
             }
@@ -143,8 +143,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: i64. Size: 8 bytes. Also known as a (signed) long integer, long long, or long.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i64";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
 
@@ -154,8 +154,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: i64 (Big Endian). Size: 8 bytes. Also known as a (signed) long integer, long long, or long. Big Endian is generally only used in certain console emulators.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "i64be";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
             }
@@ -167,8 +167,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: u16. Size: 2 bytes. Also known as an unsigned short integer, unsigned short, or ushort.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u16";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
 
@@ -178,8 +178,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: u16 (Big Endian). Size: 2 bytes. Also known as an unsigned short integer, unsigned short, or ushort. Big Endian is generally only used in certain console emulators.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u16be";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
             }
@@ -191,8 +191,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: u32. Size: 4 bytes. Also known as an unsigned integer, unsigned int, or uint.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u32";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
 
@@ -202,8 +202,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: u32 (Big Endian). Size: 4 bytes. Also known as an unsigned integer, unsigned int, or uint. Big Endian is generally only used in certain console emulators.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u32be";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
             }
@@ -215,8 +215,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: u64. Size: 8 bytes. Also known as an unsigned long integer, unsigned long long, or ulong.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u64";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
 
@@ -226,8 +226,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: u64 (Big Endian). Size: 8 bytes. Also known as an unsigned long integer, unsigned long long, or ulong. Big Endian is generally only used in certain console emulators.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "u64be";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
             }
@@ -239,8 +239,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: f32. Size: 4 bytes. Also known as a Single_precision floating point.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "f32";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
 
@@ -250,8 +250,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: f32 (Big Endian). Size: 4 bytes. Also known as a Single_precision floating point. Big Endian is generally only used in certain console emulators.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "f32be";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
             }
@@ -263,8 +263,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: f64. Size: 8 bytes. Also known as a Double_precision floating point.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "f64";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
 
@@ -274,8 +274,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: f64 (Big Endian). Size: 8 bytes. Also known as a Double_precision floating point. Big Endian is generally only used in certain console emulators.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "f64be";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
             }
@@ -318,8 +318,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: string_utf8.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "string_utf8";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
 
@@ -329,8 +329,8 @@ export component DataTypeSelector inherits Rectangle {
                     tooltip_text: @tr("Data Type: string_ascii.");
                     clicked => {
                         ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id = "string_ascii";
-                        ScannerViewModelBindings.active_data_value.data_type_ref.icon_id = icon_converter.icon_view_to_id(self.icon);
-                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id);
+                        ScannerViewModelBindings.active_icon_id = icon_converter.icon_view_to_id(self.icon);
+                        ScannerViewModelBindings.active_data_value.active_display_value_index = ValidationViewModelBindings.get_default_display_type_index_for_data_type(ScannerViewModelBindings.active_data_value.data_type_ref);
                     }
                 }
             }

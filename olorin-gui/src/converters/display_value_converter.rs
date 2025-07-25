@@ -1,9 +1,9 @@
 use crate::DisplayValueViewData;
 use crate::converters::container_type_converter::ContainerTypeConverter;
 use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
+use olorin_engine_api::structures::data_values::display_value::DisplayValue;
 use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
-use olorin_engine_api::structures::data_values::display_value::DisplayValue;
 
 pub struct DisplayValueConverter {}
 

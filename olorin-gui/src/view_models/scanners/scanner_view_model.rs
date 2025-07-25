@@ -6,14 +6,6 @@ use crate::ValueCollectorViewModelBindings;
 use crate::converters::data_value_converter::DataValueConverter;
 use crate::converters::display_value_converter::DisplayValueConverter;
 use crate::converters::scan_constraint_converter::ScanConstraintConverter;
-use slint::ComponentHandle;
-use slint::Model;
-use slint::ModelRc;
-use slint::SharedString;
-use slint_mvvm::convert_from_view_data::ConvertFromViewData;
-use slint_mvvm::convert_to_view_data::ConvertToViewData;
-use slint_mvvm::view_binding::ViewBinding;
-use slint_mvvm_macros::create_view_bindings;
 use olorin_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
 use olorin_engine::engine_execution_context::EngineExecutionContext;
 use olorin_engine_api::commands::scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest;
@@ -23,6 +15,14 @@ use olorin_engine_api::commands::scan::reset::scan_reset_request::ScanResetReque
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use olorin_engine_api::structures::data_types::built_in_types::i32::data_type_i32::DataTypeI32;
 use olorin_engine_api::structures::data_values::anonymous_value::AnonymousValue;
+use slint::ComponentHandle;
+use slint::Model;
+use slint::ModelRc;
+use slint::SharedString;
+use slint_mvvm::convert_from_view_data::ConvertFromViewData;
+use slint_mvvm::convert_to_view_data::ConvertToViewData;
+use slint_mvvm::view_binding::ViewBinding;
+use slint_mvvm_macros::create_view_bindings;
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -81,6 +81,7 @@ impl ScannerViewModel {
                 let data_value = DataTypeI32::get_value_from_primitive(0);
 
                 scanner_view_model_bindings.set_active_data_value(DataValueConverter {}.convert_to_view_data(&data_value));
+                scanner_view_model_bindings.set_active_icon_id(DataTypeI32::get_icon_id().into());
             });
     }
 

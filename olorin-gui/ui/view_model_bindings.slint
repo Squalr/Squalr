@@ -268,7 +268,6 @@ export global ValueCollectorViewModelBindings {
 
 export struct DataTypeRefViewData {
     data_type_id: string,
-    icon_id: string,
 }
 
 export struct DisplayValueViewData {
@@ -279,7 +278,6 @@ export struct DisplayValueViewData {
 
 export struct DataValueViewData {
     data_type_ref: DataTypeRefViewData,
-    display_values: [DisplayValueViewData],
     active_display_value_index: int,
 }
 
@@ -290,6 +288,7 @@ export struct SymbolicStructRefViewData {
 export struct ValuedStructFieldViewData {
     name: string,
     namespaced_name: string,
+    icon_id: string,
     display_value: DisplayValueViewData,
     data_value: DataValueViewData,
     is_read_only: bool,
@@ -303,6 +302,8 @@ export struct ValuedStructViewData {
 
 export global ScannerViewModelBindings {
     in_out property <DataValueViewData> active_data_value;
+    in_out property <string> active_icon_id;
+    in_out property <[DisplayValueViewData]> active_display_values;
     in_out property <ScanConstraintTypeView> active_scan_type: equal;
     callback reset_scan();
     callback start_scan(scan_value: string, data_type_ids: [string], display_value: DisplayValueViewData, scan_constraint: ScanConstraintTypeView);
@@ -432,8 +433,7 @@ export global ConversionsViewModelBindings {
 
 export global ValidationViewModelBindings {
     pure callback validate_data_value(value_string: string, data_type_ref: DataTypeRefViewData, display_value: DisplayValueViewData) -> bool;
-    pure callback validate_anonymous_value(anonymous_value: string, data_type_id: string, display_value: DisplayValueViewData) -> bool;
-    pure callback get_supported_display_types_for_data_type(data_type_id: string) -> [DisplayValueTypeView];
-    pure callback get_default_display_type_for_data_type(data_type_id: string) -> DisplayValueTypeView;
-    pure callback get_default_display_type_index_for_data_type(data_type_id: string) -> int;
+    pure callback get_supported_display_types_for_data_type(data_type_ref: DataTypeRefViewData) -> [DisplayValueTypeView];
+    pure callback get_default_display_type_for_data_type(data_type_ref: DataTypeRefViewData) -> DisplayValueTypeView;
+    pure callback get_default_display_type_index_for_data_type(data_type_ref: DataTypeRefViewData) -> int;
 }

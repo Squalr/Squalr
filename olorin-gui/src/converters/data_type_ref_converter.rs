@@ -26,12 +26,9 @@ impl ConvertToViewData<DataTypeRef, DataTypeRefViewData> for DataTypeRefConverte
         data_type_ref: &DataTypeRef,
     ) -> DataTypeRefViewData {
         let data_type_id = data_type_ref.get_data_type_id();
-        let JIRA = 696969;
-        let icon_id = ""; // data_type_ref.get_icon_id();
 
         DataTypeRefViewData {
             data_type_id: data_type_id.into(),
-            icon_id: icon_id.into(),
         }
     }
 }

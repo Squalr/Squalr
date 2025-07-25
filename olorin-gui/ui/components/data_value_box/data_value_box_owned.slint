@@ -26,7 +26,7 @@ export component DataValueBoxOwned {
     in property <color> border_color: Theme.submenu_border;
     in property <color> invalid_color: Theme.error_red;
     in property <color> read_only_color: Theme.foreground_preview;
-    property <[DisplayValueTypeView]> supported_display_types: ValidationViewModelBindings.get_supported_display_types_for_data_type(root.data_value.data_type_ref.data_type_id);
+    property <[DisplayValueTypeView]> supported_display_types: ValidationViewModelBindings.get_supported_display_types_for_data_type(root.data_value.data_type_ref);
     display_value_typer_converter := DisplayValueTypeConverter { }
 
     callback on_value_submitted(value: string);
@@ -34,7 +34,7 @@ export component DataValueBoxOwned {
         return text_input.text;
     }
     public pure function is_value_valid() -> bool {
-        return ValidationViewModelBindings.validate_anonymous_value(text_input.text, data_value.data_type_ref.data_type_id, root.get_active_display_value());
+        return ValidationViewModelBindings.validate_data_value(text_input.text, data_value.data_type_ref, root.get_active_display_value());
     }
     pure function get_active_display_value() -> DisplayValueViewData {
         return {
