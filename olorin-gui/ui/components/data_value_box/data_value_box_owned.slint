@@ -6,10 +6,11 @@ import { FocusTouchArea } from "../focus_touch_area.slint";
 import { StateLayer } from "../state_layer.slint";
 import { FakeCheckbox } from "../checkboxes/fake_checkbox.slint";
 import { DisplayValueTypeConverter } from "../../converters/display_value_type_converter.slint";
-import { ContainerTypeView, DataValueViewData, DisplayValueViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings, ScanSettingsViewModelBindings } from "../../view_model_bindings.slint";
+import { ContainerTypeView, DataValueViewData, DisplayValueViewData, DisplayValuesViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings, ScanSettingsViewModelBindings } from "../../view_model_bindings.slint";
 
 export component DataValueBoxOwned {
     in_out property <DataValueViewData> data_value;
+    in_out property <int> display_value_index;
     in property <string> initial_value;
     in property <string> preview_text;
     in property <length> text_padding_top: 4px;
@@ -44,7 +45,7 @@ export component DataValueBoxOwned {
         };
     }
     pure function get_active_display_value_type() -> DisplayValueTypeView {
-        return root.supported_display_types[data_value.active_display_value_index];
+        return root.supported_display_types[display_value_index];
     }
     pure function get_display_value_color() -> color {
         if !root.is_value_valid_for_cursor() {
@@ -156,7 +157,7 @@ export component DataValueBoxOwned {
             spacing: 0px;
             for supported_display_type_index in root.supported_display_types.length: Button {
                 clicked => {
-                    data_value.active_display_value_index = supported_display_type_index;
+                    root.display_value_index = supported_display_type_index;
                     context_menu.close();
                 }
                 HorizontalLayout {
@@ -164,7 +165,7 @@ export component DataValueBoxOwned {
                     padding: 8px;
                     spacing: 4px;
                     FakeCheckbox {
-                        is_checked: root.data_value.active_display_value_index == supported_display_type_index;
+                        is_checked: root.display_value_index == supported_display_type_index;
                     }
 
                     Text {
@@ -178,7 +179,7 @@ export component DataValueBoxOwned {
             for supported_display_type_index in root.supported_display_types.length: Button {
                 clicked => {
                     text_input.text = ConversionsViewModelBindings.convert_to_data_type(text_input.text, root.get_active_display_value_type(), root.supported_display_types[supported_display_type_index]);
-                    data_value.active_display_value_index = supported_display_type_index;
+                    display_value_index = supported_display_type_index;
                     context_menu.close();
                 }
                 HorizontalLayout {

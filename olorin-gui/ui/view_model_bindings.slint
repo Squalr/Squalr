@@ -276,9 +276,13 @@ export struct DisplayValueViewData {
     container_type: ContainerTypeView,
 }
 
+export struct DisplayValuesViewData {
+    active_display_values: [DisplayValueViewData],
+    active_display_value_index: int,
+}
+
 export struct DataValueViewData {
     data_type_ref: DataTypeRefViewData,
-    active_display_value_index: int,
 }
 
 export struct SymbolicStructRefViewData {
@@ -289,7 +293,7 @@ export struct ValuedStructFieldViewData {
     name: string,
     namespaced_name: string,
     icon_id: string,
-    display_value: DisplayValueViewData,
+    display_values: DisplayValuesViewData,
     data_value: DataValueViewData,
     is_read_only: bool,
 }
@@ -302,8 +306,8 @@ export struct ValuedStructViewData {
 
 export global ScannerViewModelBindings {
     in_out property <DataValueViewData> active_data_value;
+    in_out property <DisplayValuesViewData> active_display_values;
     in_out property <string> active_icon_id;
-    in_out property <[DisplayValueViewData]> active_display_values;
     in_out property <ScanConstraintTypeView> active_scan_type: equal;
     callback reset_scan();
     callback start_scan(scan_value: string, data_type_ids: [string], display_value: DisplayValueViewData, scan_constraint: ScanConstraintTypeView);
@@ -389,7 +393,12 @@ export global ProjectExplorerViewModelBindings {
     in property <[ProjectItemViewData]> project_items;
 }
 
+export struct ScanResultRefViewData {
+    scan_result_index: int,
+}
+
 export struct ScanResultViewData {
+    scan_result_ref: ScanResultRefViewData,
     address: string,
     current_value: string,
     previous_value: string,

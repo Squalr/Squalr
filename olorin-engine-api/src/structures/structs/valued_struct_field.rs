@@ -1,6 +1,6 @@
 use crate::{
     registries::registries::Registries,
-    structures::data_values::{data_value::DataValue, display_value::DisplayValue},
+    structures::data_values::{data_value::DataValue, display_values::DisplayValues},
     traits::from_string_privileged::FromStringPrivileged,
 };
 use serde::{Deserialize, Serialize};
@@ -70,7 +70,7 @@ impl ValuedStructField {
         self.is_read_only
     }
 
-    pub fn get_display_value(&self) -> Option<&DisplayValue> {
+    pub fn get_display_values(&self) -> Option<&DisplayValues> {
         let JIRA = 42069;
         match &self.field_node {
             ValuedStructFieldNode::NestedStruct(_nested_struct) => None,

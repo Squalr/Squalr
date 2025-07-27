@@ -1,6 +1,6 @@
 use crate::{
     ValuedStructFieldViewData,
-    converters::{data_value_converter::DataValueConverter, display_value_converter::DisplayValueConverter},
+    converters::{data_value_converter::DataValueConverter, display_values_converter::DisplayValuesConverter},
 };
 use olorin_engine_api::structures::structs::valued_struct_field::ValuedStructField;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
@@ -34,9 +34,9 @@ impl ConvertToViewData<ValuedStructField, ValuedStructFieldViewData> for ValuedS
                 .cloned()
                 .unwrap_or_default(),
         );
-        let display_value = DisplayValueConverter {}.convert_to_view_data(
+        let display_values = DisplayValuesConverter {}.convert_to_view_data(
             &valued_struct_field
-                .get_display_value()
+                .get_display_values()
                 .cloned()
                 .unwrap_or_default(),
         );
@@ -46,7 +46,7 @@ impl ConvertToViewData<ValuedStructField, ValuedStructFieldViewData> for ValuedS
             namespaced_name: valued_struct_field.get_name().to_string().into(),
             icon_id: "TODO".to_string().into(),
             data_value: data_value,
-            display_value: display_value,
+            display_values: display_values,
             is_read_only: valued_struct_field.get_is_read_only(),
         }
     }

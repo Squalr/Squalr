@@ -1,4 +1,4 @@
-use crate::ScanResultViewData;
+use crate::{ScanResultViewData, converters::scan_result_ref_converter::ScanResultRefConverter};
 use olorin_engine_api::structures::{data_values::display_value_type::DisplayValueType, scan_results::scan_result::ScanResult};
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
 
@@ -25,6 +25,7 @@ impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
         &self,
         scan_result: &ScanResult,
     ) -> ScanResultViewData {
+        let scan_result_ref = scan_result.get_base_result().get_scan_result_ref();
         let address = scan_result.get_address();
 
         let address_string = if scan_result.is_module() {
@@ -49,6 +50,7 @@ impl ConvertToViewData<ScanResult, ScanResultViewData> for ScanResultConverter {
         };
 
         ScanResultViewData {
+            scan_result_ref: ScanResultRefConverter {}.convert_to_view_data(scan_result_ref),
             address: address_string.into(),
             current_value: current_value_string.into(),
             previous_value: previous_value_string.into(),
