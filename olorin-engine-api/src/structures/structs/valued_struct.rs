@@ -71,7 +71,11 @@ impl ValuedStruct {
         valued_field_node: ValuedStructFieldNode,
         is_read_only: bool,
     ) {
-        if let Some(field) = self.fields.iter_mut().find(|f| f.get_name() == field_name) {
+        if let Some(field) = self
+            .fields
+            .iter_mut()
+            .find(|field| field.get_name() == field_name)
+        {
             field.set_field_node(valued_field_node);
         } else {
             self.fields

@@ -72,19 +72,19 @@ impl Snapshot {
     pub fn get_scan_result(
         &self,
         data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
-        scan_result_index: u64,
+        global_scan_result_index: u64,
     ) -> Option<ScanResultValued> {
-        let mut scan_result_index = scan_result_index;
+        let mut local_scan_result_index = global_scan_result_index;
 
         for snapshot_region in &self.snapshot_regions {
             let snapshot_region_scan_results = snapshot_region.get_scan_results();
             let number_of_region_results = snapshot_region_scan_results.get_number_of_results();
 
-            if scan_result_index < number_of_region_results {
-                return snapshot_region_scan_results.get_scan_result(data_type_registry, snapshot_region, scan_result_index);
+            if local_scan_result_index < number_of_region_results {
+                return snapshot_region_scan_results.get_scan_result(data_type_registry, snapshot_region, global_scan_result_index, local_scan_result_index);
             }
 
-            scan_result_index = scan_result_index.saturating_sub(number_of_region_results);
+            local_scan_result_index = local_scan_result_index.saturating_sub(number_of_region_results);
         }
 
         None

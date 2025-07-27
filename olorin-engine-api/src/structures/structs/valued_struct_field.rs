@@ -1,5 +1,5 @@
 use crate::{
-    registries::registries::Registries,
+    registries::{data_types::data_type_registry::DataTypeRegistry, registries::Registries},
     structures::data_values::{data_value::DataValue, display_values::DisplayValues},
     traits::from_string_privileged::FromStringPrivileged,
 };
@@ -26,6 +26,7 @@ pub struct ValuedStructField {
     name: String,
     field_node: ValuedStructFieldNode,
     is_read_only: bool,
+    icon_id: String,
 }
 
 impl ValuedStructField {
@@ -34,10 +35,19 @@ impl ValuedStructField {
         field_node: ValuedStructFieldNode,
         is_read_only: bool,
     ) -> Self {
+        let DATA_TYPE_REGISTRY = DataTypeRegistry::new();
+
+        let icon_id = match &field_node {
+            ValuedStructFieldNode::Value(data_value) => DATA_TYPE_REGISTRY.get_icon_id(data_value.get_data_type_ref()),
+            ValuedStructFieldNode::Array(data_value) => DATA_TYPE_REGISTRY.get_icon_id(data_value.get_data_type_ref()),
+            _ => "".to_string(),
+        };
+
         Self {
             name,
             field_node,
             is_read_only,
+            icon_id,
         }
     }
 
@@ -57,6 +67,10 @@ impl ValuedStructField {
 
     pub fn get_field_node(&self) -> &ValuedStructFieldNode {
         &self.field_node
+    }
+
+    pub fn get_icon_id(&self) -> &str {
+        &self.icon_id
     }
 
     pub fn set_field_node(
