@@ -7,9 +7,9 @@ import { DataTypeSelector } from "../../controls/data_type_selector.slint";
 import { ScanConstraintTypeSelector } from "../../controls/scan_constraint_selector.slint";
 import { DockFocusCatcher } from "../docking/drag_and_drop/dock_focus_catcher.slint";
 import { DataValueBoxOwned } from "../../components/data_value_box/data_value_box_owned.slint";
-import { DisplayValueTypeView, ValueCollectorViewModelBindings, ValidationViewModelBindings, ScannerViewModelBindings, ScanSettingsViewModelBindings } from "../../view_model_bindings.slint";
+import { DisplayValueTypeView, ValueCollectorViewModelBindings, ValidationViewModelBindings, ElementScannerViewModelBindings, ScanSettingsViewModelBindings } from "../../view_model_bindings.slint";
 
-export component ScanBarView inherits Rectangle {
+export component ElementScanBarView inherits Rectangle {
     property <length> bar_height: 28px;
     property <length> bar_spacing: 4px;
     property <length> bottom_padding: 4px;
@@ -32,7 +32,7 @@ export component ScanBarView inherits Rectangle {
             tooltip_text: @tr("Reset Scan");
             click_sound: "";
             clicked => {
-                ScannerViewModelBindings.reset_scan();
+                ElementScannerViewModelBindings.reset_scan();
             }
             Image {
                 width: 16px;
@@ -65,7 +65,7 @@ export component ScanBarView inherits Rectangle {
         }
 
         scan_value := DataValueBoxOwned {
-            data_value <=> ScannerViewModelBindings.active_data_value;
+            data_value <=> ElementScannerViewModelBindings.active_data_value;
             height: bar_height;
             text_padding_top: 0px;
             text_padding_bottom: 0px;
@@ -83,11 +83,11 @@ export component ScanBarView inherits Rectangle {
             tooltip_text: @tr("Start Scan");
             click_sound: "";
             clicked => {
-                ScannerViewModelBindings.start_scan(
+                ElementScannerViewModelBindings.start_scan(
                     scan_value.get_value_text(),
-                    [ScannerViewModelBindings.active_data_value.data_type_ref.data_type_id],
-                    ScannerViewModelBindings.active_display_values.active_display_values[ScannerViewModelBindings.active_display_values.active_display_value_index],
-                    ScannerViewModelBindings.active_scan_type);
+                    [ElementScannerViewModelBindings.active_data_value.data_type_ref.data_type_id],
+                    ElementScannerViewModelBindings.active_display_values.active_display_values[ElementScannerViewModelBindings.active_display_values.active_display_value_index],
+                    ElementScannerViewModelBindings.active_scan_type);
             }
             Image {
                 width: 16px;

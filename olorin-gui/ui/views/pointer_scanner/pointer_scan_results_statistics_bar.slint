@@ -1,9 +1,9 @@
 import { Theme } from "../../theme.slint";
-import { ElementScannerViewModelBindings } from "../../view_model_bindings.slint";
+import { PointerScanResultsViewModelBindings } from "../../view_model_bindings.slint";
 
 import { Button } from "../../components/buttons/button.slint";
 
-export component ScanResultsStatisticsBar inherits Rectangle {
+export component PointerScanResultsStatisticsBar inherits Rectangle {
     height: 32px;
     HorizontalLayout {
         alignment: center;
@@ -14,7 +14,7 @@ export component ScanResultsStatisticsBar inherits Rectangle {
             color: Theme.foreground;
             horizontal_alignment: left;
             vertical_alignment: center;
-            text: ElementScannerViewModelBindings.result_statistics;
+            text: PointerScanResultsViewModelBindings.result_statistics;
         }
     }
 }

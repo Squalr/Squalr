@@ -5,7 +5,7 @@ use crate::StructViewerViewModelBindings;
 use crate::converters::data_type_ref_converter::DataTypeRefConverter;
 use crate::converters::display_value_converter::DisplayValueConverter;
 use crate::converters::valued_struct_converter::ValuedStructConverter;
-use crate::view_models::scan_results::element_scanner_view_model::ElementScannerViewModel;
+use crate::view_models::element_scanner::element_scan_results_view_model::ElementScanResultsViewModel;
 use crate::view_models::struct_viewer::struct_viewer_domain::StructViewerDomain;
 use olorin_engine::engine_execution_context::EngineExecutionContext;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
@@ -24,7 +24,7 @@ use std::sync::RwLock;
 pub struct StructViewerViewModel {
     view_binding: Arc<ViewBinding<MainWindowView>>,
     _engine_execution_context: Arc<EngineExecutionContext>,
-    element_scanner_view_model: Lazy<ElementScannerViewModel>,
+    element_scan_results_view_model: Lazy<ElementScanResultsViewModel>,
     struct_viewer_domain: RwLock<StructViewerDomain>,
 }
 
@@ -37,12 +37,12 @@ impl StructViewerViewModel {
         dependency_container: DependencyContainer,
         (view_binding, engine_execution_context): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>),
     ) {
-        let element_scanner_view_model = dependency_container.get_lazy::<ElementScannerViewModel>();
+        let element_scan_results_view_model = dependency_container.get_lazy::<ElementScanResultsViewModel>();
         let view_model = Arc::new(StructViewerViewModel {
             view_binding: view_binding.clone(),
             _engine_execution_context: engine_execution_context.clone(),
             struct_viewer_domain: RwLock::new(StructViewerDomain::None),
-            element_scanner_view_model,
+            element_scan_results_view_model,
         });
 
         {
@@ -100,15 +100,15 @@ impl StructViewerViewModel {
         match *struct_viewer_domain_lock {
             StructViewerDomain::None => {}
             StructViewerDomain::ScanResult => {
-                let element_scanner_view_model = match view_model.element_scanner_view_model.get() {
-                    Ok(element_scanner_view_model) => element_scanner_view_model,
+                let element_scan_results_view_model = match view_model.element_scan_results_view_model.get() {
+                    Ok(element_scan_results_view_model) => element_scan_results_view_model,
                     Err(error) => {
                         log::error!("Error fetching scan results view model: {}", error);
                         return;
                     }
                 };
 
-                element_scanner_view_model.set_selected_scan_results_value(field_namespace.to_string(), anonymous_value);
+                element_scan_results_view_model.set_selected_scan_results_value(field_namespace.to_string(), anonymous_value);
             }
         }
     }

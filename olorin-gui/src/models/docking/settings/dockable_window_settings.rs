@@ -46,6 +46,7 @@ impl DockSettingsConfig {
                 0.4,
                 DockBuilder::tab_node("element_scanner")
                     .push_tab(DockBuilder::window("element_scanner"))
+                    .push_tab(DockBuilder::window("pointer_scanner"))
                     .push_tab(DockBuilder::window("settings")),
             )
             .build();

@@ -376,7 +376,10 @@ impl DockRootViewModel {
                         dock_root_bindings.set_settings_window(view_data);
                     }
                     "element_scanner" => {
-                        dock_root_bindings.set_scan_results_window(view_data);
+                        dock_root_bindings.set_element_scanner_window(view_data);
+                    }
+                    "pointer_scanner" => {
+                        dock_root_bindings.set_pointer_scanner_window(view_data);
                     }
                     "output" => {
                         dock_root_bindings.set_output_window(view_data);

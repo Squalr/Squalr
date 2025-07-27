@@ -1,0 +1,98 @@
+import { Theme } from "../../theme.slint";
+import { PointerScanResultsViewModelBindings } from "../../view_model_bindings.slint";
+
+import { Button } from "../../components/buttons/button.slint";
+
+export component PointerScanResultsNavigationBar inherits Rectangle {
+    in property <length> header_entry_padding;
+    in property <length> current_value_header_start;
+    in property <length> previous_value_header_start;
+    height: 32px;
+    HorizontalLayout {
+        alignment: center;
+        padding_top: 4px;
+        padding_bottom: 4px;
+        spacing: 4px;
+        first_page_button := Button {
+            width: 36px;
+            tooltip_text: @tr("Navigate to the first page");
+            click_sound: "";
+            clicked => {
+                PointerScanResultsViewModelBindings.navigate_first_page();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../images/navigation/left_arrows.png");
+            }
+        }
+
+        previous_page_button := Button {
+            width: 36px;
+            tooltip_text: @tr("Navigate to the previous page");
+            click_sound: "";
+            clicked => {
+                PointerScanResultsViewModelBindings.navigate_previous_page();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../images/navigation/left_arrow.png");
+            }
+        }
+
+        Rectangle {
+            background: Theme.background_primary;
+            border_color: Theme.submenu_border;
+            border_radius: 2px;
+            border_width: 1px;
+            width: 128px;
+            page_number_input := TextInput {
+                text <=> PointerScanResultsViewModelBindings.current_page_index_string;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                color: Theme.foreground;
+                single_line: true;
+                changed text => {
+                    PointerScanResultsViewModelBindings.page_index_text_changed(page_number_input.text);
+                }
+            }
+        }
+
+        next_page_button := Button {
+            width: 36px;
+            tooltip_text: @tr("Navigate to the next page");
+            click_sound: "";
+            clicked => {
+                PointerScanResultsViewModelBindings.navigate_next_page();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../images/navigation/right_arrow.png");
+            }
+        }
+
+        last_page_button := Button {
+            width: 36px;
+            tooltip_text: @tr("Navigate to the last page");
+            click_sound: "";
+            clicked => {
+                PointerScanResultsViewModelBindings.navigate_last_page();
+            }
+            Image {
+                width: 16px;
+                height: 16px;
+                horizontal_alignment: center;
+                vertical_alignment: center;
+                source: @image_url("../../images/navigation/right_arrows.png");
+            }
+        }
+    }
+}

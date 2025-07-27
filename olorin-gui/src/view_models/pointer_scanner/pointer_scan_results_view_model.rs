@@ -1,5 +1,5 @@
-use crate::ElementScannerViewModelBindings;
 use crate::MainWindowView;
+use crate::PointerScanResultsViewModelBindings;
 use crate::ScanResultViewData;
 use crate::converters::scan_result_converter::ScanResultConverter;
 use crate::models::audio::audio_player::AudioPlayer;
@@ -36,7 +36,8 @@ use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 
-pub struct ElementScannerViewModel {
+// JIRA: This entire class is essentially copied from ElementScanResultsViewModel as a placeholder.
+pub struct PointerScanResultsViewModel {
     view_binding: Arc<ViewBinding<MainWindowView>>,
     audio_player: Arc<AudioPlayer>,
     base_scan_results_collection: Arc<RwLock<Vec<ScanResult>>>,
@@ -49,7 +50,7 @@ pub struct ElementScannerViewModel {
     selection_index_end: Arc<AtomicI32>,
 }
 
-impl ElementScannerViewModel {
+impl PointerScanResultsViewModel {
     pub fn register(dependency_container: &DependencyContainer) {
         dependency_container.resolve_all(Self::on_dependencies_resolved);
     }
@@ -66,7 +67,7 @@ impl ElementScannerViewModel {
         // Create a binding that allows us to easily update the view's scan results.
         let scan_results_collection = create_view_model_collection!(
             view_binding -> MainWindowView,
-            ElementScannerViewModelBindings -> { set_scan_results, get_scan_results },
+            PointerScanResultsViewModelBindings -> { set_scan_results, get_scan_results },
             ScanResultConverter -> [],
         );
 
@@ -74,7 +75,7 @@ impl ElementScannerViewModel {
         let cached_last_page_index = Arc::new(AtomicU64::new(0));
         let base_scan_results_collection = Arc::new(RwLock::new(vec![]));
 
-        let view_model = Arc::new(ElementScannerViewModel {
+        let view_model = Arc::new(PointerScanResultsViewModel {
             view_binding: view_binding.clone(),
             audio_player,
             base_scan_results_collection: base_scan_results_collection.clone(),
@@ -91,7 +92,7 @@ impl ElementScannerViewModel {
             let view_model = view_model.clone();
 
             create_view_bindings!(view_binding, {
-                ElementScannerViewModelBindings => {
+                PointerScanResultsViewModelBindings => {
                     on_navigate_first_page() -> [view_model] -> Self::on_navigate_first_page,
                     on_navigate_last_page() -> [view_model] -> Self::on_navigate_last_page,
                     on_navigate_previous_page() -> [view_model] -> Self::on_navigate_previous_page,
@@ -109,7 +110,7 @@ impl ElementScannerViewModel {
 
         Self::poll_scan_results(view_model.clone());
 
-        dependency_container.register::<ElementScannerViewModel>(view_model);
+        dependency_container.register::<PointerScanResultsViewModel>(view_model);
     }
 
     pub fn set_selected_scan_results_value(
@@ -137,7 +138,7 @@ impl ElementScannerViewModel {
         scan_results_set_property_request.send(&self.engine_execution_context, move |scan_results_set_property_response| {});
     }
 
-    fn poll_scan_results(view_model: Arc<ElementScannerViewModel>) {
+    fn poll_scan_results(view_model: Arc<PointerScanResultsViewModel>) {
         let engine_execution_context = &view_model.engine_execution_context;
 
         // Requery all scan results if they update.
@@ -160,7 +161,7 @@ impl ElementScannerViewModel {
         });
     }
 
-    fn load_current_page_index(view_model: &Arc<ElementScannerViewModel>) -> u64 {
+    fn load_current_page_index(view_model: &Arc<PointerScanResultsViewModel>) -> u64 {
         let current_page_index = &view_model.current_page_index;
         let cached_last_page_index = &view_model.cached_last_page_index;
 
@@ -170,7 +171,7 @@ impl ElementScannerViewModel {
     }
 
     fn query_scan_results(
-        view_model: Arc<ElementScannerViewModel>,
+        view_model: Arc<PointerScanResultsViewModel>,
         play_sound: bool,
     ) {
         let engine_execution_context = &view_model.engine_execution_context;
@@ -194,7 +195,7 @@ impl ElementScannerViewModel {
 
             view_binding.execute_on_ui_thread(move |main_window_view, _| {
                 let audio_player = &view_model.audio_player;
-                let scan_results_bindings = main_window_view.global::<ElementScannerViewModelBindings>();
+                let scan_results_bindings = main_window_view.global::<PointerScanResultsViewModelBindings>();
                 let byte_size_in_metric = Conversions::value_to_metric_size(byte_count);
 
                 scan_results_bindings.set_result_statistics(format!("{} (Count: {})", byte_size_in_metric, result_count).into());
@@ -213,7 +214,8 @@ impl ElementScannerViewModel {
     }
 
     /// Fetches up-to-date values and module information for the current scan results, then updates the UI.
-    fn refresh_scan_results(view_model: Arc<ElementScannerViewModel>) {
+    fn refresh_scan_results(view_model: Arc<PointerScanResultsViewModel>) {
+        /*
         let scan_results_collection = view_model.scan_results_collection.clone();
         let base_scan_results_collection = &view_model.base_scan_results_collection;
         let engine_execution_context = &view_model.engine_execution_context;
@@ -235,11 +237,11 @@ impl ElementScannerViewModel {
         scan_results_refresh_request.send(engine_execution_context, move |scan_results_refresh_response| {
             // Update UI with refreshed, full scan result values.
             scan_results_collection.update_from_source(scan_results_refresh_response.scan_results);
-        });
+        });*/
     }
 
     fn set_page_index(
-        view_model: Arc<ElementScannerViewModel>,
+        view_model: Arc<PointerScanResultsViewModel>,
         new_page_index: u64,
     ) {
         let view_binding = view_model.view_binding.clone();
@@ -250,7 +252,7 @@ impl ElementScannerViewModel {
             let current_page_index = &view_model.current_page_index;
             let new_page_index = new_page_index.clamp(0, cached_last_page_index.load(Ordering::Acquire));
 
-            let scan_results_bindings = main_window_view.global::<ElementScannerViewModelBindings>();
+            let scan_results_bindings = main_window_view.global::<PointerScanResultsViewModelBindings>();
             // If the new index is the same as the current one, do nothing.
             if new_page_index == current_page_index.load(Ordering::Acquire) {
                 return;
@@ -267,7 +269,7 @@ impl ElementScannerViewModel {
     }
 
     fn on_page_index_text_changed(
-        view_model: Arc<ElementScannerViewModel>,
+        view_model: Arc<PointerScanResultsViewModel>,
         new_page_index_text: SharedString,
     ) {
         // Extract numeric part from new_page_index_text and parse it to u64, defaulting to 0.
@@ -281,33 +283,33 @@ impl ElementScannerViewModel {
         Self::set_page_index(view_model, new_page_index);
     }
 
-    fn on_navigate_first_page(view_model: Arc<ElementScannerViewModel>) {
+    fn on_navigate_first_page(view_model: Arc<PointerScanResultsViewModel>) {
         let new_page_index = 0;
 
         Self::set_page_index(view_model, new_page_index);
     }
 
-    fn on_navigate_last_page(view_model: Arc<ElementScannerViewModel>) {
+    fn on_navigate_last_page(view_model: Arc<PointerScanResultsViewModel>) {
         let cached_last_page_index = &view_model.cached_last_page_index;
         let new_page_index = cached_last_page_index.load(Ordering::Acquire);
 
         Self::set_page_index(view_model, new_page_index);
     }
 
-    fn on_navigate_previous_page(view_model: Arc<ElementScannerViewModel>) {
+    fn on_navigate_previous_page(view_model: Arc<PointerScanResultsViewModel>) {
         let new_page_index = Self::load_current_page_index(&view_model).saturating_sub(1);
 
         Self::set_page_index(view_model, new_page_index);
     }
 
-    fn on_navigate_next_page(view_model: Arc<ElementScannerViewModel>) {
+    fn on_navigate_next_page(view_model: Arc<PointerScanResultsViewModel>) {
         let new_page_index = Self::load_current_page_index(&view_model).saturating_add(1);
 
         Self::set_page_index(view_model, new_page_index);
     }
 
     fn on_set_scan_result_selection_start(
-        view_model: Arc<ElementScannerViewModel>,
+        view_model: Arc<PointerScanResultsViewModel>,
         scan_result_collection_start_index: i32,
     ) {
         view_model
@@ -329,7 +331,7 @@ impl ElementScannerViewModel {
     }
 
     fn on_set_scan_result_selection_end(
-        view_model: Arc<ElementScannerViewModel>,
+        view_model: Arc<PointerScanResultsViewModel>,
         scan_result_collection_end_index: i32,
     ) {
         view_model
@@ -350,7 +352,7 @@ impl ElementScannerViewModel {
         }
     }
 
-    fn on_add_scan_results_to_project(view_model: Arc<ElementScannerViewModel>) {
+    fn on_add_scan_results_to_project(view_model: Arc<PointerScanResultsViewModel>) {
         let scan_result_refs = Self::collect_selected_scan_result_refs(&view_model);
 
         if !scan_result_refs.is_empty() {
@@ -361,7 +363,7 @@ impl ElementScannerViewModel {
         }
     }
 
-    fn on_delete_selected_scan_results(view_model: Arc<ElementScannerViewModel>) {
+    fn on_delete_selected_scan_results(view_model: Arc<PointerScanResultsViewModel>) {
         let scan_result_refs = Self::collect_selected_scan_result_refs(&view_model);
 
         if !scan_result_refs.is_empty() {
@@ -373,7 +375,7 @@ impl ElementScannerViewModel {
     }
 
     fn on_set_scan_result_frozen(
-        view_model: Arc<ElementScannerViewModel>,
+        view_model: Arc<PointerScanResultsViewModel>,
         local_scan_result_index: i32,
         is_frozen: bool,
     ) {
@@ -388,7 +390,7 @@ impl ElementScannerViewModel {
         }
     }
 
-    fn on_toggle_selected_scan_results_frozen(view_model: Arc<ElementScannerViewModel>) {
+    fn on_toggle_selected_scan_results_frozen(view_model: Arc<PointerScanResultsViewModel>) {
         /*
         let scan_results = Self::collect_selected_scan_result_bases(&view_model);
 
@@ -400,7 +402,7 @@ impl ElementScannerViewModel {
         }*/
     }
 
-    fn collect_selected_scan_result_refs(view_model: &Arc<ElementScannerViewModel>) -> Vec<ScanResultRef> {
+    fn collect_selected_scan_result_refs(view_model: &Arc<PointerScanResultsViewModel>) -> Vec<ScanResultRef> {
         Self::collect_selected_scan_results(view_model)
             .into_iter()
             .map(|scan_result| scan_result.get_base_result().get_scan_result_ref().clone())
@@ -408,7 +410,7 @@ impl ElementScannerViewModel {
     }
 
     fn collect_scan_result_refs_by_indicies(
-        view_model: &Arc<ElementScannerViewModel>,
+        view_model: &Arc<PointerScanResultsViewModel>,
         local_scan_result_indices: &[i32],
     ) -> Vec<ScanResultRef> {
         Self::collect_scan_result_bases_by_indicies(view_model, local_scan_result_indices)
@@ -417,14 +419,14 @@ impl ElementScannerViewModel {
             .collect()
     }
 
-    fn collect_selected_scan_result_bases(view_model: &Arc<ElementScannerViewModel>) -> Vec<ScanResultBase> {
+    fn collect_selected_scan_result_bases(view_model: &Arc<PointerScanResultsViewModel>) -> Vec<ScanResultBase> {
         Self::collect_selected_scan_results(view_model)
             .into_iter()
             .map(|scan_result| scan_result.get_base_result().clone())
             .collect()
     }
 
-    fn collect_selected_scan_results(view_model: &Arc<ElementScannerViewModel>) -> Vec<ScanResult> {
+    fn collect_selected_scan_results(view_model: &Arc<PointerScanResultsViewModel>) -> Vec<ScanResult> {
         let base_scan_results_collection = &view_model.base_scan_results_collection;
         let current_scan_results = match base_scan_results_collection.read() {
             Ok(base_scan_results_collection) => base_scan_results_collection.clone(),
@@ -455,7 +457,7 @@ impl ElementScannerViewModel {
     }
 
     fn collect_scan_result_bases_by_indicies(
-        view_model: &Arc<ElementScannerViewModel>,
+        view_model: &Arc<PointerScanResultsViewModel>,
         local_scan_result_indices: &[i32],
     ) -> Vec<ScanResultBase> {
         let base_scan_results_collection = &view_model.base_scan_results_collection;

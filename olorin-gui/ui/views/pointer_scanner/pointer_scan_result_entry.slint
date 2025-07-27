@@ -1,11 +1,11 @@
 import { Theme } from "../../theme.slint";
-import { ElementScannerViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
+import { PointerScanResultsViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
 import { IconConverter } from "../../converters/icon_converter.slint";
 
 import { Button } from "../../components/buttons/button.slint";
 import { Checkbox } from "../../components/checkboxes/checkbox.slint";
 
-export component ScanResultEntry inherits Button {
+export component PointerScanResultEntry inherits Button {
     in property <ScanResultViewData> scan_result_view_data;
     in property <length> address_splitter_location;
     in property <length> current_values_splitter_location;
@@ -30,7 +30,7 @@ export component ScanResultEntry inherits Button {
             x: 8px;
             is_checked: scan_result_view_data.is_frozen;
             check_changed(value) => {
-                ElementScannerViewModelBindings.set_scan_result_frozen(root.index, value);
+                PointerScanResultsViewModelBindings.set_scan_result_frozen(root.index, value);
             }
         }
 

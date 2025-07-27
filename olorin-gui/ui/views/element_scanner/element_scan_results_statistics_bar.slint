@@ -1,0 +1,20 @@
+import { Theme } from "../../theme.slint";
+import { ElementScanResultsViewModelBindings } from "../../view_model_bindings.slint";
+
+import { Button } from "../../components/buttons/button.slint";
+
+export component ElementScanResultsStatisticsBar inherits Rectangle {
+    height: 32px;
+    HorizontalLayout {
+        alignment: center;
+        padding_top: 4px;
+        padding_bottom: 4px;
+        spacing: 4px;
+        Text {
+            color: Theme.foreground;
+            horizontal_alignment: left;
+            vertical_alignment: center;
+            text: ElementScanResultsViewModelBindings.result_statistics;
+        }
+    }
+}

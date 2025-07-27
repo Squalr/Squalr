@@ -1,0 +1,46 @@
+import { Theme } from "../../theme.slint";
+
+export component ElementScanResultsHeader inherits Rectangle {
+    in_out property <length> header_entry_padding;
+    in property <length> address_header_start;
+    in property <length> current_value_header_start;
+    in property <length> previous_value_header_start;
+    out property <length> freeze_padding: 24px;
+    out property <length> header_height: 32px;
+    height: root.header_height;
+    Image {
+        x: root.header_entry_padding;
+        width: 16px;
+        height: 16px;
+        horizontal_alignment: center;
+        vertical_alignment: center;
+        source: @image_url("../../images/app/results/freeze.png");
+    }
+
+    Text {
+        x: root.address_header_start + root.header_entry_padding;
+        color: Theme.foreground;
+        horizontal_alignment: left;
+        vertical_alignment: center;
+        text: @tr("Address");
+        font_family: Theme.mono_font_family;
+    }
+
+    Text {
+        x: root.current_value_header_start + root.header_entry_padding;
+        color: Theme.foreground;
+        horizontal_alignment: left;
+        vertical_alignment: center;
+        text: @tr("Value");
+        font_family: Theme.mono_font_family;
+    }
+
+    Text {
+        x: root.previous_value_header_start + root.header_entry_padding;
+        color: Theme.foreground;
+        horizontal_alignment: left;
+        vertical_alignment: center;
+        text: @tr("Previous Value");
+        font_family: Theme.mono_font_family;
+    }
+}

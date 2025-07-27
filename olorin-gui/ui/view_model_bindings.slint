@@ -33,11 +33,11 @@ export global DockRootViewModelBindings {
     in_out property <bool> is_dragging_window;
     in_out property <DockedWindowViewData> memory_viewer_window;
     in_out property <DockedWindowViewData> output_window;
-    in_out property <DockedWindowViewData> pointer_scan_results_window;
+    in_out property <DockedWindowViewData> pointer_scanner_window;
     in_out property <DockedWindowViewData> process_selector_window;
     in_out property <DockedWindowViewData> struct_viewer_window;
     in_out property <DockedWindowViewData> project_explorer_window;
-    in_out property <DockedWindowViewData> scan_results_window;
+    in_out property <DockedWindowViewData> element_scanner_window;
     in_out property <DockedWindowViewData> snapshot_manager_window;
     in_out property <DockedWindowViewData> settings_window;
     pure callback update_dock_root_width(width: length);
@@ -304,16 +304,6 @@ export struct ValuedStructViewData {
     fields: [ValuedStructFieldViewData],
 }
 
-export global ScannerViewModelBindings {
-    in_out property <DataValueViewData> active_data_value;
-    in_out property <DisplayValuesViewData> active_display_values;
-    in_out property <string> active_icon_id;
-    in_out property <ScanConstraintTypeView> active_scan_type: equal;
-    callback reset_scan();
-    callback start_scan(scan_value: string, data_type_ids: [string], display_value: DisplayValueViewData, scan_constraint: ScanConstraintTypeView);
-    callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
-}
-
 export global MemorySettingsViewModelBindings {
     in_out property <bool> memory_type_none;
     callback memory_type_none_changed(memory_type_none: bool);
@@ -407,6 +397,16 @@ export struct ScanResultViewData {
 }
 
 export global ElementScannerViewModelBindings {
+    in_out property <DataValueViewData> active_data_value;
+    in_out property <DisplayValuesViewData> active_display_values;
+    in_out property <string> active_icon_id;
+    in_out property <ScanConstraintTypeView> active_scan_type: equal;
+    callback reset_scan();
+    callback start_scan(scan_value: string, data_type_ids: [string], display_value: DisplayValueViewData, scan_constraint: ScanConstraintTypeView);
+    callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
+}
+
+export global ElementScanResultsViewModelBindings {
     in property <[ScanResultViewData]> scan_results;
     in_out property <string> results_memory_size;
     in_out property <string> result_count_string;
@@ -426,7 +426,37 @@ export global ElementScannerViewModelBindings {
     callback toggle_selected_scan_results_frozen();
 }
 
-export global PointerElementScannerViewModelBindings { }
+export global PointerScannerViewModelBindings {
+    in_out property <DataValueViewData> active_data_value;
+    in_out property <DisplayValuesViewData> active_display_values;
+    in_out property <string> active_icon_id;
+    in_out property <ScanConstraintTypeView> active_scan_type: equal;
+    callback reset_scan();
+    callback start_scan(scan_value: string, data_type_ids: [string], display_value: DisplayValueViewData, scan_constraint: ScanConstraintTypeView);
+    callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
+}
+
+export global PointerScanResultsViewModelBindings {
+    in property <[ScanResultViewData]> scan_results;
+    in_out property <string> results_memory_size;
+    in_out property <string> result_count_string;
+    in_out property <string> current_page_index_string: "0";
+    in_out property <string> total_page_index_string;
+    in_out property <string> result_statistics;
+    callback navigate_first_page();
+    callback navigate_last_page();
+    callback navigate_next_page();
+    callback navigate_previous_page();
+    callback page_index_text_changed(new_page_index_text: string);
+    callback set_scan_result_selection_start(scan_result_collection_start_index: int);
+    callback set_scan_result_selection_end(scan_result_collection_end_index: int);
+    callback add_scan_results_to_project();
+    callback delete_selected_scan_results();
+    callback set_scan_result_frozen(local_scan_result_index: int, is_frozen: bool);
+    callback toggle_selected_scan_results_frozen();
+}
+
+export global PointerElementScanResultsViewModelBindings { }
 
 export global StructViewerViewModelBindings {
     in property <ValuedStructViewData> struct_under_view;

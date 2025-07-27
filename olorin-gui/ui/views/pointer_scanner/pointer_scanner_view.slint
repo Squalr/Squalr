@@ -1,0 +1,155 @@
+import { ScrollView } from "std-widgets.slint";
+
+import { Theme } from "../../theme.slint";
+import { PointerScanResultsViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
+
+import { PointerScanBarView } from "pointer_scan_bar.slint";
+import { PointerScanResultEntry } from "pointer_scan_result_entry.slint";
+import { PointerScanResultsHeader } from "pointer_scan_results_header.slint";
+import { PointerScanResultsNavigationBar } from "pointer_scan_results_navigation_bar.slint";
+import { PointerScanResultsStatisticsBar } from "pointer_scan_results_statistics_bar.slint";
+import { PointerScanResultsPopoutWindow } from "pointer_scan_results_popout_window.slint";
+
+export component PointerScannerView inherits Rectangle {
+    property <float> ratio_address: 0.33;
+    property <float> ratio_current_value: 0.33;
+    property <float> ratio_previous_value: 0.33;
+    property <length> resizer_size: 4px;
+    property <length> divider_size: 2px;
+    property <int> selected_index_start: -1;
+    property <int> selected_index_end: -1;
+    property <bool> scan_results_popout_window_visible: false;
+    pure function get_total_ratio() -> float {
+        root.ratio_address + root.ratio_current_value + root.ratio_previous_value
+    }
+    pure function get_address_splitter_location() -> length {
+        scan_results_header.freeze_padding + scan_results_header.header_entry_padding
+    }
+    pure function get_current_value_splitter_location() -> length {
+        root.width * (root.ratio_address / root.get_total_ratio()) - root.resizer_size / 2
+    }
+    pure function get_previous_value_splitter_location() -> length {
+        root.width * (root.ratio_address + root.ratio_current_value) / root.get_total_ratio() - root.resizer_size / 2
+    }
+    VerticalLayout {
+        padding: 0px;
+        spacing: 0px;
+        scan_bar := PointerScanBarView { }
+
+        Rectangle {
+            VerticalLayout {
+                padding: 0px;
+                spacing: divider_size;
+                // Heading
+                scan_results_header := PointerScanResultsHeader {
+                    address_header_start: root.get_address_splitter_location() + resizer_size;
+                    current_value_header_start: root.get_current_value_splitter_location() + resizer_size;
+                    previous_value_header_start: root.get_previous_value_splitter_location() + resizer_size;
+                    header_entry_padding: 8px;
+                }
+
+                // Scan results
+                ScrollView {
+                    VerticalLayout {
+                        alignment: start;
+                        padding: 0px;
+                        spacing: 0px;
+                        for index in PointerScanResultsViewModelBindings.scan_results.length: PointerScanResultEntry {
+                            address_splitter_location: root.get_address_splitter_location() + resizer_size;
+                            current_values_splitter_location: root.get_current_value_splitter_location() + resizer_size;
+                            previous_values_splitter_location: root.get_previous_value_splitter_location() + resizer_size;
+                            scan_result_view_data: PointerScanResultsViewModelBindings.scan_results[index];
+                            index: index;
+                            is_selected: (index >= root.selected_index_start && index <= root.selected_index_end) || (index >= root.selected_index_end && index <= root.selected_index_start);
+                            function show_scan_results_popout_window(click_x: length, click_y: length) {
+                                scan_results_popout_window.x = click_x - 12px;
+                                scan_results_popout_window.y = self.y - self.height + scan_bar.height + scan_results_header.height;
+                                root.scan_results_popout_window_visible = true;
+                            }
+                            on_select_start(x, y) => {
+                                root.selected_index_start = index;
+                                root.selected_index_end = index;
+                                PointerScanResultsViewModelBindings.set_scan_result_selection_end(root.selected_index_end);
+                                PointerScanResultsViewModelBindings.set_scan_result_selection_start(root.selected_index_start);
+                                self.show_scan_results_popout_window(x, y);
+                            }
+                            on_select_end(x, y) => {
+                                root.selected_index_end = index;
+                                PointerScanResultsViewModelBindings.set_scan_result_selection_end(root.selected_index_end);
+                                self.show_scan_results_popout_window(x, y);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Dividers
+            Rectangle {
+                x: 0;
+                y: scan_results_header.header_height - divider_size / 2;
+                height: root.divider_size;
+                background: Theme.background_control;
+            }
+
+            Rectangle {
+                x: root.get_address_splitter_location();
+                y: 0;
+                width: root.resizer_size;
+                background: Theme.background_control;
+                TouchArea {
+                    mouse_cursor: ew_resize;
+                }
+            }
+
+            Rectangle {
+                x: root.get_current_value_splitter_location();
+                y: 0;
+                width: root.resizer_size;
+                background: Theme.background_control;
+                TouchArea {
+                    mouse_cursor: ew_resize;
+                    moved => {
+                        if (self.pressed && self.enabled) {
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                x: get_previous_value_splitter_location();
+                y: 0;
+                width: root.resizer_size;
+                background: Theme.background_control;
+                TouchArea {
+                    mouse_cursor: ew_resize;
+                    moved => {
+                        if (self.pressed && self.enabled) {
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            width: parent.width;
+            height: 4px;
+            background: Theme.background_control;
+        }
+
+        // Nav bar buttons
+        PointerScanResultsNavigationBar { }
+
+        // Scan statistics
+        PointerScanResultsStatisticsBar { }
+    }
+
+    scan_results_popout_window := PointerScanResultsPopoutWindow {
+        visible <=> root.scan_results_popout_window_visible;
+        on_add_selected_results_to_project_clicked() => {
+            PointerScanResultsViewModelBindings.add_scan_results_to_project();
+        }
+        on_delete_selected_scan_results_clicked() => {
+            PointerScanResultsViewModelBindings.delete_selected_scan_results();
+        }
+    }
+}

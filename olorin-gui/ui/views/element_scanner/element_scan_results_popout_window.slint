@@ -1,0 +1,84 @@
+import { Theme } from "../../theme.slint";
+import { ElementScanResultsViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
+import { IconConverter } from "../../converters/icon_converter.slint";
+
+import { Button } from "../../components/buttons/button.slint";
+import { Checkbox } from "../../components/checkboxes/checkbox.slint";
+
+export component ElementScanResultsPopoutWindow inherits HorizontalLayout {
+    callback on_add_selected_results_to_project_clicked();
+    callback on_delete_selected_scan_results_clicked();
+    alignment: start;
+    spacing: 0px;
+    padding: 0px;
+    height: 24px;
+    Rectangle {
+        background: Theme.background_control;
+        border_color: Theme.submenu_border;
+        border_width: 1px;
+        HorizontalLayout {
+            alignment: start;
+            padding: 0px;
+            spacing: 4px;
+            Button {
+                width: 36px;
+                tooltip_text: @tr("Add the scan results to the opened project");
+                clicked => {
+                    root.on_add_selected_results_to_project_clicked();
+                }
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    horizontal_alignment: center;
+                    vertical_alignment: center;
+                    source: @image_url("../../images/app/add.png");
+                }
+            }
+
+            Button {
+                width: 36px;
+                tooltip_text: @tr("Freeze the selected scan results");
+                clicked => {
+                    // 
+                }
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    horizontal_alignment: center;
+                    vertical_alignment: center;
+                    source: @image_url("../../images/app/results/freeze.png");
+                }
+            }
+
+            Button {
+                width: 36px;
+                tooltip_text: @tr("Unfreeze the selected scan results");
+                clicked => {
+                    // 
+                }
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    horizontal_alignment: center;
+                    vertical_alignment: center;
+                    source: @image_url("../../images/app/results/freeze.png");
+                }
+            }
+
+            Button {
+                width: 36px;
+                tooltip_text: @tr("Delete the selected scan results");
+                clicked => {
+                    root.on_delete_selected_scan_results_clicked();
+                }
+                Image {
+                    width: 16px;
+                    height: 16px;
+                    horizontal_alignment: center;
+                    vertical_alignment: center;
+                    source: @image_url("../../images/app/delete.png");
+                }
+            }
+        }
+    }
+}

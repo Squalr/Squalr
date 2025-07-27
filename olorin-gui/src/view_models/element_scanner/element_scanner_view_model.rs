@@ -1,7 +1,7 @@
 use crate::DisplayValueViewData;
+use crate::ElementScannerViewModelBindings;
 use crate::MainWindowView;
 use crate::ScanConstraintTypeView;
-use crate::ScannerViewModelBindings;
 use crate::ValueCollectorViewModelBindings;
 use crate::converters::data_value_converter::DataValueConverter;
 use crate::converters::display_value_converter::DisplayValueConverter;
@@ -33,13 +33,13 @@ enum ScanViewModelState {
     HasResults,
 }
 
-pub struct ScannerViewModel {
+pub struct ElementScannerViewModel {
     view_binding: Arc<ViewBinding<MainWindowView>>,
     engine_execution_context: Arc<EngineExecutionContext>,
     scan_view_model_state: RwLock<ScanViewModelState>,
 }
 
-impl ScannerViewModel {
+impl ElementScannerViewModel {
     pub fn register(dependency_container: &DependencyContainer) {
         dependency_container.resolve_all(Self::on_dependencies_resolved);
     }
@@ -48,7 +48,7 @@ impl ScannerViewModel {
         dependency_container: DependencyContainer,
         (view_binding, engine_execution_context): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>),
     ) {
-        let view_model = Arc::new(ScannerViewModel {
+        let view_model = Arc::new(ElementScannerViewModel {
             view_binding: view_binding.clone(),
             engine_execution_context: engine_execution_context.clone(),
             scan_view_model_state: RwLock::new(ScanViewModelState::NoResults),
@@ -58,7 +58,7 @@ impl ScannerViewModel {
             let view_model = view_model.clone();
 
             create_view_bindings!(view_model.view_binding, {
-                ScannerViewModelBindings => {
+                ElementScannerViewModelBindings => {
                     on_reset_scan() -> [view_model] -> Self::on_reset_scan,
                     on_start_scan(scan_value: SharedString, data_type_ids: ModelRc<SharedString>, display_value: DisplayValueViewData, scan_constraint: ScanConstraintTypeView) -> [view_model] -> Self::on_start_scan,
                 },
@@ -70,14 +70,14 @@ impl ScannerViewModel {
 
         Self::set_default_selection(view_model.clone());
 
-        dependency_container.register::<ScannerViewModel>(view_model);
+        dependency_container.register::<ElementScannerViewModel>(view_model);
     }
 
-    fn set_default_selection(view_model: Arc<ScannerViewModel>) {
+    fn set_default_selection(view_model: Arc<ElementScannerViewModel>) {
         view_model
             .view_binding
             .execute_on_ui_thread(move |main_window_view, _view_binding| {
-                let scanner_view_model_bindings = main_window_view.global::<ScannerViewModelBindings>();
+                let scanner_view_model_bindings = main_window_view.global::<ElementScannerViewModelBindings>();
                 let data_value = DataTypeI32::get_value_from_primitive(0);
 
                 scanner_view_model_bindings.set_active_data_value(DataValueConverter {}.convert_to_view_data(&data_value));
@@ -85,7 +85,7 @@ impl ScannerViewModel {
             });
     }
 
-    fn on_reset_scan(view_model: Arc<ScannerViewModel>) {
+    fn on_reset_scan(view_model: Arc<ElementScannerViewModel>) {
         let scan_reset_request = ScanResetRequest {};
         let engine_execution_context = &view_model.engine_execution_context;
         let view_model = view_model.clone();
@@ -102,7 +102,7 @@ impl ScannerViewModel {
     }
 
     fn on_start_scan(
-        view_model: Arc<ScannerViewModel>,
+        view_model: Arc<ElementScannerViewModel>,
         scan_value: SharedString,
         data_type_ids: ModelRc<SharedString>,
         display_value: DisplayValueViewData,
@@ -141,14 +141,14 @@ impl ScannerViewModel {
         };
     }
 
-    fn on_collect_values(view_model: Arc<ScannerViewModel>) {
+    fn on_collect_values(view_model: Arc<ElementScannerViewModel>) {
         let collect_values_request = ScanCollectValuesRequest {};
 
         collect_values_request.send(&view_model.engine_execution_context, |_scan_collect_values_response| {});
     }
 
     fn new_scan(
-        view_model: Arc<ScannerViewModel>,
+        view_model: Arc<ElementScannerViewModel>,
         scan_constraint: ScanConstraintTypeView,
         data_type_ids: Vec<String>,
         anonymous_value: AnonymousValue,
@@ -164,7 +164,7 @@ impl ScannerViewModel {
     }
 
     fn start_scan(
-        view_model: Arc<ScannerViewModel>,
+        view_model: Arc<ElementScannerViewModel>,
         scan_constraint: ScanConstraintTypeView,
         data_type_ids: Vec<String>,
         anonymous_value: AnonymousValue,

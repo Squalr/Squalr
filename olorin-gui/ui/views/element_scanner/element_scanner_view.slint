@@ -1,14 +1,14 @@
 import { ScrollView } from "std-widgets.slint";
 
 import { Theme } from "../../theme.slint";
-import { ElementScannerViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
+import { ElementScanResultsViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
 
-import { ScanBarView } from "scan_bar.slint";
-import { ScanResultEntry } from "scan_result_entry.slint";
-import { ScanResultsHeader } from "scan_results_header.slint";
-import { ScanResultsNavigationBar } from "scan_results_navigation_bar.slint";
-import { ScanResultsStatisticsBar } from "scan_results_statistics_bar.slint";
-import { ScanResultsPopoutWindow } from "scan_results_popout_window.slint";
+import { ElementScanBarView } from "element_scan_bar.slint";
+import { ElementScanResultEntry } from "element_scan_result_entry.slint";
+import { ElementScanResultsHeader } from "element_scan_results_header.slint";
+import { ElementScanResultsNavigationBar } from "element_scan_results_navigation_bar.slint";
+import { ElementScanResultsStatisticsBar } from "element_scan_results_statistics_bar.slint";
+import { ElementScanResultsPopoutWindow } from "element_scan_results_popout_window.slint";
 
 export component ElementScannerView inherits Rectangle {
     property <float> ratio_address: 0.33;
@@ -34,14 +34,14 @@ export component ElementScannerView inherits Rectangle {
     VerticalLayout {
         padding: 0px;
         spacing: 0px;
-        scan_bar := ScanBarView { }
+        scan_bar := ElementScanBarView { }
 
         Rectangle {
             VerticalLayout {
                 padding: 0px;
                 spacing: divider_size;
                 // Heading
-                scan_results_header := ScanResultsHeader {
+                scan_results_header := ElementScanResultsHeader {
                     address_header_start: root.get_address_splitter_location() + resizer_size;
                     current_value_header_start: root.get_current_value_splitter_location() + resizer_size;
                     previous_value_header_start: root.get_previous_value_splitter_location() + resizer_size;
@@ -54,11 +54,11 @@ export component ElementScannerView inherits Rectangle {
                         alignment: start;
                         padding: 0px;
                         spacing: 0px;
-                        for index in ElementScannerViewModelBindings.scan_results.length: ScanResultEntry {
+                        for index in ElementScanResultsViewModelBindings.scan_results.length: ElementScanResultEntry {
                             address_splitter_location: root.get_address_splitter_location() + resizer_size;
                             current_values_splitter_location: root.get_current_value_splitter_location() + resizer_size;
                             previous_values_splitter_location: root.get_previous_value_splitter_location() + resizer_size;
-                            scan_result_view_data: ElementScannerViewModelBindings.scan_results[index];
+                            scan_result_view_data: ElementScanResultsViewModelBindings.scan_results[index];
                             index: index;
                             is_selected: (index >= root.selected_index_start && index <= root.selected_index_end) || (index >= root.selected_index_end && index <= root.selected_index_start);
                             function show_scan_results_popout_window(click_x: length, click_y: length) {
@@ -69,13 +69,13 @@ export component ElementScannerView inherits Rectangle {
                             on_select_start(x, y) => {
                                 root.selected_index_start = index;
                                 root.selected_index_end = index;
-                                ElementScannerViewModelBindings.set_scan_result_selection_end(root.selected_index_end);
-                                ElementScannerViewModelBindings.set_scan_result_selection_start(root.selected_index_start);
+                                ElementScanResultsViewModelBindings.set_scan_result_selection_end(root.selected_index_end);
+                                ElementScanResultsViewModelBindings.set_scan_result_selection_start(root.selected_index_start);
                                 self.show_scan_results_popout_window(x, y);
                             }
                             on_select_end(x, y) => {
                                 root.selected_index_end = index;
-                                ElementScannerViewModelBindings.set_scan_result_selection_end(root.selected_index_end);
+                                ElementScanResultsViewModelBindings.set_scan_result_selection_end(root.selected_index_end);
                                 self.show_scan_results_popout_window(x, y);
                             }
                         }
@@ -137,19 +137,19 @@ export component ElementScannerView inherits Rectangle {
         }
 
         // Nav bar buttons
-        ScanResultsNavigationBar { }
+        ElementScanResultsNavigationBar { }
 
         // Scan statistics
-        ScanResultsStatisticsBar { }
+        ElementScanResultsStatisticsBar { }
     }
 
-    scan_results_popout_window := ScanResultsPopoutWindow {
+    scan_results_popout_window := ElementScanResultsPopoutWindow {
         visible <=> root.scan_results_popout_window_visible;
         on_add_selected_results_to_project_clicked() => {
-            ElementScannerViewModelBindings.add_scan_results_to_project();
+            ElementScanResultsViewModelBindings.add_scan_results_to_project();
         }
         on_delete_selected_scan_results_clicked() => {
-            ElementScannerViewModelBindings.delete_selected_scan_results();
+            ElementScanResultsViewModelBindings.delete_selected_scan_results();
         }
     }
 }

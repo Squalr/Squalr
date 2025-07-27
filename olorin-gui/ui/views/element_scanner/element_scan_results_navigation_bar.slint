@@ -1,9 +1,9 @@
 import { Theme } from "../../theme.slint";
-import { ElementScannerViewModelBindings } from "../../view_model_bindings.slint";
+import { ElementScanResultsViewModelBindings } from "../../view_model_bindings.slint";
 
 import { Button } from "../../components/buttons/button.slint";
 
-export component ScanResultsNavigationBar inherits Rectangle {
+export component ElementScanResultsNavigationBar inherits Rectangle {
     in property <length> header_entry_padding;
     in property <length> current_value_header_start;
     in property <length> previous_value_header_start;
@@ -18,7 +18,7 @@ export component ScanResultsNavigationBar inherits Rectangle {
             tooltip_text: @tr("Navigate to the first page");
             click_sound: "";
             clicked => {
-                ElementScannerViewModelBindings.navigate_first_page();
+                ElementScanResultsViewModelBindings.navigate_first_page();
             }
             Image {
                 width: 16px;
@@ -34,7 +34,7 @@ export component ScanResultsNavigationBar inherits Rectangle {
             tooltip_text: @tr("Navigate to the previous page");
             click_sound: "";
             clicked => {
-                ElementScannerViewModelBindings.navigate_previous_page();
+                ElementScanResultsViewModelBindings.navigate_previous_page();
             }
             Image {
                 width: 16px;
@@ -52,13 +52,13 @@ export component ScanResultsNavigationBar inherits Rectangle {
             border_width: 1px;
             width: 128px;
             page_number_input := TextInput {
-                text <=> ElementScannerViewModelBindings.current_page_index_string;
+                text <=> ElementScanResultsViewModelBindings.current_page_index_string;
                 horizontal_alignment: center;
                 vertical_alignment: center;
                 color: Theme.foreground;
                 single_line: true;
                 changed text => {
-                    ElementScannerViewModelBindings.page_index_text_changed(page_number_input.text);
+                    ElementScanResultsViewModelBindings.page_index_text_changed(page_number_input.text);
                 }
             }
         }
@@ -68,7 +68,7 @@ export component ScanResultsNavigationBar inherits Rectangle {
             tooltip_text: @tr("Navigate to the next page");
             click_sound: "";
             clicked => {
-                ElementScannerViewModelBindings.navigate_next_page();
+                ElementScanResultsViewModelBindings.navigate_next_page();
             }
             Image {
                 width: 16px;
@@ -84,7 +84,7 @@ export component ScanResultsNavigationBar inherits Rectangle {
             tooltip_text: @tr("Navigate to the last page");
             click_sound: "";
             clicked => {
-                ElementScannerViewModelBindings.navigate_last_page();
+                ElementScanResultsViewModelBindings.navigate_last_page();
             }
             Image {
                 width: 16px;

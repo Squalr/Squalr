@@ -66,14 +66,14 @@ export component MainWindowView inherits Window {
                                 check_state: DockRootViewModelBindings.output_window.is_visible ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
                             },
                             {
-                                id: DockRootViewModelBindings.pointer_scan_results_window.identifier,
-                                text:"Pointer Scan Results",
+                                id: DockRootViewModelBindings.pointer_scanner_window.identifier,
+                                text:"Pointer Scanner",
                                 check_state: ToolbarMenuCheckState.unchecked
                             },
                             {
-                                id: DockRootViewModelBindings.scan_results_window.identifier,
-                                text:"Scan Results",
-                                check_state: DockRootViewModelBindings.scan_results_window.is_visible ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
+                                id: DockRootViewModelBindings.element_scanner_window.identifier,
+                                text:"Element Scanner",
+                                check_state: DockRootViewModelBindings.element_scanner_window.is_visible ? ToolbarMenuCheckState.checked : ToolbarMenuCheckState.unchecked
                             },
                             {
                                 id: DockRootViewModelBindings.settings_window.identifier,
@@ -110,10 +110,10 @@ export component MainWindowView inherits Window {
                         DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.memory_viewer_window.identifier);
                     } else if id == DockRootViewModelBindings.output_window.identifier {
                         DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.output_window.identifier);
-                    } else if id == DockRootViewModelBindings.pointer_scan_results_window.identifier {
-                        DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.pointer_scan_results_window.identifier);
-                    } else if id == DockRootViewModelBindings.scan_results_window.identifier {
-                        DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.scan_results_window.identifier);
+                    } else if id == DockRootViewModelBindings.pointer_scanner_window.identifier {
+                        DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.pointer_scanner_window.identifier);
+                    } else if id == DockRootViewModelBindings.element_scanner_window.identifier {
+                        DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.element_scanner_window.identifier);
                     } else if id == DockRootViewModelBindings.settings_window.identifier {
                         DockRootViewModelBindings.toggle_visibility(DockRootViewModelBindings.settings_window.identifier);
                     } else if id == DockRootViewModelBindings.snapshot_manager_window.identifier {
