@@ -1,5 +1,5 @@
 import { Theme } from "../../theme.slint";
-import { ScanResultsViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
+import { ElementScannerViewModelBindings, ScanResultViewData } from "../../view_model_bindings.slint";
 import { IconConverter } from "../../converters/icon_converter.slint";
 
 import { Button } from "../../components/buttons/button.slint";
@@ -30,7 +30,7 @@ export component ScanResultEntry inherits Button {
             x: 8px;
             is_checked: scan_result_view_data.is_frozen;
             check_changed(value) => {
-                ScanResultsViewModelBindings.set_scan_result_frozen(root.index, value);
+                ElementScannerViewModelBindings.set_scan_result_frozen(root.index, value);
             }
         }
 

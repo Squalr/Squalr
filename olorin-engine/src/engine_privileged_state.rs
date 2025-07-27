@@ -13,7 +13,7 @@ use olorin_engine_api::structures::snapshots::snapshot::Snapshot;
 use olorin_engine_processes::process::process_manager::ProcessManager;
 use olorin_engine_processes::process_query::process_queryer::ProcessQuery;
 use olorin_engine_projects::project::project_manager::ProjectManager;
-use olorin_engine_scanning::results::snapshot_scan_result_freeze_task::SnapshotScanResultFreezeTask;
+use olorin_engine_scanning::freezing::snapshot_scan_result_freeze_task::SnapshotScanResultFreezeTask;
 use std::sync::{Arc, RwLock};
 
 /// Tracks critical engine state for internal use. This includes executing engine tasks, commands, and events.

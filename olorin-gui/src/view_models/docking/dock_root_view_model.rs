@@ -180,7 +180,9 @@ impl DockRootViewModel {
     fn on_get_tab_text(identifier: SharedString) -> SharedString {
         match identifier.as_str() {
             "settings" => "Settings".into(),
-            "scan_results" => "Memory Scanner".into(),
+            "element_scanner" => "Element Scanner".into(),
+            "struct_scanner" => "Struct Scanner".into(),
+            "pointer_scanner" => "Pointer Scanner".into(),
             "output" => "Output".into(),
             "process_selector" => "Process Selector".into(),
             "struct_viewer" => "Struct Viewer".into(),
@@ -373,7 +375,7 @@ impl DockRootViewModel {
                     "settings" => {
                         dock_root_bindings.set_settings_window(view_data);
                     }
-                    "scan_results" => {
+                    "element_scanner" => {
                         dock_root_bindings.set_scan_results_window(view_data);
                     }
                     "output" => {

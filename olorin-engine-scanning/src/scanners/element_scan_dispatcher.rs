@@ -77,7 +77,7 @@ impl ElementScanDispatcher {
         };
 
         // Run the scan either single-threaded or parallel based on settings. Single-thread is not advised unless debugging.
-        let single_thread_scan = element_scan_parameters.is_single_thread_scan();
+        let single_thread_scan = element_scan_parameters.get_is_single_thread_scan();
         let result_snapshot_region_filters = if single_thread_scan {
             snapshot_region_filter_collection
                 .iter()

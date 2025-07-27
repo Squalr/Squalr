@@ -406,7 +406,7 @@ export struct ScanResultViewData {
     icon_id: string,
 }
 
-export global ScanResultsViewModelBindings {
+export global ElementScannerViewModelBindings {
     in property <[ScanResultViewData]> scan_results;
     in_out property <string> results_memory_size;
     in_out property <string> result_count_string;
@@ -426,7 +426,7 @@ export global ScanResultsViewModelBindings {
     callback toggle_selected_scan_results_frozen();
 }
 
-export global PointerScanResultsViewModelBindings { }
+export global PointerElementScannerViewModelBindings { }
 
 export global StructViewerViewModelBindings {
     in property <ValuedStructViewData> struct_under_view;

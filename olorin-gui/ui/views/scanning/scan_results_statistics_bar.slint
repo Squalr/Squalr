@@ -1,5 +1,5 @@
 import { Theme } from "../../theme.slint";
-import { ScanResultsViewModelBindings } from "../../view_model_bindings.slint";
+import { ElementScannerViewModelBindings } from "../../view_model_bindings.slint";
 
 import { Button } from "../../components/buttons/button.slint";
 
@@ -14,7 +14,7 @@ export component ScanResultsStatisticsBar inherits Rectangle {
             color: Theme.foreground;
             horizontal_alignment: left;
             vertical_alignment: center;
-            text: ScanResultsViewModelBindings.result_statistics;
+            text: ElementScannerViewModelBindings.result_statistics;
         }
     }
 }

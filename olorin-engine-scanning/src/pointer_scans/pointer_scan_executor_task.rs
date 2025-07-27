@@ -1,35 +1,41 @@
-use crate::scanners::element_scan_dispatcher::ElementScanDispatcher;
-use crate::scanners::snapshot_region_memory_reader::SnapshotRegionMemoryReader;
+use crate::scanners::element_scan_executor_task::ElementScanExecutorTask;
 use crate::scanners::value_collector_task::ValueCollectorTask;
 use olorin_engine_api::conversions::conversions::Conversions;
 use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
 use olorin_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
+use olorin_engine_api::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
+use olorin_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
+use olorin_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use olorin_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use olorin_engine_api::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
+use olorin_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
+use olorin_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use olorin_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use olorin_engine_api::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
+use olorin_engine_api::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;
+use olorin_engine_api::structures::scanning::parameters::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use olorin_engine_api::structures::snapshots::snapshot::Snapshot;
 use olorin_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use olorin_engine_api::structures::tasks::trackable_task::TrackableTask;
-use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Instant;
 
-pub struct ElementScanExecutorTask {}
+pub struct PointerScanExecutorTask {}
 
-const TASK_NAME: &'static str = "Scan Executor";
+const TASK_NAME: &'static str = "Pointer Scan Executor";
 
 /// Implementation of a task that performs a scan against the provided snapshot. Does not collect new values.
 /// Caller is assumed to have already done this if desired.
-impl ElementScanExecutorTask {
+impl PointerScanExecutorTask {
     pub fn start_task(
         process_info: OpenedProcessInfo,
-        snapshot: Arc<RwLock<Snapshot>>,
+        statics_snapshot: Arc<RwLock<Snapshot>>,
+        heaps_snapshot: Arc<RwLock<Snapshot>>,
         element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
         data_type_registry: Arc<RwLock<DataTypeRegistry>>,
-        element_scan_parameters: ElementScanParameters,
+        pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
     ) -> Arc<TrackableTask> {
         let task = TrackableTask::create(TASK_NAME.to_string(), None);
@@ -39,10 +45,11 @@ impl ElementScanExecutorTask {
             Self::scan_task(
                 &task_clone,
                 process_info,
-                snapshot,
+                statics_snapshot,
+                heaps_snapshot,
                 element_scan_rule_registry,
                 data_type_registry,
-                element_scan_parameters,
+                pointer_scan_parameters,
                 with_logging,
             );
 
@@ -55,29 +62,67 @@ impl ElementScanExecutorTask {
     fn scan_task(
         trackable_task: &Arc<TrackableTask>,
         process_info: OpenedProcessInfo,
-        snapshot: Arc<RwLock<Snapshot>>,
+        statics_snapshot: Arc<RwLock<Snapshot>>,
+        heaps_snapshot: Arc<RwLock<Snapshot>>,
         element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
         data_type_registry: Arc<RwLock<DataTypeRegistry>>,
-        element_scan_parameters: ElementScanParameters,
+        pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
     ) {
         let total_start_time = Instant::now();
 
-        // If the parameter is set, first collect values before the scan.
-        // This is slower overall than interleaving the reads, but better for capturing values that may soon change.
-        if element_scan_parameters.get_memory_read_mode() == MemoryReadMode::ReadBeforeScan {
-            ValueCollectorTask::start_task(process_info.clone(), snapshot.clone(), with_logging).wait_for_completion();
-        }
-
         if with_logging {
-            log::info!("Performing manual scan...");
+            log::info!("Performing pointer scan...");
         }
 
-        let mut snapshot = match snapshot.write() {
+        // Populate the latest static and heap values from process memory.
+        ValueCollectorTask::start_task(process_info.clone(), statics_snapshot.clone(), with_logging).wait_for_completion();
+        ValueCollectorTask::start_task(process_info.clone(), heaps_snapshot.clone(), with_logging).wait_for_completion();
+
+        // Find valid pointers. JIRA: Binary search kernel?
+        let pointer_scan_minimum = ElementScanValue::new(DataTypeU64::get_value_from_primitive(0), MemoryAlignment::Alignment4);
+        let element_scan_parameters = ElementScanParameters::new(
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::GreaterThan),
+            vec![pointer_scan_minimum],
+            FloatingPointTolerance::default(),
+            MemoryReadMode::Skip,
+            pointer_scan_parameters.get_is_single_thread_scan(),
+            pointer_scan_parameters.get_debug_perform_validation_scan(),
+        );
+        ElementScanExecutorTask::start_task(
+            process_info.clone(),
+            statics_snapshot.clone(),
+            element_scan_rule_registry.clone(),
+            data_type_registry.clone(),
+            element_scan_parameters.clone(),
+            with_logging,
+        )
+        .wait_for_completion();
+        ElementScanExecutorTask::start_task(
+            process_info.clone(),
+            heaps_snapshot.clone(),
+            element_scan_rule_registry,
+            data_type_registry,
+            element_scan_parameters,
+            with_logging,
+        )
+        .wait_for_completion();
+
+        let mut statics_snapshot = match statics_snapshot.write() {
             Ok(guard) => guard,
             Err(error) => {
                 if with_logging {
-                    log::error!("Failed to acquire write lock on snapshot: {}", error);
+                    log::error!("Failed to acquire write lock on statics_snapshot: {}", error);
+                }
+
+                return;
+            }
+        };
+        let mut heaps_snapshot = match heaps_snapshot.write() {
+            Ok(guard) => guard,
+            Err(error) => {
+                if with_logging {
+                    log::error!("Failed to acquire write lock on heaps_snapshot: {}", error);
                 }
 
                 return;
@@ -86,9 +131,9 @@ impl ElementScanExecutorTask {
 
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
-        let total_region_count = snapshot.get_region_count();
+        let total_region_count = statics_snapshot.get_region_count();
         let cancellation_token = trackable_task.get_cancellation_token();
-        let snapshot_regions = snapshot.get_snapshot_regions_mut();
+        let snapshot_regions = statics_snapshot.get_snapshot_regions_mut();
 
         // Create a function that processes every snapshot region, from which we will grab the existing snapshot filters (previous results) to perform our next scan.
         let snapshot_iterator = |snapshot_region: &mut SnapshotRegion| {
@@ -96,46 +141,34 @@ impl ElementScanExecutorTask {
                 return;
             }
 
-            // Creates initial results if none exist yet.
-            snapshot_region.initialize_scan_results(&data_type_registry, element_scan_parameters.get_element_scan_values());
-
-            // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
-            if element_scan_parameters.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
-                let _ = snapshot_region.read_all_memory(&process_info);
-            }
-
-            if !element_scan_parameters.is_valid_for_snapshot_region(snapshot_region) {
-                processed_region_count.fetch_add(1, Ordering::SeqCst);
-                return;
-            }
-
+            /*
             // Create a function to dispatch our element scan to the best scanner implementation for the current region.
-            let element_scan_dispatcher = |snapshot_region_filter_collection| {
-                ElementScanDispatcher::dispatch_scan(
-                    &element_scan_rule_registry,
+            let pointer_scan_dispatcher = |snapshot_region_filter_collection| {
+                PointerScanDispatcher::dispatch_scan(
+                    &pointer_scan_rule_registry,
                     &data_type_registry,
                     snapshot_region,
                     snapshot_region_filter_collection,
-                    &element_scan_parameters,
+                    &pointer_scan_parameters,
                 )
             };
 
             // Again, select the parallel or sequential iterator to iterate over each data type in the scan. Generally there is only 1, but multi-type scans are supported.
             let scan_results_collection = snapshot_region.get_scan_results().get_filter_collections();
-            let single_thread_scan = element_scan_parameters.get_is_single_thread_scan() || scan_results_collection.len() == 1;
+            let single_thread_scan = pointer_scan_parameters.get_is_single_thread_scan() || scan_results_collection.len() == 1;
             let scan_results = SnapshotRegionScanResults::new(if single_thread_scan {
                 scan_results_collection
                     .iter()
-                    .map(element_scan_dispatcher)
+                    .map(pointer_scan_dispatcher)
                     .collect()
             } else {
                 scan_results_collection
                     .par_iter()
-                    .map(element_scan_dispatcher)
+                    .map(pointer_scan_dispatcher)
                     .collect()
             });
 
-            snapshot_region.set_scan_results(scan_results);
+            snapshot_region.set_scan_results(scan_results);*/
 
             let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
 
@@ -147,17 +180,17 @@ impl ElementScanExecutorTask {
         };
 
         // Select either the parallel or sequential iterator. Single-thread is not advised unless debugging.
-        let single_thread_scan = element_scan_parameters.get_is_single_thread_scan() || snapshot_regions.len() == 1;
+        let single_thread_scan = pointer_scan_parameters.get_is_single_thread_scan() || snapshot_regions.len() == 1;
         if single_thread_scan {
             snapshot_regions.iter_mut().for_each(snapshot_iterator);
         } else {
             snapshot_regions.par_iter_mut().for_each(snapshot_iterator);
         };
 
-        snapshot.discard_empty_regions();
+        statics_snapshot.discard_empty_regions();
 
         if with_logging {
-            let byte_count = snapshot.get_byte_count();
+            let byte_count = statics_snapshot.get_byte_count();
             let duration = start_time.elapsed();
             let total_duration = total_start_time.elapsed();
 

@@ -44,8 +44,8 @@ impl DockSettingsConfig {
             )
             .push_child(
                 0.4,
-                DockBuilder::tab_node("scan_results")
-                    .push_tab(DockBuilder::window("scan_results"))
+                DockBuilder::tab_node("element_scanner")
+                    .push_tab(DockBuilder::window("element_scanner"))
                     .push_tab(DockBuilder::window("settings")),
             )
             .build();
@@ -63,8 +63,8 @@ impl DockSettingsConfig {
                     )
                     .push_child(
                         0.5,
-                        DockBuilder::tab_node("scan_results")
-                            .push_tab(DockBuilder::window("scan_results"))
+                        DockBuilder::tab_node("element_scanner")
+                            .push_tab(DockBuilder::window("element_scanner"))
                             .push_tab(DockBuilder::window("settings")),
                     ),
             )

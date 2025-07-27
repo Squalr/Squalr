@@ -100,7 +100,7 @@ impl ElementScanParameters {
         self.memory_read_mode
     }
 
-    pub fn is_single_thread_scan(&self) -> bool {
+    pub fn get_is_single_thread_scan(&self) -> bool {
         self.is_single_thread_scan
     }
 
