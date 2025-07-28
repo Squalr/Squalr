@@ -432,7 +432,7 @@ export global PointerScannerViewModelBindings {
     in_out property <string> active_icon_id;
     in_out property <ScanConstraintTypeView> active_scan_type: equal;
     callback reset_scan();
-    callback start_scan(scan_value: string, data_type_ids: [string], display_value: DisplayValueViewData, scan_constraint: ScanConstraintTypeView);
+    callback start_scan(scan_value: string, display_value: DisplayValueViewData, data_type_id: string, max_depth: int, offset_size: int);
     callback set_scan_constraint(scan_constraint: ScanConstraintTypeView);
 }
 

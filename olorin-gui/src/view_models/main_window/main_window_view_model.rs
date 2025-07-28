@@ -7,6 +7,7 @@ use crate::view_models::element_scanner::element_scan_results_view_model::Elemen
 use crate::view_models::element_scanner::element_scanner_view_model::ElementScannerViewModel;
 use crate::view_models::output::output_view_model::OutputViewModel;
 use crate::view_models::pointer_scanner::pointer_scan_results_view_model::PointerScanResultsViewModel;
+use crate::view_models::pointer_scanner::pointer_scanner_view_model::PointerScannerViewModel;
 use crate::view_models::process_selector::process_selector_view_model::ProcessSelectorViewModel;
 use crate::view_models::project_explorer::project_explorer_view_model::ProjectExplorerViewModel;
 use crate::view_models::settings::memory_settings_view_model::MemorySettingsViewModel;
@@ -31,13 +32,14 @@ impl MainWindowViewModel {
 
         DockRootViewModel::register(dependency_container);
         ElementScannerViewModel::register(dependency_container);
+        ElementScanResultsViewModel::register(dependency_container);
+        PointerScannerViewModel::register(dependency_container);
+        PointerScanResultsViewModel::register(dependency_container);
         MemorySettingsViewModel::register(dependency_container);
         OutputViewModel::register(dependency_container);
         ProcessSelectorViewModel::register(dependency_container);
         ProjectExplorerViewModel::register(dependency_container);
         ScanSettingsViewModel::register(dependency_container);
-        ElementScanResultsViewModel::register(dependency_container);
-        PointerScanResultsViewModel::register(dependency_container);
         StructViewerViewModel::register(dependency_container);
         ConversionsViewModel::register(dependency_container);
         ValidationViewModel::register(dependency_container);

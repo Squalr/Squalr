@@ -85,9 +85,10 @@ export component PointerScanBarView inherits Rectangle {
             clicked => {
                 PointerScannerViewModelBindings.start_scan(
                     scan_value.get_value_text(),
-                    [PointerScannerViewModelBindings.active_data_value.data_type_ref.data_type_id],
                     PointerScannerViewModelBindings.active_display_values.active_display_values[PointerScannerViewModelBindings.active_display_values.active_display_value_index],
-                    PointerScannerViewModelBindings.active_scan_type);
+                    PointerScannerViewModelBindings.active_data_value.data_type_ref.data_type_id,
+                    10,
+                    4096);
             }
             Image {
                 width: 16px;

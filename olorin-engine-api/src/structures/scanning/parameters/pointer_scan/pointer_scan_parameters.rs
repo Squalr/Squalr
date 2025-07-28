@@ -1,7 +1,9 @@
+use crate::structures::data_values::data_value::DataValue;
+
 /// Represents the scan arguments for an element-wise scan.
 #[derive(Debug, Clone)]
 pub struct PointerScanParameters {
-    target_address: u64,
+    target_address: DataValue,
     offset_size: u64,
     max_depth: u64,
     is_single_thread_scan: bool,
@@ -13,7 +15,7 @@ pub struct PointerScanParameters {
 
 impl PointerScanParameters {
     pub fn new(
-        target_address: u64,
+        target_address: DataValue,
         offset_size: u64,
         max_depth: u64,
         is_single_thread_scan: bool,
@@ -28,8 +30,8 @@ impl PointerScanParameters {
         }
     }
 
-    pub fn get_target_address(&self) -> u64 {
-        self.target_address
+    pub fn get_target_address(&self) -> &DataValue {
+        &self.target_address
     }
 
     pub fn get_offset_size(&self) -> u64 {

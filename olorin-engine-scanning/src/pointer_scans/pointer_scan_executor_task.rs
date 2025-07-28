@@ -118,6 +118,7 @@ impl PointerScanExecutorTask {
                 return;
             }
         };
+        /*
         let mut heaps_snapshot = match heaps_snapshot.write() {
             Ok(guard) => guard,
             Err(error) => {
@@ -128,6 +129,7 @@ impl PointerScanExecutorTask {
                 return;
             }
         };
+        */
 
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));

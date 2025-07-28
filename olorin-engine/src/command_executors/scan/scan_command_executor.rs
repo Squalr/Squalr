@@ -25,6 +25,9 @@ impl EngineCommandExecutor for ScanCommand {
             ScanCommand::ElementScan { element_scan_request } => element_scan_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
+            ScanCommand::PointerScan { pointer_scan_request } => pointer_scan_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
             ScanCommand::StructScan { struct_scan_request } => struct_scan_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),

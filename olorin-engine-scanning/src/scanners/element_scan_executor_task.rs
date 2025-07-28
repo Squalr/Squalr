@@ -19,7 +19,7 @@ use std::time::Instant;
 
 pub struct ElementScanExecutorTask {}
 
-const TASK_NAME: &'static str = "Scan Executor";
+const TASK_NAME: &'static str = "Element Scan Executor";
 
 /// Implementation of a task that performs a scan against the provided snapshot. Does not collect new values.
 /// Caller is assumed to have already done this if desired.
