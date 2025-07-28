@@ -118,10 +118,12 @@ impl PointerScannerViewModel {
             }
         };
 
-        let scan_value = scan_value.to_string();
         let data_type_ref = DataTypeRef::new(&data_type_id.to_string());
-        let display_value = DisplayValueConverter {}.convert_from_view_data(&display_value);
-        let anonymous_value = AnonymousValue::new(&scan_value, display_value);
+        let mut display_value = DisplayValueConverter {}.convert_from_view_data(&display_value);
+
+        display_value.set_display_string(scan_value.to_string());
+
+        let anonymous_value = AnonymousValue::new(display_value);
 
         match scan_view_model_state_value {
             ScanViewModelState::HasResults => {

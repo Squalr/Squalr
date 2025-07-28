@@ -80,10 +80,10 @@ impl PointerScanExecutorTask {
         ValueCollectorTask::start_task(process_info.clone(), heaps_snapshot.clone(), with_logging).wait_for_completion();
 
         // Find valid pointers. JIRA: Binary search kernel?
-        let pointer_scan_minimum = ElementScanValue::new(DataTypeU64::get_value_from_primitive(0), MemoryAlignment::Alignment4);
+        let pointer_scan_minimum_address = ElementScanValue::new(DataTypeU64::get_value_from_primitive(0), MemoryAlignment::Alignment4);
         let element_scan_parameters = ElementScanParameters::new(
             ScanCompareType::Immediate(ScanCompareTypeImmediate::GreaterThan),
-            vec![pointer_scan_minimum],
+            vec![pointer_scan_minimum_address],
             FloatingPointTolerance::default(),
             MemoryReadMode::Skip,
             pointer_scan_parameters.get_is_single_thread_scan(),

@@ -1,6 +1,10 @@
+use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::registries::registries::Registries;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
+use crate::structures::data_values::display_value::DisplayValue;
+use crate::structures::data_values::display_value_type::DisplayValueType;
+use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::structs::valued_struct::ValuedStruct;
 use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldNode};
@@ -17,6 +21,9 @@ pub struct DataValue {
     /// The raw bytes of the data value. This could be a large number of underlying values, such as an int, string,
     /// or even a serialized bitfield and mask. It is the responsibility of the `DataType` object to interpret the bytes.
     value_bytes: Vec<u8>,
+
+    /// The display values for this data value.
+    display_values: DisplayValues,
 }
 
 impl DataValue {
@@ -24,7 +31,18 @@ impl DataValue {
         data_type_ref: DataTypeRef,
         value_bytes: Vec<u8>,
     ) -> Self {
-        Self { data_type_ref, value_bytes }
+        let DATA_TYPE_REGISTRY = DataTypeRegistry::new();
+        let display_values = DATA_TYPE_REGISTRY.create_display_values(&data_type_ref, &value_bytes);
+
+        Self {
+            data_type_ref,
+            value_bytes,
+            display_values,
+        }
+    }
+
+    pub fn get_display_values(&self) -> &DisplayValues {
+        &self.display_values
     }
 
     pub fn copy_from_bytes(
@@ -35,6 +53,9 @@ impl DataValue {
         if self.value_bytes != value_bytes {
             self.value_bytes = value_bytes.to_vec();
         }
+
+        let DATA_TYPE_REGISTRY = DataTypeRegistry::new();
+        self.display_values = DATA_TYPE_REGISTRY.create_display_values(&self.data_type_ref, &value_bytes);
     }
 
     pub fn get_data_type_ref(&self) -> &DataTypeRef {
@@ -46,6 +67,9 @@ impl DataValue {
         data_type_ref: DataTypeRef,
     ) {
         self.data_type_ref = data_type_ref;
+
+        let DATA_TYPE_REGISTRY = DataTypeRegistry::new();
+        self.display_values = DATA_TYPE_REGISTRY.create_display_values(&self.data_type_ref, &self.value_bytes);
     }
 
     pub fn get_data_type_id(&self) -> &str {
@@ -61,7 +85,29 @@ impl DataValue {
     }
 
     pub fn take_value_bytes(&mut self) -> Vec<u8> {
+        self.display_values = DisplayValues::default();
+
         mem::take(&mut self.value_bytes)
+    }
+
+    pub fn set_active_display_value_type(
+        &mut self,
+        active_display_value_type: DisplayValueType,
+    ) {
+        self.display_values
+            .set_active_display_value_type(active_display_value_type);
+    }
+
+    pub fn get_active_display_value_type(&self) -> DisplayValueType {
+        self.display_values.get_active_display_value_type()
+    }
+
+    pub fn get_active_display_value(&self) -> Option<&DisplayValue> {
+        self.display_values.get_active_display_value()
+    }
+
+    pub fn get_default_display_value(&self) -> Option<&DisplayValue> {
+        self.display_values.get_default_display_value()
     }
 
     pub fn as_ptr(&self) -> *const u8 {

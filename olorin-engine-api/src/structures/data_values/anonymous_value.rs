@@ -15,12 +15,9 @@ pub struct AnonymousValue {
 }
 
 impl AnonymousValue {
-    pub fn new(
-        value_string: &str,
-        display_value: DisplayValue,
-    ) -> Self {
+    pub fn new(display_value: DisplayValue) -> Self {
         AnonymousValue {
-            anonymous_value_container: Self::parse_anonymous_value(value_string, display_value),
+            anonymous_value_container: Self::parse_anonymous_value(display_value),
         }
     }
 
@@ -28,14 +25,12 @@ impl AnonymousValue {
         &self.anonymous_value_container
     }
 
-    fn parse_anonymous_value(
-        value_string: &str,
-        display_value: DisplayValue,
-    ) -> AnonymousValueContainer {
+    fn parse_anonymous_value(display_value: DisplayValue) -> AnonymousValueContainer {
+        let anonymous_value_string = display_value.get_display_string().to_string();
+
         match display_value.get_container_type() {
             ContainerType::Array(length) => {
                 // Split the input string into separate parts for the array.
-                let anonymous_value_string = value_string.to_string();
                 let anonymous_value_container = match display_value.get_display_value_type() {
                     DisplayValueType::Binary => AnonymousValueContainer::BinaryValue(anonymous_value_string),
                     DisplayValueType::Hexadecimal => AnonymousValueContainer::HexadecimalValue(anonymous_value_string),
@@ -49,34 +44,26 @@ impl AnonymousValue {
 
                 anonymous_value_container
             }
-            ContainerType::Pointer32 | ContainerType::Pointer64 => {
-                let data_value_string = value_string.to_string();
-
-                match display_value.get_display_value_type() {
-                    DisplayValueType::Binary => AnonymousValueContainer::BinaryValue(data_value_string),
-                    DisplayValueType::Hexadecimal => AnonymousValueContainer::HexadecimalValue(data_value_string),
-                    DisplayValueType::String => AnonymousValueContainer::String(data_value_string),
-                    DisplayValueType::Bool => AnonymousValueContainer::String(data_value_string),
-                    DisplayValueType::Decimal => AnonymousValueContainer::String(data_value_string),
-                    DisplayValueType::Address => AnonymousValueContainer::HexadecimalValue(data_value_string),
-                    DisplayValueType::DataTypeRef => AnonymousValueContainer::String(data_value_string),
-                    DisplayValueType::Enumeration => AnonymousValueContainer::String(data_value_string),
-                }
-            }
-            ContainerType::None => {
-                let data_value_string = value_string.to_string();
-
-                match display_value.get_display_value_type() {
-                    DisplayValueType::Binary => AnonymousValueContainer::BinaryValue(data_value_string),
-                    DisplayValueType::Hexadecimal => AnonymousValueContainer::HexadecimalValue(data_value_string),
-                    DisplayValueType::String => AnonymousValueContainer::String(data_value_string),
-                    DisplayValueType::Bool => AnonymousValueContainer::String(data_value_string),
-                    DisplayValueType::Decimal => AnonymousValueContainer::String(data_value_string),
-                    DisplayValueType::Address => AnonymousValueContainer::HexadecimalValue(data_value_string),
-                    DisplayValueType::DataTypeRef => AnonymousValueContainer::String(data_value_string),
-                    DisplayValueType::Enumeration => AnonymousValueContainer::String(data_value_string),
-                }
-            }
+            ContainerType::Pointer32 | ContainerType::Pointer64 => match display_value.get_display_value_type() {
+                DisplayValueType::Binary => AnonymousValueContainer::BinaryValue(anonymous_value_string),
+                DisplayValueType::Hexadecimal => AnonymousValueContainer::HexadecimalValue(anonymous_value_string),
+                DisplayValueType::String => AnonymousValueContainer::String(anonymous_value_string),
+                DisplayValueType::Bool => AnonymousValueContainer::String(anonymous_value_string),
+                DisplayValueType::Decimal => AnonymousValueContainer::String(anonymous_value_string),
+                DisplayValueType::Address => AnonymousValueContainer::HexadecimalValue(anonymous_value_string),
+                DisplayValueType::DataTypeRef => AnonymousValueContainer::String(anonymous_value_string),
+                DisplayValueType::Enumeration => AnonymousValueContainer::String(anonymous_value_string),
+            },
+            ContainerType::None => match display_value.get_display_value_type() {
+                DisplayValueType::Binary => AnonymousValueContainer::BinaryValue(anonymous_value_string),
+                DisplayValueType::Hexadecimal => AnonymousValueContainer::HexadecimalValue(anonymous_value_string),
+                DisplayValueType::String => AnonymousValueContainer::String(anonymous_value_string),
+                DisplayValueType::Bool => AnonymousValueContainer::String(anonymous_value_string),
+                DisplayValueType::Decimal => AnonymousValueContainer::String(anonymous_value_string),
+                DisplayValueType::Address => AnonymousValueContainer::HexadecimalValue(anonymous_value_string),
+                DisplayValueType::DataTypeRef => AnonymousValueContainer::String(anonymous_value_string),
+                DisplayValueType::Enumeration => AnonymousValueContainer::String(anonymous_value_string),
+            },
         }
     }
 }

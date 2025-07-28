@@ -12,7 +12,6 @@ use olorin_engine_api::commands::scan_results::add_to_project::scan_results_add_
 use olorin_engine_api::commands::scan_results::delete::scan_results_delete_request::ScanResultsDeleteRequest;
 use olorin_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use olorin_engine_api::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
-use olorin_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use olorin_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use olorin_engine_api::conversions::conversions::Conversions;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;

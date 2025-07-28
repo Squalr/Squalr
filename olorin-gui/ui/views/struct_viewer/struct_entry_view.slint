@@ -41,7 +41,7 @@ export component StructEntryView inherits Rectangle {
                 width: root.width - entry.x - icon.width - entry.spacing;
                 is_read_only: root.struct_entry.is_read_only;
                 on_value_committed(new_value) => {
-                    StructViewerViewModelBindings.commit_field_change(root.struct_entry.namespaced_name, new_value, root.struct_entry.display_values.active_display_values[root.struct_entry.display_values.active_display_value_index],  root.struct_entry.data_value.data_type_ref)
+                    StructViewerViewModelBindings.commit_field_change(root.struct_entry.namespaced_name, new_value, root.struct_entry.display_values.display_values[root.struct_entry.display_values.active_display_value_index],  root.struct_entry.data_value.data_type_ref)
                 }
             }
         }

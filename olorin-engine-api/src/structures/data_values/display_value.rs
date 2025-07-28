@@ -4,19 +4,19 @@ use std::fmt::{self, Debug};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DisplayValue {
-    display_value: String,
+    display_string: String,
     display_value_type: DisplayValueType,
     container_type: ContainerType,
 }
 
 impl DisplayValue {
     pub fn new(
-        display_value: String,
+        display_string: String,
         display_value_type: DisplayValueType,
         container_type: ContainerType,
     ) -> Self {
         Self {
-            display_value,
+            display_string,
             display_value_type,
             container_type,
         }
@@ -30,15 +30,15 @@ impl DisplayValue {
         &self.container_type
     }
 
-    pub fn get_display_value(&self) -> &str {
-        &self.display_value
+    pub fn get_display_string(&self) -> &str {
+        &self.display_string
     }
 
-    pub fn set_display_value(
+    pub fn set_display_string(
         &mut self,
-        display_value: String,
+        display_string: String,
     ) {
-        self.display_value = display_value;
+        self.display_string = display_string;
     }
 }
 
@@ -47,6 +47,6 @@ impl fmt::Display for DisplayValue {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(formatter, "{}{}: {}", self.display_value_type, self.container_type, self.display_value)
+        write!(formatter, "{}{}: {}", self.display_value_type, self.container_type, self.display_string)
     }
 }

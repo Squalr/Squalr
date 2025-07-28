@@ -1,5 +1,6 @@
 use crate::DisplayValuesViewData;
 use crate::converters::display_value_converter::DisplayValueConverter;
+use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
 use olorin_engine_api::structures::data_values::display_value_type::DisplayValueType;
 use olorin_engine_api::structures::data_values::display_values::DisplayValues;
 use slint::ModelRc;
@@ -44,10 +45,14 @@ impl ConvertToViewData<DisplayValues, DisplayValuesViewData> for DisplayValuesCo
             }
         }
 
+        let default_display_value_type = DisplayValueTypeConverter {}.convert_to_view_data(&display_values.get_default_display_value_type());
+        let active_display_value_type = DisplayValueTypeConverter {}.convert_to_view_data(&display_values.get_active_display_value_type());
         let display_values = ModelRc::new(VecModel::from(DisplayValueConverter {}.convert_collection(display_values.get_display_values())));
 
         DisplayValuesViewData {
-            active_display_values: display_values,
+            display_values,
+            default_display_value_type,
+            active_display_value_type,
             active_display_value_index,
         }
     }

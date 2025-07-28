@@ -88,9 +88,9 @@ impl StructViewerViewModel {
         let data_type_ref = DataTypeRefConverter {}.convert_from_view_data(&data_type_ref);
         let mut display_value = DisplayValueConverter {}.convert_from_view_data(&display_value);
 
-        display_value.set_display_value(new_value.to_string());
+        display_value.set_display_string(new_value.to_string());
 
-        let anonymous_value = AnonymousValue::new(&new_value.to_string(), display_value);
+        let anonymous_value = AnonymousValue::new(display_value);
 
         let Ok(struct_viewer_domain_lock) = view_model.struct_viewer_domain.read() else {
             log::error!("Failed to acquire read lock for struct viewer domain.");

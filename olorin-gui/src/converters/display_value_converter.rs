@@ -29,7 +29,7 @@ impl ConvertToViewData<DisplayValue, DisplayValueViewData> for DisplayValueConve
         display_value: &DisplayValue,
     ) -> DisplayValueViewData {
         DisplayValueViewData {
-            display_value: display_value.get_display_value().into(),
+            display_string: display_value.get_display_string().into(),
             display_value_type: DisplayValueTypeConverter {}.convert_to_view_data(display_value.get_display_value_type()),
             container_type: ContainerTypeConverter {}.convert_to_view_data(display_value.get_container_type()),
         }
@@ -42,7 +42,7 @@ impl ConvertFromViewData<DisplayValue, DisplayValueViewData> for DisplayValueCon
         display_value_view: &DisplayValueViewData,
     ) -> DisplayValue {
         DisplayValue::new(
-            display_value_view.display_value.to_string(),
+            display_value_view.display_string.to_string(),
             DisplayValueTypeConverter {}.convert_from_view_data(&display_value_view.display_value_type),
             ContainerTypeConverter {}.convert_from_view_data(&display_value_view.container_type),
         )

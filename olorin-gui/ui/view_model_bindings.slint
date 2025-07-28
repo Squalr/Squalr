@@ -271,18 +271,21 @@ export struct DataTypeRefViewData {
 }
 
 export struct DisplayValueViewData {
-    display_value: string,
+    display_string: string,
     display_value_type: DisplayValueTypeView,
     container_type: ContainerTypeView,
 }
 
 export struct DisplayValuesViewData {
-    active_display_values: [DisplayValueViewData],
+    display_values: [DisplayValueViewData],
+    default_display_value_type: DisplayValueTypeView,
+    active_display_value_type: DisplayValueTypeView,
     active_display_value_index: int,
 }
 
 export struct DataValueViewData {
     data_type_ref: DataTypeRefViewData,
+    display_values: DisplayValuesViewData,
 }
 
 export struct SymbolicStructRefViewData {
@@ -398,7 +401,6 @@ export struct ScanResultViewData {
 
 export global ElementScannerViewModelBindings {
     in_out property <DataValueViewData> active_data_value;
-    in_out property <DisplayValuesViewData> active_display_values;
     in_out property <string> active_icon_id;
     in_out property <ScanConstraintTypeView> active_scan_type: equal;
     callback reset_scan();

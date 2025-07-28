@@ -57,8 +57,11 @@ impl ValidationViewModel {
         data_type_ref: DataTypeRefViewData,
         display_value: DisplayValueViewData,
     ) -> bool {
-        let display_value = DisplayValueConverter {}.convert_from_view_data(&display_value);
-        let anonymous_value = AnonymousValue::new(&value_string, display_value);
+        let mut display_value = DisplayValueConverter {}.convert_from_view_data(&display_value);
+
+        display_value.set_display_string(value_string.into());
+
+        let anonymous_value = AnonymousValue::new(display_value);
         let data_type_ref = DataTypeRefConverter {}.convert_from_view_data(&data_type_ref);
         let DATA_TYPE_REGISTRY = DataTypeRegistry::new();
 

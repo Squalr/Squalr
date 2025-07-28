@@ -85,11 +85,10 @@ impl ValuedStructField {
     }
 
     pub fn get_display_values(&self) -> Option<&DisplayValues> {
-        let JIRA = 42069;
         match &self.field_node {
             ValuedStructFieldNode::NestedStruct(_nested_struct) => None,
-            ValuedStructFieldNode::Value(data_value) => None, // data_value.get_default_display_value(),
-            ValuedStructFieldNode::Array(data_value) => None, // data_value.get_default_display_value(),
+            ValuedStructFieldNode::Value(data_value) => Some(data_value.get_display_values()),
+            ValuedStructFieldNode::Array(data_value) => Some(data_value.get_display_values()),
             ValuedStructFieldNode::Pointer32(_value) => None,
             ValuedStructFieldNode::Pointer64(_value) => None,
         }
@@ -170,28 +169,22 @@ impl ValuedStructField {
                     format!("{{{}}}", nested_str)
                 }
             }
-            ValuedStructFieldNode::Value(data_value) | ValuedStructFieldNode::Array(data_value) => {
-                let JIRA = 69420;
-
-                format!("{}", JIRA)
-                /*
-                match data_value.get_default_display_value() {
-                    Some(display_value) => {
-                        if pretty_print {
-                            format!("{}{}\n", indent, display_value.get_display_value())
-                        } else {
-                            format!("{}{}", indent, display_value.get_display_value())
-                        }
+            ValuedStructFieldNode::Value(data_value) | ValuedStructFieldNode::Array(data_value) => match data_value.get_active_display_value() {
+                Some(display_value) => {
+                    if pretty_print {
+                        format!("{}{}\n", indent, display_value.get_display_string())
+                    } else {
+                        format!("{}{}", indent, display_value.get_display_string())
                     }
-                    None => {
-                        if pretty_print {
-                            format!("{}\n", indent)
-                        } else {
-                            indent
-                        }
+                }
+                None => {
+                    if pretty_print {
+                        format!("{}\n", indent)
+                    } else {
+                        indent
                     }
-                }*/
-            }
+                }
+            },
             ValuedStructFieldNode::Pointer64(value) => {
                 if pretty_print {
                     format!("{}0x{:016X}\n", indent, value)
