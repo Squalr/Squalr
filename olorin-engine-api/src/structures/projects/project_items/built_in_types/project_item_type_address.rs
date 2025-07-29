@@ -21,6 +21,12 @@ impl ProjectItemType for ProjectItemTypeAddress {
     ) {
         // JIRA: implement me
     }
+
+    fn tick(
+        &mut self,
+        project_item: &mut ProjectItem,
+    ) {
+    }
 }
 
 impl ProjectItemTypeAddress {

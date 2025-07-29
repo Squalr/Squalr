@@ -6,6 +6,7 @@ use crate::structures::results::snapshot_region_scan_results::SnapshotRegionScan
 use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use crate::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -24,6 +25,9 @@ pub struct SnapshotRegion {
     /// Any OS level page boundaries that may sub-divide this snapshot region.
     pub page_boundaries: Vec<u64>,
 
+    /// Pages where a read has failed due to a deallocated page or other read issue.
+    pub page_boundary_tombstones: HashSet<u64>,
+
     /// The current scan results on this snapshot region.
     scan_results: SnapshotRegionScanResults,
 }
@@ -38,6 +42,7 @@ impl SnapshotRegion {
             current_values: vec![],
             previous_values: vec![],
             page_boundaries,
+            page_boundary_tombstones: HashSet::new(),
             scan_results: SnapshotRegionScanResults::new(vec![]),
         }
     }

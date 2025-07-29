@@ -25,4 +25,10 @@ impl ProjectItemType for ProjectItemTypePointer {
     ) {
         // JIRA: Implement
     }
+
+    fn tick(
+        &mut self,
+        project_item: &mut ProjectItem,
+    ) {
+    }
 }

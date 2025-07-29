@@ -1,11 +1,11 @@
 use crate::scanners::snapshot_region_memory_reader::SnapshotRegionMemoryReader;
-use rayon::iter::IntoParallelRefMutIterator;
-use rayon::iter::ParallelIterator;
 use olorin_engine_api::conversions::conversions::Conversions;
 use olorin_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use olorin_engine_api::structures::snapshots::snapshot::Snapshot;
 use olorin_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use olorin_engine_api::structures::tasks::trackable_task::TrackableTask;
+use rayon::iter::IntoParallelRefMutIterator;
+use rayon::iter::ParallelIterator;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -72,7 +72,7 @@ impl ValueCollectorTask {
 
             // Attempt to read new (or initial) memory values. Ignore failed regions, as these are generally just deallocated pages.
             // JIRA: We probably want some way of tombstoning deallocated pages.
-            let _ = snapshot_region.read_all_memory(&process_info);
+            let _result = snapshot_region.read_all_memory(&process_info);
 
             // Report progress periodically (not every time for performance)
             let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);

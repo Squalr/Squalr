@@ -5,13 +5,10 @@ use crate::structures::projects::project_items::{
     },
     project_item_type::ProjectItemType,
 };
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, sync::Arc};
 
 pub struct ProjectItemTypeRegistry {
-    registry: RwLock<HashMap<String, Arc<dyn ProjectItemType>>>,
+    registry: HashMap<String, Arc<dyn ProjectItemType>>,
 }
 
 impl ProjectItemTypeRegistry {
@@ -21,11 +18,18 @@ impl ProjectItemTypeRegistry {
         }
     }
 
-    pub fn get_registry(&self) -> &RwLock<HashMap<String, Arc<dyn ProjectItemType>>> {
+    pub fn get(
+        &self,
+        project_item_type_id: &str,
+    ) -> Option<Arc<dyn ProjectItemType>> {
+        self.registry.get(project_item_type_id).cloned()
+    }
+
+    pub fn get_registry(&self) -> &HashMap<String, Arc<dyn ProjectItemType>> {
         &self.registry
     }
 
-    fn create_built_in_types() -> RwLock<HashMap<String, Arc<dyn ProjectItemType>>> {
+    fn create_built_in_types() -> HashMap<String, Arc<dyn ProjectItemType>> {
         let mut registry: HashMap<String, Arc<dyn ProjectItemType>> = HashMap::new();
 
         let built_in_project_item_types: Vec<Arc<dyn ProjectItemType>> = vec![
@@ -43,6 +47,6 @@ impl ProjectItemTypeRegistry {
             );
         }
 
-        RwLock::new(registry)
+        registry
     }
 }

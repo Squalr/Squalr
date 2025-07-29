@@ -48,7 +48,7 @@ export component ProjectItemEntry inherits Button {
                         height: 16px;
                         horizontal_alignment: center;
                         vertical_alignment: center;
-                        source: icon_converter.icon_view_to_image(icon_converter.icon_id_to_view("JIRA: TODO"));
+                        source: icon_converter.icon_view_to_image(icon_converter.icon_id_to_view(root.project_view_data.icon_id));
                     }
                 }
 
@@ -59,6 +59,23 @@ export component ProjectItemEntry inherits Button {
                         horizontal_alignment: left;
                         vertical_alignment: center;
                         text: root.project_view_data.name;
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            x: root.display_value_splitter_location;
+            HorizontalLayout {
+                padding_left: 8px;
+                spacing: 4px;
+                VerticalLayout {
+                    alignment: center;
+                    Text {
+                        color: Theme.foreground;
+                        horizontal_alignment: left;
+                        vertical_alignment: center;
+                        text: root.project_view_data.current_display_value;
                     }
                 }
             }

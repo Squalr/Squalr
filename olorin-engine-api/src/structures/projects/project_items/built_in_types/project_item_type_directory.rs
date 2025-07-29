@@ -21,6 +21,12 @@ impl ProjectItemType for ProjectItemTypeDirectory {
     ) {
         // JIRA: Implement
     }
+
+    fn tick(
+        &mut self,
+        project_item: &mut ProjectItem,
+    ) {
+    }
 }
 
 impl ProjectItemTypeDirectory {

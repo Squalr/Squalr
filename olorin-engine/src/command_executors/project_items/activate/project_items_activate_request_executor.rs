@@ -23,7 +23,12 @@ impl EngineCommandRequestExecutor for ProjectItemsActivateRequest {
                         let project_item_path = Path::new(&project_item_path);
 
                         if let Some(project_item) = project_manager.find_project_item_mut(project_item_path) {
-                            project_item.set_activated(self.is_activated);
+                            match engine_privileged_state.get_project_item_type_registry().read() {
+                                Ok(project_item_type_registry) => {
+                                    project_item.set_activated(&project_item_type_registry, self.is_activated);
+                                }
+                                Err(error) => log::error!("Failed to get project item type registry: {}", error),
+                            }
                         } else {
                             log::error!("Failed to find project item: {:?}", project_item_path)
                         }

@@ -1,3 +1,4 @@
+use crate::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
 use crate::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
     projects::project_items::project_item_type_ref::ProjectItemTypeRef,
@@ -29,6 +30,9 @@ pub struct ProjectItem {
 
     /// A value indicating whether this project item has unsaved changes.
     has_unsaved_changes: bool,
+
+    #[serde(skip)]
+    current_display_value: String,
 }
 
 impl ProjectItem {
@@ -48,6 +52,7 @@ impl ProjectItem {
             children: vec![],
             is_container,
             has_unsaved_changes: true,
+            current_display_value: String::new(),
         };
 
         let name = project_item
@@ -102,16 +107,14 @@ impl ProjectItem {
 
     pub fn set_activated(
         &mut self,
+        project_item_type_registry: &ProjectItemTypeRegistry,
         is_activated: bool,
     ) {
         self.is_activated = is_activated;
 
-        /*
-        if let Ok(project_item_type_registry) = ProjectItemTypeRegistry::get_instance().get_registry().read() {
-            if let Some(project_item_type) = project_item_type_registry.get(self.item_type.get_project_item_type_id()) {
-                project_item_type.on_activated_changed(self);
-            }
-        }*/
+        if let Some(project_item_type) = project_item_type_registry.get(self.item_type.get_project_item_type_id()) {
+            project_item_type.on_activated_changed(self);
+        }
     }
 
     pub fn get_is_container(&self) -> bool {
@@ -137,6 +140,10 @@ impl ProjectItem {
         debug_assert!(self.is_container);
 
         &mut self.children
+    }
+
+    pub fn get_display_string(&self) -> &str {
+        &self.current_display_value
     }
 
     pub fn get_field_name(&self) -> String {

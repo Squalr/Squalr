@@ -6,4 +6,8 @@ pub trait ProjectItemType: Send + Sync {
         &self,
         project_item: &ProjectItem,
     );
+    fn tick(
+        &mut self,
+        project_item: &mut ProjectItem,
+    );
 }

@@ -17,6 +17,8 @@ impl ProjectItemConverter {
     ) -> ProjectItemViewData {
         ProjectItemViewData {
             name: project_item.get_field_name().to_shared_string(),
+            current_display_value: project_item.get_field_name().to_shared_string(),
+            icon_id: project_item.get_field_name().to_shared_string(),
             path: project_item.get_path().to_string_lossy().to_shared_string(),
             indentation,
             is_checked: project_item.get_is_activated(),
@@ -60,6 +62,8 @@ impl ConvertToViewData<ProjectItem, ProjectItemViewData> for ProjectItemConverte
     ) -> ProjectItemViewData {
         ProjectItemViewData {
             name: project_item.get_field_name().to_shared_string(),
+            current_display_value: project_item.get_field_name().to_shared_string(),
+            icon_id: project_item.get_field_name().to_shared_string(),
             path: project_item.get_path().to_string_lossy().to_shared_string(),
             indentation: 0,
             is_checked: project_item.get_is_activated(),

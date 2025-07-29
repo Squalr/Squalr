@@ -9,6 +9,7 @@ import { ProjectItemEntry } from "project_item_entry.slint";
 import { ProjectOutlineHeader } from "project_outline_header.slint";
 
 export component ProjectOutlineTab inherits Rectangle {
+    property <float> display_splitter_ratio: 0.5;
     VerticalLayout {
         padding: 0px;
         spacing: 0px;
@@ -20,6 +21,7 @@ export component ProjectOutlineTab inherits Rectangle {
                 spacing: 0px;
                 for index in ProjectExplorerViewModelBindings.project_items.length: ProjectItemEntry {
                     project_view_data: ProjectExplorerViewModelBindings.project_items[index];
+                    display_value_splitter_location: content.width * root.display_splitter_ratio;
                 }
             }
         }
