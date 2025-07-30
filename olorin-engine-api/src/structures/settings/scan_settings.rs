@@ -7,9 +7,9 @@ use std::fmt;
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ScanSettings {
     pub results_page_size: u32,
-    pub results_read_interval: u64,
-    pub project_read_interval: u64,
-    pub freeze_interval: u64,
+    pub results_read_interval_ms: u64,
+    pub project_read_interval_ms: u64,
+    pub freeze_interval_ms: u64,
     pub memory_alignment: Option<MemoryAlignment>,
     pub memory_read_mode: MemoryReadMode,
     pub floating_point_tolerance: FloatingPointTolerance,
@@ -33,9 +33,9 @@ impl Default for ScanSettings {
     fn default() -> Self {
         Self {
             results_page_size: 22,
-            results_read_interval: 200,
-            project_read_interval: 200,
-            freeze_interval: 50,
+            results_read_interval_ms: 200,
+            project_read_interval_ms: 200,
+            freeze_interval_ms: 50,
             memory_alignment: None,
             floating_point_tolerance: FloatingPointTolerance::default(),
             memory_read_mode: MemoryReadMode::ReadBeforeScan,

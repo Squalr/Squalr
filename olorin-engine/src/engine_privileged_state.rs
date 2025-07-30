@@ -13,7 +13,8 @@ use olorin_engine_api::structures::snapshots::snapshot::Snapshot;
 use olorin_engine_processes::process::process_manager::ProcessManager;
 use olorin_engine_processes::process_query::process_queryer::ProcessQuery;
 use olorin_engine_projects::project::project_manager::ProjectManager;
-use olorin_engine_scanning::freezing::snapshot_scan_result_freeze_task::SnapshotScanResultFreezeTask;
+use olorin_engine_projects::project::update_task::project_update_task::ProjectUpdateTask;
+use olorin_engine_scanning::freeze_task::snapshot_scan_result_freeze_task::SnapshotScanResultFreezeTask;
 use std::sync::{Arc, RwLock};
 
 /// Tracks critical engine state for internal use. This includes executing engine tasks, commands, and events.
@@ -53,6 +54,11 @@ impl EnginePrivilegedState {
         let registries = Arc::new(Registries::new());
 
         SnapshotScanResultFreezeTask::start_task(process_manager.get_opened_process_ref(), registries.get_freeze_list_registry().clone());
+        ProjectUpdateTask::start_task(
+            project_manager.get_opened_project(),
+            process_manager.get_opened_process_ref(),
+            registries.get_project_item_type_registry().clone(),
+        );
 
         let execution_context = Arc::new(EnginePrivilegedState {
             process_manager,

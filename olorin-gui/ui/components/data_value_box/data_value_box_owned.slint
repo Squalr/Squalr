@@ -20,12 +20,7 @@ export component DataValueBoxOwned {
     in property <TextVerticalAlignment> text_vertical_alignment: center;
     in property <color> background: Theme.background_primary;
     in property <color> foreground: Theme.foreground;
-    in property <color> foreground_binary: Theme.bin_blue;
-    in property <color> foreground_hexadecimal: Theme.hex_green;
-    in property <color> foreground_preview: Theme.foreground_preview;
     in property <color> border_color: Theme.submenu_border;
-    in property <color> invalid_color: Theme.error_red;
-    in property <color> read_only_color: Theme.foreground_preview;
     property <[DisplayValueTypeView]> supported_display_types: ValidationViewModelBindings.get_supported_display_types_for_data_type(root.data_value.data_type_ref);
     display_value_typer_converter := DisplayValueTypeConverter { }
 
@@ -48,13 +43,13 @@ export component DataValueBoxOwned {
     }
     pure function get_display_value_color() -> color {
         if !root.is_value_valid_for_cursor() {
-            return root.invalid_color;
+            return Theme.error_red;
         } else if root.get_active_display_value_type() == DisplayValueTypeView.hexadecimal {
-            return root.foreground_hexadecimal;
+            return Theme.hex_green;
         } else if root.get_active_display_value_type() == DisplayValueTypeView.binary {
-            return root.foreground_binary;
+            return Theme.bin_blue;
         } else {
-            return root.foreground;
+            return Theme.dec_white;
         }
     }
     pure function is_value_valid_for_cursor() -> bool {
@@ -141,7 +136,7 @@ export component DataValueBoxOwned {
             text: text_input.text == "" ? root.preview_text : "";
             horizontal_alignment: root.text_horizontal_alignment;
             vertical_alignment: root.text_vertical_alignment;
-            color: root.foreground_preview;
+            color: Theme.foreground_preview;
         }
     }
 

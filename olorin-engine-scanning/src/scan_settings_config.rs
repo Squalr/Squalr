@@ -1,8 +1,8 @@
-use serde_json::to_string_pretty;
 use olorin_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use olorin_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use olorin_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use olorin_engine_api::structures::settings::scan_settings::ScanSettings;
+use serde_json::to_string_pretty;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Once;
@@ -84,15 +84,15 @@ impl ScanSettingsConfig {
 
     pub fn get_results_read_interval() -> u64 {
         if let Ok(config) = Self::get_instance().config.read() {
-            config.results_read_interval
+            config.results_read_interval_ms
         } else {
-            ScanSettings::default().results_read_interval
+            ScanSettings::default().results_read_interval_ms
         }
     }
 
     pub fn set_results_read_interval(value: u64) {
         if let Ok(mut config) = Self::get_instance().config.write() {
-            config.results_read_interval = value;
+            config.results_read_interval_ms = value;
         }
 
         Self::save_config();
@@ -100,15 +100,15 @@ impl ScanSettingsConfig {
 
     pub fn get_project_read_interval() -> u64 {
         if let Ok(config) = Self::get_instance().config.read() {
-            config.project_read_interval
+            config.project_read_interval_ms
         } else {
-            ScanSettings::default().project_read_interval
+            ScanSettings::default().project_read_interval_ms
         }
     }
 
     pub fn set_project_read_interval(value: u64) {
         if let Ok(mut config) = Self::get_instance().config.write() {
-            config.project_read_interval = value;
+            config.project_read_interval_ms = value;
         }
 
         Self::save_config();
@@ -116,15 +116,15 @@ impl ScanSettingsConfig {
 
     pub fn get_freeze_interval() -> u64 {
         if let Ok(config) = Self::get_instance().config.read() {
-            config.freeze_interval
+            config.freeze_interval_ms
         } else {
-            ScanSettings::default().freeze_interval
+            ScanSettings::default().freeze_interval_ms
         }
     }
 
     pub fn set_freeze_interval(value: u64) {
         if let Ok(mut config) = Self::get_instance().config.write() {
-            config.freeze_interval = value;
+            config.freeze_interval_ms = value;
         }
 
         Self::save_config();

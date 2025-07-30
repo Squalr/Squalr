@@ -78,6 +78,10 @@ impl ProjectItem {
         &self.path
     }
 
+    pub fn get_item_type(&self) -> &ProjectItemTypeRef {
+        &self.item_type
+    }
+
     pub fn get_properties(&self) -> &ValuedStruct {
         &self.properties
     }

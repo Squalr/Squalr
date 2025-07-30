@@ -164,9 +164,9 @@ impl ScanSettingsViewModel {
                 let scan_settings_view = main_window_view.global::<ScanSettingsViewModelBindings>();
                 if let Ok(scan_settings) = scan_results_query_response.scan_settings {
                     scan_settings_view.set_results_page_size(scan_settings.results_page_size as i32);
-                    scan_settings_view.set_results_read_interval(scan_settings.results_read_interval as i32);
-                    scan_settings_view.set_project_read_interval(scan_settings.project_read_interval as i32);
-                    scan_settings_view.set_freeze_interval(scan_settings.freeze_interval as i32);
+                    scan_settings_view.set_results_read_interval(scan_settings.results_read_interval_ms as i32);
+                    scan_settings_view.set_project_read_interval(scan_settings.project_read_interval_ms as i32);
+                    scan_settings_view.set_freeze_interval(scan_settings.freeze_interval_ms as i32);
                     scan_settings_view
                         .set_floating_point_tolerance(FloatingPointToleranceConverter {}.convert_to_view_data(&scan_settings.floating_point_tolerance));
                     scan_settings_view.set_memory_alignment(

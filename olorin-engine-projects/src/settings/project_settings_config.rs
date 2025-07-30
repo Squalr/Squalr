@@ -1,5 +1,5 @@
-use serde_json::to_string_pretty;
 use olorin_engine_api::structures::settings::project_settings::ProjectSettings;
+use serde_json::to_string_pretty;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Once;
@@ -74,6 +74,22 @@ impl ProjectSettingsConfig {
     pub fn set_projects_root(value: PathBuf) {
         if let Ok(mut config) = Self::get_instance().config.write() {
             config.projects_root = value;
+        }
+
+        Self::save_config();
+    }
+
+    pub fn get_project_update_interval() -> u64 {
+        if let Ok(config) = Self::get_instance().config.read() {
+            config.project_update_interval_ms
+        } else {
+            ProjectSettings::default().project_update_interval_ms
+        }
+    }
+
+    pub fn set_project_update_interval(value: u64) {
+        if let Ok(mut config) = Self::get_instance().config.write() {
+            config.project_update_interval_ms = value;
         }
 
         Self::save_config();

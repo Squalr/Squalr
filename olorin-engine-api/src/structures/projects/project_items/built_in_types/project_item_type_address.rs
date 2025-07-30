@@ -1,3 +1,5 @@
+use crate::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
+use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::{
     data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
     data_values::data_value::DataValue,
@@ -23,7 +25,9 @@ impl ProjectItemType for ProjectItemTypeAddress {
     }
 
     fn tick(
-        &mut self,
+        &self,
+        opened_process: &Option<OpenedProcessInfo>,
+        project_item_type_registry: &ProjectItemTypeRegistry,
         project_item: &mut ProjectItem,
     ) {
     }

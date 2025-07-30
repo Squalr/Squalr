@@ -7,6 +7,7 @@ use std::path::PathBuf;
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ProjectSettings {
     pub projects_root: PathBuf,
+    pub project_update_interval_ms: u64,
 }
 
 impl fmt::Debug for ProjectSettings {
@@ -27,6 +28,9 @@ impl Default for ProjectSettings {
             .and_then(|dirs| Some(dirs.document_dir()?.join("Olorin")))
             .unwrap_or_else(|| PathBuf::from("./Olorin"));
 
-        Self { projects_root }
+        Self {
+            projects_root,
+            project_update_interval_ms: 200,
+        }
     }
 }
