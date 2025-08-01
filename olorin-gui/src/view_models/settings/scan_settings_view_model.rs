@@ -3,9 +3,10 @@ use crate::converters::memory_alignment_converter::MemoryAlignmentConverter;
 use crate::converters::memory_read_mode_converter::MemoryReadModeConverter;
 use crate::{FloatingPointToleranceView, MemoryAlignmentView};
 use crate::{MainWindowView, ScanSettingsViewModelBindings};
-use olorin_engine::{command_executors::engine_request_executor::EngineCommandRequestExecutor, engine_execution_context::EngineExecutionContext};
+use olorin_engine_api::commands::engine_command_request::EngineCommandRequest;
 use olorin_engine_api::commands::settings::scan::set::scan_settings_set_request::ScanSettingsSetRequest;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use olorin_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use olorin_engine_api::{
     commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest, structures::memory::memory_alignment::MemoryAlignment,
 };

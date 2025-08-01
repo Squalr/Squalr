@@ -5,14 +5,14 @@ use crate::MainWindowView;
 use crate::MemoryAlignmentView;
 use crate::MemoryReadModeView;
 use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
+use olorin_engine_api::conversions::conversions::Conversions;
+use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use olorin_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
-use olorin_engine::engine_execution_context::EngineExecutionContext;
-use olorin_engine_api::conversions::conversions::Conversions;
-use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use std::sync::Arc;
 
 pub struct ConversionsViewModel {

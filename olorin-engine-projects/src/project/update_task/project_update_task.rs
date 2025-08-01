@@ -1,5 +1,6 @@
 use crate::project::project::Project;
 use crate::settings::project_settings_config::ProjectSettingsConfig;
+use olorin_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use olorin_engine_api::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
 use olorin_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use olorin_engine_api::structures::tasks::trackable_task::TrackableTask;
@@ -16,6 +17,7 @@ pub struct ProjectUpdateTask;
 /// Implementation of a task that updates all project items.
 impl ProjectUpdateTask {
     pub fn start_task(
+        engine_execution_context: Arc<EngineExecutionContext>,
         opened_project: Arc<RwLock<Option<Project>>>,
         opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>,
         project_item_type_registry: Arc<RwLock<ProjectItemTypeRegistry>>,
@@ -28,7 +30,7 @@ impl ProjectUpdateTask {
                 if task_clone.get_cancellation_token().load(Ordering::Acquire) {
                     break;
                 }
-                Self::update_project_task(&opened_project, &opened_process, &project_item_type_registry);
+                Self::update_project_task(&engine_execution_context, &opened_project, &opened_process, &project_item_type_registry);
 
                 thread::sleep(Duration::from_millis(ProjectSettingsConfig::get_project_update_interval()));
             }
@@ -40,6 +42,7 @@ impl ProjectUpdateTask {
     }
 
     fn update_project_task(
+        engine_execution_context: &Arc<EngineExecutionContext>,
         opened_project: &Arc<RwLock<Option<Project>>>,
         opened_process: &Arc<RwLock<Option<OpenedProcessInfo>>>,
         project_item_type_registry: &Arc<RwLock<ProjectItemTypeRegistry>>,
@@ -74,7 +77,12 @@ impl ProjectUpdateTask {
             let project_root = opened_project.get_project_root_mut();
 
             if let Some(project_item_type) = project_item_type_registry_guard.get(project_root.get_item_type().get_project_item_type_id()) {
-                project_item_type.tick(&opened_process_guard, &project_item_type_registry_guard, project_root);
+                project_item_type.tick(
+                    &engine_execution_context,
+                    &opened_process_guard,
+                    &project_item_type_registry_guard,
+                    project_root,
+                );
             }
         }
     }

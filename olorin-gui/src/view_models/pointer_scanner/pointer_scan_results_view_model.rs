@@ -6,8 +6,7 @@ use crate::models::audio::audio_player::AudioPlayer;
 use crate::models::audio::audio_player::SoundType;
 use crate::view_models::struct_viewer::struct_viewer_domain::StructViewerDomain;
 use crate::view_models::struct_viewer::struct_viewer_view_model::StructViewerViewModel;
-use olorin_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
-use olorin_engine::engine_execution_context::EngineExecutionContext;
+use olorin_engine_api::commands::engine_command_request::EngineCommandRequest;
 use olorin_engine_api::commands::scan_results::add_to_project::scan_results_add_to_project_request::ScanResultsAddToProjectRequest;
 use olorin_engine_api::commands::scan_results::delete::scan_results_delete_request::ScanResultsDeleteRequest;
 use olorin_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
@@ -15,6 +14,7 @@ use olorin_engine_api::commands::scan_results::query::scan_results_query_request
 use olorin_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use olorin_engine_api::conversions::conversions::Conversions;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use olorin_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use olorin_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use olorin_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use olorin_engine_api::structures::scan_results::scan_result::ScanResult;

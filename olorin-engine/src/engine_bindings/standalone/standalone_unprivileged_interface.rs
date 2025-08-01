@@ -1,9 +1,9 @@
 use crate::engine_bindings::engine_ingress::ExecutableCommand;
-use crate::engine_bindings::engine_unprivileged_bindings::EngineUnprivilegedBindings;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::Receiver;
 use olorin_engine_api::commands::engine_command::EngineCommand;
 use olorin_engine_api::commands::engine_command_response::EngineCommandResponse;
+use olorin_engine_api::engine::engine_unprivileged_bindings::EngineUnprivilegedBindings;
 use olorin_engine_api::events::engine_event::EngineEvent;
 use std::sync::Arc;
 
@@ -12,18 +12,25 @@ pub struct StandaloneUnprivilegedInterface {
     engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
 }
 
+impl StandaloneUnprivilegedInterface {
+    /// Initialize unprivileged bindings. For standalone builds, the privileged engine state is passed to allow direct communcation.
+    pub fn new(engine_privileged_state: &Option<Arc<EnginePrivilegedState>>) -> Self {
+        let engine_privileged_state = if let Some(engine_privileged_state) = engine_privileged_state {
+            Some(engine_privileged_state.clone())
+        } else {
+            log::error!("No privileged state provided! Engine command dispatching will be non-functional without this.");
+
+            None
+        };
+
+        Self { engine_privileged_state }
+    }
+}
+
 impl EngineUnprivilegedBindings for StandaloneUnprivilegedInterface {
     /// Initialize unprivileged bindings. For standalone builds, the privileged engine state is passed to allow direct communcation.
-    fn initialize(
-        &mut self,
-        engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
-    ) -> Result<(), String> {
-        if let Some(engine_privileged_state) = engine_privileged_state {
-            self.engine_privileged_state = Some(engine_privileged_state.clone());
-            Ok(())
-        } else {
-            Err("No privileged state provided! Engine command dispatching will be non-functional without this.".to_string())
-        }
+    fn initialize(&mut self) -> Result<(), String> {
+        Err("Not implemented".to_string())
     }
 
     /// Dispatches an engine command to the engine to handle.
@@ -47,13 +54,5 @@ impl EngineUnprivilegedBindings for StandaloneUnprivilegedInterface {
         } else {
             Err("Failed to subscribe to engine events.".to_string())
         }
-    }
-}
-
-impl StandaloneUnprivilegedInterface {
-    pub fn new() -> StandaloneUnprivilegedInterface {
-        let instance = StandaloneUnprivilegedInterface { engine_privileged_state: None };
-
-        instance
     }
 }

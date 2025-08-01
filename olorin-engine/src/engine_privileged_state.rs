@@ -1,5 +1,6 @@
+use crate::engine_bindings::engine_priviliged_bindings::EnginePrivilegedBindings;
 use crate::engine_bindings::interprocess::interprocess_privileged_shell::InterprocessPrivilegedShell;
-use crate::engine_bindings::{engine_priviliged_bindings::EnginePrivilegedBindings, standalone::standalone_privileged_engine::StandalonePrivilegedEngine};
+use crate::engine_bindings::standalone::standalone_privileged_engine::StandalonePrivilegedEngine;
 use crate::engine_mode::EngineMode;
 use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
@@ -54,13 +55,14 @@ impl EnginePrivilegedState {
         let registries = Arc::new(Registries::new());
 
         SnapshotScanResultFreezeTask::start_task(process_manager.get_opened_process_ref(), registries.get_freeze_list_registry().clone());
+        /*
         ProjectUpdateTask::start_task(
             project_manager.get_opened_project(),
             process_manager.get_opened_process_ref(),
             registries.get_project_item_type_registry().clone(),
-        );
+        );*/
 
-        let execution_context = Arc::new(EnginePrivilegedState {
+        let engine_privileged_state = Arc::new(EnginePrivilegedState {
             process_manager,
             project_manager,
             task_manager,
@@ -69,7 +71,7 @@ impl EnginePrivilegedState {
             registries,
         });
 
-        execution_context
+        engine_privileged_state
     }
 
     pub fn initialize(

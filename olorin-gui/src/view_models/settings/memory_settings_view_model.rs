@@ -1,10 +1,10 @@
 use crate::MainWindowView;
 use crate::MemorySettingsViewModelBindings;
-use olorin_engine::command_executors::engine_request_executor::EngineCommandRequestExecutor;
-use olorin_engine::engine_execution_context::EngineExecutionContext;
+use olorin_engine_api::commands::engine_command_request::EngineCommandRequest;
 use olorin_engine_api::commands::settings::memory::list::memory_settings_list_request::MemorySettingsListRequest;
 use olorin_engine_api::commands::settings::memory::set::memory_settings_set_request::MemorySettingsSetRequest;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use olorin_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;

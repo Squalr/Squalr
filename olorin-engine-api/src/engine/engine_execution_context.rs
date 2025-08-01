@@ -1,16 +1,12 @@
-use crate::engine_bindings::engine_unprivileged_bindings::EngineUnprivilegedBindings;
-use crate::engine_bindings::interprocess::interprocess_unprivileged_host::InterprocessUnprivilegedHost;
-use crate::engine_bindings::standalone::standalone_unprivileged_interface::StandaloneUnprivilegedInterface;
-use crate::engine_mode::EngineMode;
-use crate::engine_privileged_state::EnginePrivilegedState;
-use olorin_engine_api::commands::engine_command_response::EngineCommandResponse;
-use olorin_engine_api::events::engine_event::EngineEventRequest;
-use olorin_engine_api::events::process::process_event::ProcessEvent;
-use olorin_engine_api::events::project::project_event::ProjectEvent;
-use olorin_engine_api::events::project_items::project_items_event::ProjectItemsEvent;
-use olorin_engine_api::events::scan_results::scan_results_event::ScanResultsEvent;
-use olorin_engine_api::events::trackable_task::trackable_task_event::TrackableTaskEvent;
-use olorin_engine_api::{commands::engine_command::EngineCommand, events::engine_event::EngineEvent};
+use crate::commands::{engine_command::EngineCommand, engine_command_response::EngineCommandResponse};
+use crate::engine::engine_unprivileged_bindings::EngineUnprivilegedBindings;
+use crate::events::engine_event::EngineEvent;
+use crate::events::engine_event::EngineEventRequest;
+use crate::events::process::process_event::ProcessEvent;
+use crate::events::project::project_event::ProjectEvent;
+use crate::events::project_items::project_items_event::ProjectItemsEvent;
+use crate::events::scan_results::scan_results_event::ScanResultsEvent;
+use crate::events::trackable_task::trackable_task_event::TrackableTaskEvent;
 use olorin_engine_common::logging::file_system_logger::FileSystemLogger;
 use std::{
     any::{Any, TypeId},
@@ -31,13 +27,7 @@ pub struct EngineExecutionContext {
 }
 
 impl EngineExecutionContext {
-    pub fn new(engine_mode: EngineMode) -> Arc<Self> {
-        let engine_bindings: Arc<RwLock<dyn EngineUnprivilegedBindings>> = match engine_mode {
-            EngineMode::Standalone => Arc::new(RwLock::new(StandaloneUnprivilegedInterface::new())),
-            EngineMode::PrivilegedShell => unreachable!("Unprivileged execution context should never be created from a privileged shell."),
-            EngineMode::UnprivilegedHost => Arc::new(RwLock::new(InterprocessUnprivilegedHost::new())),
-        };
-
+    pub fn new(engine_bindings: Arc<RwLock<dyn EngineUnprivilegedBindings>>) -> Arc<Self> {
         let execution_context = Arc::new(EngineExecutionContext {
             engine_bindings,
             event_listeners: Arc::new(RwLock::new(HashMap::new())),
@@ -47,21 +37,7 @@ impl EngineExecutionContext {
         execution_context
     }
 
-    pub fn initialize(
-        &self,
-        engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
-    ) {
-        match self.engine_bindings.write() {
-            Ok(mut engine_bindings) => {
-                if let Err(error) = engine_bindings.initialize(engine_privileged_state) {
-                    log::error!("Error initializing unprivileged engine bindings: {}", error);
-                }
-            }
-            Err(error) => {
-                log::error!("Failed to acquire unprivileged engine bindings write lock: {}", error);
-            }
-        }
-
+    pub fn initialize(&self) {
         self.start_event_dispatcher();
 
         // Start the log event sending now that the engine is initialized. This will send all backlogged messages to listeners.
@@ -71,28 +47,6 @@ impl EngineExecutionContext {
     /// Gets the file system logger that routes log events to the log file.
     pub fn get_logger(&self) -> &Arc<FileSystemLogger> {
         &self.file_system_logger
-    }
-
-    /// Dispatches a command to the engine. Direct usage is generally not advised unless you know what you are doing.
-    /// Instead, create `{Command}Request` instances and call `.send()` directly on them.
-    /// This is only made public to support direct usage by CLIs and other features that may need direct access.
-    pub fn dispatch_command<F>(
-        self: &Arc<Self>,
-        engine_command: EngineCommand,
-        callback: F,
-    ) where
-        F: FnOnce(EngineCommandResponse) + Send + Sync + 'static,
-    {
-        match self.engine_bindings.read() {
-            Ok(engine_bindings) => {
-                if let Err(error) = engine_bindings.dispatch_command(engine_command, Box::new(callback)) {
-                    log::error!("Error dispatching engine command: {}", error);
-                }
-            }
-            Err(error) => {
-                log::error!("Failed to acquire unprivileged engine bindings read lock for commands: {}", error);
-            }
-        }
     }
 
     /// Registers a listener for each time a particular engine event is fired.
@@ -117,6 +71,27 @@ impl EngineExecutionContext {
         }
     }
 
+    /// Dispatches a command to the engine. Direct usage is generally not advised unless you know what you are doing.
+    /// Instead, create `{Command}Request` instances and call `.send()` directly on them.
+    /// This is only made public to support direct usage by CLIs and other features that may need direct access.
+    pub fn dispatch_command<F>(
+        self: &Arc<Self>,
+        engine_command: EngineCommand,
+        callback: F,
+    ) where
+        F: FnOnce(EngineCommandResponse) + Send + Sync + 'static,
+    {
+        match self.engine_bindings.read() {
+            Ok(engine_bindings) => {
+                if let Err(error) = engine_bindings.dispatch_command(engine_command, Box::new(callback)) {
+                    log::error!("Error dispatching engine command: {}", error);
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire unprivileged engine bindings read lock for commands: {}", error);
+            }
+        }
+    }
     /// Starts listening for all engine events, and routes specific events to any listeners for that event type.
     fn start_event_dispatcher(&self) {
         let event_receiver = match self.engine_bindings.read() {

@@ -1,9 +1,9 @@
 use crate::MainWindowView;
 use crate::OutputViewModelBindings;
+use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use olorin_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use slint::ComponentHandle;
 use slint_mvvm::view_binding::ViewBinding;
-use olorin_engine::engine_execution_context::EngineExecutionContext;
-use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use std::sync::Arc;
 use std::thread;
 

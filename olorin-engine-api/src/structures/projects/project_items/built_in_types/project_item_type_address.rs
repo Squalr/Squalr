@@ -1,3 +1,4 @@
+use crate::engine::engine_execution_context::EngineExecutionContext;
 use crate::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::{
@@ -8,6 +9,7 @@ use crate::structures::{
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Serialize, Deserialize)]
 pub struct ProjectItemTypeAddress {}
@@ -26,10 +28,18 @@ impl ProjectItemType for ProjectItemTypeAddress {
 
     fn tick(
         &self,
+        engine_execution_context: &Arc<EngineExecutionContext>,
         opened_process: &Option<OpenedProcessInfo>,
         project_item_type_registry: &ProjectItemTypeRegistry,
         project_item: &mut ProjectItem,
     ) {
+        if let Some(opened_process) = opened_process {
+            let address = ProjectItemTypeAddress::get_field_address(project_item);
+            let value = ProjectItemTypeAddress::get_field_freeze_value(project_item);
+            // let memory_write_request = MemoryWriteRequest { address, value };
+
+            // memory_write_request.send(engine_execution_context);
+        }
     }
 }
 

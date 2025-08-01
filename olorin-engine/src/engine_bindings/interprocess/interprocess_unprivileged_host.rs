@@ -1,11 +1,10 @@
 use crate::engine_bindings::engine_egress::EngineEgress;
-use crate::engine_bindings::engine_unprivileged_bindings::EngineUnprivilegedBindings;
 use crate::engine_bindings::interprocess::pipes::interprocess_pipe_bidirectional::InterprocessPipeBidirectional;
-use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use olorin_engine_api::commands::engine_command::EngineCommand;
 use olorin_engine_api::commands::engine_command_response::EngineCommandResponse;
+use olorin_engine_api::engine::engine_unprivileged_bindings::EngineUnprivilegedBindings;
 use olorin_engine_api::events::engine_event::EngineEvent;
 use std::collections::HashMap;
 use std::io;
@@ -33,10 +32,7 @@ pub struct InterprocessUnprivilegedHost {
 
 impl EngineUnprivilegedBindings for InterprocessUnprivilegedHost {
     /// Initialize unprivileged bindings. For the interprocess implementation, no work needs to be done here.
-    fn initialize(
-        &mut self,
-        _engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
-    ) -> Result<(), String> {
+    fn initialize(&mut self) -> Result<(), String> {
         Ok(())
     }
 

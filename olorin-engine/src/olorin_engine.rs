@@ -1,11 +1,13 @@
-use crate::app_provisioner::progress_tracker::ProgressTracker;
 use crate::app_provisioner::updater::app_updater::AppUpdater;
-use crate::engine_execution_context::EngineExecutionContext;
+use crate::engine_bindings::standalone::standalone_unprivileged_interface::StandaloneUnprivilegedInterface;
 use crate::engine_mode::EngineMode;
 use crate::engine_privileged_state::EnginePrivilegedState;
+use crate::{app_provisioner::progress_tracker::ProgressTracker, engine_bindings::interprocess::interprocess_unprivileged_host::InterprocessUnprivilegedHost};
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use olorin_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use olorin_engine_api::engine::engine_unprivileged_bindings::EngineUnprivilegedBindings;
 use olorin_engine_architecture::vectors::Vectors;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 /// Orchestrates commands and responses to and from the engine.
 pub struct OlorinEngine {
@@ -26,13 +28,37 @@ impl OlorinEngine {
         match engine_mode {
             EngineMode::Standalone => {
                 engine_privileged_state = Some(EnginePrivilegedState::new(engine_mode));
-                engine_execution_context = Some(EngineExecutionContext::new(engine_mode));
             }
             EngineMode::PrivilegedShell => {
                 engine_privileged_state = Some(EnginePrivilegedState::new(engine_mode));
             }
+            EngineMode::UnprivilegedHost => {}
+        }
+
+        let engine_bindings: Arc<RwLock<dyn EngineUnprivilegedBindings>> = match engine_mode {
+            EngineMode::Standalone => Arc::new(RwLock::new(StandaloneUnprivilegedInterface::new(&engine_privileged_state))),
+            EngineMode::PrivilegedShell => unreachable!("Unprivileged execution context should never be created from a privileged shell."),
+            EngineMode::UnprivilegedHost => Arc::new(RwLock::new(InterprocessUnprivilegedHost::new())),
+        };
+
+        match engine_mode {
+            EngineMode::Standalone => {
+                engine_execution_context = Some(EngineExecutionContext::new(engine_bindings.clone()));
+            }
+            EngineMode::PrivilegedShell => {}
             EngineMode::UnprivilegedHost => {
-                engine_execution_context = Some(EngineExecutionContext::new(engine_mode));
+                engine_execution_context = Some(EngineExecutionContext::new(engine_bindings.clone()));
+            }
+        }
+
+        match engine_bindings.write() {
+            Ok(mut engine_bindings) => {
+                if let Err(error) = engine_bindings.initialize() {
+                    log::error!("Error initializing unprivileged engine bindings: {}", error);
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire unprivileged engine bindings write lock: {}", error);
             }
         }
 
@@ -61,7 +87,7 @@ impl OlorinEngine {
 
         // Initialize unprivileged engine capabilities if we own them.
         if let Some(engine_execution_context) = &self.engine_execution_context {
-            engine_execution_context.initialize(&self.engine_privileged_state);
+            engine_execution_context.initialize();
 
             // Register the engine execution context for dependency injection use.
             self.dependency_container
