@@ -1,3 +1,4 @@
+use crate::{engine_bindings::engine_ingress::ExecutableCommand, engine_privileged_state::EnginePrivilegedState};
 use crossbeam_channel::{Receiver, Sender};
 use olorin_engine_api::commands::engine_command::EngineCommand;
 use olorin_engine_api::commands::engine_command_response::EngineCommandResponse;
@@ -8,6 +9,8 @@ use std::sync::{Arc, RwLock};
 pub struct StandalonePrivilegedEngine {
     /// The list of subscribers to which we send engine events.
     event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
+
+    engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
 }
 
 impl EngineApiPrivilegedBindings for StandalonePrivilegedEngine {
@@ -32,7 +35,16 @@ impl EngineApiPrivilegedBindings for StandalonePrivilegedEngine {
         engine_command: EngineCommand,
         callback: Box<dyn FnOnce(EngineCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), String> {
-        Err("haha".to_string())
+        // For standalone builds, we can instantly execute the command and return the response.
+        if let Some(engine_privileged_state) = &self.engine_privileged_state {
+            let response = engine_command.execute(&engine_privileged_state);
+
+            callback(response);
+
+            Ok(())
+        } else {
+            Err("Privileged state not initialized, unable to dispatch command.".to_string())
+        }
     }
 
     fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
@@ -48,8 +60,18 @@ impl StandalonePrivilegedEngine {
     pub fn new() -> StandalonePrivilegedEngine {
         let instance = StandalonePrivilegedEngine {
             event_senders: Arc::new(RwLock::new(vec![])),
+            engine_privileged_state: None,
         };
 
         instance
+    }
+
+    pub fn initialize(
+        &mut self,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
+    ) -> Result<(), String> {
+        self.engine_privileged_state = Some(engine_privileged_state.clone());
+
+        Ok(())
     }
 }

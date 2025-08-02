@@ -80,16 +80,30 @@ impl EnginePrivilegedState {
             registries,
         });
 
-        // Interprocess bindings require an extra initialization step.
+        // Initialize standalone privileged bindings if they are present.
+        if let Some(engine_bindings_standalone) = engine_bindings_standalone.as_ref() {
+            match engine_bindings_standalone.write() {
+                Ok(mut engine_bindings_standalone) => {
+                    if let Err(error) = engine_bindings_standalone.initialize(&engine_privileged_state) {
+                        log::error!("Error initializing standalone privileged engine bindings: {}", error);
+                    }
+                }
+                Err(error) => {
+                    log::error!("Failed to acquire standalone privileged engine bindings write lock: {}", error);
+                }
+            }
+        }
+
+        // Initialize interprocess privileged bindings if they are present.
         if let Some(engine_bindings_interprocess) = engine_bindings_interprocess.as_ref() {
             match engine_bindings_interprocess.write() {
                 Ok(mut engine_bindings_interprocess) => {
                     if let Err(error) = engine_bindings_interprocess.initialize(&engine_privileged_state) {
-                        log::error!("Error initializing privileged engine bindings: {}", error);
+                        log::error!("Error initializing interprocess privileged engine bindings: {}", error);
                     }
                 }
                 Err(error) => {
-                    log::error!("Failed to acquire privileged engine bindings write lock: {}", error);
+                    log::error!("Failed to acquire interprocess privileged engine bindings write lock: {}", error);
                 }
             }
         }

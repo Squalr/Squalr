@@ -88,6 +88,10 @@ impl OlorinEngine {
         &self.engine_execution_context
     }
 
+    pub fn get_engine_privileged_state(&self) -> &Option<Arc<EnginePrivilegedState>> {
+        &self.engine_privileged_state
+    }
+
     pub fn get_dependency_container(&mut self) -> &DependencyContainer {
         &self.dependency_container
     }

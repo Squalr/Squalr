@@ -9,14 +9,21 @@ use olorin_engine_api::commands::engine_command::EngineCommand;
 use olorin_engine_api::commands::engine_command_response::EngineCommandResponse;
 use olorin_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use olorin_engine_api::events::engine_event::EngineEvent;
+use std::collections::HashMap;
+use std::sync::Mutex;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
 
 pub struct InterprocessEngineApiPrivilegedBindings {
+    engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
+
     /// The bidirectional connection to the host process.
     ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
+
+    /// A map of outgoing requests that are awaiting an engine response.
+    request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(EngineCommandResponse) + Send + Sync>>>>,
 
     /// The list of subscribers to which we send engine events.
     event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
@@ -45,7 +52,19 @@ impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
         engine_command: EngineCommand,
         callback: Box<dyn FnOnce(EngineCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), String> {
-        Err("haha".to_string())
+        let request_id = Uuid::new_v4();
+
+        if let Ok(mut request_handles) = self.request_handles.lock() {
+            request_handles.insert(request_id, Box::new(callback));
+        }
+
+        if let Some(engine_privileged_state) = &self.engine_privileged_state {
+            let interprocess_response = EngineEgress::EngineCommandResponse(engine_command.execute(&engine_privileged_state));
+
+            Self::dispatch_response(self.ipc_connection.clone(), interprocess_response, request_id)
+        } else {
+            Err("Privileged state not initialized, unable to dispatch command.".to_string())
+        }
     }
 
     fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
@@ -60,7 +79,9 @@ impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
 impl InterprocessEngineApiPrivilegedBindings {
     pub fn new() -> InterprocessEngineApiPrivilegedBindings {
         let instance = InterprocessEngineApiPrivilegedBindings {
+            engine_privileged_state: None,
             ipc_connection: Arc::new(RwLock::new(None)),
+            request_handles: Arc::new(Mutex::new(HashMap::new())),
             event_senders: Arc::new(RwLock::new(vec![])),
         };
 
