@@ -3,16 +3,16 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::Receiver;
 use olorin_engine_api::commands::engine_command::EngineCommand;
 use olorin_engine_api::commands::engine_command_response::EngineCommandResponse;
-use olorin_engine_api::engine::engine_unprivileged_bindings::EngineUnprivilegedBindings;
+use olorin_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use olorin_engine_api::events::engine_event::EngineEvent;
 use std::sync::Arc;
 
-pub struct StandaloneUnprivilegedInterface {
+pub struct StandaloneEngineApiUnprivilegedBindings {
     // The instance of the engine privileged state. Since this is an intra-process implementation, we invoke commands using this state directly.
     engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
 }
 
-impl StandaloneUnprivilegedInterface {
+impl StandaloneEngineApiUnprivilegedBindings {
     /// Initialize unprivileged bindings. For standalone builds, the privileged engine state is passed to allow direct communcation.
     pub fn new(engine_privileged_state: &Option<Arc<EnginePrivilegedState>>) -> Self {
         let engine_privileged_state = if let Some(engine_privileged_state) = engine_privileged_state {
@@ -27,12 +27,7 @@ impl StandaloneUnprivilegedInterface {
     }
 }
 
-impl EngineUnprivilegedBindings for StandaloneUnprivilegedInterface {
-    /// Initialize unprivileged bindings. For standalone builds, the privileged engine state is passed to allow direct communcation.
-    fn initialize(&mut self) -> Result<(), String> {
-        Err("Not implemented".to_string())
-    }
-
+impl EngineApiUnprivilegedBindings for StandaloneEngineApiUnprivilegedBindings {
     /// Dispatches an engine command to the engine to handle.
     fn dispatch_command(
         &self,

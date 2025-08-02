@@ -1,5 +1,5 @@
 use crate::commands::{engine_command::EngineCommand, engine_command_response::EngineCommandResponse};
-use crate::engine::engine_unprivileged_bindings::EngineUnprivilegedBindings;
+use crate::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use crate::events::engine_event::EngineEvent;
 use crate::events::engine_event::EngineEventRequest;
 use crate::events::process::process_event::ProcessEvent;
@@ -17,7 +17,7 @@ use std::{
 /// Exposes the ability to send commands to the engine, and handle events from the engine.
 pub struct EngineExecutionContext {
     /// The bindings that allow sending commands to the engine.
-    engine_bindings: Arc<RwLock<dyn EngineUnprivilegedBindings>>,
+    engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>>,
 
     /// All event listeners that are listening for particular engine events.
     event_listeners: Arc<RwLock<HashMap<TypeId, Vec<Box<dyn Fn(&dyn Any) + Send + Sync>>>>>,
@@ -27,7 +27,7 @@ pub struct EngineExecutionContext {
 }
 
 impl EngineExecutionContext {
-    pub fn new(engine_bindings: Arc<RwLock<dyn EngineUnprivilegedBindings>>) -> Arc<Self> {
+    pub fn new(engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>>) -> Arc<Self> {
         let execution_context = Arc::new(EngineExecutionContext {
             engine_bindings,
             event_listeners: Arc::new(RwLock::new(HashMap::new())),
@@ -42,6 +42,10 @@ impl EngineExecutionContext {
 
         // Start the log event sending now that the engine is initialized. This will send all backlogged messages to listeners.
         self.get_logger().start_log_event_sender();
+    }
+
+    pub fn get_bindings(&self) -> &Arc<RwLock<dyn EngineApiUnprivilegedBindings>> {
+        &self.engine_bindings
     }
 
     /// Gets the file system logger that routes log events to the log file.

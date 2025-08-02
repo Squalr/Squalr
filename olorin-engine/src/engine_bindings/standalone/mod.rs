@@ -1,2 +1,2 @@
-pub mod standalone_privileged_engine;
-pub mod standalone_unprivileged_interface;
+pub mod standalone_engine_api_privileged_bindings;
+pub mod standalone_engine_api_unprivileged_bindings;

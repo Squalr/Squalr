@@ -1,3 +1,3 @@
-pub mod interprocess_privileged_shell;
-pub mod interprocess_unprivileged_host;
+pub mod interprocess_engine_api_privileged_bindings;
+pub mod interprocess_engine_api_unprivileged_bindings;
 mod pipes;

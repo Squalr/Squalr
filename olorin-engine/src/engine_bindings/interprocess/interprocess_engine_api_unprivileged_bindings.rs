@@ -4,7 +4,7 @@ use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use olorin_engine_api::commands::engine_command::EngineCommand;
 use olorin_engine_api::commands::engine_command_response::EngineCommandResponse;
-use olorin_engine_api::engine::engine_unprivileged_bindings::EngineUnprivilegedBindings;
+use olorin_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use olorin_engine_api::events::engine_event::EngineEvent;
 use std::collections::HashMap;
 use std::io;
@@ -16,7 +16,7 @@ use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
 
-pub struct InterprocessUnprivilegedHost {
+pub struct InterprocessEngineApiUnprivilegedBindings {
     /// The spawned shell process with system privileges.
     privileged_shell_process: Arc<RwLock<Option<Child>>>,
 
@@ -30,12 +30,7 @@ pub struct InterprocessUnprivilegedHost {
     event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
 }
 
-impl EngineUnprivilegedBindings for InterprocessUnprivilegedHost {
-    /// Initialize unprivileged bindings. For the interprocess implementation, no work needs to be done here.
-    fn initialize(&mut self) -> Result<(), String> {
-        Ok(())
-    }
-
+impl EngineApiUnprivilegedBindings for InterprocessEngineApiUnprivilegedBindings {
     /// Dispatches an engine command to the engine to handle.
     fn dispatch_command(
         &self,
@@ -71,9 +66,9 @@ impl EngineUnprivilegedBindings for InterprocessUnprivilegedHost {
     }
 }
 
-impl InterprocessUnprivilegedHost {
-    pub fn new() -> InterprocessUnprivilegedHost {
-        let instance = InterprocessUnprivilegedHost {
+impl InterprocessEngineApiUnprivilegedBindings {
+    pub fn new() -> InterprocessEngineApiUnprivilegedBindings {
+        let instance = InterprocessEngineApiUnprivilegedBindings {
             privileged_shell_process: Arc::new(RwLock::new(None)),
             ipc_connection: Arc::new(RwLock::new(None)),
             request_handles: Arc::new(Mutex::new(HashMap::new())),

@@ -5,10 +5,7 @@ use crate::{
 use crossbeam_channel::Receiver;
 
 /// Defines the functionality that is invoked from a GUI, CLI, etc. and handled by the engine.
-pub trait EngineUnprivilegedBindings: Send + Sync {
-    /// Initialize unprivileged bindings.
-    fn initialize(&mut self) -> Result<(), String>;
-
+pub trait EngineApiUnprivilegedBindings: Send + Sync {
     /// Dispatches an engine command to the engine to handle.
     fn dispatch_command(
         &self,

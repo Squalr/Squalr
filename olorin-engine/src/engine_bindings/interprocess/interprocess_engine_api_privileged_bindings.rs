@@ -1,18 +1,20 @@
 use crate::engine_bindings::engine_egress::EngineEgress;
 use crate::engine_bindings::engine_ingress::EngineIngress;
 use crate::engine_bindings::engine_ingress::ExecutableCommand;
-use crate::engine_bindings::engine_priviliged_bindings::EnginePrivilegedBindings;
 use crate::engine_bindings::interprocess::pipes::interprocess_pipe_bidirectional::InterprocessPipeBidirectional;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
+use olorin_engine_api::commands::engine_command::EngineCommand;
+use olorin_engine_api::commands::engine_command_response::EngineCommandResponse;
+use olorin_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use olorin_engine_api::events::engine_event::EngineEvent;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
 
-pub struct InterprocessPrivilegedShell {
+pub struct InterprocessEngineApiPrivilegedBindings {
     /// The bidirectional connection to the host process.
     ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
 
@@ -20,29 +22,7 @@ pub struct InterprocessPrivilegedShell {
     event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
 }
 
-impl EnginePrivilegedBindings for InterprocessPrivilegedShell {
-    fn initialize(
-        &mut self,
-        engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
-    ) -> Result<(), String> {
-        if let Some(engine_privileged_state) = engine_privileged_state {
-            if let Ok(mut ipc_connection) = self.ipc_connection.write() {
-                match InterprocessPipeBidirectional::create() {
-                    Ok(new_connection) => {
-                        *ipc_connection = Some(new_connection);
-                        self.listen_for_host_requests(&engine_privileged_state);
-                        Ok(())
-                    }
-                    Err(error) => Err(error),
-                }
-            } else {
-                Err("Failed to acquire write lock on bidirectional interprocess connection.".to_string())
-            }
-        } else {
-            Err("No privileged state provided! Engine command dispatching will be non-functional without this.".to_string())
-        }
-    }
-
+impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
     fn emit_event(
         &self,
         engine_event: EngineEvent,
@@ -60,6 +40,14 @@ impl EnginePrivilegedBindings for InterprocessPrivilegedShell {
         Self::dispatch_response(self.ipc_connection.clone(), EngineEgress::EngineEvent(engine_event), Uuid::nil())
     }
 
+    fn dispatch_command(
+        &self,
+        engine_command: EngineCommand,
+        callback: Box<dyn FnOnce(EngineCommandResponse) + Send + Sync + 'static>,
+    ) -> Result<(), String> {
+        Err("haha".to_string())
+    }
+
     fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let mut sender_lock = self.event_senders.write().map_err(|error| error.to_string())?;
@@ -69,14 +57,32 @@ impl EnginePrivilegedBindings for InterprocessPrivilegedShell {
     }
 }
 
-impl InterprocessPrivilegedShell {
-    pub fn new() -> InterprocessPrivilegedShell {
-        let instance = InterprocessPrivilegedShell {
+impl InterprocessEngineApiPrivilegedBindings {
+    pub fn new() -> InterprocessEngineApiPrivilegedBindings {
+        let instance = InterprocessEngineApiPrivilegedBindings {
             ipc_connection: Arc::new(RwLock::new(None)),
             event_senders: Arc::new(RwLock::new(vec![])),
         };
 
         instance
+    }
+
+    pub fn initialize(
+        &mut self,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
+    ) -> Result<(), String> {
+        if let Ok(mut ipc_connection) = self.ipc_connection.write() {
+            match InterprocessPipeBidirectional::create() {
+                Ok(new_connection) => {
+                    *ipc_connection = Some(new_connection);
+                    self.listen_for_host_requests(&engine_privileged_state);
+                    Ok(())
+                }
+                Err(error) => Err(error),
+            }
+        } else {
+            Err("Failed to acquire write lock on bidirectional interprocess connection.".to_string())
+        }
     }
 
     pub fn dispatch_response(

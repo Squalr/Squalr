@@ -1,4 +1,6 @@
-use crate::engine::engine_execution_context::EngineExecutionContext;
+use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::memory::write::memory_write_request::MemoryWriteRequest;
+use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use crate::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::{
@@ -9,7 +11,6 @@ use crate::structures::{
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::sync::Arc;
 
 #[derive(Serialize, Deserialize)]
 pub struct ProjectItemTypeAddress {}
@@ -28,7 +29,7 @@ impl ProjectItemType for ProjectItemTypeAddress {
 
     fn tick(
         &self,
-        engine_execution_context: &Arc<EngineExecutionContext>,
+        engine_bindings: &dyn EngineApiPrivilegedBindings,
         opened_process: &Option<OpenedProcessInfo>,
         project_item_type_registry: &ProjectItemTypeRegistry,
         project_item: &mut ProjectItem,
@@ -36,9 +37,9 @@ impl ProjectItemType for ProjectItemTypeAddress {
         if let Some(opened_process) = opened_process {
             let address = ProjectItemTypeAddress::get_field_address(project_item);
             let value = ProjectItemTypeAddress::get_field_freeze_value(project_item);
-            // let memory_write_request = MemoryWriteRequest { address, value };
+            let memory_write_request = MemoryWriteRequest { address, value: vec![] };
 
-            // memory_write_request.send(engine_execution_context);
+            memory_write_request.send_privileged(engine_bindings, |_| {});
         }
     }
 }

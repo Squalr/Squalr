@@ -1,9 +1,9 @@
-use crate::engine_bindings::engine_priviliged_bindings::EnginePrivilegedBindings;
-use crate::engine_bindings::interprocess::interprocess_privileged_shell::InterprocessPrivilegedShell;
-use crate::engine_bindings::standalone::standalone_privileged_engine::StandalonePrivilegedEngine;
+use crate::engine_bindings::interprocess::interprocess_engine_api_privileged_bindings::InterprocessEngineApiPrivilegedBindings;
+use crate::engine_bindings::standalone::standalone_engine_api_privileged_bindings::StandalonePrivilegedEngine;
 use crate::engine_mode::EngineMode;
 use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
+use olorin_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use olorin_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
 use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
 use olorin_engine_api::registries::freeze_list::freeze_list_registry::FreezeListRegistry;
@@ -33,7 +33,7 @@ pub struct EnginePrivilegedState {
     snapshot: Arc<RwLock<Snapshot>>,
 
     /// Defines functionality that can be invoked by the engine for the GUI or CLI to handle.
-    engine_bindings: Arc<RwLock<dyn EnginePrivilegedBindings>>,
+    engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
 
     /// The collection of all engine registries.
     registries: Arc<Registries>,
@@ -41,9 +41,18 @@ pub struct EnginePrivilegedState {
 
 impl EnginePrivilegedState {
     pub fn new(engine_mode: EngineMode) -> Arc<Self> {
-        let engine_bindings: Arc<RwLock<dyn EnginePrivilegedBindings>> = match engine_mode {
-            EngineMode::Standalone => Arc::new(RwLock::new(StandalonePrivilegedEngine::new())),
-            EngineMode::PrivilegedShell => Arc::new(RwLock::new(InterprocessPrivilegedShell::new())),
+        let engine_bindings_standalone = match engine_mode {
+            EngineMode::Standalone => Some(Arc::new(RwLock::new(StandalonePrivilegedEngine::new()))),
+            _ => None,
+        };
+        let engine_bindings_interprocess = match engine_mode {
+            EngineMode::PrivilegedShell => Some(Arc::new(RwLock::new(InterprocessEngineApiPrivilegedBindings::new()))),
+            _ => None,
+        };
+
+        let engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>> = match engine_mode {
+            EngineMode::Standalone => unsafe { engine_bindings_standalone.clone().unwrap_unchecked() },
+            EngineMode::PrivilegedShell => unsafe { engine_bindings_interprocess.clone().unwrap_unchecked() },
             EngineMode::UnprivilegedHost => unreachable!("Privileged state should never be created on an unprivileged host."),
         };
 
@@ -55,12 +64,12 @@ impl EnginePrivilegedState {
         let registries = Arc::new(Registries::new());
 
         SnapshotScanResultFreezeTask::start_task(process_manager.get_opened_process_ref(), registries.get_freeze_list_registry().clone());
-        /*
         ProjectUpdateTask::start_task(
+            engine_bindings.clone(),
             project_manager.get_opened_project(),
             process_manager.get_opened_process_ref(),
             registries.get_project_item_type_registry().clone(),
-        );*/
+        );
 
         let engine_privileged_state = Arc::new(EnginePrivilegedState {
             process_manager,
@@ -71,27 +80,25 @@ impl EnginePrivilegedState {
             registries,
         });
 
-        engine_privileged_state
-    }
-
-    pub fn initialize(
-        &self,
-        engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
-    ) {
-        match self.engine_bindings.write() {
-            Ok(mut engine_bindings) => {
-                if let Err(error) = engine_bindings.initialize(engine_privileged_state) {
-                    log::error!("Error initializing privileged engine bindings: {}", error);
+        // Interprocess bindings require an extra initialization step.
+        if let Some(engine_bindings_interprocess) = engine_bindings_interprocess.as_ref() {
+            match engine_bindings_interprocess.write() {
+                Ok(mut engine_bindings_interprocess) => {
+                    if let Err(error) = engine_bindings_interprocess.initialize(&engine_privileged_state) {
+                        log::error!("Error initializing privileged engine bindings: {}", error);
+                    }
                 }
-            }
-            Err(error) => {
-                log::error!("Failed to acquire privileged engine bindings write lock: {}", error);
+                Err(error) => {
+                    log::error!("Failed to acquire privileged engine bindings write lock: {}", error);
+                }
             }
         }
 
         if let Err(error) = ProcessQuery::start_monitoring() {
             log::error!("Failed to monitor system processes: {}", error);
         }
+
+        engine_privileged_state
     }
 
     /// Gets the project manager for this session.
@@ -165,7 +172,7 @@ impl EnginePrivilegedState {
         }
     }
 
-    fn create_event_emitter(engine_bindings: Arc<RwLock<dyn EnginePrivilegedBindings>>) -> Arc<dyn Fn(EngineEvent) + Send + Sync> {
+    fn create_event_emitter(engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>>) -> Arc<dyn Fn(EngineEvent) + Send + Sync> {
         let engine_bindings = engine_bindings.clone();
         Arc::new(move |event: EngineEvent| {
             if let Ok(bindings) = engine_bindings.read() {

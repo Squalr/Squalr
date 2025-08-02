@@ -1,9 +1,8 @@
-use crate::engine::engine_execution_context::EngineExecutionContext;
+use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use crate::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::projects::project_items::{project_item::ProjectItem, project_item_type::ProjectItemType};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 #[derive(Serialize, Deserialize)]
 pub struct ProjectItemTypePointer {
@@ -32,7 +31,7 @@ impl ProjectItemType for ProjectItemTypePointer {
 
     fn tick(
         &self,
-        engine_execution_context: &Arc<EngineExecutionContext>,
+        engine_bindings: &dyn EngineApiPrivilegedBindings,
         opened_process: &Option<OpenedProcessInfo>,
         project_item_type_registry: &ProjectItemTypeRegistry,
         project_item: &mut ProjectItem,

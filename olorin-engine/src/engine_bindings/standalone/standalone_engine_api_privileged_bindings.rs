@@ -1,6 +1,7 @@
-use crate::engine_bindings::engine_priviliged_bindings::EnginePrivilegedBindings;
-use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::{Receiver, Sender};
+use olorin_engine_api::commands::engine_command::EngineCommand;
+use olorin_engine_api::commands::engine_command_response::EngineCommandResponse;
+use olorin_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use olorin_engine_api::events::engine_event::EngineEvent;
 use std::sync::{Arc, RwLock};
 
@@ -9,14 +10,7 @@ pub struct StandalonePrivilegedEngine {
     event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
 }
 
-impl EnginePrivilegedBindings for StandalonePrivilegedEngine {
-    fn initialize(
-        &mut self,
-        _engine_privileged_state: &Option<Arc<EnginePrivilegedState>>,
-    ) -> Result<(), String> {
-        Ok(())
-    }
-
+impl EngineApiPrivilegedBindings for StandalonePrivilegedEngine {
     /// Emits an event from the engine to all listeners.
     fn emit_event(
         &self,
@@ -31,6 +25,14 @@ impl EnginePrivilegedBindings for StandalonePrivilegedEngine {
         }
 
         Ok(())
+    }
+
+    fn dispatch_command(
+        &self,
+        engine_command: EngineCommand,
+        callback: Box<dyn FnOnce(EngineCommandResponse) + Send + Sync + 'static>,
+    ) -> Result<(), String> {
+        Err("haha".to_string())
     }
 
     fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
