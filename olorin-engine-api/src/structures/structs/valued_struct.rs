@@ -1,4 +1,6 @@
 use crate::registries::registries::Registries;
+use crate::registries::symbols::symbolic_struct_registry::SymbolicStructDefinitionRegistry;
+use crate::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use crate::structures::structs::valued_struct_field::ValuedStructField;
 use crate::structures::structs::{symbolic_struct_ref::SymbolicStructRef, valued_struct_field::ValuedStructFieldNode};
 use crate::traits::from_string_privileged::FromStringPrivileged;
@@ -24,6 +26,13 @@ impl ValuedStruct {
             symbolic_struct_ref: SymbolicStructRef::new_anonymous(),
             fields,
         }
+    }
+
+    pub fn get_symbolic_struct(
+        &self,
+        symbolic_struct_registry: &SymbolicStructDefinitionRegistry,
+    ) -> Result<SymbolicStructDefinition, String> {
+        Err("Struct symbol definition is not registered!".to_string())
     }
 
     pub fn get_symbolic_struct_ref(&self) -> &SymbolicStructRef {

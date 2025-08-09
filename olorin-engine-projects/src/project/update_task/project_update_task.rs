@@ -1,7 +1,7 @@
 use crate::project::project::Project;
 use crate::settings::project_settings_config::ProjectSettingsConfig;
 use olorin_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
-use olorin_engine_api::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
+use olorin_engine_api::registries::registries::Registries;
 use olorin_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use olorin_engine_api::structures::tasks::trackable_task::TrackableTask;
 use std::sync::Arc;
@@ -20,7 +20,7 @@ impl ProjectUpdateTask {
         engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         opened_project: Arc<RwLock<Option<Project>>>,
         opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>,
-        project_item_type_registry: Arc<RwLock<ProjectItemTypeRegistry>>,
+        registries: Arc<Registries>,
     ) -> Arc<TrackableTask> {
         let task = TrackableTask::create(TASK_NAME.to_string(), None);
         let task_clone = task.clone();
@@ -31,7 +31,7 @@ impl ProjectUpdateTask {
                     break;
                 }
 
-                Self::update_project_task(&engine_bindings, &opened_project, &opened_process, &project_item_type_registry);
+                Self::update_project_task(&engine_bindings, &opened_project, &opened_process, &registries);
 
                 thread::sleep(Duration::from_millis(ProjectSettingsConfig::get_project_update_interval()));
             }
@@ -46,7 +46,7 @@ impl ProjectUpdateTask {
         engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         opened_project: &Arc<RwLock<Option<Project>>>,
         opened_process: &Arc<RwLock<Option<OpenedProcessInfo>>>,
-        project_item_type_registry: &Arc<RwLock<ProjectItemTypeRegistry>>,
+        registries: &Arc<Registries>,
     ) {
         let mut opened_project_guard = match opened_project.write() {
             Ok(guard) => guard,
@@ -64,7 +64,8 @@ impl ProjectUpdateTask {
                 return;
             }
         };
-        let project_item_type_registry_guard = match project_item_type_registry.write() {
+        let project_item_type_registry = registries.get_project_item_type_registry();
+        let project_item_type_registry_guard = match project_item_type_registry.read() {
             Ok(guard) => guard,
             Err(error) => {
                 log::error!("Failed to acquire write lock on FreezeListRegistry: {}", error);
@@ -86,7 +87,7 @@ impl ProjectUpdateTask {
             let project_root = opened_project.get_project_root_mut();
 
             if let Some(project_item_type) = project_item_type_registry_guard.get(project_root.get_item_type().get_project_item_type_id()) {
-                project_item_type.tick(&*engine_bindings_guard, &opened_process_guard, &project_item_type_registry_guard, project_root);
+                project_item_type.tick(&*engine_bindings_guard, &opened_process_guard, &registries, project_root);
             }
         }
     }

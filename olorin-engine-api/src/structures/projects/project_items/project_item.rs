@@ -117,7 +117,7 @@ impl ProjectItem {
         self.is_activated = is_activated;
 
         if let Some(project_item_type) = project_item_type_registry.get(self.item_type.get_project_item_type_id()) {
-            project_item_type.on_activated_changed(self);
+            project_item_type.on_activated_changed(project_item_type_registry, self);
         }
     }
 

@@ -4,6 +4,8 @@ use olorin_engine_api::commands::memory::read::memory_read_request::MemoryReadRe
 use olorin_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
 use olorin_engine_api::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use olorin_engine_api::structures::structs::valued_struct::ValuedStruct;
+use olorin_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
+use olorin_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
 use olorin_engine_memory::memory_reader::MemoryReader;
 use olorin_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use std::sync::Arc;
@@ -24,13 +26,35 @@ impl EngineCommandRequestExecutor for MemoryReadRequest {
             let data_type_registry = engine_privileged_state
                 .get_registries()
                 .get_data_type_registry();
-            let mut out_valued_struct = self.struct_definition.get_valued_struct(&data_type_registry);
-            let success = MemoryReader::get_instance().read_struct(&process_info, self.address, &mut out_valued_struct);
+            let mut out_valued_struct = self
+                .symbolic_struct_definition
+                .get_valued_struct(&data_type_registry);
 
-            MemoryReadResponse {
-                valued_struct: out_valued_struct,
-                address: self.address,
-                success,
+            if !self.module_name.is_empty() {
+                let modules = if let Some(opened_process_info) = engine_privileged_state
+                    .get_process_manager()
+                    .get_opened_process()
+                {
+                    MemoryQueryer::get_instance().get_modules(&opened_process_info)
+                } else {
+                    vec![]
+                };
+                let module_address = MemoryQueryer::get_instance().resolve_module(&modules, &self.module_name);
+                let success = MemoryReader::get_instance().read_struct(&process_info, module_address.saturating_add(self.address), &mut out_valued_struct);
+
+                MemoryReadResponse {
+                    valued_struct: out_valued_struct,
+                    address: self.address,
+                    success,
+                }
+            } else {
+                let success = MemoryReader::get_instance().read_struct(&process_info, self.address, &mut out_valued_struct);
+
+                MemoryReadResponse {
+                    valued_struct: out_valued_struct,
+                    address: self.address,
+                    success,
+                }
             }
         } else {
             log::error!("No opened process available.");

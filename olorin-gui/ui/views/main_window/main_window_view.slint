@@ -1,14 +1,14 @@
 import { Theme } from "../../theme.slint";
 import { WindowViewModelBindings, DockRootViewModelBindings } from "../../view_model_bindings.slint";
 
-import { FooterView } from "./footer_view.slint";
-import { TitleBarView } from "./title_bar_view.slint";
-import { ShortcutBarView } from "./shortcut_bar_view.slint";
+import { FooterView } from "footer_view.slint";
+import { TitleBarView } from "title_bar_view.slint";
+import { ShortcutBarView } from "shortcut_bar_view.slint";
 
-import { DockRoot } from "./../docking/dock_root.slint";
-import { HSeparator } from "./../../components/separator.slint";
-import { ToolbarMenu } from "./../../components/toolbar_menu/toolbar_menu.slint";
-import { ToolbarMenuCheckState } from "./../../components/toolbar_menu/toolbar_menu_item.slint";
+import { DockRoot } from "../docking/dock_root.slint";
+import { HSeparator } from "../../components/separator.slint";
+import { ToolbarMenu } from "../../components/toolbar_menu/toolbar_menu.slint";
+import { ToolbarMenuCheckState } from "../../components/toolbar_menu/toolbar_menu_item.slint";
 
 export component MainWindowView inherits Window {
     title: @tr("Olorin");

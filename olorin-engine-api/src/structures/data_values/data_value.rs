@@ -114,14 +114,14 @@ impl DataValue {
         self.value_bytes.as_ptr()
     }
 
-    pub fn to_anonymous_valued_struct(
+    pub fn to_valued_struct(
         &self,
         is_read_only: bool,
     ) -> ValuedStruct {
-        ValuedStruct::new(SymbolicStructRef::new_anonymous(), vec![self.to_anonymous_valued_struct_field(is_read_only)])
+        ValuedStruct::new(SymbolicStructRef::new_anonymous(), vec![self.to_valued_struct_field(is_read_only)])
     }
 
-    pub fn to_anonymous_valued_struct_field(
+    pub fn to_valued_struct_field(
         &self,
         is_read_only: bool,
     ) -> ValuedStructField {

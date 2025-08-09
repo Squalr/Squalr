@@ -1,7 +1,9 @@
 use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::memory::read::memory_read_request::MemoryReadRequest;
 use crate::commands::memory::write::memory_write_request::MemoryWriteRequest;
 use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use crate::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
+use crate::registries::registries::Registries;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::{
     data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
@@ -22,24 +24,44 @@ impl ProjectItemType for ProjectItemTypeAddress {
 
     fn on_activated_changed(
         &self,
-        project_item: &ProjectItem,
+        _project_item_type_registry: &ProjectItemTypeRegistry,
+        _project_item: &mut ProjectItem,
     ) {
-        // JIRA: implement me
+        // JIRA: Register into the freeze list? or just keep the self-handle?
     }
 
     fn tick(
         &self,
         engine_bindings: &dyn EngineApiPrivilegedBindings,
-        opened_process: &Option<OpenedProcessInfo>,
-        project_item_type_registry: &ProjectItemTypeRegistry,
+        _opened_process: &Option<OpenedProcessInfo>,
+        registries: &Registries,
         project_item: &mut ProjectItem,
     ) {
-        if let Some(opened_process) = opened_process {
+        if project_item.get_is_activated() {
             let address = ProjectItemTypeAddress::get_field_address(project_item);
-            let value = ProjectItemTypeAddress::get_field_freeze_value(project_item);
-            let memory_write_request = MemoryWriteRequest { address, value: vec![] };
+            let module_name = ProjectItemTypeAddress::get_field_module(project_item);
 
-            memory_write_request.send_privileged(engine_bindings, |_| {});
+            if let Some(value) = ProjectItemTypeAddress::get_field_freeze_value(project_item) {
+                if let Ok(symbolic_struct_definition_registry) = registries.get_symbolic_struct_definition_registry().read() {
+                    if let Ok(symbolic_struct_definition) = value
+                        .to_valued_struct(false)
+                        .get_symbolic_struct(&symbolic_struct_definition_registry)
+                    {
+                        let memory_read_request = MemoryReadRequest {
+                            address,
+                            module_name: module_name.clone(),
+                            symbolic_struct_definition,
+                        };
+                        let memory_write_request = MemoryWriteRequest {
+                            address,
+                            module_name,
+                            value: value.get_value_bytes().to_vec(),
+                        };
+
+                        memory_write_request.send_privileged(engine_bindings, |_| {});
+                    }
+                }
+            }
         }
     }
 }
@@ -127,7 +149,20 @@ impl ProjectItemTypeAddress {
             .set_field_node(Self::PROPERTY_MODULE, field_node, false);
     }
 
-    pub fn get_field_freeze_value(project_item: &mut ProjectItem) -> String {
+    pub fn get_field_freeze_value(project_item: &mut ProjectItem) -> Option<&DataValue> {
+        if let Some(name_field) = project_item
+            .get_properties()
+            .get_fields()
+            .iter()
+            .find(|field| field.get_name() == Self::PROPERTY_FREEZE_VALUE)
+        {
+            name_field.get_data_value()
+        } else {
+            None
+        }
+    }
+
+    pub fn get_field_freeze_display_value(project_item: &mut ProjectItem) -> String {
         if let Some(name_field) = project_item
             .get_properties()
             .get_fields()

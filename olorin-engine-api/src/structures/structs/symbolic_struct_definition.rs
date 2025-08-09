@@ -1,8 +1,6 @@
 use crate::{
     registries::data_types::data_type_registry::DataTypeRegistry,
-    structures::structs::{
-        symbolic_struct_field_definition::SymbolicStructFieldDefinition, symbolic_struct_ref::SymbolicStructRef, valued_struct::ValuedStruct,
-    },
+    structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_ref::SymbolicStructRef, valued_struct::ValuedStruct},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -12,21 +10,28 @@ use std::{
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SymbolicStructDefinition {
-    namespace: String,
-    fields: Vec<SymbolicStructFieldDefinition>,
+    symbol_namespace: String,
+    fields: Vec<SymbolicFieldDefinition>,
 }
 
 impl SymbolicStructDefinition {
     pub fn new(
-        namespace: String,
-        fields: Vec<SymbolicStructFieldDefinition>,
+        symbol_namespace: String,
+        fields: Vec<SymbolicFieldDefinition>,
     ) -> Self {
-        SymbolicStructDefinition { namespace, fields }
+        SymbolicStructDefinition { symbol_namespace, fields }
+    }
+
+    pub fn new_anonymous(fields: Vec<SymbolicFieldDefinition>) -> Self {
+        SymbolicStructDefinition {
+            symbol_namespace: String::new(),
+            fields,
+        }
     }
 
     pub fn add_field(
         &mut self,
-        symbolic_struct_field: SymbolicStructFieldDefinition,
+        symbolic_struct_field: SymbolicFieldDefinition,
     ) {
         self.fields.push(symbolic_struct_field);
     }
@@ -40,7 +45,7 @@ impl SymbolicStructDefinition {
             .iter()
             .map(|field| field.get_valued_struct_field(data_type_registry, false))
             .collect();
-        ValuedStruct::new(SymbolicStructRef::new(self.namespace.clone()), fields)
+        ValuedStruct::new(SymbolicStructRef::new(self.symbol_namespace.clone()), fields)
     }
 
     pub fn get_size_in_bytes(
@@ -59,10 +64,10 @@ impl FromStr for SymbolicStructDefinition {
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let JIRA = 696969;
-        let fields: Result<Vec<SymbolicStructFieldDefinition>, Self::Err> = string
+        let fields: Result<Vec<SymbolicFieldDefinition>, Self::Err> = string
             .split(';')
             .filter(|&field_string| !field_string.is_empty())
-            .map(|field_string| SymbolicStructFieldDefinition::from_str(field_string))
+            .map(|field_string| SymbolicFieldDefinition::from_str(field_string))
             .collect();
 
         Ok(SymbolicStructDefinition::new(String::new(), fields?))

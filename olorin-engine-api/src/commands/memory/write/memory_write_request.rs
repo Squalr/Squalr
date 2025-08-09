@@ -13,6 +13,9 @@ pub struct MemoryWriteRequest {
     #[structopt(short = "a", long, parse(try_from_str = Conversions::parse_hex_or_int))]
     pub address: u64,
 
+    #[structopt(short = "m")]
+    pub module_name: String,
+
     #[structopt(short = "v")]
     pub value: Vec<u8>,
 }

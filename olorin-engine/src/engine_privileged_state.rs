@@ -68,7 +68,7 @@ impl EnginePrivilegedState {
             engine_bindings.clone(),
             project_manager.get_opened_project(),
             process_manager.get_opened_process_ref(),
-            registries.get_project_item_type_registry().clone(),
+            registries.clone(),
         );
 
         let engine_privileged_state = Arc::new(EnginePrivilegedState {

@@ -15,17 +15,17 @@ use std::{
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SymbolicStructFieldDefinition {
+pub struct SymbolicFieldDefinition {
     data_type_ref: DataTypeRef,
     container_type: ContainerType,
 }
 
-impl SymbolicStructFieldDefinition {
+impl SymbolicFieldDefinition {
     pub fn new(
         data_type_ref: DataTypeRef,
         container_type: ContainerType,
     ) -> Self {
-        SymbolicStructFieldDefinition { data_type_ref, container_type }
+        SymbolicFieldDefinition { data_type_ref, container_type }
     }
 
     pub fn get_valued_struct_field(
@@ -86,7 +86,7 @@ impl SymbolicStructFieldDefinition {
     }
 }
 
-impl FromStr for SymbolicStructFieldDefinition {
+impl FromStr for SymbolicFieldDefinition {
     type Err = String;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
@@ -116,6 +116,6 @@ impl FromStr for SymbolicStructFieldDefinition {
 
         let data_type = DataTypeRef::from_str(type_str.trim())?;
 
-        Ok(SymbolicStructFieldDefinition::new(data_type, container_type))
+        Ok(SymbolicFieldDefinition::new(data_type, container_type))
     }
 }
