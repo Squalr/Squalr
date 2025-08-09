@@ -1,1 +1,1 @@
-pub mod symbolic_struct_registry;
+pub mod symbol_registry;

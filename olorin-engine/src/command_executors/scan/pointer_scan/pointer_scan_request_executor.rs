@@ -20,16 +20,16 @@ impl EngineCommandRequestExecutor for PointerScanRequest {
             .get_process_manager()
             .get_opened_process()
         {
-            let data_type_registry = engine_privileged_state.get_data_type_registry();
-            let data_type_registry_guard = match data_type_registry.read() {
+            let symbol_registry = engine_privileged_state.get_symbol_registry();
+            let symbol_registry_guard = match symbol_registry.read() {
                 Ok(registry) => registry,
                 Err(error) => {
-                    log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                    log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                     return PointerScanResponse::default();
                 }
             };
-            let target_address = match data_type_registry_guard.deanonymize_value(&self.pointer_data_type_ref, self.target_address.get_value()) {
+            let target_address = match symbol_registry_guard.deanonymize_value(&self.pointer_data_type_ref, self.target_address.get_value()) {
                 Ok(data_value) => data_value,
                 Err(error) => {
                     log::error!("Failed to deanonimize pointer target address: {}", error);
@@ -48,13 +48,13 @@ impl EngineCommandRequestExecutor for PointerScanRequest {
 
             // Start the task to perform the scan.
             let element_scan_rule_registry = engine_privileged_state.get_element_scan_rule_registry();
-            let data_type_registry = engine_privileged_state.get_data_type_registry();
+            let symbol_registry = engine_privileged_state.get_symbol_registry();
             let task = PointerScanExecutorTask::start_task(
                 process_info,
                 snapshot.clone(),
                 snapshot.clone(),
                 element_scan_rule_registry,
-                data_type_registry,
+                symbol_registry,
                 scan_parameters,
                 true,
             );

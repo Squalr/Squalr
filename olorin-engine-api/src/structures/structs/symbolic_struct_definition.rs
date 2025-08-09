@@ -1,5 +1,5 @@
 use crate::{
-    registries::data_types::data_type_registry::DataTypeRegistry,
+    registries::symbols::symbol_registry::SymbolRegistry,
     structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_ref::SymbolicStructRef, valued_struct::ValuedStruct},
 };
 use serde::{Deserialize, Serialize};
@@ -38,7 +38,7 @@ impl SymbolicStructDefinition {
 
     pub fn get_valued_struct(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
     ) -> ValuedStruct {
         let fields = self
             .fields
@@ -50,7 +50,7 @@ impl SymbolicStructDefinition {
 
     pub fn get_size_in_bytes(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
     ) -> u64 {
         self.fields
             .iter()

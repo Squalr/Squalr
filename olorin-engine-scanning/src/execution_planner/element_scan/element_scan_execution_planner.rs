@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
+use olorin_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use olorin_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use olorin_engine_api::structures::scanning::{
     filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
@@ -12,7 +12,7 @@ pub struct ElementScanExecutionPlanner {}
 impl ElementScanExecutionPlanner {
     pub fn map(
         element_scan_rule_registry: &Arc<RwLock<ElementScanRuleRegistry>>,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         element_scan_parameters: &ElementScanParameters,

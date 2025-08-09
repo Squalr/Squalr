@@ -1,5 +1,5 @@
-use crate::registries::data_types::data_type_registry::DataTypeRegistry;
 use crate::registries::registries::Registries;
+use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::data_values::display_value::DisplayValue;
@@ -31,7 +31,7 @@ impl DataValue {
         data_type_ref: DataTypeRef,
         value_bytes: Vec<u8>,
     ) -> Self {
-        let DATA_TYPE_REGISTRY = DataTypeRegistry::new();
+        let DATA_TYPE_REGISTRY = SymbolRegistry::new();
         let display_values = DATA_TYPE_REGISTRY.create_display_values(&data_type_ref, &value_bytes);
 
         Self {
@@ -54,7 +54,7 @@ impl DataValue {
             self.value_bytes = value_bytes.to_vec();
         }
 
-        let DATA_TYPE_REGISTRY = DataTypeRegistry::new();
+        let DATA_TYPE_REGISTRY = SymbolRegistry::new();
         self.display_values = DATA_TYPE_REGISTRY.create_display_values(&self.data_type_ref, &value_bytes);
     }
 
@@ -68,7 +68,7 @@ impl DataValue {
     ) {
         self.data_type_ref = data_type_ref;
 
-        let DATA_TYPE_REGISTRY = DataTypeRegistry::new();
+        let DATA_TYPE_REGISTRY = SymbolRegistry::new();
         self.display_values = DATA_TYPE_REGISTRY.create_display_values(&self.data_type_ref, &self.value_bytes);
     }
 
@@ -152,12 +152,12 @@ impl FromStringPrivileged for DataValue {
 
         let data_type_ref = DataTypeRef::from_str(parts[0])?;
         let anonymous_value_container = AnonymousValueContainer::from_str(parts[1])?;
-        let data_type_registry = registries.get_data_type_registry();
-        let data_type_registry_guard = data_type_registry
+        let symbol_registry = registries.get_symbol_registry();
+        let symbol_registry_guard = symbol_registry
             .read()
-            .map_err(|error| format!("Failed to acquire read lock on DataTypeRegistry: {}", error))?;
+            .map_err(|error| format!("Failed to acquire read lock on SymbolRegistry: {}", error))?;
 
-        match data_type_registry_guard.deanonymize_value(&data_type_ref, &anonymous_value_container) {
+        match symbol_registry_guard.deanonymize_value(&data_type_ref, &anonymous_value_container) {
             Ok(value) => Ok(value),
             Err(error) => Err(format!("Unable to parse value: {}", error)),
         }

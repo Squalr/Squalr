@@ -8,7 +8,7 @@ use crate::converters::display_value_converter::DisplayValueConverter;
 use crate::converters::display_value_type_converter::DisplayValueTypeConverter;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use olorin_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
+use olorin_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use olorin_engine_api::structures::data_values::anonymous_value::AnonymousValue;
 use olorin_engine_api::structures::data_values::display_value_type::DisplayValueType;
 use slint::ComponentHandle;
@@ -63,14 +63,14 @@ impl ValidationViewModel {
 
         let anonymous_value = AnonymousValue::new(display_value);
         let data_type_ref = DataTypeRefConverter {}.convert_from_view_data(&data_type_ref);
-        let DATA_TYPE_REGISTRY = DataTypeRegistry::new();
+        let DATA_TYPE_REGISTRY = SymbolRegistry::new();
 
         DATA_TYPE_REGISTRY.validate_value(&data_type_ref, &anonymous_value)
     }
 
     fn on_get_supported_display_types_for_data_type(data_type_ref: DataTypeRefViewData) -> ModelRc<DisplayValueTypeView> {
         let data_type_ref = DataTypeRefConverter {}.convert_from_view_data(&data_type_ref);
-        let DATA_TYPE_REGISTRY = DataTypeRegistry::new();
+        let DATA_TYPE_REGISTRY = SymbolRegistry::new();
         let display_types = DATA_TYPE_REGISTRY.get_supported_display_types(&data_type_ref);
 
         ModelRc::new(VecModel::from(DisplayValueTypeConverter {}.convert_collection(&display_types)))
@@ -78,7 +78,7 @@ impl ValidationViewModel {
 
     fn on_get_default_display_type_for_data_type(data_type_ref: DataTypeRefViewData) -> DisplayValueTypeView {
         /*
-        let default_display_type = if let Some(data_type) = DataTypeRegistry::get_instance().get(&data_type_id.to_string()) {
+        let default_display_type = if let Some(data_type) = SymbolRegistry::get_instance().get(&data_type_id.to_string()) {
             data_type.get_default_display_type()
         } else {
             DisplayValueType::Decimal
@@ -90,7 +90,7 @@ impl ValidationViewModel {
 
     fn on_get_default_display_type_index_for_data_type(data_type_ref: DataTypeRefViewData) -> i32 {
         let data_type_ref = DataTypeRefConverter {}.convert_from_view_data(&data_type_ref);
-        let DATA_TYPE_REGISTRY = DataTypeRegistry::new();
+        let DATA_TYPE_REGISTRY = SymbolRegistry::new();
         let default_display_type = DATA_TYPE_REGISTRY.get_default_display_type(&data_type_ref);
         let display_types = DATA_TYPE_REGISTRY.get_supported_display_types(&data_type_ref);
 

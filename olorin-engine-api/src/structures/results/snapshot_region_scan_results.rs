@@ -1,4 +1,4 @@
-use crate::registries::data_types::data_type_registry::DataTypeRegistry;
+use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::scan_results::scan_result_ref::ScanResultRef;
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 use crate::structures::{
@@ -45,15 +45,15 @@ impl SnapshotRegionScanResults {
     /// Performs a binary search to find the specified scan result by index.
     pub fn get_scan_result(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         global_scan_result_index: u64,
         local_scan_result_index: u64,
     ) -> Option<ScanResultValued> {
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return None;
             }
@@ -83,26 +83,26 @@ impl SnapshotRegionScanResults {
             let collection = &self.snapshot_region_filter_collections[collection_index];
             let memory_alignment = collection.get_memory_alignment();
             let data_type_ref = collection.get_data_type_ref();
-            let result_count = filter.get_element_count(data_type_registry, data_type_ref, memory_alignment);
+            let result_count = filter.get_element_count(symbol_registry, data_type_ref, memory_alignment);
 
             if adjusted_scan_result_index < result_count {
                 // The desired result is within this filter.
                 let scan_result_address = filter
                     .get_base_address()
                     .saturating_add(adjusted_scan_result_index * memory_alignment as u64);
-                let current_value = snapshot_region.get_current_value(data_type_registry, scan_result_address, data_type_ref);
-                let previous_value = snapshot_region.get_previous_value(data_type_registry, scan_result_address, data_type_ref);
+                let current_value = snapshot_region.get_current_value(symbol_registry, scan_result_address, data_type_ref);
+                let previous_value = snapshot_region.get_previous_value(symbol_registry, scan_result_address, data_type_ref);
                 let current_display_values = if let Some(data_value) = current_value.as_ref() {
-                    Some(data_type_registry_guard.create_display_values(data_type_ref, data_value.get_value_bytes()))
+                    Some(symbol_registry_guard.create_display_values(data_type_ref, data_value.get_value_bytes()))
                 } else {
                     None
                 };
                 let previous_display_values = if let Some(data_value) = previous_value.as_ref() {
-                    Some(data_type_registry_guard.create_display_values(data_type_ref, data_value.get_value_bytes()))
+                    Some(symbol_registry_guard.create_display_values(data_type_ref, data_value.get_value_bytes()))
                 } else {
                     None
                 };
-                let icon_id = data_type_registry_guard.get_icon_id(data_type_ref);
+                let icon_id = symbol_registry_guard.get_icon_id(data_type_ref);
 
                 return Some(ScanResultValued::new(
                     scan_result_address,

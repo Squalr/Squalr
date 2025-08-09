@@ -8,7 +8,7 @@ use crate::scanners::vector::scanner_vector_overlapping::ScannerVectorOverlappin
 use crate::scanners::vector::scanner_vector_overlapping_bytewise_periodic::ScannerVectorOverlappingBytewisePeriodic;
 use crate::scanners::vector::scanner_vector_overlapping_bytewise_staggered::ScannerVectorOverlappingBytewiseStaggered;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
-use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
+use olorin_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use olorin_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use olorin_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use olorin_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
@@ -31,7 +31,7 @@ impl ElementScanDispatcher {
     /// Performs a scan over a provided filter collection, returning a new filter collection with the results.
     pub fn dispatch_scan(
         element_scan_rule_registry: &Arc<RwLock<ElementScanRuleRegistry>>,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         element_scan_parameters: &ElementScanParameters,
@@ -150,7 +150,7 @@ impl ElementScanDispatcher {
     /// the results of the scalar scan. This is a way to unit test complex scanner implementations on real world data.
     fn perform_debug_scan(
         scanner_instance: &dyn Scanner,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
         filters: &Vec<SnapshotRegionFilter>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,

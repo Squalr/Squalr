@@ -191,3 +191,12 @@ Post-launch Features:
 - Should we allow engine event hooking? If we support plugins later, this might prove valuable. But lambdas are stored almost exclusively as FnOnce for easier stack capture. It also muddies the command/response architecture a bit.
 - How should we allow plugins to register custom windows? Slint supports an interpreter, but unclear if we can fully register a dockable window without serious changes to Slint.
 - How would we allow plugins to register custom editors for custom data types? Similar challenges to custom windows.
+
+## BRAIN DUMP
+So currently the difficult bits of releasing this around around projects, symbols, data types, etc.
+
+The "address item" project type should ideally support complex types like structs. This requires holding a symbolic struct definition.
+
+Now, raw data types are different, but this is perhaps solved by ensuring that ALL data types are also registered into the symbol registry as a single field struct.
+
+This would solve a lot of the headache of trying to operate in these two domains, as we could just use the symbol registry as that field.

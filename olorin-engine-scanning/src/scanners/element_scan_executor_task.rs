@@ -2,7 +2,7 @@ use crate::scanners::element_scan_dispatcher::ElementScanDispatcher;
 use crate::scanners::snapshot_region_memory_reader::SnapshotRegionMemoryReader;
 use crate::scanners::value_collector_task::ValueCollectorTask;
 use olorin_engine_api::conversions::conversions::Conversions;
-use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
+use olorin_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use olorin_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use olorin_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use olorin_engine_api::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
@@ -28,7 +28,7 @@ impl ElementScanExecutorTask {
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
-        data_type_registry: Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: Arc<RwLock<SymbolRegistry>>,
         element_scan_parameters: ElementScanParameters,
         with_logging: bool,
     ) -> Arc<TrackableTask> {
@@ -57,7 +57,7 @@ impl ElementScanExecutorTask {
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
-        data_type_registry: Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: Arc<RwLock<SymbolRegistry>>,
         element_scan_parameters: ElementScanParameters,
         with_logging: bool,
     ) {

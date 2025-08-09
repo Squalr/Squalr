@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use crate::registries::data_types::data_type_registry::DataTypeRegistry;
+use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::scanning::rules::element_scan_mapping_rule::ElementScanMappingRule;
 use crate::structures::scanning::{
     comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
@@ -21,23 +21,23 @@ impl ElementScanMappingRule for MapUnsignedGreaterThanZeroToNotEqual {
 
     fn map_parameters(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         _snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,
         mapped_parameters: &mut MappedScanParameters,
     ) {
         let data_type_ref = mapped_parameters.get_data_value().get_data_type_ref();
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match data_type_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return;
             }
         };
-        let is_signed = data_type_registry_guard.is_signed(data_type_ref);
-        let is_floating_point = data_type_registry_guard.is_floating_point(data_type_ref);
+        let is_signed = symbol_registry_guard.is_signed(data_type_ref);
+        let is_floating_point = symbol_registry_guard.is_floating_point(data_type_ref);
         let is_all_zero = mapped_parameters
             .get_data_value()
             .get_value_bytes()

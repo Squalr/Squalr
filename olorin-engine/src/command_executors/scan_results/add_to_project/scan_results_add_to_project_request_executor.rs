@@ -14,13 +14,11 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let data_type_registry = engine_privileged_state
-            .get_registries()
-            .get_data_type_registry();
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry = engine_privileged_state.get_registries().get_symbol_registry();
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return ScanResultsAddToProjectResponse::default();
             }
@@ -49,10 +47,10 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
             Ok(mut opened_project) => {
                 if let Some(project) = opened_project.as_mut() {
                     for scan_result_ref in &self.scan_result_refs {
-                        if let Some(scan_result) = snapshot_guard.get_scan_result(&data_type_registry, scan_result_ref.get_scan_result_index()) {
+                        if let Some(scan_result) = snapshot_guard.get_scan_result(&symbol_registry, scan_result_ref.get_scan_result_index()) {
                             let data_type_ref = scan_result.get_data_type_ref();
 
-                            if let Some(data_value) = data_type_registry_guard.get_default_value(data_type_ref) {
+                            if let Some(data_value) = symbol_registry_guard.get_default_value(data_type_ref) {
                                 let address = scan_result.get_address();
                                 let path = project.get_project_root().get_path().join("Address");
                                 let description = String::new();

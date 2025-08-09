@@ -1,5 +1,5 @@
 use crate::{
-    registries::{data_types::data_type_registry::DataTypeRegistry, registries::Registries},
+    registries::{registries::Registries, symbols::symbol_registry::SymbolRegistry},
     structures::data_values::{data_value::DataValue, display_values::DisplayValues},
     traits::from_string_privileged::FromStringPrivileged,
 };
@@ -35,7 +35,7 @@ impl ValuedStructField {
         field_node: ValuedStructFieldNode,
         is_read_only: bool,
     ) -> Self {
-        let DATA_TYPE_REGISTRY = DataTypeRegistry::new();
+        let DATA_TYPE_REGISTRY = SymbolRegistry::new();
 
         let icon_id = match &field_node {
             ValuedStructFieldNode::Value(data_value) => DATA_TYPE_REGISTRY.get_icon_id(data_value.get_data_type_ref()),

@@ -1,4 +1,4 @@
-use crate::registries::data_types::data_type_registry::DataTypeRegistry;
+use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::cmp;
@@ -71,7 +71,7 @@ impl Snapshot {
     /// containing the index, followed by a binary search to find the exact filter, and finally the scan result.
     pub fn get_scan_result(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         global_scan_result_index: u64,
     ) -> Option<ScanResultValued> {
         let mut local_scan_result_index = global_scan_result_index;
@@ -81,7 +81,7 @@ impl Snapshot {
             let number_of_region_results = snapshot_region_scan_results.get_number_of_results();
 
             if local_scan_result_index < number_of_region_results {
-                return snapshot_region_scan_results.get_scan_result(data_type_registry, snapshot_region, global_scan_result_index, local_scan_result_index);
+                return snapshot_region_scan_results.get_scan_result(symbol_registry, snapshot_region, global_scan_result_index, local_scan_result_index);
             }
 
             local_scan_result_index = local_scan_result_index.saturating_sub(number_of_region_results);

@@ -1,6 +1,6 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
+use olorin_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use olorin_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use olorin_engine_api::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use olorin_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
@@ -105,15 +105,15 @@ where
     /// A run-length encoding algorithm is used to generate new sub-regions as the scan progresses.
     fn scan_region(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match data_type_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return vec![];
             }
@@ -124,7 +124,7 @@ where
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type_ref = mapped_scan_parameters.get_data_type_ref();
-        let data_type_size = data_type_registry_guard.get_unit_size_in_bytes(data_type_ref);
+        let data_type_size = symbol_registry_guard.get_unit_size_in_bytes(data_type_ref);
         let memory_alignment = mapped_scan_parameters.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment_size);

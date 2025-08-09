@@ -1,4 +1,4 @@
-use crate::registries::data_types::data_type_registry::DataTypeRegistry;
+use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::memory::normalized_region::NormalizedRegion;
@@ -60,23 +60,23 @@ impl SnapshotRegion {
     /// Gets the most recent values collected from memory within this snapshot region bounds.
     pub fn get_current_value(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         element_address: u64,
         data_type_ref: &DataTypeRef,
     ) -> Option<DataValue> {
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return None;
             }
         };
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
-        let data_type_size = data_type_registry_guard.get_unit_size_in_bytes(data_type_ref);
+        let data_type_size = symbol_registry_guard.get_unit_size_in_bytes(data_type_ref);
 
         if byte_offset.saturating_add(data_type_size) <= self.current_values.len() as u64 {
-            if let Some(mut data_value) = data_type_registry_guard.get_default_value(data_type_ref) {
+            if let Some(mut data_value) = symbol_registry_guard.get_default_value(data_type_ref) {
                 let start = byte_offset as usize;
                 let end = start + data_type_size as usize;
                 data_value.copy_from_bytes(&self.current_values[start..end]);
@@ -93,23 +93,23 @@ impl SnapshotRegion {
     /// Gets the prior values collected from memory within this snapshot region bounds.
     pub fn get_previous_value(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         element_address: u64,
         data_type_ref: &DataTypeRef,
     ) -> Option<DataValue> {
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return None;
             }
         };
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
-        let data_type_size = data_type_registry_guard.get_unit_size_in_bytes(data_type_ref);
+        let data_type_size = symbol_registry_guard.get_unit_size_in_bytes(data_type_ref);
 
         if byte_offset.saturating_add(data_type_size) <= self.previous_values.len() as u64 {
-            if let Some(mut data_value) = data_type_registry_guard.get_default_value(data_type_ref) {
+            if let Some(mut data_value) = symbol_registry_guard.get_default_value(data_type_ref) {
                 let start = byte_offset as usize;
                 let end = start + data_type_size as usize;
                 data_value.copy_from_bytes(&self.previous_values[start..end]);
@@ -176,7 +176,7 @@ impl SnapshotRegion {
     // JIRA: Okay great, what about struct scans and whatnot.
     pub fn initialize_scan_results(
         &mut self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
         data_values_and_alignments: &Vec<ElementScanValue>,
     ) {
         if self.scan_results.get_filter_collections().len() > 0 {

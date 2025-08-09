@@ -1,5 +1,5 @@
 use crate::{
-    registries::data_types::data_type_registry::DataTypeRegistry,
+    registries::symbols::symbol_registry::SymbolRegistry,
     structures::{
         data_types::data_type_ref::DataTypeRef,
         structs::{
@@ -30,20 +30,20 @@ impl SymbolicFieldDefinition {
 
     pub fn get_valued_struct_field(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
         is_read_only: bool,
     ) -> ValuedStructField {
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match data_type_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return ValuedStructField::default();
             }
         };
         let field_node = match self.container_type {
             ContainerType::None => {
-                let default_value = data_type_registry_guard
+                let default_value = symbol_registry_guard
                     .get_default_value(&self.data_type_ref)
                     .unwrap_or_default();
                 ValuedStructFieldNode::Value(default_value)
@@ -51,7 +51,7 @@ impl SymbolicFieldDefinition {
             ContainerType::Pointer32 => ValuedStructFieldNode::Pointer32(0),
             ContainerType::Pointer64 => ValuedStructFieldNode::Pointer64(0),
             ContainerType::Array(length) => {
-                let mut array_value = data_type_registry_guard
+                let mut array_value = symbol_registry_guard
                     .get_default_value(&self.data_type_ref)
                     .unwrap_or_default();
                 let default_bytes = array_value.get_value_bytes();
@@ -68,17 +68,17 @@ impl SymbolicFieldDefinition {
 
     pub fn get_size_in_bytes(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
     ) -> u64 {
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match data_type_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return 0;
             }
         };
-        data_type_registry_guard.get_unit_size_in_bytes(&self.data_type_ref)
+        symbol_registry_guard.get_unit_size_in_bytes(&self.data_type_ref)
     }
 
     pub fn get_data_type_ref(&self) -> &DataTypeRef {

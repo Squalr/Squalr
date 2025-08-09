@@ -13,11 +13,11 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let data_type_registry = engine_privileged_state.get_data_type_registry();
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry = engine_privileged_state.get_symbol_registry();
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return ScanResultsFreezeResponse::default();
             }
@@ -42,7 +42,7 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
         };
 
         for scan_result_ref in &self.scan_result_refs {
-            if let Some(scan_result) = snapshot_guard.get_scan_result(&data_type_registry, scan_result_ref.get_scan_result_index()) {
+            if let Some(scan_result) = snapshot_guard.get_scan_result(&symbol_registry, scan_result_ref.get_scan_result_index()) {
                 let address = scan_result.get_address();
 
                 if self.is_frozen {
@@ -52,7 +52,7 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
                     {
                         let data_type_ref = scan_result.get_data_type_ref();
 
-                        if let Some(mut data_value) = data_type_registry_guard.get_default_value(data_type_ref) {
+                        if let Some(mut data_value) = symbol_registry_guard.get_default_value(data_type_ref) {
                             if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
                                 freeze_list_registry_guard.set_address_frozen(address, data_value);
                             }

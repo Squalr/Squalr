@@ -1,5 +1,4 @@
 use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
-use crate::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
 use crate::registries::registries::Registries;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::projects::project_items::project_item_type_ref::ProjectItemTypeRef;
@@ -21,14 +20,15 @@ impl ProjectItemType for ProjectItemTypeDirectory {
 
     fn on_activated_changed(
         &self,
-        project_item_type_registry: &ProjectItemTypeRegistry,
+        engine_bindings: &dyn EngineApiPrivilegedBindings,
+        registries: &Registries,
         project_item: &mut ProjectItem,
     ) {
         let is_activated = project_item.get_is_activated();
 
         // Recurse the tick call to all child project items.
         for child in project_item.get_children_mut() {
-            child.set_activated(project_item_type_registry, is_activated);
+            child.set_activated(engine_bindings, registries, is_activated);
         }
     }
 

@@ -16,11 +16,11 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let data_type_registry = engine_privileged_state.get_data_type_registry();
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry = engine_privileged_state.get_symbol_registry();
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return ScanResultsRefreshResponse::default();
             }
@@ -48,7 +48,7 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
 
         // Wrap each ScanResultBase with a full ScanResult that includes current values and module information.
         for scan_result_ref in self.scan_result_refs.clone().into_iter() {
-            if let Some(scan_result) = snapshot_guard.get_scan_result(&data_type_registry, scan_result_ref.get_scan_result_index()) {
+            if let Some(scan_result) = snapshot_guard.get_scan_result(&symbol_registry, scan_result_ref.get_scan_result_index()) {
                 let mut recently_read_value = None;
                 let mut module_name = String::default();
                 let address = scan_result.get_address();
@@ -79,7 +79,7 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
                 };
 
                 let recently_read_display_values = if let Some(data_value) = recently_read_value.as_ref() {
-                    Some(data_type_registry_guard.create_display_values(data_value.get_data_type_ref(), data_value.get_value_bytes()))
+                    Some(symbol_registry_guard.create_display_values(data_value.get_data_type_ref(), data_value.get_value_bytes()))
                 } else {
                     None
                 };

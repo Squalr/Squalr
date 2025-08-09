@@ -1,6 +1,6 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
+use olorin_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use olorin_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use olorin_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use olorin_engine_api::structures::data_values::data_value::DataValue;
@@ -79,15 +79,15 @@ where
 
     fn scan_region(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match data_type_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return vec![];
             }
@@ -101,7 +101,7 @@ where
         let true_mask = Simd::<u8, N>::splat(0xFF);
 
         let data_type_ref = mapped_scan_parameters.get_data_type_ref();
-        let data_type_size = data_type_registry_guard.get_unit_size_in_bytes(data_type_ref);
+        let data_type_size = symbol_registry_guard.get_unit_size_in_bytes(data_type_ref);
         let data_type_size_padding = data_type_size.saturating_sub(mapped_scan_parameters.get_memory_alignment() as u64);
         let memory_alignment = mapped_scan_parameters.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
@@ -244,7 +244,7 @@ where
 
         // Handle remainder elements.
         if let Some(compare_func) =
-            data_type_registry_guard.get_scalar_compare_func_immediate(data_type_ref, &scan_compare_type_immediate, mapped_scan_parameters)
+            symbol_registry_guard.get_scalar_compare_func_immediate(data_type_ref, &scan_compare_type_immediate, mapped_scan_parameters)
         {
             for index in vectorizable_element_count..element_count {
                 let current_value_pointer = unsafe { current_values_pointer.add(index as usize * memory_alignment_size as usize) };

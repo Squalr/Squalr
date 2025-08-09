@@ -1,5 +1,5 @@
 use crate::registries::registries::Registries;
-use crate::registries::symbols::symbolic_struct_registry::SymbolicStructDefinitionRegistry;
+use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use crate::structures::structs::valued_struct_field::ValuedStructField;
 use crate::structures::structs::{symbolic_struct_ref::SymbolicStructRef, valued_struct_field::ValuedStructFieldNode};
@@ -30,7 +30,7 @@ impl ValuedStruct {
 
     pub fn get_symbolic_struct(
         &self,
-        symbolic_struct_registry: &SymbolicStructDefinitionRegistry,
+        symbolic_struct_registry: &SymbolRegistry,
     ) -> Result<SymbolicStructDefinition, String> {
         Err("Struct symbol definition is not registered!".to_string())
     }

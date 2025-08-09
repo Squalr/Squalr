@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use crate::registries::data_types::data_type_registry::DataTypeRegistry;
+use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scanning::rules::element_scan_mapping_rule::ElementScanMappingRule;
@@ -16,7 +16,7 @@ impl MapPeriodicScans {
     pub const RULE_ID: &str = "map_periodic_scans";
 
     fn calculate_periodicity(
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
         data_value: &DataValue,
         scan_compare_type: &ScanCompareType,
     ) -> Option<u64> {
@@ -39,21 +39,21 @@ impl MapPeriodicScans {
     /// If there are no repeating patterns, the periodicity will be equal to the data type size.
     /// For example, 7C 01 7C 01 has a data typze size of 4, but a periodicity of 2.
     fn calculate_periodicity_from_immediate(
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
         immediate_value_bytes: &[u8],
         data_type_ref: &DataTypeRef,
     ) -> u64 {
         // Assume optimal periodicity to begin with
         let mut period = 1;
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match data_type_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return period;
             }
         };
-        let data_type_size_bytes = data_type_registry_guard.get_unit_size_in_bytes(data_type_ref);
+        let data_type_size_bytes = symbol_registry_guard.get_unit_size_in_bytes(data_type_ref);
 
         // Loop through all remaining bytes, and increase the periodicity when we encounter a byte that violates the current assumption.
         for byte_index in 1..data_type_size_bytes as usize {
@@ -73,7 +73,7 @@ impl ElementScanMappingRule for MapPeriodicScans {
 
     fn map_parameters(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         _snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,

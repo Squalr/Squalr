@@ -1,7 +1,7 @@
 use crate::scanners::element_scan_executor_task::ElementScanExecutorTask;
 use crate::scanners::value_collector_task::ValueCollectorTask;
 use olorin_engine_api::conversions::conversions::Conversions;
-use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
+use olorin_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use olorin_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use olorin_engine_api::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
 use olorin_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
@@ -34,7 +34,7 @@ impl PointerScanExecutorTask {
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
         element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
-        data_type_registry: Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: Arc<RwLock<SymbolRegistry>>,
         pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
     ) -> Arc<TrackableTask> {
@@ -65,7 +65,7 @@ impl PointerScanExecutorTask {
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
         element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
-        data_type_registry: Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: Arc<RwLock<SymbolRegistry>>,
         pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
     ) {

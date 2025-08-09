@@ -17,11 +17,11 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let data_type_registry = engine_privileged_state.get_data_type_registry();
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry = engine_privileged_state.get_symbol_registry();
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return ScanResultsListResponse::default();
             }
@@ -54,8 +54,8 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
                 .min(result_count);
 
             for result_index in index_of_first_page_entry..index_of_last_page_entry {
-                let data_type_registry = engine_privileged_state.get_data_type_registry();
-                let scan_result_base = match snapshot.get_scan_result(&data_type_registry, result_index) {
+                let symbol_registry = engine_privileged_state.get_symbol_registry();
+                let scan_result_base = match snapshot.get_scan_result(&symbol_registry, result_index) {
                     None => break,
                     Some(scan_result_base) => scan_result_base,
                 };
@@ -72,7 +72,7 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
                 {
                     let data_type_ref = scan_result_base.get_data_type_ref();
 
-                    if let Some(mut data_value) = data_type_registry_guard.get_default_value(data_type_ref) {
+                    if let Some(mut data_value) = symbol_registry_guard.get_default_value(data_type_ref) {
                         if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
                             recently_read_value = Some(data_value);
                         }
@@ -92,7 +92,7 @@ impl EngineCommandRequestExecutor for ScanResultsListRequest {
                 };
 
                 let recently_read_display_values = if let Some(data_value) = recently_read_value.as_ref() {
-                    Some(data_type_registry_guard.create_display_values(data_value.get_data_type_ref(), data_value.get_value_bytes()))
+                    Some(symbol_registry_guard.create_display_values(data_value.get_data_type_ref(), data_value.get_value_bytes()))
                 } else {
                     None
                 };

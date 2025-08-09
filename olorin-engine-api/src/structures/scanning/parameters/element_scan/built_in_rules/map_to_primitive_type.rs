@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use crate::registries::data_types::data_type_registry::DataTypeRegistry;
+use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
 use crate::structures::data_types::built_in_types::u16be::data_type_u16be::DataTypeU16be;
 use crate::structures::data_types::built_in_types::u32be::data_type_u32be::DataTypeU32be;
@@ -26,16 +26,16 @@ impl ElementScanMappingRule for MapToPrimitiveType {
 
     fn map_parameters(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         _snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,
         mapped_parameters: &mut MappedScanParameters,
     ) {
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match data_type_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return;
             }
@@ -51,12 +51,12 @@ impl ElementScanMappingRule for MapToPrimitiveType {
 
         // Non discrete / floating point types cannot be remapped. For example, if we have an array of two f32 values,
         // we absolutely cannot remap this to a single u64 (nor an f64) since these require tolerance comparisons.
-        if data_type_registry_guard.is_floating_point(data_type_ref) {
+        if symbol_registry_guard.is_floating_point(data_type_ref) {
             return;
         }
 
         let data_type_size = data_value.get_size_in_bytes();
-        let data_type_default_size = data_type_registry_guard.get_unit_size_in_bytes(data_type_ref);
+        let data_type_default_size = symbol_registry_guard.get_unit_size_in_bytes(data_type_ref);
 
         // If the data type size is the default for that type, and its already a valid primitive size,
         // there is no need to perform a remapping. We do this check to avoid meaningless remappings,

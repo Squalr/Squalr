@@ -5,11 +5,11 @@ use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
 use olorin_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use olorin_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
-use olorin_engine_api::registries::data_types::data_type_registry::DataTypeRegistry;
 use olorin_engine_api::registries::freeze_list::freeze_list_registry::FreezeListRegistry;
 use olorin_engine_api::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
 use olorin_engine_api::registries::registries::Registries;
 use olorin_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
+use olorin_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use olorin_engine_api::structures::snapshots::snapshot::Snapshot;
 use olorin_engine_processes::process::process_manager::ProcessManager;
 use olorin_engine_processes::process_query::process_queryer::ProcessQuery;
@@ -144,17 +144,17 @@ impl EnginePrivilegedState {
         self.registries.get_freeze_list_registry()
     }
 
-    /// Gets registry for data types.
-    pub fn get_data_type_registry(&self) -> Arc<RwLock<DataTypeRegistry>> {
-        self.registries.get_data_type_registry()
+    /// Gets the registry for symbols.
+    pub fn get_symbol_registry(&self) -> Arc<RwLock<SymbolRegistry>> {
+        self.registries.get_symbol_registry()
     }
 
-    /// Gets registry for project item types.
+    /// Gets the registry for project item types.
     pub fn get_project_item_type_registry(&self) -> Arc<RwLock<ProjectItemTypeRegistry>> {
         self.registries.get_project_item_type_registry()
     }
 
-    /// Gets registry for element scan rules.
+    /// Gets the registry for element scan rules.
     pub fn get_element_scan_rule_registry(&self) -> Arc<RwLock<ElementScanRuleRegistry>> {
         self.registries.get_element_scan_rule_registry()
     }
@@ -165,6 +165,10 @@ impl EnginePrivilegedState {
             Ok(engine_bindings) => engine_bindings.subscribe_to_engine_events(),
             Err(error) => Err(format!("Failed to acquire privileged engine bindings read lock: {}", error)),
         }
+    }
+
+    pub fn get_engine_bindings(&self) -> &Arc<RwLock<dyn EngineApiPrivilegedBindings>> {
+        &self.engine_bindings
     }
 
     /// Dispatches an event from the engine.

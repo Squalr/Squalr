@@ -23,12 +23,10 @@ impl EngineCommandRequestExecutor for MemoryReadRequest {
         {
             log::info!("Reading value from address {}", self.address);
 
-            let data_type_registry = engine_privileged_state
-                .get_registries()
-                .get_data_type_registry();
+            let symbol_registry = engine_privileged_state.get_registries().get_symbol_registry();
             let mut out_valued_struct = self
                 .symbolic_struct_definition
-                .get_valued_struct(&data_type_registry);
+                .get_valued_struct(&symbol_registry);
 
             if !self.module_name.is_empty() {
                 let modules = if let Some(opened_process_info) = engine_privileged_state

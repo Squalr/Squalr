@@ -25,11 +25,11 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
         {
             let snapshot = engine_privileged_state.get_snapshot();
             let alignment = ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1);
-            let data_type_registry = engine_privileged_state.get_data_type_registry();
-            let data_type_registry_guard = match data_type_registry.read() {
+            let symbol_registry = engine_privileged_state.get_symbol_registry();
+            let symbol_registry_guard = match symbol_registry.read() {
                 Ok(registry) => registry,
                 Err(error) => {
-                    log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                    log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                     return ElementScanResponse { trackable_task_handle: None };
                 }
@@ -41,7 +41,7 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
                     Some(anonymous_value) => {
                         let data_type_ref = DataTypeRef::new(data_type_id);
 
-                        match data_type_registry_guard.deanonymize_value(&data_type_ref, anonymous_value.get_value()) {
+                        match symbol_registry_guard.deanonymize_value(&data_type_ref, anonymous_value.get_value()) {
                             Ok(data_value) => Some(ElementScanValue::new(data_value, alignment)),
                             Err(error) => {
                                 log::error!("Error mapping data value: {}", error);
@@ -63,8 +63,8 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
 
             // Start the task to perform the scan.
             let element_scan_rule_registry = engine_privileged_state.get_element_scan_rule_registry();
-            let data_type_registry = engine_privileged_state.get_data_type_registry();
-            let task = ElementScanExecutorTask::start_task(process_info, snapshot, element_scan_rule_registry, data_type_registry, scan_parameters, true);
+            let symbol_registry = engine_privileged_state.get_symbol_registry();
+            let task = ElementScanExecutorTask::start_task(process_info, snapshot, element_scan_rule_registry, symbol_registry, scan_parameters, true);
             let task_handle = task.get_task_handle();
             let engine_privileged_state = engine_privileged_state.clone();
             let progress_receiver = task.subscribe_to_progress_updates();

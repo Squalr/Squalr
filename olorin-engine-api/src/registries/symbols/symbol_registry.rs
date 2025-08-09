@@ -1,3 +1,4 @@
+use crate::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use crate::structures::{
     data_types::{
         built_in_types::{
@@ -32,26 +33,41 @@ use std::{
     sync::Arc,
 };
 
-pub struct DataTypeRegistry {
-    registry: HashMap<String, Arc<dyn DataType>>,
+pub struct SymbolRegistry {
+    symbolic_struct_registry: HashMap<String, Arc<SymbolicStructDefinition>>,
+    data_type_registry: HashMap<String, Arc<dyn DataType>>,
 }
 
-impl DataTypeRegistry {
+impl SymbolRegistry {
     pub fn new() -> Self {
         Self {
-            registry: Self::create_built_in_types(),
+            symbolic_struct_registry: HashMap::new(),
+            data_type_registry: Self::create_built_in_types(),
         }
     }
 
-    pub fn get_registry(&self) -> &HashMap<String, Arc<dyn DataType>> {
-        &self.registry
+    pub fn get_registry(&self) -> &HashMap<String, Arc<SymbolicStructDefinition>> {
+        &self.symbolic_struct_registry
     }
 
     pub fn get(
         &self,
+        symbolic_struct_ref_id: &str,
+    ) -> Option<Arc<SymbolicStructDefinition>> {
+        self.symbolic_struct_registry
+            .get(symbolic_struct_ref_id)
+            .cloned()
+    }
+
+    pub fn get_data_type_registry(&self) -> &HashMap<String, Arc<dyn DataType>> {
+        &self.data_type_registry
+    }
+
+    pub fn get_data_type(
+        &self,
         data_type_id: &str,
     ) -> Option<Arc<dyn DataType>> {
-        self.registry.get(data_type_id).cloned()
+        self.data_type_registry.get(data_type_id).cloned()
     }
 
     /// Determines if the `DataType` this struct represents is currently registered and available.
@@ -59,14 +75,14 @@ impl DataTypeRegistry {
         &self,
         data_type_ref: &DataTypeRef,
     ) -> bool {
-        self.get(data_type_ref.get_data_type_id()).is_some()
+        self.get_data_type(data_type_ref.get_data_type_id()).is_some()
     }
 
     pub fn get_icon_id(
         &self,
         data_type_ref: &DataTypeRef,
     ) -> String {
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => data_type.get_icon_id().to_string(),
             None => String::new(),
         }
@@ -76,7 +92,7 @@ impl DataTypeRegistry {
         &self,
         data_type_ref: &DataTypeRef,
     ) -> u64 {
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => data_type.get_unit_size_in_bytes(),
             None => 0,
         }
@@ -89,7 +105,7 @@ impl DataTypeRegistry {
     ) -> bool {
         let anonymous_value_container = anonymous_value.get_value();
 
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => {
                 if !data_type.validate_value(anonymous_value_container) {
                     return false;
@@ -106,7 +122,7 @@ impl DataTypeRegistry {
         data_type_ref: &DataTypeRef,
         anonymous_value_container: &AnonymousValueContainer,
     ) -> Result<DataValue, String> {
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => {
                 let deanonymized_value = data_type.deanonymize_value(anonymous_value_container);
 
@@ -123,7 +139,7 @@ impl DataTypeRegistry {
         &self,
         data_type_ref: &DataTypeRef,
     ) -> Vec<DisplayValueType> {
-        self.get(data_type_ref.get_data_type_id())
+        self.get_data_type(data_type_ref.get_data_type_id())
             .map(|data_type| data_type.get_supported_display_types())
             .unwrap_or_default()
     }
@@ -132,7 +148,7 @@ impl DataTypeRegistry {
         &self,
         data_type_ref: &DataTypeRef,
     ) -> DisplayValueType {
-        self.get(data_type_ref.get_data_type_id())
+        self.get_data_type(data_type_ref.get_data_type_id())
             .map(|data_type| data_type.get_default_display_type())
             .unwrap_or_default()
     }
@@ -142,7 +158,7 @@ impl DataTypeRegistry {
         data_type_ref: &DataTypeRef,
         value_bytes: &[u8],
     ) -> DisplayValues {
-        self.get(data_type_ref.get_data_type_id())
+        self.get_data_type(data_type_ref.get_data_type_id())
             .and_then(|data_type| data_type.create_display_values(value_bytes).ok())
             .unwrap_or_else(|| DisplayValues::new(vec![], DisplayValueType::String))
     }
@@ -152,7 +168,7 @@ impl DataTypeRegistry {
         &self,
         data_type_ref: &DataTypeRef,
     ) -> bool {
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => data_type.is_signed(),
             None => false,
         }
@@ -163,7 +179,7 @@ impl DataTypeRegistry {
         &self,
         data_type_ref: &DataTypeRef,
     ) -> bool {
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => data_type.is_floating_point(),
             None => false,
         }
@@ -173,7 +189,7 @@ impl DataTypeRegistry {
         &self,
         data_type_ref: &DataTypeRef,
     ) -> Option<DataValue> {
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => Some(data_type.get_default_value(data_type_ref.clone())),
             None => None,
         }
@@ -185,7 +201,7 @@ impl DataTypeRegistry {
         scan_compare_type: &ScanCompareTypeImmediate,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnImmediate> {
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
                 ScanCompareTypeImmediate::Equal => data_type.get_compare_equal(mapped_scan_parameters),
                 ScanCompareTypeImmediate::NotEqual => data_type.get_compare_not_equal(mapped_scan_parameters),
@@ -204,7 +220,7 @@ impl DataTypeRegistry {
         scan_compare_type: &ScanCompareTypeRelative,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
                 ScanCompareTypeRelative::Changed => data_type.get_compare_changed(mapped_scan_parameters),
                 ScanCompareTypeRelative::Unchanged => data_type.get_compare_unchanged(mapped_scan_parameters),
@@ -221,7 +237,7 @@ impl DataTypeRegistry {
         scan_compare_type: &ScanCompareTypeDelta,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Option<ScalarCompareFnRelative> {
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
                 ScanCompareTypeDelta::IncreasedByX => data_type.get_compare_increased_by(mapped_scan_parameters),
                 ScanCompareTypeDelta::DecreasedByX => data_type.get_compare_decreased_by(mapped_scan_parameters),
@@ -247,7 +263,7 @@ impl DataTypeRegistry {
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => {
                 <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(&data_type, &scan_compare_type_immediate, mapped_scan_parameters)
             }
@@ -264,7 +280,7 @@ impl DataTypeRegistry {
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => {
                 <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_relative(&data_type, &scan_compare_type_relative, mapped_scan_parameters)
             }
@@ -281,7 +297,7 @@ impl DataTypeRegistry {
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
-        match self.get(data_type_ref.get_data_type_id()) {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_delta(&data_type, &scan_compare_type_delta, mapped_scan_parameters),
             None => None,
         }

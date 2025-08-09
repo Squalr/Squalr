@@ -17,13 +17,11 @@ impl EngineCommandRequestExecutor for ScanResultsSetPropertyRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let data_type_registry = engine_privileged_state
-            .get_registries()
-            .get_data_type_registry();
-        let data_type_registry_guard = match data_type_registry.read() {
+        let symbol_registry = engine_privileged_state.get_registries().get_symbol_registry();
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return ScanResultsSetPropertyResponse::default();
             }
@@ -41,8 +39,8 @@ impl EngineCommandRequestExecutor for ScanResultsSetPropertyRequest {
         match self.field_namespace.as_str() {
             ScanResult::PROPERTY_NAME_VALUE => {
                 for scan_result_ref in &self.scan_result_refs {
-                    if let Some(scan_result) = snapshot_guard.get_scan_result(&data_type_registry, scan_result_ref.get_scan_result_index()) {
-                        if let Ok(data_value) = data_type_registry_guard.deanonymize_value(scan_result.get_data_type_ref(), self.anonymous_value.get_value()) {
+                    if let Some(scan_result) = snapshot_guard.get_scan_result(&symbol_registry, scan_result_ref.get_scan_result_index()) {
+                        if let Ok(data_value) = symbol_registry_guard.deanonymize_value(scan_result.get_data_type_ref(), self.anonymous_value.get_value()) {
                             let value_bytes = data_value.get_value_bytes();
                             let address = scan_result.get_address();
                             if let Some(opened_process_info) = engine_privileged_state

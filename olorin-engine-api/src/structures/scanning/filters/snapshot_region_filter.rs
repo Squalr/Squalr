@@ -1,5 +1,5 @@
 use crate::{
-    registries::data_types::data_type_registry::DataTypeRegistry,
+    registries::symbols::symbol_registry::SymbolRegistry,
     structures::{
         data_types::data_type_ref::DataTypeRef,
         memory::{memory_alignment::MemoryAlignment, normalized_region::NormalizedRegion},
@@ -60,14 +60,14 @@ impl SnapshotRegionFilter {
     /// Gets the number of elements contained by this filter for the given data type and alignment.
     pub fn get_element_count(
         &self,
-        data_type_registry: &Arc<RwLock<DataTypeRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         data_type_ref: &DataTypeRef,
         memory_alignment: MemoryAlignment,
     ) -> u64 {
-        let data_type_size_bytes = match data_type_registry.read() {
+        let data_type_size_bytes = match symbol_registry.read() {
             Ok(registry) => registry.get_unit_size_in_bytes(data_type_ref),
             Err(error) => {
-                log::error!("Failed to acquire read lock on DataTypeRegistry: {}", error);
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
 
                 return 0;
             }
