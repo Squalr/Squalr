@@ -114,9 +114,9 @@ impl MappedScanParameters {
 
     pub fn get_scan_function_scalar(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
     ) -> Option<ScanFunctionScalar> {
-        let symbol_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
                 log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
@@ -151,12 +151,12 @@ impl MappedScanParameters {
 
     pub fn get_scan_function_vector<const N: usize>(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
     ) -> Option<ScanFunctionVector<N>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
-        let symbol_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
                 log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);

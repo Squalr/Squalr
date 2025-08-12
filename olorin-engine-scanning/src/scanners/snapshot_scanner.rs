@@ -9,7 +9,7 @@ pub trait Scanner: Send + Sync {
     fn get_scanner_name(&self) -> &'static str;
     fn scan_region(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,

@@ -12,7 +12,7 @@ pub struct ElementScanExecutionPlanner {}
 impl ElementScanExecutionPlanner {
     pub fn map(
         element_scan_rule_registry: &Arc<RwLock<ElementScanRuleRegistry>>,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         element_scan_parameters: &ElementScanParameters,
@@ -29,7 +29,7 @@ impl ElementScanExecutionPlanner {
 
         for (_id, rule) in element_scan_rule_registry_guard.get_registry().iter() {
             rule.map_parameters(
-                data_type_registry,
+                symbol_registry,
                 snapshot_region_filter_collection,
                 snapshot_region_filter,
                 element_scan_parameters,

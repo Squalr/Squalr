@@ -54,8 +54,8 @@ impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
                 .min(result_count);
 
             for result_index in index_of_first_page_entry..index_of_last_page_entry {
-                let data_type_registry = engine_privileged_state.get_symbol_registry();
-                let scan_result_base = match snapshot.get_scan_result(&data_type_registry, result_index) {
+                let symbol_registry = engine_privileged_state.get_symbol_registry();
+                let scan_result_base = match snapshot.get_scan_result(&symbol_registry, result_index) {
                     None => break,
                     Some(scan_result_base) => scan_result_base,
                 };

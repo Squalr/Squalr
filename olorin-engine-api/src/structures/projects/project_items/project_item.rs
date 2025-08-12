@@ -7,6 +7,7 @@ use crate::structures::{
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
 
 /// Represents a unique reference to a project item in an opened project.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -112,7 +113,7 @@ impl ProjectItem {
 
     pub fn set_activated(
         &mut self,
-        engine_bindings: &dyn EngineApiPrivilegedBindings,
+        engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         registries: &Registries,
         is_activated: bool,
     ) {

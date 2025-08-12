@@ -79,12 +79,12 @@ where
 
     fn scan_region(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
-        let symbol_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
                 log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
@@ -109,7 +109,7 @@ where
         let vector_size_in_bytes = N;
         let vector_underflow = data_type_size as usize;
         let vector_compare_size = vector_size_in_bytes.saturating_sub(vector_underflow) as u64;
-        let element_count = snapshot_region_filter.get_element_count(data_type_registry, data_type_ref, memory_alignment);
+        let element_count = snapshot_region_filter.get_element_count(symbol_registry, data_type_ref, memory_alignment);
         let vectorizable_iterations = region_size / vector_compare_size; // JIRA: Memory alignment!
         let remainder_bytes = region_size % vector_compare_size;
         let remainder_element_count: u64 = (remainder_bytes / memory_alignment_size).saturating_sub(data_type_size.saturating_sub(1));

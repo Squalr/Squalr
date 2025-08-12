@@ -3,6 +3,7 @@ use crate::registries::registries::Registries;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::projects::project_items::{project_item::ProjectItem, project_item_type::ProjectItemType};
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize)]
 pub struct ProjectItemTypePointer {
@@ -24,7 +25,7 @@ impl ProjectItemType for ProjectItemTypePointer {
 
     fn on_activated_changed(
         &self,
-        engine_bindings: &dyn EngineApiPrivilegedBindings,
+        engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         registries: &Registries,
         project_item: &mut ProjectItem,
     ) {

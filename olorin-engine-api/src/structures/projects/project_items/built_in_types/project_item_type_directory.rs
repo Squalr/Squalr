@@ -5,6 +5,7 @@ use crate::structures::projects::project_items::project_item_type_ref::ProjectIt
 use crate::structures::projects::project_items::{project_item::ProjectItem, project_item_type::ProjectItemType};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize)]
 pub struct ProjectItemTypeDirectory {}
@@ -20,7 +21,7 @@ impl ProjectItemType for ProjectItemTypeDirectory {
 
     fn on_activated_changed(
         &self,
-        engine_bindings: &dyn EngineApiPrivilegedBindings,
+        engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         registries: &Registries,
         project_item: &mut ProjectItem,
     ) {

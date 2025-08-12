@@ -23,7 +23,7 @@ impl ElementScanMappingRule for MapScanType {
 
     fn map_parameters(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,
@@ -34,7 +34,7 @@ impl ElementScanMappingRule for MapScanType {
         // For example, if scanning for i32, 1-byte aligned, a single region of 64 bytes is not actually very helpful.
         // This is because we would actually want to overlap based on alignment, and thus would need at least 67 bytes.
         // This is derived from scanning for four i32 values at alignments 0, 1, 2, and 3.
-        let symbol_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
                 log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
@@ -47,7 +47,7 @@ impl ElementScanMappingRule for MapScanType {
         let is_floating_point = symbol_registry_guard.is_floating_point(data_type_ref);
         let memory_alignment = mapped_parameters.get_memory_alignment();
         let memory_alignment_size = mapped_parameters.get_memory_alignment() as u64;
-        let element_count = snapshot_region_filter.get_element_count(data_type_registry, data_type_ref, memory_alignment);
+        let element_count = snapshot_region_filter.get_element_count(symbol_registry, data_type_ref, memory_alignment);
         let usable_region_size = element_count * (memory_alignment as u64);
 
         // Decide whether to use a scalar or SIMD scan based on filter region size.

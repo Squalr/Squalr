@@ -105,12 +105,12 @@ where
     /// A run-length encoding algorithm is used to generate new sub-regions as the scan progresses.
     fn scan_region(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
-        let symbol_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
                 log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
@@ -130,7 +130,7 @@ where
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment_size);
 
         let vector_size_in_bytes = N as u64;
-        let element_count = snapshot_region_filter.get_element_count(data_type_registry, data_type_ref, memory_alignment);
+        let element_count = snapshot_region_filter.get_element_count(symbol_registry, data_type_ref, memory_alignment);
         let elements_per_vector = vector_size_in_bytes / memory_alignment_size;
         let vectorizable_iterations = element_count / elements_per_vector;
         let vector_element_count = vectorizable_iterations * elements_per_vector;
@@ -142,7 +142,7 @@ where
         debug_assert!(data_type_size < memory_alignment_size);
         debug_assert!(memory_alignment_size == 2 || memory_alignment_size == 4 || memory_alignment_size == 8);
 
-        if let Some(vector_compare_func) = mapped_scan_parameters.get_scan_function_vector(data_type_registry) {
+        if let Some(vector_compare_func) = mapped_scan_parameters.get_scan_function_vector(symbol_registry) {
             match vector_compare_func {
                 ScanFunctionVector::Immediate(compare_func) => {
                     // Compare as many full vectors as we can.
@@ -166,7 +166,7 @@ where
             }
         }
 
-        if let Some(scalar_compare_func) = mapped_scan_parameters.get_scan_function_scalar(data_type_registry) {
+        if let Some(scalar_compare_func) = mapped_scan_parameters.get_scan_function_scalar(symbol_registry) {
             match scalar_compare_func {
                 ScanFunctionScalar::Immediate(compare_func) => {
                     // Handle remainder elements (reverting to scalar comparisons.)

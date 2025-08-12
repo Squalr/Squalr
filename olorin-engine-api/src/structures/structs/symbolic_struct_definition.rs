@@ -29,6 +29,10 @@ impl SymbolicStructDefinition {
         }
     }
 
+    pub fn get_symbol_namespace(&self) -> &str {
+        &self.symbol_namespace
+    }
+
     pub fn add_field(
         &mut self,
         symbolic_struct_field: SymbolicFieldDefinition,
@@ -36,25 +40,25 @@ impl SymbolicStructDefinition {
         self.fields.push(symbolic_struct_field);
     }
 
-    pub fn get_valued_struct(
+    pub fn get_default_valued_struct(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
     ) -> ValuedStruct {
         let fields = self
             .fields
             .iter()
-            .map(|field| field.get_valued_struct_field(data_type_registry, false))
+            .map(|field| field.get_valued_struct_field(symbol_registry, false))
             .collect();
         ValuedStruct::new(SymbolicStructRef::new(self.symbol_namespace.clone()), fields)
     }
 
     pub fn get_size_in_bytes(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
     ) -> u64 {
         self.fields
             .iter()
-            .map(|field| field.get_size_in_bytes(data_type_registry))
+            .map(|field| field.get_size_in_bytes(symbol_registry))
             .sum()
     }
 }

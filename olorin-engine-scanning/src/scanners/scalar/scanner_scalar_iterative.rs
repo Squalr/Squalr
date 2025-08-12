@@ -23,12 +23,12 @@ impl Scanner for ScannerScalarIterative {
     /// is used to generate new sub-regions as the scan progresses.
     fn scan_region(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
-        let symbol_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
                 log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
@@ -42,12 +42,12 @@ impl Scanner for ScannerScalarIterative {
         let data_type_ref = mapped_scan_parameters.get_data_type_ref();
         let data_type_size = symbol_registry_guard.get_unit_size_in_bytes(data_type_ref);
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment_size);
-        let element_count = snapshot_region_filter.get_element_count(data_type_registry, data_type_ref, memory_alignment);
+        let element_count = snapshot_region_filter.get_element_count(symbol_registry, data_type_ref, memory_alignment);
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
 
-        if let Some(scalar_compare_func) = mapped_scan_parameters.get_scan_function_scalar(data_type_registry) {
+        if let Some(scalar_compare_func) = mapped_scan_parameters.get_scan_function_scalar(symbol_registry) {
             match scalar_compare_func {
                 ScanFunctionScalar::Immediate(compare_func) => {
                     for index in 0..element_count {

@@ -1,10 +1,9 @@
 use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::memory::read::memory_read_request::MemoryReadRequest;
-use crate::commands::memory::write::memory_write_request::MemoryWriteRequest;
 use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
-use crate::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
 use crate::registries::registries::Registries;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
+use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::{
     data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
     data_values::data_value::DataValue,
@@ -12,7 +11,9 @@ use crate::structures::{
     structs::valued_struct_field::ValuedStructFieldNode,
 };
 use serde::{Deserialize, Serialize};
+use std::ops::Deref;
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize)]
 pub struct ProjectItemTypeAddress {}
@@ -24,36 +25,36 @@ impl ProjectItemType for ProjectItemTypeAddress {
 
     fn on_activated_changed(
         &self,
-        engine_bindings: &dyn EngineApiPrivilegedBindings,
+        engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         registries: &Registries,
         project_item: &mut ProjectItem,
     ) {
-        if project_item.get_is_activated() {
-            let address = ProjectItemTypeAddress::get_field_address(project_item);
-            let module_name = ProjectItemTypeAddress::get_field_module(project_item);
+        let address = ProjectItemTypeAddress::get_field_address(project_item);
+        let module_name = ProjectItemTypeAddress::get_field_module(project_item);
 
-            if let Some(value) = ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(project_item) {
-                if let Ok(symbol_registry) = registries.get_symbol_registry().read() {
-                    if let Ok(symbolic_struct_definition) = value
-                        .to_valued_struct(false)
-                        .get_symbolic_struct(&symbol_registry)
-                    {
+        if let Some(symbolic_struct_ref) = ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(project_item) {
+            if let Ok(symbol_registry) = registries.get_symbol_registry().read() {
+                if let Some(symbolic_struct_definition) = symbol_registry.get(symbolic_struct_ref.get_symbolic_struct_namespace()) {
+                    let freeze_list_registry = registries.get_freeze_list_registry();
+
+                    if project_item.get_is_activated() {
                         let memory_read_request = MemoryReadRequest {
                             address,
                             module_name: module_name.clone(),
-                            symbolic_struct_definition,
+                            symbolic_struct_definition: symbolic_struct_definition.deref().clone(),
                         };
-                        memory_read_request.send_privileged(engine_bindings, |memory_read_response| {
-                            let read_value = memory_read_response.valued_struct.get_fields()[0].get_data_value();
+
+                        memory_read_request.send_privileged(engine_bindings, move |memory_read_response| {
+                            let read_valued_struct_bytes = memory_read_response.valued_struct.get_bytes();
+
+                            if let Ok(mut freeze_list_registry) = freeze_list_registry.write() {
+                                freeze_list_registry.set_address_frozen(address, read_valued_struct_bytes);
+                            }
                         });
-
-                        let memory_write_request = MemoryWriteRequest {
-                            address,
-                            module_name,
-                            value: value.get_value_bytes().to_vec(),
-                        };
-
-                        memory_write_request.send_privileged(engine_bindings, |_| {});
+                    } else {
+                        if let Ok(mut freeze_list_registry) = freeze_list_registry.write() {
+                            freeze_list_registry.set_address_unfrozen(address);
+                        }
                     }
                 }
             }
@@ -62,10 +63,10 @@ impl ProjectItemType for ProjectItemTypeAddress {
 
     fn tick(
         &self,
-        engine_bindings: &dyn EngineApiPrivilegedBindings,
+        _engine_bindings: &dyn EngineApiPrivilegedBindings,
         _opened_process: &Option<OpenedProcessInfo>,
-        registries: &Registries,
-        project_item: &mut ProjectItem,
+        _registries: &Registries,
+        _project_item: &mut ProjectItem,
     ) {
     }
 }
@@ -75,6 +76,7 @@ impl ProjectItemTypeAddress {
     pub const PROPERTY_ADDRESS: &str = "address";
     pub const PROPERTY_MODULE: &str = "module";
     pub const PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE: &str = "symbolic_struct_definition_reference";
+    pub const PROPERTY_FREEZE_DISPLAY_VALUE: &str = "freeze_display_value";
 
     pub fn new_project_item(
         path: &Path,
@@ -89,7 +91,7 @@ impl ProjectItemTypeAddress {
         project_item.set_field_description(description);
         Self::set_field_module(&mut project_item, module);
         Self::set_field_address(&mut project_item, address);
-        Self::set_field_symbolic_struct_definition_reference(&mut project_item, freeze_value);
+        Self::set_field_symbolic_struct_definition_reference(&mut project_item, freeze_value.get_data_type_id());
 
         project_item
     }
@@ -153,25 +155,12 @@ impl ProjectItemTypeAddress {
             .set_field_node(Self::PROPERTY_MODULE, field_node, false);
     }
 
-    pub fn get_field_symbolic_struct_definition_reference(project_item: &mut ProjectItem) -> Option<&DataValue> {
-        if let Some(name_field) = project_item
-            .get_properties()
-            .get_fields()
-            .iter()
-            .find(|field| field.get_name() == Self::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
-        {
-            name_field.get_data_value()
-        } else {
-            None
-        }
-    }
-
     pub fn get_field_freeze_display_value(project_item: &mut ProjectItem) -> String {
         if let Some(name_field) = project_item
             .get_properties()
             .get_fields()
             .iter()
-            .find(|field| field.get_name() == Self::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
+            .find(|field| field.get_name() == Self::PROPERTY_FREEZE_DISPLAY_VALUE)
         {
             name_field.get_display_string(true, 0)
         } else {
@@ -179,11 +168,37 @@ impl ProjectItemTypeAddress {
         }
     }
 
+    pub fn set_field_freeze_display_value(
+        project_item: &mut ProjectItem,
+        display_value: &str,
+    ) {
+        let display_value_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&display_value);
+        let field_node = ValuedStructFieldNode::Value(display_value_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_node(Self::PROPERTY_FREEZE_DISPLAY_VALUE, field_node, true);
+    }
+
+    pub fn get_field_symbolic_struct_definition_reference(project_item: &mut ProjectItem) -> Option<SymbolicStructRef> {
+        if let Some(name_field) = project_item
+            .get_properties()
+            .get_fields()
+            .iter()
+            .find(|field| field.get_name() == Self::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
+        {
+            Some(SymbolicStructRef::new(name_field.get_display_string(true, 0)))
+        } else {
+            None
+        }
+    }
+
     pub fn set_field_symbolic_struct_definition_reference(
         project_item: &mut ProjectItem,
-        freeze_value: DataValue,
+        symbolic_struct_definition: &str,
     ) {
-        let field_node = ValuedStructFieldNode::Value(freeze_value);
+        let symbolic_struct_definition_data_value = DataTypeStringUtf8::get_value_from_primitive_string(symbolic_struct_definition);
+        let field_node = ValuedStructFieldNode::Value(symbolic_struct_definition_data_value);
 
         project_item
             .get_properties_mut()

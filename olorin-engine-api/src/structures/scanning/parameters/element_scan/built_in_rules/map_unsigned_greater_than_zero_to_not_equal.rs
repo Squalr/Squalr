@@ -21,14 +21,14 @@ impl ElementScanMappingRule for MapUnsignedGreaterThanZeroToNotEqual {
 
     fn map_parameters(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         _snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,
         mapped_parameters: &mut MappedScanParameters,
     ) {
         let data_type_ref = mapped_parameters.get_data_value().get_data_type_ref();
-        let symbol_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
                 log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);

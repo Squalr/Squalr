@@ -2,8 +2,8 @@ use crate::scanners::element_scan_dispatcher::ElementScanDispatcher;
 use crate::scanners::snapshot_region_memory_reader::SnapshotRegionMemoryReader;
 use crate::scanners::value_collector_task::ValueCollectorTask;
 use olorin_engine_api::conversions::conversions::Conversions;
-use olorin_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use olorin_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
+use olorin_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use olorin_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use olorin_engine_api::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use olorin_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
@@ -28,7 +28,7 @@ impl ElementScanExecutorTask {
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
-        data_type_registry: Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: Arc<RwLock<SymbolRegistry>>,
         element_scan_parameters: ElementScanParameters,
         with_logging: bool,
     ) -> Arc<TrackableTask> {
@@ -41,7 +41,7 @@ impl ElementScanExecutorTask {
                 process_info,
                 snapshot,
                 element_scan_rule_registry,
-                data_type_registry,
+                symbol_registry,
                 element_scan_parameters,
                 with_logging,
             );
@@ -57,7 +57,7 @@ impl ElementScanExecutorTask {
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
-        data_type_registry: Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: Arc<RwLock<SymbolRegistry>>,
         element_scan_parameters: ElementScanParameters,
         with_logging: bool,
     ) {
@@ -97,7 +97,7 @@ impl ElementScanExecutorTask {
             }
 
             // Creates initial results if none exist yet.
-            snapshot_region.initialize_scan_results(&data_type_registry, element_scan_parameters.get_element_scan_values());
+            snapshot_region.initialize_scan_results(&symbol_registry, element_scan_parameters.get_element_scan_values());
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
             if element_scan_parameters.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
@@ -113,7 +113,7 @@ impl ElementScanExecutorTask {
             let element_scan_dispatcher = |snapshot_region_filter_collection| {
                 ElementScanDispatcher::dispatch_scan(
                     &element_scan_rule_registry,
-                    &data_type_registry,
+                    &symbol_registry,
                     snapshot_region,
                     snapshot_region_filter_collection,
                     &element_scan_parameters,

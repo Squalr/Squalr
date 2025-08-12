@@ -23,7 +23,7 @@ impl SnapshotRegionFilterCollection {
     /// Creates a new collection of filters over a snapshot region,
     /// representing regions of memory with the specified data type and alignment.
     pub fn new(
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         mut snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
         data_type_ref: DataTypeRef,
         memory_alignment: MemoryAlignment,
@@ -46,7 +46,7 @@ impl SnapshotRegionFilterCollection {
         let number_of_results = snapshot_region_filters
             .iter()
             .flatten()
-            .map(|filter| filter.get_element_count(data_type_registry, &data_type_ref, memory_alignment))
+            .map(|filter| filter.get_element_count(symbol_registry, &data_type_ref, memory_alignment))
             .sum();
 
         Self {

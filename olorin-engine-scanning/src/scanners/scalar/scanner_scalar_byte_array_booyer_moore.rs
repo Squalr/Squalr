@@ -25,7 +25,7 @@ impl Scanner for ScannerScalarByteArrayBooyerMoore {
     /// is used to generate new sub-regions as the scan progresses.
     fn scan_region(
         &self,
-        _data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        _symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,

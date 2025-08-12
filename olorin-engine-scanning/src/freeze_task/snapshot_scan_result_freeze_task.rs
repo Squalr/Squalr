@@ -67,8 +67,7 @@ impl SnapshotScanResultFreezeTask {
         };
 
         for address in freeze_list_registry_guard.get_frozen_indicies().keys() {
-            if let Some(data_value) = freeze_list_registry_guard.get_address_frozen_data_value(*address) {
-                let value_bytes = data_value.get_value_bytes();
+            if let Some(value_bytes) = freeze_list_registry_guard.get_address_frozen_bytes(*address) {
                 let _success = MemoryWriter::get_instance().write_bytes(process_info, *address, &value_bytes);
             }
         }

@@ -1,3 +1,5 @@
+use crate::structures::structs::container_type::ContainerType;
+use crate::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use crate::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use crate::structures::{
     data_types::{
@@ -33,6 +35,8 @@ use std::{
     sync::Arc,
 };
 
+/// Manages a symbolic struct registry and a data type registry. All registered data types are also registered into the symbolic struct
+/// registry, since each data type is considered to be a symbol. The struct contains a single anonymous field for the corresponding type.
 pub struct SymbolRegistry {
     symbolic_struct_registry: HashMap<String, Arc<SymbolicStructDefinition>>,
     data_type_registry: HashMap<String, Arc<dyn DataType>>,
@@ -40,9 +44,11 @@ pub struct SymbolRegistry {
 
 impl SymbolRegistry {
     pub fn new() -> Self {
+        let (symbolic_struct_registry, data_type_registry) = Self::create_built_in_registries();
+
         Self {
-            symbolic_struct_registry: HashMap::new(),
-            data_type_registry: Self::create_built_in_types(),
+            symbolic_struct_registry,
+            data_type_registry,
         }
     }
 
@@ -50,13 +56,30 @@ impl SymbolRegistry {
         &self.symbolic_struct_registry
     }
 
+    fn register_data_type(
+        &mut self,
+        data_type: Arc<dyn DataType>,
+    ) {
+        // JIA
+    }
+
+    fn unregister_data_type(
+        &mut self,
+        data_type: Arc<dyn DataType>,
+    ) {
+        // JIA
+    }
+
     pub fn get(
         &self,
         symbolic_struct_ref_id: &str,
     ) -> Option<Arc<SymbolicStructDefinition>> {
-        self.symbolic_struct_registry
-            .get(symbolic_struct_ref_id)
-            .cloned()
+        if let Some(symbolic_struct_definition) = self.symbolic_struct_registry.get(symbolic_struct_ref_id.trim()) {
+            Some(symbolic_struct_definition.clone())
+        } else {
+            log::warn!("Failed to find symbolic struct in registry: {}", symbolic_struct_ref_id);
+            None
+        }
     }
 
     pub fn get_data_type_registry(&self) -> &HashMap<String, Arc<dyn DataType>> {
@@ -67,7 +90,12 @@ impl SymbolRegistry {
         &self,
         data_type_id: &str,
     ) -> Option<Arc<dyn DataType>> {
-        self.data_type_registry.get(data_type_id).cloned()
+        if let Some(data_type) = self.data_type_registry.get(data_type_id.trim()) {
+            Some(data_type.clone())
+        } else {
+            log::warn!("Failed to find data type in registry: {}", data_type_id);
+            None
+        }
     }
 
     /// Determines if the `DataType` this struct represents is currently registered and available.
@@ -303,8 +331,9 @@ impl SymbolRegistry {
         }
     }
 
-    fn create_built_in_types() -> HashMap<String, Arc<dyn DataType>> {
-        let mut registry: HashMap<String, Arc<dyn DataType>> = HashMap::new();
+    fn create_built_in_registries() -> (HashMap<String, Arc<SymbolicStructDefinition>>, HashMap<String, Arc<dyn DataType>>) {
+        let mut symbolic_struct_registry: HashMap<String, Arc<SymbolicStructDefinition>> = HashMap::new();
+        let mut data_type_registry: HashMap<String, Arc<dyn DataType>> = HashMap::new();
 
         let built_in_data_types: Vec<Arc<dyn DataType>> = vec![
             Arc::new(DataTypeBool8 {}),
@@ -331,9 +360,19 @@ impl SymbolRegistry {
         ];
 
         for built_in_data_type in built_in_data_types.into_iter() {
-            registry.insert(built_in_data_type.get_data_type_id().to_string(), built_in_data_type);
+            let data_type_id = built_in_data_type.get_data_type_id().to_string();
+
+            // Create a single field symbolic struct for every registered data type.
+            symbolic_struct_registry.insert(
+                data_type_id.clone(),
+                Arc::new(SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
+                    DataTypeRef::new(&data_type_id),
+                    ContainerType::None,
+                )])),
+            );
+            data_type_registry.insert(data_type_id, built_in_data_type);
         }
 
-        registry
+        (symbolic_struct_registry, data_type_registry)
     }
 }

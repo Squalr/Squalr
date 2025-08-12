@@ -1,8 +1,7 @@
-use crate::structures::data_values::data_value::DataValue;
 use std::collections::HashMap;
 
 pub struct FreezeListRegistry {
-    frozen_indicies: HashMap<u64, DataValue>,
+    frozen_indicies: HashMap<u64, Vec<u8>>,
 }
 
 /// Contains all indicies that the user has marked as frozen in the scan results list.
@@ -14,7 +13,7 @@ impl FreezeListRegistry {
         }
     }
 
-    pub fn get_frozen_indicies(&self) -> &HashMap<u64, DataValue> {
+    pub fn get_frozen_indicies(&self) -> &HashMap<u64, Vec<u8>> {
         &self.frozen_indicies
     }
 
@@ -25,10 +24,10 @@ impl FreezeListRegistry {
         self.frozen_indicies.contains_key(&address)
     }
 
-    pub fn get_address_frozen_data_value(
+    pub fn get_address_frozen_bytes(
         &self,
         address: u64,
-    ) -> Option<DataValue> {
+    ) -> Option<Vec<u8>> {
         if let Some(data_value) = self.frozen_indicies.get(&address) {
             Some(data_value.clone())
         } else {
@@ -39,7 +38,7 @@ impl FreezeListRegistry {
     pub fn set_address_frozen(
         &mut self,
         address: u64,
-        data_value: DataValue,
+        data_value: Vec<u8>,
     ) {
         self.frozen_indicies.insert(address, data_value);
     }

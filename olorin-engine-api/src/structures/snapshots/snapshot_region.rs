@@ -176,7 +176,7 @@ impl SnapshotRegion {
     // JIRA: Okay great, what about struct scans and whatnot.
     pub fn initialize_scan_results(
         &mut self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         data_values_and_alignments: &Vec<ElementScanValue>,
     ) {
         if self.scan_results.get_filter_collections().len() > 0 {
@@ -187,7 +187,7 @@ impl SnapshotRegion {
             .iter()
             .map(|data_value_and_alignment| {
                 SnapshotRegionFilterCollection::new(
-                    data_type_registry,
+                    symbol_registry,
                     vec![vec![SnapshotRegionFilter::new(
                         self.get_base_address(),
                         self.get_region_size(),

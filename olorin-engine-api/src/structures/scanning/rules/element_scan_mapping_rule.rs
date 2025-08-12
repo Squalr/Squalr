@@ -11,7 +11,7 @@ pub trait ElementScanMappingRule: Send + Sync {
     fn get_id(&self) -> &str;
     fn map_parameters(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
         element_scan_parameters: &ElementScanParameters,

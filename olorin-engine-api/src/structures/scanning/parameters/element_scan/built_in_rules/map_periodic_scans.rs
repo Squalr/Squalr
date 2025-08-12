@@ -16,18 +16,18 @@ impl MapPeriodicScans {
     pub const RULE_ID: &str = "map_periodic_scans";
 
     fn calculate_periodicity(
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         data_value: &DataValue,
         scan_compare_type: &ScanCompareType,
     ) -> Option<u64> {
         match scan_compare_type {
             ScanCompareType::Immediate(_scan_compare_type_immediate) => Some(Self::calculate_periodicity_from_immediate(
-                data_type_registry,
+                symbol_registry,
                 &data_value.get_value_bytes(),
                 data_value.get_data_type_ref(),
             )),
             ScanCompareType::Delta(_scan_compare_type_immediate) => Some(Self::calculate_periodicity_from_immediate(
-                data_type_registry,
+                symbol_registry,
                 &data_value.get_value_bytes(),
                 data_value.get_data_type_ref(),
             )),
@@ -39,13 +39,13 @@ impl MapPeriodicScans {
     /// If there are no repeating patterns, the periodicity will be equal to the data type size.
     /// For example, 7C 01 7C 01 has a data typze size of 4, but a periodicity of 2.
     fn calculate_periodicity_from_immediate(
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         immediate_value_bytes: &[u8],
         data_type_ref: &DataTypeRef,
     ) -> u64 {
         // Assume optimal periodicity to begin with
         let mut period = 1;
-        let symbol_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
                 log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
@@ -73,13 +73,13 @@ impl ElementScanMappingRule for MapPeriodicScans {
 
     fn map_parameters(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         _snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,
         mapped_parameters: &mut MappedScanParameters,
     ) {
-        if let Some(periodicity) = Self::calculate_periodicity(data_type_registry, mapped_parameters.get_data_value(), &mapped_parameters.get_compare_type()) {
+        if let Some(periodicity) = Self::calculate_periodicity(symbol_registry, mapped_parameters.get_data_value(), &mapped_parameters.get_compare_type()) {
             mapped_parameters.set_periodicity(periodicity);
         }
     }

@@ -54,7 +54,7 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
 
                         if let Some(mut data_value) = symbol_registry_guard.get_default_value(data_type_ref) {
                             if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
-                                freeze_list_registry_guard.set_address_frozen(address, data_value);
+                                freeze_list_registry_guard.set_address_frozen(address, data_value.get_value_bytes().to_vec());
                             }
                         }
                     }

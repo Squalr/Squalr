@@ -34,7 +34,7 @@ impl PointerScanExecutorTask {
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
         element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
-        data_type_registry: Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: Arc<RwLock<SymbolRegistry>>,
         pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
     ) -> Arc<TrackableTask> {
@@ -48,7 +48,7 @@ impl PointerScanExecutorTask {
                 statics_snapshot,
                 heaps_snapshot,
                 element_scan_rule_registry,
-                data_type_registry,
+                symbol_registry,
                 pointer_scan_parameters,
                 with_logging,
             );
@@ -65,7 +65,7 @@ impl PointerScanExecutorTask {
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
         element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
-        data_type_registry: Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: Arc<RwLock<SymbolRegistry>>,
         pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
     ) {
@@ -93,7 +93,7 @@ impl PointerScanExecutorTask {
             process_info.clone(),
             statics_snapshot.clone(),
             element_scan_rule_registry.clone(),
-            data_type_registry.clone(),
+            symbol_registry.clone(),
             element_scan_parameters.clone(),
             with_logging,
         )
@@ -102,7 +102,7 @@ impl PointerScanExecutorTask {
             process_info.clone(),
             heaps_snapshot.clone(),
             element_scan_rule_registry,
-            data_type_registry,
+            symbol_registry,
             element_scan_parameters,
             with_logging,
         )
@@ -148,7 +148,7 @@ impl PointerScanExecutorTask {
             let pointer_scan_dispatcher = |snapshot_region_filter_collection| {
                 PointerScanDispatcher::dispatch_scan(
                     &pointer_scan_rule_registry,
-                    &data_type_registry,
+                    &symbol_registry,
                     snapshot_region,
                     snapshot_region_filter_collection,
                     &pointer_scan_parameters,

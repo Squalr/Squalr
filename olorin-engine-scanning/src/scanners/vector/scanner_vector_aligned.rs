@@ -69,12 +69,12 @@ where
     /// A run-length encoding algorithm is used to generate new sub-regions as the scan progresses.
     fn scan_region(
         &self,
-        data_type_registry: &Arc<RwLock<SymbolRegistry>>,
+        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         mapped_scan_parameters: &MappedScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
-        let symbol_registry_guard = match data_type_registry.read() {
+        let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
                 log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
@@ -104,7 +104,7 @@ where
         debug_assert!(data_type_size == memory_alignment_size);
         debug_assert!(memory_alignment_size == 1 || memory_alignment_size == 2 || memory_alignment_size == 4 || memory_alignment_size == 8);
 
-        if let Some(vector_compare_func) = mapped_scan_parameters.get_scan_function_vector(data_type_registry) {
+        if let Some(vector_compare_func) = mapped_scan_parameters.get_scan_function_vector(symbol_registry) {
             match vector_compare_func {
                 ScanFunctionVector::Immediate(compare_func) => {
                     // Compare as many full vectors as we can.

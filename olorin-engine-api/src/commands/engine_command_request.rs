@@ -5,7 +5,7 @@ use crate::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindin
 use crate::engine::engine_execution_context::EngineExecutionContext;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 pub trait EngineCommandRequest: Clone + Serialize + DeserializeOwned {
     type ResponseType;
@@ -52,7 +52,7 @@ pub trait EngineCommandRequest: Clone + Serialize + DeserializeOwned {
 
     fn send_privileged<F>(
         &self,
-        engine_bindings: &dyn EngineApiPrivilegedBindings,
+        engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         callback: F,
     ) where
         F: FnOnce(<Self as EngineCommandRequest>::ResponseType) + Clone + Send + Sync + 'static,
@@ -60,15 +60,22 @@ pub trait EngineCommandRequest: Clone + Serialize + DeserializeOwned {
     {
         let command = self.to_engine_command();
 
-        if let Err(error) = engine_bindings.dispatch_command(
-            command,
-            Box::new(move |engine_response| {
-                if let Ok(response) = <Self as EngineCommandRequest>::ResponseType::from_engine_response(engine_response) {
-                    callback(response);
+        match engine_bindings.read() {
+            Ok(engine_bindings) => {
+                if let Err(error) = engine_bindings.dispatch_command(
+                    command,
+                    Box::new(move |engine_response| {
+                        if let Ok(response) = <Self as EngineCommandRequest>::ResponseType::from_engine_response(engine_response) {
+                            callback(response);
+                        }
+                    }),
+                ) {
+                    log::error!("Error dispatching command: {}", error);
                 }
-            }),
-        ) {
-            log::error!("Error dispatching command: {}", error);
+            }
+            Err(error) => {
+                log::error!("Error acquiring engine binding lock to dispatch command: {}", error);
+            }
         }
     }
 }

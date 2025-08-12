@@ -12,37 +12,35 @@ impl EngineCommandRequestExecutor for ProjectItemsActivateRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        match engine_privileged_state.get_engine_bindings().read() {
-            Ok(engine_bindings) => {
-                match engine_privileged_state
-                    .get_project_manager()
-                    .get_opened_project()
-                    .write()
-                {
-                    Ok(mut project_manager) => {
-                        if let Some(project_manager) = project_manager.as_mut() {
-                            for project_item_path in &self.project_item_paths {
-                                let project_item_path = Path::new(&project_item_path);
+        match engine_privileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+        {
+            Ok(mut project_manager) => {
+                if let Some(project_manager) = project_manager.as_mut() {
+                    for project_item_path in &self.project_item_paths {
+                        let project_item_path = Path::new(&project_item_path);
 
-                                if let Some(project_item) = project_manager.find_project_item_mut(project_item_path) {
-                                    project_item.set_activated(&*engine_bindings, &engine_privileged_state.get_registries(), self.is_activated);
-                                } else {
-                                    log::error!("Failed to find project item: {:?}", project_item_path)
-                                }
-                            }
+                        if let Some(project_item) = project_manager.find_project_item_mut(project_item_path) {
+                            project_item.set_activated(
+                                engine_privileged_state.get_engine_bindings(),
+                                &engine_privileged_state.get_registries(),
+                                self.is_activated,
+                            );
                         } else {
-                            log::error!("Unable to activate project items, no opened project.");
+                            log::error!("Failed to find project item: {:?}", project_item_path)
                         }
                     }
-                    Err(error) => {
-                        log::error!("Error acquiring project manager: {}", error)
-                    }
+                } else {
+                    log::error!("Unable to activate project items, no opened project.");
                 }
             }
             Err(error) => {
-                log::error!("Error acquiring engine bindings: {}", error)
+                log::error!("Error acquiring project manager: {}", error)
             }
         }
+
         ProjectItemsActivateResponse {}
     }
 }
