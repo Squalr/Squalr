@@ -2,6 +2,7 @@ use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::memory::read::memory_read_request::MemoryReadRequest;
 use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use crate::registries::registries::Registries;
+use crate::structures::memory::pointer::Pointer;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::{
@@ -36,11 +37,12 @@ impl ProjectItemType for ProjectItemTypeAddress {
             if let Ok(symbol_registry) = registries.get_symbol_registry().read() {
                 if let Some(symbolic_struct_definition) = symbol_registry.get(symbolic_struct_ref.get_symbolic_struct_namespace()) {
                     let freeze_list_registry = registries.get_freeze_list_registry();
+                    let pointer = Pointer::new(address, vec![], module_name.clone());
 
                     if project_item.get_is_activated() {
                         let memory_read_request = MemoryReadRequest {
                             address,
-                            module_name: module_name.clone(),
+                            module_name,
                             symbolic_struct_definition: symbolic_struct_definition.deref().clone(),
                         };
 
@@ -48,12 +50,12 @@ impl ProjectItemType for ProjectItemTypeAddress {
                             let read_valued_struct_bytes = memory_read_response.valued_struct.get_bytes();
 
                             if let Ok(mut freeze_list_registry) = freeze_list_registry.write() {
-                                freeze_list_registry.set_address_frozen(address, read_valued_struct_bytes);
+                                freeze_list_registry.set_address_frozen(pointer, read_valued_struct_bytes);
                             }
                         });
                     } else {
                         if let Ok(mut freeze_list_registry) = freeze_list_registry.write() {
-                            freeze_list_registry.set_address_unfrozen(address);
+                            freeze_list_registry.set_address_unfrozen(&pointer);
                         }
                     }
                 }

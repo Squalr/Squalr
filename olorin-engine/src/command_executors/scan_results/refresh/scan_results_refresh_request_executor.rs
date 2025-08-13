@@ -2,6 +2,7 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use olorin_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use olorin_engine_api::commands::scan_results::refresh::scan_results_refresh_response::ScanResultsRefreshResponse;
+use olorin_engine_api::structures::memory::pointer::Pointer;
 use olorin_engine_api::structures::scan_results::scan_result::ScanResult;
 use olorin_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use olorin_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
@@ -72,8 +73,9 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
                     module_offset = address;
                 }
 
+                let pointer = Pointer::new(module_offset, vec![], module_name.clone());
                 let is_frozen = if let Ok(freeze_list_registry) = engine_privileged_state.get_freeze_list_registry().read() {
-                    freeze_list_registry.is_address_frozen(address)
+                    freeze_list_registry.is_address_frozen(&pointer)
                 } else {
                     false
                 };

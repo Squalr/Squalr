@@ -311,13 +311,15 @@ impl IMemoryQueryer for WindowsMemoryQueryer {
         modules: &Vec<NormalizedModule>,
         identifier: &str,
     ) -> u64 {
-        for module in modules {
-            if module
-                .get_module_name()
-                .trim()
-                .eq_ignore_ascii_case(identifier.trim())
-            {
-                return module.get_base_address();
+        if !identifier.is_empty() {
+            for module in modules {
+                if module
+                    .get_module_name()
+                    .trim()
+                    .eq_ignore_ascii_case(identifier.trim())
+                {
+                    return module.get_base_address();
+                }
             }
         }
 

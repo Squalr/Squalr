@@ -2,6 +2,8 @@ use crate::scan_settings_config::ScanSettingsConfig;
 use olorin_engine_api::registries::freeze_list::freeze_list_registry::FreezeListRegistry;
 use olorin_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use olorin_engine_api::structures::tasks::trackable_task::TrackableTask;
+use olorin_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
+use olorin_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
 use olorin_engine_memory::memory_writer::MemoryWriter;
 use olorin_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
 use std::sync::Arc;
@@ -66,9 +68,12 @@ impl SnapshotScanResultFreezeTask {
             }
         };
 
-        for address in freeze_list_registry_guard.get_frozen_indicies().keys() {
-            if let Some(value_bytes) = freeze_list_registry_guard.get_address_frozen_bytes(*address) {
-                let _success = MemoryWriter::get_instance().write_bytes(process_info, *address, &value_bytes);
+        let modules = MemoryQueryer::get_instance().get_modules(&process_info);
+
+        for pointer in freeze_list_registry_guard.get_frozen_pointers().keys() {
+            if let Some(value_bytes) = freeze_list_registry_guard.get_address_frozen_bytes(pointer) {
+                let module_address = MemoryQueryer::get_instance().resolve_module(&modules, pointer.get_module_name());
+                let _success = MemoryWriter::get_instance().write_bytes(process_info, module_address.saturating_add(pointer.get_address()), value_bytes);
             }
         }
     }

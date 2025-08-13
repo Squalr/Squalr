@@ -2,6 +2,7 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use olorin_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use olorin_engine_api::commands::scan_results::freeze::scan_results_freeze_response::ScanResultsFreezeResponse;
+use olorin_engine_api::structures::memory::pointer::Pointer;
 use olorin_engine_memory::memory_reader::MemoryReader;
 use olorin_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use std::sync::Arc;
@@ -44,6 +45,7 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
         for scan_result_ref in &self.scan_result_refs {
             if let Some(scan_result) = snapshot_guard.get_scan_result(&symbol_registry, scan_result_ref.get_scan_result_index()) {
                 let address = scan_result.get_address();
+                let pointer = Pointer::new(address, vec![], String::new());
 
                 if self.is_frozen {
                     if let Some(opened_process_info) = engine_privileged_state
@@ -54,12 +56,12 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
 
                         if let Some(mut data_value) = symbol_registry_guard.get_default_value(data_type_ref) {
                             if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
-                                freeze_list_registry_guard.set_address_frozen(address, data_value.get_value_bytes().to_vec());
+                                freeze_list_registry_guard.set_address_frozen(pointer, data_value.get_value_bytes().to_vec());
                             }
                         }
                     }
                 } else {
-                    freeze_list_registry_guard.set_address_unfrozen(address);
+                    freeze_list_registry_guard.set_address_unfrozen(&pointer);
                 }
             }
         }
