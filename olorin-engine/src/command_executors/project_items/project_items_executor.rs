@@ -18,6 +18,9 @@ impl EngineCommandExecutor for ProjectItemsCommand {
             } => project_items_activate_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
+            ProjectItemsCommand::List { project_items_list_request } => project_items_list_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
         }
     }
 }

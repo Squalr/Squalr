@@ -84,11 +84,12 @@ impl ProjectUpdateTask {
 
         // Call tick on the project root, which will in turn recursively tick all project items.
         if let Some(opened_project) = opened_project_guard.as_mut() {
+            /*
             let project_root = opened_project.get_project_root_mut();
 
             if let Some(project_item_type) = project_item_type_registry_guard.get(project_root.get_item_type().get_project_item_type_id()) {
                 project_item_type.tick(&*engine_bindings_guard, &opened_process_guard, &registries, project_root);
-            }
+            }*/
         }
     }
 }

@@ -22,6 +22,7 @@ impl EngineCommandRequestExecutor for ProjectItemsActivateRequest {
                     for project_item_path in &self.project_item_paths {
                         let project_item_path = Path::new(&project_item_path);
 
+                        /*
                         if let Some(project_item) = project_manager.find_project_item_mut(project_item_path) {
                             project_item.set_activated(
                                 engine_privileged_state.get_engine_bindings(),
@@ -30,7 +31,7 @@ impl EngineCommandRequestExecutor for ProjectItemsActivateRequest {
                             );
                         } else {
                             log::error!("Failed to find project item: {:?}", project_item_path)
-                        }
+                        }*/
                     }
                 } else {
                     log::error!("Unable to activate project items, no opened project.");

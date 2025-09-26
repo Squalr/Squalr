@@ -22,6 +22,7 @@ impl EngineCommandRequestExecutor for ProjectOpenRequest {
             ProjectSettingsConfig::get_projects_root().join(name)
         };
 
+        /*
         match Project::load_from_path(&project_path) {
             Ok(project) => {
                 let project_info = project.get_project_info().clone();
@@ -44,6 +45,10 @@ impl EngineCommandRequestExecutor for ProjectOpenRequest {
                     opened_project_root: None,
                 }
             }
+        }*/
+        ProjectOpenResponse {
+            opened_project_info: None,
+            opened_project_root: None,
         }
     }
 }

@@ -13,6 +13,7 @@ use olorin_engine_api::commands::project::open::project_open_request::ProjectOpe
 use olorin_engine_api::commands::project::rename::project_rename_request::ProjectRenameRequest;
 use olorin_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use olorin_engine_api::commands::project_items::activate::project_items_activate_request::ProjectItemsActivateRequest;
+use olorin_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
 use olorin_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use olorin_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use olorin_engine_api::events::project::closed::project_closed_event::ProjectClosedEvent;
@@ -31,6 +32,8 @@ use slint_mvvm_macros::create_view_model_collection;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 pub struct ProjectExplorerViewModel {
     view_binding: Arc<ViewBinding<MainWindowView>>,
@@ -91,6 +94,7 @@ impl ProjectExplorerViewModel {
         }
 
         Self::listen_for_project_changes(view_model.clone());
+        Self::poll_project_items(view_model.clone());
 
         dependency_container.register::<ProjectExplorerViewModel>(view_model);
     }
@@ -133,10 +137,21 @@ impl ProjectExplorerViewModel {
 
             engine_execution_context.listen_for_engine_event::<ProjectItemsChangedEvent>(move |project_items_changed_event| {
                 if let Some(project_root) = &project_items_changed_event.project_root {
-                    opened_project_items_list_collection.update_from_source(project_root.get_children().to_owned());
+                    // opened_project_items_list_collection.update_from_source(project_root.get_children().to_owned());
                 }
             });
         }
+    }
+
+    fn poll_project_items(view_model: Arc<ProjectExplorerViewModel>) {
+        // Refresh scan values on a loop. JIRA: This is so inefficient, please fix this.
+        thread::spawn(move || {
+            loop {
+                Self::on_refresh_opened_project_items_list(view_model.clone());
+
+                thread::sleep(Duration::from_millis(100));
+            }
+        });
     }
 
     fn on_refresh_project_list(view_model: Arc<ProjectExplorerViewModel>) {
@@ -146,6 +161,21 @@ impl ProjectExplorerViewModel {
 
         list_all_projects_request.send(engine_execution_context, move |project_list_response| {
             project_list_collection.update_from_source(project_list_response.projects_info);
+        });
+    }
+
+    fn on_refresh_opened_project_items_list(view_model: Arc<ProjectExplorerViewModel>) {
+        let view_binding = view_model.view_binding.clone();
+        let engine_execution_context = &view_model.engine_execution_context;
+        let project_open_request = ProjectItemsListRequest {};
+        let opened_project_items_list_collection = view_model.opened_project_items_list_collection.clone();
+
+        project_open_request.send(engine_execution_context, move |project_items_list_response| {
+            view_binding.execute_on_ui_thread(move |main_window_view, _| {
+                if let Some(project_root) = project_items_list_response.opened_project_root {
+                    // opened_project_items_list_collection.update_from_source(project_root.get_children().to_owned());
+                }
+            });
         });
     }
 
@@ -176,7 +206,7 @@ impl ProjectExplorerViewModel {
                 }
 
                 if let Some(project_root) = project_open_response.opened_project_root {
-                    opened_project_items_list_collection.update_from_source(project_root.get_children().to_owned());
+                    // opened_project_items_list_collection.update_from_source(project_root.get_children().to_owned());
                 }
             });
         });

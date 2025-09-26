@@ -4,6 +4,7 @@ use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use crate::registries::registries::Registries;
 use crate::structures::memory::pointer::Pointer;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
+use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::{
     data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
@@ -28,8 +29,9 @@ impl ProjectItemType for ProjectItemTypeAddress {
         &self,
         engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         registries: &Registries,
-        project_item: &mut ProjectItem,
+        project_item: &ProjectItemRef,
     ) {
+        /*
         let address = ProjectItemTypeAddress::get_field_address(project_item);
         let module_name = ProjectItemTypeAddress::get_field_module(project_item);
 
@@ -60,7 +62,7 @@ impl ProjectItemType for ProjectItemTypeAddress {
                     }
                 }
             }
-        }
+        }*/
     }
 
     fn tick(
@@ -68,8 +70,21 @@ impl ProjectItemType for ProjectItemTypeAddress {
         _engine_bindings: &dyn EngineApiPrivilegedBindings,
         _opened_process: &Option<OpenedProcessInfo>,
         _registries: &Registries,
-        _project_item: &mut ProjectItem,
+        _project_item_ref: &ProjectItemRef,
     ) {
+        /*
+        let memory_read_request = MemoryReadRequest {
+            address,
+            module_name,
+            symbolic_struct_definition: symbolic_struct_definition.deref().clone(),
+        };
+        memory_read_request.send_privileged(engine_bindings, move |memory_read_response| {
+            let read_valued_struct_bytes = memory_read_response.valued_struct.get_bytes();
+
+            if let Ok(mut freeze_list_registry) = freeze_list_registry.write() {
+                freeze_list_registry.set_address_frozen(pointer, read_valued_struct_bytes);
+            }
+        });*/
     }
 }
 
@@ -88,7 +103,7 @@ impl ProjectItemTypeAddress {
         freeze_value: DataValue,
     ) -> ProjectItem {
         let directory_type = ProjectItemTypeRef::new(Self::PROJECT_ITEM_TYPE_ID.to_string());
-        let mut project_item = ProjectItem::new(path.to_path_buf(), directory_type, false);
+        let mut project_item = ProjectItem::new(path.to_path_buf(), directory_type);
 
         project_item.set_field_description(description);
         Self::set_field_module(&mut project_item, module);

@@ -1,3 +1,5 @@
+use crate::project::project_tree::ProjectTree;
+use crate::project::serialization::serializable_project_file::SerializableProjectFile;
 use olorin_engine_api::structures::{
     processes::process_icon::ProcessIcon,
     projects::{
@@ -7,19 +9,19 @@ use olorin_engine_api::structures::{
     },
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    fs::{self},
-    path::{Component, Path},
-};
+use std::{fs, path::Path};
 
-use super::serialization::serializable_project_file::SerializableProjectFile;
-
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct Project {
     project_info: ProjectInfo,
 
-    #[serde(rename = "project")]
-    project_root: ProjectItem,
+    // The tree structure for the project, with all parent relations.
+    #[serde(skip)]
+    project_tree_root: ProjectTree,
+
+    // The full list of all project items. These are not arranged heirarchically, as the tree is responsible for that.
+    #[serde(rename = "project_items")]
+    project_items: Vec<ProjectItem>,
 }
 
 impl Project {
@@ -28,9 +30,14 @@ impl Project {
 
     pub fn new(
         project_info: ProjectInfo,
-        project_root: ProjectItem,
+        project_tree_root: ProjectTree,
+        project_items: Vec<ProjectItem>,
     ) -> Self {
-        Self { project_info, project_root }
+        Self {
+            project_info,
+            project_tree_root,
+            project_items,
+        }
     }
 
     /// Creates a new project and writes it to disk.
@@ -42,9 +49,14 @@ impl Project {
         fs::create_dir_all(path)?;
 
         let project_info = ProjectInfo::new(path.to_path_buf(), None, ProjectManifest::default());
-
         let project_root = ProjectItemTypeDirectory::new_project_item(path);
-        let mut project = Self { project_info, project_root };
+        let project_tree_root = ProjectTree::new(project_root.get_ref(), true);
+
+        let mut project = Self {
+            project_info,
+            project_tree_root,
+            project_items: vec![project_root],
+        };
 
         project.save_to_path(path, true)?;
 
@@ -83,12 +95,13 @@ impl Project {
         self.project_info.set_project_icon(project_icon);
     }
 
-    pub fn get_project_root(&self) -> &ProjectItem {
-        &self.project_root
+    /*
+    pub fn get_project_tree(&self) -> &ProjectItem {
+        &self.project_tree
     }
 
-    pub fn get_project_root_mut(&mut self) -> &mut ProjectItem {
-        &mut self.project_root
+    pub fn get_project_tree_mut(&mut self) -> &mut ProjectItem {
+        &mut self.project_tree
     }
 
     pub fn find_project_item_mut(
@@ -96,11 +109,11 @@ impl Project {
         project_item_path: &Path,
     ) -> Option<&mut ProjectItem> {
         // Ensure the path is within the root.
-        let root_path = self.project_root.get_path();
+        let root_path = self.project_tree.get_path();
         let relative_path = project_item_path.strip_prefix(root_path).ok()?;
 
         // Start at the root and search linearly.
-        let mut current = &mut self.project_root;
+        let mut current = &mut self.project_tree;
 
         // Iterate each path component (nested directories) of the relative path corresponding to the target project item.
         for component in relative_path.components() {
@@ -117,5 +130,5 @@ impl Project {
         }
 
         Some(current)
-    }
+    }*/
 }

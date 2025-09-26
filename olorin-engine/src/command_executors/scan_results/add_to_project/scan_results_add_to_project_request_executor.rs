@@ -49,7 +49,7 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
                     for scan_result_ref in &self.scan_result_refs {
                         if let Some(scan_result) = snapshot_guard.get_scan_result(&symbol_registry, scan_result_ref.get_scan_result_index()) {
                             let data_type_ref = scan_result.get_data_type_ref();
-
+                            /*
                             if let Some(data_value) = symbol_registry_guard.get_default_value(data_type_ref) {
                                 let address = scan_result.get_address();
                                 let path = project.get_project_root().get_path().join("Address");
@@ -71,7 +71,7 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
                                 project_changed = true;
                             } else {
                                 log::error!("Error adding scan result, unable to get default value. The data type may no longer be registered.");
-                            }
+                            }*/
                         }
                     }
 

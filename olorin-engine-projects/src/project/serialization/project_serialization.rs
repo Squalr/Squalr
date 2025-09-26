@@ -7,7 +7,8 @@ impl SerializableProjectFile for Project {
         let project_info = ProjectInfo::load_from_path(&directory.join(Project::PROJECT_FILE))?;
         let project_root = ProjectItem::load_from_path(&directory.join(Project::PROJECT_DIR))?;
 
-        Ok(Project::new(project_info, project_root))
+        // Ok(Project::new(project_info, project_root))
+        Err(anyhow::anyhow!("load_from_path disabled for now"))
     }
 
     fn save_to_path(
@@ -20,9 +21,10 @@ impl SerializableProjectFile for Project {
             .save_to_path(directory, save_even_if_unchanged)?;
 
         // Recursively save all project items.
+        /*
         self.get_project_root_mut()
             .save_to_path(&directory.join(Project::PROJECT_DIR), save_even_if_unchanged)?;
-
+        */
         Ok(())
     }
 }

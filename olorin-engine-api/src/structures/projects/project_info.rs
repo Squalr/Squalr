@@ -3,7 +3,7 @@ use crate::structures::projects::project_manifest::ProjectManifest;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct ProjectInfo {
     /// The name of this project. This is derived from the folder containing the project json.
     project_name: String,

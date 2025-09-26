@@ -85,13 +85,14 @@ impl ProjectManager {
     /// Dispatches an engine event indicating that the project items have changed.
     pub fn notify_project_items_changed(&self) {
         if let Ok(project) = self.opened_project.read() {
+            /*
             let project_root = if let Some(project) = project.as_ref() {
                 Some(project.get_project_root().clone())
             } else {
                 None
-            };
+            };*/
 
-            (self.event_emitter)(ProjectItemsChangedEvent { project_root }.to_engine_event());
+            // (self.event_emitter)(ProjectItemsChangedEvent { project_root }.to_engine_event());
         }
     }
 

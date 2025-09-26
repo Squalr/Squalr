@@ -1,7 +1,6 @@
-use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use crate::registries::registries::Registries;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
-use crate::structures::projects::project_items::project_item::ProjectItem;
+use crate::{engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings, structures::projects::project_items::project_item_ref::ProjectItemRef};
 use std::sync::{Arc, RwLock};
 
 pub trait ProjectItemType: Send + Sync {
@@ -10,13 +9,13 @@ pub trait ProjectItemType: Send + Sync {
         &self,
         engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         registries: &Registries,
-        project_item: &mut ProjectItem,
+        project_item_ref: &ProjectItemRef,
     );
     fn tick(
         &self,
         engine_bindings: &dyn EngineApiPrivilegedBindings,
         opened_process: &Option<OpenedProcessInfo>,
         registries: &Registries,
-        project_item: &mut ProjectItem,
+        project_item_ref: &ProjectItemRef,
     );
 }

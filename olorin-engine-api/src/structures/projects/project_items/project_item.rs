@@ -1,5 +1,6 @@
 use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use crate::registries::registries::Registries;
+use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use crate::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
     projects::project_items::project_item_type_ref::ProjectItemTypeRef,
@@ -24,12 +25,6 @@ pub struct ProjectItem {
     /// A value indicating whether this item has been activated / enabled.
     is_activated: bool,
 
-    /// The child project items underneath this project item.
-    children: Vec<ProjectItem>,
-
-    /// A value indicating whether this project item accepts children.
-    is_container: bool,
-
     /// A value indicating whether this project item has unsaved changes.
     has_unsaved_changes: bool,
 
@@ -39,20 +34,18 @@ pub struct ProjectItem {
 
 impl ProjectItem {
     pub const PROPERTY_NAME: &str = "name";
+    pub const PROPERTY_ICON_ID: &str = "icon_id";
     pub const PROPERTY_DESCRIPTION: &str = "description";
 
     pub fn new(
         path: PathBuf,
         item_type: ProjectItemTypeRef,
-        is_container: bool,
     ) -> Self {
         let mut project_item = Self {
             path,
             item_type,
             properties: ValuedStruct::new_anonymous(vec![]),
             is_activated: false,
-            children: vec![],
-            is_container,
             has_unsaved_changes: true,
             current_display_value: String::new(),
         };
@@ -74,6 +67,10 @@ impl ProjectItem {
             .and_then(|os_str| os_str.to_str())
             .unwrap_or("")
             .to_string()
+    }
+
+    pub fn get_ref(&self) -> ProjectItemRef {
+        ProjectItemRef::new(self.path.as_os_str().to_string_lossy().to_string())
     }
 
     pub fn get_path(&self) -> &PathBuf {
@@ -121,34 +118,9 @@ impl ProjectItem {
 
         if let Ok(project_item_type_registry) = registries.get_project_item_type_registry().read() {
             if let Some(project_item_type) = project_item_type_registry.get(self.item_type.get_project_item_type_id()) {
-                project_item_type.on_activated_changed(engine_bindings, registries, self);
+                project_item_type.on_activated_changed(engine_bindings, registries, &self.get_ref());
             }
         }
-    }
-
-    pub fn get_is_container(&self) -> bool {
-        self.is_container
-    }
-
-    pub fn get_children(&self) -> &Vec<ProjectItem> {
-        debug_assert!(self.is_container);
-
-        &self.children
-    }
-
-    pub fn append_child(
-        &mut self,
-        new_child: ProjectItem,
-    ) {
-        debug_assert!(self.is_container);
-
-        self.children.push(new_child);
-    }
-
-    pub fn get_children_mut(&mut self) -> &mut Vec<ProjectItem> {
-        debug_assert!(self.is_container);
-
-        &mut self.children
     }
 
     pub fn get_display_string(&self) -> &str {
@@ -179,14 +151,38 @@ impl ProjectItem {
             .set_field_node(Self::PROPERTY_NAME, field_node, false);
     }
 
+    pub fn get_field_icon_id(&self) -> String {
+        if let Some(icon_id_field) = self
+            .get_properties()
+            .get_fields()
+            .iter()
+            .find(|field| field.get_name() == Self::PROPERTY_ICON_ID)
+        {
+            icon_id_field.get_display_string(true, 0)
+        } else {
+            String::new()
+        }
+    }
+
+    pub fn set_field_icon_id(
+        &mut self,
+        icon_id: &str,
+    ) {
+        let icon_id_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&icon_id);
+        let field_node = ValuedStructFieldNode::Value(icon_id_data_value);
+
+        self.get_properties_mut()
+            .set_field_node(Self::PROPERTY_ICON_ID, field_node, false);
+    }
+
     pub fn get_field_description(&self) -> String {
-        if let Some(name_field) = self
+        if let Some(icon_id_field) = self
             .get_properties()
             .get_fields()
             .iter()
             .find(|field| field.get_name() == Self::PROPERTY_DESCRIPTION)
         {
-            name_field.get_display_string(true, 0)
+            icon_id_field.get_display_string(true, 0)
         } else {
             String::new()
         }

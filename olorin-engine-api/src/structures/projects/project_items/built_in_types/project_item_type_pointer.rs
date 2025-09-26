@@ -1,6 +1,7 @@
 use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use crate::registries::registries::Registries;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
+use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use crate::structures::projects::project_items::{project_item::ProjectItem, project_item_type::ProjectItemType};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
@@ -27,7 +28,7 @@ impl ProjectItemType for ProjectItemTypePointer {
         &self,
         engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         registries: &Registries,
-        project_item: &mut ProjectItem,
+        project_item: &ProjectItemRef,
     ) {
         // JIRA: Implement
     }
@@ -37,7 +38,7 @@ impl ProjectItemType for ProjectItemTypePointer {
         engine_bindings: &dyn EngineApiPrivilegedBindings,
         opened_process: &Option<OpenedProcessInfo>,
         registries: &Registries,
-        project_item: &mut ProjectItem,
+        project_item: &ProjectItemRef,
     ) {
     }
 }
