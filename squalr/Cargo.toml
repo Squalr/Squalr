@@ -6,13 +6,11 @@ edition = "2024"
 # build = "build.rs"
 
 [dependencies]
-slint-mvvm = { path = "../slint-mvvm" }
-slint-mvvm-macros = { path = "../slint-mvvm-macros" }
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
-squalr-gui = { path = "../squalr-gui" }
+eframe = ">=0.32.3"
 log = ">=0.4.27"
-slint = { version = "=1.11.0", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "renderer-software", "std"] }
+wasm-bindgen = "0.2"
 
 [build-dependencies]
 winresource = ">=0.1.20"
