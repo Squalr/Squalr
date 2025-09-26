@@ -2,29 +2,29 @@
 
 [workspace]
 members = [
-    "olorin-engine",
-    "olorin-engine-architecture",
-    "olorin-engine-common",
-    "olorin-engine-debuggers",
-    "olorin-engine-memory",
-    "olorin-engine-processes",
-    "olorin-engine-projects",
-    "olorin-engine-scanning",
-    "olorin-engine-scripting",
-    "olorin-gui",
-    "olorin-android",
-    "olorin-cli",
-    "olorin-tui",
-    "olorin-installer",
-    "olorin",
+    "squalr-engine",
+    "squalr-engine-architecture",
+    "squalr-engine-common",
+    "squalr-engine-debuggers",
+    "squalr-engine-memory",
+    "squalr-engine-processes",
+    "squalr-engine-projects",
+    "squalr-engine-scanning",
+    "squalr-engine-scripting",
+    "squalr-gui",
+    "squalr-android",
+    "squalr-cli",
+    "squalr-tui",
+    "squalr-installer",
+    "squalr",
 ]
 resolver = "3"
 
 [profile.dev]
 # Slint can be pretty aggressive with stack allocations, extend stack size to 8MB.
 # Note this only matters for dev, release optimizations reduce stack usage safely.
-# rustflags = ["-C", "link-args=/STACK:8388608"] # MSVC
-rustflags = ["-C", "link-args=-Wl,--stack,8388608"] # GCC
+rustflags = ["-C", "link-args=/STACK:8388608"] # MSVC
+#rustflags = ["-C", "link-args=-Wl,--stack,8388608"] # GCC
 
 [profile.release]
 

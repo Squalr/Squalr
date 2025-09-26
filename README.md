@@ -1,33 +1,33 @@
-# Olorin
+# Squalr
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0)
 
-[Olorin Official Website](https://www.squalr.com)
+[Squalr Official Website](https://www.squalr.com)
 
 Join us on our [Discord Channel](https://discord.gg/Pq2msTx)
 
-**Olorin** is a highly performant dynamic analysis reverse-engineering tool written in Rust.
+**Squalr** is a highly performant dynamic analysis reverse-engineering tool written in Rust.
 
-First and foremost, Olorin is a memory scanner. Olorin achieves fast scans through multi-threading combined with SIMD instructions, allowing it to rip through Gigabytes of data in seconds. While all CPUs are supported, for maximum performance your CPU needs support for SSE, AVX, or AVX-512.
+First and foremost, Squalr is a memory scanner. Squalr achieves fast scans through multi-threading combined with SIMD instructions, allowing it to rip through Gigabytes of data in seconds. While all CPUs are supported, for maximum performance your CPU needs support for SSE, AVX, or AVX-512.
 
 We believe that dynamic analysis should be a first-class citizen. A living program has substantially more information to leverage than just a binary. The long term ambition is not to compete with static tools directly, but instead unlock incredibly productive workflows that could only come from a dynamic world.
 
 -----------------------
 
-Olorin is a spiritual successor to Squalr. Looking for the old C# repo? See [Squalr-Sharp](https://github.com/Squalr/Squalr-Sharp). Note that Squalr is no longer maintained, as Olorin has become the focus.
+Squalr is a spiritual successor to Squalr. Looking for the old C# repo? See [Squalr-Sharp](https://github.com/Squalr/Squalr-Sharp). Note that Squalr is no longer maintained, as Squalr has become the focus.
 
 This project is unaffiliated with any employers of our team members, past, present, or future.
 
-![OlorinGUI](docs/Olorin.png)
+![SqualrGUI](docs/Squalr.png)
 
 ## Development Philosophy
 Systems level work demands a systems level language. Rust was chosen because it eliminates entire classes of bugs and is perfectly suited to the job.
 
 Slint was chosen for the GUI since it gives us the benefits of a markup language, while still compiling to native for maximum performance and UX.
 
-Medium term, Olorin aims to be extensible with a modern plugin system. No more unzipping plugins to esoteric locations and manually upgrading them each release. This means an actual marketplace, including plenty of free and easy to install plugins. While not there yet, Olorin is being developed knowing that developers will want to be able to extend the type system, project system, register custom tools, and register middleware to support scanning emulator memory or other niche use cases.
+Medium term, Squalr aims to be extensible with a modern plugin system. No more unzipping plugins to esoteric locations and manually upgrading them each release. This means an actual marketplace, including plenty of free and easy to install plugins. While not there yet, Squalr is being developed knowing that developers will want to be able to extend the type system, project system, register custom tools, and register middleware to support scanning emulator memory or other niche use cases.
 
-Eventually Olorin will eventually compete on the static front, but not initially. For now, Olorin is deliberately not building out an ASM to C++ decompiler, a code graph, nor a debugger.
+Eventually Squalr will eventually compete on the static front, but not initially. For now, Squalr is deliberately not building out an ASM to C++ decompiler, a code graph, nor a debugger.
 
 Some long term ambitions are to integrate:
 - Plaintext hacking. Just tell the agent what you want to hack over a normal conversation, and have it dispatch low-level commands to do the heavy lifting. This can be very effective in domains like video game reverse-engineering.
@@ -62,7 +62,7 @@ Some long term ambitions are to integrate:
 ## Architectural Overview
 
 ### Command Response System
-Olorin has two components, a privileged interface, and an unprivileged core. This naturally gives rise to a command/response architecture, which makes for clear separation of concerns. To do this cleanly, we use structopts to make all commands have a text input equivalent, meaning that both a GUI and CLI can invoke the command fairly easily.
+Squalr has two components, a privileged interface, and an unprivileged core. This naturally gives rise to a command/response architecture, which makes for clear separation of concerns. To do this cleanly, we use structopts to make all commands have a text input equivalent, meaning that both a GUI and CLI can invoke the command fairly easily.
 
 This allows us to create several different modes, such as a unified GUI/CLI/TUI build, an MPC shell, and a potential remote host to control a remote shell or MPC endpoint.
 

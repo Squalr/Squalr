@@ -3,7 +3,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build olorin-cli (Android)",
+            "label": "Build squalr-cli (Android)",
             "type": "shell",
             "command": "cargo",
             "args": [
@@ -14,7 +14,7 @@
                 "aarch64-linux-android",
                 "build",
                 "--bin",
-                "olorin-cli"
+                "squalr-cli"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
