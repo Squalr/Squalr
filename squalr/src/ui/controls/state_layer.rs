@@ -8,7 +8,7 @@ pub struct StateLayer {
     pub has_hover: bool,
     pub has_focus: bool,
 
-    pub corner_radius: u8,
+    pub corner_radius: CornerRadius,
     pub border_width: f32,
 
     pub hover_color: Color32,
@@ -39,18 +39,15 @@ impl StateLayer {
         // Background
         user_interface
             .painter()
-            .rect_filled(rect, CornerRadius::same(self.corner_radius), fill);
+            .rect_filled(rect, self.corner_radius, fill);
 
         // Border
         if self.border_width > 0.0 {
             let border_color = if self.has_focus { self.border_color_focused } else { self.border_color };
 
-            user_interface.painter().rect_stroke(
-                rect,
-                CornerRadius::same(self.corner_radius),
-                Stroke::new(self.border_width, border_color),
-                StrokeKind::Inside,
-            );
+            user_interface
+                .painter()
+                .rect_stroke(rect, self.corner_radius, Stroke::new(self.border_width, border_color), StrokeKind::Inside);
         }
     }
 }

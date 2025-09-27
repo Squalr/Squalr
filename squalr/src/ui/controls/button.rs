@@ -1,11 +1,12 @@
 use crate::ui::{controls::state_layer::StateLayer, theme::Theme};
-use eframe::egui::{Color32, Label, Response, RichText, Sense, Ui, Widget};
+use eframe::egui::{Color32, Response, Sense, Ui, Widget};
+use epaint::CornerRadius;
 
 #[derive(Default)]
 pub struct Button<'lifetime> {
     pub disabled: bool,
     pub tooltip_text: &'lifetime str,
-    pub corner_radius: u8,
+    pub corner_radius: CornerRadius,
     pub border_width: f32,
     pub margin: i8,
     pub hover_color: Color32,
@@ -19,7 +20,7 @@ impl<'lifetime> Button<'lifetime> {
     pub fn new_from_theme(theme: &Theme) -> Button<'lifetime> {
         let mut button = Button::default();
 
-        button.corner_radius = 4;
+        button.corner_radius = CornerRadius { nw: 4, ne: 4, sw: 4, se: 4 };
         button.border_width = 0.0;
         button.margin = 0;
         button.hover_color = theme.hover_tint;

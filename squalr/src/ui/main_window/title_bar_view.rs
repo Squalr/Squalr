@@ -3,7 +3,7 @@ use crate::ui::theme::Theme;
 use eframe::egui::pos2;
 use eframe::egui::viewport::ViewportCommand;
 use eframe::egui::{self, Align, Context, Id, Layout, Rect, RichText, Sense, Ui};
-use epaint::CornerRadius;
+use epaint::{Color32, CornerRadius};
 
 #[derive(Default)]
 pub struct TitleBar {
@@ -30,8 +30,19 @@ impl TitleBar {
 
         // Single row: left = icon/title, right = buttons.
         user_interface.allocate_ui_with_layout(user_interface.available_size(), Layout::left_to_right(Align::Center), |user_interface| {
+            user_interface.add_space(8.0);
+
             // Left side: icon + title.
-            user_interface.label(RichText::new("<ICON HERE>").size(16.0));
+            let icon_size = theme.icon_library.icon_handle_app.size();
+            let (_icon_id, icon_rect) = user_interface.allocate_space(egui::vec2(icon_size[0] as f32, icon_size[1] as f32));
+
+            // Draw the icon into the allocated rect
+            user_interface.painter().image(
+                theme.icon_library.icon_handle_app.id(),
+                Rect::from_min_size(icon_rect.min, egui::vec2(icon_size[0] as f32, icon_size[1] as f32)),
+                Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), // UV coords
+                Color32::WHITE,
+            );
             user_interface.label(RichText::new(&self.title).color(theme.foreground));
 
             // Fill remaining space so the next child sits at the far right.
@@ -82,13 +93,13 @@ impl TitleBar {
         );
 
         let texture_size = theme.icon_library.icon_handle_close.size();
-        let texture_rect = egui::Rect::from_center_size(result_close.rect.center(), egui::vec2(texture_size[0] as f32, texture_size[1] as f32));
+        let texture_rect = Rect::from_center_size(result_close.rect.center(), egui::vec2(texture_size[0] as f32, texture_size[1] as f32));
 
         user_interface.painter().image(
             theme.icon_library.icon_handle_close.id(),
             texture_rect,
-            egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            egui::Color32::WHITE,
+            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+            Color32::WHITE,
         );
 
         if result_close.clicked() {
@@ -105,13 +116,13 @@ impl TitleBar {
         );
 
         let texture_size = theme.icon_library.icon_handle_maximize.size();
-        let texture_rect = egui::Rect::from_center_size(result_max.rect.center(), egui::vec2(texture_size[0] as f32, texture_size[1] as f32));
+        let texture_rect = Rect::from_center_size(result_max.rect.center(), egui::vec2(texture_size[0] as f32, texture_size[1] as f32));
 
         user_interface.painter().image(
             theme.icon_library.icon_handle_maximize.id(),
             texture_rect,
-            egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            egui::Color32::WHITE,
+            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+            Color32::WHITE,
         );
 
         if result_max.clicked() {
@@ -130,13 +141,13 @@ impl TitleBar {
         );
 
         let texture_size = theme.icon_library.icon_handle_minimize.size();
-        let texture_rect = egui::Rect::from_center_size(result_min.rect.center(), egui::vec2(texture_size[0] as f32, texture_size[1] as f32));
+        let texture_rect = Rect::from_center_size(result_min.rect.center(), egui::vec2(texture_size[0] as f32, texture_size[1] as f32));
 
         user_interface.painter().image(
             theme.icon_library.icon_handle_minimize.id(),
             texture_rect,
-            egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            egui::Color32::WHITE,
+            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+            Color32::WHITE,
         );
 
         if result_min.clicked() {

@@ -1,4 +1,8 @@
-use crate::ui::{controls::button::Button, main_window::title_bar_view::TitleBar, theme::Theme};
+use crate::ui::{
+    controls::button::Button,
+    main_window::{footer_view::Footer, title_bar_view::TitleBar},
+    theme::Theme,
+};
 use eframe::egui::{CentralPanel, Context, Frame, UiBuilder, Visuals};
 use epaint::{Pos2, Rect, Rgba};
 
@@ -33,6 +37,7 @@ impl eframe::App for SqualrGui {
             title: "Squalr".to_string(),
             height: 32.0,
         };
+        let footer = Footer { height: 32.0 };
         let button = Button {
             // text: "Click Me",
             tooltip_text: "Tooltip.",
@@ -57,20 +62,29 @@ impl eframe::App for SqualrGui {
                         y: app_rect.min.y + title_bar.height,
                     },
                 };
-
-                // Draw the title bar (yours handles dragging + buttons)
-                let mut title_ui = user_interface.new_child(UiBuilder::new().max_rect(title_bar_rect));
-
-                title_bar.draw(&mut title_ui, context, &self.theme);
-
-                // Content area below the title bar
-                let content_rect = {
-                    let mut rect = app_rect;
-                    rect.min.y = title_bar_rect.max.y;
-                    rect
+                let footer_rect = Rect {
+                    min: Pos2 {
+                        x: app_rect.min.x,
+                        y: app_rect.max.y - footer.height,
+                    },
+                    max: app_rect.max,
+                };
+                let content_rect = Rect {
+                    min: Pos2 {
+                        x: app_rect.min.x,
+                        y: title_bar_rect.max.y,
+                    },
+                    max: Pos2 {
+                        x: app_rect.max.x,
+                        y: footer_rect.min.y,
+                    },
                 };
 
-                // Paint a background for the content area
+                // Draw title bar.
+                let mut title_ui = user_interface.new_child(UiBuilder::new().max_rect(title_bar_rect));
+                title_bar.draw(&mut title_ui, context, &self.theme);
+
+                // Draw content.
                 user_interface
                     .painter()
                     .rect_filled(content_rect, 0.0, self.theme.background_control);
@@ -79,9 +93,12 @@ impl eframe::App for SqualrGui {
 
                 if content_ui.add_sized([128.0, 64.0], button).clicked() {
                     self.counter += 1;
-                };
-
+                }
                 content_ui.label(format!("Counter: {}", self.counter));
+
+                // Draw footer.
+                let mut footer_ui = user_interface.new_child(UiBuilder::new().max_rect(footer_rect));
+                footer.draw(&mut footer_ui, context, &self.theme);
             });
     }
 }
