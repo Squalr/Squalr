@@ -1,6 +1,6 @@
 use crate::ui::{controls::button::Button, main_window::title_bar_view::TitleBar, theme::Theme};
 use eframe::egui::{CentralPanel, Context, Frame, UiBuilder, Visuals};
-use epaint::Rgba;
+use epaint::{Pos2, Rect, Rgba};
 
 pub struct SqualrGui {
     counter: i32,
@@ -34,7 +34,7 @@ impl eframe::App for SqualrGui {
             height: 32.0,
         };
         let button = Button {
-            text: "Click Me",
+            // text: "Click Me",
             tooltip_text: "Tooltip.",
             ..Button::new_from_theme(&self.theme)
         };
@@ -50,11 +50,12 @@ impl eframe::App for SqualrGui {
                 let app_rect = user_interface.max_rect();
 
                 // Reserve a rect at the top for the title bar
-                let title_bar_rect = {
-                    let mut rect = app_rect;
-
-                    rect.max.y = rect.min.y + title_bar.height;
-                    rect
+                let title_bar_rect = Rect {
+                    min: app_rect.min,
+                    max: Pos2 {
+                        x: app_rect.max.x,
+                        y: app_rect.min.y + title_bar.height,
+                    },
                 };
 
                 // Draw the title bar (yours handles dragging + buttons)
@@ -67,16 +68,19 @@ impl eframe::App for SqualrGui {
                     let mut rect = app_rect;
                     rect.min.y = title_bar_rect.max.y;
                     rect
-                }
-                .shrink(4.0);
+                };
+
+                // Paint a background for the content area
+                user_interface
+                    .painter()
+                    .rect_filled(content_rect, 0.0, self.theme.background_control);
 
                 let mut content_ui = user_interface.new_child(UiBuilder::new().max_rect(content_rect));
 
-                content_ui.add(button);
-
-                if content_ui.button("Click me").clicked() {
+                if content_ui.add_sized([128.0, 64.0], button).clicked() {
                     self.counter += 1;
-                }
+                };
+
                 content_ui.label(format!("Counter: {}", self.counter));
             });
     }

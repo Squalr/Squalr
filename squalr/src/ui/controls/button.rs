@@ -1,79 +1,75 @@
-use eframe::egui::{self, Color32, CornerRadius, Label, Margin, Response, RichText, Stroke, Ui, Widget};
-
-use crate::ui::theme::Theme;
+use crate::ui::{controls::state_layer::StateLayer, theme::Theme};
+use eframe::egui::{Color32, Label, Response, RichText, Sense, Ui, Widget};
 
 #[derive(Default)]
-pub struct Button<'a> {
+pub struct Button<'lifetime> {
     pub disabled: bool,
-    pub text: &'a str,
-    pub tooltip_text: &'a str,
+    pub tooltip_text: &'lifetime str,
     pub corner_radius: u8,
     pub border_width: f32,
     pub margin: i8,
-    pub background_color: Color32,
-    pub foreground_color: Color32,
     pub hover_color: Color32,
     pub pressed_color: Color32,
     pub border_color: Color32,
-    pub click_sound: Option<&'a str>,
+    pub click_sound: Option<&'lifetime str>,
+    pub border_color_focused: Option<Color32>,
 }
 
-impl<'a> Button<'a> {
-    pub fn new_from_theme(theme: &Theme) -> Button<'a> {
+impl<'lifetime> Button<'lifetime> {
+    pub fn new_from_theme(theme: &Theme) -> Button<'lifetime> {
         let mut button = Button::default();
 
         button.corner_radius = 4;
-        button.border_width = 2.0;
-        button.margin = 4;
-        button.background_color = theme.background_control_primary;
-        button.foreground_color = theme.foreground;
+        button.border_width = 0.0;
+        button.margin = 0;
         button.hover_color = theme.hover_tint;
         button.pressed_color = theme.pressed_tint;
         button.border_color = theme.background_control_primary_dark;
+        button.border_color_focused = None;
 
         button
     }
 }
 
-impl<'a> Widget for Button<'a> {
+impl<'lifetime> Widget for Button<'lifetime> {
     fn ui(
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let button_frame = egui::Frame::new()
-            .fill(self.background_color)
-            .stroke(Stroke::new(self.border_width, self.border_color))
-            .corner_radius(CornerRadius::same(self.corner_radius))
-            .inner_margin(Margin::same(self.margin));
+        let sense = if self.disabled { Sense::hover() } else { Sense::click() };
+        let (rect, mut response) = user_interface.allocate_exact_size(user_interface.available_size(), sense);
 
-        let mut response = user_interface
-            .add_enabled_ui(!self.disabled, |user_interface| {
-                button_frame
-                    .show(user_interface, |user_interface| {
-                        user_interface.centered_and_justified(|user_interface| {
-                            user_interface.add(Label::new(RichText::new(self.text).color(self.foreground_color)).selectable(false));
-                        });
-                    })
-                    .response
-            })
-            .inner;
+        // StateLayer compose & paint. This is an overlay to show the hover/focus effect.
+        let state_layer = StateLayer {
+            enabled: !self.disabled,
+            pressed: response.is_pointer_button_down_on(),
+            has_hover: response.hovered(),
+            has_focus: response.has_focus(),
 
+            corner_radius: self.corner_radius,
+            border_width: self.border_width,
+
+            hover_color: self.hover_color,
+            pressed_color: self.pressed_color,
+            border_color: self.border_color,
+            border_color_focused: self.border_color_focused.unwrap_or(self.border_color),
+        };
+
+        state_layer.paint(user_interface, rect);
+
+        // Optional text.
+        /*
+        if user_interface.is_rect_visible(rect) {
+            let label = Label::new(RichText::new(self.text).color(self.foreground_color)).selectable(false);
+            user_interface.put(rect, label);
+        }*/
+
+        // Tooltip.
         if !self.tooltip_text.is_empty() {
             response = response.on_hover_text(self.tooltip_text);
         }
 
-        if response.hovered() {
-            user_interface
-                .painter()
-                .rect_filled(response.rect, CornerRadius::same(self.corner_radius), self.hover_color);
-        }
-
-        if response.is_pointer_button_down_on() {
-            user_interface
-                .painter()
-                .rect_filled(response.rect, CornerRadius::same(self.corner_radius), self.pressed_color);
-        }
-
+        // Click sound.
         if response.clicked() {
             if let Some(sound) = self.click_sound {
                 println!("JIRA: Play sound: {}", sound);

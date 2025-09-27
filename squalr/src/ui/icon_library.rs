@@ -1,17 +1,31 @@
 use eframe::egui::{Context, TextureOptions};
 use epaint::{ColorImage, TextureHandle};
 
+static ICON_APP: &[u8] = include_bytes!("../../images/window/app_icon.png");
 static ICON_CLOSE: &[u8] = include_bytes!("../../images/window/close.png");
+static ICON_MINIMIZE: &[u8] = include_bytes!("../../images/window/minimize.png");
+static ICON_MAXIMIZE: &[u8] = include_bytes!("../../images/window/maximize.png");
 
 pub struct IconLibrary {
-    pub close_handle: TextureHandle,
+    pub icon_handle_app: TextureHandle,
+    pub icon_handle_close: TextureHandle,
+    pub icon_handle_minimize: TextureHandle,
+    pub icon_handle_maximize: TextureHandle,
 }
 
 impl IconLibrary {
     pub fn new(context: &Context) -> Self {
-        let close_handle = Self::load_icon(context, ICON_CLOSE);
+        let icon_handle_app = Self::load_icon(context, ICON_APP);
+        let icon_handle_close = Self::load_icon(context, ICON_CLOSE);
+        let icon_handle_minimize = Self::load_icon(context, ICON_MINIMIZE);
+        let icon_handle_maximize = Self::load_icon(context, ICON_MAXIMIZE);
 
-        Self { close_handle }
+        Self {
+            icon_handle_app,
+            icon_handle_close,
+            icon_handle_minimize,
+            icon_handle_maximize,
+        }
     }
 
     fn load_icon(
@@ -21,7 +35,7 @@ impl IconLibrary {
         let image = image::load_from_memory(buffer).unwrap_or_default().to_rgba8();
         let size = [image.width() as usize, image.height() as usize];
         let pixels = image.into_raw();
-        let texture_handle = context.load_texture("my_image", ColorImage::from_rgba_unmultiplied(size, &pixels), TextureOptions::default());
+        let texture_handle = context.load_texture("", ColorImage::from_rgba_unmultiplied(size, &pixels), TextureOptions::default());
 
         texture_handle
     }

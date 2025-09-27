@@ -1,6 +1,8 @@
-use crate::ui::{controls::button::Button, theme::Theme};
+use crate::ui::controls::button::Button;
+use crate::ui::theme::Theme;
+use eframe::egui::pos2;
 use eframe::egui::viewport::ViewportCommand;
-use eframe::egui::{self, Align, Context, Id, Layout, RichText, Sense, Ui};
+use eframe::egui::{self, Align, Context, Id, Layout, Rect, RichText, Sense, Ui};
 use epaint::CornerRadius;
 
 #[derive(Default)]
@@ -16,106 +18,132 @@ impl TitleBar {
         context: &Context,
         theme: &Theme,
     ) {
-        let rect = user_interface.max_rect();
-        let mut input_handled = false;
+        let full_rect = user_interface.max_rect();
 
+        // Background.
         user_interface
             .painter()
-            .rect_filled(rect, CornerRadius { nw: 8, ne: 8, sw: 0, se: 0 }, theme.background_primary);
+            .rect_filled(full_rect, CornerRadius { nw: 4, ne: 4, sw: 0, se: 0 }, theme.background_primary);
 
-        user_interface.with_layout(Layout::left_to_right(Align::Min), |user_interface| {
-            // Left side: app icon + title.
-            user_interface.label(RichText::new("<ICON HERE>").size(16.0)); // Font size, not actual size.
+        // We'll capture where the buttons end up:
+        let mut buttons_rect: Option<Rect> = None;
+
+        // Single row: left = icon/title, right = buttons.
+        user_interface.allocate_ui_with_layout(user_interface.available_size(), Layout::left_to_right(Align::Center), |user_interface| {
+            // Left side: icon + title.
+            user_interface.label(RichText::new("<ICON HERE>").size(16.0));
             user_interface.label(RichText::new(&self.title).color(theme.foreground));
 
-            // Right side: window controls.
-            user_interface.with_layout(Layout::right_to_left(Align::Min), |user_interface| {
-                input_handled = self.draw_buttons(user_interface, context, theme);
+            // Fill remaining space so the next child sits at the far right.
+            user_interface.allocate_space(egui::vec2(user_interface.available_width(), 0.0));
+
+            // Right side: measure buttons rect by drawing them in a child with RTL layout.
+            user_interface.allocate_ui_with_layout(user_interface.available_size(), Layout::right_to_left(Align::Center), |user_interface| {
+                buttons_rect = Some(self.draw_buttons(user_interface, context, theme));
             });
         });
 
-        if input_handled {
-            return;
-        }
+        // Compute draggable rect = everything left of the buttons
+        let right_edge_of_drag = buttons_rect.map(|r| r.min.x).unwrap_or(full_rect.max.x);
+        let drag_rect = Rect::from_min_max(full_rect.min, pos2(right_edge_of_drag, full_rect.max.y));
 
-        let title_bar_interact = user_interface.interact(rect, Id::new("titlebar"), Sense::click_and_drag());
+        let resp = user_interface.interact(drag_rect, Id::new("titlebar"), Sense::click_and_drag());
 
-        if title_bar_interact.drag_started() {
+        if resp.drag_started() {
             context.send_viewport_cmd(ViewportCommand::StartDrag);
         }
 
-        if title_bar_interact.double_clicked() {
-            let is_max = context.input(|input_state| input_state.viewport().maximized.unwrap_or(false));
+        if resp.double_clicked() {
+            let is_max = context.input(|i| i.viewport().maximized.unwrap_or(false));
 
             context.send_viewport_cmd(ViewportCommand::Maximized(!is_max));
         }
     }
 
+    /// Draws the three window buttons and returns their UNION rect.
     fn draw_buttons(
         &self,
         user_interface: &mut Ui,
         context: &Context,
         theme: &Theme,
-    ) -> bool {
-        let mut input_handled = false;
-        let button_size = egui::vec2(28.0, 28.0);
+    ) -> Rect {
+        let button_size = egui::vec2(36.0, 32.0);
 
-        user_interface.set_height(button_size.x);
-        user_interface.add_space(4.0);
+        user_interface.set_height(button_size.y);
+        user_interface.add_space(8.0);
 
         // Close.
-        if user_interface
-            .add_sized(
-                button_size,
-                Button {
-                    text: "X",
-                    margin: 0,
-                    ..Button::new_from_theme(theme)
-                },
-            )
-            .clicked()
-        {
-            context.send_viewport_cmd(ViewportCommand::Close);
+        let result_close = user_interface.add_sized(
+            button_size,
+            Button {
+                margin: 0,
+                ..Button::new_from_theme(theme)
+            },
+        );
 
-            input_handled = true;
+        let texture_size = theme.icon_library.icon_handle_close.size();
+        let texture_rect = egui::Rect::from_center_size(result_close.rect.center(), egui::vec2(texture_size[0] as f32, texture_size[1] as f32));
+
+        user_interface.painter().image(
+            theme.icon_library.icon_handle_close.id(),
+            texture_rect,
+            egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+            egui::Color32::WHITE,
+        );
+
+        if result_close.clicked() {
+            context.send_viewport_cmd(ViewportCommand::Close);
         }
 
-        // Maximize.
-        if user_interface
-            .add_sized(
-                button_size,
-                Button {
-                    text: "X",
-                    margin: 0,
-                    ..Button::new_from_theme(theme)
-                },
-            )
-            .clicked()
-        {
+        // Maximize / Restore.
+        let result_max = user_interface.add_sized(
+            button_size,
+            Button {
+                margin: 0,
+                ..Button::new_from_theme(theme)
+            },
+        );
+
+        let texture_size = theme.icon_library.icon_handle_maximize.size();
+        let texture_rect = egui::Rect::from_center_size(result_max.rect.center(), egui::vec2(texture_size[0] as f32, texture_size[1] as f32));
+
+        user_interface.painter().image(
+            theme.icon_library.icon_handle_maximize.id(),
+            texture_rect,
+            egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+            egui::Color32::WHITE,
+        );
+
+        if result_max.clicked() {
             let is_max = context.input(|input_state| input_state.viewport().maximized.unwrap_or(false));
 
             context.send_viewport_cmd(ViewportCommand::Maximized(!is_max));
-
-            input_handled = true;
         }
 
         // Minimize.
-        if user_interface
-            .add_sized(
-                button_size,
-                Button {
-                    text: "X",
-                    margin: 0,
-                    ..Button::new_from_theme(theme)
-                },
-            )
-            .clicked()
-        {
-            context.send_viewport_cmd(ViewportCommand::Minimized(true));
+        let result_min = user_interface.add_sized(
+            button_size,
+            Button {
+                margin: 0,
+                ..Button::new_from_theme(theme)
+            },
+        );
 
-            input_handled = true;
+        let texture_size = theme.icon_library.icon_handle_minimize.size();
+        let texture_rect = egui::Rect::from_center_size(result_min.rect.center(), egui::vec2(texture_size[0] as f32, texture_size[1] as f32));
+
+        user_interface.painter().image(
+            theme.icon_library.icon_handle_minimize.id(),
+            texture_rect,
+            egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+            egui::Color32::WHITE,
+        );
+
+        if result_min.clicked() {
+            context.send_viewport_cmd(ViewportCommand::Minimized(true));
         }
 
-        input_handled
+        // Return the bounding rect actually used by the buttons.
+        result_close.rect.union(result_max.rect).union(result_min.rect)
     }
 }
