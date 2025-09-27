@@ -1,5 +1,5 @@
 use crate::ui::{controls::state_layer::StateLayer, theme::Theme};
-use eframe::egui::{Color32, Response, Sense, Ui, Widget};
+use eframe::egui::{Color32, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::CornerRadius;
 
 #[derive(Default)]
@@ -41,7 +41,9 @@ impl<'lifetime> Widget for Button<'lifetime> {
         let (rect, mut response) = user_interface.allocate_exact_size(user_interface.available_size(), sense);
 
         // StateLayer compose & paint. This is an overlay to show the hover/focus effect.
-        let state_layer = StateLayer {
+        StateLayer {
+            bounds_min: rect.min,
+            bounds_max: rect.max,
             enabled: !self.disabled,
             pressed: response.is_pointer_button_down_on(),
             has_hover: response.hovered(),
@@ -54,16 +56,8 @@ impl<'lifetime> Widget for Button<'lifetime> {
             pressed_color: self.pressed_color,
             border_color: self.border_color,
             border_color_focused: self.border_color_focused.unwrap_or(self.border_color),
-        };
-
-        state_layer.paint(user_interface, rect);
-
-        // Optional text.
-        /*
-        if user_interface.is_rect_visible(rect) {
-            let label = Label::new(RichText::new(self.text).color(self.foreground_color)).selectable(false);
-            user_interface.put(rect, label);
-        }*/
+        }
+        .ui(user_interface);
 
         // Tooltip.
         if !self.tooltip_text.is_empty() {

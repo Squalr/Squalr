@@ -1,12 +1,11 @@
 mod app;
 mod ui;
 
-use app::SqualrGui;
+use app::App;
 use eframe::NativeOptions;
 use eframe::egui::ViewportBuilder;
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
-// use squalr_gui::view_models::main_window::main_window_view_model::MainWindowViewModel;
 
 pub fn main() {
     // Create a standalone engine (same process for gui and engine).
@@ -15,24 +14,24 @@ pub fn main() {
         Err(error) => panic!("Fatal error initializing Squalr engine: {}", error),
     };
 
-    // Create and show the main window, which in turn will instantiate all dockable windows.
-    // May not evaluate until the dependencies in the engine are initialized.
-    // MainWindowViewModel::register(squalr_engine.get_dependency_container());
+    // Disable default window border so that we can add a custom one.
+    let native_options = NativeOptions {
+        viewport: ViewportBuilder::default()
+            .with_decorations(false)
+            .with_transparent(true),
+        ..NativeOptions::default()
+    };
 
-    // Now that gui dependencies are registered, start the engine fully.
-    squalr_engine.initialize();
-
-    let mut native_options = NativeOptions::default();
-
-    native_options.viewport = ViewportBuilder::default()
-        .with_decorations(false)
-        .with_transparent(true);
-
+    // Run the gui.
     match eframe::run_native(
         "Squalr",
         native_options,
         Box::new(|creation_context| {
-            let app = SqualrGui::new(&creation_context.egui_ctx);
+            let app = App::new(&creation_context.egui_ctx, squalr_engine.get_dependency_container());
+
+            // Now that gui dependencies are registered, start the engine fully.
+            squalr_engine.initialize();
+
             Ok(Box::new(app))
         }),
     ) {

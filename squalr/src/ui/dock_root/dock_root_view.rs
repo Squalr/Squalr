@@ -1,26 +1,25 @@
 use crate::ui::theme::Theme;
 use eframe::egui::{Context, Response, Sense, Ui, Widget};
-use epaint::{CornerRadius, vec2};
+use epaint::CornerRadius;
 use std::rc::Rc;
 
 #[derive(Clone)]
-pub struct FooterView {
+pub struct DockRootView {
     pub context: Context,
     pub theme: Rc<Theme>,
-    pub height: f32,
 }
 
-impl Widget for FooterView {
+impl Widget for DockRootView {
     fn ui(
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::empty());
+        let (rect, response) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::empty());
 
         // Background.
         user_interface
             .painter()
-            .rect_filled(rect, CornerRadius { nw: 0, ne: 0, sw: 4, se: 4 }, self.theme.border_blue);
+            .rect_filled(rect, CornerRadius::ZERO, self.theme.border_blue);
 
         response
     }

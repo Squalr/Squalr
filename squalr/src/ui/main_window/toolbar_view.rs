@@ -1,16 +1,17 @@
 use crate::ui::theme::Theme;
-use eframe::egui::{Context, Response, Sense, Ui, Widget};
+use eframe::egui::Widget;
+use eframe::egui::{Context, Response, Sense, Ui};
 use epaint::{CornerRadius, vec2};
 use std::rc::Rc;
 
 #[derive(Clone)]
-pub struct FooterView {
+pub struct ToolbarView {
     pub context: Context,
     pub theme: Rc<Theme>,
     pub height: f32,
 }
 
-impl Widget for FooterView {
+impl Widget for ToolbarView {
     fn ui(
         self,
         user_interface: &mut Ui,
@@ -20,7 +21,7 @@ impl Widget for FooterView {
         // Background.
         user_interface
             .painter()
-            .rect_filled(rect, CornerRadius { nw: 0, ne: 0, sw: 4, se: 4 }, self.theme.border_blue);
+            .rect_filled(rect, CornerRadius::ZERO, self.theme.background_primary);
 
         response
     }

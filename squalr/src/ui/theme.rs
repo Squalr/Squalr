@@ -70,7 +70,7 @@ impl Theme {
         Self {
             icon_library: IconLibrary::new(context),
 
-            // Core colors
+            // Core colors.
             border_blue: Color32::from_rgb(0x00, 0x7A, 0xCC),
             background_primary: Color32::from_rgb(0x33, 0x33, 0x33),
             background_panel: Color32::from_rgb(0x27, 0x27, 0x27),
@@ -82,7 +82,7 @@ impl Theme {
             selected_border: Color32::from_rgb(0x26, 0xA0, 0xDA),
             transparent: Color32::TRANSPARENT,
 
-            // Control backgrounds
+            // Control backgrounds.
             background_control_primary: Color32::from_rgb(0x1E, 0x54, 0x92),
             background_control_primary_dark: Color32::from_rgb(0x06, 0x1E, 0x3E),
             background_control_secondary: Color32::from_rgb(0x43, 0x4E, 0x51),
@@ -98,7 +98,7 @@ impl Theme {
             background_control_light: Color32::from_rgb(0xFB, 0xFB, 0xFB),
             background_control_border: Color32::from_rgb(0x20, 0x1C, 0x1C),
 
-            // Special theme
+            // Special theme.
             dec_white: Color32::WHITE,
             dec_white_preview: Color32::from_rgb(0xAF, 0xAF, 0xAF),
             bin_blue: Color32::from_rgb(0x02, 0x91, 0xF0),
@@ -107,7 +107,7 @@ impl Theme {
             hex_green_preview: Color32::from_rgb(0x75, 0xA0, 0x75),
             error_red: Color32::from_rgb(0xE7, 0x20, 0x20),
 
-            // Fonts (note: egui does not support font weight directly)
+            // Fonts (note: egui does not support font weight directly).
             default_font_family: "Segoe UI".to_string(),
             mono_font_family: "Consolas".to_string(),
             font_weight: 525,
@@ -120,13 +120,13 @@ impl Theme {
             font_size_h4: 17.0,
             font_size_h5: 14.0,
 
-            // Focus / states
+            // Focus / states.
             focused_background: Color32::from_rgba_unmultiplied(0x15, 0x50, 0x6C, 0xFF),
             focused_border: Color32::from_rgb(0x26, 0xA0, 0xDA),
             hover_tint: Color32::from_rgba_unmultiplied(0xFF, 0xFF, 0xFF, 0x10),
             pressed_tint: Color32::from_rgba_unmultiplied(0x00, 0x00, 0x00, 0x20),
 
-            // Animations
+            // Animations.
             color_duration_ms: 50,
             move_duration_ms: 50,
         }

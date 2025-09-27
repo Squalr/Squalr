@@ -1,26 +1,27 @@
-use crate::ui::{
-    controls::button::Button,
-    main_window::{footer_view::Footer, title_bar_view::TitleBar},
-    theme::Theme,
-};
-use eframe::egui::{CentralPanel, Context, Frame, UiBuilder, Visuals};
-use epaint::{Pos2, Rect, Rgba};
+use crate::ui::{main_window::main_window_view::MainWindowView, theme::Theme};
+use eframe::egui::{CentralPanel, Context, Frame, Visuals};
+use epaint::Rgba;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use std::rc::Rc;
 
-pub struct SqualrGui {
-    counter: i32,
-    theme: Theme,
+#[derive(Clone)]
+pub struct App {
+    main_window_view: MainWindowView,
 }
 
-impl SqualrGui {
-    pub fn new(context: &Context) -> Self {
-        Self {
-            counter: 0,
-            theme: Theme::new(context),
-        }
+impl App {
+    pub fn new(
+        context: &Context,
+        dependency_container: &DependencyContainer,
+    ) -> Self {
+        let theme = Rc::new(Theme::new(context));
+        let main_window_view = MainWindowView::new(context.clone(), theme);
+
+        Self { main_window_view }
     }
 }
 
-impl eframe::App for SqualrGui {
+impl eframe::App for App {
     fn clear_color(
         &self,
         _visuals: &Visuals,
@@ -33,72 +34,16 @@ impl eframe::App for SqualrGui {
         context: &Context,
         _frame: &mut eframe::Frame,
     ) {
-        let title_bar = TitleBar {
-            title: "Squalr".to_string(),
-            height: 32.0,
-        };
-        let footer = Footer { height: 32.0 };
-        let button = Button {
-            // text: "Click Me",
-            tooltip_text: "Tooltip.",
-            ..Button::new_from_theme(&self.theme)
-        };
-        let panel_frame = Frame::new()
+        let app_frame = Frame::new()
             .fill(context.style().visuals.window_fill())
             .corner_radius(10)
             .stroke(context.style().visuals.widgets.noninteractive.fg_stroke)
             .outer_margin(1.0);
 
         CentralPanel::default()
-            .frame(panel_frame)
+            .frame(app_frame)
             .show(context, move |user_interface| {
-                let app_rect = user_interface.max_rect();
-
-                // Reserve a rect at the top for the title bar
-                let title_bar_rect = Rect {
-                    min: app_rect.min,
-                    max: Pos2 {
-                        x: app_rect.max.x,
-                        y: app_rect.min.y + title_bar.height,
-                    },
-                };
-                let footer_rect = Rect {
-                    min: Pos2 {
-                        x: app_rect.min.x,
-                        y: app_rect.max.y - footer.height,
-                    },
-                    max: app_rect.max,
-                };
-                let content_rect = Rect {
-                    min: Pos2 {
-                        x: app_rect.min.x,
-                        y: title_bar_rect.max.y,
-                    },
-                    max: Pos2 {
-                        x: app_rect.max.x,
-                        y: footer_rect.min.y,
-                    },
-                };
-
-                // Draw title bar.
-                let mut title_ui = user_interface.new_child(UiBuilder::new().max_rect(title_bar_rect));
-                title_bar.draw(&mut title_ui, context, &self.theme);
-
-                // Draw content.
-                user_interface
-                    .painter()
-                    .rect_filled(content_rect, 0.0, self.theme.background_control);
-
-                let mut content_ui = user_interface.new_child(UiBuilder::new().max_rect(content_rect));
-
-                if content_ui.add_sized([128.0, 64.0], button).clicked() {
-                    self.counter += 1;
-                }
-                content_ui.label(format!("Counter: {}", self.counter));
-
-                // Draw footer.
-                let mut footer_ui = user_interface.new_child(UiBuilder::new().max_rect(footer_rect));
-                footer.draw(&mut footer_ui, context, &self.theme);
+                user_interface.add(self.main_window_view.clone());
             });
     }
 }
