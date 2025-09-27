@@ -9,6 +9,7 @@ edition = "2024"
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
 eframe = ">=0.32.3"
+epaint = ">=0.32.3"
 log = ">=0.4.27"
 wasm-bindgen = "0.2"
 

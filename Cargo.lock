@@ -5872,6 +5872,7 @@ name = "squalr"
 version = "0.1.1"
 dependencies = [
  "eframe",
+ "epaint",
  "log",
  "squalr-engine",
  "squalr-engine-api",

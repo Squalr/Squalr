@@ -1,6 +1,9 @@
 mod app;
+mod ui;
 
-use app::MyApp;
+use app::SqualrGui;
+use eframe::NativeOptions;
+use eframe::egui::ViewportBuilder;
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
 // use squalr_gui::view_models::main_window::main_window_view_model::MainWindowViewModel;
@@ -19,8 +22,12 @@ pub fn main() {
     // Now that gui dependencies are registered, start the engine fully.
     squalr_engine.initialize();
 
-    let app = MyApp::default();
-    let native_options = eframe::NativeOptions::default();
+    let app = SqualrGui::default();
+    let mut native_options = NativeOptions::default();
+
+    native_options.viewport = ViewportBuilder::default()
+        .with_decorations(false)
+        .with_transparent(true);
 
     match eframe::run_native("Squalr", native_options, Box::new(|_creation_context| Ok(Box::new(app)))) {
         Ok(_) => {}
