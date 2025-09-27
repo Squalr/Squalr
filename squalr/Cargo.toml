@@ -10,6 +10,7 @@ squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
 eframe = ">=0.32.3"
 epaint = ">=0.32.3"
+image = ">=0.25.8"
 log = ">=0.4.27"
 wasm-bindgen = "0.2"
 

@@ -1,13 +1,19 @@
 use crate::ui::{controls::button::Button, main_window::title_bar_view::TitleBar, theme::Theme};
-use eframe::{
-    Frame,
-    egui::{CentralPanel, Context, UiBuilder, Visuals},
-};
+use eframe::egui::{CentralPanel, Context, Frame, UiBuilder, Visuals};
 use epaint::Rgba;
 
-#[derive(Default)]
 pub struct SqualrGui {
     counter: i32,
+    theme: Theme,
+}
+
+impl SqualrGui {
+    pub fn new(context: &Context) -> Self {
+        Self {
+            counter: 0,
+            theme: Theme::new(context),
+        }
+    }
 }
 
 impl eframe::App for SqualrGui {
@@ -21,28 +27,18 @@ impl eframe::App for SqualrGui {
     fn update(
         &mut self,
         context: &Context,
-        frame: &mut Frame,
+        _frame: &mut eframe::Frame,
     ) {
-        let theme = Theme::default();
         let title_bar = TitleBar {
             title: "Squalr".to_string(),
             height: 32.0,
         };
         let button = Button {
-            enabled: true,
             text: "Click Me",
             tooltip_text: "Tooltip.",
-            corner_radius: 4,
-            border_width: 1.0,
-            margin: 0,
-            background_color: theme.background_control_primary,
-            foreground_color: theme.foreground,
-            hover_color: theme.hover_tint,
-            pressed_color: theme.pressed_tint,
-            border_color: theme.background_control_primary_dark,
-            click_sound: Some("click_1.mp3"),
+            ..Button::new_from_theme(&self.theme)
         };
-        let panel_frame = eframe::egui::Frame::new()
+        let panel_frame = Frame::new()
             .fill(context.style().visuals.window_fill())
             .corner_radius(10)
             .stroke(context.style().visuals.widgets.noninteractive.fg_stroke)
@@ -56,13 +52,15 @@ impl eframe::App for SqualrGui {
                 // Reserve a rect at the top for the title bar
                 let title_bar_rect = {
                     let mut rect = app_rect;
+
                     rect.max.y = rect.min.y + title_bar.height;
                     rect
                 };
 
                 // Draw the title bar (yours handles dragging + buttons)
                 let mut title_ui = user_interface.new_child(UiBuilder::new().max_rect(title_bar_rect));
-                title_bar.draw(&mut title_ui, context, &theme);
+
+                title_bar.draw(&mut title_ui, context, &self.theme);
 
                 // Content area below the title bar
                 let content_rect = {
@@ -73,6 +71,8 @@ impl eframe::App for SqualrGui {
                 .shrink(4.0);
 
                 let mut content_ui = user_interface.new_child(UiBuilder::new().max_rect(content_rect));
+
+                content_ui.add(button);
 
                 if content_ui.button("Click me").clicked() {
                     self.counter += 1;

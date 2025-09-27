@@ -1,6 +1,6 @@
 use crate::ui::{controls::button::Button, theme::Theme};
 use eframe::egui::viewport::ViewportCommand;
-use eframe::egui::{Context, Id, RichText, Sense, Ui};
+use eframe::egui::{self, Align, Context, Id, Layout, RichText, Sense, Ui};
 use epaint::CornerRadius;
 
 #[derive(Default)]
@@ -13,73 +13,109 @@ impl TitleBar {
     pub fn draw(
         &self,
         user_interface: &mut Ui,
-        ctx: &Context,
+        context: &Context,
         theme: &Theme,
     ) {
         let rect = user_interface.max_rect();
+        let mut input_handled = false;
+
         user_interface
             .painter()
             .rect_filled(rect, CornerRadius { nw: 8, ne: 8, sw: 0, se: 0 }, theme.background_primary);
 
-        // Interactions
-        let resp = user_interface.interact(rect, Id::new("titlebar"), Sense::click_and_drag());
-        if resp.drag_started() {
-            ctx.send_viewport_cmd(ViewportCommand::StartDrag);
-        }
-        if resp.double_clicked() {
-            let is_max = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
-            ctx.send_viewport_cmd(ViewportCommand::Maximized(!is_max));
-        }
-
-        user_interface.horizontal(|user_interface| {
+        user_interface.with_layout(Layout::left_to_right(Align::Min), |user_interface| {
             // Left side: app icon + title.
-            user_interface.add_space(4.0);
-            user_interface.label(RichText::new("🟦").size(16.0));
-            user_interface.add_space(6.0);
+            user_interface.label(RichText::new("<ICON HERE>").size(16.0)); // Font size, not actual size.
             user_interface.label(RichText::new(&self.title).color(theme.foreground));
 
-            user_interface.add_space(user_interface.available_width() - 3.0 * 36.0);
-
             // Right side: window controls.
-            self.draw_buttons(user_interface, ctx, theme);
+            user_interface.with_layout(Layout::right_to_left(Align::Min), |user_interface| {
+                input_handled = self.draw_buttons(user_interface, context, theme);
+            });
         });
+
+        if input_handled {
+            return;
+        }
+
+        let title_bar_interact = user_interface.interact(rect, Id::new("titlebar"), Sense::click_and_drag());
+
+        if title_bar_interact.drag_started() {
+            context.send_viewport_cmd(ViewportCommand::StartDrag);
+        }
+
+        if title_bar_interact.double_clicked() {
+            let is_max = context.input(|input_state| input_state.viewport().maximized.unwrap_or(false));
+
+            context.send_viewport_cmd(ViewportCommand::Maximized(!is_max));
+        }
     }
 
     fn draw_buttons(
         &self,
         user_interface: &mut Ui,
-        ctx: &Context,
+        context: &Context,
         theme: &Theme,
-    ) {
-        // Close
-        let close = Button {
-            text: "✕",
-            tooltip_text: "Close",
-            ..Default::default()
-        };
-        if close.draw(user_interface).clicked() {
-            ctx.send_viewport_cmd(ViewportCommand::Close);
+    ) -> bool {
+        let mut input_handled = false;
+        let button_size = egui::vec2(28.0, 28.0);
+
+        user_interface.set_height(button_size.x);
+        user_interface.add_space(4.0);
+
+        // Close.
+        if user_interface
+            .add_sized(
+                button_size,
+                Button {
+                    text: "X",
+                    margin: 0,
+                    ..Button::new_from_theme(theme)
+                },
+            )
+            .clicked()
+        {
+            context.send_viewport_cmd(ViewportCommand::Close);
+
+            input_handled = true;
         }
 
-        // Maximize
-        let maximize = Button {
-            text: "🗖",
-            tooltip_text: "Maximize",
-            ..Default::default()
-        };
-        if maximize.draw(user_interface).clicked() {
-            let is_max = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
-            ctx.send_viewport_cmd(ViewportCommand::Maximized(!is_max));
+        // Maximize.
+        if user_interface
+            .add_sized(
+                button_size,
+                Button {
+                    text: "X",
+                    margin: 0,
+                    ..Button::new_from_theme(theme)
+                },
+            )
+            .clicked()
+        {
+            let is_max = context.input(|input_state| input_state.viewport().maximized.unwrap_or(false));
+
+            context.send_viewport_cmd(ViewportCommand::Maximized(!is_max));
+
+            input_handled = true;
         }
 
-        // Minimize
-        let minimize = Button {
-            text: "🗕",
-            tooltip_text: "Minimize",
-            ..Default::default()
-        };
-        if minimize.draw(user_interface).clicked() {
-            ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
+        // Minimize.
+        if user_interface
+            .add_sized(
+                button_size,
+                Button {
+                    text: "X",
+                    margin: 0,
+                    ..Button::new_from_theme(theme)
+                },
+            )
+            .clicked()
+        {
+            context.send_viewport_cmd(ViewportCommand::Minimized(true));
+
+            input_handled = true;
         }
+
+        input_handled
     }
 }

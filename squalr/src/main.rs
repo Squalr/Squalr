@@ -22,14 +22,20 @@ pub fn main() {
     // Now that gui dependencies are registered, start the engine fully.
     squalr_engine.initialize();
 
-    let app = SqualrGui::default();
     let mut native_options = NativeOptions::default();
 
     native_options.viewport = ViewportBuilder::default()
         .with_decorations(false)
         .with_transparent(true);
 
-    match eframe::run_native("Squalr", native_options, Box::new(|_creation_context| Ok(Box::new(app)))) {
+    match eframe::run_native(
+        "Squalr",
+        native_options,
+        Box::new(|creation_context| {
+            let app = SqualrGui::new(&creation_context.egui_ctx);
+            Ok(Box::new(app))
+        }),
+    ) {
         Ok(_) => {}
         Err(error) => {
             panic!("Fatal error in Squalr event loop: {}", error);

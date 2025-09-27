@@ -1,8 +1,9 @@
-use eframe::egui::{Color32, FontFamily, FontId, Rgba};
-use std::sync::Mutex;
+use crate::ui::icon_library::IconLibrary;
+use eframe::egui::{Color32, Context};
 
-#[derive(Clone, Debug)]
 pub struct Theme {
+    pub icon_library: IconLibrary,
+
     // Core colors
     pub border_blue: Color32,
     pub background_primary: Color32,
@@ -64,9 +65,11 @@ pub struct Theme {
     pub move_duration_ms: u64,
 }
 
-impl Default for Theme {
-    fn default() -> Self {
+impl Theme {
+    pub fn new(context: &Context) -> Self {
         Self {
+            icon_library: IconLibrary::new(context),
+
             // Core colors
             border_blue: Color32::from_rgb(0x00, 0x7A, 0xCC),
             background_primary: Color32::from_rgb(0x33, 0x33, 0x33),
