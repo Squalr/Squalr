@@ -7,7 +7,7 @@ use epaint::{CornerRadius, vec2};
 use std::rc::Rc;
 
 #[derive(Clone)]
-pub struct TitleBarView {
+pub struct MainTitleBarView {
     context: Context,
     theme: Rc<Theme>,
     corner_radius: CornerRadius,
@@ -15,7 +15,7 @@ pub struct TitleBarView {
     title: String,
 }
 
-impl TitleBarView {
+impl MainTitleBarView {
     pub fn new(
         context: Context,
         theme: Rc<Theme>,
@@ -33,7 +33,7 @@ impl TitleBarView {
     }
 }
 
-impl eframe::egui::Widget for TitleBarView {
+impl eframe::egui::Widget for MainTitleBarView {
     fn ui(
         self,
         user_interface: &mut Ui,

@@ -16,11 +16,12 @@ impl App {
     pub fn new(
         context: &Context,
         dependency_container: &DependencyContainer,
+        app_title: String,
     ) -> Self {
         let theme = Rc::new(Theme::new(context));
         let corner_radius = CornerRadius::same(8);
         let resize_thickness = 4.0;
-        let main_window_view = MainWindowView::new(context.clone(), theme, corner_radius);
+        let main_window_view = MainWindowView::new(context.clone(), theme, app_title, corner_radius);
 
         Self {
             main_window_view,

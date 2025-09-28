@@ -1,3 +1,3 @@
 pub mod controls;
-pub mod dock_root;
+pub mod docking;
 pub mod main_window;

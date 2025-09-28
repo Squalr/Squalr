@@ -4,14 +4,14 @@ use epaint::{CornerRadius, vec2};
 use std::rc::Rc;
 
 #[derive(Clone)]
-pub struct FooterView {
+pub struct MainFooterView {
     _context: Context,
     theme: Rc<Theme>,
     corner_radius: CornerRadius,
     height: f32,
 }
 
-impl FooterView {
+impl MainFooterView {
     pub fn new(
         context: Context,
         theme: Rc<Theme>,
@@ -31,7 +31,7 @@ impl FooterView {
     }
 }
 
-impl Widget for FooterView {
+impl Widget for MainFooterView {
     fn ui(
         self,
         user_interface: &mut Ui,
