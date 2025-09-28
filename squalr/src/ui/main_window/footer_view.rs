@@ -25,6 +25,10 @@ impl FooterView {
             height,
         }
     }
+
+    pub fn get_height(&self) -> f32 {
+        self.height
+    }
 }
 
 impl Widget for FooterView {

@@ -28,7 +28,7 @@ impl Widget for DockRootView {
         // Background.
         user_interface
             .painter()
-            .rect_filled(rect, CornerRadius::ZERO, self.theme.border_blue);
+            .rect_filled(rect, CornerRadius::ZERO, self.theme.hex_green);
 
         response
     }

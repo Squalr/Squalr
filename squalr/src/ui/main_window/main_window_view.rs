@@ -47,7 +47,13 @@ impl Widget for MainWindowView {
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 user_interface.add(self.title_bar_view);
                 user_interface.add(self.toolbar_view);
-                user_interface.add(self.dock_root_view);
+                user_interface.add_sized(
+                    [
+                        user_interface.available_width(),
+                        user_interface.available_height() - self.footer_view.get_height(),
+                    ],
+                    self.dock_root_view,
+                );
                 user_interface.add(self.footer_view);
             })
             .response;
