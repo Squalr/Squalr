@@ -1,9 +1,8 @@
 // ui/widgets/main_window/main_toolbar_view.rs
-use crate::ui::theme::Theme;
-use crate::ui::widgets::controls::toolbar_menu::toolbar_menu_bar::ToolbarMenuBar;
-use crate::ui::widgets::controls::toolbar_menu::toolbar_menu_check_state::ToolbarMenuCheckState;
-use crate::ui::widgets::controls::toolbar_menu::toolbar_menu_data::ToolbarMenuData;
-use crate::ui::widgets::controls::toolbar_menu::toolbar_menu_item_data::ToolbarMenuItemData;
+use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_menu_data::ToolbarMenuData;
+use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_menu_item_data::ToolbarMenuItemData;
+use crate::ui::widgets::controls::toolbar_menu::toolbar_view::ToolbarView;
+use crate::ui::{theme::Theme, widgets::controls::toolbar_menu::data_model::toolbar_data::ToolbarData};
 use eframe::egui::{Context, Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, vec2};
 use std::rc::Rc;
@@ -13,8 +12,7 @@ pub struct MainToolbarView {
     _context: Context,
     theme: Rc<Theme>,
     height: f32,
-    menus: Vec<ToolbarMenuData>,
-    last_clicked: String,
+    menu: ToolbarData,
 }
 
 impl MainToolbarView {
@@ -64,31 +62,16 @@ impl MainToolbarView {
             },
         ];
 
+        let menu = ToolbarData {
+            active_menu: String::new(),
+            menus,
+        };
+
         Self {
             _context: context,
             theme,
             height,
-            menus,
-            last_clicked: String::new(),
-        }
-    }
-
-    /// Update a window item’s check state from your view model.
-    pub fn set_window_checked(
-        &mut self,
-        id: &str,
-        checked: bool,
-    ) {
-        for menu in self.menus.iter_mut() {
-            for item in menu.items.iter_mut() {
-                if item.id == id {
-                    item.check_state = if checked {
-                        ToolbarMenuCheckState::Checked
-                    } else {
-                        ToolbarMenuCheckState::Unchecked
-                    };
-                }
-            }
+            menu,
         }
     }
 }
@@ -96,23 +79,19 @@ impl MainToolbarView {
 impl Widget for MainToolbarView {
     fn ui(
         self,
-        ui: &mut Ui,
+        user_interface: &mut Ui,
     ) -> Response {
-        let (rect, response) = ui.allocate_exact_size(vec2(ui.available_size().x, self.height), Sense::hover());
+        let (rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::hover());
 
-        // Background strip (matches your Theme usage)
-        ui.painter()
+        // Background strip (matches your Theme usage).
+        user_interface
+            .painter()
             .rect_filled(rect, CornerRadius::ZERO, self.theme.background_primary);
 
-        // Compose the menu bar within this space
-        let bar = ToolbarMenuBar {
-            theme: self.theme.clone(),
-            height: self.height,
-            bottom_padding: 4.0,
-            menus: &self.menus,
-            clicked_out: &self.last_clicked,
-        };
-        ui.put(rect, bar);
+        // Compose the menu bar within this space.
+        let bar = ToolbarView::new(self.theme.clone(), self.height, 4.0, &self.menu);
+
+        user_interface.put(rect, bar);
 
         response
     }

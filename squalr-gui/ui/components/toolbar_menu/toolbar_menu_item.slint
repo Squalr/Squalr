@@ -5,7 +5,7 @@ import { Button } from "../buttons/button.slint";
 import { TextFakeCheckbox } from "../checkboxes/text_fake_checkbox.slint";
 import { HSeparator } from "../separator.slint";
 
-export enum ToolbarMenuCheckState {
+export enum ToolbarMenuItemCheckState {
     none,
     checked,
     unchecked,
@@ -15,7 +15,7 @@ export struct ToolbarMenuItemData {
     id: string,
     text: string,
     has_separator: bool,
-    check_state: ToolbarMenuCheckState,
+    check_state: ToolbarMenuItemCheckState,
 }
 
 export component ToolbarMenuItem inherits HorizontalLayout {
@@ -64,7 +64,7 @@ export component ToolbarMenuItem inherits HorizontalLayout {
                         padding_right: 8px;
                         VerticalLayout {
                             alignment: center;
-                            if(item.check_state == ToolbarMenuCheckState.none): Text {
+                            if(item.check_state == ToolbarMenuItemCheckState.none): Text {
                                 horizontal_alignment: center;
                                 vertical_alignment: center;
                                 text: item.text;
@@ -74,9 +74,9 @@ export component ToolbarMenuItem inherits HorizontalLayout {
 
                         VerticalLayout {
                             alignment: center;
-                            if(item.check_state != ToolbarMenuCheckState.none): TextFakeCheckbox {
+                            if(item.check_state != ToolbarMenuItemCheckState.none): TextFakeCheckbox {
                                 text: item.text;
-                                is_checked: item.check_state == ToolbarMenuCheckState.checked;
+                                is_checked: item.check_state == ToolbarMenuItemCheckState.checked;
                             }
                         }
                     }

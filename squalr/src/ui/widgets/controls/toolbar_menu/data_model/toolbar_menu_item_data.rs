@@ -1,11 +1,11 @@
-use crate::ui::widgets::controls::toolbar_menu::toolbar_menu_check_state::ToolbarMenuCheckState;
+use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_menu_item_check_state::ToolbarMenuItemCheckState;
 
 #[derive(Clone)]
 pub struct ToolbarMenuItemData {
     pub id: String,
     pub text: String,
     pub has_separator: bool,
-    pub check_state: ToolbarMenuCheckState,
+    pub check_state: ToolbarMenuItemCheckState,
 }
 
 impl ToolbarMenuItemData {
@@ -17,7 +17,7 @@ impl ToolbarMenuItemData {
             id: id.into(),
             text: text.into(),
             has_separator: false,
-            check_state: ToolbarMenuCheckState::None,
+            check_state: ToolbarMenuItemCheckState::None,
         }
     }
 
@@ -31,9 +31,9 @@ impl ToolbarMenuItemData {
             text: text.into(),
             has_separator: false,
             check_state: if checked {
-                ToolbarMenuCheckState::Checked
+                ToolbarMenuItemCheckState::Checked
             } else {
-                ToolbarMenuCheckState::Unchecked
+                ToolbarMenuItemCheckState::Unchecked
             },
         }
     }

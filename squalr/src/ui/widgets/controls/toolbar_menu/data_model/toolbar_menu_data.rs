@@ -1,4 +1,4 @@
-use crate::ui::widgets::controls::toolbar_menu::toolbar_menu_item_data::ToolbarMenuItemData;
+use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_menu_item_data::ToolbarMenuItemData;
 
 #[derive(Clone)]
 pub struct ToolbarMenuData {

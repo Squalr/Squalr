@@ -1,5 +1,5 @@
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum ToolbarMenuCheckState {
+pub enum ToolbarMenuItemCheckState {
     None,
     Checked,
     Unchecked,
