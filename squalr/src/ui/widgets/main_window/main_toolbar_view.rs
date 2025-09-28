@@ -1,8 +1,7 @@
-// ui/widgets/main_window/main_toolbar_view.rs
-use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_header_item_data::ToolbarHeaderItemData;
-use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_menu_item_data::ToolbarMenuItemData;
+use crate::models::toolbar::toolbar_data::ToolbarData;
+use crate::models::toolbar::toolbar_header_item_data::ToolbarHeaderItemData;
 use crate::ui::widgets::controls::toolbar_menu::toolbar_view::ToolbarView;
-use crate::ui::{theme::Theme, widgets::controls::toolbar_menu::data_model::toolbar_data::ToolbarData};
+use crate::{models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData, ui::theme::Theme};
 use eframe::egui::{Context, Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, vec2};
 use std::rc::Rc;

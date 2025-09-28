@@ -1,4 +1,5 @@
 mod app;
+mod models;
 mod ui;
 
 use app::App;

@@ -1,5 +1,7 @@
-use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_data::ToolbarData;
-use crate::ui::{theme::Theme, widgets::controls::toolbar_menu::toolbar_header_item_view::ToolbarHeaderItemView};
+use crate::{
+    models::toolbar::toolbar_data::ToolbarData,
+    ui::{theme::Theme, widgets::controls::toolbar_menu::toolbar_header_item_view::ToolbarHeaderItemView},
+};
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, vec2};
 use std::rc::Rc;

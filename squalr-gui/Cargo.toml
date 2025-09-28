@@ -6,8 +6,6 @@ edition = "2024"
 # build = "build.rs"
 
 [dependencies]
-slint-mvvm = { path = "../slint-mvvm" }
-slint-mvvm-macros = { path = "../slint-mvvm-macros" }
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
 squalr-engine-common = { path = "../squalr-engine-common" }

@@ -1,7 +1,6 @@
-use crate::ui::theme::Theme;
+use crate::models::toolbar::toolbar_menu_item_check_state::ToolbarMenuItemCheckState;
 use crate::ui::widgets::controls::state_layer::StateLayer;
-use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_menu_item_check_state::ToolbarMenuItemCheckState;
-use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_menu_item_data::ToolbarMenuItemData;
+use crate::{models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData, ui::theme::Theme};
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, Rect, pos2, vec2};
 use std::rc::Rc;

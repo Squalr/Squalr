@@ -1,4 +1,4 @@
-use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_menu_item_check_state::ToolbarMenuItemCheckState;
+use crate::models::toolbar::toolbar_menu_item_check_state::ToolbarMenuItemCheckState;
 
 #[derive(Clone)]
 pub struct ToolbarMenuItemData {
