@@ -1,5 +1,5 @@
 // ui/widgets/main_window/main_toolbar_view.rs
-use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_menu_data::ToolbarMenuData;
+use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_header_item_data::ToolbarHeaderItemData;
 use crate::ui::widgets::controls::toolbar_menu::data_model::toolbar_menu_item_data::ToolbarMenuItemData;
 use crate::ui::widgets::controls::toolbar_menu::toolbar_view::ToolbarView;
 use crate::ui::{theme::Theme, widgets::controls::toolbar_menu::data_model::toolbar_data::ToolbarData};
@@ -23,7 +23,7 @@ impl MainToolbarView {
     ) -> Self {
         // Build your initial menu structure here (port of your Slint tree).
         let menus = vec![
-            ToolbarMenuData {
+            ToolbarHeaderItemData {
                 header: "File".into(),
                 items: vec![
                     ToolbarMenuItemData::action("select_project", "Select Project"),
@@ -31,11 +31,11 @@ impl MainToolbarView {
                     ToolbarMenuItemData::action("exit", "Exit Squalr").with_separator(),
                 ],
             },
-            ToolbarMenuData {
+            ToolbarHeaderItemData {
                 header: "Layout".into(),
                 items: vec![ToolbarMenuItemData::action("layout_reset", "Reset Layout")],
             },
-            ToolbarMenuData {
+            ToolbarHeaderItemData {
                 header: "Windows".into(),
                 items: vec![
                     ToolbarMenuItemData::checkable("win_process_selector", "Process Selector", false),
@@ -49,11 +49,11 @@ impl MainToolbarView {
                     ToolbarMenuItemData::checkable("win_snapshot_manager", "Snapshot Manager", false),
                 ],
             },
-            ToolbarMenuData {
+            ToolbarHeaderItemData {
                 header: "Scans".into(),
                 items: vec![ToolbarMenuItemData::action("scans_pointer", "Pointer Scan")],
             },
-            ToolbarMenuData {
+            ToolbarHeaderItemData {
                 header: "Debugger".into(),
                 items: vec![
                     ToolbarMenuItemData::action("disassembly", "Disassembly"),

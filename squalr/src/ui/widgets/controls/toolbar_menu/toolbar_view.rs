@@ -33,14 +33,14 @@ impl<'a> Widget for ToolbarView<'a> {
             .rect_filled(available_size, CornerRadius::ZERO, self.theme.background_primary);
 
         // Create child row area on which to place buttons.
-        let row_rectangle = Rect::from_min_size(available_size.min, vec2(available_size.width(), self.height));
+        let available_size_rectangle = Rect::from_min_size(available_size.min, vec2(available_size.width(), self.height));
         let mut row_user_interface = user_interface.new_child(
             UiBuilder::new()
-                .max_rect(row_rectangle)
+                .max_rect(available_size_rectangle)
                 .layout(Layout::left_to_right(Align::Center)),
         );
 
-        // Draw each top-level menu.
+        // Draw each menu header.
         for menu in &self.menu.menus {
             ToolbarHeaderItemView::new(self.theme.clone(), &menu.header, &menu.items, self.height, 8.0).ui(&mut row_user_interface);
         }
