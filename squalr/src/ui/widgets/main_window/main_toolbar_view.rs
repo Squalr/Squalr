@@ -89,7 +89,7 @@ impl Widget for MainToolbarView {
             .rect_filled(rect, CornerRadius::ZERO, self.theme.background_primary);
 
         // Compose the menu bar within this space.
-        let bar = ToolbarView::new(self.theme.clone(), self.height, 4.0, &self.menu);
+        let bar = ToolbarView::new(self.theme.clone(), self.height, &self.menu);
 
         user_interface.put(rect, bar);
 
