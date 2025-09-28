@@ -1,5 +1,5 @@
 use crate::ui::{controls::state_layer::StateLayer, theme::Theme};
-use eframe::egui::{Color32, Response, Sense, Ui, UiBuilder, Widget};
+use eframe::egui::{Color32, Response, Sense, Ui, Widget};
 use epaint::CornerRadius;
 
 #[derive(Default)]

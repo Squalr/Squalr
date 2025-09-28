@@ -6,9 +6,23 @@ use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct ToolbarView {
-    pub context: Context,
-    pub theme: Rc<Theme>,
-    pub height: f32,
+    _context: Context,
+    theme: Rc<Theme>,
+    height: f32,
+}
+
+impl ToolbarView {
+    pub fn new(
+        context: Context,
+        theme: Rc<Theme>,
+        height: f32,
+    ) -> Self {
+        Self {
+            _context: context,
+            theme,
+            height,
+        }
+    }
 }
 
 impl Widget for ToolbarView {

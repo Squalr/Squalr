@@ -5,8 +5,17 @@ use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct DockRootView {
-    pub context: Context,
-    pub theme: Rc<Theme>,
+    _context: Context,
+    theme: Rc<Theme>,
+}
+
+impl DockRootView {
+    pub fn new(
+        context: Context,
+        theme: Rc<Theme>,
+    ) -> Self {
+        Self { _context: context, theme }
+    }
 }
 
 impl Widget for DockRootView {

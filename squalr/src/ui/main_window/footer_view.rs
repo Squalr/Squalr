@@ -5,9 +5,26 @@ use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct FooterView {
-    pub context: Context,
-    pub theme: Rc<Theme>,
-    pub height: f32,
+    _context: Context,
+    theme: Rc<Theme>,
+    corner_radius: CornerRadius,
+    height: f32,
+}
+
+impl FooterView {
+    pub fn new(
+        context: Context,
+        theme: Rc<Theme>,
+        corner_radius: CornerRadius,
+        height: f32,
+    ) -> Self {
+        Self {
+            _context: context,
+            theme,
+            corner_radius,
+            height,
+        }
+    }
 }
 
 impl Widget for FooterView {
@@ -18,9 +35,16 @@ impl Widget for FooterView {
         let (rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::empty());
 
         // Background.
-        user_interface
-            .painter()
-            .rect_filled(rect, CornerRadius { nw: 0, ne: 0, sw: 4, se: 4 }, self.theme.border_blue);
+        user_interface.painter().rect_filled(
+            rect,
+            CornerRadius {
+                nw: 0,
+                ne: 0,
+                sw: self.corner_radius.sw,
+                se: self.corner_radius.se,
+            },
+            self.theme.border_blue,
+        );
 
         response
     }

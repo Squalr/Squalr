@@ -1,12 +1,13 @@
 use crate::ui::{main_window::main_window_view::MainWindowView, theme::Theme};
 use eframe::egui::{CentralPanel, Context, Frame, Visuals};
-use epaint::Rgba;
+use epaint::{CornerRadius, Rgba, vec2};
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct App {
     main_window_view: MainWindowView,
+    corner_radius: CornerRadius,
 }
 
 impl App {
@@ -15,9 +16,13 @@ impl App {
         dependency_container: &DependencyContainer,
     ) -> Self {
         let theme = Rc::new(Theme::new(context));
-        let main_window_view = MainWindowView::new(context.clone(), theme);
+        let corner_radius = CornerRadius::same(8);
+        let main_window_view = MainWindowView::new(context.clone(), theme, corner_radius);
 
-        Self { main_window_view }
+        Self {
+            main_window_view,
+            corner_radius,
+        }
     }
 }
 
@@ -36,13 +41,14 @@ impl eframe::App for App {
     ) {
         let app_frame = Frame::new()
             .fill(context.style().visuals.window_fill())
-            .corner_radius(10)
+            .corner_radius(self.corner_radius)
             .stroke(context.style().visuals.widgets.noninteractive.fg_stroke)
             .outer_margin(1.0);
 
         CentralPanel::default()
             .frame(app_frame)
             .show(context, move |user_interface| {
+                user_interface.style_mut().spacing.item_spacing = vec2(0.0, 0.0);
                 user_interface.add(self.main_window_view.clone());
             });
     }

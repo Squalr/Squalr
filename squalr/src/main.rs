@@ -17,6 +17,7 @@ pub fn main() {
     // Disable default window border so that we can add a custom one.
     let native_options = NativeOptions {
         viewport: ViewportBuilder::default()
+            .with_inner_size([1280.0, 840.0])
             .with_decorations(false)
             .with_transparent(true),
         ..NativeOptions::default()

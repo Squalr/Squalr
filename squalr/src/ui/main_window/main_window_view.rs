@@ -2,48 +2,34 @@ use crate::ui::dock_root::dock_root_view::DockRootView;
 use crate::ui::main_window::toolbar_view::ToolbarView;
 use crate::ui::main_window::{footer_view::FooterView, title_bar_view::TitleBarView};
 use crate::ui::theme::Theme;
-use eframe::egui::{Align, Context, Layout, Response, Sense, Ui, Widget};
+use eframe::egui::{Align, Context, Layout, Response, Ui, Widget};
+use epaint::CornerRadius;
 use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct MainWindowView {
-    pub context: Context,
-    pub theme: Rc<Theme>,
-    pub title_bar_view: TitleBarView,
-    pub toolbar_view: ToolbarView,
-    pub dock_root_view: DockRootView,
-    pub footer_view: FooterView,
+    _context: Context,
+    _theme: Rc<Theme>,
+    title_bar_view: TitleBarView,
+    toolbar_view: ToolbarView,
+    dock_root_view: DockRootView,
+    footer_view: FooterView,
 }
 
 impl MainWindowView {
     pub fn new(
         context: Context,
         theme: Rc<Theme>,
+        corner_radius: CornerRadius,
     ) -> Self {
-        let title_bar_view = TitleBarView {
-            context: context.clone(),
-            theme: theme.clone(),
-            title: "Squalr".to_string(),
-            height: 32.0,
-        };
-        let toolbar_view = ToolbarView {
-            context: context.clone(),
-            theme: theme.clone(),
-            height: 32.0,
-        };
-        let dock_root_view = DockRootView {
-            context: context.clone(),
-            theme: theme.clone(),
-        };
-        let footer_view = FooterView {
-            context: context.clone(),
-            theme: theme.clone(),
-            height: 32.0,
-        };
+        let title_bar_view = TitleBarView::new(context.clone(), theme.clone(), corner_radius, 32.0, "Squalr".to_string());
+        let toolbar_view = ToolbarView::new(context.clone(), theme.clone(), 32.0);
+        let dock_root_view = DockRootView::new(context.clone(), theme.clone());
+        let footer_view = FooterView::new(context.clone(), theme.clone(), corner_radius, 28.0);
 
         Self {
-            context,
-            theme,
+            _context: context,
+            _theme: theme,
             title_bar_view,
             toolbar_view,
             dock_root_view,
