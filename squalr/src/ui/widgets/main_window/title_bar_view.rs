@@ -1,6 +1,6 @@
-use crate::ui::controls::button::Button;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::theme::Theme;
+use crate::ui::widgets::controls::button::Button;
 use eframe::egui::viewport::ViewportCommand;
 use eframe::egui::{Align, Context, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, pos2};
 use epaint::{CornerRadius, vec2};
@@ -68,7 +68,13 @@ impl eframe::egui::Widget for TitleBarView {
         let (_id, app_icon_rect) = bar_ui.allocate_space(vec2(texture_width as f32, texture_height as f32));
         IconDraw::draw(&bar_ui, app_icon_rect, &self.theme.icon_library.icon_handle_logo);
 
-        bar_ui.label(RichText::new(&self.title).color(self.theme.foreground));
+        bar_ui.add_space(4.0);
+
+        bar_ui.label(
+            RichText::new(&self.title)
+                .font(self.theme.font_library.font_noto_sans.font_window_title.clone())
+                .color(self.theme.foreground),
+        );
 
         // Push the rest (buttons) to the far right within the same row.
         bar_ui.add_space(bar_ui.available_width());

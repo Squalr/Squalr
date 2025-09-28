@@ -1,8 +1,9 @@
-use crate::ui::icon_library::IconLibrary;
+use crate::ui::{fonts::font_library::FontLibrary, icon_library::IconLibrary};
 use eframe::egui::{Color32, Context};
 
 pub struct Theme {
     pub icon_library: IconLibrary,
+    pub font_library: FontLibrary,
 
     // Core colors
     pub border_blue: Color32,
@@ -41,19 +42,6 @@ pub struct Theme {
     pub hex_green_preview: Color32,
     pub error_red: Color32,
 
-    // Fonts
-    pub default_font_family: String,
-    pub mono_font_family: String,
-    pub font_weight: u32,
-    pub font_size_window_title: f32,
-    pub font_size_s: f32,
-    pub font_size_p: f32,
-    pub font_size_h1: f32,
-    pub font_size_h2: f32,
-    pub font_size_h3: f32,
-    pub font_size_h4: f32,
-    pub font_size_h5: f32,
-
     // Focus
     pub focused_background: Color32,
     pub focused_border: Color32,
@@ -69,6 +57,7 @@ impl Theme {
     pub fn new(context: &Context) -> Self {
         Self {
             icon_library: IconLibrary::new(context),
+            font_library: FontLibrary::new(context),
 
             // Core colors.
             border_blue: Color32::from_rgb(0x00, 0x7A, 0xCC),
@@ -106,19 +95,6 @@ impl Theme {
             hex_green: Color32::from_rgb(0x14, 0xA4, 0x4D),
             hex_green_preview: Color32::from_rgb(0x75, 0xA0, 0x75),
             error_red: Color32::from_rgb(0xE7, 0x20, 0x20),
-
-            // Fonts (note: egui does not support font weight directly).
-            default_font_family: "Segoe UI".to_string(),
-            mono_font_family: "Consolas".to_string(),
-            font_weight: 525,
-            font_size_window_title: 11.0,
-            font_size_s: 9.0,
-            font_size_p: 11.0,
-            font_size_h1: 32.0,
-            font_size_h2: 24.0,
-            font_size_h3: 20.0,
-            font_size_h4: 17.0,
-            font_size_h5: 14.0,
 
             // Focus / states.
             focused_background: Color32::from_rgba_unmultiplied(0x15, 0x50, 0x6C, 0xFF),

@@ -1,7 +1,8 @@
-use crate::ui::dock_root::dock_root_view::DockRootView;
-use crate::ui::main_window::toolbar_view::ToolbarView;
-use crate::ui::main_window::{footer_view::FooterView, title_bar_view::TitleBarView};
 use crate::ui::theme::Theme;
+use crate::ui::widgets::dock_root::dock_root_view::DockRootView;
+use crate::ui::widgets::main_window::footer_view::FooterView;
+use crate::ui::widgets::main_window::title_bar_view::TitleBarView;
+use crate::ui::widgets::main_window::toolbar_view::ToolbarView;
 use eframe::egui::{Align, Context, Layout, Response, Ui, Widget};
 use epaint::CornerRadius;
 use std::rc::Rc;

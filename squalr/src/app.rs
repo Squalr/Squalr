@@ -1,4 +1,5 @@
-use crate::ui::{main_window::main_window_view::MainWindowView, theme::Theme};
+use crate::ui::theme::Theme;
+use crate::ui::widgets::main_window::main_window_view::MainWindowView;
 use eframe::egui::{CentralPanel, Context, Frame, Id, ResizeDirection, Response, Sense, Ui, ViewportCommand, Visuals};
 use epaint::{CornerRadius, Rect, Rgba, pos2, vec2};
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
