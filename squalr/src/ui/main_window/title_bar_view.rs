@@ -64,9 +64,9 @@ impl eframe::egui::Widget for TitleBarView {
         // Create the app icon / name.
         bar_ui.add_space(8.0);
 
-        let [texture_width, texture_height] = self.theme.icon_library.icon_handle_app.size();
+        let [texture_width, texture_height] = self.theme.icon_library.icon_handle_logo.size();
         let (_id, app_icon_rect) = bar_ui.allocate_space(vec2(texture_width as f32, texture_height as f32));
-        IconDraw::draw(&bar_ui, app_icon_rect, &self.theme.icon_library.icon_handle_app);
+        IconDraw::draw(&bar_ui, app_icon_rect, &self.theme.icon_library.icon_handle_logo);
 
         bar_ui.label(RichText::new(&self.title).color(self.theme.foreground));
 

@@ -1,13 +1,13 @@
 use eframe::egui::{Context, TextureOptions};
 use epaint::{ColorImage, TextureHandle};
 
-static ICON_APP: &[u8] = include_bytes!("../../images/window/app_icon.png");
-static ICON_CLOSE: &[u8] = include_bytes!("../../images/window/close.png");
-static ICON_MINIMIZE: &[u8] = include_bytes!("../../images/window/minimize.png");
-static ICON_MAXIMIZE: &[u8] = include_bytes!("../../images/window/maximize.png");
+static ICON_LOGO: &[u8] = include_bytes!("../../images/app/app_icon_small.png");
+static ICON_CLOSE: &[u8] = include_bytes!("../../images/app/close.png");
+static ICON_MINIMIZE: &[u8] = include_bytes!("../../images/app/minimize.png");
+static ICON_MAXIMIZE: &[u8] = include_bytes!("../../images/app/maximize.png");
 
 pub struct IconLibrary {
-    pub icon_handle_app: TextureHandle,
+    pub icon_handle_logo: TextureHandle,
     pub icon_handle_close: TextureHandle,
     pub icon_handle_minimize: TextureHandle,
     pub icon_handle_maximize: TextureHandle,
@@ -15,13 +15,13 @@ pub struct IconLibrary {
 
 impl IconLibrary {
     pub fn new(context: &Context) -> Self {
-        let icon_handle_app = Self::load_icon(context, ICON_APP);
+        let icon_handle_logo = Self::load_icon(context, ICON_LOGO);
         let icon_handle_close = Self::load_icon(context, ICON_CLOSE);
         let icon_handle_minimize = Self::load_icon(context, ICON_MINIMIZE);
         let icon_handle_maximize = Self::load_icon(context, ICON_MAXIMIZE);
 
         Self {
-            icon_handle_app,
+            icon_handle_logo,
             icon_handle_close,
             icon_handle_minimize,
             icon_handle_maximize,

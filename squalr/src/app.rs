@@ -168,10 +168,9 @@ impl eframe::App for App {
         _frame: &mut eframe::Frame,
     ) {
         let app_frame = Frame::new()
-            .fill(context.style().visuals.window_fill())
             .corner_radius(self.corner_radius)
             .stroke(context.style().visuals.widgets.noninteractive.fg_stroke)
-            .outer_margin(1.0);
+            .outer_margin(2.0);
         let resize_thickness = self.resize_thickness;
 
         CentralPanel::default()
