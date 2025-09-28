@@ -1,29 +1,24 @@
-use crate::ui::{theme::Theme, widgets::docking::docked_window_view::DockedWindowView};
+use crate::ui::theme::Theme;
 use eframe::egui::{Context, Response, Sense, Ui, Widget};
 use epaint::CornerRadius;
 use std::rc::Rc;
 
 #[derive(Clone)]
-pub struct DockRootView {
+pub struct DockedWindowContentView {
     _context: Context,
     theme: Rc<Theme>,
-    windows: Vec<DockedWindowView>,
 }
 
-impl DockRootView {
+impl DockedWindowContentView {
     pub fn new(
         context: Context,
         theme: Rc<Theme>,
     ) -> Self {
-        Self {
-            _context: context,
-            theme,
-            windows: vec![],
-        }
+        Self { _context: context, theme }
     }
 }
 
-impl Widget for DockRootView {
+impl Widget for DockedWindowContentView {
     fn ui(
         self,
         user_interface: &mut Ui,
