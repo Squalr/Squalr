@@ -9,14 +9,14 @@ use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::models::docking::settings::dockable_window_settings::DockSettingsConfig;
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
-use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
-use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use std::sync::Arc;
 use std::sync::RwLock;
 

@@ -1,14 +1,21 @@
+use crate::models::docking::docking_manager::DockingManager;
+use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
 use crate::ui::widgets::docking::docked_window_content_view::DockedWindowContentView;
 use crate::ui::widgets::docking::docked_window_footer_view::DockedWindowFooterView;
 use crate::ui::{theme::Theme, widgets::docking::docked_window_title_bar_view::DockedWindowTitleBarView};
 use eframe::egui::{Align, Context, Layout, Response, Ui, Widget};
 use epaint::CornerRadius;
+use epaint::mutex::RwLock;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct DockedWindowView {
+    _engine_execution_context: Arc<EngineExecutionContext>,
     _context: Context,
     _theme: Rc<Theme>,
+    docking_manager: Arc<RwLock<DockingManager>>,
     docked_window_title_bar_view: DockedWindowTitleBarView,
     docked_window_content_view: DockedWindowContentView,
     docked_window_footer_view: DockedWindowFooterView,
@@ -16,8 +23,10 @@ pub struct DockedWindowView {
 
 impl DockedWindowView {
     pub fn new(
+        engine_execution_context: Arc<EngineExecutionContext>,
         context: Context,
         theme: Rc<Theme>,
+        docking_manager: Arc<RwLock<DockingManager>>,
         title: String,
         corner_radius: CornerRadius,
     ) -> Self {
@@ -26,8 +35,10 @@ impl DockedWindowView {
         let docked_window_footer_view = DockedWindowFooterView::new(context.clone(), theme.clone(), corner_radius, 28.0);
 
         Self {
+            _engine_execution_context: engine_execution_context,
             _context: context,
             _theme: theme,
+            docking_manager,
             docked_window_title_bar_view,
             docked_window_content_view,
             docked_window_footer_view,

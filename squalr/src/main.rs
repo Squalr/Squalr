@@ -43,12 +43,21 @@ pub fn main() {
         "Squalr",
         native_options,
         Box::new(|creation_context| {
-            let app = App::new(&creation_context.egui_ctx, squalr_engine.get_dependency_container(), "Squalr".to_string());
+            if let Some(engine_execution_context) = squalr_engine.get_engine_execution_context() {
+                let app = App::new(
+                    &creation_context.egui_ctx,
+                    engine_execution_context.clone(),
+                    squalr_engine.get_dependency_container(),
+                    "Squalr".to_string(),
+                );
 
-            // Now that gui dependencies are registered, start the engine fully.
-            squalr_engine.initialize();
+                // Now that gui dependencies are registered, start the engine fully.
+                squalr_engine.initialize();
 
-            Ok(Box::new(app))
+                Ok(Box::new(app))
+            } else {
+                Err("Failed to start Squalr engine!".into())
+            }
         }),
     ) {
         Ok(_) => {}
