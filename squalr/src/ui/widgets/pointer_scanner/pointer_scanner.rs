@@ -1,6 +1,5 @@
 use crate::ui::theme::Theme;
 use eframe::egui::{Context, Response, Sense, Ui, Widget};
-use epaint::CornerRadius;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use std::{rc::Rc, sync::Arc};
 

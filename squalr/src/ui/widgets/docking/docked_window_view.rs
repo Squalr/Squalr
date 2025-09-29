@@ -1,7 +1,8 @@
-use crate::models::docking::docking_manager::DockingManager;
+use crate::models::docking::docking_manager::{self, DockingManager};
+use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::ui::widgets::docking::docked_window_footer_view::DockedWindowFooterView;
 use crate::ui::{theme::Theme, widgets::docking::docked_window_title_bar_view::DockedWindowTitleBarView};
-use eframe::egui::{Align, Context, Layout, Response, Sense, Ui, UiBuilder, Widget};
+use eframe::egui::{Align, Context, CursorIcon, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Rect, vec2};
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use std::rc::Rc;
@@ -54,90 +55,79 @@ impl Widget for DockedWindowView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let bar_thickness = 2.0;
+        const BAR_THICKNESS: f32 = 4.0;
 
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 // Reserve the full outer rect.
                 let outer_rectangle = user_interface.available_rect_before_wrap();
+                let allocate_resize_bar = |resize_rectangle: Rect, id_suffix: &str| -> Response {
+                    let id = user_interface.id().with(&self.identifier).with(id_suffix);
+                    let response = user_interface.interact(resize_rectangle, id, Sense::drag());
 
-                // Helper: allocate + paint a bar
-                let allocate_bar = |rect: Rect, id_suffix: &str| -> Response {
-                    let id = user_interface.id().with(id_suffix);
-                    let response = user_interface.interact(rect, id, Sense::drag());
-
-                    // Paint the bar
                     user_interface
                         .painter()
-                        .rect_filled(rect, 0.0, self.theme.background_control);
+                        .rect_filled(resize_rectangle, 0.0, self.theme.background_control);
 
                     response
                 };
 
                 // Top bar.
-                let top_rectangle = Rect::from_min_max(outer_rectangle.min, outer_rectangle.min + vec2(outer_rectangle.width(), bar_thickness));
-                let top_response = allocate_bar(top_rectangle, "top_bar");
+                let top_rectangle = Rect::from_min_max(outer_rectangle.min, outer_rectangle.min + vec2(outer_rectangle.width(), BAR_THICKNESS));
+                let top_response = allocate_resize_bar(top_rectangle, "top_bar").on_hover_cursor(CursorIcon::ResizeVertical);
 
-                if top_response.drag_started() {
-                    // TODO
-                }
                 if top_response.dragged() {
-                    // TODO
-                }
-                if top_response.drag_stopped() {
-                    // TODO
+                    if let Ok(mut docking_manager) = self.docking_manager.try_write() {
+                        let drag_delta = top_response.drag_delta();
+
+                        docking_manager.adjust_window_size(&self.identifier, &DockSplitterDragDirection::Top, drag_delta.x as i32, drag_delta.y as i32);
+                    }
                 }
 
                 // Bottom bar.
-                let bottom_rectangle = Rect::from_min_max(outer_rectangle.max - vec2(outer_rectangle.width(), bar_thickness), outer_rectangle.max);
-                let bottom_response = allocate_bar(bottom_rectangle, "bottom_bar");
+                let bottom_rectangle = Rect::from_min_max(outer_rectangle.max - vec2(outer_rectangle.width(), BAR_THICKNESS), outer_rectangle.max);
+                let bottom_response = allocate_resize_bar(bottom_rectangle, "bottom_bar").on_hover_cursor(CursorIcon::ResizeVertical);
 
-                if bottom_response.drag_started() {
-                    // TODO
-                }
                 if bottom_response.dragged() {
-                    // TODO
-                }
-                if bottom_response.drag_stopped() {
-                    // TODO
+                    if let Ok(mut docking_manager) = self.docking_manager.try_write() {
+                        let drag_delta = bottom_response.drag_delta();
+
+                        docking_manager.adjust_window_size(&self.identifier, &DockSplitterDragDirection::Bottom, drag_delta.x as i32, drag_delta.y as i32);
+                    }
                 }
 
                 // Left bar.
                 let left_rectangle = Rect::from_min_max(
-                    outer_rectangle.min + vec2(0.0, bar_thickness),
-                    outer_rectangle.max - vec2(outer_rectangle.width() - bar_thickness, bar_thickness),
+                    outer_rectangle.min + vec2(0.0, BAR_THICKNESS),
+                    outer_rectangle.max - vec2(outer_rectangle.width() - BAR_THICKNESS, BAR_THICKNESS),
                 );
-                let left_resposne = allocate_bar(left_rectangle, "left_bar");
+                let left_resposne = allocate_resize_bar(left_rectangle, "left_bar").on_hover_cursor(CursorIcon::ResizeHorizontal);
 
-                if left_resposne.drag_started() {
-                    // TODO
-                }
                 if left_resposne.dragged() {
-                    // TODO
-                }
-                if left_resposne.drag_stopped() {
-                    // TODO
+                    if let Ok(mut docking_manager) = self.docking_manager.try_write() {
+                        let drag_delta = left_resposne.drag_delta();
+
+                        docking_manager.adjust_window_size(&self.identifier, &DockSplitterDragDirection::Left, drag_delta.x as i32, drag_delta.y as i32);
+                    }
                 }
 
                 // Right bar.
                 let right_rectangle = Rect::from_min_max(
-                    outer_rectangle.max - vec2(bar_thickness, outer_rectangle.height() - bar_thickness),
-                    outer_rectangle.max - vec2(0.0, bar_thickness),
+                    outer_rectangle.max - vec2(BAR_THICKNESS, outer_rectangle.height() - BAR_THICKNESS),
+                    outer_rectangle.max - vec2(0.0, BAR_THICKNESS),
                 );
-                let right_response = allocate_bar(right_rectangle, "right_bar");
+                let right_response = allocate_resize_bar(right_rectangle, "right_bar").on_hover_cursor(CursorIcon::ResizeHorizontal);
 
-                if right_response.drag_started() {
-                    // TODO
-                }
                 if right_response.dragged() {
-                    // TODO
-                }
-                if right_response.drag_stopped() {
-                    // TODO
+                    if let Ok(mut docking_manager) = self.docking_manager.try_write() {
+                        let drag_delta = right_response.drag_delta();
+
+                        docking_manager.adjust_window_size(&self.identifier, &DockSplitterDragDirection::Right, drag_delta.x as i32, drag_delta.y as i32);
+                    }
                 }
 
                 // Inner rect (content area inset by bars).
-                let inner_rectangle = outer_rectangle.shrink(bar_thickness);
+                let inner_rectangle = outer_rectangle.shrink(BAR_THICKNESS);
                 let builder = UiBuilder::new()
                     .max_rect(inner_rectangle)
                     .layout(Layout::top_down(Align::Min));
