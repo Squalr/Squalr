@@ -3,7 +3,7 @@ use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::theme::Theme;
 use crate::ui::widgets::controls::button::Button;
 use eframe::egui::{Align, Context, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, pos2};
-use epaint::{CornerRadius, vec2};
+use epaint::{Color32, CornerRadius, vec2};
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
@@ -83,7 +83,7 @@ impl eframe::egui::Widget for DockedWindowTitleBarView {
             let button_size = vec2(36.0, self.height);
 
             // Close button
-            let close = ui.add_sized(button_size, Button::new_from_theme(&self.theme));
+            let close = ui.add_sized(button_size, Button::new_from_theme(&self.theme).background_color(Color32::TRANSPARENT));
             IconDraw::draw(ui, close.rect, &self.theme.icon_library.icon_handle_close);
 
             if close.clicked() {

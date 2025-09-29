@@ -3,7 +3,7 @@ use crate::ui::theme::Theme;
 use crate::ui::widgets::controls::button::Button;
 use eframe::egui::viewport::ViewportCommand;
 use eframe::egui::{Align, Context, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, pos2};
-use epaint::{CornerRadius, vec2};
+use epaint::{Color32, CornerRadius, vec2};
 use std::rc::Rc;
 
 #[derive(Clone)]
@@ -84,7 +84,7 @@ impl eframe::egui::Widget for MainTitleBarView {
             let button_size = vec2(36.0, 32.0);
 
             // Close.
-            let close = user_interface.add_sized(button_size, Button::new_from_theme(&self.theme));
+            let close = user_interface.add_sized(button_size, Button::new_from_theme(&self.theme).background_color(Color32::TRANSPARENT));
             IconDraw::draw(user_interface, close.rect, &self.theme.icon_library.icon_handle_close);
 
             if close.clicked() {
@@ -92,7 +92,7 @@ impl eframe::egui::Widget for MainTitleBarView {
             }
 
             // Maximize / Restore.
-            let max = user_interface.add_sized(button_size, Button::new_from_theme(&self.theme));
+            let max = user_interface.add_sized(button_size, Button::new_from_theme(&self.theme).background_color(Color32::TRANSPARENT));
             IconDraw::draw(user_interface, max.rect, &self.theme.icon_library.icon_handle_maximize);
 
             if max.clicked() {
@@ -104,7 +104,7 @@ impl eframe::egui::Widget for MainTitleBarView {
             }
 
             // Minimize.
-            let min = user_interface.add_sized(button_size, Button::new_from_theme(&self.theme));
+            let min = user_interface.add_sized(button_size, Button::new_from_theme(&self.theme).background_color(Color32::TRANSPARENT));
             IconDraw::draw(user_interface, min.rect, &self.theme.icon_library.icon_handle_minimize);
 
             if min.clicked() {

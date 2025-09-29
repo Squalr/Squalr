@@ -1,4 +1,4 @@
-use crate::models::docking::docking_manager::{self, DockingManager};
+use crate::models::docking::docking_manager::DockingManager;
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::ui::widgets::docking::docked_window_footer_view::DockedWindowFooterView;
 use crate::ui::{theme::Theme, widgets::docking::docked_window_title_bar_view::DockedWindowTitleBarView};
@@ -31,7 +31,7 @@ impl DockedWindowView {
         identifier: String,
     ) -> Self {
         let docked_window_title_bar_view = DockedWindowTitleBarView::new(context.clone(), theme.clone(), docking_manager.clone(), title, identifier.clone());
-        let docked_window_footer_view = DockedWindowFooterView::new(context.clone(), theme.clone());
+        let docked_window_footer_view = DockedWindowFooterView::new(context.clone(), theme.clone(), docking_manager.clone(), identifier.clone());
 
         Self {
             _engine_execution_context: engine_execution_context,
@@ -136,11 +136,23 @@ impl Widget for DockedWindowView {
                 // Title bar.
                 inner_user_interface.add(self.docked_window_title_bar_view);
 
+                let has_footer = match self.docking_manager.try_read() {
+                    Ok(docking_manager) => {
+                        docking_manager
+                            .get_sibling_tab_ids(&self.identifier, true)
+                            .len()
+                            > 1
+                    }
+                    Err(_) => false,
+                };
+
                 // Content (minus footer).
                 let mut content_rect = inner_user_interface.available_rect_before_wrap();
                 let footer_height = self.docked_window_footer_view.get_height();
 
-                content_rect.max.y -= footer_height;
+                if has_footer {
+                    content_rect.max.y -= footer_height;
+                }
 
                 let content_response = inner_user_interface.allocate_rect(content_rect, Sense::hover());
                 let mut content_ui = inner_user_interface.new_child(
@@ -152,7 +164,9 @@ impl Widget for DockedWindowView {
                 (self.content)(&mut content_ui);
 
                 // Footer.
-                inner_user_interface.add(self.docked_window_footer_view);
+                if has_footer {
+                    inner_user_interface.add(self.docked_window_footer_view);
+                }
             })
             .response;
 
