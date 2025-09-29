@@ -9,6 +9,7 @@ edition = "2024"
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
 eframe = ">=0.32.3"
+env_logger = ">=0.11.8"
 epaint = ">=0.32.3"
 image = ">=0.25.8"
 log = ">=0.4.27"

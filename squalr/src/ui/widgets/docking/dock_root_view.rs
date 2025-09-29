@@ -2,8 +2,8 @@ use crate::{
     models::docking::docking_manager::DockingManager,
     ui::{theme::Theme, widgets::docking::docked_window_view::DockedWindowView},
 };
-use eframe::egui::{Align, Context, Layout, Response, Sense, Ui, UiBuilder, Widget};
-use epaint::CornerRadius;
+use eframe::egui::{Context, Layout, Response, Sense, Ui, UiBuilder, Widget};
+use epaint::{CornerRadius, Rect, pos2, vec2};
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use std::{
     rc::Rc,
@@ -42,32 +42,41 @@ impl Widget for DockRootView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (rect, response) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::empty());
+        let (available_size_rect, response) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::empty());
 
         // Background.
         user_interface
             .painter()
-            .rect_filled(rect, CornerRadius::ZERO, self.theme.hex_green);
+            .rect_filled(available_size_rect, CornerRadius::ZERO, self.theme.hex_green);
 
         if let Ok(mut docking_manager) = self.docking_manager.try_write() {
             docking_manager.prepare_for_presentation();
+            docking_manager
+                .get_main_window_layout_mut()
+                .set_available_size(available_size_rect.width(), available_size_rect.height());
+        }
 
-            let builder = UiBuilder::new()
-                .max_rect(rect)
-                .layout(Layout::left_to_right(Align::Min));
-            let mut child_user_interface = user_interface.new_child(builder);
+        for window in &self.windows {
+            let window_identifier = window.get_identifier();
 
-            for window in self.windows {
-                let window_identifier = window.get_identifier();
-
-                // Find bounding rectangle.
-                if let Some((x, y, w, h)) = docking_manager.find_window_rect(window_identifier) {
-                    let found_active_tab_id = docking_manager.get_active_tab(window_identifier);
-                    let siblings = {
-                        let visible_siblings = docking_manager.get_sibling_tab_ids(window_identifier, true);
-                        if visible_siblings.len() == 1 { vec![] } else { visible_siblings }
-                    };
+            let window_rect = {
+                if let Ok(docking_manager) = self.docking_manager.try_read() {
+                    docking_manager
+                        .find_window_rect(window_identifier)
+                        .map(|(x, y, w, h)| {
+                            let offset = available_size_rect.min;
+                            Rect::from_min_size(pos2(offset.x + x as f32, offset.y + y as f32), vec2(w as f32, h as f32))
+                        })
+                } else {
+                    None
                 }
+            };
+
+            if let Some(window_rect) = window_rect {
+                let builder = UiBuilder::new().max_rect(window_rect);
+                let mut child_ui = user_interface.new_child(builder);
+
+                window.clone().ui(&mut child_ui);
             }
         }
 

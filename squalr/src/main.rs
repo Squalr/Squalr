@@ -5,12 +5,16 @@ mod ui;
 use app::App;
 use eframe::NativeOptions;
 use eframe::egui::{IconData, ViewportBuilder};
+use env_logger::Builder;
+use log::LevelFilter;
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
 
 static ICON_APP: &[u8] = include_bytes!("../images/app/app_icon.png");
 
 pub fn main() {
+    Builder::new().filter_level(LevelFilter::Debug).init();
+
     // Create a standalone engine (same process for gui and engine).
     let mut squalr_engine = match SqualrEngine::new(EngineMode::Standalone) {
         Ok(squalr_engine) => squalr_engine,

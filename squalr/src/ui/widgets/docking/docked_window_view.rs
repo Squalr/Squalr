@@ -1,4 +1,4 @@
-use crate::models::docking::docking_manager::DockingManager;
+use crate::models::docking::docking_manager::{self, DockingManager};
 use crate::ui::widgets::docking::docked_window_footer_view::DockedWindowFooterView;
 use crate::ui::{theme::Theme, widgets::docking::docked_window_title_bar_view::DockedWindowTitleBarView};
 use eframe::egui::{Align, Context, Layout, Response, Ui, Widget};
@@ -24,11 +24,10 @@ impl DockedWindowView {
         context: Context,
         theme: Rc<Theme>,
         docking_manager: Arc<RwLock<DockingManager>>,
-        title: String,
         content: Arc<dyn Fn(&mut Ui) -> Response>,
         identifier: String,
     ) -> Self {
-        let docked_window_title_bar_view = DockedWindowTitleBarView::new(context.clone(), theme.clone(), title);
+        let docked_window_title_bar_view = DockedWindowTitleBarView::new(context.clone(), theme.clone(), docking_manager.clone(), identifier.clone());
         let docked_window_footer_view = DockedWindowFooterView::new(context.clone(), theme.clone());
 
         Self {
@@ -53,12 +52,9 @@ impl Widget for DockedWindowView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let content = self.content.clone();
-
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 user_interface.add(self.docked_window_title_bar_view);
-                content.ui(user_interface);
                 (self.content)(user_interface);
                 user_interface.add(self.docked_window_footer_view);
             })

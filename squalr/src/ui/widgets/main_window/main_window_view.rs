@@ -50,7 +50,6 @@ impl MainWindowView {
             context.clone(),
             theme.clone(),
             docking_manager.clone(),
-            "Settings".to_string(),
             Arc::new(move |user_interface| {
                 SettingsView::new(
                     engine_execution_context_for_settings.clone(),
