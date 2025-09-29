@@ -1,12 +1,17 @@
+use crate::models::docking::docking_manager::DockingManager;
+use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
 use crate::ui::theme::Theme;
 use crate::ui::widgets::docking::dock_root_view::DockRootView;
+use crate::ui::widgets::docking::docked_window_view::DockedWindowView;
 use crate::ui::widgets::main_window::main_footer_view::MainFooterView;
 use crate::ui::widgets::main_window::main_title_bar_view::MainTitleBarView;
 use crate::ui::widgets::main_window::main_toolbar_view::MainToolbarView;
+use crate::ui::widgets::settings::settings_view::SettingsView;
 use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget};
 use epaint::CornerRadius;
 use epaint::{Rect, pos2};
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use std::sync::RwLock;
 use std::{rc::Rc, sync::Arc};
 
 #[derive(Clone)]
@@ -31,7 +36,40 @@ impl MainWindowView {
     ) -> Self {
         let main_title_bar_view = MainTitleBarView::new(context.clone(), theme.clone(), corner_radius, 32.0, title);
         let main_toolbar_view = MainToolbarView::new(context.clone(), theme.clone(), 32.0);
-        let dock_root_view = DockRootView::new(engine_execution_context.clone(), context.clone(), theme.clone());
+
+        // Create built in docked windows.
+        let main_dock_root = DockableWindowSettings::get_dock_layout_settings();
+        let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));
+
+        let engine_execution_context_for_settings = engine_execution_context.clone();
+        let context_for_settings = context.clone();
+        let theme_for_settings = theme.clone();
+
+        let settings = DockedWindowView::new(
+            engine_execution_context.clone(),
+            context.clone(),
+            theme.clone(),
+            docking_manager.clone(),
+            "Settings".to_string(),
+            Arc::new(move |user_interface| {
+                SettingsView::new(
+                    engine_execution_context_for_settings.clone(),
+                    context_for_settings.clone(),
+                    theme_for_settings.clone(),
+                )
+                .ui(user_interface)
+            }),
+            "settings".to_string(),
+        );
+
+        let dock_root_view = DockRootView::new(
+            engine_execution_context.clone(),
+            context.clone(),
+            theme.clone(),
+            docking_manager,
+            vec![settings],
+        );
+
         let main_footer_view = MainFooterView::new(context.clone(), theme.clone(), corner_radius, 28.0);
         let resize_thickness = 4.0;
 

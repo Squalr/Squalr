@@ -55,32 +55,32 @@ impl eframe::egui::Widget for MainTitleBarView {
         let builder = UiBuilder::new()
             .max_rect(rect)
             .layout(Layout::left_to_right(Align::Center));
-        let mut bar_ui = user_interface.new_child(builder);
+        let mut child_user_interface = user_interface.new_child(builder);
         let mut buttons_rect: Option<Rect> = None;
 
         // Hard-clip to the titlebar.
-        bar_ui.set_clip_rect(rect);
+        child_user_interface.set_clip_rect(rect);
 
         // Create the app icon / name.
-        bar_ui.add_space(8.0);
+        child_user_interface.add_space(8.0);
 
         let [texture_width, texture_height] = self.theme.icon_library.icon_handle_logo.size();
-        let (_id, app_icon_rect) = bar_ui.allocate_space(vec2(texture_width as f32, texture_height as f32));
-        IconDraw::draw(&bar_ui, app_icon_rect, &self.theme.icon_library.icon_handle_logo);
+        let (_id, app_icon_rect) = child_user_interface.allocate_space(vec2(texture_width as f32, texture_height as f32));
+        IconDraw::draw(&child_user_interface, app_icon_rect, &self.theme.icon_library.icon_handle_logo);
 
-        bar_ui.add_space(4.0);
+        child_user_interface.add_space(4.0);
 
-        bar_ui.label(
+        child_user_interface.label(
             RichText::new(&self.title)
                 .font(self.theme.font_library.font_noto_sans.font_window_title.clone())
                 .color(self.theme.foreground),
         );
 
         // Push the rest (buttons) to the far right within the same row.
-        bar_ui.add_space(bar_ui.available_width());
+        child_user_interface.add_space(child_user_interface.available_width());
 
         // Create the buttons right-to-left.
-        bar_ui.with_layout(Layout::right_to_left(Align::Center), |user_interface| {
+        child_user_interface.with_layout(Layout::right_to_left(Align::Center), |user_interface| {
             let button_size = vec2(36.0, 32.0);
 
             // Close.

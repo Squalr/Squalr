@@ -1,14 +1,10 @@
 use crate::models::docking::docking_manager::DockingManager;
-use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
-use crate::ui::widgets::docking::docked_window_content_view::DockedWindowContentView;
 use crate::ui::widgets::docking::docked_window_footer_view::DockedWindowFooterView;
 use crate::ui::{theme::Theme, widgets::docking::docked_window_title_bar_view::DockedWindowTitleBarView};
 use eframe::egui::{Align, Context, Layout, Response, Ui, Widget};
-use epaint::CornerRadius;
-use epaint::mutex::RwLock;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
 pub struct DockedWindowView {
@@ -17,8 +13,9 @@ pub struct DockedWindowView {
     _theme: Rc<Theme>,
     docking_manager: Arc<RwLock<DockingManager>>,
     docked_window_title_bar_view: DockedWindowTitleBarView,
-    docked_window_content_view: DockedWindowContentView,
+    content: Arc<dyn Fn(&mut Ui) -> Response>,
     docked_window_footer_view: DockedWindowFooterView,
+    identifier: String,
 }
 
 impl DockedWindowView {
@@ -28,11 +25,11 @@ impl DockedWindowView {
         theme: Rc<Theme>,
         docking_manager: Arc<RwLock<DockingManager>>,
         title: String,
-        corner_radius: CornerRadius,
+        content: Arc<dyn Fn(&mut Ui) -> Response>,
+        identifier: String,
     ) -> Self {
-        let docked_window_title_bar_view = DockedWindowTitleBarView::new(context.clone(), theme.clone(), corner_radius, 32.0, title);
-        let docked_window_content_view = DockedWindowContentView::new(context.clone(), theme.clone());
-        let docked_window_footer_view = DockedWindowFooterView::new(context.clone(), theme.clone(), corner_radius, 28.0);
+        let docked_window_title_bar_view = DockedWindowTitleBarView::new(context.clone(), theme.clone(), title);
+        let docked_window_footer_view = DockedWindowFooterView::new(context.clone(), theme.clone());
 
         Self {
             _engine_execution_context: engine_execution_context,
@@ -40,9 +37,14 @@ impl DockedWindowView {
             _theme: theme,
             docking_manager,
             docked_window_title_bar_view,
-            docked_window_content_view,
+            content,
             docked_window_footer_view,
+            identifier,
         }
+    }
+
+    pub fn get_identifier(&self) -> &str {
+        &self.identifier
     }
 }
 
@@ -51,16 +53,13 @@ impl Widget for DockedWindowView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        let content = self.content.clone();
+
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 user_interface.add(self.docked_window_title_bar_view);
-                user_interface.add_sized(
-                    [
-                        user_interface.available_width(),
-                        user_interface.available_height() - self.docked_window_footer_view.get_height(),
-                    ],
-                    self.docked_window_content_view,
-                );
+                content.ui(user_interface);
+                (self.content)(user_interface);
                 user_interface.add(self.docked_window_footer_view);
             })
             .response;
