@@ -58,6 +58,15 @@ impl Widget for DockRootView {
 
         for window in &self.windows {
             let window_identifier = window.get_identifier();
+            let active_tab_id = match self.docking_manager.try_read() {
+                Ok(docking_manager) => docking_manager.get_active_tab(&window_identifier),
+                Err(_) => String::new(),
+            };
+
+            // We only need to render the active tab in windows that share the same space.
+            if active_tab_id != window_identifier {
+                continue;
+            }
 
             let window_rect = {
                 if let Ok(docking_manager) = self.docking_manager.try_read() {

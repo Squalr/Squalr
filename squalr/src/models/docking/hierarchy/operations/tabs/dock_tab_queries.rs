@@ -8,13 +8,13 @@ impl DockNode {
     ) -> String {
         // Find the path to this window.
         let path = match self.find_path_to_window_id(window_id) {
-            Some(p) => p,
+            Some(path) => path,
             None => return String::new(),
         };
 
-        // If the path is empty, there's no parent => return fallback.
+        // If the path is empty, there's no parent => return the window itself.
         if path.is_empty() {
-            return String::new();
+            return window_id.to_string();
         }
 
         // Everything except the last index is the parent path.
@@ -27,8 +27,8 @@ impl DockNode {
             }
         }
 
-        // No active tab found.
-        String::new()
+        // No active tab found, fall back to the window itself.
+        return window_id.to_string();
     }
 
     /// Given a `window_id`, this method determines the list of sibling tabs.
