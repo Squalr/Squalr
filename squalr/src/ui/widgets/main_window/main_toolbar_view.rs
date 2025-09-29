@@ -80,17 +80,17 @@ impl Widget for MainToolbarView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::hover());
+        let (available_size_rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::hover());
 
         // Background strip (matches your Theme usage).
         user_interface
             .painter()
-            .rect_filled(rect, CornerRadius::ZERO, self.theme.background_primary);
+            .rect_filled(available_size_rect, CornerRadius::ZERO, self.theme.background_primary);
 
         // Compose the menu bar within this space.
         let bar = ToolbarView::new(self.theme.clone(), self.height, &self.menu);
 
-        user_interface.put(rect, bar);
+        user_interface.put(available_size_rect, bar);
 
         response
     }

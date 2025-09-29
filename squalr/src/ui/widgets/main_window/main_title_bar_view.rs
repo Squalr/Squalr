@@ -38,10 +38,10 @@ impl eframe::egui::Widget for MainTitleBarView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), self.height), Sense::empty());
+        let (available_size_rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), self.height), Sense::empty());
 
         user_interface.painter().rect_filled(
-            rect,
+            available_size_rect,
             CornerRadius {
                 nw: self.corner_radius.nw,
                 ne: self.corner_radius.ne,
@@ -53,13 +53,13 @@ impl eframe::egui::Widget for MainTitleBarView {
 
         // Create a child ui constrained to the title bar.
         let builder = UiBuilder::new()
-            .max_rect(rect)
+            .max_rect(available_size_rect)
             .layout(Layout::left_to_right(Align::Center));
         let mut child_user_interface = user_interface.new_child(builder);
         let mut buttons_rect: Option<Rect> = None;
 
         // Hard-clip to the titlebar.
-        child_user_interface.set_clip_rect(rect);
+        child_user_interface.set_clip_rect(available_size_rect);
 
         // Create the app icon / name.
         child_user_interface.add_space(8.0);
@@ -115,8 +115,10 @@ impl eframe::egui::Widget for MainTitleBarView {
         });
 
         // Drag area = everything left of the buttons, inside the titlebar rect.
-        let right_edge = buttons_rect.map(|r| r.min.x).unwrap_or(rect.max.x);
-        let drag_rect = Rect::from_min_max(rect.min, pos2(right_edge, rect.max.y));
+        let right_edge = buttons_rect
+            .map(|r| r.min.x)
+            .unwrap_or(available_size_rect.max.x);
+        let drag_rect = Rect::from_min_max(available_size_rect.min, pos2(right_edge, available_size_rect.max.y));
         let drag = user_interface.interact(drag_rect, Id::new("titlebar"), Sense::click_and_drag());
 
         if drag.drag_started() {

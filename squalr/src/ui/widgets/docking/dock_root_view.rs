@@ -47,7 +47,7 @@ impl Widget for DockRootView {
         // Background.
         user_interface
             .painter()
-            .rect_filled(available_size_rect, CornerRadius::ZERO, self.theme.hex_green);
+            .rect_filled(available_size_rect, CornerRadius::ZERO, self.theme.background_panel);
 
         if let Ok(mut docking_manager) = self.docking_manager.try_write() {
             docking_manager.prepare_for_presentation();
@@ -74,9 +74,9 @@ impl Widget for DockRootView {
 
             if let Some(window_rect) = window_rect {
                 let builder = UiBuilder::new().max_rect(window_rect);
-                let mut child_ui = user_interface.new_child(builder);
+                let mut child_user_interface = user_interface.new_child(builder);
 
-                window.clone().ui(&mut child_ui);
+                window.clone().ui(&mut child_user_interface);
             }
         }
 

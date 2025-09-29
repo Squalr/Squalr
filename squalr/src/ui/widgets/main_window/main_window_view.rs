@@ -63,6 +63,7 @@ impl MainWindowView {
                 )
                 .ui(user_interface)
             }),
+            "Output".to_string(),
             "output".to_string(),
         );
 
@@ -82,6 +83,7 @@ impl MainWindowView {
                 )
                 .ui(user_interface)
             }),
+            "Settings".to_string(),
             "settings".to_string(),
         );
 
@@ -101,6 +103,7 @@ impl MainWindowView {
                 )
                 .ui(user_interface)
             }),
+            "Struct Viewer".to_string(),
             "struct_viewer".to_string(),
         );
 
@@ -120,6 +123,7 @@ impl MainWindowView {
                 )
                 .ui(user_interface)
             }),
+            "Project Explorer".to_string(),
             "project_explorer".to_string(),
         );
 
@@ -139,6 +143,7 @@ impl MainWindowView {
                 )
                 .ui(user_interface)
             }),
+            "Process Selector".to_string(),
             "process_selector".to_string(),
         );
 
@@ -158,6 +163,7 @@ impl MainWindowView {
                 )
                 .ui(user_interface)
             }),
+            "Element Scanner".to_string(),
             "element_scanner".to_string(),
         );
 
@@ -177,6 +183,7 @@ impl MainWindowView {
                 )
                 .ui(user_interface)
             }),
+            "Pointer Scanner".to_string(),
             "pointer_scanner".to_string(),
         );
 

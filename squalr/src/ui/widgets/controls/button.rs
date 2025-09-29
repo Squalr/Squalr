@@ -39,12 +39,12 @@ impl<'lifetime> Widget for Button<'lifetime> {
         user_interface: &mut Ui,
     ) -> Response {
         let sense = if self.disabled { Sense::hover() } else { Sense::click() };
-        let (rect, mut response) = user_interface.allocate_exact_size(user_interface.available_size(), sense);
+        let (available_size_rect, mut response) = user_interface.allocate_exact_size(user_interface.available_size(), sense);
 
         // StateLayer compose & paint. This is an overlay to show the hover/focus effect.
         StateLayer {
-            bounds_min: rect.min,
-            bounds_max: rect.max,
+            bounds_min: available_size_rect.min,
+            bounds_max: available_size_rect.max,
             enabled: !self.disabled,
             pressed: response.is_pointer_button_down_on(),
             has_hover: response.hovered(),

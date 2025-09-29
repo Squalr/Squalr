@@ -34,12 +34,12 @@ impl Widget for DockedWindowFooterView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::empty());
+        let (available_size_rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::empty());
 
         // Background.
         user_interface
             .painter()
-            .rect_filled(rect, CornerRadius::ZERO, self.theme.border_blue);
+            .rect_filled(available_size_rect, CornerRadius::ZERO, self.theme.border_blue);
 
         response
     }

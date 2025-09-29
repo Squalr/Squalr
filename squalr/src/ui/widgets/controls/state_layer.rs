@@ -25,13 +25,13 @@ impl Widget for StateLayer {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let rect = Rect {
+        let bounds_rect = Rect {
             min: self.bounds_min,
             max: self.bounds_max,
         };
-        let response = user_interface.interact(rect, user_interface.id().with("state_layer"), Sense::hover());
+        let response = user_interface.interact(bounds_rect, user_interface.id().with("state_layer"), Sense::hover());
 
-        if !user_interface.is_rect_visible(rect) {
+        if !user_interface.is_rect_visible(bounds_rect) {
             return response;
         }
 
@@ -47,15 +47,18 @@ impl Widget for StateLayer {
         // Background
         user_interface
             .painter()
-            .rect_filled(rect, self.corner_radius, fill);
+            .rect_filled(bounds_rect, self.corner_radius, fill);
 
         // Border
         if self.border_width > 0.0 {
             let border_color = if self.has_focus { self.border_color_focused } else { self.border_color };
 
-            user_interface
-                .painter()
-                .rect_stroke(rect, self.corner_radius, Stroke::new(self.border_width, border_color), StrokeKind::Inside);
+            user_interface.painter().rect_stroke(
+                bounds_rect,
+                self.corner_radius,
+                Stroke::new(self.border_width, border_color),
+                StrokeKind::Inside,
+            );
         }
 
         response

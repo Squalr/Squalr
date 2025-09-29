@@ -32,11 +32,6 @@ impl Widget for ProcessSelectorView {
     ) -> Response {
         let (available_size_rect, response) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::empty());
 
-        // Background.
-        user_interface
-            .painter()
-            .rect_filled(available_size_rect, CornerRadius::ZERO, self.theme.background_control);
-
         response
     }
 }
