@@ -5,13 +5,13 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use std::{rc::Rc, sync::Arc};
 
 #[derive(Clone)]
-pub struct SettingsView {
+pub struct ProjectExplorerView {
     _engine_execution_context: Arc<EngineExecutionContext>,
     _context: Context,
     theme: Rc<Theme>,
 }
 
-impl SettingsView {
+impl ProjectExplorerView {
     pub fn new(
         engine_execution_context: Arc<EngineExecutionContext>,
         context: Context,
@@ -25,7 +25,7 @@ impl SettingsView {
     }
 }
 
-impl Widget for SettingsView {
+impl Widget for ProjectExplorerView {
     fn ui(
         self,
         user_interface: &mut Ui,

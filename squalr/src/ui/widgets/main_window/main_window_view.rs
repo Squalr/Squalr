@@ -6,6 +6,9 @@ use crate::ui::widgets::docking::docked_window_view::DockedWindowView;
 use crate::ui::widgets::main_window::main_footer_view::MainFooterView;
 use crate::ui::widgets::main_window::main_title_bar_view::MainTitleBarView;
 use crate::ui::widgets::main_window::main_toolbar_view::MainToolbarView;
+use crate::ui::widgets::output::output_view::OutputView;
+use crate::ui::widgets::process_explorer::process_explorer::ProcessExplorerView;
+use crate::ui::widgets::project_explorer::project_explorer::ProjectExplorerView;
 use crate::ui::widgets::settings::settings_view::SettingsView;
 use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget};
 use epaint::CornerRadius;
@@ -41,10 +44,28 @@ impl MainWindowView {
         let main_dock_root = DockableWindowSettings::get_dock_layout_settings();
         let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));
 
+        let engine_execution_context_for_output = engine_execution_context.clone();
+        let context_for_output = context.clone();
+        let theme_for_output = theme.clone();
+        let output = DockedWindowView::new(
+            engine_execution_context.clone(),
+            context.clone(),
+            theme.clone(),
+            docking_manager.clone(),
+            Arc::new(move |user_interface| {
+                OutputView::new(
+                    engine_execution_context_for_output.clone(),
+                    context_for_output.clone(),
+                    theme_for_output.clone(),
+                )
+                .ui(user_interface)
+            }),
+            "output".to_string(),
+        );
+
         let engine_execution_context_for_settings = engine_execution_context.clone();
         let context_for_settings = context.clone();
         let theme_for_settings = theme.clone();
-
         let settings = DockedWindowView::new(
             engine_execution_context.clone(),
             context.clone(),
@@ -61,12 +82,50 @@ impl MainWindowView {
             "settings".to_string(),
         );
 
+        let engine_execution_context_for_project_explorer = engine_execution_context.clone();
+        let context_for_project_explorer = context.clone();
+        let theme_for_project_explorer = theme.clone();
+        let project_explorer = DockedWindowView::new(
+            engine_execution_context.clone(),
+            context.clone(),
+            theme.clone(),
+            docking_manager.clone(),
+            Arc::new(move |user_interface| {
+                ProjectExplorerView::new(
+                    engine_execution_context_for_project_explorer.clone(),
+                    context_for_project_explorer.clone(),
+                    theme_for_project_explorer.clone(),
+                )
+                .ui(user_interface)
+            }),
+            "project_explorer".to_string(),
+        );
+
+        let engine_execution_context_for_process_selector = engine_execution_context.clone();
+        let context_for_process_selector = context.clone();
+        let theme_for_process_selector = theme.clone();
+        let process_selector = DockedWindowView::new(
+            engine_execution_context.clone(),
+            context.clone(),
+            theme.clone(),
+            docking_manager.clone(),
+            Arc::new(move |user_interface| {
+                ProcessExplorerView::new(
+                    engine_execution_context_for_process_selector.clone(),
+                    context_for_process_selector.clone(),
+                    theme_for_process_selector.clone(),
+                )
+                .ui(user_interface)
+            }),
+            "process_selector".to_string(),
+        );
+
         let dock_root_view = DockRootView::new(
             engine_execution_context.clone(),
             context.clone(),
             theme.clone(),
             docking_manager,
-            vec![settings],
+            vec![output, settings, project_explorer, process_selector],
         );
 
         let main_footer_view = MainFooterView::new(context.clone(), theme.clone(), corner_radius, 28.0);
