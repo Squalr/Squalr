@@ -3,13 +3,16 @@ use crate::models::docking::settings::dockable_window_settings::DockableWindowSe
 use crate::ui::theme::Theme;
 use crate::ui::widgets::docking::dock_root_view::DockRootView;
 use crate::ui::widgets::docking::docked_window_view::DockedWindowView;
+use crate::ui::widgets::element_scanner::element_scanner::ElementScannerView;
 use crate::ui::widgets::main_window::main_footer_view::MainFooterView;
 use crate::ui::widgets::main_window::main_title_bar_view::MainTitleBarView;
 use crate::ui::widgets::main_window::main_toolbar_view::MainToolbarView;
 use crate::ui::widgets::output::output_view::OutputView;
-use crate::ui::widgets::process_explorer::process_explorer::ProcessExplorerView;
+use crate::ui::widgets::pointer_scanner::pointer_scanner::PointerScannerView;
+use crate::ui::widgets::process_selector::process_selector::ProcessSelectorView;
 use crate::ui::widgets::project_explorer::project_explorer::ProjectExplorerView;
 use crate::ui::widgets::settings::settings_view::SettingsView;
+use crate::ui::widgets::struct_viewer::struct_viewer::StructViewerView;
 use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget};
 use epaint::CornerRadius;
 use epaint::{Rect, pos2};
@@ -47,7 +50,7 @@ impl MainWindowView {
         let engine_execution_context_for_output = engine_execution_context.clone();
         let context_for_output = context.clone();
         let theme_for_output = theme.clone();
-        let output = DockedWindowView::new(
+        let output_view = DockedWindowView::new(
             engine_execution_context.clone(),
             context.clone(),
             theme.clone(),
@@ -66,7 +69,7 @@ impl MainWindowView {
         let engine_execution_context_for_settings = engine_execution_context.clone();
         let context_for_settings = context.clone();
         let theme_for_settings = theme.clone();
-        let settings = DockedWindowView::new(
+        let settings_view = DockedWindowView::new(
             engine_execution_context.clone(),
             context.clone(),
             theme.clone(),
@@ -82,10 +85,29 @@ impl MainWindowView {
             "settings".to_string(),
         );
 
+        let engine_execution_context_for_struct_viewer = engine_execution_context.clone();
+        let context_for_struct_viewer = context.clone();
+        let theme_for_struct_viewer = theme.clone();
+        let struct_viewer_view = DockedWindowView::new(
+            engine_execution_context.clone(),
+            context.clone(),
+            theme.clone(),
+            docking_manager.clone(),
+            Arc::new(move |user_interface| {
+                StructViewerView::new(
+                    engine_execution_context_for_struct_viewer.clone(),
+                    context_for_struct_viewer.clone(),
+                    theme_for_struct_viewer.clone(),
+                )
+                .ui(user_interface)
+            }),
+            "struct_viewer".to_string(),
+        );
+
         let engine_execution_context_for_project_explorer = engine_execution_context.clone();
         let context_for_project_explorer = context.clone();
         let theme_for_project_explorer = theme.clone();
-        let project_explorer = DockedWindowView::new(
+        let project_explorer_view = DockedWindowView::new(
             engine_execution_context.clone(),
             context.clone(),
             theme.clone(),
@@ -104,13 +126,13 @@ impl MainWindowView {
         let engine_execution_context_for_process_selector = engine_execution_context.clone();
         let context_for_process_selector = context.clone();
         let theme_for_process_selector = theme.clone();
-        let process_selector = DockedWindowView::new(
+        let process_selector_view = DockedWindowView::new(
             engine_execution_context.clone(),
             context.clone(),
             theme.clone(),
             docking_manager.clone(),
             Arc::new(move |user_interface| {
-                ProcessExplorerView::new(
+                ProcessSelectorView::new(
                     engine_execution_context_for_process_selector.clone(),
                     context_for_process_selector.clone(),
                     theme_for_process_selector.clone(),
@@ -120,12 +142,58 @@ impl MainWindowView {
             "process_selector".to_string(),
         );
 
+        let engine_execution_context_for_element_scanner = engine_execution_context.clone();
+        let context_for_element_scanner = context.clone();
+        let theme_for_element_scanner = theme.clone();
+        let element_scanner_view = DockedWindowView::new(
+            engine_execution_context.clone(),
+            context.clone(),
+            theme.clone(),
+            docking_manager.clone(),
+            Arc::new(move |user_interface| {
+                ElementScannerView::new(
+                    engine_execution_context_for_element_scanner.clone(),
+                    context_for_element_scanner.clone(),
+                    theme_for_element_scanner.clone(),
+                )
+                .ui(user_interface)
+            }),
+            "element_scanner".to_string(),
+        );
+
+        let engine_execution_context_for_pointer_scanner = engine_execution_context.clone();
+        let context_for_pointer_scanner = context.clone();
+        let theme_for_pointer_scanner = theme.clone();
+        let pointer_scanner_view = DockedWindowView::new(
+            engine_execution_context.clone(),
+            context.clone(),
+            theme.clone(),
+            docking_manager.clone(),
+            Arc::new(move |user_interface| {
+                PointerScannerView::new(
+                    engine_execution_context_for_pointer_scanner.clone(),
+                    context_for_pointer_scanner.clone(),
+                    theme_for_pointer_scanner.clone(),
+                )
+                .ui(user_interface)
+            }),
+            "pointer_scanner".to_string(),
+        );
+
         let dock_root_view = DockRootView::new(
             engine_execution_context.clone(),
             context.clone(),
             theme.clone(),
             docking_manager,
-            vec![output, settings, project_explorer, process_selector],
+            vec![
+                output_view,
+                settings_view,
+                struct_viewer_view,
+                project_explorer_view,
+                process_selector_view,
+                element_scanner_view,
+                pointer_scanner_view,
+            ],
         );
 
         let main_footer_view = MainFooterView::new(context.clone(), theme.clone(), corner_radius, 28.0);

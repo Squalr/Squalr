@@ -5,13 +5,13 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use std::{rc::Rc, sync::Arc};
 
 #[derive(Clone)]
-pub struct ProcessExplorerView {
+pub struct ProcessSelectorView {
     _engine_execution_context: Arc<EngineExecutionContext>,
     _context: Context,
     theme: Rc<Theme>,
 }
 
-impl ProcessExplorerView {
+impl ProcessSelectorView {
     pub fn new(
         engine_execution_context: Arc<EngineExecutionContext>,
         context: Context,
@@ -25,7 +25,7 @@ impl ProcessExplorerView {
     }
 }
 
-impl Widget for ProcessExplorerView {
+impl Widget for ProcessSelectorView {
     fn ui(
         self,
         user_interface: &mut Ui,
