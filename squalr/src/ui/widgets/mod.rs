@@ -1,10 +1,2 @@
 pub mod controls;
 pub mod docking;
-pub mod element_scanner;
-pub mod main_window;
-pub mod output;
-pub mod pointer_scanner;
-pub mod process_selector;
-pub mod project_explorer;
-pub mod settings;
-pub mod struct_viewer;

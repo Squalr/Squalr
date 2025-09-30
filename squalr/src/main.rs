@@ -4,6 +4,7 @@ mod app;
 mod app_context;
 mod models;
 mod ui;
+mod views;
 
 use app::App;
 use eframe::NativeOptions;

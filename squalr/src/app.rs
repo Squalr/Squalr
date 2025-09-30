@@ -1,6 +1,6 @@
 use crate::models::docking::docking_manager::DockingManager;
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
-use crate::ui::widgets::main_window::main_window_view::MainWindowView;
+use crate::views::main_window::main_window_view::MainWindowView;
 use crate::{app_context::AppContext, ui::theme::Theme};
 use eframe::egui::{CentralPanel, Context, Frame, Visuals};
 use epaint::{CornerRadius, Rgba, vec2};
