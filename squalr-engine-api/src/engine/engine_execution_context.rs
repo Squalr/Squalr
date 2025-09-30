@@ -1,5 +1,6 @@
 use crate::commands::{engine_command::EngineCommand, engine_command_response::EngineCommandResponse};
 use crate::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
+use crate::engine::logging::file_system_logger::FileSystemLogger;
 use crate::events::engine_event::EngineEvent;
 use crate::events::engine_event::EngineEventRequest;
 use crate::events::process::process_event::ProcessEvent;
@@ -7,7 +8,6 @@ use crate::events::project::project_event::ProjectEvent;
 use crate::events::project_items::project_items_event::ProjectItemsEvent;
 use crate::events::scan_results::scan_results_event::ScanResultsEvent;
 use crate::events::trackable_task::trackable_task_event::TrackableTaskEvent;
-use squalr_engine_common::logging::file_system_logger::FileSystemLogger;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,

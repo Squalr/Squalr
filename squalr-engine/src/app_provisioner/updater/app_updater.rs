@@ -6,7 +6,7 @@ use crate::app_provisioner::operations::extract::update_operation_extract::Updat
 use crate::app_provisioner::operations::version_check::version_checker_status::VersionCheckerStatus;
 use crate::app_provisioner::operations::version_check::version_checker_task::VersionCheckerTask;
 use crate::app_provisioner::progress_tracker::ProgressTracker;
-use squalr_engine_common::file_system::file_system_utils::FileSystemUtils;
+use squalr_engine_api::utils::file_system::file_system_utils::FileSystemUtils;
 use std::{
     path::{Path, PathBuf},
     str::FromStr,

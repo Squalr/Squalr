@@ -1,4 +1,4 @@
-use crate::logging::log_dispatcher::LogDispatcher;
+use crate::{engine::logging::log_dispatcher::LogDispatcher, structures::logging::log_event::LogEvent};
 use crossbeam_channel::{Receiver, Sender};
 use log::LevelFilter;
 use log4rs::{
@@ -10,8 +10,8 @@ use std::{fs, sync::Arc, thread};
 use std::{path::PathBuf, sync::RwLock};
 
 pub struct FileSystemLogger {
-    log_event_senders: Arc<RwLock<Vec<Sender<String>>>>,
-    log_dispatcher_receiver: Receiver<String>,
+    log_event_senders: Arc<RwLock<Vec<Sender<LogEvent>>>>,
+    log_dispatcher_receiver: Receiver<LogEvent>,
 }
 
 impl FileSystemLogger {
@@ -29,20 +29,21 @@ impl FileSystemLogger {
         file_system_logger
     }
 
-    pub fn subscribe_to_logs(&self) -> Result<Receiver<String>, String> {
+    pub fn subscribe_to_logs(&self) -> Result<Receiver<LogEvent>, String> {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let mut sender_lock = self
             .log_event_senders
             .write()
             .map_err(|error| error.to_string())?;
         sender_lock.push(sender);
+
         Ok(receiver)
     }
 
     /// Starts sending events for log messages to subscribers. This should be called after everything that needs logs is initialized.
     /// For example, after the engine and GUI are initialized, that would be a good time to call this.
     pub fn start_log_event_sender(&self) {
-        let log_event_senders: Arc<RwLock<Vec<Sender<String>>>> = self.log_event_senders.clone();
+        let log_event_senders: Arc<RwLock<Vec<Sender<LogEvent>>>> = self.log_event_senders.clone();
         let log_dispatcher_receiver = self.log_dispatcher_receiver.clone();
 
         // Listen for events from the log dispatcher, then re-dispatch them to all listeners.
@@ -63,7 +64,7 @@ impl FileSystemLogger {
 
     fn initialize(
         &self,
-        log_dispatcher_sender: Sender<String>,
+        log_dispatcher_sender: Sender<LogEvent>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let log_root_dir = Self::get_log_root_path();
 

@@ -7,7 +7,6 @@ edition = "2024"
 
 [dependencies]
 squalr-engine-api = { path = "../squalr-engine-api" }
-squalr-engine-common = { path = "../squalr-engine-common" }
 bitflags = ">=2.6.0"
 libc = ">=0.2.169"
 log = { version = ">=0.4.26" }

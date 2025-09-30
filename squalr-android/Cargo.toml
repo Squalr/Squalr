@@ -12,7 +12,6 @@ crate-type = ["cdylib"]
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
 squalr-engine-architecture = { path = "../squalr-engine-architecture" }
-squalr-engine-common = { path = "../squalr-engine-common" }
 futures = ">=0.3.31"
 log = ">=0.4.27"
 rayon = ">=1.10.0"

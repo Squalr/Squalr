@@ -7,7 +7,6 @@ edition = "2024"
 
 [dependencies]
 squalr-engine-architecture = { path = "../squalr-engine-architecture" }
-squalr-engine-common = { path = "../squalr-engine-common" }
 squalr-engine-debuggers = { path = "../squalr-engine-debuggers" }
 squalr-engine-memory = { path = "../squalr-engine-memory" }
 squalr-engine-processes = { path = "../squalr-engine-processes" }

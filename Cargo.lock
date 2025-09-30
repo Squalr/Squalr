@@ -5806,6 +5806,7 @@ dependencies = [
 name = "squalr"
 version = "0.1.1"
 dependencies = [
+ "crossbeam-channel",
  "eframe",
  "env_logger",
  "epaint",
@@ -5833,7 +5834,6 @@ dependencies = [
  "squalr-engine",
  "squalr-engine-api",
  "squalr-engine-architecture",
- "squalr-engine-common",
  "structopt",
  "sysinfo",
  "winresource",
@@ -5851,7 +5851,6 @@ dependencies = [
  "shlex",
  "squalr-engine",
  "squalr-engine-api",
- "squalr-engine-common",
  "structopt",
 ]
 
@@ -5874,7 +5873,6 @@ dependencies = [
  "serde_json",
  "squalr-engine-api",
  "squalr-engine-architecture",
- "squalr-engine-common",
  "squalr-engine-debuggers",
  "squalr-engine-memory",
  "squalr-engine-processes",
@@ -5898,15 +5896,16 @@ dependencies = [
  "anyhow",
  "crossbeam-channel",
  "directories",
+ "dirs",
  "encoding",
  "encoding_rs",
  "log",
+ "log4rs",
  "num-traits",
  "rayon",
  "serde",
  "serde_json",
  "slab",
- "squalr-engine-common",
  "structopt",
  "sysinfo",
  "thiserror 2.0.16",
@@ -5919,21 +5918,6 @@ name = "squalr-engine-architecture"
 version = "0.1.1"
 dependencies = [
  "log",
- "squalr-engine-common",
-]
-
-[[package]]
-name = "squalr-engine-common"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "crossbeam-channel",
- "dirs",
- "log",
- "log4rs",
- "num-traits",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -5941,7 +5925,6 @@ name = "squalr-engine-debuggers"
 version = "0.1.1"
 dependencies = [
  "squalr-engine-api",
- "squalr-engine-common",
 ]
 
 [[package]]
@@ -5954,7 +5937,6 @@ dependencies = [
  "serde",
  "serde_json",
  "squalr-engine-api",
- "squalr-engine-common",
  "sysinfo",
  "windows-sys 0.61.1",
 ]
@@ -6002,7 +5984,6 @@ dependencies = [
  "serde_json",
  "smallvec",
  "squalr-engine-api",
- "squalr-engine-common",
  "squalr-engine-memory",
  "sysinfo",
 ]
@@ -6012,7 +5993,6 @@ name = "squalr-engine-scripting"
 version = "0.1.1"
 dependencies = [
  "squalr-engine-architecture",
- "squalr-engine-common",
  "squalr-engine-debuggers",
  "squalr-engine-memory",
  "squalr-engine-processes",
@@ -6042,7 +6022,6 @@ dependencies = [
  "shlex",
  "squalr-engine",
  "squalr-engine-api",
- "squalr-engine-common",
  "structopt",
 ]
 

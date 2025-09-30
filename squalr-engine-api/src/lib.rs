@@ -8,3 +8,4 @@ pub mod events;
 pub mod registries;
 pub mod structures;
 pub mod traits;
+pub mod utils;
