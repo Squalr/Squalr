@@ -1,1 +1,1 @@
-pub mod project_explorer;
+pub mod project_explorer_view;

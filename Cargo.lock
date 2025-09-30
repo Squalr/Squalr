@@ -5813,6 +5813,7 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "smallvec",
  "squalr-engine",
  "squalr-engine-api",
  "wasm-bindgen",

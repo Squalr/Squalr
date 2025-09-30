@@ -1,26 +1,23 @@
-use crate::ui::theme::Theme;
-use eframe::egui::{Context, Response, Sense, Ui, Widget};
+use crate::app_context::AppContext;
+use eframe::egui::{Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, vec2};
 use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct MainFooterView {
-    _context: Context,
-    theme: Rc<Theme>,
+    app_context: Rc<AppContext>,
     corner_radius: CornerRadius,
     height: f32,
 }
 
 impl MainFooterView {
     pub fn new(
-        context: Context,
-        theme: Rc<Theme>,
+        app_context: Rc<AppContext>,
         corner_radius: CornerRadius,
         height: f32,
     ) -> Self {
         Self {
-            _context: context,
-            theme,
+            app_context,
             corner_radius,
             height,
         }
@@ -37,6 +34,7 @@ impl Widget for MainFooterView {
         user_interface: &mut Ui,
     ) -> Response {
         let (available_size_rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::empty());
+        let theme = &self.app_context.theme;
 
         // Background.
         user_interface.painter().rect_filled(
@@ -47,7 +45,7 @@ impl Widget for MainFooterView {
                 sw: self.corner_radius.sw,
                 se: self.corner_radius.se,
             },
-            self.theme.border_blue,
+            theme.border_blue,
         );
 
         response

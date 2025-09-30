@@ -1,26 +1,15 @@
-use crate::ui::theme::Theme;
-use eframe::egui::{Context, Response, Sense, Ui, Widget};
-use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use std::{rc::Rc, sync::Arc};
+use crate::app_context::AppContext;
+use eframe::egui::{Response, Sense, Ui, Widget};
+use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct SettingsView {
-    _engine_execution_context: Arc<EngineExecutionContext>,
-    _context: Context,
-    theme: Rc<Theme>,
+    app_context: Rc<AppContext>,
 }
 
 impl SettingsView {
-    pub fn new(
-        engine_execution_context: Arc<EngineExecutionContext>,
-        context: Context,
-        theme: Rc<Theme>,
-    ) -> Self {
-        Self {
-            _engine_execution_context: engine_execution_context,
-            _context: context,
-            theme,
-        }
+    pub fn new(app_context: Rc<AppContext>) -> Self {
+        Self { app_context }
     }
 }
 

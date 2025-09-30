@@ -3,17 +3,17 @@ use eframe::egui::{Response, Sense, Ui, Widget};
 use std::rc::Rc;
 
 #[derive(Clone)]
-pub struct ElementScannerView {
+pub struct PointerScannerView {
     app_context: Rc<AppContext>,
 }
 
-impl ElementScannerView {
+impl PointerScannerView {
     pub fn new(app_context: Rc<AppContext>) -> Self {
         Self { app_context }
     }
 }
 
-impl Widget for ElementScannerView {
+impl Widget for PointerScannerView {
     fn ui(
         self,
         user_interface: &mut Ui,

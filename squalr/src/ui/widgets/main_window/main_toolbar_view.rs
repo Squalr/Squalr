@@ -1,26 +1,24 @@
+use crate::app_context::AppContext;
 use crate::models::toolbar::toolbar_data::ToolbarData;
 use crate::models::toolbar::toolbar_header_item_data::ToolbarHeaderItemData;
+use crate::models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData;
 use crate::ui::widgets::controls::toolbar_menu::toolbar_view::ToolbarView;
-use crate::{models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData, ui::theme::Theme};
-use eframe::egui::{Context, Response, Sense, Ui, Widget};
+use eframe::egui::{Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, vec2};
 use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct MainToolbarView {
-    _context: Context,
-    theme: Rc<Theme>,
+    app_context: Rc<AppContext>,
     height: f32,
     menu: ToolbarData,
 }
 
 impl MainToolbarView {
     pub fn new(
-        context: Context,
-        theme: Rc<Theme>,
+        app_context: Rc<AppContext>,
         height: f32,
     ) -> Self {
-        // Build your initial menu structure here (port of your Slint tree).
         let menus = vec![
             ToolbarHeaderItemData {
                 header: "File".into(),
@@ -66,12 +64,7 @@ impl MainToolbarView {
             menus,
         };
 
-        Self {
-            _context: context,
-            theme,
-            height,
-            menu,
-        }
+        Self { app_context, height, menu }
     }
 }
 
@@ -81,14 +74,15 @@ impl Widget for MainToolbarView {
         user_interface: &mut Ui,
     ) -> Response {
         let (available_size_rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::hover());
+        let theme = &self.app_context.theme;
 
         // Background strip (matches your Theme usage).
         user_interface
             .painter()
-            .rect_filled(available_size_rect, CornerRadius::ZERO, self.theme.background_primary);
+            .rect_filled(available_size_rect, CornerRadius::ZERO, theme.background_primary);
 
         // Compose the menu bar within this space.
-        let bar = ToolbarView::new(self.theme.clone(), self.height, &self.menu);
+        let bar = ToolbarView::new(theme.clone(), self.height, &self.menu);
 
         user_interface.put(available_size_rect, bar);
 

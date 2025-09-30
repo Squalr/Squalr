@@ -1,17 +1,13 @@
-use crate::models::docking::docking_manager::DockingManager;
+use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
-use crate::ui::theme::Theme;
 use crate::ui::widgets::controls::button::Button;
-use eframe::egui::{Align, Context, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, pos2};
+use eframe::egui::{Align, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, pos2};
 use epaint::{Color32, CornerRadius, vec2};
 use std::rc::Rc;
-use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
 pub struct DockedWindowTitleBarView {
-    context: Context,
-    theme: Rc<Theme>,
-    docking_manager: Arc<RwLock<DockingManager>>,
+    app_context: Rc<AppContext>,
     height: f32,
     title: String,
     identifier: String,
@@ -19,16 +15,12 @@ pub struct DockedWindowTitleBarView {
 
 impl DockedWindowTitleBarView {
     pub fn new(
-        context: Context,
-        theme: Rc<Theme>,
-        docking_manager: Arc<RwLock<DockingManager>>,
+        app_context: Rc<AppContext>,
         title: String,
         identifier: String,
     ) -> Self {
         Self {
-            context,
-            theme,
-            docking_manager,
+            app_context,
             height: 24.0,
             title,
             identifier,
@@ -42,18 +34,20 @@ impl eframe::egui::Widget for DockedWindowTitleBarView {
         user_interface: &mut Ui,
     ) -> Response {
         let (available_size_rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), self.height), Sense::click_and_drag());
+        let theme = &self.app_context.theme;
+        let docking_manager = &self.app_context.docking_manager;
 
         // Background highlight if this is the actively dragged window.
-        let background = if let Ok(docking_manager) = self.docking_manager.try_read() {
+        let background = if let Ok(docking_manager) = docking_manager.try_read() {
             /*
             if docking_manager.active_dragged_window_id() == Some(&self.identifier) {
-                self.theme.selected_border
+                theme.selected_border
             } else {
-                self.theme.background_primary
+                theme.background_primary
             }*/
-            self.theme.background_primary
+            theme.background_primary
         } else {
-            self.theme.background_primary
+            theme.background_primary
         };
         user_interface
             .painter()
@@ -72,8 +66,8 @@ impl eframe::egui::Widget for DockedWindowTitleBarView {
 
         child_user_interface.label(
             RichText::new(self.title.clone())
-                .color(self.theme.foreground)
-                .font(self.theme.font_library.font_noto_sans.font_window_title.clone()),
+                .color(theme.foreground)
+                .font(theme.font_library.font_noto_sans.font_window_title.clone()),
         );
 
         child_user_interface.add_space(child_user_interface.available_width());
@@ -83,12 +77,14 @@ impl eframe::egui::Widget for DockedWindowTitleBarView {
             let button_size = vec2(36.0, self.height);
 
             // Close button
-            let close = ui.add_sized(button_size, Button::new_from_theme(&self.theme).background_color(Color32::TRANSPARENT));
-            IconDraw::draw(ui, close.rect, &self.theme.icon_library.icon_handle_close);
+            let close = ui.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
+            IconDraw::draw(ui, close.rect, &theme.icon_library.icon_handle_close);
 
             if close.clicked() {
-                if let Ok(mut docking_manager) = self.docking_manager.write() {
-                    // docking_manager.hide(&self.identifier);
+                if let Ok(mut docking_manager) = docking_manager.try_write() {
+                    if let Some(docked_node) = docking_manager.get_node_by_id_mut(&self.identifier) {
+                        docked_node.set_visible(false);
+                    }
                 }
             }
         });
@@ -99,13 +95,13 @@ impl eframe::egui::Widget for DockedWindowTitleBarView {
 
         /*
         if drag.drag_started() {
-            if let Ok(mut docking_manager) = self.docking_manager.write() {
+            if let Ok(mut docking_manager) = docking_manager.write() {
                 docking_manager.begin_drag(&self.identifier);
             }
         }
 
         if drag.drag_released() {
-            if let Ok(mut docking_manager) = self.docking_manager.write() {
+            if let Ok(mut docking_manager) = docking_manager.write() {
                 docking_manager.end_drag(&self.identifier);
             }
         }*/

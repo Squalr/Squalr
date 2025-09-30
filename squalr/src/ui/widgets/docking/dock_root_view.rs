@@ -1,37 +1,21 @@
-use crate::{
-    models::docking::docking_manager::DockingManager,
-    ui::{theme::Theme, widgets::docking::docked_window_view::DockedWindowView},
-};
-use eframe::egui::{Context, Layout, Response, Sense, Ui, UiBuilder, Widget};
+use crate::{app_context::AppContext, ui::widgets::docking::docked_window_view::DockedWindowView};
+use eframe::egui::{Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, pos2, vec2};
-use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use std::{
-    rc::Rc,
-    sync::{Arc, RwLock},
-};
+use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct DockRootView {
-    _engine_execution_context: Arc<EngineExecutionContext>,
-    _context: Context,
-    theme: Rc<Theme>,
-    docking_manager: Arc<RwLock<DockingManager>>,
+    app_context: Rc<AppContext>,
     windows: Vec<DockedWindowView>,
 }
 
 impl DockRootView {
     pub fn new(
-        engine_execution_context: Arc<EngineExecutionContext>,
-        context: Context,
-        theme: Rc<Theme>,
-        docking_manager: Arc<RwLock<DockingManager>>,
+        app_context: Rc<AppContext>,
         built_in_windows: Vec<DockedWindowView>,
     ) -> Self {
         Self {
-            _engine_execution_context: engine_execution_context,
-            _context: context,
-            theme,
-            docking_manager,
+            app_context,
             windows: built_in_windows,
         }
     }
@@ -43,13 +27,15 @@ impl Widget for DockRootView {
         user_interface: &mut Ui,
     ) -> Response {
         let (available_size_rect, response) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::empty());
+        let theme = &self.app_context.theme;
+        let docking_manager = &self.app_context.docking_manager;
 
         // Background.
         user_interface
             .painter()
-            .rect_filled(available_size_rect, CornerRadius::ZERO, self.theme.background_panel);
+            .rect_filled(available_size_rect, CornerRadius::ZERO, theme.background_panel);
 
-        if let Ok(mut docking_manager) = self.docking_manager.try_write() {
+        if let Ok(mut docking_manager) = docking_manager.try_write() {
             docking_manager.prepare_for_presentation();
             docking_manager
                 .get_main_window_layout_mut()
@@ -58,7 +44,7 @@ impl Widget for DockRootView {
 
         for window in &self.windows {
             let window_identifier = window.get_identifier();
-            let active_tab_id = match self.docking_manager.try_read() {
+            let active_tab_id = match docking_manager.try_read() {
                 Ok(docking_manager) => docking_manager.get_active_tab(&window_identifier),
                 Err(_) => String::new(),
             };
@@ -69,7 +55,7 @@ impl Widget for DockRootView {
             }
 
             let window_rect = {
-                if let Ok(docking_manager) = self.docking_manager.try_read() {
+                if let Ok(docking_manager) = docking_manager.try_read() {
                     docking_manager
                         .find_window_rect(window_identifier)
                         .map(|(x, y, w, h)| {

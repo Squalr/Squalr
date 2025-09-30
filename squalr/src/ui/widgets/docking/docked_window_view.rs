@@ -1,19 +1,15 @@
-use crate::models::docking::docking_manager::DockingManager;
+use crate::app_context::AppContext;
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::ui::widgets::docking::docked_window_footer_view::DockedWindowFooterView;
-use crate::ui::{theme::Theme, widgets::docking::docked_window_title_bar_view::DockedWindowTitleBarView};
-use eframe::egui::{Align, Context, CursorIcon, Layout, Response, Sense, Ui, UiBuilder, Widget};
+use crate::ui::widgets::docking::docked_window_title_bar_view::DockedWindowTitleBarView;
+use eframe::egui::{Align, CursorIcon, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Rect, vec2};
-use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use std::rc::Rc;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct DockedWindowView {
-    _engine_execution_context: Arc<EngineExecutionContext>,
-    _context: Context,
-    theme: Rc<Theme>,
-    docking_manager: Arc<RwLock<DockingManager>>,
+    app_context: Rc<AppContext>,
     docked_window_title_bar_view: DockedWindowTitleBarView,
     content: Arc<dyn Fn(&mut Ui) -> Response>,
     docked_window_footer_view: DockedWindowFooterView,
@@ -22,22 +18,16 @@ pub struct DockedWindowView {
 
 impl DockedWindowView {
     pub fn new(
-        engine_execution_context: Arc<EngineExecutionContext>,
-        context: Context,
-        theme: Rc<Theme>,
-        docking_manager: Arc<RwLock<DockingManager>>,
+        app_context: Rc<AppContext>,
         content: Arc<dyn Fn(&mut Ui) -> Response>,
         title: String,
         identifier: String,
     ) -> Self {
-        let docked_window_title_bar_view = DockedWindowTitleBarView::new(context.clone(), theme.clone(), docking_manager.clone(), title, identifier.clone());
-        let docked_window_footer_view = DockedWindowFooterView::new(context.clone(), theme.clone(), docking_manager.clone(), identifier.clone());
+        let docked_window_title_bar_view = DockedWindowTitleBarView::new(app_context.clone(), title, identifier.clone());
+        let docked_window_footer_view = DockedWindowFooterView::new(app_context.clone(), identifier.clone());
 
         Self {
-            _engine_execution_context: engine_execution_context,
-            _context: context,
-            theme,
-            docking_manager,
+            app_context,
             docked_window_title_bar_view,
             content,
             docked_window_footer_view,
@@ -61,13 +51,15 @@ impl Widget for DockedWindowView {
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 // Reserve the full outer rect.
                 let outer_rectangle = user_interface.available_rect_before_wrap();
+                let theme = &self.app_context.theme;
+                let docking_manager = &self.app_context.docking_manager;
                 let allocate_resize_bar = |resize_rectangle: Rect, id_suffix: &str| -> Response {
                     let id = user_interface.id().with(&self.identifier).with(id_suffix);
                     let response = user_interface.interact(resize_rectangle, id, Sense::drag());
 
                     user_interface
                         .painter()
-                        .rect_filled(resize_rectangle, 0.0, self.theme.background_control);
+                        .rect_filled(resize_rectangle, 0.0, theme.background_control);
 
                     response
                 };
@@ -77,7 +69,7 @@ impl Widget for DockedWindowView {
                 let top_response = allocate_resize_bar(top_rectangle, "top_bar").on_hover_cursor(CursorIcon::ResizeVertical);
 
                 if top_response.dragged() {
-                    if let Ok(mut docking_manager) = self.docking_manager.try_write() {
+                    if let Ok(mut docking_manager) = docking_manager.try_write() {
                         let drag_delta = top_response.drag_delta();
 
                         docking_manager.adjust_window_size(&self.identifier, &DockSplitterDragDirection::Top, drag_delta.x as i32, drag_delta.y as i32);
@@ -89,7 +81,7 @@ impl Widget for DockedWindowView {
                 let bottom_response = allocate_resize_bar(bottom_rectangle, "bottom_bar").on_hover_cursor(CursorIcon::ResizeVertical);
 
                 if bottom_response.dragged() {
-                    if let Ok(mut docking_manager) = self.docking_manager.try_write() {
+                    if let Ok(mut docking_manager) = docking_manager.try_write() {
                         let drag_delta = bottom_response.drag_delta();
 
                         docking_manager.adjust_window_size(&self.identifier, &DockSplitterDragDirection::Bottom, drag_delta.x as i32, drag_delta.y as i32);
@@ -104,7 +96,7 @@ impl Widget for DockedWindowView {
                 let left_resposne = allocate_resize_bar(left_rectangle, "left_bar").on_hover_cursor(CursorIcon::ResizeHorizontal);
 
                 if left_resposne.dragged() {
-                    if let Ok(mut docking_manager) = self.docking_manager.try_write() {
+                    if let Ok(mut docking_manager) = docking_manager.try_write() {
                         let drag_delta = left_resposne.drag_delta();
 
                         docking_manager.adjust_window_size(&self.identifier, &DockSplitterDragDirection::Left, drag_delta.x as i32, drag_delta.y as i32);
@@ -119,7 +111,7 @@ impl Widget for DockedWindowView {
                 let right_response = allocate_resize_bar(right_rectangle, "right_bar").on_hover_cursor(CursorIcon::ResizeHorizontal);
 
                 if right_response.dragged() {
-                    if let Ok(mut docking_manager) = self.docking_manager.try_write() {
+                    if let Ok(mut docking_manager) = docking_manager.try_write() {
                         let drag_delta = right_response.drag_delta();
 
                         docking_manager.adjust_window_size(&self.identifier, &DockSplitterDragDirection::Right, drag_delta.x as i32, drag_delta.y as i32);
@@ -136,7 +128,7 @@ impl Widget for DockedWindowView {
                 // Title bar.
                 inner_user_interface.add(self.docked_window_title_bar_view);
 
-                let has_footer = match self.docking_manager.try_read() {
+                let has_footer = match docking_manager.try_read() {
                     Ok(docking_manager) => {
                         docking_manager
                             .get_sibling_tab_ids(&self.identifier, true)

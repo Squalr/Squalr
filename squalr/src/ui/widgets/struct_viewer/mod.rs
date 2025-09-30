@@ -1,1 +1,1 @@
-pub mod struct_viewer;
+pub mod struct_viewer_view;
