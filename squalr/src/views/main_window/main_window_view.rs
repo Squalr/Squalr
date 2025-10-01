@@ -252,13 +252,17 @@ impl Widget for MainWindowView {
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 user_interface.add(self.main_title_bar_view);
                 user_interface.add(self.main_toolbar_view);
-                user_interface.add_sized(
-                    [
-                        user_interface.available_width(),
-                        user_interface.available_height() - self.main_footer_view.get_height(),
-                    ],
-                    self.dock_root_view,
-                );
+
+                if user_interface.available_rect_before_wrap().is_positive() {
+                    user_interface.add_sized(
+                        [
+                            user_interface.available_width(),
+                            user_interface.available_height() - self.main_footer_view.get_height(),
+                        ],
+                        self.dock_root_view,
+                    );
+                }
+
                 user_interface.add(self.main_footer_view);
             })
             .response;

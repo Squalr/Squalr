@@ -934,6 +934,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
 
 [[package]]
+name = "bus"
+version = "2.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b7118d0221d84fada881b657c2ddb7cd55108db79c8764c9ee212c0c259b783"
+dependencies = [
+ "crossbeam-channel",
+ "num_cpus",
+ "parking_lot_core",
+]
+
+[[package]]
 name = "by_address"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4134,6 +4145,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_cpus"
+version = "1.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
+dependencies = [
+ "hermit-abi 0.5.2",
+ "libc",
+]
+
+[[package]]
 name = "num_enum"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5806,6 +5827,7 @@ dependencies = [
 name = "squalr"
 version = "0.1.1"
 dependencies = [
+ "bus",
  "crossbeam-channel",
  "eframe",
  "env_logger",
@@ -5894,6 +5916,7 @@ name = "squalr-engine-api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bus",
  "crossbeam-channel",
  "directories",
  "dirs",
@@ -5906,6 +5929,7 @@ dependencies = [
  "serde",
  "serde_json",
  "slab",
+ "smallvec",
  "structopt",
  "sysinfo",
  "thiserror 2.0.16",

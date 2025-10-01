@@ -1,2 +1,2 @@
-pub mod file_system_logger;
-pub mod log_dispatcher;
+pub mod log_history_appender;
+pub mod logger;

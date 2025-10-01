@@ -21,7 +21,7 @@ impl DockedWindowTitleBarView {
     ) -> Self {
         Self {
             app_context,
-            height: 24.0,
+            height: 28.0,
             title,
             identifier,
         }
