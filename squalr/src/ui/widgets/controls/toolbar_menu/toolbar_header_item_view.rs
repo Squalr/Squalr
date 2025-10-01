@@ -1,28 +1,30 @@
+use crate::app_context::AppContext;
 use crate::models::toolbar::toolbar_menu_item_check_state::ToolbarMenuItemCheckState;
+use crate::models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData;
 use crate::ui::widgets::controls::state_layer::StateLayer;
-use crate::{models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData, ui::theme::Theme};
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, Rect, pos2, vec2};
+use smallvec::SmallVec;
 use std::rc::Rc;
 
 pub struct ToolbarHeaderItemView<'a> {
-    theme: Rc<Theme>,
+    app_context: Rc<AppContext>,
     header: &'a String,
-    items: &'a Vec<ToolbarMenuItemData>,
+    items: &'a SmallVec<[ToolbarMenuItemData; 24]>,
     height: f32,
     horizontal_padding: f32,
 }
 
 impl<'a> ToolbarHeaderItemView<'a> {
     pub fn new(
-        theme: Rc<Theme>,
+        app_context: Rc<AppContext>,
         header: &'a String,
-        items: &'a Vec<ToolbarMenuItemData>,
+        items: &'a SmallVec<[ToolbarMenuItemData; 24]>,
         height: f32,
         horizontal_padding: f32,
     ) -> Self {
         Self {
-            theme,
+            app_context,
             header,
             items,
             height,
@@ -37,8 +39,9 @@ impl<'a> Widget for ToolbarHeaderItemView<'a> {
         user_interface: &mut Ui,
     ) -> Response {
         // Measure header text and compute padded size.
-        let font_id = self.theme.font_library.font_noto_sans.font_header.clone();
-        let text_color = self.theme.foreground;
+        let theme = &self.app_context.theme;
+        let font_id = theme.font_library.font_noto_sans.font_header.clone();
+        let text_color = theme.foreground;
 
         let header_galley = user_interface
             .ctx()
@@ -66,10 +69,10 @@ impl<'a> Widget for ToolbarHeaderItemView<'a> {
             has_focus: response.has_focus(),
             corner_radius: CornerRadius { nw: 4, ne: 4, sw: 4, se: 4 },
             border_width: 0.0,
-            hover_color: self.theme.hover_tint,
-            pressed_color: self.theme.pressed_tint,
-            border_color: self.theme.background_control_primary_dark,
-            border_color_focused: self.theme.background_control_primary_dark,
+            hover_color: theme.hover_tint,
+            pressed_color: theme.pressed_tint,
+            border_color: theme.background_control_primary_dark,
+            border_color_focused: theme.background_control_primary_dark,
         }
         .ui(user_interface);
 
@@ -107,7 +110,7 @@ impl<'a> Widget for ToolbarHeaderItemView<'a> {
             for item in self.items.iter() {
                 let galley = fonts.layout_no_wrap(
                     item.text.clone(),
-                    self.theme.font_library.font_noto_sans.font_normal.clone(),
+                    theme.font_library.font_noto_sans.font_normal.clone(),
                     style.visuals.text_color(),
                 );
                 widest = widest.max(galley.size().x + 2.0 * style.spacing.button_padding.x);
@@ -127,7 +130,7 @@ impl<'a> Widget for ToolbarHeaderItemView<'a> {
             .fixed_pos(pos2(available_size_rectangle.min.x, available_size_rectangle.max.y))
             .show(user_interface.ctx(), |popup_ui| {
                 Frame::popup(user_interface.style())
-                    .fill(self.theme.background_primary)
+                    .fill(theme.background_primary)
                     .show(popup_ui, |popup_ui| {
                         popup_ui.set_min_width(widest);
                         popup_ui.with_layout(Layout::top_down(Align::Min), |popup_ui| {

@@ -10,15 +10,11 @@ use std::rc::Rc;
 #[derive(Clone)]
 pub struct MainToolbarView {
     app_context: Rc<AppContext>,
-    height: f32,
     menu: ToolbarData,
 }
 
 impl MainToolbarView {
-    pub fn new(
-        app_context: Rc<AppContext>,
-        height: f32,
-    ) -> Self {
+    pub fn new(app_context: Rc<AppContext>) -> Self {
         let menus = vec![
             ToolbarHeaderItemData {
                 header: "File".into(),
@@ -26,11 +22,12 @@ impl MainToolbarView {
                     ToolbarMenuItemData::action("select_project", "Select Project"),
                     ToolbarMenuItemData::action("export_project", "Export Project as Table..."),
                     ToolbarMenuItemData::action("exit", "Exit Squalr").with_separator(),
-                ],
+                ]
+                .into(),
             },
             ToolbarHeaderItemData {
                 header: "Layout".into(),
-                items: vec![ToolbarMenuItemData::action("layout_reset", "Reset Layout")],
+                items: vec![ToolbarMenuItemData::action("layout_reset", "Reset Layout")].into(),
             },
             ToolbarHeaderItemData {
                 header: "Windows".into(),
@@ -44,27 +41,30 @@ impl MainToolbarView {
                     ToolbarMenuItemData::checkable("win_element_scanner", "Element Scanner", true),
                     ToolbarMenuItemData::checkable("win_settings", "Settings", true),
                     ToolbarMenuItemData::checkable("win_snapshot_manager", "Snapshot Manager", false),
-                ],
+                ]
+                .into(),
             },
             ToolbarHeaderItemData {
                 header: "Scans".into(),
-                items: vec![ToolbarMenuItemData::action("scans_pointer", "Pointer Scan")],
+                items: vec![ToolbarMenuItemData::action("scans_pointer", "Pointer Scan")].into(),
             },
             ToolbarHeaderItemData {
                 header: "Debugger".into(),
                 items: vec![
                     ToolbarMenuItemData::action("disassembly", "Disassembly"),
                     ToolbarMenuItemData::action("code_tracer", "Code Tracer"),
-                ],
+                ]
+                .into(),
             },
-        ];
+        ]
+        .into();
 
         let menu = ToolbarData {
             active_menu: String::new(),
             menus,
         };
 
-        Self { app_context, height, menu }
+        Self { app_context, menu }
     }
 }
 
@@ -73,19 +73,8 @@ impl Widget for MainToolbarView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (available_size_rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::hover());
-        let theme = &self.app_context.theme;
+        let bar = ToolbarView::new(self.app_context.clone(), &self.menu);
 
-        // Background strip (matches your Theme usage).
-        user_interface
-            .painter()
-            .rect_filled(available_size_rect, CornerRadius::ZERO, theme.background_primary);
-
-        // Compose the menu bar within this space.
-        let bar = ToolbarView::new(theme.clone(), self.height, &self.menu);
-
-        user_interface.put(available_size_rect, bar);
-
-        response
+        user_interface.add(bar)
     }
 }

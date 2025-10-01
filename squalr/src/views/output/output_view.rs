@@ -1,6 +1,6 @@
 use crate::app_context::AppContext;
 use eframe::egui::{Align, Label, Layout, Response, RichText, ScrollArea, Ui, UiBuilder, Widget};
-use epaint::{Color32, Vec2};
+use epaint::Vec2;
 use log::Level;
 use std::rc::Rc;
 
@@ -45,11 +45,11 @@ impl Widget for OutputView {
                         .show(&mut inner_user_interface, |inner_user_interface| {
                             for log_message in log_history.iter() {
                                 let color = match log_message.level {
-                                    Level::Error => Color32::RED,
-                                    Level::Warn => Color32::YELLOW,
+                                    Level::Error => theme.background_control_danger,
+                                    Level::Warn => theme.background_control_warning,
                                     Level::Info => theme.foreground,
-                                    Level::Debug => Color32::LIGHT_BLUE,
-                                    Level::Trace => Color32::GREEN,
+                                    Level::Debug => theme.background_control_info,
+                                    Level::Trace => theme.background_control_success,
                                 };
 
                                 inner_user_interface.add(Label::new(

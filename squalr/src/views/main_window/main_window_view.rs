@@ -33,7 +33,7 @@ impl MainWindowView {
         corner_radius: CornerRadius,
     ) -> Self {
         let main_title_bar_view = MainTitleBarView::new(app_context.clone(), corner_radius, 32.0, title);
-        let main_toolbar_view = MainToolbarView::new(app_context.clone(), 32.0);
+        let main_toolbar_view = MainToolbarView::new(app_context.clone());
 
         let app_context_for_output = app_context.clone();
         let output_view = DockedWindowView::new(

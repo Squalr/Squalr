@@ -1,30 +1,28 @@
-use crate::{
-    app_context::AppContext, models::toolbar::toolbar_data::ToolbarData, ui::widgets::controls::toolbar_menu::toolbar_header_item_view::ToolbarHeaderItemView,
-};
+use crate::{app_context::AppContext, models::tab_menu::tab_menu_data::TabMenuData, ui::widgets::controls::tab_menu::tab_item_view::TabItemView};
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, vec2};
 use std::rc::Rc;
 
-pub struct ToolbarView<'a> {
+pub struct TabMenuView<'a> {
     app_context: Rc<AppContext>,
     height: f32,
-    menu: &'a ToolbarData,
+    tab_menu_data: &'a TabMenuData,
 }
 
-impl<'a> ToolbarView<'a> {
+impl<'a> TabMenuView<'a> {
     pub fn new(
         app_context: Rc<AppContext>,
-        menu: &'a ToolbarData,
+        tab_menu_data: &'a TabMenuData,
     ) -> Self {
         Self {
             app_context,
-            height: 32.0,
-            menu,
+            height: 24.0,
+            tab_menu_data,
         }
     }
 }
 
-impl<'a> Widget for ToolbarView<'a> {
+impl<'a> Widget for TabMenuView<'a> {
     fn ui(
         self,
         user_interface: &mut Ui,
@@ -45,9 +43,14 @@ impl<'a> Widget for ToolbarView<'a> {
                 .layout(Layout::left_to_right(Align::Center)),
         );
 
-        // Draw each menu header.
-        for menu in &self.menu.menus {
-            ToolbarHeaderItemView::new(self.app_context.clone(), &menu.header, &menu.items, self.height, 8.0).ui(&mut row_user_interface);
+        // Draw each tab header.
+        for index in 0..self.tab_menu_data.headers.len() - 1 {
+            if TabItemView::new(self.app_context.clone(), &self.tab_menu_data.headers[index], self.height, 8.0)
+                .ui(&mut row_user_interface)
+                .clicked()
+            {
+                //
+            }
         }
 
         response
