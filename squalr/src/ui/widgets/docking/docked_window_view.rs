@@ -146,7 +146,7 @@ impl Widget for DockedWindowView {
                     content_rect.max.y -= footer_height;
                 }
 
-                let content_response = inner_user_interface.allocate_rect(content_rect, Sense::hover());
+                let content_response = inner_user_interface.allocate_rect(content_rect, Sense::empty());
                 let mut content_ui = inner_user_interface.new_child(
                     UiBuilder::new()
                         .max_rect(content_response.rect)

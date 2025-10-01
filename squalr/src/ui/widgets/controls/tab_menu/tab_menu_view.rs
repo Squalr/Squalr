@@ -1,7 +1,7 @@
 use crate::{app_context::AppContext, models::tab_menu::tab_menu_data::TabMenuData, ui::widgets::controls::tab_menu::tab_item_view::TabItemView};
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, vec2};
-use std::rc::Rc;
+use std::{rc::Rc, sync::atomic::Ordering};
 
 pub struct TabMenuView<'a> {
     app_context: Rc<AppContext>,
@@ -16,7 +16,7 @@ impl<'a> TabMenuView<'a> {
     ) -> Self {
         Self {
             app_context,
-            height: 24.0,
+            height: 28.0,
             tab_menu_data,
         }
     }
@@ -27,16 +27,16 @@ impl<'a> Widget for TabMenuView<'a> {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (available_size, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), self.height), Sense::hover());
+        let (available_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), self.height), Sense::empty());
         let theme = &self.app_context.theme;
 
         // Draw background.
         user_interface
             .painter()
-            .rect_filled(available_size, CornerRadius::ZERO, theme.background_primary);
+            .rect_filled(available_size_rectangle, CornerRadius::ZERO, theme.background_primary);
 
         // Create child row area on which to place buttons.
-        let available_size_rectangle = Rect::from_min_size(available_size.min, vec2(available_size.width(), self.height));
+        let available_size_rectangle = Rect::from_min_size(available_size_rectangle.min, vec2(available_size_rectangle.width(), self.height));
         let mut row_user_interface = user_interface.new_child(
             UiBuilder::new()
                 .max_rect(available_size_rectangle)
@@ -44,12 +44,23 @@ impl<'a> Widget for TabMenuView<'a> {
         );
 
         // Draw each tab header.
-        for index in 0..self.tab_menu_data.headers.len() - 1 {
-            if TabItemView::new(self.app_context.clone(), &self.tab_menu_data.headers[index], self.height, 8.0)
-                .ui(&mut row_user_interface)
-                .clicked()
+        for index in 0..self.tab_menu_data.headers.len() {
+            let is_selected = index == self.tab_menu_data.active_tab_index.load(Ordering::Acquire) as usize;
+
+            if TabItemView::new(
+                self.app_context.clone(),
+                &self.tab_menu_data.headers[index],
+                96.0,
+                self.height,
+                8.0,
+                is_selected,
+            )
+            .ui(&mut row_user_interface)
+            .clicked()
             {
-                //
+                self.tab_menu_data
+                    .active_tab_index
+                    .store(index as i32, Ordering::Release);
             }
         }
 

@@ -1,10 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod app;
-mod app_context;
-mod models;
-mod ui;
-mod views;
+pub mod app;
+pub mod app_context;
+pub mod models;
+pub mod ui;
+pub mod views;
 
 use app::App;
 use eframe::NativeOptions;

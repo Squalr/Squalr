@@ -18,7 +18,7 @@ impl DockedWindowFooterView {
         Self {
             app_context,
             identifier,
-            height: 28.0,
+            height: 24.0,
         }
     }
 
@@ -65,6 +65,7 @@ impl Widget for DockedWindowFooterView {
 
             if sibling_id == active_tab_id {
                 button.backgorund_color = theme.background_control_primary;
+                button.border_color = theme.background_control_primary_dark;
             }
 
             let response = child_user_interface.add_sized(vec2(128.0, available_size_rect.height()), button.corner_radius(CornerRadius::ZERO));

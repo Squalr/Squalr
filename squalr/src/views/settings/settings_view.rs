@@ -1,5 +1,5 @@
 use crate::{app_context::AppContext, models::tab_menu::tab_menu_data::TabMenuData, ui::widgets::controls::tab_menu::tab_menu_view::TabMenuView};
-use eframe::egui::{Response, Sense, Ui, Widget};
+use eframe::egui::{Align, Layout, Response, Ui, Widget};
 use std::{
     rc::Rc,
     sync::atomic::{AtomicI32, Ordering},
@@ -27,25 +27,26 @@ impl Widget for SettingsView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (available_size_rectangle, response) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::empty());
-        let theme = &self.app_context.theme;
+        let response = user_interface
+            .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
+                // Compose the menu bar over the painted available space rectangle.
+                let tab_menu = TabMenuView::new(self.app_context.clone(), &self.tab_menu_data);
 
-        // Compose the menu bar over the painted available space rectangle.
-        let tab_menu = TabMenuView::new(self.app_context.clone(), &self.tab_menu_data);
+                user_interface.add(tab_menu);
 
-        user_interface.add(tab_menu);
-
-        match self.tab_menu_data.active_tab_index.load(Ordering::Acquire) {
-            1 => {
-                // Memory
-            }
-            2 => {
-                // Scan
-            }
-            _ => {
-                // General
-            }
-        }
+                match self.tab_menu_data.active_tab_index.load(Ordering::Acquire) {
+                    1 => {
+                        // Memory
+                    }
+                    2 => {
+                        // Scan
+                    }
+                    _ => {
+                        // General
+                    }
+                }
+            })
+            .response;
 
         response
     }

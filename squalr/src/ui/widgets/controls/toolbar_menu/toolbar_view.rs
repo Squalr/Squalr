@@ -29,16 +29,16 @@ impl<'a> Widget for ToolbarView<'a> {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (available_size, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), self.height), Sense::hover());
+        let (available_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), self.height), Sense::empty());
         let theme = &self.app_context.theme;
 
         // Draw background.
         user_interface
             .painter()
-            .rect_filled(available_size, CornerRadius::ZERO, theme.background_primary);
+            .rect_filled(available_size_rectangle, CornerRadius::ZERO, theme.background_primary);
 
         // Create child row area on which to place buttons.
-        let available_size_rectangle = Rect::from_min_size(available_size.min, vec2(available_size.width(), self.height));
+        let available_size_rectangle = Rect::from_min_size(available_size_rectangle.min, vec2(available_size_rectangle.width(), self.height));
         let mut row_user_interface = user_interface.new_child(
             UiBuilder::new()
                 .max_rect(available_size_rectangle)
