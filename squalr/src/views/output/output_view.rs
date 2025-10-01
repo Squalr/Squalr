@@ -1,6 +1,6 @@
 use crate::app_context::AppContext;
-use eframe::egui::{Align, Label, Layout, Response, RichText, ScrollArea, Ui, Widget};
-use epaint::Color32;
+use eframe::egui::{Align, Label, Layout, Response, RichText, ScrollArea, Ui, UiBuilder, Widget};
+use epaint::{Color32, Vec2};
 use log::Level;
 use std::rc::Rc;
 
@@ -31,11 +31,18 @@ impl Widget for OutputView {
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 if let Ok(log_history) = log_history.try_read() {
-                    // Wrap messages inside a vertical scroll area.
+                    let outer_rectangle = user_interface.available_rect_before_wrap();
+                    let inset_amount = Vec2::new(8.0, 4.0);
+                    let inner_rectangle = outer_rectangle.shrink2(inset_amount);
+                    let builder = UiBuilder::new()
+                        .max_rect(inner_rectangle)
+                        .layout(Layout::top_down(Align::Min));
+                    let mut inner_user_interface = user_interface.new_child(builder);
+
                     ScrollArea::vertical()
-                        .auto_shrink([false; 2])
+                        .auto_shrink([false, false])
                         .stick_to_bottom(true)
-                        .show(user_interface, |user_interface| {
+                        .show(&mut inner_user_interface, |inner_user_interface| {
                             for log_message in log_history.iter() {
                                 let color = match log_message.level {
                                     Level::Error => Color32::RED,
@@ -45,7 +52,11 @@ impl Widget for OutputView {
                                     Level::Trace => Color32::GREEN,
                                 };
 
-                                user_interface.add(Label::new(RichText::new(&log_message.message).color(color)));
+                                inner_user_interface.add(Label::new(
+                                    RichText::new(&log_message.message)
+                                        .color(color)
+                                        .font(theme.font_library.font_noto_sans.font_normal.clone()),
+                                ));
                             }
                         });
                 }

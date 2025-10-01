@@ -1,6 +1,5 @@
 use crate::ui::fonts::font_set::FontSet;
 use eframe::egui::{Context, FontData, FontDefinitions, FontFamily};
-use epaint::FontId;
 
 static FONT_NOTO_SANS: &[u8] = include_bytes!("../../../fonts/NotoSans.ttf");
 static FONT_UBUNTU_MONO_BOLD: &[u8] = include_bytes!("../../../fonts/UbuntuMonoBold.ttf");
@@ -20,7 +19,7 @@ impl FontLibrary {
         context.set_fonts(fonts);
 
         Self {
-            font_noto_sans: FontSet::new(FontFamily::Name("noto_sans".into()), 9.0, 11.0, 13.0, 13.0),
+            font_noto_sans: FontSet::new(FontFamily::Name("noto_sans".into()), 9.0, 13.0, 14.0, 14.0),
             font_ubuntu_mono_bold: FontSet::new(FontFamily::Name("ubuntu_mono_bold".into()), 10.0, 12.0, 15.0, 15.0),
         }
     }
