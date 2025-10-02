@@ -150,24 +150,21 @@ impl<W: Widget> Widget for DockedWindowView<W> {
                     Err(_) => false,
                 };
 
-                // Content (minus footer).
-                let mut content_rect = inner_user_interface.available_rect_before_wrap();
-                let footer_height = self.docked_window_footer_view.get_height();
+                // Reserve the entire remaining area minus footer height for content.
+                let footer_height = if has_footer { self.docked_window_footer_view.get_height() } else { 0.0 };
+                let full_rectangle = inner_user_interface.available_rect_before_wrap();
+                let content_rectangle = Rect::from_min_max(full_rectangle.min, full_rectangle.max - vec2(0.0, footer_height));
+                let content_response = inner_user_interface.allocate_rect(content_rectangle, Sense::empty());
 
-                if has_footer {
-                    content_rect.max.y -= footer_height;
-                }
-
-                let content_response = inner_user_interface.allocate_rect(content_rect, Sense::empty());
-                let mut content_ui = inner_user_interface.new_child(
+                let mut content_user_interface = inner_user_interface.new_child(
                     UiBuilder::new()
                         .max_rect(content_response.rect)
                         .layout(Layout::left_to_right(Align::Min)),
                 );
 
-                user_interface.add(self.widget);
+                content_user_interface.add(self.widget);
 
-                // Footer.
+                // Finally render the footer if one exists. Currently only shown if there are multiple tabs stacked.
                 if has_footer {
                     inner_user_interface.add(self.docked_window_footer_view);
                 }
