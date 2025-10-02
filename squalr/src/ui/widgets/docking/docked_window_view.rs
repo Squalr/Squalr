@@ -155,7 +155,6 @@ impl<W: Widget> Widget for DockedWindowView<W> {
                 let full_rectangle = inner_user_interface.available_rect_before_wrap();
                 let content_rectangle = Rect::from_min_max(full_rectangle.min, full_rectangle.max - vec2(0.0, footer_height));
                 let content_response = inner_user_interface.allocate_rect(content_rectangle, Sense::empty());
-
                 let mut content_user_interface = inner_user_interface.new_child(
                     UiBuilder::new()
                         .max_rect(content_response.rect)

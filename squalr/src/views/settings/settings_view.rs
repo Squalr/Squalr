@@ -1,4 +1,8 @@
-use crate::{app_context::AppContext, models::tab_menu::tab_menu_data::TabMenuData, ui::widgets::controls::tab_menu::tab_menu_view::TabMenuView};
+use crate::{
+    app_context::AppContext,
+    models::tab_menu::tab_menu_data::TabMenuData,
+    ui::widgets::controls::{checkbox::Checkbox, groupbox::GroupBox, tab_menu::tab_menu_view::TabMenuView},
+};
 use eframe::egui::{Align, Layout, Response, Ui, Widget};
 use std::{
     rc::Rc,
@@ -27,6 +31,7 @@ impl Widget for SettingsView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        let theme = &self.app_context.theme;
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 // Compose the menu bar over the painted available space rectangle.
@@ -36,13 +41,23 @@ impl Widget for SettingsView {
 
                 match self.tab_menu_data.active_tab_index.load(Ordering::Acquire) {
                     1 => {
-                        // Memory
+                        // Memory settings.
+                        user_interface.add(GroupBox::new_from_theme(theme, "Required Protection Flags", |user_interface| {
+                            let checkbox = Checkbox::new_from_theme(theme).checked(true);
+                            let response = user_interface.add(checkbox);
+                            let checkbox = Checkbox::new_from_theme(theme).checked(true);
+                            let response = user_interface.add(checkbox);
+                            let checkbox = Checkbox::new_from_theme(theme).checked(true);
+                            let response = user_interface.add(checkbox);
+                            let checkbox = Checkbox::new_from_theme(theme).checked(true);
+                            let response = user_interface.add(checkbox);
+                        }));
                     }
                     2 => {
-                        // Scan
+                        // Scan settings.
                     }
                     _ => {
-                        // General
+                        // General settings.
                     }
                 }
             })
