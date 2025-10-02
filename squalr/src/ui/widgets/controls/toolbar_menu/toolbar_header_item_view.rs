@@ -7,19 +7,19 @@ use epaint::{CornerRadius, Rect, pos2, vec2};
 use smallvec::SmallVec;
 use std::rc::Rc;
 
-pub struct ToolbarHeaderItemView<'a> {
+pub struct ToolbarHeaderItemView<'lifetime> {
     app_context: Rc<AppContext>,
-    header: &'a String,
-    items: &'a SmallVec<[ToolbarMenuItemData; 24]>,
+    header: &'lifetime String,
+    items: &'lifetime SmallVec<[ToolbarMenuItemData; 24]>,
     height: f32,
     horizontal_padding: f32,
 }
 
-impl<'a> ToolbarHeaderItemView<'a> {
+impl<'lifetime> ToolbarHeaderItemView<'lifetime> {
     pub fn new(
         app_context: Rc<AppContext>,
-        header: &'a String,
-        items: &'a SmallVec<[ToolbarMenuItemData; 24]>,
+        header: &'lifetime String,
+        items: &'lifetime SmallVec<[ToolbarMenuItemData; 24]>,
         height: f32,
         horizontal_padding: f32,
     ) -> Self {
@@ -33,7 +33,7 @@ impl<'a> ToolbarHeaderItemView<'a> {
     }
 }
 
-impl<'a> Widget for ToolbarHeaderItemView<'a> {
+impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
     fn ui(
         self,
         user_interface: &mut Ui,

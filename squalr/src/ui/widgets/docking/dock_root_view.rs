@@ -1,4 +1,4 @@
-use crate::{app_context::AppContext, ui::widgets::docking::docked_window_view::DockedWindowView};
+use crate::{app_context::AppContext, ui::widgets::docking::dockable_window::DockableWindow};
 use eframe::egui::{Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, pos2, vec2};
 use std::rc::Rc;
@@ -6,13 +6,13 @@ use std::rc::Rc;
 #[derive(Clone)]
 pub struct DockRootView {
     app_context: Rc<AppContext>,
-    windows: Vec<DockedWindowView>,
+    windows: Rc<Vec<Box<dyn DockableWindow>>>,
 }
 
 impl DockRootView {
     pub fn new(
         app_context: Rc<AppContext>,
-        built_in_windows: Vec<DockedWindowView>,
+        built_in_windows: Rc<Vec<Box<dyn DockableWindow>>>,
     ) -> Self {
         Self {
             app_context,
@@ -42,7 +42,7 @@ impl Widget for DockRootView {
                 .set_available_size(available_size_rect.width(), available_size_rect.height());
         }
 
-        for window in &self.windows {
+        for window in self.windows.iter() {
             let window_identifier = window.get_identifier();
             let active_tab_id = match docking_manager.try_read() {
                 Ok(docking_manager) => docking_manager.get_active_tab(&window_identifier),
@@ -71,7 +71,7 @@ impl Widget for DockRootView {
                 let builder = UiBuilder::new().max_rect(window_rect);
                 let mut child_user_interface = user_interface.new_child(builder);
 
-                window.clone().ui(&mut child_user_interface);
+                window.ui(&mut child_user_interface);
             }
         }
 

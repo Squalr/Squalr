@@ -4,19 +4,19 @@ use eframe::egui::{Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, Stroke, StrokeKind, pos2, vec2};
 use std::rc::Rc;
 
-pub struct TabItemView<'a> {
+pub struct TabItemView<'lifetime> {
     app_context: Rc<AppContext>,
-    header: &'a String,
+    header: &'lifetime String,
     min_width: f32,
     height: f32,
     horizontal_padding: f32,
     is_selected: bool,
 }
 
-impl<'a> TabItemView<'a> {
+impl<'lifetime> TabItemView<'lifetime> {
     pub fn new(
         app_context: Rc<AppContext>,
-        header: &'a String,
+        header: &'lifetime String,
         min_width: f32,
         height: f32,
         horizontal_padding: f32,
@@ -33,7 +33,7 @@ impl<'a> TabItemView<'a> {
     }
 }
 
-impl<'a> Widget for TabItemView<'a> {
+impl<'lifetime> Widget for TabItemView<'lifetime> {
     fn ui(
         self,
         user_interface: &mut Ui,

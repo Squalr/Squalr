@@ -2,7 +2,7 @@ use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::widgets::controls::button::Button;
 use eframe::egui::viewport::ViewportCommand;
-use eframe::egui::{Align, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, pos2};
+use eframe::egui::{Align, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, Widget, pos2};
 use epaint::{Color32, CornerRadius, vec2};
 use std::rc::Rc;
 
@@ -11,7 +11,7 @@ pub struct MainTitleBarView {
     app_context: Rc<AppContext>,
     corner_radius: CornerRadius,
     height: f32,
-    title: String,
+    title: Rc<String>,
 }
 
 impl MainTitleBarView {
@@ -19,7 +19,7 @@ impl MainTitleBarView {
         app_context: Rc<AppContext>,
         corner_radius: CornerRadius,
         height: f32,
-        title: String,
+        title: Rc<String>,
     ) -> Self {
         Self {
             app_context,
@@ -30,7 +30,7 @@ impl MainTitleBarView {
     }
 }
 
-impl eframe::egui::Widget for MainTitleBarView {
+impl Widget for MainTitleBarView {
     fn ui(
         self,
         user_interface: &mut Ui,
@@ -70,7 +70,7 @@ impl eframe::egui::Widget for MainTitleBarView {
         child_user_interface.add_space(4.0);
 
         child_user_interface.label(
-            RichText::new(&self.title)
+            RichText::new(self.title.as_ref())
                 .font(theme.font_library.font_noto_sans.font_window_title.clone())
                 .color(theme.foreground),
         );

@@ -1,7 +1,7 @@
 use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::widgets::controls::button::Button;
-use eframe::egui::{Align, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, pos2};
+use eframe::egui::{Align, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, Widget, pos2};
 use epaint::{Color32, CornerRadius, vec2};
 use std::rc::Rc;
 
@@ -9,15 +9,15 @@ use std::rc::Rc;
 pub struct DockedWindowTitleBarView {
     app_context: Rc<AppContext>,
     height: f32,
-    title: String,
-    identifier: String,
+    title: Rc<String>,
+    identifier: Rc<String>,
 }
 
 impl DockedWindowTitleBarView {
     pub fn new(
         app_context: Rc<AppContext>,
-        title: String,
-        identifier: String,
+        title: Rc<String>,
+        identifier: Rc<String>,
     ) -> Self {
         Self {
             app_context,
@@ -28,7 +28,7 @@ impl DockedWindowTitleBarView {
     }
 }
 
-impl eframe::egui::Widget for DockedWindowTitleBarView {
+impl Widget for DockedWindowTitleBarView {
     fn ui(
         self,
         user_interface: &mut Ui,
@@ -66,7 +66,7 @@ impl eframe::egui::Widget for DockedWindowTitleBarView {
         child_user_interface.add_space(8.0);
 
         child_user_interface.label(
-            RichText::new(self.title.clone())
+            RichText::new(self.title.as_ref())
                 .color(theme.foreground)
                 .font(theme.font_library.font_noto_sans.font_window_title.clone()),
         );

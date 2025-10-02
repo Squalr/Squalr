@@ -1,27 +1,39 @@
-use crate::app_context::AppContext;
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
 use crate::ui::widgets::docking::docked_window_footer_view::DockedWindowFooterView;
 use crate::ui::widgets::docking::docked_window_title_bar_view::DockedWindowTitleBarView;
+use crate::{app_context::AppContext, ui::widgets::docking::dockable_window::DockableWindow};
 use eframe::egui::{Align, CursorIcon, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Rect, vec2};
 use std::rc::Rc;
-use std::sync::Arc;
 
 #[derive(Clone)]
-pub struct DockedWindowView {
+pub struct DockedWindowView<W: Widget> {
     app_context: Rc<AppContext>,
     docked_window_title_bar_view: DockedWindowTitleBarView,
-    content: Arc<dyn Fn(&mut Ui) -> Response>,
+    widget: W,
     docked_window_footer_view: DockedWindowFooterView,
-    identifier: String,
+    identifier: Rc<String>,
 }
 
-impl DockedWindowView {
+impl<W: Widget + Clone + 'static> DockableWindow for DockedWindowView<W> {
+    fn get_identifier(&self) -> &str {
+        self.get_identifier()
+    }
+
+    fn ui(
+        &self,
+        ui: &mut Ui,
+    ) -> Response {
+        self.clone().ui(ui)
+    }
+}
+
+impl<W: Widget> DockedWindowView<W> {
     pub fn new(
         app_context: Rc<AppContext>,
-        content: Arc<dyn Fn(&mut Ui) -> Response>,
-        title: String,
-        identifier: String,
+        widget: W,
+        title: Rc<String>,
+        identifier: Rc<String>,
     ) -> Self {
         let docked_window_title_bar_view = DockedWindowTitleBarView::new(app_context.clone(), title, identifier.clone());
         let docked_window_footer_view = DockedWindowFooterView::new(app_context.clone(), identifier.clone());
@@ -29,7 +41,7 @@ impl DockedWindowView {
         Self {
             app_context,
             docked_window_title_bar_view,
-            content,
+            widget,
             docked_window_footer_view,
             identifier,
         }
@@ -40,7 +52,7 @@ impl DockedWindowView {
     }
 }
 
-impl Widget for DockedWindowView {
+impl<W: Widget> Widget for DockedWindowView<W> {
     fn ui(
         self,
         user_interface: &mut Ui,
@@ -153,7 +165,7 @@ impl Widget for DockedWindowView {
                         .layout(Layout::left_to_right(Align::Min)),
                 );
 
-                (self.content)(&mut content_ui);
+                user_interface.add(self.widget);
 
                 // Footer.
                 if has_footer {

@@ -28,7 +28,7 @@ impl App {
         let docking_manager = Rc::new(RwLock::new(DockingManager::new(main_dock_root)));
         let app_context = Rc::new(AppContext::new(context.clone(), theme, docking_manager, engine_execution_context));
         let corner_radius = CornerRadius::same(8);
-        let main_window_view = MainWindowView::new(app_context.clone(), app_title, corner_radius);
+        let main_window_view = MainWindowView::new(app_context.clone(), Rc::new(app_title), corner_radius);
 
         Self {
             app_context,

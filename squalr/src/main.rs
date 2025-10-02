@@ -13,6 +13,7 @@ use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
 
 static ICON_APP: &[u8] = include_bytes!("../images/app/app_icon.png");
+static APP_NAME: &str = "Squalr";
 
 pub fn main() {
     // Create a standalone engine (same process for gui and engine).
@@ -44,7 +45,7 @@ pub fn main() {
 
     // Run the gui.
     match eframe::run_native(
-        "Squalr",
+        APP_NAME,
         native_options,
         Box::new(|creation_context| {
             if let Some(engine_execution_context) = squalr_engine.get_engine_execution_context() {
@@ -52,7 +53,7 @@ pub fn main() {
                     &creation_context.egui_ctx,
                     engine_execution_context.clone(),
                     squalr_engine.get_dependency_container(),
-                    "Squalr".to_string(),
+                    APP_NAME.to_string(),
                 );
 
                 // Now that gui dependencies are registered, start the engine fully.

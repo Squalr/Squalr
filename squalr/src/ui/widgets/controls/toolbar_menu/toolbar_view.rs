@@ -5,16 +5,16 @@ use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, vec2};
 use std::rc::Rc;
 
-pub struct ToolbarView<'a> {
+pub struct ToolbarView<'lifetime> {
     app_context: Rc<AppContext>,
     height: f32,
-    menu: &'a ToolbarData,
+    menu: &'lifetime ToolbarData,
 }
 
-impl<'a> ToolbarView<'a> {
+impl<'lifetime> ToolbarView<'lifetime> {
     pub fn new(
         app_context: Rc<AppContext>,
-        menu: &'a ToolbarData,
+        menu: &'lifetime ToolbarData,
     ) -> Self {
         Self {
             app_context,
@@ -24,7 +24,7 @@ impl<'a> ToolbarView<'a> {
     }
 }
 
-impl<'a> Widget for ToolbarView<'a> {
+impl<'lifetime> Widget for ToolbarView<'lifetime> {
     fn ui(
         self,
         user_interface: &mut Ui,

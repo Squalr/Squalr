@@ -3,16 +3,16 @@ use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, vec2};
 use std::{rc::Rc, sync::atomic::Ordering};
 
-pub struct TabMenuView<'a> {
+pub struct TabMenuView<'lifetime> {
     app_context: Rc<AppContext>,
     height: f32,
-    tab_menu_data: &'a TabMenuData,
+    tab_menu_data: &'lifetime TabMenuData,
 }
 
-impl<'a> TabMenuView<'a> {
+impl<'lifetime> TabMenuView<'lifetime> {
     pub fn new(
         app_context: Rc<AppContext>,
-        tab_menu_data: &'a TabMenuData,
+        tab_menu_data: &'lifetime TabMenuData,
     ) -> Self {
         Self {
             app_context,
@@ -22,7 +22,7 @@ impl<'a> TabMenuView<'a> {
     }
 }
 
-impl<'a> Widget for TabMenuView<'a> {
+impl<'lifetime> Widget for TabMenuView<'lifetime> {
     fn ui(
         self,
         user_interface: &mut Ui,

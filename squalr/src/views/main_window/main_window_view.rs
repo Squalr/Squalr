@@ -14,7 +14,7 @@ use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
 use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget};
 use epaint::CornerRadius;
 use epaint::{Rect, pos2};
-use std::{rc::Rc, sync::Arc};
+use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct MainWindowView {
@@ -29,7 +29,7 @@ pub struct MainWindowView {
 impl MainWindowView {
     pub fn new(
         app_context: Rc<AppContext>,
-        title: String,
+        title: Rc<String>,
         corner_radius: CornerRadius,
     ) -> Self {
         let main_title_bar_view = MainTitleBarView::new(app_context.clone(), corner_radius, 32.0, title);
@@ -38,70 +38,70 @@ impl MainWindowView {
         let app_context_for_output = app_context.clone();
         let output_view = DockedWindowView::new(
             app_context_for_output.clone(),
-            Arc::new(move |user_interface| OutputView::new(app_context_for_output.clone()).ui(user_interface)),
-            "Output".to_string(),
-            "output".to_string(),
+            OutputView::new(app_context_for_output.clone()),
+            Rc::new("Output".to_string()),
+            Rc::new("output".to_string()),
         );
 
         let app_context_for_settings = app_context.clone();
         let settings_view = DockedWindowView::new(
             app_context_for_settings.clone(),
-            Arc::new(move |user_interface| SettingsView::new(app_context_for_settings.clone()).ui(user_interface)),
-            "Settings".to_string(),
-            "settings".to_string(),
+            SettingsView::new(app_context_for_settings.clone()),
+            Rc::new("Settings".to_string()),
+            Rc::new("settings".to_string()),
         );
 
         let app_context_for_struct_viewer = app_context.clone();
         let struct_viewer_view = DockedWindowView::new(
             app_context_for_struct_viewer.clone(),
-            Arc::new(move |user_interface| StructViewerView::new(app_context_for_struct_viewer.clone()).ui(user_interface)),
-            "Struct Viewer".to_string(),
-            "struct_viewer".to_string(),
+            StructViewerView::new(app_context_for_struct_viewer.clone()),
+            Rc::new("Struct Viewer".to_string()),
+            Rc::new("struct_viewer".to_string()),
         );
 
         let app_context_for_project_explorer = app_context.clone();
         let project_explorer_view = DockedWindowView::new(
             app_context_for_project_explorer.clone(),
-            Arc::new(move |user_interface| ProjectExplorerView::new(app_context_for_project_explorer.clone()).ui(user_interface)),
-            "Project Explorer".to_string(),
-            "project_explorer".to_string(),
+            ProjectExplorerView::new(app_context_for_project_explorer.clone()),
+            Rc::new("Project Explorer".to_string()),
+            Rc::new("project_explorer".to_string()),
         );
 
         let app_context_for_process_selector = app_context.clone();
         let process_selector_view = DockedWindowView::new(
             app_context_for_process_selector.clone(),
-            Arc::new(move |user_interface| ProcessSelectorView::new(app_context_for_process_selector.clone()).ui(user_interface)),
-            "Process Selector".to_string(),
-            "process_selector".to_string(),
+            ProcessSelectorView::new(app_context_for_process_selector.clone()),
+            Rc::new("Process Selector".to_string()),
+            Rc::new("process_selector".to_string()),
         );
 
         let app_context_for_element_scanner = app_context.clone();
         let element_scanner_view = DockedWindowView::new(
             app_context_for_element_scanner.clone(),
-            Arc::new(move |user_interface| ElementScannerView::new(app_context_for_element_scanner.clone()).ui(user_interface)),
-            "Element Scanner".to_string(),
-            "element_scanner".to_string(),
+            ElementScannerView::new(app_context_for_element_scanner.clone()),
+            Rc::new("Element Scanner".to_string()),
+            Rc::new("element_scanner".to_string()),
         );
 
         let app_context_for_pointer_scanner = app_context.clone();
         let pointer_scanner_view = DockedWindowView::new(
             app_context_for_pointer_scanner.clone(),
-            Arc::new(move |user_interface| PointerScannerView::new(app_context_for_pointer_scanner.clone()).ui(user_interface)),
-            "Pointer Scanner".to_string(),
-            "pointer_scanner".to_string(),
+            PointerScannerView::new(app_context_for_pointer_scanner.clone()),
+            Rc::new("Pointer Scanner".to_string()),
+            Rc::new("pointer_scanner".to_string()),
         );
 
         let dock_root_view = DockRootView::new(
             app_context.clone(),
-            vec![
-                output_view,
-                settings_view,
-                struct_viewer_view,
-                project_explorer_view,
-                process_selector_view,
-                element_scanner_view,
-                pointer_scanner_view,
-            ],
+            Rc::new(vec![
+                Box::new(output_view),
+                Box::new(settings_view),
+                Box::new(struct_viewer_view),
+                Box::new(project_explorer_view),
+                Box::new(process_selector_view),
+                Box::new(element_scanner_view),
+                Box::new(pointer_scanner_view),
+            ]),
         );
 
         let main_footer_view = MainFooterView::new(app_context.clone(), corner_radius, 28.0);

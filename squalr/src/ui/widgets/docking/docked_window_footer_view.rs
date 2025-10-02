@@ -6,14 +6,14 @@ use std::rc::Rc;
 #[derive(Clone)]
 pub struct DockedWindowFooterView {
     app_context: Rc<AppContext>,
-    identifier: String,
+    identifier: Rc<String>,
     height: f32,
 }
 
 impl DockedWindowFooterView {
     pub fn new(
         app_context: Rc<AppContext>,
-        identifier: String,
+        identifier: Rc<String>,
     ) -> Self {
         Self {
             app_context,
