@@ -72,22 +72,25 @@ impl<'lifetime> Widget for Checkbox<'lifetime> {
         user_interface: &mut Ui,
     ) -> Response {
         let sense = if self.disabled { Sense::hover() } else { Sense::click() };
-        let (rect, mut response) = user_interface.allocate_exact_size(self.size, sense);
+        let (available_size_rectangle, mut response) = user_interface.allocate_exact_size(self.size, sense);
 
         // Background box.
         user_interface
             .painter()
-            .rect_filled(rect, self.corner_radius, self.background_color);
+            .rect_filled(available_size_rectangle, self.corner_radius, self.background_color);
 
         // Border.
-        user_interface
-            .painter()
-            .rect_stroke(rect, self.corner_radius, (self.border_width, self.border_color), StrokeKind::Inside);
+        user_interface.painter().rect_stroke(
+            available_size_rectangle,
+            self.corner_radius,
+            (self.border_width, self.border_color),
+            StrokeKind::Inside,
+        );
 
         // StateLayer (hover, pressed, focus).
         StateLayer {
-            bounds_min: rect.min,
-            bounds_max: rect.max,
+            bounds_min: available_size_rectangle.min,
+            bounds_max: available_size_rectangle.max,
             enabled: !self.disabled,
             pressed: response.is_pointer_button_down_on(),
             has_hover: response.hovered(),
@@ -105,13 +108,13 @@ impl<'lifetime> Widget for Checkbox<'lifetime> {
         // Checked icon (using theme’s close icon for now).
         if self.is_checked {
             if let Some(icon) = self.icon {
-                let tex_size = icon.size_vec2();
-                let pos = rect.center() - tex_size * 0.5;
+                let texture_size = icon.size_vec2();
+                let icon_position = available_size_rectangle.center() - texture_size * 0.5;
 
                 user_interface.painter().image(
                     icon.id(),
-                    Rect::from_min_size(pos, tex_size),
-                    Rect::from_min_max(pos2(0.0, 0.0), pos2(tex_size.x, tex_size.y)),
+                    Rect::from_min_size(icon_position, texture_size),
+                    Rect::from_min_max(pos2(0.0, 0.0), pos2(texture_size.x, texture_size.y)),
                     Color32::WHITE,
                 );
             }

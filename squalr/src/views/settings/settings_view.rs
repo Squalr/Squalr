@@ -42,7 +42,7 @@ impl Widget for SettingsView {
                 match self.tab_menu_data.active_tab_index.load(Ordering::Acquire) {
                     1 => {
                         // Memory settings.
-                        user_interface.add(GroupBox::new_from_theme(theme, "Required Protection Flags", |user_interface| {
+                        let mut groupbox = GroupBox::new_from_theme(theme, "Required Protection Flags", |user_interface| {
                             let checkbox = Checkbox::new_from_theme(theme).checked(true);
                             let response = user_interface.add(checkbox);
                             let checkbox = Checkbox::new_from_theme(theme).checked(true);
@@ -51,7 +51,11 @@ impl Widget for SettingsView {
                             let response = user_interface.add(checkbox);
                             let checkbox = Checkbox::new_from_theme(theme).checked(true);
                             let response = user_interface.add(checkbox);
-                        }));
+                        });
+
+                        groupbox.desired_width = Some(244.0);
+
+                        user_interface.add(groupbox);
                     }
                     2 => {
                         // Scan settings.
