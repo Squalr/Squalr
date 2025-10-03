@@ -1,6 +1,6 @@
 use crate::ui::theme::Theme;
-use eframe::egui::{Color32, Response, Sense, Ui, UiBuilder, UiKind, UiStackInfo, Widget};
-use epaint::{CornerRadius, FontId, Rect, RectShape, Shape, Stroke, StrokeKind, Vec2, pos2, vec2};
+use eframe::egui::{Align, Color32, Layout, Response, Sense, Ui, UiBuilder, Widget};
+use epaint::{CornerRadius, FontId, Rect, RectShape, Shape, Stroke, StrokeKind, pos2, vec2};
 
 pub struct GroupBox<'a, F: FnOnce(&mut Ui)> {
     pub header_text: &'a str,
@@ -41,78 +41,91 @@ impl<'a, F: FnOnce(&mut Ui)> Widget for GroupBox<'a, F> {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let where_to_put_background = user_interface.painter().add(Shape::Noop);
-        let available_size_rect = user_interface.available_rect_before_wrap();
-        let available_size = available_size_rect.size();
+        // Measure header without painting.
         let header_galley = user_interface
             .painter()
             .layout_no_wrap(self.header_text.to_owned(), self.header_font_id.clone(), Color32::WHITE);
-        let header_width_with_padding = header_galley.size().x + self.header_padding * 2.0;
-        let header_height = header_galley.size().y;
+        let header_size = header_galley.size();
+        let header_height = header_size.y;
+        let header_min_width = header_size.x + self.header_padding * 2.0;
 
-        // Offset contents by half header height.
-        let content_offset = Vec2::new(0.0, header_height / 2.0);
-        let max_content_rect = available_size_rect
-            .translate(content_offset)
-            .shrink2(Vec2::splat(self.content_padding));
+        // We overlay the header so the border starts at half-header height.
+        let vertical_overlap = header_height * 0.5;
 
-        // Build child ui to render contents.
-        let mut content_user_interface = user_interface.new_child(
+        // Decide target width up-front (never grow after we allocate).
+        let avail = user_interface.available_size();
+        let target_width = self
+            .desired_width
+            .unwrap_or(header_min_width)
+            .max(header_min_width)
+            .min(avail.x);
+
+        // Inner content max width (inside left/right padding):
+        let inner_width = (target_width - self.content_padding * 2.0).max(0.0);
+
+        // Temporarily build a child UI to layout the contents and find required height. Start from the current cursor position.
+        let origin = user_interface.cursor().min;
+
+        // Rect where the content may place widgets (below the overlapped header, with padding).
+        let content_min = origin + vec2(self.content_padding, vertical_overlap + self.content_padding);
+
+        // Let content grow downwards as needed; width is fixed.
+        let content_max = pos2(content_min.x + inner_width, user_interface.max_rect().max.y);
+
+        let mut content_ui = user_interface.new_child(
             UiBuilder::new()
-                .ui_stack_info(UiStackInfo::new(UiKind::Frame))
-                .max_rect(max_content_rect),
+                .max_rect(Rect::from_min_max(content_min, content_max))
+                .layout(Layout::top_down(Align::Min)),
         );
 
-        (self.add_contents)(&mut content_user_interface);
+        // Add user contents (this determines the required height).
+        (self.add_contents)(&mut content_ui);
 
-        let content_rectangle = content_user_interface.min_rect();
-        let mut border_rectangle = content_rectangle.expand(self.content_padding);
+        // Laid out content bounds.
+        let laid_out = content_ui.min_rect();
+        let content_height = (laid_out.max.y - content_min.y).max(0.0);
 
-        // Apply width / height overrides if set.
-        if let Some(desired_width) = self.desired_width {
-            let clamped_width = desired_width.min(available_size.x);
+        // Compute the border (background) block height: top padding + content + bottom padding.
+        let border_height = self.content_padding + content_height + self.content_padding;
 
-            border_rectangle = Rect::from_min_max(border_rectangle.min, pos2(border_rectangle.min.x + clamped_width, border_rectangle.max.y));
+        // The border box starts *after* the header overlap.
+        let border_min = origin + vec2(0.0, vertical_overlap);
+        let border_rectangle = Rect::from_min_size(border_min, vec2(target_width, border_height));
+
+        // The full widget (outer) rect must include the floating header above the border.
+        let outer_height = vertical_overlap + border_height;
+        let outer_rectangle = Rect::from_min_size(origin, vec2(target_width, outer_height));
+
+        // Allocate the exact rect so parent layouts know our true footprint.
+        // Use a hover sense; change if you need interactions on the frame.
+        let response = user_interface.allocate_rect(outer_rectangle, Sense::hover());
+
+        // Paint everything relative to 'outer_rect'.
+        if user_interface.is_rect_visible(outer_rectangle) {
+            // Header text pos.
+            let header_position = outer_rectangle.min + vec2(self.header_padding, 0.0);
+
+            // Header background (tight pill behind text).
+            let header_bg_rect = Rect::from_min_size(pos2(header_position.x - 4.0, header_position.y), vec2(header_size.x + 8.0, header_size.y));
+            user_interface
+                .painter()
+                .rect_filled(header_bg_rect, 0.0, self.background_color);
+
+            // Border around the content area.
+            user_interface.painter().add(Shape::Rect(RectShape::new(
+                border_rectangle,
+                CornerRadius::same(self.rounding),
+                Color32::TRANSPARENT,
+                Stroke::new(1.0, self.border_color),
+                StrokeKind::Inside,
+            )));
+
+            // Header text.
+            user_interface
+                .painter()
+                .galley(header_position, header_galley, Color32::WHITE);
         }
 
-        if let Some(desired_height) = self.desired_height {
-            let clamped_height = desired_height.min(available_size.y);
-
-            border_rectangle = Rect::from_min_max(border_rectangle.min, pos2(border_rectangle.max.x, border_rectangle.min.y + clamped_height));
-        }
-
-        // Expand border if shorter than header width.
-        if border_rectangle.width() < header_width_with_padding {
-            border_rectangle = Rect::from_min_max(
-                border_rectangle.min,
-                pos2(border_rectangle.min.x + header_width_with_padding, border_rectangle.max.y),
-            );
-        }
-
-        let border_shape = Shape::Rect(RectShape::new(
-            border_rectangle,
-            CornerRadius::same(self.rounding),
-            Color32::TRANSPARENT,
-            Stroke::new(1.0, self.border_color),
-            StrokeKind::Inside,
-        ));
-        let header_offset = Vec2::new(self.header_padding, -header_height / 2.0);
-        let header_position = border_rectangle.min + header_offset;
-        let header_bg_rect = Rect::from_min_size(
-            pos2(header_position.x - 4.0, header_position.y),
-            vec2(header_galley.size().x + 8.0, header_galley.size().y),
-        );
-
-        user_interface
-            .painter()
-            .rect_filled(header_bg_rect, 0.0, self.background_color);
-        user_interface
-            .painter()
-            .set(where_to_put_background, border_shape);
-        user_interface
-            .painter()
-            .galley(header_position, header_galley, Color32::WHITE);
-
-        user_interface.allocate_rect(border_rectangle, Sense::hover())
+        response
     }
 }
