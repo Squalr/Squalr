@@ -86,7 +86,15 @@ impl<'a, F: FnOnce(&mut Ui)> Widget for GroupBox<'a, F> {
         let content_height = (laid_out.max.y - content_min.y).max(0.0);
 
         // Compute the border (background) block height: top padding + content + bottom padding.
-        let border_height = self.content_padding + content_height + self.content_padding;
+        let mut border_height = self.content_padding + content_height + self.content_padding;
+
+        // If a desired height was specified, respect it (clamped by avail.y).
+        if let Some(desired_h) = self.desired_height {
+            // Account for header overlap when computing target height.
+            let target_total_height = desired_h.min(avail.y).max(header_height);
+            let target_border_height = (target_total_height - vertical_overlap).max(0.0);
+            border_height = border_height.max(target_border_height);
+        }
 
         // The border box starts *after* the header overlap.
         let border_min = origin + vec2(0.0, vertical_overlap);
@@ -97,19 +105,12 @@ impl<'a, F: FnOnce(&mut Ui)> Widget for GroupBox<'a, F> {
         let outer_rectangle = Rect::from_min_size(origin, vec2(target_width, outer_height));
 
         // Allocate the exact rect so parent layouts know our true footprint.
-        // Use a hover sense; change if you need interactions on the frame.
         let response = user_interface.allocate_rect(outer_rectangle, Sense::hover());
 
         // Paint everything relative to 'outer_rect'.
         if user_interface.is_rect_visible(outer_rectangle) {
-            // Header text pos.
             let header_position = outer_rectangle.min + vec2(self.header_padding, 0.0);
-
-            // Header background (tight pill behind text).
             let header_bg_rect = Rect::from_min_size(pos2(header_position.x - 4.0, header_position.y), vec2(header_size.x + 8.0, header_size.y));
-            user_interface
-                .painter()
-                .rect_filled(header_bg_rect, 0.0, self.background_color);
 
             // Border around the content area.
             user_interface.painter().add(Shape::Rect(RectShape::new(
@@ -119,6 +120,11 @@ impl<'a, F: FnOnce(&mut Ui)> Widget for GroupBox<'a, F> {
                 Stroke::new(1.0, self.border_color),
                 StrokeKind::Inside,
             )));
+
+            // Header background.
+            user_interface
+                .painter()
+                .rect_filled(header_bg_rect, 0.0, self.background_color);
 
             // Header text.
             user_interface

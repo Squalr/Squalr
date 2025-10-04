@@ -1,9 +1,10 @@
 use crate::{
     app_context::AppContext,
     models::tab_menu::tab_menu_data::TabMenuData,
-    ui::widgets::controls::{checkbox::Checkbox, groupbox::GroupBox, tab_menu::tab_menu_view::TabMenuView},
+    ui::widgets::controls::tab_menu::tab_menu_view::TabMenuView,
+    views::settings::{settings_tab_memory_view::SettingsTabMemoryView, settings_tab_scan_view::SettingsTabScanView},
 };
-use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
+use eframe::egui::{Align, Layout, Response, Ui, Widget};
 use std::{
     rc::Rc,
     sync::atomic::{AtomicI32, Ordering},
@@ -13,6 +14,8 @@ use std::{
 pub struct SettingsView {
     app_context: Rc<AppContext>,
     tab_menu_data: TabMenuData,
+    settings_tab_memory_view: Rc<SettingsTabMemoryView>,
+    settings_tab_scan_view: Rc<SettingsTabScanView>,
 }
 
 impl SettingsView {
@@ -21,8 +24,15 @@ impl SettingsView {
             headers: vec!["General".to_string(), "Memory".to_string(), "Scan".to_string()].into(),
             active_tab_index: Rc::new(AtomicI32::new(0)),
         };
+        let settings_tab_memory_view = Rc::new(SettingsTabMemoryView::new(app_context.clone()));
+        let settings_tab_scan_view = Rc::new(SettingsTabScanView::new(app_context.clone()));
 
-        Self { app_context, tab_menu_data }
+        Self {
+            app_context,
+            tab_menu_data,
+            settings_tab_memory_view,
+            settings_tab_scan_view,
+        }
     }
 }
 
@@ -31,7 +41,6 @@ impl Widget for SettingsView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let theme = &self.app_context.theme;
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 // Compose the menu bar over the painted available space rectangle.
@@ -41,114 +50,10 @@ impl Widget for SettingsView {
 
                 match self.tab_menu_data.active_tab_index.load(Ordering::Acquire) {
                     1 => {
-                        // Memory settings.
-                        user_interface.horizontal(|user_interface| {
-                            let mut groupbox_required_protection_flags = GroupBox::new_from_theme(theme, "Required Protection Flags", |user_interface| {
-                                user_interface.vertical(|user_interface| {
-                                    user_interface.horizontal(|user_interface| {
-                                        user_interface.add(Checkbox::new_from_theme(theme).checked(true));
-                                        user_interface.add_space(8.0);
-                                        user_interface.label(RichText::new("Write").font(theme.font_library.font_noto_sans.font_normal.clone()));
-                                    });
-                                    user_interface.add_space(4.0);
-                                    user_interface.horizontal(|user_interface| {
-                                        user_interface.add(Checkbox::new_from_theme(theme).checked(true));
-                                        user_interface.add_space(8.0);
-                                        user_interface.label(RichText::new("Execute").font(theme.font_library.font_noto_sans.font_normal.clone()));
-                                    });
-                                    user_interface.add_space(4.0);
-                                    user_interface.horizontal(|user_interface| {
-                                        user_interface.add(Checkbox::new_from_theme(theme).checked(true));
-                                        user_interface.add_space(8.0);
-                                        user_interface.label(RichText::new("Copy on Write").font(theme.font_library.font_noto_sans.font_normal.clone()));
-                                    });
-                                });
-                            });
-
-                            let mut groupbox_excluded_protection_flags = GroupBox::new_from_theme(theme, "Memory Types", |user_interface| {
-                                user_interface.vertical(|user_interface| {
-                                    user_interface.horizontal(|user_interface| {
-                                        user_interface.add(Checkbox::new_from_theme(theme).checked(true));
-                                        user_interface.add_space(8.0);
-                                        user_interface.label(RichText::new("Write").font(theme.font_library.font_noto_sans.font_normal.clone()));
-                                    });
-                                    user_interface.add_space(4.0);
-                                    user_interface.horizontal(|user_interface| {
-                                        user_interface.add(Checkbox::new_from_theme(theme).checked(true));
-                                        user_interface.add_space(8.0);
-                                        user_interface.label(RichText::new("Execute").font(theme.font_library.font_noto_sans.font_normal.clone()));
-                                    });
-                                    user_interface.add_space(4.0);
-                                    user_interface.horizontal(|user_interface| {
-                                        user_interface.add(Checkbox::new_from_theme(theme).checked(true));
-                                        user_interface.add_space(8.0);
-                                        user_interface.label(RichText::new("Copy on Write").font(theme.font_library.font_noto_sans.font_normal.clone()));
-                                    });
-                                });
-                            });
-
-                            groupbox_required_protection_flags.desired_width = Some(192.0);
-                            groupbox_required_protection_flags.desired_height = Some(192.0);
-                            groupbox_excluded_protection_flags.desired_width = Some(192.0);
-                            groupbox_excluded_protection_flags.desired_height = Some(192.0);
-
-                            user_interface.add(groupbox_required_protection_flags);
-                            user_interface.add(groupbox_excluded_protection_flags);
-                        });
-
-                        user_interface.horizontal(|user_interface| {
-                            let mut groupbox_memory_types = GroupBox::new_from_theme(theme, "Memory Types", |user_interface| {
-                                user_interface.vertical(|user_interface| {
-                                    user_interface.horizontal(|user_interface| {
-                                        user_interface.add(Checkbox::new_from_theme(theme).checked(true));
-                                        user_interface.add_space(8.0);
-                                        user_interface.label(RichText::new("Write").font(theme.font_library.font_noto_sans.font_normal.clone()));
-                                    });
-                                    user_interface.add_space(4.0);
-                                    user_interface.horizontal(|user_interface| {
-                                        user_interface.add(Checkbox::new_from_theme(theme).checked(true));
-                                        user_interface.add_space(8.0);
-                                        user_interface.label(RichText::new("Execute").font(theme.font_library.font_noto_sans.font_normal.clone()));
-                                    });
-                                    user_interface.add_space(4.0);
-                                    user_interface.horizontal(|user_interface| {
-                                        user_interface.add(Checkbox::new_from_theme(theme).checked(true));
-                                        user_interface.add_space(8.0);
-                                        user_interface.label(RichText::new("Copy on Write").font(theme.font_library.font_noto_sans.font_normal.clone()));
-                                    });
-                                });
-                            });
-                            let mut groupbox_memory_types2 = GroupBox::new_from_theme(theme, "Memory Types", |user_interface| {
-                                user_interface.vertical(|user_interface| {
-                                    user_interface.horizontal(|user_interface| {
-                                        user_interface.add(Checkbox::new_from_theme(theme).checked(true));
-                                        user_interface.add_space(8.0);
-                                        user_interface.label(RichText::new("Write").font(theme.font_library.font_noto_sans.font_normal.clone()));
-                                    });
-                                    user_interface.add_space(4.0);
-                                    user_interface.horizontal(|user_interface| {
-                                        user_interface.add(Checkbox::new_from_theme(theme).checked(true));
-                                        user_interface.add_space(8.0);
-                                        user_interface.label(RichText::new("Execute").font(theme.font_library.font_noto_sans.font_normal.clone()));
-                                    });
-                                    user_interface.add_space(4.0);
-                                    user_interface.horizontal(|user_interface| {
-                                        user_interface.add(Checkbox::new_from_theme(theme).checked(true));
-                                        user_interface.add_space(8.0);
-                                        user_interface.label(RichText::new("Copy on Write").font(theme.font_library.font_noto_sans.font_normal.clone()));
-                                    });
-                                });
-                            });
-
-                            groupbox_memory_types.desired_width = Some(192.0);
-                            groupbox_memory_types2.desired_width = Some(192.0);
-
-                            user_interface.add(groupbox_memory_types);
-                            user_interface.add(groupbox_memory_types2);
-                        });
+                        user_interface.add(self.settings_tab_memory_view.as_ref().clone());
                     }
                     2 => {
-                        // Scan settings.
+                        user_interface.add(self.settings_tab_scan_view.as_ref().clone());
                     }
                     _ => {
                         // General settings.

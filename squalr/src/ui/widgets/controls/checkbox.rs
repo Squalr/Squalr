@@ -5,8 +5,6 @@ use epaint::{CornerRadius, Rect, StrokeKind, TextureHandle, Vec2, pos2};
 
 #[derive(Default)]
 pub struct Checkbox<'lifetime> {
-    pub is_checked: bool,
-    pub disabled: bool,
     pub tooltip_text: &'lifetime str,
 
     pub corner_radius: CornerRadius,
@@ -21,6 +19,9 @@ pub struct Checkbox<'lifetime> {
     pub icon: Option<TextureHandle>,
 
     pub click_sound: Option<&'lifetime str>,
+
+    pub is_checked: bool,
+    pub disabled: bool,
 }
 
 impl<'lifetime> Checkbox<'lifetime> {
@@ -105,7 +106,7 @@ impl<'lifetime> Widget for Checkbox<'lifetime> {
         }
         .ui(user_interface);
 
-        // Checked icon (using theme’s close icon for now).
+        // Display icon if checked.
         if self.is_checked {
             if let Some(icon) = self.icon {
                 let texture_size = icon.size_vec2();
@@ -114,7 +115,7 @@ impl<'lifetime> Widget for Checkbox<'lifetime> {
                 user_interface.painter().image(
                     icon.id(),
                     Rect::from_min_size(icon_position, texture_size),
-                    Rect::from_min_max(pos2(0.0, 0.0), pos2(texture_size.x, texture_size.y)),
+                    Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
                     Color32::WHITE,
                 );
             }

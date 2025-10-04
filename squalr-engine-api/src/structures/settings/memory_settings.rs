@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use std::fmt;
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Copy, Clone, Deserialize, Serialize)]
 pub struct MemorySettings {
     pub memory_type_none: bool,
     pub memory_type_private: bool,
