@@ -50,285 +50,283 @@ impl Widget for SettingsTabMemoryView {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let cached_memory_settings = match self.cached_memory_settings.read() {
+        let cached_memory_settings = match self.cached_memory_settings.try_read() {
             Ok(cached_memory_settings) => *cached_memory_settings,
             Err(_error) => MemorySettings::default(),
         };
 
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
+                user_interface.add_space(4.0);
                 user_interface.horizontal(|user_interface| {
-                    let mut groupbox_required_protection_flags = GroupBox::new_from_theme(theme, "Required Protection Flags", |user_interface| {
-                        user_interface.vertical(|user_interface| {
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.required_write))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.required_write = !cached_memory_settings.required_write;
+                    user_interface.add(
+                        GroupBox::new_from_theme(theme, "Required Protection Flags", |user_interface| {
+                            user_interface.vertical(|user_interface| {
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.required_write))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.required_write = !cached_memory_settings.required_write;
+                                        }
                                     }
-                                }
 
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("Write")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
-                            });
-                            user_interface.add_space(4.0);
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.required_execute))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.required_execute = !cached_memory_settings.required_execute;
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Write")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
+                                user_interface.add_space(4.0);
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.required_execute))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.required_execute = !cached_memory_settings.required_execute;
+                                        }
                                     }
-                                }
 
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("Execute")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
-                            });
-                            user_interface.add_space(4.0);
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.required_copy_on_write))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.required_copy_on_write = !cached_memory_settings.required_copy_on_write;
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Execute")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
+                                user_interface.add_space(4.0);
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.required_copy_on_write))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.required_copy_on_write = !cached_memory_settings.required_copy_on_write;
+                                        }
                                     }
-                                }
 
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("Copy on Write")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Copy on Write")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
                             });
-                        });
-                    });
-                    let mut groupbox_excluded_protection_flags = GroupBox::new_from_theme(theme, "Excluded Protection Flags", |user_interface| {
-                        user_interface.vertical(|user_interface| {
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.excluded_write))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.excluded_write = !cached_memory_settings.excluded_write;
-                                    }
-                                }
-
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("Write")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
-                            });
-                            user_interface.add_space(4.0);
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.excluded_execute))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.excluded_execute = !cached_memory_settings.excluded_execute;
-                                    }
-                                }
-
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("Execute")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
-                            });
-                            user_interface.add_space(4.0);
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.excluded_copy_on_write))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.excluded_copy_on_write = !cached_memory_settings.excluded_copy_on_write;
-                                    }
-                                }
-
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("Copy on Write")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
-                            });
-                        });
-                    });
-
-                    groupbox_required_protection_flags.desired_width = Some(224.0);
-                    groupbox_excluded_protection_flags.desired_width = Some(256.0);
-
-                    user_interface.add_space(4.0);
-                    user_interface.add(groupbox_required_protection_flags);
+                        })
+                        .desired_width(224.0),
+                    );
                     user_interface.add_space(8.0);
-                    user_interface.add(groupbox_excluded_protection_flags);
-                    user_interface.add_space(4.0);
+                    user_interface.add(
+                        GroupBox::new_from_theme(theme, "Excluded Protection Flags", |user_interface| {
+                            user_interface.vertical(|user_interface| {
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.excluded_write))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.excluded_write = !cached_memory_settings.excluded_write;
+                                        }
+                                    }
+
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Write")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
+                                user_interface.add_space(4.0);
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.excluded_execute))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.excluded_execute = !cached_memory_settings.excluded_execute;
+                                        }
+                                    }
+
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Execute")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
+                                user_interface.add_space(4.0);
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.excluded_copy_on_write))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.excluded_copy_on_write = !cached_memory_settings.excluded_copy_on_write;
+                                        }
+                                    }
+
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Copy on Write")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
+                            });
+                        })
+                        .desired_width(256.0),
+                    );
                 });
 
                 user_interface.horizontal(|user_interface| {
-                    let mut groupbox_memory_types = GroupBox::new_from_theme(theme, "Memory Types", |user_interface| {
-                        user_interface.vertical(|user_interface| {
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.memory_type_none))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.memory_type_none = !cached_memory_settings.memory_type_none;
-                                    }
-                                }
-
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("None")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
-                            });
+                    user_interface.add(
+                        GroupBox::new_from_theme(theme, "Memory Types", |user_interface| {
                             user_interface.add_space(4.0);
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.memory_type_image))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.memory_type_image = !cached_memory_settings.memory_type_image;
+                            user_interface.vertical(|user_interface| {
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.memory_type_none))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.memory_type_none = !cached_memory_settings.memory_type_none;
+                                        }
                                     }
-                                }
 
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("Image")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
-                            });
-                            user_interface.add_space(4.0);
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.memory_type_private))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.memory_type_private = !cached_memory_settings.memory_type_private;
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("None")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
+                                user_interface.add_space(4.0);
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.memory_type_image))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.memory_type_image = !cached_memory_settings.memory_type_image;
+                                        }
                                     }
-                                }
 
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("Private")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
-                            });
-                            user_interface.add_space(4.0);
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.memory_type_mapped))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.memory_type_mapped = !cached_memory_settings.memory_type_mapped;
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Image")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
+                                user_interface.add_space(4.0);
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.memory_type_private))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.memory_type_private = !cached_memory_settings.memory_type_private;
+                                        }
                                     }
-                                }
 
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("Mapped")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
-                            });
-                        });
-                    });
-                    let mut groupbox_virtual_memory = GroupBox::new_from_theme(theme, "Virtual Memory Querying", |user_interface| {
-                        user_interface.vertical(|user_interface| {
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.only_query_usermode))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.only_query_usermode = !cached_memory_settings.only_query_usermode;
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Private")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
+                                user_interface.add_space(4.0);
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.memory_type_mapped))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.memory_type_mapped = !cached_memory_settings.memory_type_mapped;
+                                        }
                                     }
-                                }
 
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("Query All memory")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Mapped")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
                             });
-                            user_interface.add_space(4.0);
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.only_query_usermode))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.only_query_usermode = !cached_memory_settings.only_query_usermode;
-                                    }
-                                }
-
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("Query All Usermode Memory")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
-                            });
-                            user_interface.add_space(4.0);
-                            user_interface.horizontal(|user_interface| {
-                                if user_interface
-                                    .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.only_query_usermode))
-                                    .clicked()
-                                {
-                                    if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                        cached_memory_settings.only_query_usermode = !cached_memory_settings.only_query_usermode;
-                                    }
-                                }
-
-                                user_interface.add_space(8.0);
-                                user_interface.label(
-                                    RichText::new("Query Custom Range")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                );
-                            });
-                        });
-                    });
-
-                    groupbox_memory_types.desired_width = Some(224.0);
-                    groupbox_virtual_memory.desired_width = Some(256.0);
-
-                    // JIRA: Bugged. I believe these rows are not allocating sufficient available height, and then groupbox treats desired as a suggestion.
-                    groupbox_memory_types.desired_height = Some(320.0);
-                    groupbox_virtual_memory.desired_height = Some(320.0);
-
-                    user_interface.add_space(4.0);
-                    user_interface.add(groupbox_memory_types);
+                        })
+                        .desired_width(224.0)
+                        // JIRA: Bugged. I believe these rows are not allocating sufficient available height, and then groupbox treats desired as a suggestion.
+                        .desired_height(320.0),
+                    );
                     user_interface.add_space(8.0);
-                    user_interface.add(groupbox_virtual_memory);
-                    user_interface.add_space(4.0);
+                    user_interface.add(
+                        GroupBox::new_from_theme(theme, "Virtual Memory Querying", |user_interface| {
+                            user_interface.vertical(|user_interface| {
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.only_query_usermode))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.only_query_usermode = !cached_memory_settings.only_query_usermode;
+                                        }
+                                    }
+
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Query All memory")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
+                                user_interface.add_space(4.0);
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.only_query_usermode))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.only_query_usermode = !cached_memory_settings.only_query_usermode;
+                                        }
+                                    }
+
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Query All Usermode Memory")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
+                                user_interface.add_space(4.0);
+                                user_interface.horizontal(|user_interface| {
+                                    if user_interface
+                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.only_query_usermode))
+                                        .clicked()
+                                    {
+                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
+                                            cached_memory_settings.only_query_usermode = !cached_memory_settings.only_query_usermode;
+                                        }
+                                    }
+
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Query Custom Range")
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
+                            });
+                        })
+                        .desired_width(256.0)
+                        // JIRA: Bugged. I believe these rows are not allocating sufficient available height, and then groupbox treats desired as a suggestion.
+                        .desired_height(320.0),
+                    );
                 });
             })
             .response;

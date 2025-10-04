@@ -5,7 +5,7 @@ use epaint::{CornerRadius, Rect, TextureHandle, pos2, vec2};
 
 #[derive(Default)]
 pub struct Slider<'lifetime> {
-    pub current_value: i64,
+    pub current_value: Option<&'lifetime mut i64>,
     pub minimum_value: i64,
     pub maximum_value: i64,
     pub tooltip_text: &'lifetime str,
@@ -44,9 +44,9 @@ impl<'lifetime> Slider<'lifetime> {
 
     pub fn current_value(
         mut self,
-        current_value: i64,
+        current_value: &'lifetime mut i64,
     ) -> Self {
-        self.current_value = current_value;
+        self.current_value = Some(current_value);
         self
     }
 
@@ -92,6 +92,8 @@ impl<'lifetime> Widget for Slider<'lifetime> {
         let handle_size_float = self.handle_size as f32;
         let allocated_size = vec2(user_interface.available_size().x.min(self.track_width), handle_size_float);
         let (allocated_size_rectangle, mut response) = user_interface.allocate_exact_size(allocated_size, sense);
+        let mut fallback_value = self.minimum_value;
+        let effective_value = self.current_value.unwrap_or(&mut fallback_value);
 
         // Track (fixed 4px centered).
         let track_height = 8.0;
@@ -122,7 +124,7 @@ impl<'lifetime> Widget for Slider<'lifetime> {
 
         // Create circular handle.
         let range = (self.maximum_value - self.minimum_value).max(1);
-        let progress = ((self.current_value - self.minimum_value) as f32 / range as f32).clamp(0.0, 1.0);
+        let progress = ((*effective_value - self.minimum_value) as f32 / range as f32).clamp(0.0, 1.0);
 
         let handle_radius = self.handle_size / 2;
         let handle_radius_float = handle_radius as f32;
@@ -149,14 +151,19 @@ impl<'lifetime> Widget for Slider<'lifetime> {
         }
         .ui(user_interface);
 
+        let mut changed = false;
+
         // Interaction.
         if response.dragged() {
-            if let Some(mouse_x) = user_interface.input(|i| i.pointer.hover_pos().map(|p| p.x)) {
+            if let Some(mouse_x) = user_interface.input(|input_state| input_state.pointer.hover_pos().map(|position| position.x)) {
                 let normalized = ((mouse_x - allocated_size_rectangle.left()) / allocated_size_rectangle.width()).clamp(0.0, 1.0);
                 let new_value = self.minimum_value + (normalized * range as f32).round() as i64;
 
-                response = response.union(user_interface.interact(track_rect, response.id, Sense::drag()));
-                user_interface.memory_mut(|memory| memory.data.insert_temp(response.id, new_value));
+                if new_value != *effective_value {
+                    response = response.union(user_interface.interact(track_rect, response.id, Sense::drag()));
+                    *effective_value = new_value;
+                    changed = true;
+                }
             }
         }
 
@@ -168,6 +175,10 @@ impl<'lifetime> Widget for Slider<'lifetime> {
             if let Some(sound) = self.click_sound {
                 println!("JIRA: Play sound: {}", sound);
             }
+        }
+
+        if changed {
+            response.mark_changed();
         }
 
         response

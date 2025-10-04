@@ -34,6 +34,22 @@ impl<'a, F: FnOnce(&mut Ui)> GroupBox<'a, F> {
             rounding: 4,
         }
     }
+
+    pub fn desired_width(
+        mut self,
+        desired_width: f32,
+    ) -> Self {
+        self.desired_width = Some(desired_width);
+        self
+    }
+
+    pub fn desired_height(
+        mut self,
+        desired_height: f32,
+    ) -> Self {
+        self.desired_height = Some(desired_height);
+        self
+    }
 }
 
 impl<'a, F: FnOnce(&mut Ui)> Widget for GroupBox<'a, F> {

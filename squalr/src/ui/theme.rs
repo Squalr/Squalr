@@ -18,6 +18,7 @@ pub struct Theme {
     pub transparent: Color32,
 
     // Control backgrounds
+    pub background_control_primary_light: Color32,
     pub background_control_primary: Color32,
     pub background_control_primary_dark: Color32,
     pub background_control_secondary: Color32,
@@ -72,6 +73,7 @@ impl Theme {
             transparent: Color32::TRANSPARENT,
 
             // Control backgrounds.
+            background_control_primary_light: Color32::from_rgb(0x3D, 0x69, 0x9C),
             background_control_primary: Color32::from_rgb(0x1E, 0x54, 0x92),
             background_control_primary_dark: Color32::from_rgb(0x06, 0x1E, 0x3E),
             background_control_secondary: Color32::from_rgb(0x43, 0x4E, 0x51),

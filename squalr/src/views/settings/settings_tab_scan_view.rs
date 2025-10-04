@@ -3,6 +3,7 @@ use crate::{
     ui::widgets::controls::{checkbox::Checkbox, groupbox::GroupBox, slider::Slider},
 };
 use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
+use epaint::vec2;
 use squalr_engine_api::{
     commands::{engine_command_request::EngineCommandRequest, settings::scan::list::scan_settings_list_request::ScanSettingsListRequest},
     structures::settings::scan_settings::ScanSettings,
@@ -50,22 +51,157 @@ impl Widget for SettingsTabScanView {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let cached_scan_settings = match self.cached_scan_settings.read() {
+        let cached_scan_settings = match self.cached_scan_settings.try_read() {
             Ok(cached_scan_settings) => *cached_scan_settings,
             Err(_error) => ScanSettings::default(),
         };
 
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
-                let mut groupbox_memory_read_intervals = GroupBox::new_from_theme(theme, "Memory Read Intervals", |user_interface| {
-                    let slider = Slider::new_from_theme(theme);
+                user_interface.add_space(4.0);
+                user_interface.add(
+                    GroupBox::new_from_theme(theme, "Memory Read Intervals", |user_interface| {
+                        user_interface.horizontal(|user_interface| {
+                            let mut value: i64 = cached_scan_settings.results_page_size as i64;
+                            let slider = Slider::new_from_theme(theme)
+                                .current_value(&mut value)
+                                .minimum_value(8)
+                                .maximum_value(128);
 
-                    user_interface.add(slider);
-                });
-                let mut groupbox_scan_params = GroupBox::new_from_theme(theme, "Scan Params", |user_interface| {
+                            if user_interface.add(slider).changed() {
+                                if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
+                                    cached_scan_settings.results_page_size = value as u32;
+                                }
+                            }
+
+                            user_interface.add_space(8.0);
+                            user_interface.allocate_ui_with_layout(
+                                vec2(32.0, user_interface.available_height()),
+                                Layout::right_to_left(Align::Center),
+                                |user_interface| {
+                                    user_interface.label(
+                                        RichText::new(value.to_string())
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                },
+                            );
+
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new("Results page size")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                        });
+                        user_interface.horizontal(|user_interface| {
+                            let mut value: i64 = cached_scan_settings.freeze_interval_ms as i64;
+                            let slider = Slider::new_from_theme(theme)
+                                .current_value(&mut value)
+                                .minimum_value(0)
+                                .maximum_value(2000);
+
+                            if user_interface.add(slider).changed() {
+                                if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
+                                    cached_scan_settings.freeze_interval_ms = value as u64;
+                                }
+                            }
+
+                            user_interface.add_space(8.0);
+                            user_interface.allocate_ui_with_layout(
+                                vec2(32.0, user_interface.available_height()),
+                                Layout::right_to_left(Align::Center),
+                                |user_interface| {
+                                    user_interface.label(
+                                        RichText::new(value.to_string())
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                },
+                            );
+
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new("Freeze interval (ms)")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                        });
+                        user_interface.horizontal(|user_interface| {
+                            let mut value: i64 = cached_scan_settings.project_read_interval_ms as i64;
+                            let slider = Slider::new_from_theme(theme)
+                                .current_value(&mut value)
+                                .minimum_value(0)
+                                .maximum_value(2000);
+
+                            if user_interface.add(slider).changed() {
+                                if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
+                                    cached_scan_settings.project_read_interval_ms = value as u64;
+                                }
+                            }
+
+                            user_interface.add_space(8.0);
+                            user_interface.allocate_ui_with_layout(
+                                vec2(32.0, user_interface.available_height()),
+                                Layout::right_to_left(Align::Center),
+                                |user_interface| {
+                                    user_interface.label(
+                                        RichText::new(value.to_string())
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                },
+                            );
+
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new("Project read interval (ms)")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                        });
+                        user_interface.horizontal(|user_interface| {
+                            let mut value: i64 = cached_scan_settings.results_read_interval_ms as i64;
+                            let slider = Slider::new_from_theme(theme)
+                                .current_value(&mut value)
+                                .minimum_value(0)
+                                .maximum_value(2000);
+
+                            if user_interface.add(slider).changed() {
+                                if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
+                                    cached_scan_settings.results_read_interval_ms = value as u64;
+                                }
+                            }
+
+                            user_interface.add_space(8.0);
+                            user_interface.allocate_ui_with_layout(
+                                vec2(32.0, user_interface.available_height()),
+                                Layout::right_to_left(Align::Center),
+                                |user_interface| {
+                                    user_interface.label(
+                                        RichText::new(value.to_string())
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                            .color(theme.foreground),
+                                    );
+                                },
+                            );
+
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new("Result read interval (ms)")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                        });
+                    })
+                    .desired_width(412.0),
+                );
+                user_interface.add_space(4.0);
+                user_interface.add(GroupBox::new_from_theme(theme, "Scan Params", |user_interface| {
                     //
-                });
-                let mut groupbox_scan_internals = GroupBox::new_from_theme(theme, "Scan Internals", |user_interface| {
+                }));
+                user_interface.add_space(4.0);
+                user_interface.add(GroupBox::new_from_theme(theme, "Scan Internals", |user_interface| {
                     user_interface.horizontal(|user_interface| {
                         if user_interface
                             .add(Checkbox::new_from_theme(theme).checked(cached_scan_settings.is_single_threaded_scan))
@@ -102,15 +238,7 @@ impl Widget for SettingsTabScanView {
                                 .color(theme.foreground),
                         );
                     });
-                });
-
-                user_interface.add_space(4.0);
-                user_interface.add(groupbox_memory_read_intervals);
-                user_interface.add_space(4.0);
-                user_interface.add(groupbox_scan_params);
-                user_interface.add_space(4.0);
-                user_interface.add(groupbox_scan_internals);
-                user_interface.add_space(4.0);
+                }));
             })
             .response;
 

@@ -71,8 +71,8 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
             border_width: 0.0,
             hover_color: theme.hover_tint,
             pressed_color: theme.pressed_tint,
-            border_color: theme.background_control_primary_dark,
-            border_color_focused: theme.background_control_primary_dark,
+            border_color: theme.background_control_primary_light,
+            border_color_focused: theme.background_control_primary_light,
         }
         .ui(user_interface);
 
