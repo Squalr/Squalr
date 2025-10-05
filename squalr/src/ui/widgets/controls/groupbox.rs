@@ -2,8 +2,8 @@ use crate::ui::theme::Theme;
 use eframe::egui::{Align, Color32, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, FontId, Rect, RectShape, Shape, Stroke, StrokeKind, pos2, vec2};
 
-pub struct GroupBox<'a, F: FnOnce(&mut Ui)> {
-    pub header_text: &'a str,
+pub struct GroupBox<'lifetime, F: FnOnce(&mut Ui)> {
+    pub header_text: &'lifetime str,
     pub background_color: Color32,
     pub border_color: Color32,
     pub add_contents: F,
@@ -15,10 +15,10 @@ pub struct GroupBox<'a, F: FnOnce(&mut Ui)> {
     pub rounding: u8,
 }
 
-impl<'a, F: FnOnce(&mut Ui)> GroupBox<'a, F> {
+impl<'lifetime, F: FnOnce(&mut Ui)> GroupBox<'lifetime, F> {
     pub fn new_from_theme(
         theme: &Theme,
-        header_text: &'a str,
+        header_text: &'lifetime str,
         add_contents: F,
     ) -> Self {
         Self {
@@ -52,7 +52,7 @@ impl<'a, F: FnOnce(&mut Ui)> GroupBox<'a, F> {
     }
 }
 
-impl<'a, F: FnOnce(&mut Ui)> Widget for GroupBox<'a, F> {
+impl<'lifetime, F: FnOnce(&mut Ui)> Widget for GroupBox<'lifetime, F> {
     fn ui(
         self,
         user_interface: &mut Ui,

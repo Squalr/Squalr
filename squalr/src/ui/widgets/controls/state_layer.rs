@@ -35,7 +35,7 @@ impl Widget for StateLayer {
             return response;
         }
 
-        // Background color depending on state (pressed > hover > default)
+        // Select background color depending on state (pressed > hover > default).
         let fill = if self.enabled && self.pressed {
             self.pressed_color
         } else if self.enabled && self.has_hover {
@@ -44,12 +44,12 @@ impl Widget for StateLayer {
             Color32::TRANSPARENT
         };
 
-        // Background
+        // Draw the background.
         user_interface
             .painter()
             .rect_filled(bounds_rect, self.corner_radius, fill);
 
-        // Border
+        // Draw the border.
         if self.border_width > 0.0 {
             let border_color = if self.has_focus { self.border_color_focused } else { self.border_color };
 

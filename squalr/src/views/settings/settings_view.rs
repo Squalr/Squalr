@@ -22,7 +22,7 @@ impl SettingsView {
     pub fn new(app_context: Rc<AppContext>) -> Self {
         let tab_menu_data = TabMenuData {
             headers: vec!["General".to_string(), "Memory".to_string(), "Scan".to_string()].into(),
-            active_tab_index: Rc::new(AtomicI32::new(0)),
+            active_tab_index: Rc::new(AtomicI32::new(1)),
         };
         let settings_tab_memory_view = Rc::new(SettingsTabMemoryView::new(app_context.clone()));
         let settings_tab_scan_view = Rc::new(SettingsTabScanView::new(app_context.clone()));

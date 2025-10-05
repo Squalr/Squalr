@@ -1,6 +1,6 @@
 use crate::{
     app_context::AppContext,
-    ui::widgets::controls::{checkbox::Checkbox, groupbox::GroupBox, slider::Slider},
+    ui::widgets::controls::{checkbox::Checkbox, combo_box::ComboBoxView, groupbox::GroupBox, slider::Slider},
 };
 use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
 use epaint::vec2;
@@ -60,7 +60,7 @@ impl Widget for SettingsTabScanView {
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 user_interface.add_space(4.0);
                 user_interface.add(
-                    GroupBox::new_from_theme(theme, "Memory Read Intervals", |user_interface| {
+                    GroupBox::new_from_theme(theme, "Scan Results", |user_interface| {
                         user_interface.horizontal(|user_interface| {
                             let mut value: i64 = cached_scan_settings.results_page_size as i64;
                             let slider = Slider::new_from_theme(theme)
@@ -94,6 +94,12 @@ impl Widget for SettingsTabScanView {
                                     .color(theme.foreground),
                             );
                         });
+                    })
+                    .desired_width(412.0),
+                );
+                user_interface.add_space(4.0);
+                user_interface.add(
+                    GroupBox::new_from_theme(theme, "Memory Read Intervals", |user_interface| {
                         user_interface.horizontal(|user_interface| {
                             let mut value: i64 = cached_scan_settings.freeze_interval_ms as i64;
                             let slider = Slider::new_from_theme(theme)
@@ -197,48 +203,63 @@ impl Widget for SettingsTabScanView {
                     .desired_width(412.0),
                 );
                 user_interface.add_space(4.0);
-                user_interface.add(GroupBox::new_from_theme(theme, "Scan Params", |user_interface| {
-                    //
-                }));
+                user_interface.add(
+                    GroupBox::new_from_theme(theme, "Scan Params", |user_interface| {
+                        user_interface.horizontal(|user_interface| {
+                            user_interface.add(ComboBoxView::new_from_theme(
+                                theme,
+                                self.app_context.clone(),
+                                "x-byte aligned",
+                                |user_interface: &mut Ui| {
+                                    //
+                                },
+                            ));
+                        });
+                    })
+                    .desired_width(412.0),
+                );
                 user_interface.add_space(4.0);
-                user_interface.add(GroupBox::new_from_theme(theme, "Scan Internals", |user_interface| {
-                    user_interface.horizontal(|user_interface| {
-                        if user_interface
-                            .add(Checkbox::new_from_theme(theme).checked(cached_scan_settings.is_single_threaded_scan))
-                            .clicked()
-                        {
-                            if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
-                                cached_scan_settings.is_single_threaded_scan = !cached_scan_settings.is_single_threaded_scan;
+                user_interface.add(
+                    GroupBox::new_from_theme(theme, "Scan Internals", |user_interface| {
+                        user_interface.horizontal(|user_interface| {
+                            if user_interface
+                                .add(Checkbox::new_from_theme(theme).checked(cached_scan_settings.is_single_threaded_scan))
+                                .clicked()
+                            {
+                                if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
+                                    cached_scan_settings.is_single_threaded_scan = !cached_scan_settings.is_single_threaded_scan;
+                                }
                             }
-                        }
+
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new("Force single threaded scan")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                        });
 
                         user_interface.add_space(8.0);
-                        user_interface.label(
-                            RichText::new("Force single threaded scan")
-                                .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                .color(theme.foreground),
-                        );
-                    });
-
-                    user_interface.add_space(8.0);
-                    user_interface.horizontal(|user_interface| {
-                        if user_interface
-                            .add(Checkbox::new_from_theme(theme).checked(cached_scan_settings.debug_perform_validation_scan))
-                            .clicked()
-                        {
-                            if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
-                                cached_scan_settings.debug_perform_validation_scan = !cached_scan_settings.debug_perform_validation_scan;
+                        user_interface.horizontal(|user_interface| {
+                            if user_interface
+                                .add(Checkbox::new_from_theme(theme).checked(cached_scan_settings.debug_perform_validation_scan))
+                                .clicked()
+                            {
+                                if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
+                                    cached_scan_settings.debug_perform_validation_scan = !cached_scan_settings.debug_perform_validation_scan;
+                                }
                             }
-                        }
 
-                        user_interface.add_space(8.0);
-                        user_interface.label(
-                            RichText::new("Perform extra debug validation scan")
-                                .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                .color(theme.foreground),
-                        );
-                    });
-                }));
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new("Perform extra debug validation scan")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                        });
+                    })
+                    .desired_width(412.0),
+                );
             })
             .response;
 

@@ -31,7 +31,6 @@ impl<'lifetime> Checkbox<'lifetime> {
         checkbox.corner_radius = CornerRadius::ZERO;
         checkbox.border_width = 1.0;
         checkbox.size = Vec2::new(18.0, 18.0);
-
         checkbox.background_color = theme.background_control;
         checkbox.border_color = theme.submenu_border;
         checkbox.hover_tint = theme.hover_tint;
