@@ -12,13 +12,13 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-pub struct Logger {
+pub struct LogDispatcher {
     log_history: Arc<RwLock<VecDeque<LogEvent>>>,
 }
 
-impl Logger {
+impl LogDispatcher {
     pub fn new() -> Self {
-        let logger = Logger {
+        let logger = LogDispatcher {
             log_history: Arc::new(RwLock::new(VecDeque::new())),
         };
 

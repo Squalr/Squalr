@@ -1,6 +1,6 @@
 use crate::commands::{engine_command::EngineCommand, engine_command_response::EngineCommandResponse};
 use crate::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
-use crate::engine::logging::logger::Logger;
+use crate::engine::logging::log_dispatcher::LogDispatcher;
 use crate::events::engine_event::EngineEvent;
 use crate::events::engine_event::EngineEventRequest;
 use crate::events::process::process_event::ProcessEvent;
@@ -23,7 +23,7 @@ pub struct EngineExecutionContext {
     event_listeners: Arc<RwLock<HashMap<TypeId, Vec<Box<dyn Fn(&dyn Any) + Send + Sync>>>>>,
 
     // Routes logs to the file system, as well as any optional subscribers to log events, such as output in the GUI.
-    file_system_logger: Arc<Logger>,
+    file_system_logger: Arc<LogDispatcher>,
 }
 
 impl EngineExecutionContext {
@@ -31,7 +31,7 @@ impl EngineExecutionContext {
         let execution_context = Arc::new(EngineExecutionContext {
             engine_bindings,
             event_listeners: Arc::new(RwLock::new(HashMap::new())),
-            file_system_logger: Arc::new(Logger::new()),
+            file_system_logger: Arc::new(LogDispatcher::new()),
         });
 
         execution_context
@@ -46,7 +46,7 @@ impl EngineExecutionContext {
     }
 
     /// Gets the file system logger that routes log events to the log file.
-    pub fn get_logger(&self) -> &Arc<Logger> {
+    pub fn get_logger(&self) -> &Arc<LogDispatcher> {
         &self.file_system_logger
     }
 
