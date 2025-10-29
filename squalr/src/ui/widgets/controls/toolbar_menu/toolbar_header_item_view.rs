@@ -1,7 +1,6 @@
-use crate::app_context::AppContext;
-use crate::models::toolbar::toolbar_menu_item_check_state::ToolbarMenuItemCheckState;
 use crate::models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData;
 use crate::ui::widgets::controls::state_layer::StateLayer;
+use crate::{app_context::AppContext, ui::widgets::controls::toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView};
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, Rect, pos2, vec2};
 use smallvec::SmallVec;
@@ -11,6 +10,7 @@ pub struct ToolbarHeaderItemView<'lifetime> {
     app_context: Rc<AppContext>,
     header: &'lifetime String,
     items: &'lifetime SmallVec<[ToolbarMenuItemData; 24]>,
+    width: f32,
     height: f32,
     horizontal_padding: f32,
 }
@@ -20,6 +20,7 @@ impl<'lifetime> ToolbarHeaderItemView<'lifetime> {
         app_context: Rc<AppContext>,
         header: &'lifetime String,
         items: &'lifetime SmallVec<[ToolbarMenuItemData; 24]>,
+        width: f32,
         height: f32,
         horizontal_padding: f32,
     ) -> Self {
@@ -27,6 +28,7 @@ impl<'lifetime> ToolbarHeaderItemView<'lifetime> {
             app_context,
             header,
             items,
+            width,
             height,
             horizontal_padding,
         }
@@ -67,7 +69,7 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
             pressed: response.is_pointer_button_down_on(),
             has_hover: response.hovered(),
             has_focus: response.has_focus(),
-            corner_radius: CornerRadius { nw: 4, ne: 4, sw: 4, se: 4 },
+            corner_radius: CornerRadius::ZERO,
             border_width: 0.0,
             hover_color: theme.hover_tint,
             pressed_color: theme.pressed_tint,
@@ -128,37 +130,30 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
         Area::new(popup_id)
             .order(Order::Foreground)
             .fixed_pos(pos2(available_size_rectangle.min.x, available_size_rectangle.max.y))
-            .show(user_interface.ctx(), |popup_ui| {
+            .show(user_interface.ctx(), |popup_user_interface| {
                 Frame::popup(user_interface.style())
                     .fill(theme.background_primary)
-                    .show(popup_ui, |popup_ui| {
-                        popup_ui.set_min_width(widest);
-                        popup_ui.with_layout(Layout::top_down(Align::Min), |popup_ui| {
+                    .corner_radius(CornerRadius::ZERO)
+                    .inner_margin(0)
+                    .show(popup_user_interface, |popup_user_interface| {
+                        popup_user_interface.set_min_width(widest);
+                        popup_user_interface.with_layout(Layout::top_down(Align::Min), |popup_user_interface| {
                             for (index, item) in self.items.iter().enumerate() {
                                 if item.has_separator && index != 0 {
-                                    popup_ui.separator();
+                                    popup_user_interface.separator();
                                 }
 
-                                match item.check_state {
-                                    ToolbarMenuItemCheckState::None => {
-                                        if popup_ui.button(&item.text).clicked() {
-                                            user_interface.memory_mut(|memory| memory.data.insert_temp(is_open_id, false));
-                                        }
-                                    }
-                                    _ => {
-                                        let mut checked = item.check_state == ToolbarMenuItemCheckState::Checked;
-                                        let response = popup_ui.checkbox(&mut checked, &item.text);
-
-                                        if response.clicked() {
-                                            user_interface.memory_mut(|memory| memory.data.insert_temp(is_open_id, false));
-                                        }
-                                    }
-                                }
+                                popup_user_interface.add(ToolbarMenuItemView::new(
+                                    self.app_context.clone(),
+                                    &item.text,
+                                    item.check_state.clone(),
+                                    self.width,
+                                ));
                             }
                         });
 
                         // Capture the full popup rect for click-outside logic.
-                        popup_rectangle = Some(popup_ui.min_rect());
+                        popup_rectangle = Some(popup_user_interface.min_rect());
                     });
             });
 

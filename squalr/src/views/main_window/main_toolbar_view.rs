@@ -18,40 +18,40 @@ impl MainToolbarView {
             ToolbarHeaderItemData {
                 header: "File".into(),
                 items: vec![
-                    ToolbarMenuItemData::action("select_project", "Select Project"),
-                    ToolbarMenuItemData::action("export_project", "Export Project as Table..."),
-                    ToolbarMenuItemData::action("exit", "Exit Squalr").with_separator(),
+                    ToolbarMenuItemData::new("select_project", "Select Project", None),
+                    ToolbarMenuItemData::new("export_project", "Export Project as Table...", None),
+                    ToolbarMenuItemData::new("exit", "Exit Squalr", None).with_separator(),
                 ]
                 .into(),
             },
             ToolbarHeaderItemData {
                 header: "Layout".into(),
-                items: vec![ToolbarMenuItemData::action("layout_reset", "Reset Layout")].into(),
+                items: vec![ToolbarMenuItemData::new("layout_reset", "Reset Layout", None)].into(),
             },
             ToolbarHeaderItemData {
                 header: "Windows".into(),
                 items: vec![
-                    ToolbarMenuItemData::checkable("win_process_selector", "Process Selector", false),
-                    ToolbarMenuItemData::checkable("win_project_explorer", "Project Explorer", true),
-                    ToolbarMenuItemData::checkable("win_struct_viewer", "Struct Viewer", true),
-                    ToolbarMenuItemData::checkable("win_memory_viewer", "Memory Viewer", false),
-                    ToolbarMenuItemData::checkable("win_output", "Output", true),
-                    ToolbarMenuItemData::checkable("win_pointer_scanner", "Pointer Scanner", false),
-                    ToolbarMenuItemData::checkable("win_element_scanner", "Element Scanner", true),
-                    ToolbarMenuItemData::checkable("win_settings", "Settings", true),
-                    ToolbarMenuItemData::checkable("win_snapshot_manager", "Snapshot Manager", false),
+                    ToolbarMenuItemData::new("win_process_selector", "Process Selector", Some(false)),
+                    ToolbarMenuItemData::new("win_project_explorer", "Project Explorer", Some(true)),
+                    ToolbarMenuItemData::new("win_struct_viewer", "Struct Viewer", Some(true)),
+                    ToolbarMenuItemData::new("win_memory_viewer", "Memory Viewer", Some(false)),
+                    ToolbarMenuItemData::new("win_output", "Output", Some(true)),
+                    ToolbarMenuItemData::new("win_pointer_scanner", "Pointer Scanner", Some(false)),
+                    ToolbarMenuItemData::new("win_element_scanner", "Element Scanner", Some(true)),
+                    ToolbarMenuItemData::new("win_settings", "Settings", Some(true)),
+                    ToolbarMenuItemData::new("win_snapshot_manager", "Snapshot Manager", Some(false)),
                 ]
                 .into(),
             },
             ToolbarHeaderItemData {
                 header: "Scans".into(),
-                items: vec![ToolbarMenuItemData::action("scans_pointer", "Pointer Scan")].into(),
+                items: vec![ToolbarMenuItemData::new("scans_pointer", "Pointer Scan", None)].into(),
             },
             ToolbarHeaderItemData {
                 header: "Debugger".into(),
                 items: vec![
-                    ToolbarMenuItemData::action("disassembly", "Disassembly"),
-                    ToolbarMenuItemData::action("code_tracer", "Code Tracer"),
+                    ToolbarMenuItemData::new("disassembly", "Disassembly", None),
+                    ToolbarMenuItemData::new("code_tracer", "Code Tracer", None),
                 ]
                 .into(),
             },

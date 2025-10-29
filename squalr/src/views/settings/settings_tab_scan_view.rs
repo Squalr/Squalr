@@ -1,6 +1,6 @@
 use crate::{
     app_context::AppContext,
-    ui::widgets::controls::{checkbox::Checkbox, combo_box::ComboBoxView, groupbox::GroupBox, slider::Slider},
+    ui::widgets::controls::{checkbox::Checkbox, combo_box::combo_box::ComboBoxView, groupbox::GroupBox, slider::Slider},
 };
 use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
 use epaint::vec2;
