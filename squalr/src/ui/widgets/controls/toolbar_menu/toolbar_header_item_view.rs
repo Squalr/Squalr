@@ -1,7 +1,7 @@
 use crate::models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData;
 use crate::ui::widgets::controls::state_layer::StateLayer;
 use crate::{app_context::AppContext, ui::widgets::controls::toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView};
-use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
+use eframe::egui::{Align, Area, Frame, Id, Layout, Order, Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, Rect, pos2, vec2};
 use smallvec::SmallVec;
 use std::rc::Rc;
@@ -40,31 +40,23 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        // Measure header text and compute padded size.
+        // Basic drawing & layout
         let theme = &self.app_context.theme;
         let font_id = theme.font_library.font_noto_sans.font_header.clone();
         let text_color = theme.foreground;
-
         let header_galley = user_interface
             .ctx()
             .fonts(|fonts| fonts.layout_no_wrap(self.header.clone(), font_id.clone(), text_color));
         let text_size = header_galley.size();
-
         let style = user_interface.style().clone();
-        let padding_vertical = style.spacing.button_padding.y.max(4.0);
-        let padding_horizontal = self.horizontal_padding.max(style.spacing.button_padding.x);
+        let padding_v = style.spacing.button_padding.y.max(4.0);
+        let padding_h = self.horizontal_padding.max(style.spacing.button_padding.x);
+        let desired = vec2(text_size.x + 2.0 * padding_h, self.height.max(text_size.y + 2.0 * padding_v));
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired, Sense::click());
 
-        let desired = vec2(
-            text_size.x + 2.0 * padding_horizontal,
-            (self.height.max(0.0)).max(text_size.y + 2.0 * padding_vertical),
-        );
-
-        let (available_size_rectangle, response) = user_interface.allocate_exact_size(desired, Sense::click());
-
-        // Compose the StateLayer (hover/press/focus) like the Button impl.
         StateLayer {
-            bounds_min: available_size_rectangle.min,
-            bounds_max: available_size_rectangle.max,
+            bounds_min: allocated_size_rectangle.min,
+            bounds_max: allocated_size_rectangle.max,
             enabled: true,
             pressed: response.is_pointer_button_down_on(),
             has_hover: response.hovered(),
@@ -78,35 +70,47 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
         }
         .ui(user_interface);
 
-        // Header label centered vertically.
         let text_pos = pos2(
-            available_size_rectangle.min.x + padding_horizontal,
-            available_size_rectangle.center().y - text_size.y * 0.5,
+            allocated_size_rectangle.min.x + padding_h,
+            allocated_size_rectangle.center().y - text_size.y * 0.5,
         );
-
         user_interface
             .painter()
             .galley(text_pos, header_galley, text_color);
 
-        // Open / close logic.
-        let is_open_id = Id::new(("toolbar_menu_open", user_interface.id().value(), &self.header));
-        let mut open = user_interface.memory(|memory| memory.data.get_temp::<bool>(is_open_id).unwrap_or(false));
+        // Menu open state logic.
+        let open_menu_id = Id::new("toolbar_current_open_menu");
 
+        // Get the currently open header (if any).
+        let mut open_header = user_interface.memory(|mem| mem.data.get_temp::<String>(open_menu_id));
+        let is_this_open = open_header.as_deref() == Some(self.header);
+
+        // Toggle open/close on click.
         if response.clicked() {
-            open = !open;
+            if is_this_open {
+                user_interface.memory_mut(|memory| memory.data.remove::<String>(open_menu_id));
+                return response;
+            } else {
+                user_interface.memory_mut(|memory| memory.data.insert_temp(open_menu_id, self.header.clone()));
+            }
         }
-        if user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) && open {
-            open = false;
-        }
-        user_interface.memory_mut(|memory| memory.data.insert_temp(is_open_id, open));
 
-        if !open {
+        // Hovering while another is open switches the open one.
+        if response.hovered() && open_header.is_some() && !is_this_open {
+            user_interface.memory_mut(|memory| memory.data.insert_temp(open_menu_id, self.header.clone()));
+        }
+
+        // Refresh open_header after possible update.
+        open_header = user_interface.memory(|memory| memory.data.get_temp::<String>(open_menu_id));
+
+        let is_open = open_header.as_deref() == Some(self.header);
+
+        if !is_open {
             return response;
         }
 
-        // Compute popup width from content (widest item text), with padding
-        // Include header width so popup isn't narrower than the button.
-        let mut widest = available_size_rectangle.width();
+        // Compute popup width.
+        let mut widest = allocated_size_rectangle.width();
 
         user_interface.ctx().fonts(|fonts| {
             for item in self.items.iter() {
@@ -119,17 +123,19 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
             }
         });
 
-        // Account for checkbox icon space (roughly the height of a row) when present.
-        let checkbox_extra = style.spacing.icon_width_inner;
-        let widest = widest + checkbox_extra.max(style.spacing.interact_size.y * 0.6);
+        let widest = widest
+            + style
+                .spacing
+                .icon_width_inner
+                .max(style.spacing.interact_size.y * 0.6);
 
-        // Popup area just below header.
+        // Popup drawing.
         let popup_id = Id::new(("toolbar_menu_popup", &self.header, user_interface.id().value()));
         let mut popup_rectangle: Option<Rect> = None;
 
         Area::new(popup_id)
             .order(Order::Foreground)
-            .fixed_pos(pos2(available_size_rectangle.min.x, available_size_rectangle.max.y))
+            .fixed_pos(pos2(allocated_size_rectangle.min.x, allocated_size_rectangle.max.y))
             .show(user_interface.ctx(), |popup_user_interface| {
                 Frame::popup(user_interface.style())
                     .fill(theme.background_primary)
@@ -137,13 +143,13 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
                     .inner_margin(0)
                     .show(popup_user_interface, |popup_user_interface| {
                         popup_user_interface.set_min_width(widest);
-                        popup_user_interface.with_layout(Layout::top_down(Align::Min), |popup_user_interface| {
+                        popup_user_interface.with_layout(Layout::top_down(Align::Min), |popup_popup_user_interfacei| {
                             for (index, item) in self.items.iter().enumerate() {
                                 if item.has_separator && index != 0 {
-                                    popup_user_interface.separator();
+                                    popup_popup_user_interfacei.separator();
                                 }
 
-                                popup_user_interface.add(ToolbarMenuItemView::new(
+                                popup_popup_user_interfacei.add(ToolbarMenuItemView::new(
                                     self.app_context.clone(),
                                     &item.text,
                                     item.check_state.clone(),
@@ -152,26 +158,25 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
                             }
                         });
 
-                        // Capture the full popup rect for click-outside logic.
                         popup_rectangle = Some(popup_user_interface.min_rect());
                     });
             });
 
-        // Close when clicking outside both the header and the popup.
-        if user_interface.input(|input_state| {
-            if !input_state.pointer.any_click() {
+        // Close when clicking outside.
+        if user_interface.input(|input| {
+            if !input.pointer.any_click() {
                 return false;
             }
-            let pos = input_state
+
+            let position = input
                 .pointer
                 .interact_pos()
-                .unwrap_or(available_size_rectangle.center());
-            let outside_header = !available_size_rectangle.contains(pos);
-            let outside_popup = popup_rectangle.map_or(true, |rectangle| !rectangle.contains(pos));
-
+                .unwrap_or(allocated_size_rectangle.center());
+            let outside_header = !allocated_size_rectangle.contains(position);
+            let outside_popup = popup_rectangle.map_or(true, |r| !r.contains(position));
             outside_header && outside_popup
         }) {
-            user_interface.memory_mut(|memory| memory.data.insert_temp(is_open_id, false));
+            user_interface.memory_mut(|memory| memory.data.remove::<String>(open_menu_id));
         }
 
         response

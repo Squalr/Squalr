@@ -1,7 +1,4 @@
-use crate::{
-    app_context::AppContext,
-    ui::widgets::controls::{checkbox::Checkbox, state_layer::StateLayer},
-};
+use crate::{app_context::AppContext, ui::widgets::controls::state_layer::StateLayer};
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, StrokeKind};
 use std::rc::Rc;
@@ -75,7 +72,7 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
             );
             let checkbox_rect = Rect::from_min_size(checkbox_pos, icon_size);
 
-            // Draw checkbox background
+            // Draw checkbox background.
             user_interface
                 .painter()
                 .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.background_control);
@@ -83,7 +80,7 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
                 .painter()
                 .rect_stroke(checkbox_rect, CornerRadius::ZERO, (1.0, theme.submenu_border), StrokeKind::Inside);
 
-            // Draw hover/pressed state
+            // Draw hover/pressed state.
             if response.hovered() {
                 user_interface
                     .painter()
@@ -95,7 +92,7 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
                     .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.pressed_tint);
             }
 
-            // Draw checkmark if checked
+            // Draw checkmark if checked.
             if is_checked {
                 let icon = &theme.icon_library.icon_handle_check_mark;
                 let texture_size = icon.size_vec2();

@@ -1,5 +1,3 @@
-use epaint::TextureHandle;
-
 #[derive(Clone)]
 pub struct ToolbarMenuItemData {
     pub id: String,
@@ -24,6 +22,7 @@ impl ToolbarMenuItemData {
 
     pub fn with_separator(mut self) -> Self {
         self.has_separator = true;
+
         self
     }
 }
