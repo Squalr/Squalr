@@ -3,6 +3,7 @@ use crate::ui::widgets::docking::dock_root_view::DockRootView;
 use crate::ui::widgets::docking::docked_window_view::DockedWindowView;
 use crate::views::element_scanner::element_scanner::ElementScannerView;
 use crate::views::main_window::main_footer_view::MainFooterView;
+use crate::views::main_window::main_shortcut_bar_view::MainShortcutBarView;
 use crate::views::main_window::main_title_bar_view::MainTitleBarView;
 use crate::views::main_window::main_toolbar_view::MainToolbarView;
 use crate::views::output::output_view::OutputView;
@@ -21,6 +22,7 @@ pub struct MainWindowView {
     app_context: Rc<AppContext>,
     main_title_bar_view: MainTitleBarView,
     main_toolbar_view: MainToolbarView,
+    main_shortcut_bar_view: MainShortcutBarView,
     dock_root_view: DockRootView,
     main_footer_view: MainFooterView,
     resize_thickness: f32,
@@ -34,6 +36,7 @@ impl MainWindowView {
     ) -> Self {
         let main_title_bar_view = MainTitleBarView::new(app_context.clone(), corner_radius, 32.0, title);
         let main_toolbar_view = MainToolbarView::new(app_context.clone());
+        let main_shortcut_bar_view = MainShortcutBarView::new(app_context.clone());
 
         let app_context_for_output = app_context.clone();
         let output_view = DockedWindowView::new(
@@ -111,6 +114,7 @@ impl MainWindowView {
             app_context,
             main_title_bar_view,
             main_toolbar_view,
+            main_shortcut_bar_view,
             dock_root_view,
             main_footer_view,
             resize_thickness,
@@ -252,6 +256,7 @@ impl Widget for MainWindowView {
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 user_interface.add(self.main_title_bar_view);
                 user_interface.add(self.main_toolbar_view);
+                user_interface.add(self.main_shortcut_bar_view);
 
                 if user_interface.available_rect_before_wrap().is_positive() {
                     user_interface.add_sized(

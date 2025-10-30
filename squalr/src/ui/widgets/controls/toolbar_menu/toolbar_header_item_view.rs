@@ -143,13 +143,13 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
                     .inner_margin(0)
                     .show(popup_user_interface, |popup_user_interface| {
                         popup_user_interface.set_min_width(widest);
-                        popup_user_interface.with_layout(Layout::top_down(Align::Min), |popup_popup_user_interfacei| {
+                        popup_user_interface.with_layout(Layout::top_down(Align::Min), |popup_popup_user_interface| {
                             for (index, item) in self.items.iter().enumerate() {
                                 if item.has_separator && index != 0 {
-                                    popup_popup_user_interfacei.separator();
+                                    popup_popup_user_interface.separator();
                                 }
 
-                                popup_popup_user_interfacei.add(ToolbarMenuItemView::new(
+                                popup_popup_user_interface.add(ToolbarMenuItemView::new(
                                     self.app_context.clone(),
                                     &item.text,
                                     item.check_state.clone(),

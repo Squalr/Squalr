@@ -1,6 +1,6 @@
 use crate::{
     app_context::AppContext,
-    ui::widgets::controls::{checkbox::Checkbox, combo_box::combo_box::ComboBoxView, groupbox::GroupBox, slider::Slider},
+    ui::widgets::controls::{checkbox::Checkbox, combo_box::combo_box_view::ComboBoxView, groupbox::GroupBox, slider::Slider},
 };
 use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
 use epaint::vec2;
@@ -210,6 +210,7 @@ impl Widget for SettingsTabScanView {
                                 theme,
                                 self.app_context.clone(),
                                 "x-byte aligned",
+                                None,
                                 |user_interface: &mut Ui| {
                                     //
                                 },

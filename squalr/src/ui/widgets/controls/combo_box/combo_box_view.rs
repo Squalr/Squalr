@@ -1,13 +1,14 @@
 use crate::ui::widgets::controls::state_layer::StateLayer;
 use crate::{app_context::AppContext, ui::theme::Theme};
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
-use epaint::{Color32, CornerRadius, Rect, pos2, vec2};
+use epaint::{Color32, CornerRadius, Rect, TextureHandle, pos2, vec2};
 use std::rc::Rc;
 
 /// A combo box that allows arbitrary custom content (ie not a normalized dropdown entry list).
 pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui)> {
     app_context: Rc<AppContext>,
     label: &'lifetime str,
+    icon: Option<TextureHandle>,
     add_contents: F,
     width: f32,
     height: f32,
@@ -23,14 +24,16 @@ impl<'lifetime, F: FnOnce(&mut Ui)> ComboBoxView<'lifetime, F> {
         theme: &Theme,
         app_context: Rc<AppContext>,
         label: &'lifetime str,
+        icon: Option<TextureHandle>,
         add_contents: F,
     ) -> Self {
         Self {
             app_context,
             label,
+            icon,
             add_contents,
             width: 192.0,
-            height: 24.0,
+            height: 28.0,
 
             // Themed layout defaults
             icon_padding: 4.0,
@@ -110,14 +113,15 @@ impl<'lifetime, F: FnOnce(&mut Ui)> Widget for ComboBoxView<'lifetime, F> {
         }
         .ui(user_interface);
 
-        // Draw left icon
-        user_interface.painter().image(
-            down_arrow.id(),
-            Rect::from_min_size(left_icon_pos, icon_size_vec),
-            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            Color32::WHITE,
-        );
-
+        // Draw left icon.
+        if let Some(icon) = &self.icon {
+            user_interface.painter().image(
+                icon.id(),
+                Rect::from_min_size(left_icon_pos, icon_size_vec),
+                Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                Color32::WHITE,
+            );
+        }
         // Draw text next to icon
         user_interface.painter().galley(text_pos, galley, text_color);
 
