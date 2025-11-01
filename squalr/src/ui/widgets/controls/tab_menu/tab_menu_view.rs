@@ -1,17 +1,17 @@
 use crate::{app_context::AppContext, models::tab_menu::tab_menu_data::TabMenuData, ui::widgets::controls::tab_menu::tab_item_view::TabItemView};
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, vec2};
-use std::{rc::Rc, sync::atomic::Ordering};
+use std::sync::{Arc, atomic::Ordering};
 
 pub struct TabMenuView<'lifetime> {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     height: f32,
     tab_menu_data: &'lifetime TabMenuData,
 }
 
 impl<'lifetime> TabMenuView<'lifetime> {
     pub fn new(
-        app_context: Rc<AppContext>,
+        app_context: Arc<AppContext>,
         tab_menu_data: &'lifetime TabMenuData,
     ) -> Self {
         Self {

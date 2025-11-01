@@ -4,16 +4,16 @@ use crate::models::toolbar::toolbar_header_item_data::ToolbarHeaderItemData;
 use crate::models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData;
 use crate::ui::widgets::controls::toolbar_menu::toolbar_view::ToolbarView;
 use eframe::egui::{Response, Ui, Widget};
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct MainToolbarView {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     menu: ToolbarData,
 }
 
 impl MainToolbarView {
-    pub fn new(app_context: Rc<AppContext>) -> Self {
+    pub fn new(app_context: Arc<AppContext>) -> Self {
         let menus = vec![
             ToolbarHeaderItemData {
                 header: "File".into(),

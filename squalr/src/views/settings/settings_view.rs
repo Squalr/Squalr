@@ -7,19 +7,22 @@ use crate::{
 use eframe::egui::{Align, Layout, Response, Ui, Widget};
 use std::{
     rc::Rc,
-    sync::atomic::{AtomicI32, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicI32, Ordering},
+    },
 };
 
 #[derive(Clone)]
 pub struct SettingsView {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     tab_menu_data: TabMenuData,
     settings_tab_memory_view: Rc<SettingsTabMemoryView>,
     settings_tab_scan_view: Rc<SettingsTabScanView>,
 }
 
 impl SettingsView {
-    pub fn new(app_context: Rc<AppContext>) -> Self {
+    pub fn new(app_context: Arc<AppContext>) -> Self {
         let tab_menu_data = TabMenuData {
             headers: vec!["General".to_string(), "Memory".to_string(), "Scan".to_string()].into(),
             active_tab_index: Rc::new(AtomicI32::new(1)),

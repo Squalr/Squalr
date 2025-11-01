@@ -14,12 +14,12 @@ use std::{
 
 #[derive(Clone)]
 pub struct SettingsTabMemoryView {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     cached_memory_settings: Arc<RwLock<MemorySettings>>,
 }
 
 impl SettingsTabMemoryView {
-    pub fn new(app_context: Rc<AppContext>) -> Self {
+    pub fn new(app_context: Arc<AppContext>) -> Self {
         let settings_view = Self {
             app_context,
             cached_memory_settings: Arc::new(RwLock::new(MemorySettings::default())),

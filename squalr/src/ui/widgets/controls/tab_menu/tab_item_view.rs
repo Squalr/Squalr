@@ -2,10 +2,10 @@ use crate::app_context::AppContext;
 use crate::ui::widgets::controls::state_layer::StateLayer;
 use eframe::egui::{Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, Stroke, StrokeKind, pos2, vec2};
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct TabItemView<'lifetime> {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     header: &'lifetime String,
     min_width: f32,
     height: f32,
@@ -15,7 +15,7 @@ pub struct TabItemView<'lifetime> {
 
 impl<'lifetime> TabItemView<'lifetime> {
     pub fn new(
-        app_context: Rc<AppContext>,
+        app_context: Arc<AppContext>,
         header: &'lifetime String,
         min_width: f32,
         height: f32,

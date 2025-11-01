@@ -5,10 +5,11 @@ use crate::{app_context::AppContext, ui::widgets::docking::dockable_window::Dock
 use eframe::egui::{Align, CursorIcon, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Rect, vec2};
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct DockedWindowView<W: Widget> {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     docked_window_title_bar_view: DockedWindowTitleBarView,
     widget: W,
     docked_window_footer_view: DockedWindowFooterView,
@@ -30,7 +31,7 @@ impl<W: Widget + Clone + 'static> DockableWindow for DockedWindowView<W> {
 
 impl<W: Widget> DockedWindowView<W> {
     pub fn new(
-        app_context: Rc<AppContext>,
+        app_context: Arc<AppContext>,
         widget: W,
         title: Rc<String>,
         identifier: Rc<String>,

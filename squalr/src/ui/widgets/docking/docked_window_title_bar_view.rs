@@ -3,11 +3,11 @@ use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::widgets::controls::button::Button;
 use eframe::egui::{Align, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, Widget, pos2};
 use epaint::{Color32, CornerRadius, vec2};
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
 #[derive(Clone)]
 pub struct DockedWindowTitleBarView {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     height: f32,
     title: Rc<String>,
     identifier: Rc<String>,
@@ -15,7 +15,7 @@ pub struct DockedWindowTitleBarView {
 
 impl DockedWindowTitleBarView {
     pub fn new(
-        app_context: Rc<AppContext>,
+        app_context: Arc<AppContext>,
         title: Rc<String>,
         identifier: Rc<String>,
     ) -> Self {

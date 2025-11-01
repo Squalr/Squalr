@@ -1,17 +1,17 @@
 use crate::{app_context::AppContext, ui::widgets::docking::dockable_window::DockableWindow};
 use eframe::egui::{Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, pos2, vec2};
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
 #[derive(Clone)]
 pub struct DockRootView {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     windows: Rc<Vec<Box<dyn DockableWindow>>>,
 }
 
 impl DockRootView {
     pub fn new(
-        app_context: Rc<AppContext>,
+        app_context: Arc<AppContext>,
         built_in_windows: Rc<Vec<Box<dyn DockableWindow>>>,
     ) -> Self {
         Self {

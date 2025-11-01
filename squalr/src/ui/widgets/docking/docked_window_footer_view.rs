@@ -1,18 +1,18 @@
 use crate::{app_context::AppContext, ui::widgets::controls::button::Button};
 use eframe::egui::{Align, Align2, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, vec2};
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
 #[derive(Clone)]
 pub struct DockedWindowFooterView {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     identifier: Rc<String>,
     height: f32,
 }
 
 impl DockedWindowFooterView {
     pub fn new(
-        app_context: Rc<AppContext>,
+        app_context: Arc<AppContext>,
         identifier: Rc<String>,
     ) -> Self {
         Self {

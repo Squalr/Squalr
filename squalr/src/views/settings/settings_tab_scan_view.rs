@@ -15,12 +15,12 @@ use std::{
 
 #[derive(Clone)]
 pub struct SettingsTabScanView {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     cached_scan_settings: Arc<RwLock<ScanSettings>>,
 }
 
 impl SettingsTabScanView {
-    pub fn new(app_context: Rc<AppContext>) -> Self {
+    pub fn new(app_context: Arc<AppContext>) -> Self {
         let settings_view = Self {
             app_context,
             cached_scan_settings: Arc::new(RwLock::new(ScanSettings::default())),
@@ -211,7 +211,7 @@ impl Widget for SettingsTabScanView {
                                 self.app_context.clone(),
                                 "x-byte aligned",
                                 None,
-                                |user_interface: &mut Ui| {
+                                |user_interface: &mut Ui, should_close: &mut bool| {
                                     //
                                 },
                             ));

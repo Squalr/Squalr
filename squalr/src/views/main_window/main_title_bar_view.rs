@@ -5,10 +5,11 @@ use eframe::egui::viewport::ViewportCommand;
 use eframe::egui::{Align, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, Widget, pos2};
 use epaint::{Color32, CornerRadius, vec2};
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct MainTitleBarView {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     corner_radius: CornerRadius,
     height: f32,
     title: Rc<String>,
@@ -16,7 +17,7 @@ pub struct MainTitleBarView {
 
 impl MainTitleBarView {
     pub fn new(
-        app_context: Rc<AppContext>,
+        app_context: Arc<AppContext>,
         corner_radius: CornerRadius,
         height: f32,
         title: Rc<String>,

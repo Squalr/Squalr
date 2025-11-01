@@ -1,14 +1,14 @@
 use crate::app_context::AppContext;
 use eframe::egui::{Response, Sense, Ui, Widget};
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ProjectExplorerView {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
 }
 
 impl ProjectExplorerView {
-    pub fn new(app_context: Rc<AppContext>) -> Self {
+    pub fn new(app_context: Arc<AppContext>) -> Self {
         Self { app_context }
     }
 }

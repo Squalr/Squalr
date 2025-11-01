@@ -1,11 +1,11 @@
 use crate::{app_context::AppContext, ui::widgets::controls::state_layer::StateLayer};
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, StrokeKind};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A generic context menu item.
 pub struct ToolbarMenuItemView<'lifetime> {
-    studio_context: Rc<AppContext>,
+    studio_context: Arc<AppContext>,
     label: &'lifetime str,
     check_state: Option<bool>,
     width: f32,
@@ -13,7 +13,7 @@ pub struct ToolbarMenuItemView<'lifetime> {
 
 impl<'lifetime> ToolbarMenuItemView<'lifetime> {
     pub fn new(
-        studio_context: Rc<AppContext>,
+        studio_context: Arc<AppContext>,
         label: &'lifetime str,
         check_state: Option<bool>,
         width: f32,

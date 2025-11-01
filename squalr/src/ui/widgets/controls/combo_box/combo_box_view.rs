@@ -2,11 +2,11 @@ use crate::ui::widgets::controls::state_layer::StateLayer;
 use crate::{app_context::AppContext, ui::theme::Theme};
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
 use epaint::{Color32, CornerRadius, Rect, TextureHandle, pos2, vec2};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A combo box that allows arbitrary custom content (ie not a normalized dropdown entry list).
-pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui)> {
-    app_context: Rc<AppContext>,
+pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
+    app_context: Arc<AppContext>,
     label: &'lifetime str,
     icon: Option<TextureHandle>,
     add_contents: F,
@@ -19,10 +19,10 @@ pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui)> {
     corner_radius: u8,
 }
 
-impl<'lifetime, F: FnOnce(&mut Ui)> ComboBoxView<'lifetime, F> {
+impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
     pub fn new_from_theme(
         theme: &Theme,
-        app_context: Rc<AppContext>,
+        app_context: Arc<AppContext>,
         label: &'lifetime str,
         icon: Option<TextureHandle>,
         add_contents: F,
@@ -44,6 +44,17 @@ impl<'lifetime, F: FnOnce(&mut Ui)> ComboBoxView<'lifetime, F> {
         }
     }
 
+    pub fn close(
+        &self,
+        user_interface: &mut Ui,
+    ) {
+        let popup_id = Id::new(("combo_popup", user_interface.id().value(), self.label));
+
+        user_interface.memory_mut(|memory| {
+            memory.data.insert_temp(popup_id, false);
+        });
+    }
+
     pub fn width(
         mut self,
         width: f32,
@@ -61,7 +72,7 @@ impl<'lifetime, F: FnOnce(&mut Ui)> ComboBoxView<'lifetime, F> {
     }
 }
 
-impl<'lifetime, F: FnOnce(&mut Ui)> Widget for ComboBoxView<'lifetime, F> {
+impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime, F> {
     fn ui(
         self,
         user_interface: &mut Ui,
@@ -131,12 +142,14 @@ impl<'lifetime, F: FnOnce(&mut Ui)> Widget for ComboBoxView<'lifetime, F> {
             pos2(divider_x, available_size_rectangle.min.y + border_width),
             pos2(divider_x + self.divider_width, available_size_rectangle.max.y),
         );
+
         user_interface
             .painter()
             .rect_filled(divider_rect, 0.0, theme.submenu_border);
 
         // Draw right arrow
         let right_arrow_pos = pos2(available_size_rectangle.max.x - self.icon_size - self.icon_padding, icon_y);
+
         user_interface.painter().image(
             down_arrow.id(),
             Rect::from_min_size(right_arrow_pos, icon_size_vec),
@@ -151,9 +164,11 @@ impl<'lifetime, F: FnOnce(&mut Ui)> Widget for ComboBoxView<'lifetime, F> {
         if response.clicked() {
             open = !open;
         }
+
         if user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
             open = false;
         }
+
         user_interface.memory_mut(|memory| memory.data.insert_temp(popup_id, open));
 
         if !open {
@@ -164,37 +179,40 @@ impl<'lifetime, F: FnOnce(&mut Ui)> Widget for ComboBoxView<'lifetime, F> {
         let popup_pos = pos2(available_size_rectangle.min.x, available_size_rectangle.max.y + 2.0);
         let popup_id_area = Id::new(("combo_popup_area", user_interface.id().value(), self.label));
         let mut popup_rectangle: Option<Rect> = None;
+        let mut should_close = false;
 
         Area::new(popup_id_area)
             .order(Order::Foreground)
             .fixed_pos(popup_pos)
-            .show(user_interface.ctx(), |popup_ui| {
+            .show(user_interface.ctx(), |popup_user_interface| {
                 Frame::popup(user_interface.style())
                     .fill(theme.background_primary)
-                    .show(popup_ui, |popup_ui| {
-                        popup_ui.set_min_width(self.width);
-                        popup_ui.with_layout(Layout::top_down(Align::Min), |inner_ui| {
-                            (self.add_contents)(inner_ui);
+                    .show(popup_user_interface, |popup_user_interface| {
+                        popup_user_interface.set_min_width(self.width);
+                        popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
+                            (self.add_contents)(inner_user_interface, &mut should_close);
                         });
-                        popup_rectangle = Some(popup_ui.min_rect());
+                        popup_rectangle = Some(popup_user_interface.min_rect());
                     });
             });
 
-        // Close popup when clicking outside.
-        if user_interface.input(|input_state| {
+        let clicked_outside = user_interface.input(|input_state| {
             if !input_state.pointer.any_click() {
                 return false;
             }
 
-            let pos = input_state
+            let click_position = input_state
                 .pointer
                 .interact_pos()
                 .unwrap_or(available_size_rectangle.center());
-            let outside_header = !available_size_rectangle.contains(pos);
-            let outside_popup = popup_rectangle.map_or(true, |popup_rectangle| !popup_rectangle.contains(pos));
+            let outside_header = !available_size_rectangle.contains(click_position);
+            let outside_popup = popup_rectangle.map_or(true, |popup_rectangle| !popup_rectangle.contains(click_position));
 
             outside_header && outside_popup
-        }) {
+        });
+
+        // Close popup when clicking outside.
+        if should_close || clicked_outside {
             user_interface.memory_mut(|memory| memory.data.insert_temp(popup_id, false));
         }
 

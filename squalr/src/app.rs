@@ -10,7 +10,7 @@ use std::{rc::Rc, sync::Arc};
 
 #[derive(Clone)]
 pub struct App {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     main_window_view: MainWindowView,
     corner_radius: CornerRadius,
 }
@@ -22,11 +22,11 @@ impl App {
         dependency_container: &DependencyContainer,
         app_title: String,
     ) -> Self {
-        let theme = Rc::new(Theme::new(context));
+        let theme = Arc::new(Theme::new(context));
         // Create built in docked windows.
         let main_dock_root = DockableWindowSettings::get_dock_layout_settings();
-        let docking_manager = Rc::new(RwLock::new(DockingManager::new(main_dock_root)));
-        let app_context = Rc::new(AppContext::new(context.clone(), theme, docking_manager, engine_execution_context));
+        let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));
+        let app_context = Arc::new(AppContext::new(context.clone(), theme, docking_manager, engine_execution_context));
         let corner_radius = CornerRadius::same(8);
         let main_window_view = MainWindowView::new(app_context.clone(), Rc::new(app_title), corner_radius);
 

@@ -1,18 +1,18 @@
 use crate::app_context::AppContext;
 use eframe::egui::{Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, vec2};
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct MainFooterView {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     corner_radius: CornerRadius,
     height: f32,
 }
 
 impl MainFooterView {
     pub fn new(
-        app_context: Rc<AppContext>,
+        app_context: Arc<AppContext>,
         corner_radius: CornerRadius,
         height: f32,
     ) -> Self {

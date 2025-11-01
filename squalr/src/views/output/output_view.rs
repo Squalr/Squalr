@@ -2,15 +2,15 @@ use crate::app_context::AppContext;
 use eframe::egui::{Align, Label, Layout, Response, RichText, ScrollArea, Ui, UiBuilder, Widget};
 use epaint::Vec2;
 use log::Level;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct OutputView {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
 }
 
 impl OutputView {
-    pub fn new(app_context: Rc<AppContext>) -> Self {
+    pub fn new(app_context: Arc<AppContext>) -> Self {
         Self { app_context }
     }
 }

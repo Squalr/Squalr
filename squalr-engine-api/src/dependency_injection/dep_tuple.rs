@@ -1,6 +1,10 @@
 use crate::dependency_injection::dependency_container::DependencyContainer;
 use anyhow::Result;
-use std::{any::type_name, collections::HashSet, sync::Arc};
+use std::{
+    any::type_name,
+    collections::HashSet,
+    sync::{Arc, RwLock},
+};
 
 pub trait DepTuple: Sized {
     fn missing_dependencies(container: &DependencyContainer) -> HashSet<String>;
@@ -12,7 +16,7 @@ fn key<T: 'static>() -> String {
 }
 
 // Resolve for 1-item list.
-impl<A> DepTuple for Arc<A>
+impl<A> DepTuple for Arc<RwLock<A>>
 where
     A: Send + Sync + 'static,
 {
@@ -30,7 +34,7 @@ where
 }
 
 // Resolve for 2-item list.
-impl<A, B> DepTuple for (Arc<A>, Arc<B>)
+impl<A, B> DepTuple for (Arc<RwLock<A>>, Arc<RwLock<B>>)
 where
     A: Send + Sync + 'static,
     B: Send + Sync + 'static,
@@ -52,7 +56,7 @@ where
 }
 
 // Resolve for 3-item list.
-impl<A, B, C> DepTuple for (Arc<A>, Arc<B>, Arc<C>)
+impl<A, B, C> DepTuple for (Arc<RwLock<A>>, Arc<RwLock<B>>, Arc<RwLock<C>>)
 where
     A: Send + Sync + 'static,
     B: Send + Sync + 'static,
@@ -78,7 +82,7 @@ where
 }
 
 // Resolve for 4-item list.
-impl<A, B, C, D> DepTuple for (Arc<A>, Arc<B>, Arc<C>, Arc<D>)
+impl<A, B, C, D> DepTuple for (Arc<RwLock<A>>, Arc<RwLock<B>>, Arc<RwLock<C>>, Arc<RwLock<D>>)
 where
     A: Send + Sync + 'static,
     B: Send + Sync + 'static,
@@ -113,7 +117,7 @@ where
 }
 
 // Resolve for 5-item list.
-impl<A, B, C, D, E> DepTuple for (Arc<A>, Arc<B>, Arc<C>, Arc<D>, Arc<E>)
+impl<A, B, C, D, E> DepTuple for (Arc<RwLock<A>>, Arc<RwLock<B>>, Arc<RwLock<C>>, Arc<RwLock<D>>, Arc<RwLock<E>>)
 where
     A: Send + Sync + 'static,
     B: Send + Sync + 'static,

@@ -4,19 +4,19 @@ use crate::{
 };
 use eframe::egui::{Align2, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
 use epaint::CornerRadius;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A generic context menu item.
 pub struct ComboBoxItemView<'lifetime> {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     label: &'lifetime str,
     icon: Option<TextureHandle>,
-    width: f32,
+    combo_box_width: f32,
 }
 
 impl<'lifetime> ComboBoxItemView<'lifetime> {
     pub fn new(
-        studio_context: Rc<AppContext>,
+        studio_context: Arc<AppContext>,
         label: &'lifetime str,
         icon: Option<TextureHandle>,
         width: f32,
@@ -25,7 +25,7 @@ impl<'lifetime> ComboBoxItemView<'lifetime> {
             app_context: studio_context,
             label,
             icon,
-            width,
+            combo_box_width: width,
         }
     }
 
@@ -33,7 +33,7 @@ impl<'lifetime> ComboBoxItemView<'lifetime> {
         mut self,
         width: f32,
     ) -> Self {
-        self.width = width;
+        self.combo_box_width = width;
         self
     }
 }
@@ -49,7 +49,7 @@ impl<'a> Widget for ComboBoxItemView<'a> {
 
         // Whole clickable area includes indentation.
         let row_height = 28.0;
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(self.width, row_height), Sense::click());
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(self.combo_box_width, row_height), Sense::click());
 
         // Background and state overlay.
         StateLayer {

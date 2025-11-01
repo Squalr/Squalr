@@ -3,17 +3,17 @@ use crate::{
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, vec2};
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct ToolbarView<'lifetime> {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     height: f32,
     menu: &'lifetime ToolbarData,
 }
 
 impl<'lifetime> ToolbarView<'lifetime> {
     pub fn new(
-        app_context: Rc<AppContext>,
+        app_context: Arc<AppContext>,
         menu: &'lifetime ToolbarData,
     ) -> Self {
         Self {

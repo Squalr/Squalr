@@ -75,10 +75,6 @@ impl SqualrEngine {
         // Initialize unprivileged engine capabilities if we own them.
         if let Some(engine_execution_context) = &self.engine_execution_context {
             engine_execution_context.initialize();
-
-            // Register the engine execution context for dependency injection use.
-            self.dependency_container
-                .register::<EngineExecutionContext>(engine_execution_context.clone());
         }
 
         AppUpdater::run_update(ProgressTracker::new());

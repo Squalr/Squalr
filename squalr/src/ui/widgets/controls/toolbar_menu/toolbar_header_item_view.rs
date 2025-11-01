@@ -4,10 +4,10 @@ use crate::{app_context::AppContext, ui::widgets::controls::toolbar_menu::toolba
 use eframe::egui::{Align, Area, Frame, Id, Layout, Order, Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, Rect, pos2, vec2};
 use smallvec::SmallVec;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct ToolbarHeaderItemView<'lifetime> {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     header: &'lifetime String,
     items: &'lifetime SmallVec<[ToolbarMenuItemData; 24]>,
     width: f32,
@@ -17,7 +17,7 @@ pub struct ToolbarHeaderItemView<'lifetime> {
 
 impl<'lifetime> ToolbarHeaderItemView<'lifetime> {
     pub fn new(
-        app_context: Rc<AppContext>,
+        app_context: Arc<AppContext>,
         header: &'lifetime String,
         items: &'lifetime SmallVec<[ToolbarMenuItemData; 24]>,
         width: f32,

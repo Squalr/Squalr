@@ -16,10 +16,11 @@ use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense,
 use epaint::CornerRadius;
 use epaint::{Rect, pos2};
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct MainWindowView {
-    app_context: Rc<AppContext>,
+    app_context: Arc<AppContext>,
     main_title_bar_view: MainTitleBarView,
     main_toolbar_view: MainToolbarView,
     main_shortcut_bar_view: MainShortcutBarView,
@@ -30,7 +31,7 @@ pub struct MainWindowView {
 
 impl MainWindowView {
     pub fn new(
-        app_context: Rc<AppContext>,
+        app_context: Arc<AppContext>,
         title: Rc<String>,
         corner_radius: CornerRadius,
     ) -> Self {

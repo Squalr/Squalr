@@ -1,5 +1,5 @@
 use crate::dependency_injection::dep_tuple::DepTuple;
-use crate::dependency_injection::lazy::Lazy;
+use crate::dependency_injection::dependency::Dependency;
 use anyhow::{Result, anyhow};
 use std::any::{Any, type_name};
 use std::collections::{HashMap, HashSet};
@@ -24,8 +24,9 @@ impl DependencyContainer {
 
     pub fn register<T>(
         &self,
-        instance: Arc<T>,
-    ) where
+        instance: T,
+    ) -> Dependency<T>
+    where
         T: Send + Sync + 'static,
     {
         let key = type_name::<T>().to_string();
@@ -33,41 +34,52 @@ impl DependencyContainer {
         // Store ready callbacks.
         let ready_callbacks = match self.inner.write() {
             Ok(mut container) => {
-                container.services.insert(key, instance);
+                container.services.insert(key, Arc::new(RwLock::new(instance)));
                 container.collect_ready_callbacks()
             }
             Err(error) => {
                 log::error!("Error acquiring dependency register lock: {}", error);
-                return;
+
+                return self.get_lazy();
             }
         };
 
-        // Run the callbacks now that the write lock is dropped.
+        // Run callbacks now that the write lock is dropped.
         for callback in ready_callbacks {
             callback(self.clone());
         }
+
+        // Return a lazy `Dependency<T>`.
+        self.get_lazy()
     }
 
-    pub fn get_existing<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
-        let key = type_name::<T>();
-
-        match self.inner.read() {
-            Ok(container) => container
-                .services
-                .get(key)
-                .ok_or_else(|| anyhow!("Dependency not found: {}", key))?
-                .clone()
-                .downcast::<T>()
-                .map_err(|_| anyhow!("Dependency type mismatch for type: {}", key)),
-            Err(error) => Err(anyhow!("Failed to acquire lock when getting dependency instance: {}", error)),
-        }
-    }
-
-    pub fn get_lazy<T>(&self) -> Lazy<T>
+    pub fn get_existing<T>(&self) -> Result<Arc<RwLock<T>>>
     where
         T: Send + Sync + 'static,
     {
-        Lazy::new(self.clone())
+        let key = type_name::<T>();
+
+        let container = self
+            .inner
+            .read()
+            .map_err(|e| anyhow!("Failed to lock container: {e}"))?;
+
+        let svc = container
+            .services
+            .get(key)
+            .ok_or_else(|| anyhow!("Dependency not found: {}", key))?;
+
+        // Clone arc and downcast RWLock's inside type
+        let arc_any = Arc::clone(svc);
+
+        Arc::downcast::<RwLock<T>>(arc_any).map_err(|_| anyhow!("Type mismatch for dependency {}", key))
+    }
+
+    pub fn get_lazy<T>(&self) -> Dependency<T>
+    where
+        T: Send + Sync + 'static,
+    {
+        Dependency::new(self.clone())
     }
 
     pub fn resolve_all<T, F>(
