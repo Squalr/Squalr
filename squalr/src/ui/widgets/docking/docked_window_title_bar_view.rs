@@ -33,7 +33,7 @@ impl Widget for DockedWindowTitleBarView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (available_size_rectangle, response) =
+        let (allocated_size_rectangle, response) =
             user_interface.allocate_exact_size(vec2(user_interface.available_width(), self.height), Sense::click_and_drag());
         let theme = &self.app_context.theme;
         let docking_manager = &self.app_context.docking_manager;
@@ -52,15 +52,15 @@ impl Widget for DockedWindowTitleBarView {
         };
         user_interface
             .painter()
-            .rect_filled(available_size_rectangle, CornerRadius::ZERO, background);
+            .rect_filled(allocated_size_rectangle, CornerRadius::ZERO, background);
 
         // Child UI for layouting contents.
         let builder = UiBuilder::new()
-            .max_rect(available_size_rectangle)
+            .max_rect(allocated_size_rectangle)
             .layout(Layout::left_to_right(Align::Center));
         let mut child_user_interface = user_interface.new_child(builder);
 
-        child_user_interface.set_clip_rect(available_size_rectangle);
+        child_user_interface.set_clip_rect(allocated_size_rectangle);
 
         // Title text.
         child_user_interface.add_space(8.0);
@@ -92,8 +92,8 @@ impl Widget for DockedWindowTitleBarView {
 
         // Drag area = everything except the close button
         let drag_rect = Rect::from_min_max(
-            available_size_rectangle.min,
-            pos2(available_size_rectangle.max.x - 36.0, available_size_rectangle.max.y),
+            allocated_size_rectangle.min,
+            pos2(allocated_size_rectangle.max.x - 36.0, allocated_size_rectangle.max.y),
         );
         let drag = user_interface.interact(drag_rect, Id::new(format!("dock_titlebar_{}", self.identifier)), Sense::click_and_drag());
 

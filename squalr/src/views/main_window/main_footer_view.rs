@@ -33,12 +33,12 @@ impl Widget for MainFooterView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (available_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::empty());
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::empty());
         let theme = &self.app_context.theme;
 
         // Background.
         user_interface.painter().rect_filled(
-            available_size_rectangle,
+            allocated_size_rectangle,
             CornerRadius {
                 nw: 0,
                 ne: 0,

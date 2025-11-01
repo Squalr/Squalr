@@ -72,16 +72,16 @@ impl<'lifetime> Widget for Checkbox<'lifetime> {
         user_interface: &mut Ui,
     ) -> Response {
         let sense = if self.disabled { Sense::hover() } else { Sense::click() };
-        let (available_size_rectangle, mut response) = user_interface.allocate_exact_size(self.size, sense);
+        let (allocated_size_rectangle, mut response) = user_interface.allocate_exact_size(self.size, sense);
 
         // Background box.
         user_interface
             .painter()
-            .rect_filled(available_size_rectangle, self.corner_radius, self.background_color);
+            .rect_filled(allocated_size_rectangle, self.corner_radius, self.background_color);
 
         // Border.
         user_interface.painter().rect_stroke(
-            available_size_rectangle,
+            allocated_size_rectangle,
             self.corner_radius,
             (self.border_width, self.border_color),
             StrokeKind::Inside,
@@ -89,8 +89,8 @@ impl<'lifetime> Widget for Checkbox<'lifetime> {
 
         // StateLayer (hover, pressed, focus).
         StateLayer {
-            bounds_min: available_size_rectangle.min,
-            bounds_max: available_size_rectangle.max,
+            bounds_min: allocated_size_rectangle.min,
+            bounds_max: allocated_size_rectangle.max,
             enabled: !self.disabled,
             pressed: response.is_pointer_button_down_on(),
             has_hover: response.hovered(),
@@ -109,7 +109,7 @@ impl<'lifetime> Widget for Checkbox<'lifetime> {
         if self.is_checked {
             if let Some(icon) = self.icon {
                 let texture_size = icon.size_vec2();
-                let icon_position = available_size_rectangle.center() - texture_size * 0.5;
+                let icon_position = allocated_size_rectangle.center() - texture_size * 0.5;
 
                 user_interface.painter().image(
                     icon.id(),

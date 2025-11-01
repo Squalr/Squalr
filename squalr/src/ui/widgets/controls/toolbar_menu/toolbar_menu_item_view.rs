@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 /// A generic context menu item.
 pub struct ToolbarMenuItemView<'lifetime> {
-    studio_context: Arc<AppContext>,
+    app_context: Arc<AppContext>,
     label: &'lifetime str,
     check_state: Option<bool>,
     width: f32,
@@ -13,13 +13,13 @@ pub struct ToolbarMenuItemView<'lifetime> {
 
 impl<'lifetime> ToolbarMenuItemView<'lifetime> {
     pub fn new(
-        studio_context: Arc<AppContext>,
+        app_context: Arc<AppContext>,
         label: &'lifetime str,
         check_state: Option<bool>,
         width: f32,
     ) -> Self {
         Self {
-            studio_context,
+            app_context,
             label,
             check_state,
             width,
@@ -40,7 +40,7 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let theme = &self.studio_context.theme;
+        let theme = &self.app_context.theme;
         let icon_size = vec2(18.0, 18.0);
         let icon_left_padding = 4.0;
         let text_left_padding = 2.0;

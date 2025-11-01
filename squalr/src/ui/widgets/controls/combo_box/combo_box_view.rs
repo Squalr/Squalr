@@ -83,14 +83,14 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         let down_arrow = &theme.icon_library.icon_navigation_down_arrow_small;
 
         let desired_size = vec2(self.width, self.height);
-        let (available_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::click());
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::click());
 
         // Precompute positions
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
-        let icon_y = available_size_rectangle.center().y - icon_size_vec.y * 0.5;
+        let icon_y = allocated_size_rectangle.center().y - icon_size_vec.y * 0.5;
 
         // Left-side icon (new)
-        let left_icon_pos = pos2(available_size_rectangle.min.x + self.icon_padding, icon_y);
+        let left_icon_pos = pos2(allocated_size_rectangle.min.x + self.icon_padding, icon_y);
 
         // Text label
         let galley = user_interface
@@ -98,19 +98,19 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             .fonts(|fonts| fonts.layout_no_wrap(self.label.to_owned(), font_id.clone(), text_color));
         let text_pos = pos2(
             left_icon_pos.x + icon_size_vec.x + self.label_spacing,
-            available_size_rectangle.center().y - galley.size().y * 0.5,
+            allocated_size_rectangle.center().y - galley.size().y * 0.5,
         );
         let border_width = 1.0;
 
         // Draw base background
         user_interface
             .painter()
-            .rect_filled(available_size_rectangle, CornerRadius::same(self.corner_radius), theme.background_control);
+            .rect_filled(allocated_size_rectangle, CornerRadius::same(self.corner_radius), theme.background_control);
 
         // State overlay (hover/press)
         StateLayer {
-            bounds_min: available_size_rectangle.min,
-            bounds_max: available_size_rectangle.max,
+            bounds_min: allocated_size_rectangle.min,
+            bounds_max: allocated_size_rectangle.max,
             enabled: true,
             pressed: response.is_pointer_button_down_on(),
             has_hover: response.hovered(),
@@ -137,10 +137,10 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         user_interface.painter().galley(text_pos, galley, text_color);
 
         // Divider bar before right arrow
-        let divider_x = available_size_rectangle.max.x - (self.icon_size + self.icon_padding * 2.0 + self.divider_width);
+        let divider_x = allocated_size_rectangle.max.x - (self.icon_size + self.icon_padding * 2.0 + self.divider_width);
         let divider_rect = Rect::from_min_max(
-            pos2(divider_x, available_size_rectangle.min.y + border_width),
-            pos2(divider_x + self.divider_width, available_size_rectangle.max.y),
+            pos2(divider_x, allocated_size_rectangle.min.y + border_width),
+            pos2(divider_x + self.divider_width, allocated_size_rectangle.max.y),
         );
 
         user_interface
@@ -148,7 +148,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             .rect_filled(divider_rect, 0.0, theme.submenu_border);
 
         // Draw right arrow
-        let right_arrow_pos = pos2(available_size_rectangle.max.x - self.icon_size - self.icon_padding, icon_y);
+        let right_arrow_pos = pos2(allocated_size_rectangle.max.x - self.icon_size - self.icon_padding, icon_y);
 
         user_interface.painter().image(
             down_arrow.id(),
@@ -176,7 +176,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         }
 
         // Draw popup content
-        let popup_pos = pos2(available_size_rectangle.min.x, available_size_rectangle.max.y + 2.0);
+        let popup_pos = pos2(allocated_size_rectangle.min.x, allocated_size_rectangle.max.y + 2.0);
         let popup_id_area = Id::new(("combo_popup_area", user_interface.id().value(), self.label));
         let mut popup_rectangle: Option<Rect> = None;
         let mut should_close = false;
@@ -204,8 +204,8 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             let click_position = input_state
                 .pointer
                 .interact_pos()
-                .unwrap_or(available_size_rectangle.center());
-            let outside_header = !available_size_rectangle.contains(click_position);
+                .unwrap_or(allocated_size_rectangle.center());
+            let outside_header = !allocated_size_rectangle.contains(click_position);
             let outside_popup = popup_rectangle.map_or(true, |popup_rectangle| !popup_rectangle.contains(click_position));
 
             outside_header && outside_popup

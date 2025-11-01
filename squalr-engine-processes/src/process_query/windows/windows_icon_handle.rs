@@ -1,5 +1,5 @@
 use windows_sys::Win32::{
-    Graphics::Gdi::{ReleaseDC, HDC},
+    Graphics::Gdi::{HDC, ReleaseDC},
     UI::WindowsAndMessaging::{DestroyIcon, HICON},
 };
 
@@ -13,7 +13,6 @@ impl Drop for IconHandle {
     }
 }
 
-// Similarly for DC
 pub struct DcHandle(pub HDC);
 
 impl Drop for DcHandle {

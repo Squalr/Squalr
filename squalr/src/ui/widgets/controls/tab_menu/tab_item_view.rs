@@ -53,11 +53,11 @@ impl<'lifetime> Widget for TabItemView<'lifetime> {
             self.min_width.max(text_size.x + 2.0 * padding_horizontal),
             (self.height.max(0.0)).max(text_size.y + 2.0 * padding_vertical),
         );
-        let (available_size_rectangle, response) = user_interface.allocate_exact_size(desired, Sense::click());
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired, Sense::click());
         let corner_radius = CornerRadius { nw: 4, ne: 4, sw: 0, se: 0 };
 
         user_interface.painter().rect(
-            available_size_rectangle,
+            allocated_size_rectangle,
             corner_radius,
             match self.is_selected {
                 true => theme.background_control_primary,
@@ -75,8 +75,8 @@ impl<'lifetime> Widget for TabItemView<'lifetime> {
 
         // Compose the StateLayer (hover/press/focus) like the Button impl.
         StateLayer {
-            bounds_min: available_size_rectangle.min,
-            bounds_max: available_size_rectangle.max,
+            bounds_min: allocated_size_rectangle.min,
+            bounds_max: allocated_size_rectangle.max,
             enabled: true,
             pressed: response.is_pointer_button_down_on(),
             has_hover: response.hovered(),
@@ -92,8 +92,8 @@ impl<'lifetime> Widget for TabItemView<'lifetime> {
 
         // Header label centered vertically.
         let text_pos = pos2(
-            available_size_rectangle.center().x - text_size.x * 0.5,
-            available_size_rectangle.center().y - text_size.y * 0.5,
+            allocated_size_rectangle.center().x - text_size.x * 0.5,
+            allocated_size_rectangle.center().y - text_size.y * 0.5,
         );
 
         user_interface

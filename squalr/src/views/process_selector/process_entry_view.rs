@@ -7,38 +7,27 @@ use epaint::CornerRadius;
 use std::sync::Arc;
 
 /// A generic context menu item.
-pub struct ComboBoxItemView<'lifetime> {
+pub struct ProcessEntryView<'lifetime> {
     app_context: Arc<AppContext>,
     label: &'lifetime str,
     icon: Option<TextureHandle>,
-    combo_box_width: f32,
 }
 
-impl<'lifetime> ComboBoxItemView<'lifetime> {
+impl<'lifetime> ProcessEntryView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         label: &'lifetime str,
         icon: Option<TextureHandle>,
-        width: f32,
     ) -> Self {
         Self {
             app_context: app_context,
             label,
             icon,
-            combo_box_width: width,
         }
-    }
-
-    pub fn width(
-        mut self,
-        width: f32,
-    ) -> Self {
-        self.combo_box_width = width;
-        self
     }
 }
 
-impl<'a> Widget for ComboBoxItemView<'a> {
+impl<'a> Widget for ProcessEntryView<'a> {
     fn ui(
         self,
         user_interface: &mut Ui,
@@ -46,10 +35,8 @@ impl<'a> Widget for ComboBoxItemView<'a> {
         let theme = &self.app_context.theme;
         let icon_size = vec2(16.0, 16.0);
         let text_left_padding = 4.0;
-
-        // Whole clickable area includes indentation.
         let row_height = 28.0;
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(self.combo_box_width, row_height), Sense::click());
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, row_height), Sense::click());
 
         // Background and state overlay.
         StateLayer {
