@@ -1,11 +1,17 @@
 use eframe::egui::{Context, TextureOptions};
 use epaint::{ColorImage, TextureHandle};
 use squalr_engine_api::structures::processes::{opened_process_info::OpenedProcessInfo, process_icon::ProcessIcon, process_info::ProcessInfo};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::RwLock,
+};
 
 pub struct ProcessSelectorViewData {
     pub opened_process: Option<OpenedProcessInfo>,
     pub cached_icon: Option<TextureHandle>,
-    pub windowed_processes: Vec<ProcessInfo>,
+    pub windowed_process_list: Vec<ProcessInfo>,
+    pub full_process_list: Vec<ProcessInfo>,
+    pub icon_cache: RwLock<HashMap<u32, TextureHandle>>,
 }
 
 impl ProcessSelectorViewData {
@@ -13,7 +19,9 @@ impl ProcessSelectorViewData {
         Self {
             opened_process: None,
             cached_icon: None,
-            windowed_processes: Vec::new(),
+            windowed_process_list: Vec::new(),
+            full_process_list: Vec::new(),
+            icon_cache: RwLock::new(HashMap::new()),
         }
     }
 
@@ -27,7 +35,10 @@ impl ProcessSelectorViewData {
         match &self.opened_process {
             Some(opened_proces) => match opened_proces.get_icon() {
                 Some(icon) => {
-                    self.cached_icon = Some(self.get_or_create_icon(context, opened_proces.get_process_id_raw(), icon));
+                    let process_id = opened_proces.get_process_id_raw();
+                    let texture_handle = self.get_or_create_icon(context, process_id, icon);
+
+                    self.cached_icon = texture_handle;
                 }
                 None => self.cached_icon = None,
             },
@@ -40,10 +51,94 @@ impl ProcessSelectorViewData {
         context: &Context,
         process_id: u32,
         icon: &ProcessIcon,
-    ) -> TextureHandle {
-        let size = [icon.get_width() as usize, icon.get_height() as usize];
-        let texture_handle = context.load_texture("", ColorImage::from_rgba_unmultiplied(size, icon.get_bytes_rgba()), TextureOptions::default());
+    ) -> Option<TextureHandle> {
+        let mut icon_cache = match self.icon_cache.write() {
+            Ok(icon_cache) => icon_cache,
+            Err(error) => {
+                log::error!("Failed to acquire icon cache lock: {}", error);
+                return None;
+            }
+        };
 
-        texture_handle
+        if icon_cache.contains_key(&process_id) {
+            return icon_cache.get(&process_id).cloned();
+        }
+
+        let size = [icon.get_width() as usize, icon.get_height() as usize];
+        let texture = context.load_texture(
+            &format!("process_icon_{process_id}"),
+            ColorImage::from_rgba_unmultiplied(size, icon.get_bytes_rgba()),
+            TextureOptions::default(),
+        );
+
+        icon_cache.insert(process_id, texture.clone());
+
+        Some(texture)
+    }
+
+    pub fn set_windowed_process_list(
+        &mut self,
+        new_list: Vec<ProcessInfo>,
+    ) {
+        let removed = self.diff_pids(&self.windowed_process_list, &new_list);
+
+        self.windowed_process_list = new_list;
+
+        // Remove icons for processes no longer present.
+        self.remove_from_cache(&removed);
+
+        // If current opened process was removed, clear it.
+        if let Some(opened) = &self.opened_process {
+            if removed.contains(&opened.get_process_id_raw()) {
+                self.cached_icon = None;
+            }
+        }
+    }
+
+    pub fn set_full_process_list(
+        &mut self,
+        new_list: Vec<ProcessInfo>,
+    ) {
+        let removed = self.diff_pids(&self.full_process_list, &new_list);
+
+        self.full_process_list = new_list;
+
+        // Remove icons for processes no longer present.
+        self.remove_from_cache(&removed);
+    }
+
+    /// Computes process ID deltas between old/new PID sets.
+    fn diff_pids(
+        &self,
+        old: &[ProcessInfo],
+        new: &[ProcessInfo],
+    ) -> HashSet<u32> {
+        let old_set: HashSet<u32> = old
+            .iter()
+            .map(|process_info| process_info.get_process_id_raw())
+            .collect();
+        let new_set: HashSet<u32> = new
+            .iter()
+            .map(|process_info| process_info.get_process_id_raw())
+            .collect();
+        let removed = &old_set - &new_set;
+
+        removed
+    }
+
+    /// Removes cached icons for removed processes.
+    fn remove_from_cache(
+        &self,
+        removed: &HashSet<u32>,
+    ) {
+        let mut icon_cache = match self.icon_cache.write() {
+            Ok(icon_cache) => icon_cache,
+            Err(error) => {
+                log::error!("Failed to lock icon cache: {}", error);
+                return;
+            }
+        };
+
+        icon_cache.retain(|process_id, _| !removed.contains(process_id));
     }
 }

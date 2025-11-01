@@ -65,21 +65,6 @@ impl MainShortcutBarView {
         process_selector_view_data.set_opened_process(&app_context.context, process_info);
     }
 
-    fn refresh_full_process_list(&self) {
-        let list_all_processes_request = ProcessListRequest {
-            require_windowed: false,
-            search_name: None,
-            match_case: false,
-            limit: None,
-            fetch_icons: true,
-        };
-        let engine_execution_context = self.app_context.engine_execution_context.clone();
-
-        list_all_processes_request.send(&engine_execution_context, move |process_list_response| {
-            // full_process_list_collection = process_list_response.processes
-        });
-    }
-
     fn refresh_windowed_process_list(
         engine_execution_context: Arc<EngineExecutionContext>,
         process_selector_view_data: Dependency<ProcessSelectorViewData>,
@@ -103,7 +88,7 @@ impl MainShortcutBarView {
                 }
             };
 
-            process_selector_view_data.windowed_processes = process_list_response.processes;
+            process_selector_view_data.set_windowed_process_list(process_list_response.processes);
         });
     }
 
@@ -169,12 +154,17 @@ impl Widget for MainShortcutBarView {
             name_display,
             process_selector_view_data.cached_icon.clone(),
             |user_interface: &mut Ui, should_close: &mut bool| {
-                for windowed_process in &process_selector_view_data.windowed_processes {
+                for windowed_process in &process_selector_view_data.windowed_process_list {
+                    let icon = match windowed_process.get_icon() {
+                        Some(icon) => process_selector_view_data.get_or_create_icon(&self.app_context.context, windowed_process.get_process_id_raw(), icon),
+                        None => None,
+                    };
+
                     if user_interface
                         .add(ComboBoxItemView::new(
                             self.app_context.clone(),
                             windowed_process.get_name(),
-                            None,
+                            icon,
                             process_dropdown_list_width,
                         ))
                         .clicked()

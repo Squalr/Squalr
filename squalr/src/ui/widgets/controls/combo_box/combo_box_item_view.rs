@@ -44,8 +44,8 @@ impl<'a> Widget for ComboBoxItemView<'a> {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let icon_size = vec2(24.0, 24.0);
-        let text_left_padding = 2.0;
+        let icon_size = vec2(16.0, 16.0);
+        let text_left_padding = 4.0;
 
         // Whole clickable area includes indentation.
         let row_height = 28.0;
@@ -75,7 +75,7 @@ impl<'a> Widget for ComboBoxItemView<'a> {
         let text_pos = pos2(icon_rect.max.x + text_left_padding, allocated_size_rectangle.center().y);
 
         if let Some(icon) = &self.icon {
-            IconDraw::draw(user_interface, icon_rect, icon);
+            IconDraw::draw_sized(user_interface, icon_rect.center(), icon_size, icon);
         }
 
         user_interface.painter().text(
