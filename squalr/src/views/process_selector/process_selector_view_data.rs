@@ -92,16 +92,20 @@ impl ProcessSelectorViewData {
         app_context: Arc<AppContext>,
         process_id: Option<u32>,
     ) {
-        let engine_execution_context = app_context.engine_execution_context.clone();
-        let process_open_request = ProcessOpenRequest {
-            process_id,
-            search_name: None,
-            match_case: false,
-        };
+        if process_id.is_some() {
+            let engine_execution_context = app_context.engine_execution_context.clone();
+            let process_open_request = ProcessOpenRequest {
+                process_id,
+                search_name: None,
+                match_case: false,
+            };
 
-        process_open_request.send(&engine_execution_context, move |process_open_response| {
-            Self::update_cached_opened_process(process_selector_view_data, app_context, process_open_response.opened_process_info)
-        });
+            process_open_request.send(&engine_execution_context, move |process_open_response| {
+                Self::update_cached_opened_process(process_selector_view_data, app_context, process_open_response.opened_process_info)
+            });
+        } else {
+            Self::update_cached_opened_process(process_selector_view_data, app_context, None)
+        }
     }
 
     pub fn update_cached_opened_process(
