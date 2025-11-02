@@ -5,16 +5,7 @@ use crate::{
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, vec2};
-use squalr_engine_api::{
-    commands::{
-        engine_command_request::EngineCommandRequest,
-        process::{list::process_list_request::ProcessListRequest, open::process_open_request::ProcessOpenRequest},
-    },
-    dependency_injection::dependency::Dependency,
-    engine::engine_execution_context::EngineExecutionContext,
-    events::process::changed::process_changed_event::ProcessChangedEvent,
-    structures::processes::opened_process_info::OpenedProcessInfo,
-};
+use squalr_engine_api::{dependency_injection::dependency::Dependency, events::process::changed::process_changed_event::ProcessChangedEvent};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -44,68 +35,11 @@ impl MainShortcutBarView {
         let engine_execution_context = self.app_context.engine_execution_context.clone();
 
         engine_execution_context.listen_for_engine_event::<ProcessChangedEvent>(move |process_changed_event| {
-            Self::update_cached_opened_process(
-                app_context.clone(),
+            ProcessSelectorViewData::update_cached_opened_process(
                 process_selector_view_data.clone(),
+                app_context.clone(),
                 process_changed_event.process_info.clone(),
             );
-        });
-    }
-
-    fn update_cached_opened_process(
-        app_context: Arc<AppContext>,
-        process_selector_view_data: Dependency<ProcessSelectorViewData>,
-        process_info: Option<OpenedProcessInfo>,
-    ) {
-        let mut process_selector_view_data = match process_selector_view_data.write() {
-            Ok(process_selector_view_data) => process_selector_view_data,
-            Err(_error) => return,
-        };
-
-        process_selector_view_data.set_opened_process(&app_context.context, process_info);
-    }
-
-    fn refresh_windowed_process_list(
-        engine_execution_context: Arc<EngineExecutionContext>,
-        process_selector_view_data: Dependency<ProcessSelectorViewData>,
-    ) {
-        let list_windowed_processes_request = ProcessListRequest {
-            require_windowed: true,
-            search_name: None,
-            match_case: false,
-            limit: None,
-            fetch_icons: true,
-        };
-        let engine_execution_context = engine_execution_context.clone();
-
-        list_windowed_processes_request.send(&engine_execution_context, move |process_list_response| {
-            // windowed_process_list_collection = process_list_response.processes
-            let mut process_selector_view_data = match process_selector_view_data.write() {
-                Ok(process_selector_view_data) => process_selector_view_data,
-                Err(error) => {
-                    log::error!("Failed to access process selector view data for updating windowed process list: {}", error);
-                    return;
-                }
-            };
-
-            process_selector_view_data.set_windowed_process_list(process_list_response.processes);
-        });
-    }
-
-    fn select_process(
-        app_context: Arc<AppContext>,
-        process_selector_view_data: Dependency<ProcessSelectorViewData>,
-        process_id: u32,
-    ) {
-        let engine_execution_context = app_context.engine_execution_context.clone();
-        let process_open_request = ProcessOpenRequest {
-            process_id: Some(process_id),
-            search_name: None,
-            match_case: false,
-        };
-
-        process_open_request.send(&engine_execution_context, move |process_open_response| {
-            Self::update_cached_opened_process(app_context, process_selector_view_data, process_open_response.opened_process_info)
         });
     }
 }
@@ -188,13 +122,14 @@ impl Widget for MainShortcutBarView {
             drop(process_selector_view_data);
 
             // Refresh the process list on first click.
-            // JIRA: Set an atomic flag maybe on the process view data such that we can show a loading indicator.
-            Self::refresh_windowed_process_list(self.app_context.engine_execution_context.clone(), self.process_selector_view_data.clone());
+            // JIRA: Set an atomic flag maybe on the process view data such that we can show a loading indicator?
+            // Could throw in an artificial delay to simulate how this would behave over a network (GUI -> network -> shell).
+            ProcessSelectorViewData::refresh_windowed_process_list(self.process_selector_view_data.clone(), self.app_context.engine_execution_context.clone());
         } else if let Some(process_id) = process_to_open {
             // Drop the read lock to free up the data for write lock access.
             drop(process_selector_view_data);
 
-            Self::select_process(self.app_context.clone(), self.process_selector_view_data.clone(), process_id);
+            ProcessSelectorViewData::select_process(self.process_selector_view_data.clone(), self.app_context.clone(), process_id);
         }
 
         response

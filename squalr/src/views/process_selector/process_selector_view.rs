@@ -5,11 +5,7 @@ use crate::{
     },
 };
 use eframe::egui::{Align, Layout, Response, ScrollArea, Ui, Widget};
-use squalr_engine_api::{
-    commands::{engine_command_request::EngineCommandRequest, process::open::process_open_request::ProcessOpenRequest},
-    dependency_injection::dependency::Dependency,
-    structures::processes::opened_process_info::OpenedProcessInfo,
-};
+use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -28,36 +24,6 @@ impl ProcessSelectorView {
             app_context,
             process_selector_view_data,
         }
-    }
-
-    fn select_process(
-        app_context: Arc<AppContext>,
-        process_selector_view_data: Dependency<ProcessSelectorViewData>,
-        process_id: u32,
-    ) {
-        let engine_execution_context = app_context.engine_execution_context.clone();
-        let process_open_request = ProcessOpenRequest {
-            process_id: Some(process_id),
-            search_name: None,
-            match_case: false,
-        };
-
-        process_open_request.send(&engine_execution_context, move |process_open_response| {
-            Self::update_cached_opened_process(app_context, process_selector_view_data, process_open_response.opened_process_info)
-        });
-    }
-
-    fn update_cached_opened_process(
-        app_context: Arc<AppContext>,
-        process_selector_view_data: Dependency<ProcessSelectorViewData>,
-        process_info: Option<OpenedProcessInfo>,
-    ) {
-        let mut process_selector_view_data = match process_selector_view_data.write() {
-            Ok(process_selector_view_data) => process_selector_view_data,
-            Err(_error) => return,
-        };
-
-        process_selector_view_data.set_opened_process(&app_context.context, process_info);
     }
 }
 
@@ -101,7 +67,7 @@ impl Widget for ProcessSelectorView {
                         if let Some(selected_process) = selected_process {
                             drop(process_selector_view_data);
 
-                            Self::select_process(self.app_context.clone(), self.process_selector_view_data.clone(), selected_process);
+                            ProcessSelectorViewData::select_process(self.process_selector_view_data.clone(), self.app_context.clone(), selected_process);
                         }
                     });
             })

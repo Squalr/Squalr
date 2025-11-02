@@ -1,10 +1,20 @@
 use eframe::egui::{Context, TextureOptions};
 use epaint::{ColorImage, TextureHandle};
-use squalr_engine_api::structures::processes::{opened_process_info::OpenedProcessInfo, process_icon::ProcessIcon, process_info::ProcessInfo};
+use squalr_engine_api::{
+    commands::{
+        engine_command_request::EngineCommandRequest,
+        process::{list::process_list_request::ProcessListRequest, open::process_open_request::ProcessOpenRequest},
+    },
+    dependency_injection::dependency::Dependency,
+    engine::engine_execution_context::EngineExecutionContext,
+    structures::processes::{opened_process_info::OpenedProcessInfo, process_icon::ProcessIcon, process_info::ProcessInfo},
+};
 use std::{
     collections::{HashMap, HashSet},
-    sync::RwLock,
+    sync::{Arc, RwLock},
 };
+
+use crate::app_context::AppContext;
 
 pub struct ProcessSelectorViewData {
     pub opened_process: Option<OpenedProcessInfo>,
@@ -23,6 +33,88 @@ impl ProcessSelectorViewData {
             full_process_list: Vec::new(),
             icon_cache: RwLock::new(HashMap::new()),
         }
+    }
+
+    pub fn refresh_windowed_process_list(
+        process_selector_view_data: Dependency<ProcessSelectorViewData>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) {
+        let list_windowed_processes_request = ProcessListRequest {
+            require_windowed: true,
+            search_name: None,
+            match_case: false,
+            limit: None,
+            fetch_icons: true,
+        };
+        let engine_execution_context = engine_execution_context.clone();
+
+        list_windowed_processes_request.send(&engine_execution_context, move |process_list_response| {
+            let mut process_selector_view_data = match process_selector_view_data.write() {
+                Ok(process_selector_view_data) => process_selector_view_data,
+                Err(error) => {
+                    log::error!("Failed to access process selector view data for updating windowed process list: {}", error);
+                    return;
+                }
+            };
+
+            process_selector_view_data.set_windowed_process_list(process_list_response.processes);
+        });
+    }
+
+    pub fn refresh_full_process_list(
+        process_selector_view_data: Dependency<ProcessSelectorViewData>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) {
+        let list_windowed_processes_request = ProcessListRequest {
+            require_windowed: false,
+            search_name: None,
+            match_case: false,
+            limit: None,
+            fetch_icons: true,
+        };
+        let engine_execution_context = engine_execution_context.clone();
+
+        list_windowed_processes_request.send(&engine_execution_context, move |process_list_response| {
+            let mut process_selector_view_data = match process_selector_view_data.write() {
+                Ok(process_selector_view_data) => process_selector_view_data,
+                Err(error) => {
+                    log::error!("Failed to access process selector view data for updating windowed process list: {}", error);
+                    return;
+                }
+            };
+
+            process_selector_view_data.set_full_process_list(process_list_response.processes);
+        });
+    }
+
+    pub fn select_process(
+        process_selector_view_data: Dependency<ProcessSelectorViewData>,
+        app_context: Arc<AppContext>,
+        process_id: u32,
+    ) {
+        let engine_execution_context = app_context.engine_execution_context.clone();
+        let process_open_request = ProcessOpenRequest {
+            process_id: Some(process_id),
+            search_name: None,
+            match_case: false,
+        };
+
+        process_open_request.send(&engine_execution_context, move |process_open_response| {
+            Self::update_cached_opened_process(process_selector_view_data, app_context, process_open_response.opened_process_info)
+        });
+    }
+
+    pub fn update_cached_opened_process(
+        process_selector_view_data: Dependency<ProcessSelectorViewData>,
+        app_context: Arc<AppContext>,
+        process_info: Option<OpenedProcessInfo>,
+    ) {
+        let mut process_selector_view_data = match process_selector_view_data.write() {
+            Ok(process_selector_view_data) => process_selector_view_data,
+            Err(_error) => return,
+        };
+
+        process_selector_view_data.set_opened_process(&app_context.context, process_info);
     }
 
     pub fn set_opened_process(
