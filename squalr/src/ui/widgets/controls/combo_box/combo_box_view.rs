@@ -1,5 +1,5 @@
+use crate::app_context::AppContext;
 use crate::ui::widgets::controls::state_layer::StateLayer;
-use crate::{app_context::AppContext, ui::theme::Theme};
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
 use epaint::{Color32, CornerRadius, Rect, TextureHandle, pos2, vec2};
 use std::sync::Arc;
@@ -20,8 +20,7 @@ pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
 }
 
 impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
-    pub fn new_from_theme(
-        theme: &Theme,
+    pub fn new(
         app_context: Arc<AppContext>,
         label: &'lifetime str,
         icon: Option<TextureHandle>,

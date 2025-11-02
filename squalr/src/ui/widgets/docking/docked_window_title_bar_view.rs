@@ -39,7 +39,7 @@ impl Widget for DockedWindowTitleBarView {
         let docking_manager = &self.app_context.docking_manager;
 
         // Background highlight if this is the actively dragged window.
-        let background = if let Ok(docking_manager) = docking_manager.try_read() {
+        let background = if let Ok(docking_manager) = docking_manager.read() {
             /*
             if docking_manager.active_dragged_window_id() == Some(&self.identifier) {
                 theme.selected_border

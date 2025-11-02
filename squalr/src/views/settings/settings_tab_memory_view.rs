@@ -50,7 +50,7 @@ impl Widget for SettingsTabMemoryView {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let cached_memory_settings = match self.cached_memory_settings.try_read() {
+        let cached_memory_settings = match self.cached_memory_settings.read() {
             Ok(cached_memory_settings) => *cached_memory_settings,
             Err(_error) => MemorySettings::default(),
         };

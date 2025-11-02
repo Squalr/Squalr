@@ -1,5 +1,6 @@
 use crate::app_context::AppContext;
 use crate::ui::widgets::docking::dock_root_view::DockRootView;
+use crate::ui::widgets::docking::dock_root_view_data::DockRootViewData;
 use crate::ui::widgets::docking::docked_window_view::DockedWindowView;
 use crate::views::element_scanner::element_scanner::ElementScannerView;
 use crate::views::main_window::main_footer_view::MainFooterView;
@@ -38,10 +39,12 @@ impl MainWindowView {
         let main_title_bar_view = MainTitleBarView::new(app_context.clone(), corner_radius, 32.0, title);
         let main_toolbar_view = MainToolbarView::new(app_context.clone());
         let main_shortcut_bar_view = MainShortcutBarView::new(app_context.clone());
+        let dock_view_data = Arc::new(DockRootViewData::new());
 
         let app_context_for_output = app_context.clone();
         let output_view = DockedWindowView::new(
             app_context_for_output.clone(),
+            dock_view_data.clone(),
             OutputView::new(app_context_for_output.clone()),
             Rc::new("Output".to_string()),
             Rc::new("output".to_string()),
@@ -50,6 +53,7 @@ impl MainWindowView {
         let app_context_for_settings = app_context.clone();
         let settings_view = DockedWindowView::new(
             app_context_for_settings.clone(),
+            dock_view_data.clone(),
             SettingsView::new(app_context_for_settings.clone()),
             Rc::new("Settings".to_string()),
             Rc::new("settings".to_string()),
@@ -58,6 +62,7 @@ impl MainWindowView {
         let app_context_for_struct_viewer = app_context.clone();
         let struct_viewer_view = DockedWindowView::new(
             app_context_for_struct_viewer.clone(),
+            dock_view_data.clone(),
             StructViewerView::new(app_context_for_struct_viewer.clone()),
             Rc::new("Struct Viewer".to_string()),
             Rc::new("struct_viewer".to_string()),
@@ -66,6 +71,7 @@ impl MainWindowView {
         let app_context_for_project_explorer = app_context.clone();
         let project_explorer_view = DockedWindowView::new(
             app_context_for_project_explorer.clone(),
+            dock_view_data.clone(),
             ProjectExplorerView::new(app_context_for_project_explorer.clone()),
             Rc::new("Project Explorer".to_string()),
             Rc::new("project_explorer".to_string()),
@@ -74,6 +80,7 @@ impl MainWindowView {
         let app_context_for_process_selector = app_context.clone();
         let process_selector_view = DockedWindowView::new(
             app_context_for_process_selector.clone(),
+            dock_view_data.clone(),
             ProcessSelectorView::new(app_context_for_process_selector.clone()),
             Rc::new("Process Selector".to_string()),
             Rc::new("process_selector".to_string()),
@@ -82,6 +89,7 @@ impl MainWindowView {
         let app_context_for_element_scanner = app_context.clone();
         let element_scanner_view = DockedWindowView::new(
             app_context_for_element_scanner.clone(),
+            dock_view_data.clone(),
             ElementScannerView::new(app_context_for_element_scanner.clone()),
             Rc::new("Element Scanner".to_string()),
             Rc::new("element_scanner".to_string()),
@@ -90,24 +98,23 @@ impl MainWindowView {
         let app_context_for_pointer_scanner = app_context.clone();
         let pointer_scanner_view = DockedWindowView::new(
             app_context_for_pointer_scanner.clone(),
+            dock_view_data.clone(),
             PointerScannerView::new(app_context_for_pointer_scanner.clone()),
             Rc::new("Pointer Scanner".to_string()),
             Rc::new("pointer_scanner".to_string()),
         );
 
-        let dock_root_view = DockRootView::new(
-            app_context.clone(),
-            Rc::new(vec![
-                Box::new(output_view),
-                Box::new(settings_view),
-                Box::new(struct_viewer_view),
-                Box::new(project_explorer_view),
-                Box::new(process_selector_view),
-                Box::new(element_scanner_view),
-                Box::new(pointer_scanner_view),
-            ]),
-        );
+        dock_view_data.set_windows(vec![
+            Box::new(output_view),
+            Box::new(settings_view),
+            Box::new(struct_viewer_view),
+            Box::new(project_explorer_view),
+            Box::new(process_selector_view),
+            Box::new(element_scanner_view),
+            Box::new(pointer_scanner_view),
+        ]);
 
+        let dock_root_view = DockRootView::new(app_context.clone(), dock_view_data);
         let main_footer_view = MainFooterView::new(app_context.clone(), corner_radius, 28.0);
         let resize_thickness = 4.0;
 

@@ -39,7 +39,7 @@ impl DockNode {
     ) -> Vec<String> {
         // Find the path to this window.
         let path = match self.find_path_to_window_id(window_id) {
-            Some(p) => p,
+            Some(path) => path,
             None => return vec![],
         };
 
@@ -56,6 +56,7 @@ impl DockNode {
             if let DockNode::Tab { tabs, .. } = parent_node {
                 // Collect all siblings in this Tab, filtering by visibility if requested.
                 let mut siblings = vec![];
+
                 for tab_node in tabs {
                     if let DockNode::Window {
                         window_identifier, is_visible, ..
@@ -66,6 +67,7 @@ impl DockNode {
                         }
                     }
                 }
+
                 return siblings;
             }
         }

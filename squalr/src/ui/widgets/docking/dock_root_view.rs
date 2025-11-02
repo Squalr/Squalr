@@ -1,23 +1,20 @@
-use crate::{app_context::AppContext, ui::widgets::docking::dockable_window::DockableWindow};
+use crate::{app_context::AppContext, ui::widgets::docking::dock_root_view_data::DockRootViewData};
 use eframe::egui::{Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, pos2, vec2};
-use std::{rc::Rc, sync::Arc};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct DockRootView {
     app_context: Arc<AppContext>,
-    windows: Rc<Vec<Box<dyn DockableWindow>>>,
+    dock_view_data: Arc<DockRootViewData>,
 }
 
 impl DockRootView {
     pub fn new(
         app_context: Arc<AppContext>,
-        built_in_windows: Rc<Vec<Box<dyn DockableWindow>>>,
+        dock_view_data: Arc<DockRootViewData>,
     ) -> Self {
-        Self {
-            app_context,
-            windows: built_in_windows,
-        }
+        Self { app_context, dock_view_data }
     }
 }
 
@@ -29,6 +26,13 @@ impl Widget for DockRootView {
         let (available_size_rect, response) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::empty());
         let theme = &self.app_context.theme;
         let docking_manager = &self.app_context.docking_manager;
+        let windows = match self.dock_view_data.windows.read() {
+            Ok(windows) => windows,
+            Err(error) => {
+                log::error!("Failed to acquire windows lock: {}", error);
+                return response;
+            }
+        };
 
         // Background.
         user_interface
@@ -42,9 +46,9 @@ impl Widget for DockRootView {
                 .set_available_size(available_size_rect.width(), available_size_rect.height());
         }
 
-        for window in self.windows.iter() {
+        for window in windows.iter() {
             let window_identifier = window.get_identifier();
-            let active_tab_id = match docking_manager.try_read() {
+            let active_tab_id = match docking_manager.read() {
                 Ok(docking_manager) => docking_manager.get_active_tab(&window_identifier),
                 Err(_) => String::new(),
             };
@@ -55,7 +59,7 @@ impl Widget for DockRootView {
             }
 
             let window_rect = {
-                if let Ok(docking_manager) = docking_manager.try_read() {
+                if let Ok(docking_manager) = docking_manager.read() {
                     docking_manager
                         .find_window_rect(window_identifier)
                         .map(|(x, y, w, h)| {

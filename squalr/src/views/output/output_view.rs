@@ -30,7 +30,7 @@ impl Widget for OutputView {
         let theme = &self.app_context.theme;
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
-                if let Ok(log_history) = log_history.try_read() {
+                if let Ok(log_history) = log_history.read() {
                     let outer_rectangle = user_interface.available_rect_before_wrap();
                     let inset_amount = Vec2::new(8.0, 4.0);
                     let inner_rectangle = outer_rectangle.shrink2(inset_amount);

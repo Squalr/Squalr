@@ -82,8 +82,7 @@ impl Widget for MainShortcutBarView {
             None => "Select a process...",
         };
 
-        let process_select_combo_box = ComboBoxView::new_from_theme(
-            theme,
+        let process_select_combo_box = ComboBoxView::new(
             self.app_context.clone(),
             name_display,
             process_selector_view_data.cached_icon.clone(),

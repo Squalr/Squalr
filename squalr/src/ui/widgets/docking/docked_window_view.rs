@@ -1,4 +1,5 @@
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
+use crate::ui::widgets::docking::dock_root_view_data::DockRootViewData;
 use crate::ui::widgets::docking::docked_window_footer_view::DockedWindowFooterView;
 use crate::ui::widgets::docking::docked_window_title_bar_view::DockedWindowTitleBarView;
 use crate::{app_context::AppContext, ui::widgets::docking::dockable_window::DockableWindow};
@@ -14,11 +15,16 @@ pub struct DockedWindowView<W: Widget> {
     widget: W,
     docked_window_footer_view: DockedWindowFooterView,
     identifier: Rc<String>,
+    title: Rc<String>,
 }
 
 impl<W: Widget + Clone + 'static> DockableWindow for DockedWindowView<W> {
     fn get_identifier(&self) -> &str {
         self.get_identifier()
+    }
+
+    fn get_title(&self) -> &str {
+        self.get_title()
     }
 
     fn ui(
@@ -32,12 +38,13 @@ impl<W: Widget + Clone + 'static> DockableWindow for DockedWindowView<W> {
 impl<W: Widget> DockedWindowView<W> {
     pub fn new(
         app_context: Arc<AppContext>,
+        dock_view_data: Arc<DockRootViewData>,
         widget: W,
         title: Rc<String>,
         identifier: Rc<String>,
     ) -> Self {
-        let docked_window_title_bar_view = DockedWindowTitleBarView::new(app_context.clone(), title, identifier.clone());
-        let docked_window_footer_view = DockedWindowFooterView::new(app_context.clone(), identifier.clone());
+        let docked_window_title_bar_view = DockedWindowTitleBarView::new(app_context.clone(), title.clone(), identifier.clone());
+        let docked_window_footer_view = DockedWindowFooterView::new(app_context.clone(), dock_view_data, identifier.clone());
 
         Self {
             app_context,
@@ -45,11 +52,16 @@ impl<W: Widget> DockedWindowView<W> {
             widget,
             docked_window_footer_view,
             identifier,
+            title,
         }
     }
 
     pub fn get_identifier(&self) -> &str {
         &self.identifier
+    }
+
+    pub fn get_title(&self) -> &str {
+        &self.title
     }
 }
 
@@ -141,7 +153,7 @@ impl<W: Widget> Widget for DockedWindowView<W> {
                 // Title bar.
                 inner_user_interface.add(self.docked_window_title_bar_view);
 
-                let has_footer = match docking_manager.try_read() {
+                let has_footer = match docking_manager.read() {
                     Ok(docking_manager) => {
                         docking_manager
                             .get_sibling_tab_ids(&self.identifier, true)

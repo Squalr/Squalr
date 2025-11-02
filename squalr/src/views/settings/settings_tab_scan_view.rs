@@ -8,10 +8,7 @@ use squalr_engine_api::{
     commands::{engine_command_request::EngineCommandRequest, settings::scan::list::scan_settings_list_request::ScanSettingsListRequest},
     structures::settings::scan_settings::ScanSettings,
 };
-use std::{
-    rc::Rc,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
 pub struct SettingsTabScanView {
@@ -51,7 +48,7 @@ impl Widget for SettingsTabScanView {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let cached_scan_settings = match self.cached_scan_settings.try_read() {
+        let cached_scan_settings = match self.cached_scan_settings.read() {
             Ok(cached_scan_settings) => *cached_scan_settings,
             Err(_error) => ScanSettings::default(),
         };
@@ -206,8 +203,7 @@ impl Widget for SettingsTabScanView {
                 user_interface.add(
                     GroupBox::new_from_theme(theme, "Scan Params", |user_interface| {
                         user_interface.horizontal(|user_interface| {
-                            user_interface.add(ComboBoxView::new_from_theme(
-                                theme,
+                            user_interface.add(ComboBoxView::new(
                                 self.app_context.clone(),
                                 "x-byte aligned",
                                 None,
