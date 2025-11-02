@@ -12,7 +12,7 @@ pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
     add_contents: F,
     width: f32,
     height: f32,
-    icon_padding: f32,
+    icon_padding_left: f32,
     icon_size: f32,
     label_spacing: f32,
     divider_width: f32,
@@ -36,7 +36,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
             height: 28.0,
 
             // Themed layout defaults
-            icon_padding: 4.0,
+            icon_padding_left: 8.0,
             icon_size: 16.0,
             label_spacing: 8.0,
             divider_width: 1.0,
@@ -90,14 +90,19 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         let icon_y = allocated_size_rectangle.center().y - icon_size_vec.y * 0.5;
 
         // Left-side icon (new)
-        let left_icon_pos = pos2(allocated_size_rectangle.min.x + self.icon_padding, icon_y);
+        let left_icon_pos = pos2(allocated_size_rectangle.min.x + self.icon_padding_left, icon_y);
 
         // Text label
         let galley = user_interface
             .ctx()
             .fonts(|fonts| fonts.layout_no_wrap(self.label.to_owned(), font_id.clone(), text_color));
+        let base_x = allocated_size_rectangle.min.x + self.icon_padding_left;
         let text_pos = pos2(
-            left_icon_pos.x + icon_size_vec.x + self.label_spacing,
+            if self.icon.is_some() {
+                base_x + icon_size_vec.x + self.label_spacing
+            } else {
+                base_x
+            },
             allocated_size_rectangle.center().y - galley.size().y * 0.5,
         );
         let border_width = 1.0;
@@ -137,7 +142,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         user_interface.painter().galley(text_pos, galley, text_color);
 
         // Divider bar before right arrow
-        let divider_x = allocated_size_rectangle.max.x - (self.icon_size + self.icon_padding * 2.0 + self.divider_width);
+        let divider_x = allocated_size_rectangle.max.x - (self.icon_size + self.icon_padding_left * 2.0 + self.divider_width);
         let divider_rect = Rect::from_min_max(
             pos2(divider_x, allocated_size_rectangle.min.y + border_width),
             pos2(divider_x + self.divider_width, allocated_size_rectangle.max.y),
@@ -148,7 +153,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             .rect_filled(divider_rect, 0.0, theme.submenu_border);
 
         // Draw right arrow
-        let right_arrow_pos = pos2(allocated_size_rectangle.max.x - self.icon_size - self.icon_padding, icon_y);
+        let right_arrow_pos = pos2(allocated_size_rectangle.max.x - self.icon_size - self.icon_padding_left, icon_y);
 
         user_interface.painter().image(
             down_arrow.id(),

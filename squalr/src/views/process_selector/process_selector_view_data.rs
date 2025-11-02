@@ -90,11 +90,11 @@ impl ProcessSelectorViewData {
     pub fn select_process(
         process_selector_view_data: Dependency<ProcessSelectorViewData>,
         app_context: Arc<AppContext>,
-        process_id: u32,
+        process_id: Option<u32>,
     ) {
         let engine_execution_context = app_context.engine_execution_context.clone();
         let process_open_request = ProcessOpenRequest {
-            process_id: Some(process_id),
+            process_id,
             search_name: None,
             match_case: false,
         };

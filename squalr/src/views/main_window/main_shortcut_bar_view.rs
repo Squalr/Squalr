@@ -88,6 +88,23 @@ impl Widget for MainShortcutBarView {
             name_display,
             process_selector_view_data.cached_icon.clone(),
             |user_interface: &mut Ui, should_close: &mut bool| {
+                if process_selector_view_data.opened_process.is_some() {
+                    if user_interface
+                        .add(ComboBoxItemView::new(
+                            self.app_context.clone(),
+                            "--- Detach from current process ---",
+                            None,
+                            process_dropdown_list_width,
+                        ))
+                        .clicked()
+                    {
+                        process_to_open = Some(None);
+                        *should_close = true;
+
+                        return;
+                    }
+                }
+
                 for windowed_process in &process_selector_view_data.windowed_process_list {
                     let icon = match windowed_process.get_icon() {
                         Some(icon) => process_selector_view_data.get_or_create_icon(&self.app_context.context, windowed_process.get_process_id_raw(), icon),
@@ -103,7 +120,7 @@ impl Widget for MainShortcutBarView {
                         ))
                         .clicked()
                     {
-                        process_to_open = Some(windowed_process.get_process_id().as_u32());
+                        process_to_open = Some(Some(windowed_process.get_process_id().as_u32()));
                         *should_close = true;
 
                         return;

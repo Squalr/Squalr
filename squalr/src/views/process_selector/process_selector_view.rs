@@ -60,7 +60,7 @@ impl Widget for ProcessSelectorView {
                                 .add(ProcessEntryView::new(self.app_context.clone(), windowed_process.get_name(), icon))
                                 .double_clicked()
                             {
-                                selected_process = Some(windowed_process.get_process_id_raw());
+                                selected_process = Some(Some(windowed_process.get_process_id_raw()));
                             }
                         }
 
