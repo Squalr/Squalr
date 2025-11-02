@@ -79,7 +79,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         let theme = &self.app_context.theme;
         let font_id = theme.font_library.font_noto_sans.font_normal.clone();
         let text_color = theme.foreground;
-        let down_arrow = &theme.icon_library.icon_navigation_down_arrow_small;
+        let down_arrow = &theme.icon_library.icon_handle_navigation_down_arrow_small;
 
         let desired_size = vec2(self.width, self.height);
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::click());

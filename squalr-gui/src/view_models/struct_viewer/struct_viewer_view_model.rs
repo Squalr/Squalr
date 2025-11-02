@@ -7,17 +7,17 @@ use crate::converters::display_value_converter::DisplayValueConverter;
 use crate::converters::valued_struct_converter::ValuedStructConverter;
 use crate::view_models::element_scanner::element_scan_results_view_model::ElementScanResultsViewModel;
 use crate::view_models::struct_viewer::struct_viewer_domain::StructViewerDomain;
-use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
-use squalr_engine_api::dependency_injection::lazy::Lazy;
-use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
-use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use slint::ComponentHandle;
 use slint::SharedString;
 use slint_mvvm::convert_from_view_data::ConvertFromViewData;
 use slint_mvvm::convert_to_view_data::ConvertToViewData;
 use slint_mvvm::view_binding::ViewBinding;
 use slint_mvvm_macros::create_view_bindings;
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use squalr_engine_api::dependency_injection::lazy::Lazy;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
+use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -37,7 +37,7 @@ impl StructViewerViewModel {
         dependency_container: DependencyContainer,
         (view_binding, engine_execution_context): (Arc<ViewBinding<MainWindowView>>, Arc<EngineExecutionContext>),
     ) {
-        let element_scan_results_view_model = dependency_container.get_lazy::<ElementScanResultsViewModel>();
+        let element_scan_results_view_model = dependency_container.get_dependency::<ElementScanResultsViewModel>();
         let view_model = Arc::new(StructViewerViewModel {
             view_binding: view_binding.clone(),
             _engine_execution_context: engine_execution_context.clone(),

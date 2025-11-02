@@ -1,7 +1,7 @@
 use crate::{
     app_context::AppContext,
     ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
-    views::process_selector::process_selector_view_data::ProcessSelectorViewData,
+    views::element_scanner::element_scanner_view_data::ElementScannerViewData,
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, vec2};
@@ -9,26 +9,26 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 
 #[derive(Clone)]
-pub struct ProcessSelectorToolbarView {
+pub struct ElementScannerToolbarView {
     app_context: Arc<AppContext>,
-    process_selector_view_data: Dependency<ProcessSelectorViewData>,
+    element_scanner_view_data: Dependency<ElementScannerViewData>,
 }
 
-impl ProcessSelectorToolbarView {
+impl ElementScannerToolbarView {
     pub fn new(app_context: Arc<AppContext>) -> Self {
-        let process_selector_view_data = app_context
+        let element_scanner_view_data = app_context
             .dependency_container
-            .get_dependency::<ProcessSelectorViewData>();
+            .get_dependency::<ElementScannerViewData>();
         let instance = Self {
             app_context,
-            process_selector_view_data,
+            element_scanner_view_data,
         };
 
         instance
     }
 }
 
-impl Widget for ProcessSelectorToolbarView {
+impl Widget for ElementScannerToolbarView {
     fn ui(
         self,
         user_interface: &mut Ui,
@@ -55,7 +55,7 @@ impl Widget for ProcessSelectorToolbarView {
             IconDraw::draw(user_interface, refresh.rect, &theme.icon_library.icon_handle_navigation_refresh);
 
             if refresh.clicked() {
-                ProcessSelectorViewData::refresh_full_process_list(self.process_selector_view_data.clone(), self.app_context.engine_execution_context.clone());
+                //
             }
         });
 

@@ -37,7 +37,7 @@ impl<'lifetime> Slider<'lifetime> {
         slider.hover_tint = theme.hover_tint;
         slider.pressed_tint = theme.pressed_tint;
         slider.border_color_focused = Some(theme.focused_border);
-        slider.icon = Some(theme.icon_library.icon_handle_check_mark.clone());
+        slider.icon = Some(theme.icon_library.icon_handle_common_check_mark.clone());
 
         slider
     }

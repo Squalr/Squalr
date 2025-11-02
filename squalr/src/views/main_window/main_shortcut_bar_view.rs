@@ -18,7 +18,7 @@ impl MainShortcutBarView {
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let process_selector_view_data = app_context
             .dependency_container
-            .get_lazy::<ProcessSelectorViewData>();
+            .get_dependency::<ProcessSelectorViewData>();
         let instance = Self {
             app_context,
             process_selector_view_data,

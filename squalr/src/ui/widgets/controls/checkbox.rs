@@ -36,7 +36,7 @@ impl<'lifetime> Checkbox<'lifetime> {
         checkbox.hover_tint = theme.hover_tint;
         checkbox.pressed_tint = theme.pressed_tint;
         checkbox.border_color_focused = Some(theme.focused_border);
-        checkbox.icon = Some(theme.icon_library.icon_handle_check_mark.clone());
+        checkbox.icon = Some(theme.icon_library.icon_handle_common_check_mark.clone());
 
         checkbox
     }

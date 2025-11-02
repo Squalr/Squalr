@@ -94,7 +94,7 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
 
             // Draw checkmark if checked.
             if is_checked {
-                let icon = &theme.icon_library.icon_handle_check_mark;
+                let icon = &theme.icon_library.icon_handle_common_check_mark;
                 let texture_size = icon.size_vec2();
                 let icon_position = checkbox_rect.center() - texture_size * 0.5;
                 user_interface.painter().image(

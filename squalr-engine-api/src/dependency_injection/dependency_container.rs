@@ -40,7 +40,7 @@ impl DependencyContainer {
             Err(error) => {
                 log::error!("Error acquiring dependency register lock: {}", error);
 
-                return self.get_lazy();
+                return self.get_dependency();
             }
         };
 
@@ -50,7 +50,7 @@ impl DependencyContainer {
         }
 
         // Return a lazy `Dependency<T>`.
-        self.get_lazy()
+        self.get_dependency()
     }
 
     pub fn get_existing<T>(&self) -> Result<Arc<RwLock<T>>>
@@ -75,7 +75,7 @@ impl DependencyContainer {
         Arc::downcast::<RwLock<T>>(arc_any).map_err(|_| anyhow!("Type mismatch for dependency {}", key))
     }
 
-    pub fn get_lazy<T>(&self) -> Dependency<T>
+    pub fn get_dependency<T>(&self) -> Dependency<T>
     where
         T: Send + Sync + 'static,
     {

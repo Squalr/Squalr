@@ -2,7 +2,7 @@ use crate::app_context::AppContext;
 use crate::ui::widgets::docking::dock_root_view::DockRootView;
 use crate::ui::widgets::docking::dock_root_view_data::DockRootViewData;
 use crate::ui::widgets::docking::docked_window_view::DockedWindowView;
-use crate::views::element_scanner::element_scanner::ElementScannerView;
+use crate::views::element_scanner::element_scanner_view::ElementScannerView;
 use crate::views::main_window::main_footer_view::MainFooterView;
 use crate::views::main_window::main_shortcut_bar_view::MainShortcutBarView;
 use crate::views::main_window::main_title_bar_view::MainTitleBarView;
@@ -115,7 +115,7 @@ impl MainWindowView {
         ]);
 
         let dock_root_view = DockRootView::new(app_context.clone(), dock_view_data);
-        let main_footer_view = MainFooterView::new(app_context.clone(), corner_radius, 28.0);
+        let main_footer_view = MainFooterView::new(app_context.clone(), corner_radius, 24.0);
         let resize_thickness = 4.0;
 
         Self {

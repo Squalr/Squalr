@@ -1,3 +1,4 @@
+use crate::app_context::AppContext;
 use eframe::egui::{Context, TextureOptions};
 use epaint::{ColorImage, TextureHandle};
 use squalr_engine_api::{
@@ -13,8 +14,6 @@ use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
 };
-
-use crate::app_context::AppContext;
 
 pub struct ProcessSelectorViewData {
     pub opened_process: Option<OpenedProcessInfo>,

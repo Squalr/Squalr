@@ -12,6 +12,7 @@ use std::sync::Arc;
 pub struct ProcessSelectorView {
     app_context: Arc<AppContext>,
     process_selector_view_data: Dependency<ProcessSelectorViewData>,
+    process_selector_toolbar_view: ProcessSelectorToolbarView,
 }
 
 impl ProcessSelectorView {
@@ -19,10 +20,12 @@ impl ProcessSelectorView {
         let process_selector_view_data = app_context
             .dependency_container
             .register(ProcessSelectorViewData::new());
+        let process_selector_toolbar_view = ProcessSelectorToolbarView::new(app_context.clone());
 
         Self {
             app_context,
             process_selector_view_data,
+            process_selector_toolbar_view,
         }
     }
 }
@@ -34,7 +37,7 @@ impl Widget for ProcessSelectorView {
     ) -> Response {
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |mut user_interface| {
-                user_interface.add(ProcessSelectorToolbarView::new(self.app_context.clone()));
+                user_interface.add(self.process_selector_toolbar_view.clone());
 
                 ScrollArea::vertical()
                     .auto_shrink([false, false])
