@@ -1,10 +1,7 @@
-use crate::ui::widgets::controls::button::Button;
+use crate::app_context::AppContext;
 use crate::ui::widgets::controls::combo_box::combo_box_view::ComboBoxView;
 use crate::ui::widgets::controls::data_type_selector::data_type_item_view::DataTypeItemView;
-use crate::ui::widgets::controls::state_layer::StateLayer;
-use crate::{app_context::AppContext, ui::draw::icon_draw::IconDraw};
-use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
-use epaint::{Color32, CornerRadius, Rect, TextureHandle, Vec2, pos2, vec2};
+use eframe::egui::{Id, Response, Ui, Widget};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use std::sync::Arc;
 
@@ -40,15 +37,15 @@ impl Widget for DataTypeSelectorView {
         ui: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let element_width = 92.0;
+        let element_width = 104.0;
 
         // Build the combo box widget first
         let combo_box = ComboBoxView::new(
             self.app_context.clone(),
             self.active_data_type.get_data_type_id(),
             None,
-            |popup_ui: &mut Ui, should_close: &mut bool| {
-                popup_ui.vertical(|user_interface| {
+            |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                popup_user_interface.vertical(|user_interface| {
                     user_interface.horizontal(|user_interface| {
                         if user_interface
                             .add(DataTypeItemView::new(
@@ -74,6 +71,7 @@ impl Widget for DataTypeSelectorView {
                             *should_close = true;
                         };
                     });
+
                     user_interface.horizontal(|user_interface| {
                         if user_interface
                             .add(DataTypeItemView::new(
@@ -104,6 +102,7 @@ impl Widget for DataTypeSelectorView {
                             *should_close = true;
                         };
                     });
+
                     user_interface.horizontal(|user_interface| {
                         if user_interface
                             .add(DataTypeItemView::new(
@@ -134,6 +133,7 @@ impl Widget for DataTypeSelectorView {
                             *should_close = true;
                         };
                     });
+
                     user_interface.horizontal(|user_interface| {
                         if user_interface
                             .add(DataTypeItemView::new(
@@ -164,6 +164,7 @@ impl Widget for DataTypeSelectorView {
                             *should_close = true;
                         };
                     });
+
                     user_interface.horizontal(|user_interface| {
                         if user_interface
                             .add(DataTypeItemView::new(
@@ -194,6 +195,7 @@ impl Widget for DataTypeSelectorView {
                             *should_close = true;
                         };
                     });
+
                     user_interface.horizontal(|user_interface| {
                         if user_interface
                             .add(DataTypeItemView::new(
@@ -224,6 +226,7 @@ impl Widget for DataTypeSelectorView {
                             *should_close = true;
                         };
                     });
+
                     user_interface.horizontal(|user_interface| {
                         if user_interface
                             .add(DataTypeItemView::new(
@@ -254,6 +257,7 @@ impl Widget for DataTypeSelectorView {
                             *should_close = true;
                         };
                     });
+
                     user_interface.horizontal(|user_interface| {
                         if user_interface
                             .add(DataTypeItemView::new(
@@ -284,6 +288,7 @@ impl Widget for DataTypeSelectorView {
                             *should_close = true;
                         };
                     });
+
                     user_interface.horizontal(|user_interface| {
                         if user_interface
                             .add(DataTypeItemView::new(
@@ -314,6 +319,7 @@ impl Widget for DataTypeSelectorView {
                             *should_close = true;
                         };
                     });
+
                     user_interface.horizontal(|user_interface| {
                         if user_interface
                             .add(DataTypeItemView::new(

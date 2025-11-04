@@ -3,6 +3,7 @@ pub mod checkbox;
 pub mod combo_box;
 pub mod data_type_selector;
 pub mod groupbox;
+pub mod scan_constraint_selector;
 pub mod slider;
 pub mod state_layer;
 pub mod tab_menu;

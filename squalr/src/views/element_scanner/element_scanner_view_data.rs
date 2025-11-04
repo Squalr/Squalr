@@ -11,19 +11,21 @@ use squalr_engine_api::{
     structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
         data_values::{anonymous_value::AnonymousValue, display_value::DisplayValue},
-        scanning::comparisons::scan_compare_type::ScanCompareType,
+        scanning::comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
     },
 };
 use std::sync::Arc;
 
 pub struct ElementScannerViewData {
     pub selected_data_type: DataTypeRef,
+    pub selected_scan_compare_type: ScanCompareType,
 }
 
 impl ElementScannerViewData {
     pub fn new() -> Self {
         Self {
             selected_data_type: DataTypeRef::new(DataTypeI32::get_data_type_id()),
+            selected_scan_compare_type: ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
         }
     }
 

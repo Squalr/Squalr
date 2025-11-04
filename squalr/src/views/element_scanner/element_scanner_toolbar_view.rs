@@ -2,7 +2,10 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
-        widgets::controls::{button::Button, data_type_selector::data_type_selector_view::DataTypeSelectorView},
+        widgets::controls::{
+            button::Button, data_type_selector::data_type_selector_view::DataTypeSelectorView,
+            scan_constraint_selector::scan_compare_type_selector_view::ScanCompareTypeSelectorView,
+        },
     },
     views::element_scanner::element_scanner_view_data::ElementScannerViewData,
 };
@@ -86,6 +89,11 @@ impl Widget for ElementScannerToolbarView {
             if button_collect_values.clicked() {
                 //
             }
+
+            user_interface.add(ScanCompareTypeSelectorView::new(
+                self.app_context.clone(),
+                element_scanner_view_data.selected_scan_compare_type.clone(),
+            ));
 
             user_interface.add(DataTypeSelectorView::new(
                 self.app_context.clone(),

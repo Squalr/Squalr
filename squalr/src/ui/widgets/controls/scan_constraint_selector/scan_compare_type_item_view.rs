@@ -7,14 +7,14 @@ use epaint::CornerRadius;
 use std::sync::Arc;
 
 /// A generic context menu item.
-pub struct DataTypeItemView<'lifetime> {
+pub struct ScanCompareTypeItemView<'lifetime> {
     app_context: Arc<AppContext>,
     label: &'lifetime str,
     icon: Option<TextureHandle>,
     combo_box_width: f32,
 }
 
-impl<'lifetime> DataTypeItemView<'lifetime> {
+impl<'lifetime> ScanCompareTypeItemView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         label: &'lifetime str,
@@ -38,7 +38,7 @@ impl<'lifetime> DataTypeItemView<'lifetime> {
     }
 }
 
-impl<'a> Widget for DataTypeItemView<'a> {
+impl<'a> Widget for ScanCompareTypeItemView<'a> {
     fn ui(
         self,
         user_interface: &mut Ui,
