@@ -60,14 +60,14 @@ impl SymbolRegistry {
         &mut self,
         data_type: Arc<dyn DataType>,
     ) {
-        // JIA
+        // JIRA
     }
 
     fn unregister_data_type(
         &mut self,
         data_type: Arc<dyn DataType>,
     ) {
-        // JIA
+        // JIRA
     }
 
     pub fn get(

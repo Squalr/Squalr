@@ -39,7 +39,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
             icon_size: 16.0,
             label_spacing: 8.0,
             divider_width: 1.0,
-            corner_radius: 2,
+            corner_radius: 0,
         }
     }
 
@@ -191,6 +191,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             .show(user_interface.ctx(), |popup_user_interface| {
                 Frame::popup(user_interface.style())
                     .fill(theme.background_primary)
+                    .corner_radius(self.corner_radius)
                     .show(popup_user_interface, |popup_user_interface| {
                         popup_user_interface.set_min_width(self.width);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {

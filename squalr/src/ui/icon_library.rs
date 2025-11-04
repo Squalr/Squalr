@@ -59,8 +59,23 @@ static ICON_PROJECT_POINTER_TYPE: &[u8] = include_bytes!("../../images/app/proje
 static ICON_PROJECT_SCRIPT: &[u8] = include_bytes!("../../images/app/projects/script.png");
 
 // Navigation.
+static ICON_NAVIGATION_CANCEL: &[u8] = include_bytes!("../../images/navigation/cancel.png");
+static ICON_NAVIGATION_CONNECT: &[u8] = include_bytes!("../../images/navigation/connect.png");
+static ICON_NAVIGATION_DOUBLE_RIGHT_OVERLAPPED_ARROWS: &[u8] = include_bytes!("../../images/navigation/double_right_overlapped_arrows.png");
 static ICON_NAVIGATION_DOWN_ARROW_SMALL: &[u8] = include_bytes!("../../images/navigation/down_arrow_small.png");
+static ICON_NAVIGATION_DOWN_ARROWS: &[u8] = include_bytes!("../../images/navigation/down_arrows.png");
+static ICON_NAVIGATION_HOME: &[u8] = include_bytes!("../../images/navigation/home.png");
+static ICON_NAVIGATION_LEFT_ARROW_SMALL: &[u8] = include_bytes!("../../images/navigation/left_arrow_small.png");
+static ICON_NAVIGATION_LEFT_ARROW: &[u8] = include_bytes!("../../images/navigation/left_arrow.png");
+static ICON_NAVIGATION_LEFT_ARROWS: &[u8] = include_bytes!("../../images/navigation/left_arrows.png");
+static ICON_NAVIGATION_REDO: &[u8] = include_bytes!("../../images/navigation/redo.png");
 static ICON_NAVIGATION_REFRESH: &[u8] = include_bytes!("../../images/navigation/refresh.png");
+static ICON_NAVIGATION_RIGHT_ARROW_SMALL: &[u8] = include_bytes!("../../images/navigation/right_arrow_small.png");
+static ICON_NAVIGATION_RIGHT_ARROW: &[u8] = include_bytes!("../../images/navigation/right_arrow.png");
+static ICON_NAVIGATION_RIGHT_ARROWS: &[u8] = include_bytes!("../../images/navigation/right_arrows.png");
+static ICON_NAVIGATION_STOP: &[u8] = include_bytes!("../../images/navigation/stop.png");
+static ICON_NAVIGATION_UNDO: &[u8] = include_bytes!("../../images/navigation/undo.png");
+static ICON_NAVIGATION_UP_ARROW_SMALL: &[u8] = include_bytes!("../../images/navigation/up_arrow_small.png");
 
 // Results.
 static ICON_RESULT_FREEZE: &[u8] = include_bytes!("../../images/app/results/freeze.png");
@@ -149,8 +164,23 @@ pub struct IconLibrary {
     pub icon_handle_project_script: TextureHandle,
 
     // Navigation.
+    pub icon_handle_navigation_cancel: TextureHandle,
+    pub icon_handle_navigation_connect: TextureHandle,
+    pub icon_handle_navigation_double_right_overlapped_arrows: TextureHandle,
     pub icon_handle_navigation_down_arrow_small: TextureHandle,
+    pub icon_handle_navigation_down_arrows: TextureHandle,
+    pub icon_handle_navigation_home: TextureHandle,
+    pub icon_handle_navigation_left_arrow_small: TextureHandle,
+    pub icon_handle_navigation_left_arrow: TextureHandle,
+    pub icon_handle_navigation_left_arrows: TextureHandle,
+    pub icon_handle_navigation_redo: TextureHandle,
     pub icon_handle_navigation_refresh: TextureHandle,
+    pub icon_handle_navigation_right_arrow_small: TextureHandle,
+    pub icon_handle_navigation_right_arrow: TextureHandle,
+    pub icon_handle_navigation_right_arrows: TextureHandle,
+    pub icon_handle_navigation_stop: TextureHandle,
+    pub icon_handle_navigation_undo: TextureHandle,
+    pub icon_handle_navigation_up_arrow_small: TextureHandle,
 
     // Results.
     pub icon_handle_results_freeze: TextureHandle,
@@ -241,8 +271,23 @@ impl IconLibrary {
         let icon_handle_project_script = Self::load_icon(context, ICON_PROJECT_SCRIPT);
 
         // Navigation.
+        let icon_handle_navigation_cancel = Self::load_icon(context, ICON_NAVIGATION_CANCEL);
+        let icon_handle_navigation_connect = Self::load_icon(context, ICON_NAVIGATION_CONNECT);
+        let icon_handle_navigation_double_right_overlapped_arrows = Self::load_icon(context, ICON_NAVIGATION_DOUBLE_RIGHT_OVERLAPPED_ARROWS);
         let icon_handle_navigation_down_arrow_small = Self::load_icon(context, ICON_NAVIGATION_DOWN_ARROW_SMALL);
+        let icon_handle_navigation_down_arrows = Self::load_icon(context, ICON_NAVIGATION_DOWN_ARROWS);
+        let icon_handle_navigation_home = Self::load_icon(context, ICON_NAVIGATION_HOME);
+        let icon_handle_navigation_left_arrow_small = Self::load_icon(context, ICON_NAVIGATION_LEFT_ARROW_SMALL);
+        let icon_handle_navigation_left_arrow = Self::load_icon(context, ICON_NAVIGATION_LEFT_ARROW);
+        let icon_handle_navigation_left_arrows = Self::load_icon(context, ICON_NAVIGATION_LEFT_ARROWS);
+        let icon_handle_navigation_redo = Self::load_icon(context, ICON_NAVIGATION_REDO);
         let icon_handle_navigation_refresh = Self::load_icon(context, ICON_NAVIGATION_REFRESH);
+        let icon_handle_navigation_right_arrow_small = Self::load_icon(context, ICON_NAVIGATION_RIGHT_ARROW_SMALL);
+        let icon_handle_navigation_right_arrow = Self::load_icon(context, ICON_NAVIGATION_RIGHT_ARROW);
+        let icon_handle_navigation_right_arrows = Self::load_icon(context, ICON_NAVIGATION_RIGHT_ARROWS);
+        let icon_handle_navigation_stop = Self::load_icon(context, ICON_NAVIGATION_STOP);
+        let icon_handle_navigation_undo = Self::load_icon(context, ICON_NAVIGATION_UNDO);
+        let icon_handle_navigation_up_arrow_small = Self::load_icon(context, ICON_NAVIGATION_UP_ARROW_SMALL);
 
         // Results.
         let icon_handle_results_freeze = Self::load_icon(context, ICON_RESULT_FREEZE);
@@ -331,8 +376,23 @@ impl IconLibrary {
             icon_handle_project_script,
 
             // Navigation.
+            icon_handle_navigation_cancel,
+            icon_handle_navigation_connect,
+            icon_handle_navigation_double_right_overlapped_arrows,
             icon_handle_navigation_down_arrow_small,
+            icon_handle_navigation_down_arrows,
+            icon_handle_navigation_home,
+            icon_handle_navigation_left_arrow_small,
+            icon_handle_navigation_left_arrow,
+            icon_handle_navigation_left_arrows,
+            icon_handle_navigation_redo,
             icon_handle_navigation_refresh,
+            icon_handle_navigation_right_arrow_small,
+            icon_handle_navigation_right_arrow,
+            icon_handle_navigation_right_arrows,
+            icon_handle_navigation_stop,
+            icon_handle_navigation_undo,
+            icon_handle_navigation_up_arrow_small,
 
             // Results.
             icon_handle_results_freeze,

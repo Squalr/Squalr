@@ -84,31 +84,36 @@ impl Widget for MainTitleBarView {
             let button_size = vec2(36.0, 32.0);
 
             // Close.
-            let close = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
-            IconDraw::draw(user_interface, close.rect, &theme.icon_library.icon_handle_close);
+            let button_close = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
+            IconDraw::draw(user_interface, button_close.rect, &theme.icon_library.icon_handle_close);
 
-            if close.clicked() {
+            if button_close.clicked() {
                 context.send_viewport_cmd(ViewportCommand::Close);
             }
 
             // Maximize / Restore.
-            let max = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
-            IconDraw::draw(user_interface, max.rect, &theme.icon_library.icon_handle_maximize);
+            let button_minimize_maximize = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
+            IconDraw::draw(user_interface, button_minimize_maximize.rect, &theme.icon_library.icon_handle_maximize);
 
-            if max.clicked() {
+            if button_minimize_maximize.clicked() {
                 let is_max = context.input(|input_state| input_state.viewport().maximized.unwrap_or(false));
                 context.send_viewport_cmd(ViewportCommand::Maximized(!is_max));
             }
 
             // Minimize.
-            let min = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
-            IconDraw::draw(user_interface, min.rect, &theme.icon_library.icon_handle_minimize);
+            let button_minimize = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
+            IconDraw::draw(user_interface, button_minimize.rect, &theme.icon_library.icon_handle_minimize);
 
-            if min.clicked() {
+            if button_minimize.clicked() {
                 context.send_viewport_cmd(ViewportCommand::Minimized(true));
             }
 
-            buttons_rectangle = Some(close.rect.union(max.rect).union(min.rect));
+            buttons_rectangle = Some(
+                button_close
+                    .rect
+                    .union(button_minimize_maximize.rect)
+                    .union(button_minimize.rect),
+            );
         });
 
         // Drag area = everything left of the buttons, inside the titlebar rect.

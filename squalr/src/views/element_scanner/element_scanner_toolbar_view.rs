@@ -1,6 +1,9 @@
 use crate::{
     app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
+    ui::{
+        draw::icon_draw::IconDraw,
+        widgets::controls::{button::Button, data_type_selector::data_type_selector_view::DataTypeSelectorView},
+    },
     views::element_scanner::element_scanner_view_data::ElementScannerViewData,
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
@@ -36,6 +39,14 @@ impl Widget for ElementScannerToolbarView {
         let height = 28.0;
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), height), Sense::empty());
         let theme = &self.app_context.theme;
+        let element_scanner_view_data = match self.element_scanner_view_data.read() {
+            Ok(element_scanner_view_data) => element_scanner_view_data,
+            Err(error) => {
+                log::error!("Failed to acquire element scanner view data: {}", error);
+
+                return response;
+            }
+        };
 
         user_interface
             .painter()
@@ -50,11 +61,47 @@ impl Widget for ElementScannerToolbarView {
         toolbar_user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
             let button_size = vec2(36.0, 28.0);
 
-            // Refresh.
-            let refresh = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
-            IconDraw::draw(user_interface, refresh.rect, &theme.icon_library.icon_handle_navigation_refresh);
+            // New scan.
+            let button_new_scan = user_interface.add_sized(
+                button_size,
+                Button::new_from_theme(&theme)
+                    .background_color(Color32::TRANSPARENT)
+                    .tooltip_text("New scan."),
+            );
+            IconDraw::draw(user_interface, button_new_scan.rect, &theme.icon_library.icon_handle_scan_new);
 
-            if refresh.clicked() {
+            if button_new_scan.clicked() {
+                //
+            }
+
+            // Collect values.
+            let button_collect_values = user_interface.add_sized(
+                button_size,
+                Button::new_from_theme(&theme)
+                    .background_color(Color32::TRANSPARENT)
+                    .tooltip_text("Collect values."),
+            );
+            IconDraw::draw(user_interface, button_collect_values.rect, &theme.icon_library.icon_handle_scan_collect_values);
+
+            if button_collect_values.clicked() {
+                //
+            }
+
+            user_interface.add(DataTypeSelectorView::new(
+                self.app_context.clone(),
+                element_scanner_view_data.selected_data_type.clone(),
+            ));
+
+            // Start scan.
+            let button_start_scan = user_interface.add_sized(
+                button_size,
+                Button::new_from_theme(&theme)
+                    .background_color(Color32::TRANSPARENT)
+                    .tooltip_text("Start scan."),
+            );
+            IconDraw::draw(user_interface, button_start_scan.rect, &theme.icon_library.icon_handle_navigation_right_arrow);
+
+            if button_start_scan.clicked() {
                 //
             }
         });

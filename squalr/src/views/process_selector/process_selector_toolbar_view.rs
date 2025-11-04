@@ -51,10 +51,10 @@ impl Widget for ProcessSelectorToolbarView {
             let button_size = vec2(36.0, 28.0);
 
             // Refresh.
-            let refresh = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
-            IconDraw::draw(user_interface, refresh.rect, &theme.icon_library.icon_handle_navigation_refresh);
+            let button_refresh = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
+            IconDraw::draw(user_interface, button_refresh.rect, &theme.icon_library.icon_handle_navigation_refresh);
 
-            if refresh.clicked() {
+            if button_refresh.clicked() {
                 ProcessSelectorViewData::refresh_full_process_list(self.process_selector_view_data.clone(), self.app_context.engine_execution_context.clone());
             }
         });
