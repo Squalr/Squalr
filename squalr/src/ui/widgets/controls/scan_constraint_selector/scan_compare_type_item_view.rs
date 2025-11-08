@@ -46,7 +46,7 @@ impl<'a> Widget for ScanCompareTypeItemView<'a> {
         let theme = &self.app_context.theme;
         let icon_size = vec2(16.0, 16.0);
         let icon_left_padding = 8.0;
-        let text_left_padding = 4.0;
+        let text_left_padding = 0.0;
 
         // Whole clickable area includes indentation.
         let row_height = 32.0;

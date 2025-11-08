@@ -4,18 +4,21 @@ use crate::{app_context::AppContext, ui::converters::scan_compare_type_to_icon_c
 use eframe::egui::{Align, Id, Layout, Response, RichText, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, vec2};
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
+use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
+use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
+use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
 use std::sync::Arc;
 
 /// A widget that allows selecting from a set of data types.
-pub struct ScanCompareTypeSelectorView {
+pub struct ScanCompareTypeSelectorView<'lifetime> {
     app_context: Arc<AppContext>,
-    active_scan_compare_type: ScanCompareType,
+    active_scan_compare_type: &'lifetime mut ScanCompareType,
 }
 
-impl ScanCompareTypeSelectorView {
+impl<'lifetime> ScanCompareTypeSelectorView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
-        active_scan_compare_type: ScanCompareType,
+        active_scan_compare_type: &'lifetime mut ScanCompareType,
     ) -> Self {
         Self {
             app_context,
@@ -68,16 +71,18 @@ impl ScanCompareTypeSelectorView {
     }
 }
 
-impl Widget for ScanCompareTypeSelectorView {
+impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
     fn ui(
         self,
         ui: &mut Ui,
     ) -> Response {
-        let theme = &self.app_context.theme;
+        let app_context = self.app_context.clone();
+        let theme = &app_context.theme;
+        let icon_library = &theme.icon_library;
         let element_width_left = 160.0;
         let element_width_right = 204.0;
         let total_row_width = element_width_left + element_width_right;
-        let selected_icon = ScanCompareTypeToIconConverter::convert_scan_compare_type_to_icon(&self.active_scan_compare_type, &theme.icon_library);
+        let selected_icon = ScanCompareTypeToIconConverter::convert_scan_compare_type_to_icon(&self.active_scan_compare_type, icon_library);
 
         let combo_box = ComboBoxView::new(
             self.app_context.clone(),
@@ -92,11 +97,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Changed",
-                                Some(theme.icon_library.icon_handle_scan_relative_changed.clone()),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_relative_to_icon(
+                                    &ScanCompareTypeRelative::Changed,
+                                    icon_library,
+                                )),
                                 element_width_left,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Relative(ScanCompareTypeRelative::Changed);
                             *should_close = true;
                         };
 
@@ -104,11 +113,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Unchanged",
-                                Some(theme.icon_library.icon_handle_scan_relative_unchanged.clone()),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_relative_to_icon(
+                                    &ScanCompareTypeRelative::Unchanged,
+                                    icon_library,
+                                )),
                                 element_width_right,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Relative(ScanCompareTypeRelative::Unchanged);
                             *should_close = true;
                         };
                     });
@@ -118,11 +131,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Increased",
-                                Some(theme.icon_library.icon_handle_scan_relative_increased.clone()),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_relative_to_icon(
+                                    &ScanCompareTypeRelative::Increased,
+                                    icon_library,
+                                )),
                                 element_width_left,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Relative(ScanCompareTypeRelative::Increased);
                             *should_close = true;
                         };
 
@@ -130,11 +147,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Decreased",
-                                Some(theme.icon_library.icon_handle_scan_relative_decreased.clone()),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_relative_to_icon(
+                                    &ScanCompareTypeRelative::Decreased,
+                                    icon_library,
+                                )),
                                 element_width_right,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Relative(ScanCompareTypeRelative::Decreased);
                             *should_close = true;
                         };
                     });
@@ -146,11 +167,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Equal",
-                                Some(theme.icon_library.icon_handle_scan_immediate_equal.clone()),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
+                                    &ScanCompareTypeImmediate::Equal,
+                                    icon_library,
+                                )),
                                 element_width_left,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal);
                             *should_close = true;
                         };
 
@@ -158,11 +183,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Not Equal",
-                                Some(theme.icon_library.icon_handle_scan_immediate_not_equal.clone()),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
+                                    &ScanCompareTypeImmediate::NotEqual,
+                                    icon_library,
+                                )),
                                 element_width_right,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Immediate(ScanCompareTypeImmediate::NotEqual);
                             *should_close = true;
                         };
                     });
@@ -171,16 +200,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Greater Than",
-                                Some(
-                                    theme
-                                        .icon_library
-                                        .icon_handle_scan_immediate_greater_than
-                                        .clone(),
-                                ),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
+                                    &ScanCompareTypeImmediate::GreaterThan,
+                                    icon_library,
+                                )),
                                 element_width_left,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Immediate(ScanCompareTypeImmediate::GreaterThan);
                             *should_close = true;
                         };
 
@@ -188,16 +216,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Greater Than or Equal to",
-                                Some(
-                                    theme
-                                        .icon_library
-                                        .icon_handle_scan_immediate_greater_than_or_equal
-                                        .clone(),
-                                ),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
+                                    &ScanCompareTypeImmediate::GreaterThanOrEqual,
+                                    icon_library,
+                                )),
                                 element_width_right,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Immediate(ScanCompareTypeImmediate::GreaterThanOrEqual);
                             *should_close = true;
                         };
                     });
@@ -206,11 +233,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Less Than",
-                                Some(theme.icon_library.icon_handle_scan_immediate_less_than.clone()),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
+                                    &ScanCompareTypeImmediate::LessThan,
+                                    icon_library,
+                                )),
                                 element_width_left,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Immediate(ScanCompareTypeImmediate::LessThan);
                             *should_close = true;
                         };
 
@@ -218,16 +249,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Less Than or Equal to",
-                                Some(
-                                    theme
-                                        .icon_library
-                                        .icon_handle_scan_immediate_less_than_or_equal
-                                        .clone(),
-                                ),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
+                                    &ScanCompareTypeImmediate::LessThanOrEqual,
+                                    icon_library,
+                                )),
                                 element_width_right,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Immediate(ScanCompareTypeImmediate::LessThanOrEqual);
                             *should_close = true;
                         };
                     });
@@ -239,11 +269,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Increased by x",
-                                Some(theme.icon_library.icon_handle_scan_delta_increased_by_x.clone()),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                                    &ScanCompareTypeDelta::IncreasedByX,
+                                    icon_library,
+                                )),
                                 element_width_left,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Delta(ScanCompareTypeDelta::IncreasedByX);
                             *should_close = true;
                         };
 
@@ -251,11 +285,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Decreased by x",
-                                Some(theme.icon_library.icon_handle_scan_delta_decreased_by_x.clone()),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                                    &ScanCompareTypeDelta::DecreasedByX,
+                                    icon_library,
+                                )),
                                 element_width_right,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Delta(ScanCompareTypeDelta::DecreasedByX);
                             *should_close = true;
                         };
                     });
@@ -265,16 +303,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Multiplied by x",
-                                Some(
-                                    theme
-                                        .icon_library
-                                        .icon_handle_scan_delta_multiplied_by_x
-                                        .clone(),
-                                ),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                                    &ScanCompareTypeDelta::MultipliedByX,
+                                    icon_library,
+                                )),
                                 element_width_left,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Delta(ScanCompareTypeDelta::MultipliedByX);
                             *should_close = true;
                         };
 
@@ -282,11 +319,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Divided by x",
-                                Some(theme.icon_library.icon_handle_scan_delta_divided_by_x.clone()),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                                    &ScanCompareTypeDelta::DividedByX,
+                                    icon_library,
+                                )),
                                 element_width_right,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Delta(ScanCompareTypeDelta::DividedByX);
                             *should_close = true;
                         };
                     });
@@ -296,11 +337,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Modulo by x",
-                                Some(theme.icon_library.icon_handle_scan_delta_modulo_by_x.clone()),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                                    &ScanCompareTypeDelta::ModuloByX,
+                                    icon_library,
+                                )),
                                 element_width_left,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Delta(ScanCompareTypeDelta::ModuloByX);
                             *should_close = true;
                         };
                     });
@@ -312,16 +357,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Shifted left by x",
-                                Some(
-                                    theme
-                                        .icon_library
-                                        .icon_handle_scan_delta_shift_left_by_x
-                                        .clone(),
-                                ),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                                    &ScanCompareTypeDelta::ShiftLeftByX,
+                                    icon_library,
+                                )),
                                 element_width_left,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Delta(ScanCompareTypeDelta::ShiftLeftByX);
                             *should_close = true;
                         };
 
@@ -329,16 +373,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Shifted right by x",
-                                Some(
-                                    theme
-                                        .icon_library
-                                        .icon_handle_scan_delta_shift_right_by_x
-                                        .clone(),
-                                ),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                                    &ScanCompareTypeDelta::ShiftRightByX,
+                                    icon_library,
+                                )),
                                 element_width_right,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Delta(ScanCompareTypeDelta::ShiftRightByX);
                             *should_close = true;
                         };
                     });
@@ -348,16 +391,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Logical AND'd by x",
-                                Some(
-                                    theme
-                                        .icon_library
-                                        .icon_handle_scan_delta_logical_and_by_x
-                                        .clone(),
-                                ),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                                    &ScanCompareTypeDelta::LogicalAndByX,
+                                    icon_library,
+                                )),
                                 element_width_left,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Delta(ScanCompareTypeDelta::LogicalAndByX);
                             *should_close = true;
                         };
 
@@ -365,16 +407,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Logical OR'd by x",
-                                Some(
-                                    theme
-                                        .icon_library
-                                        .icon_handle_scan_delta_logical_or_by_x
-                                        .clone(),
-                                ),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                                    &ScanCompareTypeDelta::LogicalOrByX,
+                                    icon_library,
+                                )),
                                 element_width_right,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Delta(ScanCompareTypeDelta::LogicalOrByX);
                             *should_close = true;
                         };
                     });
@@ -384,16 +425,15 @@ impl Widget for ScanCompareTypeSelectorView {
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
                                 "Logical XOR'd by x",
-                                Some(
-                                    theme
-                                        .icon_library
-                                        .icon_handle_scan_delta_logical_xor_by_x
-                                        .clone(),
-                                ),
+                                Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                                    &ScanCompareTypeDelta::LogicalXorByX,
+                                    icon_library,
+                                )),
                                 element_width_left,
                             ))
                             .clicked()
                         {
+                            *self.active_scan_compare_type = ScanCompareType::Delta(ScanCompareTypeDelta::LogicalXorByX);
                             *should_close = true;
                         };
                     });

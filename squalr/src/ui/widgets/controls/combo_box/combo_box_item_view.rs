@@ -45,7 +45,8 @@ impl<'a> Widget for ComboBoxItemView<'a> {
     ) -> Response {
         let theme = &self.app_context.theme;
         let icon_size = vec2(16.0, 16.0);
-        let text_left_padding = 4.0;
+        let icon_left_padding = 8.0;
+        let text_left_padding = 0.0;
 
         // Whole clickable area includes indentation.
         let row_height = 28.0;
@@ -69,10 +70,10 @@ impl<'a> Widget for ComboBoxItemView<'a> {
         .ui(user_interface);
 
         // Draw icon and label inside layout.
-        let icon_pos_x = allocated_size_rectangle.min.x;
+        let icon_pos_x = allocated_size_rectangle.min.x + icon_left_padding;
         let icon_pos_y = allocated_size_rectangle.center().y - icon_size.y * 0.5;
         let icon_rect = Rect::from_min_size(pos2(icon_pos_x, icon_pos_y), icon_size);
-        let text_pos = pos2(icon_rect.max.x + text_left_padding, allocated_size_rectangle.center().y);
+        let text_pos = pos2(icon_rect.max.x + icon_left_padding + text_left_padding, allocated_size_rectangle.center().y);
 
         if let Some(icon) = &self.icon {
             IconDraw::draw_sized(user_interface, icon_rect.center(), icon_size, icon);

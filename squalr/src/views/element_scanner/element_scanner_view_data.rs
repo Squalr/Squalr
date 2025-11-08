@@ -1,13 +1,17 @@
+use crate::views::element_scanner::element_scanner_view_state::ElementScannerViewState;
 use squalr_engine_api::{
     commands::{
         engine_command_request::EngineCommandRequest,
-        scan::{collect_values::scan_collect_values_request::ScanCollectValuesRequest, new::scan_new_request::ScanNewRequest},
+        scan::{
+            collect_values::scan_collect_values_request::ScanCollectValuesRequest, new::scan_new_request::ScanNewRequest,
+            reset::scan_reset_request::ScanResetRequest,
+        },
     },
     dependency_injection::dependency::Dependency,
     engine::engine_execution_context::EngineExecutionContext,
     structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
-        data_values::{anonymous_value::AnonymousValue, display_value::DisplayValue},
+        data_values::anonymous_value::AnonymousValue,
         scanning::comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
     },
 };
@@ -16,6 +20,7 @@ use std::sync::Arc;
 pub struct ElementScannerViewData {
     pub selected_data_type: DataTypeRef,
     pub selected_scan_compare_type: ScanCompareType,
+    pub view_state: ElementScannerViewState,
 }
 
 impl ElementScannerViewData {
@@ -23,33 +28,45 @@ impl ElementScannerViewData {
         Self {
             selected_data_type: DataTypeRef::new(DataTypeI32::get_data_type_id()),
             selected_scan_compare_type: ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            view_state: ElementScannerViewState::NoResults,
         }
     }
 
-    fn on_reset_scan(element_scanner_view_data: Dependency<ElementScannerViewData>) {
-        /*
+    pub fn reset_scan(
+        element_scanner_view_data: Dependency<ElementScannerViewData>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) {
         let scan_reset_request = ScanResetRequest {};
-        let engine_execution_context = &element_scanner_view_data.engine_execution_context;
-        let element_scanner_view_data = element_scanner_view_data.clone();
 
-        scan_reset_request.send(engine_execution_context, move |scan_reset_response| {
-            let scan_element_scanner_view_data_state = &element_scanner_view_data.scan_element_scanner_view_data_state;
-
+        scan_reset_request.send(&engine_execution_context, move |scan_reset_response| {
             if scan_reset_response.success {
-                if let Ok(mut scan_element_scanner_view_data_state) = scan_element_scanner_view_data_state.write() {
-                    *scan_element_scanner_view_data_state = ScanViewModelState::NoResults;
+                match element_scanner_view_data.write() {
+                    Ok(mut element_scanner_view_data) => {
+                        element_scanner_view_data.view_state = ElementScannerViewState::NoResults;
+                    }
+                    Err(error) => {
+                        log::error!("Failed to write element scanner view state: {}", error);
+                    }
                 }
             }
-        });*/
+        });
     }
 
-    fn on_start_scan(
+    pub fn collect_values(engine_execution_context: Arc<EngineExecutionContext>) {
+        let collect_values_request = ScanCollectValuesRequest {};
+
+        collect_values_request.send(&engine_execution_context, |_scan_collect_values_response| {});
+    }
+
+    pub fn start_scan(
         element_scanner_view_data: Dependency<ElementScannerViewData>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) {
+        /*
         scan_value: &str,
         data_type_ids: Vec<String>,
         display_value: DisplayValue,
-        scan_compare_type: ScanCompareType,
-    ) {
+         */
         /*
         let scan_element_scanner_view_data_state = &element_scanner_view_data.scan_element_scanner_view_data_state;
 
@@ -75,7 +92,7 @@ impl ElementScannerViewData {
 
         match scan_element_scanner_view_data_state_value {
             ScanViewModelState::HasResults => {
-                Self::start_scan(element_scanner_view_data, scan_compare_type, data_type_ids, anonymous_value);
+                Self::start_next_scan(element_scanner_view_data, scan_compare_type, data_type_ids, anonymous_value);
             }
             ScanViewModelState::NoResults => {
                 Self::new_scan(element_scanner_view_data, scan_compare_type, data_type_ids, anonymous_value);
@@ -84,12 +101,6 @@ impl ElementScannerViewData {
                 log::error!("Cannot start a new scan while a scan is in progress.");
             }
         };*/
-    }
-
-    fn on_collect_values(engine_execution_context: Arc<EngineExecutionContext>) {
-        let collect_values_request = ScanCollectValuesRequest {};
-
-        collect_values_request.send(&engine_execution_context, |_scan_collect_values_response| {});
     }
 
     fn new_scan(
@@ -105,7 +116,7 @@ impl ElementScannerViewData {
 
         // Start a new scan, and recurse to start the scan once the new scan is made.
         scan_new_request.send(&engine_execution_context, move |_scan_new_response| {
-            Self::start_scan(
+            Self::start_next_scan(
                 element_scanner_view_data,
                 engine_execution_context_clone,
                 scan_compare_type,
@@ -115,7 +126,7 @@ impl ElementScannerViewData {
         });
     }
 
-    fn start_scan(
+    fn start_next_scan(
         element_scanner_view_data: Dependency<ElementScannerViewData>,
         engine_execution_context: Arc<EngineExecutionContext>,
         scan_compare_type: ScanCompareType,
