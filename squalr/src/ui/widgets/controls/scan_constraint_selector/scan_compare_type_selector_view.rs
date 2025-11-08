@@ -1,6 +1,6 @@
-use crate::app_context::AppContext;
 use crate::ui::widgets::controls::combo_box::combo_box_view::ComboBoxView;
 use crate::ui::widgets::controls::scan_constraint_selector::scan_compare_type_item_view::ScanCompareTypeItemView;
+use crate::{app_context::AppContext, ui::converters::scan_compare_type_to_icon_converter::ScanCompareTypeToIconConverter};
 use eframe::egui::{Align, Id, Layout, Response, RichText, Sense, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, vec2};
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
@@ -77,325 +77,330 @@ impl Widget for ScanCompareTypeSelectorView {
         let element_width_left = 160.0;
         let element_width_right = 204.0;
         let total_row_width = element_width_left + element_width_right;
+        let selected_icon = ScanCompareTypeToIconConverter::convert_scan_compare_type_to_icon(&self.active_scan_compare_type, &theme.icon_library);
 
-        // Build the combo box widget first
-        let combo_box = ComboBoxView::new(self.app_context.clone(), "", None, |popup_user_interface: &mut Ui, should_close: &mut bool| {
-            popup_user_interface.vertical(|user_interface| {
-                self.create_header(user_interface, "Relative", total_row_width);
+        let combo_box = ComboBoxView::new(
+            self.app_context.clone(),
+            "",
+            Some(selected_icon),
+            |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                popup_user_interface.vertical(|user_interface| {
+                    self.create_header(user_interface, "Relative", total_row_width);
 
-                user_interface.horizontal(|user_interface| {
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Changed",
-                            Some(theme.icon_library.icon_handle_scan_relative_changed.clone()),
-                            element_width_left,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
+                    user_interface.horizontal(|user_interface| {
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Changed",
+                                Some(theme.icon_library.icon_handle_scan_relative_changed.clone()),
+                                element_width_left,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
 
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Unchanged",
-                            Some(theme.icon_library.icon_handle_scan_relative_unchanged.clone()),
-                            element_width_right,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Unchanged",
+                                Some(theme.icon_library.icon_handle_scan_relative_unchanged.clone()),
+                                element_width_right,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+                    });
+
+                    user_interface.horizontal(|user_interface| {
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Increased",
+                                Some(theme.icon_library.icon_handle_scan_relative_increased.clone()),
+                                element_width_left,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Decreased",
+                                Some(theme.icon_library.icon_handle_scan_relative_decreased.clone()),
+                                element_width_right,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+                    });
+
+                    self.create_header(user_interface, "Immediate", total_row_width);
+
+                    user_interface.horizontal(|user_interface| {
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Equal",
+                                Some(theme.icon_library.icon_handle_scan_immediate_equal.clone()),
+                                element_width_left,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Not Equal",
+                                Some(theme.icon_library.icon_handle_scan_immediate_not_equal.clone()),
+                                element_width_right,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+                    });
+                    user_interface.horizontal(|user_interface| {
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Greater Than",
+                                Some(
+                                    theme
+                                        .icon_library
+                                        .icon_handle_scan_immediate_greater_than
+                                        .clone(),
+                                ),
+                                element_width_left,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Greater Than or Equal to",
+                                Some(
+                                    theme
+                                        .icon_library
+                                        .icon_handle_scan_immediate_greater_than_or_equal
+                                        .clone(),
+                                ),
+                                element_width_right,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+                    });
+                    user_interface.horizontal(|user_interface| {
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Less Than",
+                                Some(theme.icon_library.icon_handle_scan_immediate_less_than.clone()),
+                                element_width_left,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Less Than or Equal to",
+                                Some(
+                                    theme
+                                        .icon_library
+                                        .icon_handle_scan_immediate_less_than_or_equal
+                                        .clone(),
+                                ),
+                                element_width_right,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+                    });
+
+                    self.create_header(user_interface, "Delta", total_row_width);
+
+                    user_interface.horizontal(|user_interface| {
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Increased by x",
+                                Some(theme.icon_library.icon_handle_scan_delta_increased_by_x.clone()),
+                                element_width_left,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Decreased by x",
+                                Some(theme.icon_library.icon_handle_scan_delta_decreased_by_x.clone()),
+                                element_width_right,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+                    });
+
+                    user_interface.horizontal(|user_interface| {
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Multiplied by x",
+                                Some(
+                                    theme
+                                        .icon_library
+                                        .icon_handle_scan_delta_multiplied_by_x
+                                        .clone(),
+                                ),
+                                element_width_left,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Divided by x",
+                                Some(theme.icon_library.icon_handle_scan_delta_divided_by_x.clone()),
+                                element_width_right,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+                    });
+
+                    user_interface.horizontal(|user_interface| {
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Modulo by x",
+                                Some(theme.icon_library.icon_handle_scan_delta_modulo_by_x.clone()),
+                                element_width_left,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+                    });
+
+                    self.create_header(user_interface, "Binary", total_row_width);
+
+                    user_interface.horizontal(|user_interface| {
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Shifted left by x",
+                                Some(
+                                    theme
+                                        .icon_library
+                                        .icon_handle_scan_delta_shift_left_by_x
+                                        .clone(),
+                                ),
+                                element_width_left,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Shifted right by x",
+                                Some(
+                                    theme
+                                        .icon_library
+                                        .icon_handle_scan_delta_shift_right_by_x
+                                        .clone(),
+                                ),
+                                element_width_right,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+                    });
+
+                    user_interface.horizontal(|user_interface| {
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Logical AND'd by x",
+                                Some(
+                                    theme
+                                        .icon_library
+                                        .icon_handle_scan_delta_logical_and_by_x
+                                        .clone(),
+                                ),
+                                element_width_left,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Logical OR'd by x",
+                                Some(
+                                    theme
+                                        .icon_library
+                                        .icon_handle_scan_delta_logical_or_by_x
+                                        .clone(),
+                                ),
+                                element_width_right,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+                    });
+
+                    user_interface.horizontal(|user_interface| {
+                        if user_interface
+                            .add(ScanCompareTypeItemView::new(
+                                self.app_context.clone(),
+                                "Logical XOR'd by x",
+                                Some(
+                                    theme
+                                        .icon_library
+                                        .icon_handle_scan_delta_logical_xor_by_x
+                                        .clone(),
+                                ),
+                                element_width_left,
+                            ))
+                            .clicked()
+                        {
+                            *should_close = true;
+                        };
+                    });
                 });
-
-                user_interface.horizontal(|user_interface| {
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Increased",
-                            Some(theme.icon_library.icon_handle_scan_relative_increased.clone()),
-                            element_width_left,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Decreased",
-                            Some(theme.icon_library.icon_handle_scan_relative_decreased.clone()),
-                            element_width_right,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-                });
-
-                self.create_header(user_interface, "Immediate", total_row_width);
-
-                user_interface.horizontal(|user_interface| {
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Equal",
-                            Some(theme.icon_library.icon_handle_scan_immediate_equal.clone()),
-                            element_width_left,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Not Equal",
-                            Some(theme.icon_library.icon_handle_scan_immediate_not_equal.clone()),
-                            element_width_right,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-                });
-                user_interface.horizontal(|user_interface| {
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Greater Than",
-                            Some(
-                                theme
-                                    .icon_library
-                                    .icon_handle_scan_immediate_greater_than
-                                    .clone(),
-                            ),
-                            element_width_left,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Greater Than or Equal to",
-                            Some(
-                                theme
-                                    .icon_library
-                                    .icon_handle_scan_immediate_greater_than_or_equal
-                                    .clone(),
-                            ),
-                            element_width_right,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-                });
-                user_interface.horizontal(|user_interface| {
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Less Than",
-                            Some(theme.icon_library.icon_handle_scan_immediate_less_than.clone()),
-                            element_width_left,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Less Than or Equal to",
-                            Some(
-                                theme
-                                    .icon_library
-                                    .icon_handle_scan_immediate_less_than_or_equal
-                                    .clone(),
-                            ),
-                            element_width_right,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-                });
-
-                self.create_header(user_interface, "Delta", total_row_width);
-
-                user_interface.horizontal(|user_interface| {
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Increased by x",
-                            Some(theme.icon_library.icon_handle_scan_delta_increased_by_x.clone()),
-                            element_width_left,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Decreased by x",
-                            Some(theme.icon_library.icon_handle_scan_delta_decreased_by_x.clone()),
-                            element_width_right,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-                });
-
-                user_interface.horizontal(|user_interface| {
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Multiplied by x",
-                            Some(
-                                theme
-                                    .icon_library
-                                    .icon_handle_scan_delta_multiplied_by_x
-                                    .clone(),
-                            ),
-                            element_width_left,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Divided by x",
-                            Some(theme.icon_library.icon_handle_scan_delta_divided_by_x.clone()),
-                            element_width_right,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-                });
-
-                user_interface.horizontal(|user_interface| {
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Modulo by x",
-                            Some(theme.icon_library.icon_handle_scan_delta_modulo_by_x.clone()),
-                            element_width_left,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-                });
-
-                self.create_header(user_interface, "Binary", total_row_width);
-
-                user_interface.horizontal(|user_interface| {
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Shifted left by x",
-                            Some(
-                                theme
-                                    .icon_library
-                                    .icon_handle_scan_delta_shift_left_by_x
-                                    .clone(),
-                            ),
-                            element_width_left,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Shifted right by x",
-                            Some(
-                                theme
-                                    .icon_library
-                                    .icon_handle_scan_delta_shift_right_by_x
-                                    .clone(),
-                            ),
-                            element_width_right,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-                });
-
-                user_interface.horizontal(|user_interface| {
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Logical AND'd by x",
-                            Some(
-                                theme
-                                    .icon_library
-                                    .icon_handle_scan_delta_logical_and_by_x
-                                    .clone(),
-                            ),
-                            element_width_left,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Logical OR'd by x",
-                            Some(
-                                theme
-                                    .icon_library
-                                    .icon_handle_scan_delta_logical_or_by_x
-                                    .clone(),
-                            ),
-                            element_width_right,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-                });
-
-                user_interface.horizontal(|user_interface| {
-                    if user_interface
-                        .add(ScanCompareTypeItemView::new(
-                            self.app_context.clone(),
-                            "Logical XOR'd by x",
-                            Some(
-                                theme
-                                    .icon_library
-                                    .icon_handle_scan_delta_logical_xor_by_x
-                                    .clone(),
-                            ),
-                            element_width_left,
-                        ))
-                        .clicked()
-                    {
-                        *should_close = true;
-                    };
-                });
-            });
-        })
-        .width(128.0)
+            },
+        )
+        .width(68.0)
         .height(28.0);
 
         // Add the combo box to the layout

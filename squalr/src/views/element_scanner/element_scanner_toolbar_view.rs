@@ -95,6 +95,8 @@ impl Widget for ElementScannerToolbarView {
                 element_scanner_view_data.selected_scan_compare_type.clone(),
             ));
 
+            user_interface.add_space(8.0);
+
             user_interface.add(DataTypeSelectorView::new(
                 self.app_context.clone(),
                 element_scanner_view_data.selected_data_type.clone(),

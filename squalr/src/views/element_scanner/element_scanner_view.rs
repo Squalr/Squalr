@@ -2,7 +2,7 @@ use crate::{
     app_context::AppContext,
     views::element_scanner::{element_scanner_toolbar_view::ElementScannerToolbarView, element_scanner_view_data::ElementScannerViewData},
 };
-use eframe::egui::{Align, Layout, Response, ScrollArea, Sense, Ui, Widget};
+use eframe::egui::{Align, Layout, Response, ScrollArea, Ui, Widget};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 

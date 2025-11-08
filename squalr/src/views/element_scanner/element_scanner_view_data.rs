@@ -1,10 +1,7 @@
 use squalr_engine_api::{
     commands::{
         engine_command_request::EngineCommandRequest,
-        scan::{
-            collect_values::scan_collect_values_request::ScanCollectValuesRequest, element_scan::element_scan_request::ElementScanRequest,
-            new::scan_new_request::ScanNewRequest, reset::scan_reset_request::ScanResetRequest,
-        },
+        scan::{collect_values::scan_collect_values_request::ScanCollectValuesRequest, new::scan_new_request::ScanNewRequest},
     },
     dependency_injection::dependency::Dependency,
     engine::engine_execution_context::EngineExecutionContext,

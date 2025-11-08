@@ -1,3 +1,4 @@
+pub mod converters;
 pub mod draw;
 pub mod fonts;
 pub mod icon_library;
