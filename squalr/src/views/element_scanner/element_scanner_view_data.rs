@@ -121,7 +121,7 @@ impl ElementScannerViewData {
                 .get_data_type_id()
                 .to_string(),
         ];
-        let anonymous_value = AnonymousValue::new(element_scanner_view_data.current_scan_value.clone());
+        let anonymous_value = AnonymousValue::new(&element_scanner_view_data.current_scan_value);
         let element_scan_request = ElementScanRequest {
             scan_value: Some(anonymous_value),
             data_type_ids: data_type_ids,

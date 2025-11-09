@@ -45,17 +45,17 @@ export component DisplayValueTypeConverter {
     }
     public pure function display_value_type_to_color(display_value_type: DisplayValueTypeView) -> color {
         if display_value_type == DisplayValueTypeView.bool {
-            return Theme.bin_blue;
+            return Theme.binary_blue;
         } else if display_value_type == DisplayValueTypeView.string {
             return Theme.foreground;
         } else if display_value_type == DisplayValueTypeView.binary {
-            return Theme.bin_blue;
+            return Theme.binary_blue;
         } else if display_value_type == DisplayValueTypeView.decimal {
             return Theme.foreground;
         } else if display_value_type == DisplayValueTypeView.hexadecimal {
-            return Theme.hex_green;
+            return Theme.hexadecimal_green;
         } else if display_value_type == DisplayValueTypeView.address {
-            return Theme.hex_green;
+            return Theme.hexadecimal_green;
         } else if display_value_type == DisplayValueTypeView.data_type_ref {
             return Theme.foreground;
         } else if display_value_type == DisplayValueTypeView.enumeration {

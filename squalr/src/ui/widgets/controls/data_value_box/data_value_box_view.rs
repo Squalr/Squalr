@@ -1,16 +1,24 @@
 use crate::app_context::AppContext;
 use crate::ui::widgets::controls::state_layer::StateLayer;
-use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
-use epaint::{Color32, CornerRadius, Margin, Rect, Vec2, pos2, vec2};
-use squalr_engine_api::structures::data_values::display_value::DisplayValue;
+use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, TextEdit, Ui, Widget};
+use epaint::{Color32, CornerRadius, Margin, Rect, Stroke, StrokeKind, Vec2, pos2, vec2};
+use squalr_engine_api::{
+    registries::symbols::symbol_registry::SymbolRegistry,
+    structures::{
+        data_types::data_type_ref::DataTypeRef,
+        data_values::{anonymous_value::AnonymousValue, display_value::DisplayValue, display_value_type::DisplayValueType},
+    },
+};
 use std::sync::Arc;
 
 pub struct DataValueBoxView<'lifetime> {
     app_context: Arc<AppContext>,
     display_value: &'lifetime mut DisplayValue,
+    validation_data_type: &'lifetime DataTypeRef,
+    preview_text: &'lifetime str,
     width: f32,
     height: f32,
-    icon_padding_left: f32,
+    icon_padding: f32,
     icon_size: f32,
     divider_width: f32,
     corner_radius: u8,
@@ -20,15 +28,19 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         display_value: &'lifetime mut DisplayValue,
+        validation_data_type: &'lifetime DataTypeRef,
+        preview_text: &'lifetime str,
     ) -> Self {
         Self {
             app_context,
             display_value,
+            validation_data_type,
+            preview_text,
             width: 192.0,
             height: 28.0,
 
             // Themed layout defaults
-            icon_padding_left: 8.0,
+            icon_padding: 8.0,
             icon_size: 16.0,
             divider_width: 1.0,
             corner_radius: 0,
@@ -59,15 +71,28 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
     ) -> Response {
         let theme = &self.app_context.theme;
         let font_id = theme.font_library.font_noto_sans.font_normal.clone();
-        let text_color = theme.foreground;
         let down_arrow = &theme.icon_library.icon_handle_navigation_down_arrow_small;
+        let anonymous_value = AnonymousValue::new(&self.display_value);
+        let DATA_TYPE_REGISTRY = SymbolRegistry::new();
+        let is_valid = DATA_TYPE_REGISTRY.validate_value(&self.validation_data_type, &anonymous_value);
+        let text_color = match is_valid {
+            true => match self.display_value.get_display_value_type() {
+                DisplayValueType::Bool => theme.foreground,
+                DisplayValueType::String => theme.foreground,
+                DisplayValueType::Binary => theme.binary_blue,
+                DisplayValueType::Decimal => theme.foreground,
+                DisplayValueType::Hexadecimal => theme.hexadecimal_green,
+                DisplayValueType::Address => theme.hexadecimal_green,
+                DisplayValueType::DataTypeRef => theme.foreground,
+                DisplayValueType::Enumeration => theme.foreground,
+            },
+            false => theme.error_red,
+        };
 
         let desired_size = vec2(self.width, self.height);
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::click());
-
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
         let icon_y = allocated_size_rectangle.center().y - icon_size_vec.y * 0.5;
-
         let label = self.display_value.get_display_string();
 
         // Text label.
@@ -75,18 +100,26 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             .ctx()
             .fonts(|fonts| fonts.layout_no_wrap(label.to_owned(), font_id.clone(), text_color));
         let base_x = allocated_size_rectangle.min.x;
-        let text_pos = pos2(base_x + self.icon_padding_left, allocated_size_rectangle.center().y - galley.size().y * 0.5);
+        let text_pos = pos2(base_x, allocated_size_rectangle.center().y - galley.size().y * 0.5);
         let border_width = 1.0;
 
-        // Draw base background.
+        // Divider bar before right arrow.
+        let divider_x = allocated_size_rectangle.max.x - (self.icon_size + self.icon_padding * 2.0 + self.divider_width);
+        let dropdown_background_rectangle = Rect::from_min_max(
+            pos2(divider_x + self.divider_width, allocated_size_rectangle.min.y + border_width),
+            pos2(allocated_size_rectangle.max.x, allocated_size_rectangle.max.y),
+        );
+
+        let right_arrow_pos = pos2(allocated_size_rectangle.max.x - self.icon_size - self.icon_padding, icon_y);
+
         user_interface
             .painter()
-            .rect_filled(allocated_size_rectangle, CornerRadius::same(self.corner_radius), theme.background_control);
+            .rect_filled(dropdown_background_rectangle, CornerRadius::same(self.corner_radius), theme.background_control);
 
         // State overlay (hover/press).
         StateLayer {
-            bounds_min: allocated_size_rectangle.min,
-            bounds_max: allocated_size_rectangle.max,
+            bounds_min: dropdown_background_rectangle.min,
+            bounds_max: dropdown_background_rectangle.max,
             enabled: true,
             pressed: response.is_pointer_button_down_on(),
             has_hover: response.hovered(),
@@ -100,23 +133,36 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         }
         .ui(user_interface);
 
-        // Draw display text.
-        user_interface.painter().galley(text_pos, galley, text_color);
-
-        // Divider bar before right arrow.
-        let divider_x = allocated_size_rectangle.max.x - (self.icon_size + self.icon_padding_left * 2.0 + self.divider_width);
-        let divider_rect = Rect::from_min_max(
-            pos2(divider_x, allocated_size_rectangle.min.y + border_width),
-            pos2(divider_x + self.divider_width, allocated_size_rectangle.max.y),
+        // Define editable region (between left label and dropdown divider).
+        let text_edit_rectangle = Rect::from_min_max(
+            pos2(text_pos.x, allocated_size_rectangle.min.y),
+            pos2(divider_x - self.icon_padding, allocated_size_rectangle.max.y),
+        );
+        let text_edit_rectangle_inner = Rect::from_min_max(
+            pos2(text_pos.x + 4.0, allocated_size_rectangle.min.y + border_width),
+            pos2(divider_x - self.icon_padding, allocated_size_rectangle.max.y - border_width),
         );
 
-        user_interface
-            .painter()
-            .rect_filled(divider_rect, 0.0, theme.submenu_border);
+        // Add a single-line text editor inside that region.
+        let mut text_value = self.display_value.get_display_string().to_string();
+        let text_edit_response = user_interface.put(
+            text_edit_rectangle_inner,
+            TextEdit::singleline(&mut text_value)
+                .vertical_align(eframe::egui::Align::Center)
+                .font(font_id.clone())
+                .text_color(text_color)
+                .hint_text(self.preview_text)
+                .frame(false),
+        );
+
+        user_interface.painter().rect_stroke(
+            text_edit_rectangle,
+            self.corner_radius,
+            Stroke::new(border_width, theme.submenu_border),
+            StrokeKind::Inside,
+        );
 
         // Draw right arrow.
-        let right_arrow_pos = pos2(allocated_size_rectangle.max.x - self.icon_size - self.icon_padding_left, icon_y);
-
         user_interface.painter().image(
             down_arrow.id(),
             Rect::from_min_size(right_arrow_pos, icon_size_vec),
@@ -124,8 +170,13 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             Color32::WHITE,
         );
 
+        // If the user changed text, update the display value
+        if text_edit_response.changed() {
+            self.display_value.set_display_string(text_value);
+        }
+
         // Popup logic.
-        let popup_id = Id::new(("data_value_box_popup", user_interface.id().value(), label));
+        let popup_id = Id::new(("data_value_box_popup", user_interface.id().value()));
         let mut open = user_interface.memory(|memory| memory.data.get_temp::<bool>(popup_id).unwrap_or(false));
 
         if response.clicked() {
@@ -144,7 +195,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
 
         // Draw popup content.
         let popup_pos = pos2(allocated_size_rectangle.min.x, allocated_size_rectangle.max.y + 2.0);
-        let popup_id_area = Id::new(("data_value_box_popup_area", user_interface.id().value(), label));
+        let popup_id_area = Id::new(("data_value_box_popup_area", user_interface.id().value()));
         let mut popup_rectangle: Option<Rect> = None;
         let mut should_close = false;
 

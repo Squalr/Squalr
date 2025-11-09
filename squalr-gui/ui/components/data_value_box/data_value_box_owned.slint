@@ -5,8 +5,19 @@ import { ContextMenu } from "../context_menu/context_menu.slint";
 import { FocusTouchArea } from "../focus_touch_area.slint";
 import { StateLayer } from "../state_layer.slint";
 import { FakeCheckbox } from "../checkboxes/fake_checkbox.slint";
-import { DisplayValueTypeConverter } from "../../converters/display_value_type_converter.slint";
-import { ContainerTypeView, DataValueViewData, DisplayValueViewData, DisplayValuesViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings, ScanSettingsViewModelBindings } from "../../view_model_bindings.slint";
+import {
+    DisplayValueTypeConverter,
+} from "../../converters/display_value_type_converter.slint";
+import {
+    ContainerTypeView,
+    DataValueViewData,
+    DisplayValueViewData,
+    DisplayValuesViewData,
+    DisplayValueTypeView,
+    ConversionsViewModelBindings,
+    ValidationViewModelBindings,
+    ScanSettingsViewModelBindings,
+} from "../../view_model_bindings.slint";
 
 export component DataValueBoxOwned {
     in_out property <DataValueViewData> data_value;
@@ -45,9 +56,9 @@ export component DataValueBoxOwned {
         if !root.is_value_valid_for_cursor() {
             return Theme.error_red;
         } else if root.get_active_display_value_type() == DisplayValueTypeView.hexadecimal {
-            return Theme.hex_green;
+            return Theme.hexadecimal_green;
         } else if root.get_active_display_value_type() == DisplayValueTypeView.binary {
-            return Theme.bin_blue;
+            return Theme.binary_blue;
         } else {
             return Theme.dec_white;
         }

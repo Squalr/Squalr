@@ -5,9 +5,18 @@ import { ContextMenu } from "../context_menu/context_menu.slint";
 import { FocusTouchArea } from "../focus_touch_area.slint";
 import { StateLayer } from "../state_layer.slint";
 import { FakeCheckbox } from "../checkboxes/fake_checkbox.slint";
-import { DisplayValueTypeConverter } from "../../converters/display_value_type_converter.slint";
+import {
+    DisplayValueTypeConverter,
+} from "../../converters/display_value_type_converter.slint";
 import { IconConverter } from "../../converters/icon_converter.slint";
-import { DataValueViewData, DisplayValueViewData, DisplayValuesViewData, DisplayValueTypeView, ConversionsViewModelBindings, ValidationViewModelBindings } from "../../view_model_bindings.slint";
+import {
+    DataValueViewData,
+    DisplayValueViewData,
+    DisplayValuesViewData,
+    DisplayValueTypeView,
+    ConversionsViewModelBindings,
+    ValidationViewModelBindings,
+} from "../../view_model_bindings.slint";
 
 export component DataValueBox {
     in_out property <DataValueViewData> data_value;
@@ -45,15 +54,15 @@ export component DataValueBox {
             return Theme.error_red;
         } else if root.get_active_display_value_type() == DisplayValueTypeView.hexadecimal {
             if root.is_read_only {
-                return Theme.hex_green_preview;
+                return Theme.hexadecimal_green_preview;
             } else {
-                return Theme.hex_green;
+                return Theme.hexadecimal_green;
             }
         } else if root.get_active_display_value_type() == DisplayValueTypeView.binary {
             if root.is_read_only {
-                return Theme.bin_blue_preview;
+                return Theme.binary_blue_preview;
             } else {
-                return Theme.bin_blue;
+                return Theme.binary_blue;
             }
         } else {
             if root.is_read_only {

@@ -142,14 +142,14 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
 
         // Divider bar before right arrow
         let divider_x = allocated_size_rectangle.max.x - (self.icon_size + self.icon_padding_left * 2.0 + self.divider_width);
-        let divider_rect = Rect::from_min_max(
+        let divider_rectangle = Rect::from_min_max(
             pos2(divider_x, allocated_size_rectangle.min.y + border_width),
             pos2(divider_x + self.divider_width, allocated_size_rectangle.max.y),
         );
 
         user_interface
             .painter()
-            .rect_filled(divider_rect, 0.0, theme.submenu_border);
+            .rect_filled(divider_rectangle, 0.0, theme.submenu_border);
 
         // Draw right arrow
         let right_arrow_pos = pos2(allocated_size_rectangle.max.x - self.icon_size - self.icon_padding_left, icon_y);

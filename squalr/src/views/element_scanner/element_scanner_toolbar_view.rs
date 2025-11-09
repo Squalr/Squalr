@@ -100,9 +100,13 @@ impl Widget for ElementScannerToolbarView {
 
             user_interface.add_space(8.0);
 
+            let data_type_ref = element_scanner_view_data.selected_data_type.clone();
+
             user_interface.add(DataValueBoxView::new(
                 self.app_context.clone(),
                 &mut element_scanner_view_data.current_scan_value,
+                &data_type_ref,
+                "Enter a scan value...",
             ));
 
             user_interface.add_space(8.0);

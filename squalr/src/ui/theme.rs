@@ -37,10 +37,10 @@ pub struct Theme {
     // Special theme
     pub dec_white: Color32,
     pub dec_white_preview: Color32,
-    pub bin_blue: Color32,
-    pub bin_blue_preview: Color32,
-    pub hex_green: Color32,
-    pub hex_green_preview: Color32,
+    pub binary_blue: Color32,
+    pub binary_blue_preview: Color32,
+    pub hexadecimal_green: Color32,
+    pub hexadecimal_green_preview: Color32,
     pub error_red: Color32,
 
     // Focus
@@ -92,10 +92,10 @@ impl Theme {
             // Special theme.
             dec_white: Color32::WHITE,
             dec_white_preview: Color32::from_rgb(0xAF, 0xAF, 0xAF),
-            bin_blue: Color32::from_rgb(0x02, 0x91, 0xF0),
-            bin_blue_preview: Color32::from_rgb(0x66, 0xA2, 0xC9),
-            hex_green: Color32::from_rgb(0x14, 0xA4, 0x4D),
-            hex_green_preview: Color32::from_rgb(0x75, 0xA0, 0x75),
+            binary_blue: Color32::from_rgb(0x02, 0x91, 0xF0),
+            binary_blue_preview: Color32::from_rgb(0x66, 0xA2, 0xC9),
+            hexadecimal_green: Color32::from_rgb(0x14, 0xA4, 0x4D),
+            hexadecimal_green_preview: Color32::from_rgb(0x75, 0xA0, 0x75),
             error_red: Color32::from_rgb(0xE7, 0x20, 0x20),
 
             // Focus / states.

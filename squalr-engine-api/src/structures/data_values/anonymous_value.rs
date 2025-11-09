@@ -15,7 +15,7 @@ pub struct AnonymousValue {
 }
 
 impl AnonymousValue {
-    pub fn new(display_value: DisplayValue) -> Self {
+    pub fn new(display_value: &DisplayValue) -> Self {
         AnonymousValue {
             anonymous_value_container: Self::parse_anonymous_value(display_value),
         }
@@ -25,7 +25,7 @@ impl AnonymousValue {
         &self.anonymous_value_container
     }
 
-    fn parse_anonymous_value(display_value: DisplayValue) -> AnonymousValueContainer {
+    fn parse_anonymous_value(display_value: &DisplayValue) -> AnonymousValueContainer {
         let anonymous_value_string = display_value.get_display_string().to_string();
 
         match display_value.get_container_type() {
