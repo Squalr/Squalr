@@ -26,6 +26,13 @@ impl DisplayValue {
         &self.display_value_type
     }
 
+    pub fn set_display_value_type(
+        &mut self,
+        display_value: DisplayValueType,
+    ) {
+        self.display_value_type = display_value
+    }
+
     pub fn get_container_type(&self) -> &ContainerType {
         &self.container_type
     }

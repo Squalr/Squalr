@@ -1,5 +1,5 @@
-use crate::app_context::AppContext;
 use crate::ui::widgets::controls::state_layer::StateLayer;
+use crate::{app_context::AppContext, ui::widgets::controls::data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView};
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, TextEdit, Ui, Widget};
 use epaint::{Color32, CornerRadius, Margin, Rect, Stroke, StrokeKind, Vec2, pos2, vec2};
 use squalr_engine_api::{
@@ -214,7 +214,37 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                         popup_user_interface.spacing_mut().item_spacing = Vec2::ZERO;
                         popup_user_interface.set_min_width(self.width);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
-                            // JIRA: Add children
+                            let display_value_types = DATA_TYPE_REGISTRY.get_supported_display_value_types(&self.validation_data_type);
+
+                            for display_value_type in &display_value_types {
+                                if inner_user_interface
+                                    .add(DataValueBoxConvertItemView::new(
+                                        self.app_context.clone(),
+                                        self.display_value,
+                                        display_value_type,
+                                        true,
+                                        self.width,
+                                    ))
+                                    .clicked()
+                                {
+                                    should_close = true;
+                                }
+                            }
+
+                            for display_value_type in &display_value_types {
+                                if inner_user_interface
+                                    .add(DataValueBoxConvertItemView::new(
+                                        self.app_context.clone(),
+                                        self.display_value,
+                                        display_value_type,
+                                        false,
+                                        self.width,
+                                    ))
+                                    .clicked()
+                                {
+                                    should_close = true;
+                                }
+                            }
                         });
                         popup_rectangle = Some(popup_user_interface.min_rect());
                     });

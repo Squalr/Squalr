@@ -163,7 +163,7 @@ impl SymbolRegistry {
         }
     }
 
-    pub fn get_supported_display_types(
+    pub fn get_supported_display_value_types(
         &self,
         data_type_ref: &DataTypeRef,
     ) -> Vec<DisplayValueType> {

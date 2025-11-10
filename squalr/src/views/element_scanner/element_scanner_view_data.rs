@@ -11,8 +11,9 @@ use squalr_engine_api::{
     engine::engine_execution_context::EngineExecutionContext,
     structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
-        data_values::{anonymous_value::AnonymousValue, display_value::DisplayValue},
+        data_values::{anonymous_value::AnonymousValue, display_value::DisplayValue, display_value_type::DisplayValueType},
         scanning::comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
+        structs::container_type::ContainerType,
     },
 };
 use std::sync::Arc;
@@ -30,7 +31,7 @@ impl ElementScannerViewData {
             selected_data_type: DataTypeRef::new(DataTypeI32::get_data_type_id()),
             selected_scan_compare_type: ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
             view_state: ElementScannerViewState::NoResults,
-            current_scan_value: DisplayValue::default(),
+            current_scan_value: DisplayValue::new(String::new(), DisplayValueType::Decimal, ContainerType::None),
         }
     }
 
