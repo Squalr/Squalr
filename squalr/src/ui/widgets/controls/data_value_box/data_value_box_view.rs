@@ -1,6 +1,6 @@
 use crate::ui::widgets::controls::state_layer::StateLayer;
 use crate::{app_context::AppContext, ui::widgets::controls::data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView};
-use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, TextEdit, Ui, Widget};
+use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, TextEdit, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, Margin, Rect, Stroke, StrokeKind, Vec2, pos2, vec2};
 use squalr_engine_api::{
     registries::symbols::symbol_registry::SymbolRegistry,
@@ -92,25 +92,23 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         let desired_size = vec2(self.width, self.height);
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::click());
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
-        let icon_y = allocated_size_rectangle.center().y - icon_size_vec.y * 0.5;
-        let label = self.display_value.get_display_string();
-
-        // Text label.
-        let galley = user_interface
-            .ctx()
-            .fonts(|fonts| fonts.layout_no_wrap(label.to_owned(), font_id.clone(), text_color));
-        let base_x = allocated_size_rectangle.min.x;
-        let text_pos = pos2(base_x, allocated_size_rectangle.center().y - galley.size().y * 0.5);
         let border_width = 1.0;
 
         // Divider bar before right arrow.
-        let divider_x = allocated_size_rectangle.max.x - (self.icon_size + self.icon_padding * 2.0 + self.divider_width);
+        let button_width = self.icon_size + self.icon_padding * 2.0;
+        let divider_x = allocated_size_rectangle.max.x - (button_width + self.divider_width);
+
+        // The button rectangle (full clickable dropdown-area background).
         let dropdown_background_rectangle = Rect::from_min_max(
-            pos2(divider_x + self.divider_width, allocated_size_rectangle.min.y + border_width),
+            pos2(divider_x + self.divider_width, allocated_size_rectangle.min.y),
             pos2(allocated_size_rectangle.max.x, allocated_size_rectangle.max.y),
         );
 
-        let right_arrow_pos = pos2(allocated_size_rectangle.max.x - self.icon_size - self.icon_padding, icon_y);
+        // Arrow position.
+        let right_arrow_pos = pos2(
+            allocated_size_rectangle.max.x - self.icon_padding - self.icon_size,
+            allocated_size_rectangle.center().y - self.icon_size * 0.5,
+        );
 
         user_interface
             .painter()
@@ -135,18 +133,20 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
 
         // Define editable region (between left label and dropdown divider).
         let text_edit_rectangle = Rect::from_min_max(
-            pos2(text_pos.x, allocated_size_rectangle.min.y),
-            pos2(divider_x - self.icon_padding, allocated_size_rectangle.max.y),
-        );
-        let text_edit_rectangle_inner = Rect::from_min_max(
-            pos2(text_pos.x + 4.0, allocated_size_rectangle.min.y + border_width),
-            pos2(divider_x - self.icon_padding, allocated_size_rectangle.max.y - border_width),
+            pos2(allocated_size_rectangle.min.x, allocated_size_rectangle.min.y),
+            pos2(divider_x, allocated_size_rectangle.max.y),
         );
 
-        // Add a single-line text editor inside that region.
+        let text_edit_rectangle_inner = text_edit_rectangle.shrink2(vec2(4.0, 4.0));
+
         let mut text_value = self.display_value.get_display_string().to_string();
-        let text_edit_response = user_interface.put(
-            text_edit_rectangle_inner,
+        let mut text_edit_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(text_edit_rectangle_inner)
+                .layout(Layout::right_to_left(Align::Center)),
+        );
+
+        let text_edit_response = text_edit_user_interface.add(
             TextEdit::singleline(&mut text_value)
                 .vertical_align(eframe::egui::Align::Center)
                 .font(font_id.clone())
@@ -156,12 +156,11 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         );
 
         user_interface.painter().rect_stroke(
-            text_edit_rectangle,
-            self.corner_radius,
+            allocated_size_rectangle,
+            CornerRadius::same(self.corner_radius),
             Stroke::new(border_width, theme.submenu_border),
             StrokeKind::Inside,
         );
-
         // Draw right arrow.
         user_interface.painter().image(
             down_arrow.id(),
