@@ -40,6 +40,7 @@ impl Widget for ProcessSelectorView {
                 user_interface.add(self.process_selector_toolbar_view.clone());
 
                 ScrollArea::vertical()
+                    .id_salt("process_selector")
                     .auto_shrink([false, false])
                     .show(&mut user_interface, |inner_user_interface| {
                         let process_selector_view_data = match self.process_selector_view_data.read() {

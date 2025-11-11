@@ -13,6 +13,7 @@ pub struct ToolbarHeaderItemView<'lifetime> {
     width: f32,
     height: f32,
     horizontal_padding: f32,
+    on_select: &'lifetime dyn Fn(&'lifetime str),
 }
 
 impl<'lifetime> ToolbarHeaderItemView<'lifetime> {
@@ -23,6 +24,7 @@ impl<'lifetime> ToolbarHeaderItemView<'lifetime> {
         width: f32,
         height: f32,
         horizontal_padding: f32,
+        on_select: &'lifetime dyn Fn(&'lifetime str),
     ) -> Self {
         Self {
             app_context,
@@ -31,6 +33,7 @@ impl<'lifetime> ToolbarHeaderItemView<'lifetime> {
             width,
             height,
             horizontal_padding,
+            on_select,
         }
     }
 }
@@ -149,12 +152,18 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
                                     popup_popup_user_interface.separator();
                                 }
 
-                                popup_popup_user_interface.add(ToolbarMenuItemView::new(
+                                let item_response = popup_popup_user_interface.add(ToolbarMenuItemView::new(
                                     self.app_context.clone(),
                                     &item.text,
+                                    &item.id,
                                     item.check_state.clone(),
                                     self.width,
                                 ));
+
+                                if item_response.clicked() {
+                                    user_interface.memory_mut(|memory| memory.data.remove::<String>(open_menu_id));
+                                    (self.on_select)(&item.id);
+                                }
                             }
                         });
 

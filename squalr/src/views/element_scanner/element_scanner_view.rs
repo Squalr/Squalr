@@ -38,6 +38,7 @@ impl Widget for ElementScannerView {
                 user_interface.add(self.element_scanner_toolbar_view.clone());
 
                 ScrollArea::vertical()
+                    .id_salt("element_scanner")
                     .auto_shrink([false, false])
                     .show(&mut user_interface, |inner_user_interface| {});
             })

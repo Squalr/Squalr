@@ -40,6 +40,7 @@ impl Widget for OutputView {
                     let mut inner_user_interface = user_interface.new_child(builder);
 
                     ScrollArea::vertical()
+                        .id_salt("output")
                         .auto_shrink([false, false])
                         .stick_to_bottom(true)
                         .show(&mut inner_user_interface, |inner_user_interface| {

@@ -7,6 +7,7 @@ use std::sync::Arc;
 pub struct ToolbarMenuItemView<'lifetime> {
     app_context: Arc<AppContext>,
     label: &'lifetime str,
+    item_id: &'lifetime str,
     check_state: Option<bool>,
     width: f32,
 }
@@ -15,12 +16,14 @@ impl<'lifetime> ToolbarMenuItemView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         label: &'lifetime str,
+        item_id: &'lifetime str,
         check_state: Option<bool>,
         width: f32,
     ) -> Self {
         Self {
             app_context,
             label,
+            item_id,
             check_state,
             width,
         }

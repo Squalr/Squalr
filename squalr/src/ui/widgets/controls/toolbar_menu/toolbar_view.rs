@@ -9,17 +9,20 @@ pub struct ToolbarView<'lifetime> {
     app_context: Arc<AppContext>,
     height: f32,
     menu: &'lifetime ToolbarData,
+    on_select: &'lifetime dyn Fn(&'lifetime str),
 }
 
 impl<'lifetime> ToolbarView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         menu: &'lifetime ToolbarData,
+        on_select: &'lifetime dyn Fn(&'lifetime str),
     ) -> Self {
         Self {
             app_context,
             height: 32.0,
             menu,
+            on_select,
         }
     }
 }
@@ -47,7 +50,8 @@ impl<'lifetime> Widget for ToolbarView<'lifetime> {
 
         // Draw each menu header.
         for menu in &self.menu.menus {
-            ToolbarHeaderItemView::new(self.app_context.clone(), &menu.header, &menu.items, 256.0, self.height, 8.0).ui(&mut row_user_interface);
+            ToolbarHeaderItemView::new(self.app_context.clone(), &menu.header, &menu.items, 256.0, self.height, 8.0, self.on_select)
+                .ui(&mut row_user_interface);
         }
 
         response
