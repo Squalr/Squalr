@@ -301,7 +301,6 @@ impl ElementScannerResultsViewData {
         Self::set_page_index(element_scanner_results_view_data_clone, engine_execution_context, new_page_index);
     }
 
-    /*
     fn on_set_scan_result_selection_start(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
@@ -317,10 +316,10 @@ impl ElementScannerResultsViewData {
         };
         element_scanner_results_view_data.selection_index_start = scan_result_collection_start_index;
 
-        let scan_results: &_ = Self::collect_selected_scan_results();
+        /*
+        let scan_results = Self::collect_selected_scan_results();
 
         if !scan_results.is_empty() {
-            /*
             let struct_viewer_view_model = &self.struct_viewer_view_model;
             struct_viewer_self.set_selected_structs(
                 StructViewerDomain::ScanResult,
@@ -329,8 +328,8 @@ impl ElementScannerResultsViewData {
                     .map(|scan_result| scan_result.as_property_struct())
                     .collect(),
             );
-            */
-        }
+
+        }*/
     }
 
     fn on_set_scan_result_selection_end(
@@ -338,11 +337,11 @@ impl ElementScannerResultsViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
         scan_result_collection_end_index: i32,
     ) {
+        /*
         self.selection_index_end = scan_result_collection_end_index;
         let scan_results = self.collect_selected_scan_results();
 
         if !scan_results.is_empty() {
-            /*
             let struct_viewer_view_model = &self.struct_viewer_view_model;
             struct_viewer_self.set_selected_structs(
                 StructViewerDomain::ScanResult,
@@ -351,12 +350,15 @@ impl ElementScannerResultsViewData {
                     .map(|scan_result| scan_result.as_property_struct())
                     .collect(),
             );
-            */
-        }
+
+        }*/
     }
 
-    fn on_add_scan_results_to_project(&self) {
-        let scan_result_refs = self.collect_selected_scan_result_refs();
+    fn on_add_scan_results_to_project(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) {
+        let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data, engine_execution_context.clone());
 
         if !scan_result_refs.is_empty() {
             let engine_execution_context = &engine_execution_context;
@@ -366,8 +368,11 @@ impl ElementScannerResultsViewData {
         }
     }
 
-    fn on_delete_selected_scan_results(&self) {
-        let scan_result_refs = self.collect_selected_scan_result_refs();
+    fn on_delete_selected_scan_results(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) {
+        let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data, engine_execution_context.clone());
 
         if !scan_result_refs.is_empty() {
             let engine_execution_context = &engine_execution_context;
@@ -378,12 +383,17 @@ impl ElementScannerResultsViewData {
     }
 
     fn on_set_scan_result_frozen(
-        &self,
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
         local_scan_result_index: i32,
         is_frozen: bool,
     ) {
         let local_scan_result_indices_vec = (local_scan_result_index..=local_scan_result_index).collect::<Vec<_>>();
-        let scan_result_refs = self.collect_scan_result_refs_by_indicies(&&local_scan_result_indices_vec);
+        let scan_result_refs = Self::collect_scan_result_refs_by_indicies(
+            element_scanner_results_view_data,
+            engine_execution_context.clone(),
+            &&local_scan_result_indices_vec,
+        );
 
         if !scan_result_refs.is_empty() {
             let engine_execution_context = &engine_execution_context;
@@ -393,7 +403,10 @@ impl ElementScannerResultsViewData {
         }
     }
 
-    fn on_toggle_selected_scan_results_frozen() {
+    fn on_toggle_selected_scan_results_frozen(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) {
         /*
         let scan_results = self.collect_selected_scan_result_bases();
 
@@ -405,33 +418,48 @@ impl ElementScannerResultsViewData {
         }*/
     }
 
-    fn collect_selected_scan_result_refs(&self) -> Vec<ScanResultRef> {
-        self.collect_selected_scan_results()
+    fn collect_selected_scan_result_refs(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) -> Vec<ScanResultRef> {
+        Self::collect_selected_scan_results(element_scanner_results_view_data)
             .into_iter()
             .map(|scan_result| scan_result.get_base_result().get_scan_result_ref().clone())
             .collect()
     }
 
     fn collect_scan_result_refs_by_indicies(
-        &self,
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
         local_scan_result_indices: &[i32],
     ) -> Vec<ScanResultRef> {
-        self.collect_scan_result_bases_by_indicies(local_scan_result_indices)
+        Self::collect_scan_result_bases_by_indicies(element_scanner_results_view_data, engine_execution_context, local_scan_result_indices)
             .into_iter()
             .map(|scan_result| scan_result.get_scan_result_ref().clone())
             .collect()
     }
 
-    fn collect_selected_scan_result_bases(&self) -> Vec<ScanResultBase> {
-        self.collect_selected_scan_results()
+    fn collect_selected_scan_result_bases(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) -> Vec<ScanResultBase> {
+        Self::collect_selected_scan_results(element_scanner_results_view_data)
             .into_iter()
             .map(|scan_result| scan_result.get_base_result().clone())
             .collect()
     }
 
     fn collect_selected_scan_results(element_scanner_results_view_data: Dependency<Self>) -> Vec<ScanResult> {
-        let mut initial_selection_index_start = self.selection_index_start;
-        let mut initial_selection_index_end = self.selection_index_end;
+        let element_scanner_results_view_data = match element_scanner_results_view_data.read() {
+            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
+
+                return Vec::new();
+            }
+        };
+        let mut initial_selection_index_start = element_scanner_results_view_data.selection_index_start;
+        let mut initial_selection_index_end = element_scanner_results_view_data.selection_index_end;
 
         // If either start or end is invalid, set the start and end to the same value (single selection).
         if initial_selection_index_start < 0 && initial_selection_index_end >= 0 {
@@ -451,23 +479,38 @@ impl ElementScannerResultsViewData {
         let local_scan_result_indices = selection_index_start..=selection_index_end;
 
         local_scan_result_indices
-            .filter_map(|index| self.current_scan_results.get(index as usize).cloned())
+            .filter_map(|index| {
+                element_scanner_results_view_data
+                    .current_scan_results
+                    .get(index as usize)
+                    .cloned()
+            })
             .collect()
     }
 
     fn collect_scan_result_bases_by_indicies(
-        &self,
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
         local_scan_result_indices: &[i32],
     ) -> Vec<ScanResultBase> {
+        let element_scanner_results_view_data = match element_scanner_results_view_data.read() {
+            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
+
+                return Vec::new();
+            }
+        };
         let scan_results = local_scan_result_indices
             .iter()
             .filter_map(|index| {
-                self.current_scan_results
+                element_scanner_results_view_data
+                    .current_scan_results
                     .get(*index as usize)
                     .map(|scan_result| scan_result.get_base_result().clone())
             })
             .collect();
 
         scan_results
-    }*/
+    }
 }
