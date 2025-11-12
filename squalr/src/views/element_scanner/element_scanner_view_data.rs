@@ -36,7 +36,7 @@ impl ElementScannerViewData {
     }
 
     pub fn reset_scan(
-        element_scanner_view_data: Dependency<ElementScannerViewData>,
+        element_scanner_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
         let scan_reset_request = ScanResetRequest {};
@@ -62,7 +62,7 @@ impl ElementScannerViewData {
     }
 
     pub fn start_scan(
-        element_scanner_view_data: Dependency<ElementScannerViewData>,
+        element_scanner_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
         let element_scanner_view_data_view_state = {
@@ -89,7 +89,7 @@ impl ElementScannerViewData {
     }
 
     fn new_scan(
-        element_scanner_view_data: Dependency<ElementScannerViewData>,
+        element_scanner_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
         let engine_execution_context_clone = engine_execution_context.clone();
@@ -103,7 +103,7 @@ impl ElementScannerViewData {
     }
 
     fn start_next_scan(
-        element_scanner_view_data: Dependency<ElementScannerViewData>,
+        element_scanner_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
         let element_scanner_view_data_clone = element_scanner_view_data.clone();

@@ -40,7 +40,9 @@ impl Widget for ElementScannerView {
                 ScrollArea::vertical()
                     .id_salt("element_scanner")
                     .auto_shrink([false, false])
-                    .show(&mut user_interface, |inner_user_interface| {});
+                    .show(&mut user_interface, |inner_user_interface| {
+                        //
+                    });
             })
             .response;
 

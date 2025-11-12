@@ -6,13 +6,13 @@ use eframe::egui::{Align2, Rect, Response, Sense, TextureHandle, Ui, Widget, pos
 use epaint::CornerRadius;
 use std::sync::Arc;
 
-pub struct ProcessEntryView<'lifetime> {
+pub struct ElementScannerResultEntryView<'lifetime> {
     app_context: Arc<AppContext>,
     label: &'lifetime str,
     icon: Option<TextureHandle>,
 }
 
-impl<'lifetime> ProcessEntryView<'lifetime> {
+impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         label: &'lifetime str,
@@ -26,7 +26,7 @@ impl<'lifetime> ProcessEntryView<'lifetime> {
     }
 }
 
-impl<'a> Widget for ProcessEntryView<'a> {
+impl<'a> Widget for ElementScannerResultEntryView<'a> {
     fn ui(
         self,
         user_interface: &mut Ui,
