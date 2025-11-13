@@ -59,7 +59,7 @@ impl ElementScannerResultsViewData {
                 let engine_execution_context = engine_execution_context_clone.clone();
                 let play_sound = !scan_results_updated_event.is_new_scan;
 
-                // Self::query_scan_results(element_scanner_results_view_data, engine_execution_context, play_sound);
+                Self::query_scan_results(element_scanner_results_view_data, engine_execution_context, play_sound);
             });
         }
 
@@ -72,7 +72,7 @@ impl ElementScannerResultsViewData {
                 let element_scanner_results_view_data = element_scanner_results_view_data_clone.clone();
                 let engine_execution_context = engine_execution_context_clone.clone();
 
-                // Self::refresh_scan_results(element_scanner_results_view_data, engine_execution_context);
+                Self::refresh_scan_results(element_scanner_results_view_data, engine_execution_context);
 
                 thread::sleep(Duration::from_millis(100));
             }
@@ -124,6 +124,8 @@ impl ElementScannerResultsViewData {
         let page_index = Self::load_current_page_index(&element_scanner_results_view_data);
         let scan_results_query_request = ScanResultsQueryRequest { page_index };
 
+        drop(element_scanner_results_view_data);
+
         scan_results_query_request.send(&engine_execution_context, move |scan_results_query_response| {
             let element_scanner_results_view_data_clone_clone = element_scanner_results_view_data_clone.clone();
             let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write() {
@@ -142,6 +144,7 @@ impl ElementScannerResultsViewData {
             element_scanner_results_view_data.cached_last_page_index = scan_results_query_response.last_page_index;
             element_scanner_results_view_data.result_count = result_count;
             element_scanner_results_view_data.byte_size_in_metric = format!("{} (Count: {})", byte_size_in_metric, result_count);
+            element_scanner_results_view_data.current_scan_results = scan_results_query_response.scan_results;
 
             if play_sound {
                 if result_count > 0 {
@@ -150,6 +153,8 @@ impl ElementScannerResultsViewData {
                     // audio_player.play_sound(SoundType::Warn);
                 }
             }
+
+            drop(element_scanner_results_view_data);
 
             Self::refresh_scan_results(element_scanner_results_view_data_clone_clone, engine_execution_context_clone);
         });
@@ -179,6 +184,8 @@ impl ElementScannerResultsViewData {
                 .map(|scan_result| scan_result.get_base_result().get_scan_result_ref().clone())
                 .collect(),
         };
+
+        drop(element_scanner_results_view_data);
 
         scan_results_refresh_request.send(engine_execution_context, move |scan_results_refresh_response| {
             let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write() {
