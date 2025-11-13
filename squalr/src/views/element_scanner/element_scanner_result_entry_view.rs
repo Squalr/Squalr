@@ -4,23 +4,24 @@ use crate::{
 };
 use eframe::egui::{Align2, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
 use epaint::CornerRadius;
+use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 use std::sync::Arc;
 
 pub struct ElementScannerResultEntryView<'lifetime> {
     app_context: Arc<AppContext>,
-    label: &'lifetime str,
+    scan_result: &'lifetime ScanResult,
     icon: Option<TextureHandle>,
 }
 
 impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
-        label: &'lifetime str,
+        scan_result: &'lifetime ScanResult,
         icon: Option<TextureHandle>,
     ) -> Self {
         Self {
             app_context: app_context,
-            label,
+            scan_result,
             icon,
         }
     }
@@ -67,7 +68,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         user_interface.painter().text(
             text_pos,
             Align2::LEFT_CENTER,
-            self.label,
+            self.scan_result.get_address().to_string(),
             theme.font_library.font_noto_sans.font_normal.clone(),
             theme.foreground,
         );

@@ -52,19 +52,17 @@ impl Widget for ProcessSelectorView {
 
                         let mut selected_process = None;
 
-                        for windowed_process in &process_selector_view_data.full_process_list {
-                            let icon = match windowed_process.get_icon() {
-                                Some(icon) => {
-                                    process_selector_view_data.get_or_create_icon(&self.app_context.context, windowed_process.get_process_id_raw(), icon)
-                                }
+                        for process in &process_selector_view_data.full_process_list {
+                            let icon = match process.get_icon() {
+                                Some(icon) => process_selector_view_data.get_or_create_icon(&self.app_context.context, process.get_process_id_raw(), icon),
                                 None => None,
                             };
 
                             if inner_user_interface
-                                .add(ProcessEntryView::new(self.app_context.clone(), windowed_process.get_name(), icon))
+                                .add(ProcessEntryView::new(self.app_context.clone(), process.get_name(), icon))
                                 .double_clicked()
                             {
-                                selected_process = Some(Some(windowed_process.get_process_id_raw()));
+                                selected_process = Some(Some(process.get_process_id_raw()));
                             }
                         }
 

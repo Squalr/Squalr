@@ -7,7 +7,7 @@ use crate::{
             scan_constraint_selector::scan_compare_type_selector_view::ScanCompareTypeSelectorView,
         },
     },
-    views::element_scanner::element_scanner_view_data::ElementScannerViewData,
+    views::element_scanner::view_data::element_scanner_view_data::ElementScannerViewData,
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, vec2};

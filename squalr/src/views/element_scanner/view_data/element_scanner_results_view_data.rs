@@ -23,13 +23,13 @@ use std::{thread, time::Duration};
 
 pub struct ElementScannerResultsViewData {
     // audio_player: AudioPlayer,
-    current_scan_results: Vec<ScanResult>,
-    current_page_index: u64,
-    cached_last_page_index: u64,
-    selection_index_start: i32,
-    selection_index_end: i32,
-    result_count: u64,
-    byte_size_in_metric: String,
+    pub current_scan_results: Vec<ScanResult>,
+    pub current_page_index: u64,
+    pub cached_last_page_index: u64,
+    pub selection_index_start: i32,
+    pub selection_index_end: i32,
+    pub result_count: u64,
+    pub byte_size_in_metric: String,
 }
 
 impl ElementScannerResultsViewData {
@@ -43,6 +43,40 @@ impl ElementScannerResultsViewData {
             result_count: 0,
             byte_size_in_metric: String::new(),
         }
+    }
+
+    pub fn poll_scan_results(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) {
+        let engine_execution_context_clone = engine_execution_context.clone();
+        let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
+
+        // Requery all scan results if they update.
+        {
+            engine_execution_context.listen_for_engine_event::<ScanResultsUpdatedEvent>(move |scan_results_updated_event| {
+                let element_scanner_results_view_data = element_scanner_results_view_data_clone.clone();
+                let engine_execution_context = engine_execution_context_clone.clone();
+                let play_sound = !scan_results_updated_event.is_new_scan;
+
+                // Self::query_scan_results(element_scanner_results_view_data, engine_execution_context, play_sound);
+            });
+        }
+
+        let engine_execution_context_clone = engine_execution_context.clone();
+        let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
+
+        // Refresh scan values on a loop. JIRA: This should be coming from settings. We can probably cache, and have some mechanism for getting latest val.
+        thread::spawn(move || {
+            loop {
+                let element_scanner_results_view_data = element_scanner_results_view_data_clone.clone();
+                let engine_execution_context = engine_execution_context_clone.clone();
+
+                // Self::refresh_scan_results(element_scanner_results_view_data, engine_execution_context);
+
+                thread::sleep(Duration::from_millis(100));
+            }
+        });
     }
 
     pub fn set_selected_scan_results_value(
@@ -64,40 +98,6 @@ impl ElementScannerResultsViewData {
         };
 
         scan_results_set_property_request.send(&engine_execution_context, move |scan_results_set_property_response| {});
-    }
-
-    fn poll_scan_results(
-        element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) {
-        let engine_execution_context_clone = engine_execution_context.clone();
-        let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
-
-        // Requery all scan results if they update.
-        {
-            engine_execution_context.listen_for_engine_event::<ScanResultsUpdatedEvent>(move |scan_results_updated_event| {
-                let element_scanner_results_view_data = element_scanner_results_view_data_clone.clone();
-                let engine_execution_context = engine_execution_context_clone.clone();
-                let play_sound = !scan_results_updated_event.is_new_scan;
-
-                Self::query_scan_results(element_scanner_results_view_data, engine_execution_context, play_sound);
-            });
-        }
-
-        let engine_execution_context_clone = engine_execution_context.clone();
-        let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
-
-        // Refresh scan values on a loop. JIRA: This should be coming from settings. We can probably cache, and have some mechanism for getting latest val.
-        thread::spawn(move || {
-            loop {
-                let element_scanner_results_view_data = element_scanner_results_view_data_clone.clone();
-                let engine_execution_context = engine_execution_context_clone.clone();
-
-                Self::refresh_scan_results(element_scanner_results_view_data, engine_execution_context);
-
-                thread::sleep(Duration::from_millis(100));
-            }
-        });
     }
 
     fn load_current_page_index(element_scanner_results_view_data: &RwLockReadGuard<'_, ElementScannerResultsViewData>) -> u64 {
