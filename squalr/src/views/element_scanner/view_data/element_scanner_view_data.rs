@@ -23,6 +23,7 @@ pub struct ElementScannerViewData {
     pub selected_scan_compare_type: ScanCompareType,
     pub view_state: ElementScannerViewState,
     pub current_scan_value: DisplayValue,
+    pub max_scan_value: DisplayValue,
 }
 
 impl ElementScannerViewData {
@@ -32,6 +33,7 @@ impl ElementScannerViewData {
             selected_scan_compare_type: ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
             view_state: ElementScannerViewState::NoResults,
             current_scan_value: DisplayValue::new(String::new(), DisplayValueType::Decimal, ContainerType::None),
+            max_scan_value: DisplayValue::new(String::new(), DisplayValueType::Decimal, ContainerType::None),
         }
     }
 

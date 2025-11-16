@@ -116,7 +116,6 @@ impl Widget for ElementScannerResultsView {
                                 faux_address_splitter_position_x,
                                 value_splitter_position_x,
                                 previous_value_splitter_position_x,
-                                index,
                             ));
 
                             if rows_min_y.is_none() {

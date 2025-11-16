@@ -31,7 +31,7 @@ pub struct ElementScannerResultsViewData {
     pub selection_index_start: i32,
     pub selection_index_end: i32,
     pub result_count: u64,
-    pub byte_size_in_metric: String,
+    pub stats_string: String,
 }
 
 impl ElementScannerResultsViewData {
@@ -48,7 +48,7 @@ impl ElementScannerResultsViewData {
             selection_index_start: 0,
             selection_index_end: 0,
             result_count: 0,
-            byte_size_in_metric: String::new(),
+            stats_string: String::new(),
         }
     }
 
@@ -219,7 +219,7 @@ impl ElementScannerResultsViewData {
 
             element_scanner_results_view_data.cached_last_page_index = scan_results_query_response.last_page_index;
             element_scanner_results_view_data.result_count = result_count;
-            element_scanner_results_view_data.byte_size_in_metric = format!("{} (Count: {})", byte_size_in_metric, result_count);
+            element_scanner_results_view_data.stats_string = format!("{} (Count: {})", byte_size_in_metric, result_count);
             element_scanner_results_view_data.current_scan_results = scan_results_query_response.scan_results;
 
             if play_sound {

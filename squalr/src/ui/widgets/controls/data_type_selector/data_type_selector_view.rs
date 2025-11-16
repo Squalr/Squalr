@@ -1,3 +1,4 @@
+use crate::ui::converters::data_type_to_string_converter::DataTypeToStringConverter;
 use crate::ui::widgets::controls::combo_box::combo_box_view::ComboBoxView;
 use crate::ui::widgets::controls::data_type_selector::data_type_item_view::DataTypeItemView;
 use crate::{app_context::AppContext, ui::converters::data_type_to_icon_converter::DataTypeToIconConverter};
@@ -18,6 +19,8 @@ use std::sync::Arc;
 pub struct DataTypeSelectorView<'lifetime> {
     app_context: Arc<AppContext>,
     active_data_type: &'lifetime mut DataTypeRef,
+    width: f32,
+    height: f32,
 }
 
 impl<'lifetime> DataTypeSelectorView<'lifetime> {
@@ -25,7 +28,28 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         app_context: Arc<AppContext>,
         active_data_type: &'lifetime mut DataTypeRef,
     ) -> Self {
-        Self { app_context, active_data_type }
+        Self {
+            app_context,
+            active_data_type,
+            width: 160.0,
+            height: 28.0,
+        }
+    }
+
+    pub fn width(
+        mut self,
+        width: f32,
+    ) -> Self {
+        self.width = width;
+        self
+    }
+
+    pub fn height(
+        mut self,
+        height: f32,
+    ) -> Self {
+        self.height = height;
+        self
     }
 
     pub fn close(
@@ -43,18 +67,20 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
 impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
     fn ui(
         self,
-        ui: &mut Ui,
+        user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
         let icon_library = &theme.icon_library;
+        let width = self.width;
+        let height = self.height;
         let element_width = 104.0;
-        let data_type_id = self.active_data_type.get_data_type_id().to_string();
-        let icon = DataTypeToIconConverter::convert_data_type_to_icon(&data_type_id, icon_library);
+        let data_type_id = self.active_data_type.get_data_type_id();
+        let icon = DataTypeToIconConverter::convert_data_type_to_icon(data_type_id, icon_library);
 
         // Build the combo box widget first
         let combo_box = ComboBoxView::new(
             self.app_context.clone(),
-            &data_type_id,
+            DataTypeToStringConverter::convert_data_type_to_string(data_type_id),
             Some(icon),
             |popup_user_interface: &mut Ui, should_close: &mut bool| {
                 popup_user_interface.vertical(|user_interface| {
@@ -62,7 +88,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "u8",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU8::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(DataTypeU8::get_data_type_id(), icon_library)),
                                 element_width,
                             ))
@@ -75,7 +101,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "i8",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI8::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(DataTypeI8::get_data_type_id(), icon_library)),
                                 element_width,
                             ))
@@ -90,7 +116,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "i16",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI16::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeI16::get_data_type_id(),
                                     icon_library,
@@ -106,7 +132,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "i16 (BE)",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI16be::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeI16be::get_data_type_id(),
                                     icon_library,
@@ -124,7 +150,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "i32",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI32::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeI32::get_data_type_id(),
                                     icon_library,
@@ -140,7 +166,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "i32 (BE)",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI32be::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeI32be::get_data_type_id(),
                                     icon_library,
@@ -158,7 +184,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "i64",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI64::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeI64::get_data_type_id(),
                                     icon_library,
@@ -174,7 +200,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "i64 (BE)",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI64be::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeI64be::get_data_type_id(),
                                     icon_library,
@@ -192,7 +218,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "u16",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU16::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeU16::get_data_type_id(),
                                     icon_library,
@@ -208,7 +234,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "u16 (BE)",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU16be::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeU16be::get_data_type_id(),
                                     icon_library,
@@ -226,7 +252,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "u32",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU32::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeU32::get_data_type_id(),
                                     icon_library,
@@ -242,7 +268,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "u32 (BE)",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU32be::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeU32be::get_data_type_id(),
                                     icon_library,
@@ -260,7 +286,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "u64",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU64::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeU64::get_data_type_id(),
                                     icon_library,
@@ -276,7 +302,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "u64 (BE)",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU64be::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeU64be::get_data_type_id(),
                                     icon_library,
@@ -294,7 +320,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "f32",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeF32::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeF32::get_data_type_id(),
                                     icon_library,
@@ -310,7 +336,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "f32 (BE)",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeF32be::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeF32be::get_data_type_id(),
                                     icon_library,
@@ -328,7 +354,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "f64",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeF64::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeF64::get_data_type_id(),
                                     icon_library,
@@ -344,7 +370,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(DataTypeItemView::new(
                                 self.app_context.clone(),
-                                "f64 (BE)",
+                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeF64be::get_data_type_id()),
                                 Some(DataTypeToIconConverter::convert_data_type_to_icon(
                                     DataTypeF64be::get_data_type_id(),
                                     icon_library,
@@ -391,10 +417,10 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                 });
             },
         )
-        .width(128.0)
-        .height(28.0);
+        .width(width)
+        .height(height);
 
         // Add the combo box to the layout
-        ui.add(combo_box)
+        user_interface.add(combo_box)
     }
 }

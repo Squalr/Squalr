@@ -72,7 +72,7 @@ impl Widget for MainShortcutBarView {
                 .layout(Layout::left_to_right(Align::Center)),
         );
 
-        row_user_interface.add_space(8.0);
+        row_user_interface.add_space(4.0);
 
         let mut refresh_windowed_processes = false;
         let mut process_to_open = None;

@@ -89,7 +89,6 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let font_id = theme.font_library.font_noto_sans.font_normal.clone();
         let down_arrow = &theme.icon_library.icon_handle_navigation_down_arrow_small;
         let anonymous_value = AnonymousValue::new(&self.display_value);
         let DATA_TYPE_REGISTRY = SymbolRegistry::new();
@@ -164,6 +163,11 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                 .layout(Layout::right_to_left(Align::Center)),
         );
 
+        let font_id = if text_value.len() > 0 {
+            theme.font_library.font_ubuntu_mono_bold.font_normal.clone()
+        } else {
+            theme.font_library.font_noto_sans.font_normal.clone()
+        };
         let text_edit_response = text_edit_user_interface.add(
             TextEdit::singleline(&mut text_value)
                 .vertical_align(eframe::egui::Align::Center)

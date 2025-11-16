@@ -197,7 +197,7 @@ impl Widget for ElementScannerFooterView {
 
         bottom_row_user_interface.centered_and_justified(|user_interface| {
             user_interface.label(
-                RichText::new("Stats: {TODO}")
+                RichText::new(&element_scanner_view_data.stats_string)
                     .font(font_id.clone())
                     .color(theme.foreground),
             );

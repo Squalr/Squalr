@@ -1,3 +1,4 @@
+use crate::ui::converters::scan_compare_type_to_string_converter::ScanCompareTypeToStringConverter;
 use crate::ui::widgets::controls::combo_box::combo_box_view::ComboBoxView;
 use crate::ui::widgets::controls::scan_constraint_selector::scan_compare_type_item_view::ScanCompareTypeItemView;
 use crate::{app_context::AppContext, ui::converters::scan_compare_type_to_icon_converter::ScanCompareTypeToIconConverter};
@@ -13,6 +14,8 @@ use std::sync::Arc;
 pub struct ScanCompareTypeSelectorView<'lifetime> {
     app_context: Arc<AppContext>,
     active_scan_compare_type: &'lifetime mut ScanCompareType,
+    width: f32,
+    height: f32,
 }
 
 impl<'lifetime> ScanCompareTypeSelectorView<'lifetime> {
@@ -23,7 +26,25 @@ impl<'lifetime> ScanCompareTypeSelectorView<'lifetime> {
         Self {
             app_context,
             active_scan_compare_type,
+            width: 224.0,
+            height: 28.0,
         }
+    }
+
+    pub fn width(
+        mut self,
+        width: f32,
+    ) -> Self {
+        self.width = width;
+        self
+    }
+
+    pub fn height(
+        mut self,
+        height: f32,
+    ) -> Self {
+        self.height = height;
+        self
     }
 
     pub fn close(
@@ -74,11 +95,13 @@ impl<'lifetime> ScanCompareTypeSelectorView<'lifetime> {
 impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
     fn ui(
         self,
-        ui: &mut Ui,
+        user_interface: &mut Ui,
     ) -> Response {
         let app_context = self.app_context.clone();
         let theme = &app_context.theme;
         let icon_library = &theme.icon_library;
+        let width = self.width;
+        let height = self.height;
         let element_width_left = 160.0;
         let element_width_right = 204.0;
         let total_row_width = element_width_left + element_width_right;
@@ -86,7 +109,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
 
         let combo_box = ComboBoxView::new(
             self.app_context.clone(),
-            "",
+            ScanCompareTypeToStringConverter::convert_scan_compare_type_to_string(&self.active_scan_compare_type),
             Some(selected_icon),
             |popup_user_interface: &mut Ui, should_close: &mut bool| {
                 popup_user_interface.vertical(|user_interface| {
@@ -96,7 +119,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Changed",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_relative_to_string(&ScanCompareTypeRelative::Changed),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_relative_to_icon(
                                     &ScanCompareTypeRelative::Changed,
                                     icon_library,
@@ -112,7 +135,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Unchanged",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_relative_to_string(&ScanCompareTypeRelative::Unchanged),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_relative_to_icon(
                                     &ScanCompareTypeRelative::Unchanged,
                                     icon_library,
@@ -130,7 +153,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Increased",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_relative_to_string(&ScanCompareTypeRelative::Increased),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_relative_to_icon(
                                     &ScanCompareTypeRelative::Increased,
                                     icon_library,
@@ -146,7 +169,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Decreased",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_relative_to_string(&ScanCompareTypeRelative::Decreased),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_relative_to_icon(
                                     &ScanCompareTypeRelative::Decreased,
                                     icon_library,
@@ -166,7 +189,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Equal",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_immediate_to_string(&ScanCompareTypeImmediate::Equal),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
                                     &ScanCompareTypeImmediate::Equal,
                                     icon_library,
@@ -182,7 +205,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Not Equal",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_immediate_to_string(&ScanCompareTypeImmediate::NotEqual),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
                                     &ScanCompareTypeImmediate::NotEqual,
                                     icon_library,
@@ -199,7 +222,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Greater Than",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_immediate_to_string(&ScanCompareTypeImmediate::GreaterThan),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
                                     &ScanCompareTypeImmediate::GreaterThan,
                                     icon_library,
@@ -215,7 +238,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Greater Than or Equal to",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_immediate_to_string(&ScanCompareTypeImmediate::GreaterThanOrEqual),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
                                     &ScanCompareTypeImmediate::GreaterThanOrEqual,
                                     icon_library,
@@ -232,7 +255,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Less Than",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_immediate_to_string(&ScanCompareTypeImmediate::LessThan),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
                                     &ScanCompareTypeImmediate::LessThan,
                                     icon_library,
@@ -248,7 +271,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Less Than or Equal to",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_immediate_to_string(&ScanCompareTypeImmediate::LessThanOrEqual),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
                                     &ScanCompareTypeImmediate::LessThanOrEqual,
                                     icon_library,
@@ -268,7 +291,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Increased by x",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_delta_to_string(&ScanCompareTypeDelta::IncreasedByX),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
                                     &ScanCompareTypeDelta::IncreasedByX,
                                     icon_library,
@@ -284,7 +307,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Decreased by x",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_delta_to_string(&ScanCompareTypeDelta::DecreasedByX),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
                                     &ScanCompareTypeDelta::DecreasedByX,
                                     icon_library,
@@ -302,7 +325,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Multiplied by x",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_delta_to_string(&ScanCompareTypeDelta::MultipliedByX),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
                                     &ScanCompareTypeDelta::MultipliedByX,
                                     icon_library,
@@ -318,7 +341,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Divided by x",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_delta_to_string(&ScanCompareTypeDelta::DividedByX),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
                                     &ScanCompareTypeDelta::DividedByX,
                                     icon_library,
@@ -336,7 +359,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Modulo by x",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_delta_to_string(&ScanCompareTypeDelta::ModuloByX),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
                                     &ScanCompareTypeDelta::ModuloByX,
                                     icon_library,
@@ -356,7 +379,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Shifted left by x",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_delta_to_string(&ScanCompareTypeDelta::ShiftLeftByX),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
                                     &ScanCompareTypeDelta::ShiftLeftByX,
                                     icon_library,
@@ -372,7 +395,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Shifted right by x",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_delta_to_string(&ScanCompareTypeDelta::ShiftRightByX),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
                                     &ScanCompareTypeDelta::ShiftRightByX,
                                     icon_library,
@@ -390,7 +413,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Logical AND'd by x",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_delta_to_string(&ScanCompareTypeDelta::LogicalAndByX),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
                                     &ScanCompareTypeDelta::LogicalAndByX,
                                     icon_library,
@@ -406,7 +429,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Logical OR'd by x",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_delta_to_string(&ScanCompareTypeDelta::LogicalOrByX),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
                                     &ScanCompareTypeDelta::LogicalOrByX,
                                     icon_library,
@@ -424,7 +447,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                         if user_interface
                             .add(ScanCompareTypeItemView::new(
                                 self.app_context.clone(),
-                                "Logical XOR'd by x",
+                                ScanCompareTypeToStringConverter::convert_scan_compare_type_delta_to_string(&ScanCompareTypeDelta::LogicalXorByX),
                                 Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
                                     &ScanCompareTypeDelta::LogicalXorByX,
                                     icon_library,
@@ -440,10 +463,10 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
                 });
             },
         )
-        .width(68.0)
-        .height(28.0);
+        .width(width)
+        .height(height);
 
         // Add the combo box to the layout
-        ui.add(combo_box)
+        user_interface.add(combo_box)
     }
 }

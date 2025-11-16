@@ -20,7 +20,7 @@ impl FontLibrary {
 
         Self {
             font_noto_sans: FontSet::new(FontFamily::Name("noto_sans".into()), 9.0, 13.0, 14.0, 14.0),
-            font_ubuntu_mono_bold: FontSet::new(FontFamily::Name("ubuntu_mono_bold".into()), 10.0, 12.0, 15.0, 15.0),
+            font_ubuntu_mono_bold: FontSet::new(FontFamily::Name("ubuntu_mono_bold".into()), 11.0, 15.0, 16.0, 16.0),
         }
     }
 
