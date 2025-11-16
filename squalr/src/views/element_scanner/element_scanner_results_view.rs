@@ -35,6 +35,7 @@ impl Widget for ElementScannerResultsView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        const FAUX_BAR_THICKNESS: f32 = 3.0;
         const BAR_THICKNESS: f32 = 4.0;
         const MINIMUM_COLUMN_PIXEL_WIDTH: f32 = 80.0;
         const MINIMUM_SPLITTER_PIXEL_GAP: f32 = 40.0;
@@ -68,10 +69,9 @@ impl Widget for ElementScannerResultsView {
 
                 // Draw the header.
                 let header_height = 32.0;
-                let separator_height = 2.0;
                 let (header_rectangle, _header_response) =
                     user_interface.allocate_exact_size(vec2(user_interface.available_size().x, header_height), Sense::empty());
-                let (separator_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, separator_height), Sense::empty());
+                let (separator_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, FAUX_BAR_THICKNESS), Sense::empty());
 
                 user_interface
                     .painter()
@@ -132,8 +132,8 @@ impl Widget for ElementScannerResultsView {
                 let splitter_max_y = content_clip_rectangle.max.y;
 
                 let faux_address_splitter_rectangle = Rect::from_min_max(
-                    pos2(faux_address_splitter_position_x - BAR_THICKNESS * 0.5, splitter_min_y),
-                    pos2(faux_address_splitter_position_x + BAR_THICKNESS * 0.5, splitter_max_y),
+                    pos2(faux_address_splitter_position_x - FAUX_BAR_THICKNESS * 0.5, splitter_min_y),
+                    pos2(faux_address_splitter_position_x + FAUX_BAR_THICKNESS * 0.5, splitter_max_y),
                 );
 
                 let value_splitter_rectangle = Rect::from_min_max(
