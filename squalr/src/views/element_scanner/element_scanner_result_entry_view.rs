@@ -101,7 +101,14 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
 
         // Address.
         let row_center_y = allocated_size_rectangle.center().y;
-        let address_text_position = pos2(self.address_splitter_position_x + text_left_padding, row_center_y);
+        let icon_size = vec2(16.0, 16.0);
+        let data_type_ref = self.scan_result.get_data_type_ref();
+        let icon_handle = crate::ui::converters::data_type_to_icon_converter::DataTypeToIconConverter::convert_data_type_to_icon(
+            data_type_ref.get_data_type_id(),
+            &theme.icon_library,
+        );
+        let icon_pos = pos2(self.address_splitter_position_x + text_left_padding, row_center_y - icon_size.y * 0.5);
+        let address_text_position = pos2(icon_pos.x + icon_size.x + 6.0, row_center_y);
         let address = self.scan_result.get_address();
         let address_string = if self.scan_result.is_module() {
             format!("{}+{:X}", self.scan_result.get_module(), self.scan_result.get_module_offset())
@@ -110,6 +117,13 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         } else {
             format!("{:016X}", address)
         };
+
+        user_interface.painter().image(
+            icon_handle.id(),
+            Rect::from_min_size(icon_pos, icon_size),
+            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+            Color32::WHITE,
+        );
 
         user_interface.painter().text(
             address_text_position,
