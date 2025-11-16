@@ -23,6 +23,8 @@ use std::{thread, time::Duration};
 
 pub struct ElementScannerResultsViewData {
     // audio_player: AudioPlayer,
+    pub value_splitter_ratio: f32,
+    pub previous_value_splitter_ratio: f32,
     pub current_scan_results: Vec<ScanResult>,
     pub current_page_index: u64,
     pub cached_last_page_index: u64,
@@ -35,6 +37,8 @@ pub struct ElementScannerResultsViewData {
 impl ElementScannerResultsViewData {
     pub fn new() -> Self {
         Self {
+            value_splitter_ratio: 0.0,
+            previous_value_splitter_ratio: 0.0,
             current_scan_results: Vec::new(),
             current_page_index: 0,
             cached_last_page_index: 0,
@@ -77,6 +81,73 @@ impl ElementScannerResultsViewData {
                 thread::sleep(Duration::from_millis(100));
             }
         });
+    }
+
+    pub fn navigate_first_page(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) {
+        let new_page_index = 0;
+
+        Self::set_page_index(element_scanner_results_view_data, engine_execution_context, new_page_index);
+    }
+
+    pub fn navigate_last_page(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) {
+        let cached_last_page_index = match element_scanner_results_view_data.read() {
+            Ok(element_scanner_results_view_data) => element_scanner_results_view_data.cached_last_page_index,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
+
+                return;
+            }
+        };
+        let cached_last_page_index = cached_last_page_index;
+        let new_page_index = cached_last_page_index;
+
+        Self::set_page_index(element_scanner_results_view_data, engine_execution_context, new_page_index);
+    }
+
+    pub fn navigate_previous_page(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) {
+        let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
+        let element_scanner_results_view_data = match element_scanner_results_view_data.read() {
+            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
+
+                return;
+            }
+        };
+        let new_page_index = Self::load_current_page_index(&element_scanner_results_view_data).saturating_sub(1);
+
+        drop(element_scanner_results_view_data);
+
+        Self::set_page_index(element_scanner_results_view_data_clone, engine_execution_context, new_page_index);
+    }
+
+    pub fn navigate_next_page(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_execution_context: Arc<EngineExecutionContext>,
+    ) {
+        let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
+        let element_scanner_results_view_data = match element_scanner_results_view_data.read() {
+            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
+
+                return;
+            }
+        };
+        let new_page_index = Self::load_current_page_index(&element_scanner_results_view_data).saturating_add(1);
+
+        drop(element_scanner_results_view_data);
+
+        Self::set_page_index(element_scanner_results_view_data_clone, engine_execution_context, new_page_index);
     }
 
     pub fn set_selected_scan_results_value(
@@ -225,11 +296,13 @@ impl ElementScannerResultsViewData {
 
         element_scanner_results_view_data.current_page_index = new_page_index;
 
+        drop(element_scanner_results_view_data);
+
         // Refresh scan results with the new page index. // JIRA: Should happen in the loop technically, but we need to make the MVVM bindings deadlock resistant.
         Self::query_scan_results(element_scanner_results_view_data_clone, engine_execution_context, false);
     }
 
-    fn on_page_index_text_changed(
+    pub fn set_page_index_string(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
         new_page_index_text: &str,
@@ -245,70 +318,7 @@ impl ElementScannerResultsViewData {
         Self::set_page_index(element_scanner_results_view_data, engine_execution_context, new_page_index);
     }
 
-    fn on_navigate_first_page(
-        element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) {
-        let new_page_index = 0;
-
-        Self::set_page_index(element_scanner_results_view_data, engine_execution_context, new_page_index);
-    }
-
-    fn on_navigate_last_page(
-        element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) {
-        let cached_last_page_index = match element_scanner_results_view_data.read() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data.cached_last_page_index,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
-
-                return;
-            }
-        };
-        let cached_last_page_index = cached_last_page_index;
-        let new_page_index = cached_last_page_index;
-
-        Self::set_page_index(element_scanner_results_view_data, engine_execution_context, new_page_index);
-    }
-
-    fn on_navigate_previous_page(
-        element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) {
-        let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
-        let element_scanner_results_view_data = match element_scanner_results_view_data.read() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
-
-                return;
-            }
-        };
-        let new_page_index = Self::load_current_page_index(&element_scanner_results_view_data).saturating_sub(1);
-
-        Self::set_page_index(element_scanner_results_view_data_clone, engine_execution_context, new_page_index);
-    }
-
-    fn on_navigate_next_page(
-        element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) {
-        let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
-        let element_scanner_results_view_data = match element_scanner_results_view_data.read() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
-
-                return;
-            }
-        };
-        let new_page_index = Self::load_current_page_index(&element_scanner_results_view_data).saturating_add(1);
-
-        Self::set_page_index(element_scanner_results_view_data_clone, engine_execution_context, new_page_index);
-    }
-
-    fn on_set_scan_result_selection_start(
+    fn set_scan_result_selection_start(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
         scan_result_collection_start_index: i32,
@@ -339,7 +349,7 @@ impl ElementScannerResultsViewData {
         }*/
     }
 
-    fn on_set_scan_result_selection_end(
+    fn set_scan_result_selection_end(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
         scan_result_collection_end_index: i32,
@@ -361,7 +371,7 @@ impl ElementScannerResultsViewData {
         }*/
     }
 
-    fn on_add_scan_results_to_project(
+    fn add_scan_results_to_project(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
@@ -375,7 +385,7 @@ impl ElementScannerResultsViewData {
         }
     }
 
-    fn on_delete_selected_scan_results(
+    fn delete_selected_scan_results(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
@@ -389,7 +399,7 @@ impl ElementScannerResultsViewData {
         }
     }
 
-    fn on_set_scan_result_frozen(
+    fn set_scan_result_frozen(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
         local_scan_result_index: i32,
@@ -410,7 +420,7 @@ impl ElementScannerResultsViewData {
         }
     }
 
-    fn on_toggle_selected_scan_results_frozen(
+    fn toggle_selected_scan_results_frozen(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {

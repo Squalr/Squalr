@@ -1,7 +1,7 @@
+use crate::views::element_scanner::view_data::element_scanner_results_view_data::ElementScannerResultsViewData;
 use crate::{
     app_context::AppContext,
     ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
-    views::element_scanner::view_data::element_scanner_view_data::ElementScannerViewData,
 };
 use eframe::egui::{Align, Response, RichText, Sense, TextEdit, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, Rect, Stroke, StrokeKind, pos2, vec2};
@@ -11,17 +11,17 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct ElementScannerFooterView {
     app_context: Arc<AppContext>,
-    element_scanner_view_data: Dependency<ElementScannerViewData>,
+    element_scanner_results_view_data: Dependency<ElementScannerResultsViewData>,
 }
 
 impl ElementScannerFooterView {
     pub fn new(app_context: Arc<AppContext>) -> Self {
-        let element_scanner_view_data = app_context
+        let element_scanner_results_view_data = app_context
             .dependency_container
-            .get_dependency::<ElementScannerViewData>();
+            .get_dependency::<ElementScannerResultsViewData>();
         let instance = Self {
             app_context,
-            element_scanner_view_data,
+            element_scanner_results_view_data,
         };
 
         instance
@@ -45,12 +45,11 @@ impl Widget for ElementScannerFooterView {
         let theme = &self.app_context.theme;
         let font_id = theme.font_library.font_noto_sans.font_normal.clone();
 
-        // Paint background
+        // Paint background.
         user_interface
             .painter()
             .rect_filled(allocated_size_rectangle, CornerRadius::ZERO, theme.background_primary);
 
-        // Compute row rects
         let top_row = Rect::from_min_size(allocated_size_rectangle.min, vec2(allocated_size_rectangle.width(), row_height));
 
         let bottom_row = Rect::from_min_size(
@@ -58,8 +57,7 @@ impl Widget for ElementScannerFooterView {
             vec2(allocated_size_rectangle.width(), row_height),
         );
 
-        // Acquire view data
-        let mut element_scanner_view_data = match self.element_scanner_view_data.write() {
+        let element_scanner_view_data = match self.element_scanner_results_view_data.read() {
             Ok(element_scanner_view_data) => element_scanner_view_data,
             Err(error) => {
                 log::error!("Failed to acquire element scanner view data: {}", error);
@@ -76,8 +74,8 @@ impl Widget for ElementScannerFooterView {
         let center_x = top_row.center().x;
         let center_y = top_row.center().y;
 
-        let first_page_button_x = center_x - page_box_width * 0.5 - spacing - button_width;
-        let previous_page_button_x = first_page_button_x - button_width;
+        let previous_page_button_x = center_x - page_box_width * 0.5 - spacing - button_width;
+        let first_page_button_x = previous_page_button_x - button_width;
         let next_page_button_x = center_x + page_box_width * 0.5 + spacing;
         let last_page_button_x = next_page_button_x + button_width;
 
@@ -90,12 +88,12 @@ impl Widget for ElementScannerFooterView {
         let mut top_row_user_interface = user_interface.new_child(top_row_builder);
 
         // Page editor (centered, drawn below buttons).
-        let page_number_edit_rect = Rect::from_center_size(pos2(center_x, center_y), vec2(page_box_width, page_box_height));
+        let page_number_edit_rectangle = Rect::from_center_size(pos2(center_x, center_y), vec2(page_box_width, page_box_height));
 
-        let mut text_value = String::new(); // TODO: insert actual page number logic
+        let mut text_value = element_scanner_view_data.current_page_index.to_string();
 
-        top_row_user_interface.put(
-            page_number_edit_rect,
+        let page_number_edit_response = top_row_user_interface.put(
+            page_number_edit_rectangle,
             TextEdit::singleline(&mut text_value)
                 .horizontal_align(Align::Center)
                 .vertical_align(Align::Center)
@@ -104,18 +102,19 @@ impl Widget for ElementScannerFooterView {
                 .text_color(theme.foreground)
                 .frame(true),
         );
+
         top_row_user_interface.painter().rect_stroke(
-            page_number_edit_rect,
+            page_number_edit_rectangle,
             CornerRadius::ZERO,
             Stroke::new(border_width, theme.submenu_border),
             StrokeKind::Inside,
         );
 
         // First page.
-        let first_page_button_rect = Rect::from_min_size(pos2(first_page_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
+        let first_page_button_rectangle = Rect::from_min_size(pos2(first_page_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
 
         let first_page_button = top_row_user_interface.put(
-            first_page_button_rect,
+            first_page_button_rectangle,
             Button::new_from_theme(&theme)
                 .background_color(Color32::TRANSPARENT)
                 .tooltip_text("First page."),
@@ -132,10 +131,11 @@ impl Widget for ElementScannerFooterView {
         }
 
         // Previous page.
-        let previous_page_button_rect = Rect::from_min_size(pos2(previous_page_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
+        let previous_page_button_rectangle =
+            Rect::from_min_size(pos2(previous_page_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
 
         let previous_page_button = top_row_user_interface.put(
-            previous_page_button_rect,
+            previous_page_button_rectangle,
             Button::new_from_theme(&theme)
                 .background_color(Color32::TRANSPARENT)
                 .tooltip_text("Previous page."),
@@ -152,10 +152,10 @@ impl Widget for ElementScannerFooterView {
         }
 
         // Next page.
-        let next_page_button_rect = Rect::from_min_size(pos2(next_page_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
+        let next_page_button_rectangle = Rect::from_min_size(pos2(next_page_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
 
         let next_page_button = top_row_user_interface.put(
-            next_page_button_rect,
+            next_page_button_rectangle,
             Button::new_from_theme(&theme)
                 .background_color(Color32::TRANSPARENT)
                 .tooltip_text("Next page."),
@@ -172,10 +172,10 @@ impl Widget for ElementScannerFooterView {
         }
 
         // Last page.
-        let last_page_button_rect = Rect::from_min_size(pos2(last_page_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
+        let last_page_button_rectangle = Rect::from_min_size(pos2(last_page_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
 
         let last_page_button = top_row_user_interface.put(
-            last_page_button_rect,
+            last_page_button_rectangle,
             Button::new_from_theme(&theme)
                 .background_color(Color32::TRANSPARENT)
                 .tooltip_text("Last page."),
@@ -193,10 +193,10 @@ impl Widget for ElementScannerFooterView {
 
         let bottom_row_builder = UiBuilder::new().max_rect(bottom_row);
 
-        let mut bottom_row_ui = user_interface.new_child(bottom_row_builder);
+        let mut bottom_row_user_interface = user_interface.new_child(bottom_row_builder);
 
-        bottom_row_ui.centered_and_justified(|ui| {
-            ui.label(
+        bottom_row_user_interface.centered_and_justified(|user_interface| {
+            user_interface.label(
                 RichText::new("Stats: {TODO}")
                     .font(font_id.clone())
                     .color(theme.foreground),
@@ -206,13 +206,31 @@ impl Widget for ElementScannerFooterView {
         drop(element_scanner_view_data);
 
         if should_navigate_first_page {
-            ElementScannerViewData::reset_scan(self.element_scanner_view_data.clone(), self.app_context.engine_execution_context.clone());
+            ElementScannerResultsViewData::navigate_first_page(
+                self.element_scanner_results_view_data.clone(),
+                self.app_context.engine_execution_context.clone(),
+            );
         } else if should_navigate_previous_page {
-            ElementScannerViewData::collect_values(self.app_context.engine_execution_context.clone());
+            ElementScannerResultsViewData::navigate_previous_page(
+                self.element_scanner_results_view_data.clone(),
+                self.app_context.engine_execution_context.clone(),
+            );
         } else if should_navigate_next_page {
-            ElementScannerViewData::start_scan(self.element_scanner_view_data.clone(), self.app_context.engine_execution_context.clone());
+            ElementScannerResultsViewData::navigate_next_page(
+                self.element_scanner_results_view_data.clone(),
+                self.app_context.engine_execution_context.clone(),
+            );
         } else if should_navigate_last_page {
-            // TODO: implement last page behavior
+            ElementScannerResultsViewData::navigate_last_page(
+                self.element_scanner_results_view_data.clone(),
+                self.app_context.engine_execution_context.clone(),
+            );
+        } else if page_number_edit_response.changed() {
+            ElementScannerResultsViewData::set_page_index_string(
+                self.element_scanner_results_view_data.clone(),
+                self.app_context.engine_execution_context.clone(),
+                &text_value,
+            );
         }
 
         response

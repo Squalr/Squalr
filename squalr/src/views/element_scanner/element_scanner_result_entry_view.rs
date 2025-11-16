@@ -11,6 +11,8 @@ pub struct ElementScannerResultEntryView<'lifetime> {
     app_context: Arc<AppContext>,
     scan_result: &'lifetime ScanResult,
     icon: Option<TextureHandle>,
+    value_splitter_position_x: f32,
+    previous_value_splitter_position_x: f32,
 }
 
 impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
@@ -18,11 +20,15 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
         app_context: Arc<AppContext>,
         scan_result: &'lifetime ScanResult,
         icon: Option<TextureHandle>,
+        value_splitter_position_x: f32,
+        previous_value_splitter_position_x: f32,
     ) -> Self {
         Self {
-            app_context: app_context,
+            app_context,
             scan_result,
             icon,
+            value_splitter_position_x,
+            previous_value_splitter_position_x,
         }
     }
 }
@@ -36,6 +42,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         let icon_size = vec2(16.0, 16.0);
         let text_left_padding = 4.0;
         let row_height = 28.0;
+
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, row_height), Sense::click());
 
         // Background and state overlay.
@@ -55,18 +62,43 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         }
         .ui(user_interface);
 
-        // Draw icon and label inside layout.
-        let icon_pos_x = allocated_size_rectangle.min.x;
-        let icon_pos_y = allocated_size_rectangle.center().y - icon_size.y * 0.5;
-        let icon_rect = Rect::from_min_size(pos2(icon_pos_x, icon_pos_y), icon_size);
-        let text_pos = pos2(icon_rect.max.x + text_left_padding, allocated_size_rectangle.center().y);
+        // Icon.
+        let icon_position_x = allocated_size_rectangle.min.x;
+        let icon_position_y = allocated_size_rectangle.center().y - icon_size.y * 0.5;
+        let icon_rectangle = Rect::from_min_size(pos2(icon_position_x, icon_position_y), icon_size);
 
         if let Some(icon) = &self.icon {
-            IconDraw::draw_sized(user_interface, icon_rect.center(), icon_size, icon);
+            IconDraw::draw_sized(user_interface, icon_rectangle.center(), icon_size, icon);
         }
 
+        // Text positions for each column.
+        let address_text_position_x = icon_rectangle.max.x + text_left_padding;
+        let row_center_y = allocated_size_rectangle.center().y;
+        let address_text_position = pos2(address_text_position_x, row_center_y);
+        let value_text_position = pos2(self.value_splitter_position_x + text_left_padding, row_center_y);
+        let previous_value_text_position = pos2(self.previous_value_splitter_position_x + text_left_padding, row_center_y);
+
+        // Address column.
         user_interface.painter().text(
-            text_pos,
+            address_text_position,
+            Align2::LEFT_CENTER,
+            self.scan_result.get_address().to_string(),
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            theme.foreground,
+        );
+
+        // Value column (placeholder: same as address for now).
+        user_interface.painter().text(
+            value_text_position,
+            Align2::LEFT_CENTER,
+            self.scan_result.get_address().to_string(),
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            theme.foreground,
+        );
+
+        // Previous value column (placeholder: same as address for now).
+        user_interface.painter().text(
+            previous_value_text_position,
             Align2::LEFT_CENTER,
             self.scan_result.get_address().to_string(),
             theme.font_library.font_noto_sans.font_normal.clone(),
