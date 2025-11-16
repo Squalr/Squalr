@@ -1,16 +1,12 @@
-use crate::{
-    app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
-};
-use eframe::egui::{Align2, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
-use epaint::CornerRadius;
+use crate::{app_context::AppContext, ui::widgets::controls::state_layer::StateLayer};
+use eframe::egui::{Align2, Rect, Response, Sense, Ui, Widget, pos2, vec2};
+use epaint::{Color32, CornerRadius, StrokeKind};
 use squalr_engine_api::structures::{data_values::display_value_type::DisplayValueType, scan_results::scan_result::ScanResult};
 use std::sync::Arc;
 
 pub struct ElementScannerResultEntryView<'lifetime> {
     app_context: Arc<AppContext>,
     scan_result: &'lifetime ScanResult,
-    icon: Option<TextureHandle>,
     address_splitter_position_x: f32,
     value_splitter_position_x: f32,
     previous_value_splitter_position_x: f32,
@@ -20,7 +16,6 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         scan_result: &'lifetime ScanResult,
-        icon: Option<TextureHandle>,
         address_splitter_position_x: f32,
         value_splitter_position_x: f32,
         previous_value_splitter_position_x: f32,
@@ -28,7 +23,6 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
         Self {
             app_context,
             scan_result,
-            icon,
             address_splitter_position_x,
             value_splitter_position_x,
             previous_value_splitter_position_x,
@@ -42,7 +36,6 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let icon_size = vec2(16.0, 16.0);
         let text_left_padding = 8.0;
         let row_height = 28.0;
 
@@ -65,13 +58,45 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         }
         .ui(user_interface);
 
-        // Icon.
-        let icon_position_x = allocated_size_rectangle.min.x;
-        let icon_position_y = allocated_size_rectangle.center().y - icon_size.y * 0.5;
-        let icon_rectangle = Rect::from_min_size(pos2(icon_position_x, icon_position_y), icon_size);
+        // Checkbox.
+        let checkbox_size = vec2(16.0, 16.0);
+        let checkbox_position = pos2(
+            allocated_size_rectangle.min.x + 8.0,
+            allocated_size_rectangle.center().y - checkbox_size.y * 0.5,
+        );
+        let checkbox_rectangle = Rect::from_min_size(checkbox_position, checkbox_size);
 
-        if let Some(icon) = &self.icon {
-            IconDraw::draw_sized(user_interface, icon_rectangle.center(), icon_size, icon);
+        // Draw checkbox background
+        user_interface
+            .painter()
+            .rect_filled(checkbox_rectangle, CornerRadius::ZERO, theme.background_control);
+        user_interface
+            .painter()
+            .rect_stroke(checkbox_rectangle, CornerRadius::ZERO, (1.0, theme.submenu_border), StrokeKind::Inside);
+
+        // Hover/press tint (cosmetic)
+        if response.hovered() {
+            user_interface
+                .painter()
+                .rect_filled(checkbox_rectangle, CornerRadius::ZERO, theme.hover_tint);
+        }
+        if response.is_pointer_button_down_on() {
+            user_interface
+                .painter()
+                .rect_filled(checkbox_rectangle, CornerRadius::ZERO, theme.pressed_tint);
+        }
+
+        if self.scan_result.get_is_frozen() {
+            let icon = &theme.icon_library.icon_handle_common_check_mark;
+            let texture_size = icon.size_vec2();
+            let icon_pos = checkbox_rectangle.center() - texture_size * 0.5;
+
+            user_interface.painter().image(
+                icon.id(),
+                Rect::from_min_size(icon_pos, texture_size),
+                Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                Color32::WHITE,
+            );
         }
 
         // Text positions for each column.

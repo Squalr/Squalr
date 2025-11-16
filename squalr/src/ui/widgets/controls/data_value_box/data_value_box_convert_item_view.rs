@@ -75,33 +75,33 @@ impl<'a> Widget for DataValueBoxConvertItemView<'a> {
                 allocated_size_rectangle.min.x + icon_left_padding,
                 allocated_size_rectangle.center().y - icon_size.y * 0.5,
             );
-            let checkbox_rect = Rect::from_min_size(checkbox_pos, icon_size);
+            let checkbox_rectangle = Rect::from_min_size(checkbox_pos, icon_size);
 
             // Draw checkbox background.
             user_interface
                 .painter()
-                .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.background_control);
+                .rect_filled(checkbox_rectangle, CornerRadius::ZERO, theme.background_control);
             user_interface
                 .painter()
-                .rect_stroke(checkbox_rect, CornerRadius::ZERO, (1.0, theme.submenu_border), StrokeKind::Inside);
+                .rect_stroke(checkbox_rectangle, CornerRadius::ZERO, (1.0, theme.submenu_border), StrokeKind::Inside);
 
             // Draw hover/pressed state.
             if response.hovered() {
                 user_interface
                     .painter()
-                    .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.hover_tint);
+                    .rect_filled(checkbox_rectangle, CornerRadius::ZERO, theme.hover_tint);
             }
             if response.is_pointer_button_down_on() {
                 user_interface
                     .painter()
-                    .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.pressed_tint);
+                    .rect_filled(checkbox_rectangle, CornerRadius::ZERO, theme.pressed_tint);
             }
 
             // Draw checkmark if checked.
             if self.display_value.get_display_value_type() == self.target_display_value_type {
                 let icon = &theme.icon_library.icon_handle_common_check_mark;
                 let texture_size = icon.size_vec2();
-                let icon_position = checkbox_rect.center() - texture_size * 0.5;
+                let icon_position = checkbox_rectangle.center() - texture_size * 0.5;
                 user_interface.painter().image(
                     icon.id(),
                     Rect::from_min_size(icon_position, texture_size),
