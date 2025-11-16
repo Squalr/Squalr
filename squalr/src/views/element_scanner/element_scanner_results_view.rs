@@ -1,11 +1,12 @@
 use crate::{
     app_context::AppContext,
+    ui::draw::icon_draw::IconDraw,
     views::element_scanner::{
         element_scanner_result_entry_view::ElementScannerResultEntryView, view_data::element_scanner_results_view_data::ElementScannerResultsViewData,
     },
 };
-use eframe::egui::{Align, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
-use epaint::{Rect, pos2};
+use eframe::egui::{Align, Align2, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
+use epaint::{Rect, pos2, vec2};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 
@@ -38,8 +39,6 @@ impl Widget for ElementScannerResultsView {
         const BAR_THICKNESS: f32 = 4.0;
         const MINIMUM_COLUMN_PIXEL_WIDTH: f32 = 80.0;
         const MINIMUM_SPLITTER_PIXEL_GAP: f32 = 40.0;
-        const DEFAULT_VALUE_SPLITTER_RATIO: f32 = 0.45;
-        const DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO: f32 = 0.75;
 
         let theme = &self.app_context.theme;
         let mut new_value_splitter_ratio: Option<f32> = None;
@@ -83,8 +82,8 @@ impl Widget for ElementScannerResultsView {
                         }
 
                         if value_splitter_ratio <= 0.0 || previous_value_splitter_ratio <= 0.0 || previous_value_splitter_ratio <= value_splitter_ratio {
-                            value_splitter_ratio = DEFAULT_VALUE_SPLITTER_RATIO;
-                            previous_value_splitter_ratio = DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO;
+                            value_splitter_ratio = ElementScannerResultsViewData::DEFAULT_VALUE_SPLITTER_RATIO;
+                            previous_value_splitter_ratio = ElementScannerResultsViewData::DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO;
 
                             new_value_splitter_ratio = Some(value_splitter_ratio);
                             new_previous_value_splitter_ratio = Some(previous_value_splitter_ratio);
@@ -92,6 +91,89 @@ impl Widget for ElementScannerResultsView {
 
                         let value_splitter_position_x = content_min_x + content_width * value_splitter_ratio;
                         let previous_value_splitter_position_x = content_min_x + content_width * previous_value_splitter_ratio;
+
+                        // Use row bounds, fallback to content rectangle.
+                        let content_min_y = rows_min_y.unwrap_or(content_clip_rectangle.min.y);
+                        let content_max_y = rows_max_y.unwrap_or(content_clip_rectangle.max.y);
+
+                        // Faux address splitter.
+                        let faux_address_splitter_position_x = content_min_x + 36.0;
+
+                        let faux_address_splitter_rectangle = Rect::from_min_max(
+                            pos2(faux_address_splitter_position_x - BAR_THICKNESS * 0.5, content_min_y),
+                            pos2(faux_address_splitter_position_x + BAR_THICKNESS * 0.5, content_max_y),
+                        );
+
+                        let value_splitter_rectangle = Rect::from_min_max(
+                            pos2(value_splitter_position_x - BAR_THICKNESS * 0.5, content_min_y),
+                            pos2(value_splitter_position_x + BAR_THICKNESS * 0.5, content_max_y),
+                        );
+
+                        let previous_value_splitter_rectangle = Rect::from_min_max(
+                            pos2(previous_value_splitter_position_x - BAR_THICKNESS * 0.5, content_min_y),
+                            pos2(previous_value_splitter_position_x + BAR_THICKNESS * 0.5, content_max_y),
+                        );
+
+                        // Draw the header.
+                        let header_height = 32.0;
+                        let (header_rectangle, _header_response) =
+                            user_interface.allocate_exact_size(vec2(user_interface.available_size().x, header_height), Sense::hover());
+
+                        // Hard‑coded icon id rectangle
+                        let icon_size = vec2(16.0, 16.0);
+                        let icon_padding = 8.0;
+                        let icon_pos_y = header_rectangle.center().y - icon_size.y * 0.5;
+                        let icon_rectangle = Rect::from_min_size(pos2(header_rectangle.min.x + icon_padding, icon_pos_y), icon_size);
+
+                        // Draw icon using a hard-coded id (adjust rendering to your IconDraw implementation).
+                        IconDraw::draw_sized(
+                            user_interface,
+                            icon_rectangle.center(),
+                            icon_size,
+                            &self.app_context.theme.icon_library.icon_handle_results_freeze,
+                        );
+
+                        let text_left_padding = 8.0;
+                        let address_header_x = faux_address_splitter_position_x + text_left_padding;
+                        let address_header_position = pos2(address_header_x, header_rectangle.center().y);
+
+                        user_interface.painter().text(
+                            address_header_position,
+                            Align2::LEFT_CENTER,
+                            "Address",
+                            theme.font_library.font_noto_sans.font_header.clone(),
+                            theme.foreground,
+                        );
+
+                        let value_label_position = pos2(value_splitter_position_x + text_left_padding, header_rectangle.center().y);
+
+                        user_interface.painter().text(
+                            value_label_position,
+                            Align2::LEFT_CENTER,
+                            "Value",
+                            theme.font_library.font_noto_sans.font_header.clone(),
+                            theme.foreground,
+                        );
+
+                        let previous_value_label_position = pos2(previous_value_splitter_position_x + text_left_padding, header_rectangle.center().y);
+
+                        user_interface.painter().text(
+                            previous_value_label_position,
+                            Align2::LEFT_CENTER,
+                            "Previous Value",
+                            theme.font_library.font_noto_sans.font_header.clone(),
+                            theme.foreground,
+                        );
+
+                        // Header separater.
+                        let header_rectangle = Rect::from_min_max(
+                            pos2(header_rectangle.min.x, header_rectangle.max.y),
+                            pos2(header_rectangle.max.x, header_rectangle.max.y + 2.0),
+                        );
+
+                        user_interface
+                            .painter()
+                            .rect_filled(header_rectangle, 0.0, theme.background_control);
 
                         // Draw rows, capture min/max Y.
                         for scan_result in &element_scanner_results_view_data.current_scan_results {
@@ -101,6 +183,7 @@ impl Widget for ElementScannerResultsView {
                                 self.app_context.clone(),
                                 scan_result,
                                 icon,
+                                faux_address_splitter_position_x,
                                 value_splitter_position_x,
                                 previous_value_splitter_position_x,
                             ));
@@ -115,28 +198,12 @@ impl Widget for ElementScannerResultsView {
                             }
                         }
 
-                        // Use row bounds, fallback to content rectangle.
-                        let content_min_y = rows_min_y.unwrap_or(content_clip_rectangle.min.y);
-                        let content_max_y = rows_max_y.unwrap_or(content_clip_rectangle.max.y);
-
                         // Faux address splitter.
-                        let faux_splitter_position_x = content_min_x + 32.0 + 4.0;
-
-                        let faux_splitter_rectangle = Rect::from_min_max(
-                            pos2(faux_splitter_position_x - BAR_THICKNESS * 0.5, content_min_y),
-                            pos2(faux_splitter_position_x + BAR_THICKNESS * 0.5, content_max_y),
-                        );
-
                         user_interface
                             .painter()
-                            .rect_filled(faux_splitter_rectangle, 0.0, theme.background_control);
+                            .rect_filled(faux_address_splitter_rectangle, 0.0, theme.background_control);
 
                         // Value splitter.
-                        let value_splitter_rectangle = Rect::from_min_max(
-                            pos2(value_splitter_position_x - BAR_THICKNESS * 0.5, content_min_y),
-                            pos2(value_splitter_position_x + BAR_THICKNESS * 0.5, content_max_y),
-                        );
-
                         let value_splitter_response =
                             allocate_resize_bar(user_interface, value_splitter_rectangle, "value_splitter").on_hover_cursor(CursorIcon::ResizeHorizontal);
 
@@ -156,11 +223,6 @@ impl Widget for ElementScannerResultsView {
                         }
 
                         // Previous value splitter.
-                        let previous_value_splitter_rectangle = Rect::from_min_max(
-                            pos2(previous_value_splitter_position_x - BAR_THICKNESS * 0.5, content_min_y),
-                            pos2(previous_value_splitter_position_x + BAR_THICKNESS * 0.5, content_max_y),
-                        );
-
                         let previous_value_splitter_response =
                             allocate_resize_bar(user_interface, previous_value_splitter_rectangle, "previous_value_splitter")
                                 .on_hover_cursor(CursorIcon::ResizeHorizontal);

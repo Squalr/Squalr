@@ -35,10 +35,13 @@ pub struct ElementScannerResultsViewData {
 }
 
 impl ElementScannerResultsViewData {
+    pub const DEFAULT_VALUE_SPLITTER_RATIO: f32 = 0.35;
+    pub const DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO: f32 = 0.70;
+
     pub fn new() -> Self {
         Self {
-            value_splitter_ratio: 0.0,
-            previous_value_splitter_ratio: 0.0,
+            value_splitter_ratio: Self::DEFAULT_VALUE_SPLITTER_RATIO,
+            previous_value_splitter_ratio: Self::DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO,
             current_scan_results: Vec::new(),
             current_page_index: 0,
             cached_last_page_index: 0,
@@ -168,7 +171,9 @@ impl ElementScannerResultsViewData {
             anonymous_value,
         };
 
-        scan_results_set_property_request.send(&engine_execution_context, move |scan_results_set_property_response| {});
+        scan_results_set_property_request.send(&engine_execution_context, move |scan_results_set_property_response| {
+            // JIRA: TODO
+        });
     }
 
     fn load_current_page_index(element_scanner_results_view_data: &RwLockReadGuard<'_, ElementScannerResultsViewData>) -> u64 {

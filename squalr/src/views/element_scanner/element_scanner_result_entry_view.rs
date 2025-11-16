@@ -4,13 +4,14 @@ use crate::{
 };
 use eframe::egui::{Align2, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
 use epaint::CornerRadius;
-use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
+use squalr_engine_api::structures::{data_values::display_value_type::DisplayValueType, scan_results::scan_result::ScanResult};
 use std::sync::Arc;
 
 pub struct ElementScannerResultEntryView<'lifetime> {
     app_context: Arc<AppContext>,
     scan_result: &'lifetime ScanResult,
     icon: Option<TextureHandle>,
+    address_splitter_position_x: f32,
     value_splitter_position_x: f32,
     previous_value_splitter_position_x: f32,
 }
@@ -20,6 +21,7 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
         app_context: Arc<AppContext>,
         scan_result: &'lifetime ScanResult,
         icon: Option<TextureHandle>,
+        address_splitter_position_x: f32,
         value_splitter_position_x: f32,
         previous_value_splitter_position_x: f32,
     ) -> Self {
@@ -27,6 +29,7 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
             app_context,
             scan_result,
             icon,
+            address_splitter_position_x,
             value_splitter_position_x,
             previous_value_splitter_position_x,
         }
@@ -40,7 +43,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
     ) -> Response {
         let theme = &self.app_context.theme;
         let icon_size = vec2(16.0, 16.0);
-        let text_left_padding = 4.0;
+        let text_left_padding = 8.0;
         let row_height = 28.0;
 
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, row_height), Sense::click());
@@ -72,35 +75,56 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         }
 
         // Text positions for each column.
-        let address_text_position_x = icon_rectangle.max.x + text_left_padding;
         let row_center_y = allocated_size_rectangle.center().y;
-        let address_text_position = pos2(address_text_position_x, row_center_y);
+        let address_text_position = pos2(self.address_splitter_position_x + text_left_padding, row_center_y);
         let value_text_position = pos2(self.value_splitter_position_x + text_left_padding, row_center_y);
         let previous_value_text_position = pos2(self.previous_value_splitter_position_x + text_left_padding, row_center_y);
 
-        // Address column.
+        // Address.
+        let address = self.scan_result.get_address();
+        let address_string = if self.scan_result.is_module() {
+            format!("{}+{:X}", self.scan_result.get_module(), self.scan_result.get_module_offset())
+        } else if address <= u32::MAX as u64 {
+            format!("{:08X}", address)
+        } else {
+            format!("{:016X}", address)
+        };
+
         user_interface.painter().text(
             address_text_position,
             Align2::LEFT_CENTER,
-            self.scan_result.get_address().to_string(),
+            address_string,
             theme.font_library.font_noto_sans.font_normal.clone(),
             theme.foreground,
         );
 
-        // Value column (placeholder: same as address for now).
+        // Value.
+        let current_value_string = match self.scan_result.get_recently_read_display_values() {
+            Some(recently_read_value) => recently_read_value.get_display_value_string(&DisplayValueType::Decimal),
+            None => match self.scan_result.get_current_display_values() {
+                Some(current_value) => current_value.get_display_value_string(&DisplayValueType::Decimal),
+                None => "??",
+            },
+        };
+
         user_interface.painter().text(
             value_text_position,
             Align2::LEFT_CENTER,
-            self.scan_result.get_address().to_string(),
+            current_value_string,
             theme.font_library.font_noto_sans.font_normal.clone(),
             theme.foreground,
         );
 
-        // Previous value column (placeholder: same as address for now).
+        // Previous value.
+        let previous_value_string = match self.scan_result.get_previous_display_values() {
+            Some(previous_value) => previous_value.get_display_value_string(&DisplayValueType::Decimal),
+            None => "??",
+        };
+
         user_interface.painter().text(
             previous_value_text_position,
             Align2::LEFT_CENTER,
-            self.scan_result.get_address().to_string(),
+            previous_value_string,
             theme.font_library.font_noto_sans.font_normal.clone(),
             theme.foreground,
         );
