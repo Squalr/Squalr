@@ -106,7 +106,10 @@ impl Widget for ElementScannerToolbarView {
                 self.app_context.clone(),
                 &mut element_scanner_view_data.current_scan_value,
                 &data_type_ref,
+                false,
+                true,
                 "Enter a scan value...",
+                "data_value_box_scan_value",
             ));
 
             user_interface.add_space(8.0);

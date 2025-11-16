@@ -1,4 +1,7 @@
-use crate::{app_context::AppContext, ui::widgets::controls::state_layer::StateLayer};
+use crate::{
+    app_context::AppContext,
+    ui::widgets::controls::{data_value_box::data_value_box_view::DataValueBoxView, state_layer::StateLayer},
+};
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, StrokeKind};
 use squalr_engine_api::structures::{data_values::display_value_type::DisplayValueType, scan_results::scan_result::ScanResult};
@@ -10,6 +13,7 @@ pub struct ElementScannerResultEntryView<'lifetime> {
     address_splitter_position_x: f32,
     value_splitter_position_x: f32,
     previous_value_splitter_position_x: f32,
+    index: usize,
 }
 
 impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
@@ -19,6 +23,7 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
         address_splitter_position_x: f32,
         value_splitter_position_x: f32,
         previous_value_splitter_position_x: f32,
+        index: usize,
     ) -> Self {
         Self {
             app_context,
@@ -26,6 +31,7 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
             address_splitter_position_x,
             value_splitter_position_x,
             previous_value_splitter_position_x,
+            index,
         }
     }
 }
@@ -37,7 +43,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
     ) -> Response {
         let theme = &self.app_context.theme;
         let text_left_padding = 8.0;
-        let row_height = 28.0;
+        let row_height = 32.0;
 
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, row_height), Sense::click());
 
@@ -99,13 +105,9 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             );
         }
 
-        // Text positions for each column.
+        // Address.
         let row_center_y = allocated_size_rectangle.center().y;
         let address_text_position = pos2(self.address_splitter_position_x + text_left_padding, row_center_y);
-        let value_text_position = pos2(self.value_splitter_position_x + text_left_padding, row_center_y);
-        let previous_value_text_position = pos2(self.previous_value_splitter_position_x + text_left_padding, row_center_y);
-
-        // Address.
         let address = self.scan_result.get_address();
         let address_string = if self.scan_result.is_module() {
             format!("{}+{:X}", self.scan_result.get_module(), self.scan_result.get_module_offset())
@@ -120,27 +122,40 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             Align2::LEFT_CENTER,
             address_string,
             theme.font_library.font_noto_sans.font_normal.clone(),
-            theme.foreground,
+            theme.hexadecimal_green,
         );
 
         // Value.
-        let current_value_string = match self.scan_result.get_recently_read_display_values() {
-            Some(recently_read_value) => recently_read_value.get_display_value_string(&DisplayValueType::Decimal),
-            None => match self.scan_result.get_current_display_values() {
-                Some(current_value) => current_value.get_display_value_string(&DisplayValueType::Decimal),
-                None => "??",
-            },
-        };
+        let value_text_position = pos2(self.value_splitter_position_x, allocated_size_rectangle.min.y);
+        let value_box_width = self.previous_value_splitter_position_x - self.value_splitter_position_x;
+        let value_box_rectangle = Rect::from_min_size(value_text_position, vec2(value_box_width, row_height));
+        let mut display_value = self
+            .scan_result
+            .get_recently_read_display_values()
+            .as_ref()
+            .cloned()
+            .unwrap_or_default()
+            .get_active_display_value()
+            .cloned()
+            .unwrap_or_default();
 
-        user_interface.painter().text(
-            value_text_position,
-            Align2::LEFT_CENTER,
-            current_value_string,
-            theme.font_library.font_noto_sans.font_normal.clone(),
-            theme.foreground,
+        user_interface.put(
+            value_box_rectangle,
+            DataValueBoxView::new(
+                self.app_context.clone(),
+                &mut display_value,
+                self.scan_result.get_data_type_ref(),
+                false,
+                false,
+                "Enter new value…",
+                &format!("data_value_box_new_value_{}", self.index),
+            )
+            .width(value_box_width)
+            .border_width(0.0),
         );
 
         // Previous value.
+        let previous_value_text_position = pos2(self.previous_value_splitter_position_x + text_left_padding, row_center_y);
         let previous_value_string = match self.scan_result.get_previous_display_values() {
             Some(previous_value) => previous_value.get_display_value_string(&DisplayValueType::Decimal),
             None => "??",

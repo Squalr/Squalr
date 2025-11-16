@@ -108,13 +108,15 @@ impl Widget for ElementScannerResultsView {
                     .auto_shrink([false, false])
                     .show(&mut user_interface, |user_interface| {
                         // Draw rows, capture min/max Y.
-                        for scan_result in &element_scanner_results_view_data.current_scan_results {
+                        for index in 0..element_scanner_results_view_data.current_scan_results.len() {
+                            let scan_result = &element_scanner_results_view_data.current_scan_results[index];
                             let row_response = user_interface.add(ElementScannerResultEntryView::new(
                                 self.app_context.clone(),
                                 scan_result,
                                 faux_address_splitter_position_x,
                                 value_splitter_position_x,
                                 previous_value_splitter_position_x,
+                                index,
                             ));
 
                             if rows_min_y.is_none() {

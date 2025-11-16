@@ -8,7 +8,8 @@ pub struct DataValueBoxConvertItemView<'lifetime> {
     app_context: Arc<AppContext>,
     display_value: &'lifetime mut DisplayValue,
     target_display_value_type: &'lifetime DisplayValueType,
-    enable_conversion: bool,
+    is_conversion_available: bool,
+    is_value_owned: bool,
     combo_box_width: f32,
 }
 
@@ -17,14 +18,16 @@ impl<'lifetime> DataValueBoxConvertItemView<'lifetime> {
         app_context: Arc<AppContext>,
         display_value: &'lifetime mut DisplayValue,
         target_display_value_type: &'lifetime DisplayValueType,
-        enable_conversion: bool,
+        is_conversion_available: bool,
+        is_value_owned: bool,
         width: f32,
     ) -> Self {
         Self {
             app_context: app_context,
             display_value,
             target_display_value_type,
-            enable_conversion,
+            is_conversion_available,
+            is_value_owned,
             combo_box_width: width,
         }
     }
@@ -69,8 +72,8 @@ impl<'a> Widget for DataValueBoxConvertItemView<'a> {
         }
         .ui(user_interface);
 
-        // Checkbox Overlay Drawing (manual, no layout allocation).
-        if self.enable_conversion {
+        // Show a checkbox only for interpretations.
+        if !self.is_conversion_available {
             let checkbox_pos = pos2(
                 allocated_size_rectangle.min.x + icon_left_padding,
                 allocated_size_rectangle.center().y - icon_size.y * 0.5,
@@ -116,10 +119,12 @@ impl<'a> Widget for DataValueBoxConvertItemView<'a> {
             allocated_size_rectangle.center().y,
         );
 
-        let text = if self.enable_conversion {
+        let text = if self.is_conversion_available {
             format!("Convert to {}", self.target_display_value_type)
-        } else {
+        } else if self.is_value_owned {
             format!("Interpret as {}", self.target_display_value_type)
+        } else {
+            format!("Display as {}", self.target_display_value_type)
         };
 
         user_interface.painter().text(
@@ -131,7 +136,7 @@ impl<'a> Widget for DataValueBoxConvertItemView<'a> {
         );
 
         if response.clicked() {
-            if self.enable_conversion {
+            if self.is_conversion_available {
                 self.display_value
                     .set_display_value_type(*self.target_display_value_type);
             } else {

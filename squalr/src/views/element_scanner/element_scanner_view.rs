@@ -51,7 +51,7 @@ impl Widget for ElementScannerView {
         user_interface: &mut Ui,
     ) -> Response {
         let response = user_interface
-            .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |mut user_interface| {
+            .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 user_interface.add(self.element_scanner_toolbar_view.clone());
 
                 let footer_height = self.element_scanner_footer_view.get_height();

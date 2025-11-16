@@ -15,11 +15,15 @@ pub struct DataValueBoxView<'lifetime> {
     app_context: Arc<AppContext>,
     display_value: &'lifetime mut DisplayValue,
     validation_data_type: &'lifetime DataTypeRef,
+    is_read_only: bool,
+    is_value_owned: bool,
     preview_text: &'lifetime str,
+    id: &'lifetime str,
     width: f32,
     height: f32,
     icon_padding: f32,
     icon_size: f32,
+    border_width: f32,
     divider_width: f32,
     corner_radius: u8,
 }
@@ -29,22 +33,37 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         app_context: Arc<AppContext>,
         display_value: &'lifetime mut DisplayValue,
         validation_data_type: &'lifetime DataTypeRef,
+        is_read_only: bool,
+        is_value_owned: bool,
         preview_text: &'lifetime str,
+        id: &'lifetime str,
     ) -> Self {
         Self {
             app_context,
             display_value,
             validation_data_type,
+            is_read_only,
+            is_value_owned,
             preview_text,
+            id,
             width: 192.0,
             height: 28.0,
 
             // Themed layout defaults
             icon_padding: 8.0,
             icon_size: 16.0,
+            border_width: 1.0,
             divider_width: 1.0,
             corner_radius: 0,
         }
+    }
+
+    pub fn border_width(
+        mut self,
+        border_width: f32,
+    ) -> Self {
+        self.border_width = border_width;
+        self
     }
 
     pub fn width(
@@ -92,7 +111,6 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         let desired_size = vec2(self.width, self.height);
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::click());
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
-        let border_width = 1.0;
 
         // Divider bar before right arrow.
         let button_width = self.icon_size + self.icon_padding * 2.0;
@@ -123,7 +141,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             has_hover: response.hovered(),
             has_focus: response.has_focus(),
             corner_radius: CornerRadius::same(self.corner_radius),
-            border_width,
+            border_width: self.border_width,
             hover_color: theme.hover_tint,
             pressed_color: theme.pressed_tint,
             border_color: theme.submenu_border,
@@ -155,13 +173,16 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                 .frame(false),
         );
 
-        user_interface.painter().rect_stroke(
-            allocated_size_rectangle,
-            CornerRadius::same(self.corner_radius),
-            Stroke::new(border_width, theme.submenu_border),
-            StrokeKind::Inside,
-        );
-        // Draw right arrow.
+        if self.border_width > 0.0 {
+            user_interface.painter().rect_stroke(
+                allocated_size_rectangle,
+                CornerRadius::same(self.corner_radius),
+                Stroke::new(self.border_width, theme.submenu_border),
+                StrokeKind::Inside,
+            );
+        }
+
+        // Draw drop-down arrow.
         user_interface.painter().image(
             down_arrow.id(),
             Rect::from_min_size(right_arrow_pos, icon_size_vec),
@@ -175,7 +196,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         }
 
         // Popup logic.
-        let popup_id = Id::new(("data_value_box_popup", user_interface.id().value()));
+        let popup_id = Id::new(("data_value_box_popup", self.id, user_interface.id().value()));
         let mut open = user_interface.memory(|memory| memory.data.get_temp::<bool>(popup_id).unwrap_or(false));
 
         if response.clicked() {
@@ -221,7 +242,8 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                                         self.app_context.clone(),
                                         self.display_value,
                                         display_value_type,
-                                        true,
+                                        false,
+                                        self.is_value_owned,
                                         self.width,
                                     ))
                                     .clicked()
@@ -230,18 +252,23 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                                 }
                             }
 
-                            for display_value_type in &display_value_types {
-                                if inner_user_interface
-                                    .add(DataValueBoxConvertItemView::new(
-                                        self.app_context.clone(),
-                                        self.display_value,
-                                        display_value_type,
-                                        false,
-                                        self.width,
-                                    ))
-                                    .clicked()
-                                {
-                                    should_close = true;
+                            if self.is_value_owned && !self.is_read_only {
+                                inner_user_interface.separator();
+
+                                for display_value_type in &display_value_types {
+                                    if inner_user_interface
+                                        .add(DataValueBoxConvertItemView::new(
+                                            self.app_context.clone(),
+                                            self.display_value,
+                                            display_value_type,
+                                            true,
+                                            self.is_value_owned,
+                                            self.width,
+                                        ))
+                                        .clicked()
+                                    {
+                                        should_close = true;
+                                    }
                                 }
                             }
                         });
