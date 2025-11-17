@@ -7,7 +7,7 @@ use crate::{
     },
 };
 use eframe::egui::{Align, Align2, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
-use epaint::{Rect, pos2, vec2};
+use epaint::{Margin, Rect, Vec2, pos2, vec2};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 
@@ -110,44 +110,51 @@ impl Widget for ElementScannerResultsView {
                     .id_salt("element_scanner")
                     .auto_shrink([false, false])
                     .show(&mut user_interface, |user_interface| {
-                        // Draw rows, capture min/max Y.
-                        for index in 0..element_scanner_results_view_data.current_scan_results.len() {
-                            let is_selected = {
-                                match (
-                                    element_scanner_results_view_data.selection_index_start,
-                                    element_scanner_results_view_data.selection_index_end,
-                                ) {
-                                    (Some(start), Some(end)) => {
-                                        let (min_index, max_index) = if start <= end { (start, end) } else { (end, start) };
-                                        index as i32 >= min_index && index as i32 <= max_index
+                        user_interface.spacing_mut().menu_margin = Margin::ZERO;
+                        user_interface.spacing_mut().window_margin = Margin::ZERO;
+                        user_interface.spacing_mut().menu_spacing = 0.0;
+                        user_interface.spacing_mut().item_spacing = Vec2::ZERO;
+
+                        user_interface.with_layout(Layout::top_down(Align::Min), |user_interface| {
+                            // Draw rows, capture min/max Y.
+                            for index in 0..element_scanner_results_view_data.current_scan_results.len() {
+                                let is_selected = {
+                                    match (
+                                        element_scanner_results_view_data.selection_index_start,
+                                        element_scanner_results_view_data.selection_index_end,
+                                    ) {
+                                        (Some(start), Some(end)) => {
+                                            let (min_index, max_index) = if start <= end { (start, end) } else { (end, start) };
+                                            index as i32 >= min_index && index as i32 <= max_index
+                                        }
+                                        (Some(start), None) => index as i32 == start,
+                                        (None, Some(end)) => index as i32 == end,
+                                        (None, None) => false,
                                     }
-                                    (Some(start), None) => index as i32 == start,
-                                    (None, Some(end)) => index as i32 == end,
-                                    (None, None) => false,
+                                };
+
+                                let mut scan_result = &mut element_scanner_results_view_data.current_scan_results[index];
+                                let row_response = user_interface.add(ElementScannerResultEntryView::new(
+                                    self.app_context.clone(),
+                                    &mut scan_result,
+                                    index,
+                                    is_selected,
+                                    &mut element_sanner_result_frame_action,
+                                    faux_address_splitter_position_x,
+                                    value_splitter_position_x,
+                                    previous_value_splitter_position_x,
+                                ));
+
+                                if rows_min_y.is_none() {
+                                    rows_min_y = Some(row_response.rect.min.y);
                                 }
-                            };
+                                rows_max_y = Some(row_response.rect.max.y);
 
-                            let mut scan_result = &mut element_scanner_results_view_data.current_scan_results[index];
-                            let row_response = user_interface.add(ElementScannerResultEntryView::new(
-                                self.app_context.clone(),
-                                &mut scan_result,
-                                index,
-                                is_selected,
-                                &mut element_sanner_result_frame_action,
-                                faux_address_splitter_position_x,
-                                value_splitter_position_x,
-                                previous_value_splitter_position_x,
-                            ));
-
-                            if rows_min_y.is_none() {
-                                rows_min_y = Some(row_response.rect.min.y);
+                                if row_response.double_clicked() {
+                                    // JIRA: Double click logic.
+                                }
                             }
-                            rows_max_y = Some(row_response.rect.max.y);
-
-                            if row_response.double_clicked() {
-                                // JIRA: Double click logic.
-                            }
-                        }
+                        });
                     });
 
                 let splitter_min_y = header_rectangle.min.y;

@@ -301,6 +301,10 @@ impl ElementScannerResultsViewData {
 
         element_scanner_results_view_data.current_page_index = new_page_index;
 
+        // Clear out our selected items.
+        element_scanner_results_view_data.selection_index_start = None;
+        element_scanner_results_view_data.selection_index_end = None;
+
         drop(element_scanner_results_view_data);
 
         // Refresh scan results with the new page index. // JIRA: Should happen in the loop technically, but we need to make the MVVM bindings deadlock resistant.
