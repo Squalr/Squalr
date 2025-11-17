@@ -129,6 +129,13 @@ impl ScanResult {
     pub fn get_is_frozen(&self) -> bool {
         self.is_frozen
     }
+
+    pub fn set_is_frozen_client_only(
+        &mut self,
+        is_frozen: bool,
+    ) {
+        self.is_frozen = is_frozen;
+    }
 }
 
 impl fmt::Debug for ScanResult {

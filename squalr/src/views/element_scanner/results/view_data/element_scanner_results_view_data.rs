@@ -376,7 +376,7 @@ impl ElementScannerResultsViewData {
         }*/
     }
 
-    fn add_scan_results_to_project(
+    pub fn add_scan_results_to_project(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
@@ -390,7 +390,7 @@ impl ElementScannerResultsViewData {
         }
     }
 
-    fn delete_selected_scan_results(
+    pub fn delete_selected_scan_results(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
@@ -404,7 +404,7 @@ impl ElementScannerResultsViewData {
         }
     }
 
-    fn set_scan_result_frozen(
+    pub fn set_scan_result_frozen(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
         local_scan_result_index: i32,
@@ -425,7 +425,7 @@ impl ElementScannerResultsViewData {
         }
     }
 
-    fn toggle_selected_scan_results_frozen(
+    pub fn toggle_selected_scan_results_frozen(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {

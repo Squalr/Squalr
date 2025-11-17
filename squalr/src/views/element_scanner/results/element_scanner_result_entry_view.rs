@@ -1,12 +1,18 @@
-use crate::{app_context::AppContext, ui::widgets::controls::state_layer::StateLayer};
+use crate::{
+    app_context::AppContext,
+    ui::widgets::controls::{checkbox::Checkbox, state_layer::StateLayer},
+    views::element_scanner::results::element_scanner_result_frame_action::ElementScannerResultFrameAction,
+};
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, Widget, pos2, vec2};
-use epaint::{Color32, CornerRadius, StrokeKind};
+use epaint::{Color32, CornerRadius};
 use squalr_engine_api::structures::{data_values::display_value_type::DisplayValueType, scan_results::scan_result::ScanResult};
 use std::sync::Arc;
 
 pub struct ElementScannerResultEntryView<'lifetime> {
     app_context: Arc<AppContext>,
-    scan_result: &'lifetime ScanResult,
+    scan_result: &'lifetime mut ScanResult,
+    index: usize,
+    element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
     address_splitter_position_x: f32,
     value_splitter_position_x: f32,
     previous_value_splitter_position_x: f32,
@@ -15,7 +21,9 @@ pub struct ElementScannerResultEntryView<'lifetime> {
 impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
-        scan_result: &'lifetime ScanResult,
+        scan_result: &'lifetime mut ScanResult,
+        index: usize,
+        element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
         address_splitter_position_x: f32,
         value_splitter_position_x: f32,
         previous_value_splitter_position_x: f32,
@@ -23,6 +31,8 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
         Self {
             app_context,
             scan_result,
+            index,
+            element_sanner_result_frame_action,
             address_splitter_position_x,
             value_splitter_position_x,
             previous_value_splitter_position_x,
@@ -65,20 +75,14 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             allocated_size_rectangle.center().y - checkbox_size.y * 0.5,
         );
         let checkbox_rectangle = Rect::from_min_size(checkbox_position, checkbox_size);
+        let is_frozen = self.scan_result.get_is_frozen();
 
-        // Checkbox background.
-        user_interface
-            .painter()
-            .rect_filled(checkbox_rectangle, CornerRadius::ZERO, theme.background_control);
-        user_interface
-            .painter()
-            .rect_stroke(checkbox_rectangle, CornerRadius::ZERO, (1.0, theme.submenu_border), StrokeKind::Inside);
-
-        // Checkbox hover / press tint.
-        if response.hovered() {
-            user_interface
-                .painter()
-                .rect_filled(checkbox_rectangle, CornerRadius::ZERO, theme.hover_tint);
+        if user_interface
+            .put(checkbox_rectangle, Checkbox::new_from_theme(theme).checked(is_frozen))
+            .clicked()
+        {
+            self.scan_result.set_is_frozen_client_only(!is_frozen);
+            *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::FreezeIndex(self.index as i32, !is_frozen);
         }
 
         if response.is_pointer_button_down_on() {

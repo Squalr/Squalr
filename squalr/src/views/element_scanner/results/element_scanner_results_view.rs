@@ -2,7 +2,8 @@ use crate::{
     app_context::AppContext,
     ui::draw::icon_draw::IconDraw,
     views::element_scanner::results::{
-        element_scanner_result_entry_view::ElementScannerResultEntryView, view_data::element_scanner_results_view_data::ElementScannerResultsViewData,
+        element_scanner_result_entry_view::ElementScannerResultEntryView, element_scanner_result_frame_action::ElementScannerResultFrameAction,
+        view_data::element_scanner_results_view_data::ElementScannerResultsViewData,
     },
 };
 use eframe::egui::{Align, Align2, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
@@ -43,6 +44,7 @@ impl Widget for ElementScannerResultsView {
         let theme = &self.app_context.theme;
         let mut new_value_splitter_ratio: Option<f32> = None;
         let mut new_previous_value_splitter_ratio: Option<f32> = None;
+        let mut element_sanner_result_frame_action: ElementScannerResultFrameAction = ElementScannerResultFrameAction::None;
 
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |mut user_interface| {
@@ -57,9 +59,10 @@ impl Widget for ElementScannerResultsView {
                     response
                 };
 
-                let element_scanner_results_view_data = match self.element_scanner_results_view_data.read() {
+                let mut element_scanner_results_view_data = match self.element_scanner_results_view_data.write() {
                     Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-                    Err(_error) => {
+                    Err(error) => {
+                        log::error!("Failed to acquire read lock for element scan results view data: {}", error);
                         return;
                     }
                 };
@@ -109,10 +112,12 @@ impl Widget for ElementScannerResultsView {
                     .show(&mut user_interface, |user_interface| {
                         // Draw rows, capture min/max Y.
                         for index in 0..element_scanner_results_view_data.current_scan_results.len() {
-                            let scan_result = &element_scanner_results_view_data.current_scan_results[index];
+                            let mut scan_result = &mut element_scanner_results_view_data.current_scan_results[index];
                             let row_response = user_interface.add(ElementScannerResultEntryView::new(
                                 self.app_context.clone(),
-                                scan_result,
+                                &mut scan_result,
+                                index,
+                                &mut element_sanner_result_frame_action,
                                 faux_address_splitter_position_x,
                                 value_splitter_position_x,
                                 previous_value_splitter_position_x,
@@ -242,7 +247,8 @@ impl Widget for ElementScannerResultsView {
         if new_value_splitter_ratio.is_some() || new_previous_value_splitter_ratio.is_some() {
             let mut element_scanner_results_view_data = match self.element_scanner_results_view_data.write() {
                 Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-                Err(_error) => {
+                Err(error) => {
+                    log::error!("Failed to acquire write lock for element scan results view data: {}", error);
                     return response;
                 }
             };
@@ -253,6 +259,37 @@ impl Widget for ElementScannerResultsView {
 
             if let Some(new_previous_value_splitter_ratio) = new_previous_value_splitter_ratio {
                 element_scanner_results_view_data.previous_value_splitter_ratio = new_previous_value_splitter_ratio;
+            }
+        }
+
+        if element_sanner_result_frame_action != ElementScannerResultFrameAction::None {
+            match element_sanner_result_frame_action {
+                ElementScannerResultFrameAction::None => {}
+                ElementScannerResultFrameAction::SetSelectionStart(index) => {
+                    ElementScannerResultsViewData::set_scan_result_selection_start(
+                        self.element_scanner_results_view_data.clone(),
+                        self.app_context.engine_execution_context.clone(),
+                        index,
+                    );
+                }
+                ElementScannerResultFrameAction::SetSelectionEnd(index) => {
+                    ElementScannerResultsViewData::set_scan_result_selection_end(
+                        self.element_scanner_results_view_data.clone(),
+                        self.app_context.engine_execution_context.clone(),
+                        index,
+                    );
+                }
+                ElementScannerResultFrameAction::FreezeIndex(index, is_frozen) => {
+                    ElementScannerResultsViewData::set_scan_result_frozen(
+                        self.element_scanner_results_view_data.clone(),
+                        self.app_context.engine_execution_context.clone(),
+                        index,
+                        is_frozen,
+                    );
+                }
+                ElementScannerResultFrameAction::FreezeSelection => {}
+                ElementScannerResultFrameAction::AddSelection => {}
+                ElementScannerResultFrameAction::DeleteSelection => {}
             }
         }
 
