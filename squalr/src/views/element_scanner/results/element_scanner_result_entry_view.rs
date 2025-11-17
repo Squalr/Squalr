@@ -4,7 +4,7 @@ use crate::{
     views::element_scanner::results::element_scanner_result_frame_action::ElementScannerResultFrameAction,
 };
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, Widget, pos2, vec2};
-use epaint::{Color32, CornerRadius};
+use epaint::{Color32, CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::structures::{data_values::display_value_type::DisplayValueType, scan_results::scan_result::ScanResult};
 use std::sync::Arc;
 
@@ -12,6 +12,7 @@ pub struct ElementScannerResultEntryView<'lifetime> {
     app_context: Arc<AppContext>,
     scan_result: &'lifetime mut ScanResult,
     index: usize,
+    is_selected: bool,
     element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
     address_splitter_position_x: f32,
     value_splitter_position_x: f32,
@@ -23,6 +24,7 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
         app_context: Arc<AppContext>,
         scan_result: &'lifetime mut ScanResult,
         index: usize,
+        is_selected: bool,
         element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
         address_splitter_position_x: f32,
         value_splitter_position_x: f32,
@@ -32,6 +34,7 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
             app_context,
             scan_result,
             index,
+            is_selected,
             element_sanner_result_frame_action,
             address_splitter_position_x,
             value_splitter_position_x,
@@ -50,6 +53,21 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         let row_height = 32.0;
 
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, row_height), Sense::click());
+
+        if self.is_selected {
+            // Draw the background.
+            user_interface
+                .painter()
+                .rect_filled(allocated_size_rectangle, CornerRadius::ZERO, theme.selected_background);
+
+            // Draw the border.
+            user_interface.painter().rect_stroke(
+                allocated_size_rectangle,
+                CornerRadius::ZERO,
+                Stroke::new(1.0, theme.selected_border),
+                StrokeKind::Inside,
+            );
+        }
 
         // Background and state overlay.
         StateLayer {
@@ -76,6 +94,14 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         );
         let checkbox_rectangle = Rect::from_min_size(checkbox_position, checkbox_size);
         let is_frozen = self.scan_result.get_is_frozen();
+
+        if response.clicked() {
+            if user_interface.input(|input| input.modifiers.shift) {
+                *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::SetSelectionEnd(Some(self.index as i32));
+            } else {
+                *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::SetSelectionStart(Some(self.index as i32));
+            }
+        }
 
         if user_interface
             .put(checkbox_rectangle, Checkbox::new_from_theme(theme).checked(is_frozen))

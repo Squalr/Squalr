@@ -28,8 +28,8 @@ pub struct ElementScannerResultsViewData {
     pub current_scan_results: Vec<ScanResult>,
     pub current_page_index: u64,
     pub cached_last_page_index: u64,
-    pub selection_index_start: i32,
-    pub selection_index_end: i32,
+    pub selection_index_start: Option<i32>,
+    pub selection_index_end: Option<i32>,
     pub result_count: u64,
     pub stats_string: String,
 }
@@ -45,8 +45,8 @@ impl ElementScannerResultsViewData {
             current_scan_results: Vec::new(),
             current_page_index: 0,
             cached_last_page_index: 0,
-            selection_index_start: 0,
-            selection_index_end: 0,
+            selection_index_start: None,
+            selection_index_end: None,
             result_count: 0,
             stats_string: String::new(),
         }
@@ -326,7 +326,7 @@ impl ElementScannerResultsViewData {
     pub fn set_scan_result_selection_start(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
-        scan_result_collection_start_index: i32,
+        scan_result_collection_start_index: Option<i32>,
     ) {
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
             Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
@@ -337,6 +337,7 @@ impl ElementScannerResultsViewData {
             }
         };
         element_scanner_results_view_data.selection_index_start = scan_result_collection_start_index;
+        element_scanner_results_view_data.selection_index_end = None;
 
         /*
         let scan_results = Self::collect_selected_scan_results();
@@ -357,10 +358,19 @@ impl ElementScannerResultsViewData {
     pub fn set_scan_result_selection_end(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
-        scan_result_collection_end_index: i32,
+        scan_result_collection_end_index: Option<i32>,
     ) {
+        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
+            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
+            Err(error) => {
+                log::error!("Failed to acquire write lock on element scanner results view data: {}", error);
+
+                return;
+            }
+        };
+        element_scanner_results_view_data.selection_index_end = scan_result_collection_end_index;
+
         /*
-        self.selection_index_end = scan_result_collection_end_index;
         let scan_results = self.collect_selected_scan_results();
 
         if !scan_results.is_empty() {
@@ -480,23 +490,29 @@ impl ElementScannerResultsViewData {
                 return Vec::new();
             }
         };
+
+        // Pull out the optional bounds.
         let mut initial_selection_index_start = element_scanner_results_view_data.selection_index_start;
         let mut initial_selection_index_end = element_scanner_results_view_data.selection_index_end;
 
         // If either start or end is invalid, set the start and end to the same value (single selection).
-        if initial_selection_index_start < 0 && initial_selection_index_end >= 0 {
-            initial_selection_index_start = initial_selection_index_end;
-        } else if initial_selection_index_end < 0 && initial_selection_index_start >= 0 {
-            initial_selection_index_end = initial_selection_index_start;
+        match (initial_selection_index_start, initial_selection_index_end) {
+            (Some(start), None) => {
+                initial_selection_index_end = Some(start);
+            }
+            (None, Some(end)) => {
+                initial_selection_index_start = Some(end);
+            }
+            _ => {}
         }
 
-        // If both are invalid, return empty
-        if initial_selection_index_start < 0 || initial_selection_index_end < 0 {
+        // If both are invalid, return empty.
+        let (Some(start), Some(end)) = (initial_selection_index_start, initial_selection_index_end) else {
             return vec![];
-        }
+        };
 
-        let selection_index_start = cmp::min(initial_selection_index_start, initial_selection_index_end);
-        let selection_index_end = cmp::max(initial_selection_index_start, initial_selection_index_end);
+        let selection_index_start = cmp::min(start, end);
+        let selection_index_end = cmp::max(start, end);
 
         let local_scan_result_indices = selection_index_start..=selection_index_end;
 
