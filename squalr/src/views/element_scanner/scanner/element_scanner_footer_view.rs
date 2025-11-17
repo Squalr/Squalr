@@ -1,7 +1,7 @@
-use crate::views::element_scanner::view_data::element_scanner_results_view_data::ElementScannerResultsViewData;
 use crate::{
     app_context::AppContext,
     ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
+    views::element_scanner::results::view_data::element_scanner_results_view_data::ElementScannerResultsViewData,
 };
 use eframe::egui::{Align, Response, RichText, Sense, TextEdit, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, Rect, Stroke, StrokeKind, pos2, vec2};

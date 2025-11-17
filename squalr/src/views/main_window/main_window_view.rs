@@ -2,7 +2,7 @@ use crate::app_context::AppContext;
 use crate::ui::widgets::docking::dock_root_view::DockRootView;
 use crate::ui::widgets::docking::dock_root_view_data::DockRootViewData;
 use crate::ui::widgets::docking::docked_window_view::DockedWindowView;
-use crate::views::element_scanner::element_scanner_view::ElementScannerView;
+use crate::views::element_scanner::scanner::element_scanner_view::ElementScannerView;
 use crate::views::main_window::main_footer_view::MainFooterView;
 use crate::views::main_window::main_shortcut_bar_view::MainShortcutBarView;
 use crate::views::main_window::main_title_bar_view::MainTitleBarView;

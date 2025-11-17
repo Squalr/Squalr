@@ -323,7 +323,7 @@ impl ElementScannerResultsViewData {
         Self::set_page_index(element_scanner_results_view_data, engine_execution_context, new_page_index);
     }
 
-    fn set_scan_result_selection_start(
+    pub fn set_scan_result_selection_start(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
         scan_result_collection_start_index: i32,
@@ -354,7 +354,7 @@ impl ElementScannerResultsViewData {
         }*/
     }
 
-    fn set_scan_result_selection_end(
+    pub fn set_scan_result_selection_end(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
         scan_result_collection_end_index: i32,

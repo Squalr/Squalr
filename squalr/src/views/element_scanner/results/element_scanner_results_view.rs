@@ -1,7 +1,7 @@
 use crate::{
     app_context::AppContext,
     ui::draw::icon_draw::IconDraw,
-    views::element_scanner::{
+    views::element_scanner::results::{
         element_scanner_result_entry_view::ElementScannerResultEntryView, view_data::element_scanner_results_view_data::ElementScannerResultsViewData,
     },
 };

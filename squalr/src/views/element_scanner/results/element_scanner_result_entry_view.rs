@@ -66,7 +66,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         );
         let checkbox_rectangle = Rect::from_min_size(checkbox_position, checkbox_size);
 
-        // Draw checkbox background
+        // Checkbox background.
         user_interface
             .painter()
             .rect_filled(checkbox_rectangle, CornerRadius::ZERO, theme.background_control);
@@ -74,12 +74,13 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             .painter()
             .rect_stroke(checkbox_rectangle, CornerRadius::ZERO, (1.0, theme.submenu_border), StrokeKind::Inside);
 
-        // Hover/press tint (cosmetic)
+        // Checkbox hover / press tint.
         if response.hovered() {
             user_interface
                 .painter()
                 .rect_filled(checkbox_rectangle, CornerRadius::ZERO, theme.hover_tint);
         }
+
         if response.is_pointer_button_down_on() {
             user_interface
                 .painter()

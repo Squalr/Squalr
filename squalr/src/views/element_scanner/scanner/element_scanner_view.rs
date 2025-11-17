@@ -1,12 +1,9 @@
-use crate::{
-    app_context::AppContext,
-    views::element_scanner::{
-        element_scanner_footer_view::ElementScannerFooterView,
-        element_scanner_results_view::ElementScannerResultsView,
-        element_scanner_toolbar_view::ElementScannerToolbarView,
-        view_data::{element_scanner_results_view_data::ElementScannerResultsViewData, element_scanner_view_data::ElementScannerViewData},
-    },
-};
+use crate::app_context::AppContext;
+use crate::views::element_scanner::results::element_scanner_results_view::ElementScannerResultsView;
+use crate::views::element_scanner::results::view_data::element_scanner_results_view_data::ElementScannerResultsViewData;
+use crate::views::element_scanner::scanner::element_scanner_footer_view::ElementScannerFooterView;
+use crate::views::element_scanner::scanner::element_scanner_toolbar_view::ElementScannerToolbarView;
+use crate::views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerViewData;
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Rect, vec2};
 use squalr_engine_api::dependency_injection::dependency::Dependency;

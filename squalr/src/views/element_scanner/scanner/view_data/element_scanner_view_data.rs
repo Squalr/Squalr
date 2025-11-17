@@ -1,4 +1,4 @@
-use crate::views::element_scanner::element_scanner_view_state::ElementScannerViewState;
+use crate::views::element_scanner::scanner::element_scanner_view_state::ElementScannerViewState;
 use squalr_engine_api::{
     commands::{
         engine_command_request::EngineCommandRequest,
