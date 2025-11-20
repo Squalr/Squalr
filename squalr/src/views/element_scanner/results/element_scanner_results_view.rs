@@ -2,8 +2,8 @@ use crate::{
     app_context::AppContext,
     ui::draw::icon_draw::IconDraw,
     views::element_scanner::results::{
-        element_scanner_result_entry_view::ElementScannerResultEntryView, element_scanner_result_frame_action::ElementScannerResultFrameAction,
-        view_data::element_scanner_results_view_data::ElementScannerResultsViewData,
+        element_scanner_result_entry_view::ElementScannerResultEntryView,
+        view_data::{element_scanner_result_frame_action::ElementScannerResultFrameAction, element_scanner_results_view_data::ElementScannerResultsViewData},
     },
 };
 use eframe::egui::{Align, Align2, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
@@ -105,6 +105,17 @@ impl Widget for ElementScannerResultsView {
 
                 // Faux address splitter.
                 let faux_address_splitter_position_x = content_min_x + 36.0;
+                let overlay_view_index = {
+                    match (
+                        element_scanner_results_view_data.selection_index_start,
+                        element_scanner_results_view_data.selection_index_end,
+                    ) {
+                        (Some(start), Some(_end)) => Some(start),
+                        (Some(start), None) => Some(start),
+                        (None, Some(end)) => Some(end),
+                        (None, None) => None,
+                    }
+                };
 
                 ScrollArea::vertical()
                     .id_salt("element_scanner")

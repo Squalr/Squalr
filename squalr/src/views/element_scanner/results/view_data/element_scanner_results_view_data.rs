@@ -517,7 +517,6 @@ impl ElementScannerResultsViewData {
 
         let selection_index_start = cmp::min(start, end);
         let selection_index_end = cmp::max(start, end);
-
         let local_scan_result_indices = selection_index_start..=selection_index_end;
 
         local_scan_result_indices

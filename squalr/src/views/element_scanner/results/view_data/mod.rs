@@ -1,1 +1,2 @@
+pub mod element_scanner_result_frame_action;
 pub mod element_scanner_results_view_data;

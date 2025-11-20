@@ -25,6 +25,9 @@ pub struct Checkbox<'lifetime> {
 }
 
 impl<'lifetime> Checkbox<'lifetime> {
+    pub const WIDTH: f32 = 18.0;
+    pub const HEIGHT: f32 = 18.0;
+
     pub fn new_from_theme(theme: &Theme) -> Self {
         let mut checkbox = Checkbox::default();
 

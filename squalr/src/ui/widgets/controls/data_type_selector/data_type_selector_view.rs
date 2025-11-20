@@ -77,7 +77,6 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let data_type_id = self.active_data_type.get_data_type_id();
         let icon = DataTypeToIconConverter::convert_data_type_to_icon(data_type_id, icon_library);
 
-        // Build the combo box widget first
         let combo_box = ComboBoxView::new(
             self.app_context.clone(),
             DataTypeToStringConverter::convert_data_type_to_string(data_type_id),
