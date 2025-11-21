@@ -41,6 +41,10 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
             previous_value_splitter_position_x,
         }
     }
+
+    pub fn get_height(&self) -> f32 {
+        32.0
+    }
 }
 
 impl<'a> Widget for ElementScannerResultEntryView<'a> {
@@ -50,7 +54,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
     ) -> Response {
         let theme = &self.app_context.theme;
         let text_left_padding = 8.0;
-        let row_height = 32.0;
+        let row_height = self.get_height();
 
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, row_height), Sense::click());
 

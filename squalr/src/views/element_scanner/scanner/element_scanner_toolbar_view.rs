@@ -49,7 +49,7 @@ impl Widget for ElementScannerToolbarView {
 
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), height), Sense::hover());
 
-        // Background
+        // Background.
         user_interface
             .painter()
             .rect_filled(allocated_size_rectangle, CornerRadius::ZERO, theme.background_primary);

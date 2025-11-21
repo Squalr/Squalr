@@ -3,8 +3,11 @@ use squalr_engine_api::commands::scan_results::delete::scan_results_delete_reque
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::data_values::display_value::DisplayValue;
+use squalr_engine_api::structures::data_values::display_value_type::DisplayValueType;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
+use squalr_engine_api::structures::structs::container_type::ContainerType;
 use squalr_engine_api::{
     commands::{
         engine_command_request::EngineCommandRequest,
@@ -32,6 +35,7 @@ pub struct ElementScannerResultsViewData {
     pub selection_index_end: Option<i32>,
     pub result_count: u64,
     pub stats_string: String,
+    pub edit_value: DisplayValue,
 }
 
 impl ElementScannerResultsViewData {
@@ -49,6 +53,7 @@ impl ElementScannerResultsViewData {
             selection_index_end: None,
             result_count: 0,
             stats_string: String::new(),
+            edit_value: DisplayValue::new(String::new(), DisplayValueType::Decimal, ContainerType::None),
         }
     }
 

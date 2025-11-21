@@ -3,6 +3,7 @@ use crate::{
     ui::draw::icon_draw::IconDraw,
     views::element_scanner::results::{
         element_scanner_result_entry_view::ElementScannerResultEntryView,
+        element_scanner_results_action_bar_view::ElementScannerResultsActionBarView,
         view_data::{element_scanner_result_frame_action::ElementScannerResultFrameAction, element_scanner_results_view_data::ElementScannerResultsViewData},
     },
 };
@@ -80,9 +81,15 @@ impl Widget for ElementScannerResultsView {
                     .painter()
                     .rect_filled(separator_rect, 0.0, theme.background_control);
 
-                let content_clip_rectangle = user_interface.available_rect_before_wrap();
+                let footer_height = ElementScannerResultsActionBarView::FOOTER_HEIGHT;
+                let content_clip_rectangle = user_interface
+                    .available_rect_before_wrap()
+                    .with_max_y(user_interface.available_rect_before_wrap().max.y - footer_height);
                 let content_width = content_clip_rectangle.width();
                 let content_min_x = content_clip_rectangle.min.x;
+
+                // Now shrink the available space for the scroll area:
+                let scroll_height = user_interface.available_height() - footer_height;
 
                 // Clamp splitters to row height.
                 let mut rows_min_y: Option<f32> = None;
@@ -102,71 +109,7 @@ impl Widget for ElementScannerResultsView {
 
                 let value_splitter_position_x = content_min_x + content_width * value_splitter_ratio;
                 let previous_value_splitter_position_x = content_min_x + content_width * previous_value_splitter_ratio;
-
-                // Faux address splitter.
                 let faux_address_splitter_position_x = content_min_x + 36.0;
-                let overlay_view_index = {
-                    match (
-                        element_scanner_results_view_data.selection_index_start,
-                        element_scanner_results_view_data.selection_index_end,
-                    ) {
-                        (Some(start), Some(_end)) => Some(start),
-                        (Some(start), None) => Some(start),
-                        (None, Some(end)) => Some(end),
-                        (None, None) => None,
-                    }
-                };
-
-                ScrollArea::vertical()
-                    .id_salt("element_scanner")
-                    .auto_shrink([false, false])
-                    .show(&mut user_interface, |user_interface| {
-                        user_interface.spacing_mut().menu_margin = Margin::ZERO;
-                        user_interface.spacing_mut().window_margin = Margin::ZERO;
-                        user_interface.spacing_mut().menu_spacing = 0.0;
-                        user_interface.spacing_mut().item_spacing = Vec2::ZERO;
-
-                        user_interface.with_layout(Layout::top_down(Align::Min), |user_interface| {
-                            // Draw rows, capture min/max Y.
-                            for index in 0..element_scanner_results_view_data.current_scan_results.len() {
-                                let is_selected = {
-                                    match (
-                                        element_scanner_results_view_data.selection_index_start,
-                                        element_scanner_results_view_data.selection_index_end,
-                                    ) {
-                                        (Some(start), Some(end)) => {
-                                            let (min_index, max_index) = if start <= end { (start, end) } else { (end, start) };
-                                            index as i32 >= min_index && index as i32 <= max_index
-                                        }
-                                        (Some(start), None) => index as i32 == start,
-                                        (None, Some(end)) => index as i32 == end,
-                                        (None, None) => false,
-                                    }
-                                };
-
-                                let mut scan_result = &mut element_scanner_results_view_data.current_scan_results[index];
-                                let row_response = user_interface.add(ElementScannerResultEntryView::new(
-                                    self.app_context.clone(),
-                                    &mut scan_result,
-                                    index,
-                                    is_selected,
-                                    &mut element_sanner_result_frame_action,
-                                    faux_address_splitter_position_x,
-                                    value_splitter_position_x,
-                                    previous_value_splitter_position_x,
-                                ));
-
-                                if rows_min_y.is_none() {
-                                    rows_min_y = Some(row_response.rect.min.y);
-                                }
-                                rows_max_y = Some(row_response.rect.max.y);
-
-                                if row_response.double_clicked() {
-                                    // JIRA: Double click logic.
-                                }
-                            }
-                        });
-                    });
 
                 let splitter_min_y = header_rectangle.min.y;
                 let splitter_max_y = content_clip_rectangle.max.y;
@@ -234,6 +177,68 @@ impl Widget for ElementScannerResultsView {
                     theme.foreground,
                 );
 
+                let mut overlay_rectangle = None;
+
+                // Result entries.
+                ScrollArea::vertical()
+                    .id_salt("element_scanner_result_entries")
+                    .max_height(scroll_height)
+                    .auto_shrink([false, false])
+                    .show(&mut user_interface, |user_interface| {
+                        user_interface.spacing_mut().menu_margin = Margin::ZERO;
+                        user_interface.spacing_mut().window_margin = Margin::ZERO;
+                        user_interface.spacing_mut().menu_spacing = 0.0;
+                        user_interface.spacing_mut().item_spacing = Vec2::ZERO;
+
+                        user_interface.with_layout(Layout::top_down(Align::Min), |user_interface| {
+                            // Draw rows, capture min/max Y.
+                            for index in 0..element_scanner_results_view_data.current_scan_results.len() {
+                                let (is_selected, show_overlay) = {
+                                    match (
+                                        element_scanner_results_view_data.selection_index_start,
+                                        element_scanner_results_view_data.selection_index_end,
+                                    ) {
+                                        (Some(start), Some(end)) => {
+                                            let (min_index, max_index) = if start <= end { (start, end) } else { (end, start) };
+                                            (index as i32 >= min_index && index as i32 <= max_index, index as i32 == min_index)
+                                        }
+                                        (Some(start), None) => (index as i32 == start, index as i32 == start),
+                                        (None, Some(end)) => (index as i32 == end, index as i32 == end),
+                                        (None, None) => (false, false),
+                                    }
+                                };
+
+                                let mut scan_result = &mut element_scanner_results_view_data.current_scan_results[index];
+                                let entry_widget = ElementScannerResultEntryView::new(
+                                    self.app_context.clone(),
+                                    &mut scan_result,
+                                    index,
+                                    is_selected,
+                                    &mut element_sanner_result_frame_action,
+                                    faux_address_splitter_position_x,
+                                    value_splitter_position_x,
+                                    previous_value_splitter_position_x,
+                                );
+                                let widget_height = entry_widget.get_height();
+                                let row_response = user_interface.add(entry_widget);
+
+                                if rows_min_y.is_none() {
+                                    rows_min_y = Some(row_response.rect.min.y);
+                                }
+
+                                rows_max_y = Some(row_response.rect.max.y);
+
+                                if show_overlay {
+                                    overlay_rectangle = Some(row_response.rect.translate(vec2(0.0, -widget_height)));
+                                }
+
+                                if row_response.double_clicked() {
+                                    // JIRA: Double click logic.
+                                }
+                            }
+                        });
+                    });
+
                 // Faux address splitter.
                 user_interface
                     .painter()
@@ -275,6 +280,18 @@ impl Widget for ElementScannerResultsView {
 
                     new_previous_value_splitter_ratio = Some(bounded_previous_value_splitter_ratio);
                 }
+
+                // Free the lock such that the action bar can grab it.
+                drop(element_scanner_results_view_data);
+
+                // Draw the footer.
+                user_interface.add(ElementScannerResultsActionBarView::new(
+                    self.app_context.clone(),
+                    &mut element_sanner_result_frame_action,
+                    faux_address_splitter_position_x,
+                    value_splitter_position_x,
+                    previous_value_splitter_position_x,
+                ));
             })
             .response;
 
