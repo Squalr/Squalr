@@ -7,4 +7,5 @@ pub enum ElementScannerResultFrameAction {
     FreezeSelection,
     AddSelection,
     DeleteSelection,
+    CommitValueToSelection,
 }

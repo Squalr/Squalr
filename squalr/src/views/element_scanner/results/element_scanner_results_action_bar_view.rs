@@ -2,7 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
-        widgets::controls::{button::Button, data_value_box::data_value_box_view::DataValueBoxView},
+        widgets::controls::{button::Button, check_state::CheckState, checkbox::Checkbox, data_value_box::data_value_box_view::DataValueBoxView},
     },
     views::element_scanner::{
         results::view_data::{
@@ -20,6 +20,7 @@ pub struct ElementScannerResultsActionBarView<'lifetime> {
     app_context: Arc<AppContext>,
     element_scanner_results_view_data: Dependency<ElementScannerResultsViewData>,
     element_scanner_view_data: Dependency<ElementScannerViewData>,
+    selection_freeze_checkstate: CheckState,
     element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
     address_splitter_position_x: f32,
     value_splitter_position_x: f32,
@@ -31,6 +32,7 @@ impl<'lifetime> ElementScannerResultsActionBarView<'lifetime> {
 
     pub fn new(
         app_context: Arc<AppContext>,
+        selection_freeze_checkstate: CheckState,
         element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
         address_splitter_position_x: f32,
         value_splitter_position_x: f32,
@@ -47,6 +49,7 @@ impl<'lifetime> ElementScannerResultsActionBarView<'lifetime> {
             app_context,
             element_scanner_results_view_data,
             element_scanner_view_data,
+            selection_freeze_checkstate,
             element_sanner_result_frame_action,
             address_splitter_position_x,
             value_splitter_position_x,
@@ -101,34 +104,12 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
 
         // Toolbar buttons.
         toolbar_user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
-            let freeze_selection_response = user_interface.add_sized(
-                button_size,
-                Button::new_from_theme(theme)
-                    .background_color(Color32::TRANSPARENT)
-                    .tooltip_text("Freeze selection."),
-            );
+            user_interface.add_space(8.0);
+            user_interface.add(Checkbox::new_from_theme(theme).with_check_state(self.selection_freeze_checkstate));
 
-            IconDraw::draw(user_interface, freeze_selection_response.rect, &theme.icon_library.icon_handle_results_freeze);
-
-            if freeze_selection_response.clicked() {
-                //
-            }
-
-            let unfreeze_selection_response = user_interface.add_sized(
-                button_size,
-                Button::new_from_theme(theme)
-                    .background_color(Color32::TRANSPARENT)
-                    .tooltip_text("Unfreeze selection."),
-            );
-
-            IconDraw::draw(user_interface, unfreeze_selection_response.rect, &theme.icon_library.icon_handle_results_freeze);
-
-            if unfreeze_selection_response.clicked() {
-                //
-            }
-
-            let add_selection_response = user_interface.add_sized(
-                button_size,
+            let y_center = allocated_size_rectangle.center().y - button_size.y * 0.5;
+            let add_selection_response = user_interface.put(
+                Rect::from_min_size(pos2(self.address_splitter_position_x, y_center), button_size),
                 Button::new_from_theme(theme)
                     .background_color(Color32::TRANSPARENT)
                     .tooltip_text("Add selection to project."),
@@ -137,7 +118,7 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
             IconDraw::draw(user_interface, add_selection_response.rect, &theme.icon_library.icon_handle_common_add);
 
             if add_selection_response.clicked() {
-                //
+                *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::AddSelection;
             }
 
             let delete_selection_response = user_interface.add_sized(
@@ -150,31 +131,42 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
             IconDraw::draw(user_interface, delete_selection_response.rect, &theme.icon_library.icon_handle_common_delete);
 
             if delete_selection_response.clicked() {
+                *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::DeleteSelection;
+            }
+
+            let data_value_box_width = self.previous_value_splitter_position_x - self.value_splitter_position_x;
+
+            user_interface.put(
+                Rect::from_min_size(
+                    pos2(self.value_splitter_position_x, allocated_size_rectangle.min.y),
+                    vec2(data_value_box_width, allocated_size_rectangle.height()),
+                ),
+                DataValueBoxView::new(
+                    self.app_context.clone(),
+                    &mut element_scanner_results_view_data.edit_value,
+                    &element_scanner_view_data.selected_data_type,
+                    false,
+                    true,
+                    "Edit selected values...",
+                    "data_value_box_edit_value",
+                )
+                .width(data_value_box_width),
+            );
+
+            let commit_value_response = user_interface.add_sized(
+                button_size,
+                Button::new_from_theme(theme)
+                    .background_color(Color32::TRANSPARENT)
+                    .tooltip_text("Commit value to selected scan results."),
+            );
+
+            IconDraw::draw(user_interface, commit_value_response.rect, &theme.icon_library.icon_handle_common_check_mark);
+
+            if commit_value_response.clicked() {
                 //
+                *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::CommitValueToSelection;
             }
         });
-
-        // Treat value_splitter_position_x as an absolute X in the same space as allocated_size_rectangle.
-        let value_box_height = button_size.y;
-        let value_box_min_x = self
-            .value_splitter_position_x
-            .clamp(allocated_size_rectangle.left(), allocated_size_rectangle.right());
-        let value_box_min_y = allocated_size_rectangle.center().y - value_box_height * 0.5;
-        let value_box_width = (allocated_size_rectangle.right() - value_box_min_x).max(1.0);
-        let value_box_rectangle = Rect::from_min_size(pos2(value_box_min_x, value_box_min_y), vec2(value_box_width, value_box_height));
-
-        user_interface.place(
-            value_box_rectangle,
-            DataValueBoxView::new(
-                self.app_context.clone(),
-                &mut element_scanner_results_view_data.edit_value,
-                &element_scanner_view_data.selected_data_type,
-                false,
-                true,
-                "Edit selected values...",
-                "data_value_box_edit_value",
-            ),
-        );
 
         response
     }

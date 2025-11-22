@@ -1,6 +1,6 @@
 use crate::{
     app_context::AppContext,
-    ui::draw::icon_draw::IconDraw,
+    ui::{draw::icon_draw::IconDraw, widgets::controls::check_state::CheckState},
     views::element_scanner::results::{
         element_scanner_result_entry_view::ElementScannerResultEntryView,
         element_scanner_results_action_bar_view::ElementScannerResultsActionBarView,
@@ -177,7 +177,8 @@ impl Widget for ElementScannerResultsView {
                     theme.foreground,
                 );
 
-                let mut overlay_rectangle = None;
+                // Assume all false.
+                let mut selection_freeze_checkstate = CheckState::False;
 
                 // Result entries.
                 ScrollArea::vertical()
@@ -193,22 +194,40 @@ impl Widget for ElementScannerResultsView {
                         user_interface.with_layout(Layout::top_down(Align::Min), |user_interface| {
                             // Draw rows, capture min/max Y.
                             for index in 0..element_scanner_results_view_data.current_scan_results.len() {
-                                let (is_selected, show_overlay) = {
+                                let is_selected = {
                                     match (
                                         element_scanner_results_view_data.selection_index_start,
                                         element_scanner_results_view_data.selection_index_end,
                                     ) {
                                         (Some(start), Some(end)) => {
                                             let (min_index, max_index) = if start <= end { (start, end) } else { (end, start) };
-                                            (index as i32 >= min_index && index as i32 <= max_index, index as i32 == min_index)
+                                            index as i32 >= min_index && index as i32 <= max_index
                                         }
-                                        (Some(start), None) => (index as i32 == start, index as i32 == start),
-                                        (None, Some(end)) => (index as i32 == end, index as i32 == end),
-                                        (None, None) => (false, false),
+                                        (Some(start), None) => index as i32 == start,
+                                        (None, Some(end)) => index as i32 == end,
+                                        (None, None) => false,
                                     }
                                 };
 
                                 let mut scan_result = &mut element_scanner_results_view_data.current_scan_results[index];
+
+                                // Update the cumulative check state based on whether this scan result is frozen.
+                                if is_selected {
+                                    match selection_freeze_checkstate {
+                                        CheckState::False => {
+                                            if scan_result.get_is_frozen() {
+                                                selection_freeze_checkstate = CheckState::True;
+                                            }
+                                        }
+                                        CheckState::True => {
+                                            if !scan_result.get_is_frozen() {
+                                                selection_freeze_checkstate = CheckState::Mixed;
+                                            }
+                                        }
+                                        CheckState::Mixed => {}
+                                    }
+                                }
+
                                 let entry_widget = ElementScannerResultEntryView::new(
                                     self.app_context.clone(),
                                     &mut scan_result,
@@ -219,7 +238,6 @@ impl Widget for ElementScannerResultsView {
                                     value_splitter_position_x,
                                     previous_value_splitter_position_x,
                                 );
-                                let widget_height = entry_widget.get_height();
                                 let row_response = user_interface.add(entry_widget);
 
                                 if rows_min_y.is_none() {
@@ -227,10 +245,6 @@ impl Widget for ElementScannerResultsView {
                                 }
 
                                 rows_max_y = Some(row_response.rect.max.y);
-
-                                if show_overlay {
-                                    overlay_rectangle = Some(row_response.rect.translate(vec2(0.0, -widget_height)));
-                                }
 
                                 if row_response.double_clicked() {
                                     // JIRA: Double click logic.
@@ -287,6 +301,7 @@ impl Widget for ElementScannerResultsView {
                 // Draw the footer.
                 user_interface.add(ElementScannerResultsActionBarView::new(
                     self.app_context.clone(),
+                    selection_freeze_checkstate,
                     &mut element_sanner_result_frame_action,
                     faux_address_splitter_position_x,
                     value_splitter_position_x,
@@ -341,6 +356,7 @@ impl Widget for ElementScannerResultsView {
                 ElementScannerResultFrameAction::FreezeSelection => {}
                 ElementScannerResultFrameAction::AddSelection => {}
                 ElementScannerResultFrameAction::DeleteSelection => {}
+                ElementScannerResultFrameAction::CommitValueToSelection => {}
             }
         }
 

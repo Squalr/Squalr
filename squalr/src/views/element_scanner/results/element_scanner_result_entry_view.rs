@@ -108,7 +108,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         }
 
         if user_interface
-            .place(checkbox_rectangle, Checkbox::new_from_theme(theme).checked(is_frozen))
+            .place(checkbox_rectangle, Checkbox::new_from_theme(theme).with_check_state_bool(is_frozen))
             .clicked()
         {
             self.scan_result.set_is_frozen_client_only(!is_frozen);

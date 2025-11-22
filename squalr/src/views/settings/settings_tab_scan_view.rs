@@ -220,7 +220,7 @@ impl Widget for SettingsTabScanView {
                     GroupBox::new_from_theme(theme, "Scan Internals", |user_interface| {
                         user_interface.horizontal(|user_interface| {
                             if user_interface
-                                .add(Checkbox::new_from_theme(theme).checked(cached_scan_settings.is_single_threaded_scan))
+                                .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_scan_settings.is_single_threaded_scan))
                                 .clicked()
                             {
                                 if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
@@ -239,7 +239,7 @@ impl Widget for SettingsTabScanView {
                         user_interface.add_space(8.0);
                         user_interface.horizontal(|user_interface| {
                             if user_interface
-                                .add(Checkbox::new_from_theme(theme).checked(cached_scan_settings.debug_perform_validation_scan))
+                                .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_scan_settings.debug_perform_validation_scan))
                                 .clicked()
                             {
                                 if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {

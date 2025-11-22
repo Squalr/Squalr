@@ -7,10 +7,7 @@ use squalr_engine_api::{
     commands::{engine_command_request::EngineCommandRequest, settings::memory::list::memory_settings_list_request::MemorySettingsListRequest},
     structures::settings::memory_settings::MemorySettings,
 };
-use std::{
-    rc::Rc,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
 pub struct SettingsTabMemoryView {
@@ -64,7 +61,7 @@ impl Widget for SettingsTabMemoryView {
                             user_interface.vertical(|user_interface| {
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.required_write))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.required_write))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
@@ -82,7 +79,7 @@ impl Widget for SettingsTabMemoryView {
                                 user_interface.add_space(4.0);
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.required_execute))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.required_execute))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
@@ -100,7 +97,7 @@ impl Widget for SettingsTabMemoryView {
                                 user_interface.add_space(4.0);
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.required_copy_on_write))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.required_copy_on_write))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
@@ -125,7 +122,7 @@ impl Widget for SettingsTabMemoryView {
                             user_interface.vertical(|user_interface| {
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.excluded_write))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.excluded_write))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
@@ -143,7 +140,7 @@ impl Widget for SettingsTabMemoryView {
                                 user_interface.add_space(4.0);
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.excluded_execute))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.excluded_execute))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
@@ -161,7 +158,7 @@ impl Widget for SettingsTabMemoryView {
                                 user_interface.add_space(4.0);
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.excluded_copy_on_write))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.excluded_copy_on_write))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
@@ -189,7 +186,7 @@ impl Widget for SettingsTabMemoryView {
                             user_interface.vertical(|user_interface| {
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.memory_type_none))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.memory_type_none))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
@@ -207,7 +204,7 @@ impl Widget for SettingsTabMemoryView {
                                 user_interface.add_space(4.0);
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.memory_type_image))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.memory_type_image))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
@@ -225,7 +222,7 @@ impl Widget for SettingsTabMemoryView {
                                 user_interface.add_space(4.0);
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.memory_type_private))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.memory_type_private))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
@@ -243,7 +240,7 @@ impl Widget for SettingsTabMemoryView {
                                 user_interface.add_space(4.0);
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.memory_type_mapped))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.memory_type_mapped))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
@@ -270,7 +267,7 @@ impl Widget for SettingsTabMemoryView {
                             user_interface.vertical(|user_interface| {
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.only_query_usermode))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.only_query_usermode))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
@@ -288,7 +285,7 @@ impl Widget for SettingsTabMemoryView {
                                 user_interface.add_space(4.0);
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.only_query_usermode))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.only_query_usermode))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
@@ -306,7 +303,7 @@ impl Widget for SettingsTabMemoryView {
                                 user_interface.add_space(4.0);
                                 user_interface.horizontal(|user_interface| {
                                     if user_interface
-                                        .add(Checkbox::new_from_theme(theme).checked(cached_memory_settings.only_query_usermode))
+                                        .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.only_query_usermode))
                                         .clicked()
                                     {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {

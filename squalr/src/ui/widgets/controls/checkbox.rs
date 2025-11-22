@@ -1,9 +1,8 @@
-use crate::ui::theme::Theme;
 use crate::ui::widgets::controls::state_layer::StateLayer;
+use crate::ui::{theme::Theme, widgets::controls::check_state::CheckState};
 use eframe::egui::{Color32, Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, Rect, StrokeKind, TextureHandle, Vec2, pos2};
 
-#[derive(Default)]
 pub struct Checkbox<'lifetime> {
     pub tooltip_text: &'lifetime str,
 
@@ -16,11 +15,12 @@ pub struct Checkbox<'lifetime> {
     pub hover_tint: Color32,
     pub pressed_tint: Color32,
     pub border_color_focused: Option<Color32>,
-    pub icon: Option<TextureHandle>,
+    pub icon_checked: TextureHandle,
+    pub icon_mixed: TextureHandle,
 
     pub click_sound: Option<&'lifetime str>,
 
-    pub is_checked: bool,
+    pub check_state: CheckState,
     pub disabled: bool,
 }
 
@@ -29,26 +29,43 @@ impl<'lifetime> Checkbox<'lifetime> {
     pub const HEIGHT: f32 = 18.0;
 
     pub fn new_from_theme(theme: &Theme) -> Self {
-        let mut checkbox = Checkbox::default();
+        let checkbox = Self {
+            tooltip_text: "",
 
-        checkbox.corner_radius = CornerRadius::ZERO;
-        checkbox.border_width = 1.0;
-        checkbox.size = Vec2::new(18.0, 18.0);
-        checkbox.background_color = theme.background_control;
-        checkbox.border_color = theme.submenu_border;
-        checkbox.hover_tint = theme.hover_tint;
-        checkbox.pressed_tint = theme.pressed_tint;
-        checkbox.border_color_focused = Some(theme.focused_border);
-        checkbox.icon = Some(theme.icon_library.icon_handle_common_check_mark.clone());
+            corner_radius: CornerRadius::ZERO,
+            border_width: 1.0,
+            size: Vec2::new(18.0, 18.0),
+
+            background_color: theme.background_control,
+            border_color: theme.submenu_border,
+            hover_tint: theme.hover_tint,
+            pressed_tint: theme.pressed_tint,
+            border_color_focused: Some(theme.focused_border),
+            icon_checked: theme.icon_library.icon_handle_common_check_mark.clone(),
+            icon_mixed: theme.icon_library.icon_handle_minimize.clone(),
+
+            click_sound: None,
+
+            check_state: CheckState::False,
+            disabled: false,
+        };
 
         checkbox
     }
 
-    pub fn checked(
+    pub fn with_check_state(
         mut self,
-        checked: bool,
+        check_state: CheckState,
     ) -> Self {
-        self.is_checked = checked;
+        self.check_state = check_state;
+        self
+    }
+
+    pub fn with_check_state_bool(
+        mut self,
+        is_checked: bool,
+    ) -> Self {
+        self.check_state = CheckState::from_bool(is_checked);
         self
     }
 
@@ -109,13 +126,25 @@ impl<'lifetime> Widget for Checkbox<'lifetime> {
         .ui(user_interface);
 
         // Display icon if checked.
-        if self.is_checked {
-            if let Some(icon) = self.icon {
-                let texture_size = icon.size_vec2();
+        match self.check_state {
+            CheckState::False => {}
+            CheckState::True => {
+                let texture_size = self.icon_checked.size_vec2();
                 let icon_position = allocated_size_rectangle.center() - texture_size * 0.5;
 
                 user_interface.painter().image(
-                    icon.id(),
+                    self.icon_checked.id(),
+                    Rect::from_min_size(icon_position, texture_size),
+                    Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+            }
+            CheckState::Mixed => {
+                let texture_size = self.icon_mixed.size_vec2();
+                let icon_position = allocated_size_rectangle.center() - texture_size * 0.5;
+
+                user_interface.painter().image(
+                    self.icon_mixed.id(),
                     Rect::from_min_size(icon_position, texture_size),
                     Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
                     Color32::WHITE,
