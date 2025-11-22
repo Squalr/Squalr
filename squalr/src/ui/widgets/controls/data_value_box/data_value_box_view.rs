@@ -108,7 +108,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         };
 
         let desired_size = vec2(self.width, self.height);
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::click());
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::hover());
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
 
         // Divider bar before right arrow.
@@ -119,6 +119,12 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         let dropdown_background_rectangle = Rect::from_min_max(
             pos2(divider_x + self.divider_width, allocated_size_rectangle.min.y),
             pos2(allocated_size_rectangle.max.x, allocated_size_rectangle.max.y),
+        );
+
+        let button_response = user_interface.interact(
+            dropdown_background_rectangle,
+            user_interface.make_persistent_id(format!("{}_button", self.id)),
+            Sense::click(),
         );
 
         // Arrow position.
@@ -136,9 +142,9 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             bounds_min: dropdown_background_rectangle.min,
             bounds_max: dropdown_background_rectangle.max,
             enabled: true,
-            pressed: response.is_pointer_button_down_on(),
-            has_hover: response.hovered(),
-            has_focus: response.has_focus(),
+            pressed: button_response.is_pointer_button_down_on(),
+            has_hover: button_response.hovered(),
+            has_focus: button_response.has_focus(),
             corner_radius: CornerRadius::same(self.corner_radius),
             border_width: self.border_width,
             hover_color: theme.hover_tint,
@@ -203,7 +209,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         let popup_id = Id::new(("data_value_box_popup", self.id, user_interface.id().value()));
         let mut open = user_interface.memory(|memory| memory.data.get_temp::<bool>(popup_id).unwrap_or(false));
 
-        if response.clicked() {
+        if button_response.clicked() {
             open = !open;
         }
 

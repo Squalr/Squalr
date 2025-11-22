@@ -85,11 +85,10 @@ impl Widget for ElementScannerResultsView {
                 let content_clip_rectangle = user_interface
                     .available_rect_before_wrap()
                     .with_max_y(user_interface.available_rect_before_wrap().max.y - footer_height);
-                let content_width = content_clip_rectangle.width();
-                let content_min_x = content_clip_rectangle.min.x;
 
-                // Now shrink the available space for the scroll area:
-                let scroll_height = user_interface.available_height() - footer_height;
+                let content_width = content_clip_rectangle.width();
+                let content_height = content_clip_rectangle.height();
+                let content_min_x = content_clip_rectangle.min.x;
 
                 // Clamp splitters to row height.
                 let mut rows_min_y: Option<f32> = None;
@@ -112,7 +111,7 @@ impl Widget for ElementScannerResultsView {
                 let faux_address_splitter_position_x = content_min_x + 36.0;
 
                 let splitter_min_y = header_rectangle.min.y;
-                let splitter_max_y = content_clip_rectangle.max.y;
+                let splitter_max_y = content_clip_rectangle.max.y + footer_height;
 
                 let faux_address_splitter_rectangle = Rect::from_min_max(
                     pos2(faux_address_splitter_position_x - FAUX_BAR_THICKNESS * 0.5, splitter_min_y),
@@ -183,7 +182,7 @@ impl Widget for ElementScannerResultsView {
                 // Result entries.
                 ScrollArea::vertical()
                     .id_salt("element_scanner_result_entries")
-                    .max_height(scroll_height)
+                    .max_height(content_height)
                     .auto_shrink([false, false])
                     .show(&mut user_interface, |user_interface| {
                         user_interface.spacing_mut().menu_margin = Margin::ZERO;
@@ -253,6 +252,19 @@ impl Widget for ElementScannerResultsView {
                         });
                     });
 
+                // Free the lock such that the action bar can grab it.
+                drop(element_scanner_results_view_data);
+
+                // Draw the footer.
+                user_interface.add(ElementScannerResultsActionBarView::new(
+                    self.app_context.clone(),
+                    selection_freeze_checkstate,
+                    &mut element_sanner_result_frame_action,
+                    faux_address_splitter_position_x,
+                    value_splitter_position_x,
+                    previous_value_splitter_position_x,
+                ));
+
                 // Faux address splitter.
                 user_interface
                     .painter()
@@ -294,19 +306,6 @@ impl Widget for ElementScannerResultsView {
 
                     new_previous_value_splitter_ratio = Some(bounded_previous_value_splitter_ratio);
                 }
-
-                // Free the lock such that the action bar can grab it.
-                drop(element_scanner_results_view_data);
-
-                // Draw the footer.
-                user_interface.add(ElementScannerResultsActionBarView::new(
-                    self.app_context.clone(),
-                    selection_freeze_checkstate,
-                    &mut element_sanner_result_frame_action,
-                    faux_address_splitter_position_x,
-                    value_splitter_position_x,
-                    previous_value_splitter_position_x,
-                ));
             })
             .response;
 

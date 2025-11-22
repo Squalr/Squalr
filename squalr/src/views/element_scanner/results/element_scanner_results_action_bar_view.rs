@@ -95,6 +95,11 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
         };
 
         // Background.
+        user_interface
+            .painter()
+            .rect_filled(allocated_size_rectangle, CornerRadius::ZERO, theme.background_panel);
+
+        // Border.
         toolbar_user_interface.painter().rect_stroke(
             allocated_size_rectangle,
             CornerRadius::ZERO,
@@ -134,11 +139,12 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
                 *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::DeleteSelection;
             }
 
-            let data_value_box_width = self.previous_value_splitter_position_x - self.value_splitter_position_x;
+            let padding = 2.0;
+            let data_value_box_width = self.previous_value_splitter_position_x - self.value_splitter_position_x - padding * 2.0;
 
             user_interface.put(
                 Rect::from_min_size(
-                    pos2(self.value_splitter_position_x, allocated_size_rectangle.min.y),
+                    pos2(self.value_splitter_position_x + padding, allocated_size_rectangle.min.y),
                     vec2(data_value_box_width, allocated_size_rectangle.height()),
                 ),
                 DataValueBoxView::new(
