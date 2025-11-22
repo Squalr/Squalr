@@ -1,9 +1,9 @@
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 use std::{collections::HashMap, io::Cursor};
 
-static SUCCESS_WAV: &[u8] = include_bytes!("../../../ui/audio/Success.wav");
-static NOTIFICATION_WAV: &[u8] = include_bytes!("../../../ui/audio/Notification.wav");
-static WARN_WAV: &[u8] = include_bytes!("../../../ui/audio/Warn.wav");
+static SUCCESS_WAV: &[u8] = include_bytes!("../../audio/Success.wav");
+static NOTIFICATION_WAV: &[u8] = include_bytes!("../../audio/Notification.wav");
+static WARN_WAV: &[u8] = include_bytes!("../../audio/Warn.wav");
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum SoundType {
