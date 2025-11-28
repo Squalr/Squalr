@@ -1,12 +1,14 @@
-use interprocess::local_socket::ListenerOptions;
-use interprocess::local_socket::Name;
 use interprocess::local_socket::prelude::LocalSocketStream;
 use interprocess::local_socket::traits::ListenerExt;
 use interprocess::local_socket::traits::Stream;
-use serde::Serialize;
+use interprocess::local_socket::ListenerOptions;
+use interprocess::local_socket::Name;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
+use std::fs;
 use std::io::Read;
 use std::io::Write;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
@@ -70,7 +72,7 @@ impl InterprocessPipeUnidirectional {
         #[cfg(all(not(windows), not(target_os = "android")))]
         {
             if Path::new(ipc_socket_path).exists() {
-                fs::remove_file(ipc_socket_path)?;
+                fs::remove_file(ipc_socket_path).map_err(|e| e.to_string());
             }
         }
 
