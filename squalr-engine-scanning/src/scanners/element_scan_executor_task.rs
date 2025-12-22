@@ -1,6 +1,7 @@
 use crate::scanners::element_scan_dispatcher::ElementScanDispatcher;
 use crate::scanners::snapshot_region_memory_reader::SnapshotRegionMemoryReader;
 use crate::scanners::value_collector_task::ValueCollectorTask;
+use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_api::conversions::conversions::Conversions;
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
@@ -11,7 +12,6 @@ use squalr_engine_api::structures::scanning::parameters::element_scan::element_s
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
-use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -97,17 +97,23 @@ impl ElementScanExecutorTask {
             }
 
             // Creates initial results if none exist yet.
-            snapshot_region.initialize_scan_results(&symbol_registry, element_scan_parameters.get_element_scan_values());
+            snapshot_region.initialize_scan_results(
+                &symbol_registry,
+                element_scan_parameters.get_data_types(),
+                element_scan_parameters.get_memory_alignment(),
+            );
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
             if element_scan_parameters.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
                 let _ = snapshot_region.read_all_memory(&process_info);
             }
 
+            /*
+            // JIRA: Fixme?
             if !element_scan_parameters.is_valid_for_snapshot_region(snapshot_region) {
                 processed_region_count.fetch_add(1, Ordering::SeqCst);
                 return;
-            }
+            }*/
 
             // Create a function to dispatch our element scan to the best scanner implementation for the current region.
             let element_scan_dispatcher = |snapshot_region_filter_collection| {

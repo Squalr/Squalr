@@ -4,6 +4,7 @@ use std::hash::{Hash, Hasher};
 
 /// Defines a generic range of addresses, with no extra information.
 /// This is the base type for many more specialized regions.
+#[derive(Clone)]
 pub struct NormalizedRegion {
     base_address: u64,
     region_size: u64,

@@ -73,22 +73,30 @@ impl Widget for ElementScannerToolbarView {
         let mut should_perform_new_scan = false;
         let mut should_collect_values = false;
         let mut should_start_scan = false;
+        let mut should_add_new_scan_constraint = false;
+        let mut remove_scan_constraint_index = 0;
 
         // Top row.
         toolbar_user_interface.allocate_ui(vec2(toolbar_user_interface.available_width(), row_height), |user_interface| {
             user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
+                // New scan.
+                let button_new_scan = user_interface.add_sized(
+                    button_size,
+                    Button::new_from_theme(theme)
+                        .background_color(Color32::TRANSPARENT)
+                        .tooltip_text("New scan."),
+                );
+                IconDraw::draw(user_interface, button_new_scan.rect, &theme.icon_library.icon_handle_scan_new);
+
+                if button_new_scan.clicked() {
+                    should_perform_new_scan = true;
+                }
+
                 // Data type selector.
                 user_interface.add_space(8.0);
                 user_interface.add(DataTypeSelectorView::new(
                     self.app_context.clone(),
                     &mut element_scanner_view_data.selected_data_type,
-                ));
-
-                // Scan compare type selector.
-                user_interface.add_space(8.0);
-                user_interface.add(ScanCompareTypeSelectorView::new(
-                    self.app_context.clone(),
-                    &mut element_scanner_view_data.selected_scan_compare_type,
                 ));
 
                 // Collect values.
@@ -103,71 +111,6 @@ impl Widget for ElementScannerToolbarView {
                 if button_collect_values.clicked() {
                     should_collect_values = true;
                 }
-
-                // New scan.
-                let button_new_scan = user_interface.add_sized(
-                    button_size,
-                    Button::new_from_theme(theme)
-                        .background_color(Color32::TRANSPARENT)
-                        .tooltip_text("New scan."),
-                );
-                IconDraw::draw(user_interface, button_new_scan.rect, &theme.icon_library.icon_handle_scan_new);
-
-                if button_new_scan.clicked() {
-                    should_perform_new_scan = true;
-                }
-            });
-        });
-
-        // Bottom row.
-        toolbar_user_interface.allocate_ui(vec2(toolbar_user_interface.available_width(), row_height), |user_interface| {
-            user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
-                // Scan value (primary).
-                match &element_scanner_view_data.selected_scan_compare_type {
-                    ScanCompareType::Relative(_) => {
-                        // Nothing to display for relative scans.
-                    }
-                    _ => {
-                        let data_type_ref = element_scanner_view_data.selected_data_type.clone();
-
-                        user_interface.add_space(8.0);
-                        user_interface.add(DataValueBoxView::new(
-                            self.app_context.clone(),
-                            &mut element_scanner_view_data.current_scan_value,
-                            &data_type_ref,
-                            false,
-                            true,
-                            "Enter a scan value...",
-                            "data_value_box_scan_value",
-                        ));
-                    }
-                }
-
-                // Scan value (upper limit).
-                match &element_scanner_view_data.selected_scan_compare_type {
-                    ScanCompareType::Relative(_) => {
-                        // Nothing to display for relative scans.
-                    }
-                    ScanCompareType::Delta(_) | ScanCompareType::Immediate(_) => {
-                        // JIRA: Temp disabled until we actually support a max scan value.
-                    }
-                    _ => {
-                        let data_type_ref = element_scanner_view_data.selected_data_type.clone();
-
-                        user_interface.add_space(8.0);
-                        user_interface.add(DataValueBoxView::new(
-                            self.app_context.clone(),
-                            &mut element_scanner_view_data.max_scan_value,
-                            &data_type_ref,
-                            false,
-                            true,
-                            "Enter a max scan value...",
-                            "data_value_box_scan_value_upper_limit",
-                        ));
-                    }
-                }
-
-                user_interface.add_space(8.0);
 
                 // Start scan.
                 let button_start_scan = user_interface.add_sized(
@@ -184,6 +127,70 @@ impl Widget for ElementScannerToolbarView {
             });
         });
 
+        let selected_data_type = &element_scanner_view_data.selected_data_type.clone();
+
+        // Constraint rows.
+        for index in 0..element_scanner_view_data.scan_values_and_constraints.len() {
+            let scan_values_and_constraint = &mut element_scanner_view_data.scan_values_and_constraints[index];
+
+            toolbar_user_interface.allocate_ui(vec2(toolbar_user_interface.available_width(), row_height), |user_interface| {
+                user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
+                    // Scan compare type selector.
+                    user_interface.add_space(8.0);
+                    user_interface.add(ScanCompareTypeSelectorView::new(
+                        self.app_context.clone(),
+                        &mut scan_values_and_constraint.selected_scan_compare_type,
+                    ));
+                    // Scan value (primary).
+                    match &scan_values_and_constraint.selected_scan_compare_type {
+                        ScanCompareType::Relative(_) => {
+                            // Nothing to display for relative scans.
+                        }
+                        _ => {
+                            let data_type_ref = selected_data_type.clone();
+
+                            user_interface.add_space(8.0);
+                            user_interface.add(DataValueBoxView::new(
+                                self.app_context.clone(),
+                                &mut scan_values_and_constraint.current_scan_value,
+                                &data_type_ref,
+                                false,
+                                true,
+                                "Enter a scan value...",
+                                &format!("data_value_box_scan_value_index_{}", 0),
+                            ));
+                        }
+                    }
+
+                    if index == 0 {
+                        let add_new_scan_constraint_button = user_interface.add_sized(
+                            button_size,
+                            Button::new_from_theme(theme)
+                                .background_color(Color32::TRANSPARENT)
+                                .tooltip_text("Add new scan constraint."),
+                        );
+                        IconDraw::draw(user_interface, add_new_scan_constraint_button.rect, &theme.icon_library.icon_handle_common_add);
+
+                        if add_new_scan_constraint_button.clicked() {
+                            should_add_new_scan_constraint = true;
+                        }
+                    } else {
+                        let remove_scan_constraint_button = user_interface.add_sized(
+                            button_size,
+                            Button::new_from_theme(theme)
+                                .background_color(Color32::TRANSPARENT)
+                                .tooltip_text("Add new scan constraint."),
+                        );
+                        IconDraw::draw(user_interface, remove_scan_constraint_button.rect, &theme.icon_library.icon_handle_common_add);
+
+                        if remove_scan_constraint_button.clicked() {
+                            remove_scan_constraint_index = index;
+                        }
+                    }
+                });
+            });
+        }
+
         drop(element_scanner_view_data);
 
         if should_perform_new_scan {
@@ -192,6 +199,10 @@ impl Widget for ElementScannerToolbarView {
             ElementScannerViewData::collect_values(self.app_context.engine_execution_context.clone());
         } else if should_start_scan {
             ElementScannerViewData::start_scan(self.element_scanner_view_data.clone(), self.app_context.engine_execution_context.clone());
+        } else if should_add_new_scan_constraint {
+            //
+        } else if remove_scan_constraint_index > 0 {
+            //
         }
 
         response

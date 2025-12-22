@@ -1,4 +1,6 @@
-use crate::views::element_scanner::scanner::element_scanner_view_state::ElementScannerViewState;
+use crate::views::element_scanner::scanner::{
+    element_scanner_view_state::ElementScannerViewState, view_data::element_scanner_value_view_data::ElementScannerValueViewData,
+};
 use squalr_engine_api::{
     commands::{
         engine_command_request::EngineCommandRequest,
@@ -11,29 +13,24 @@ use squalr_engine_api::{
     engine::engine_execution_context::EngineExecutionContext,
     structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
-        data_values::{anonymous_value::AnonymousValue, display_value::DisplayValue, display_value_type::DisplayValueType},
-        scanning::comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
-        structs::container_type::ContainerType,
+        data_values::anonymous_value::AnonymousValue,
+        scanning::scan_constraint::ScanConstraint,
     },
 };
 use std::sync::Arc;
 
 pub struct ElementScannerViewData {
     pub selected_data_type: DataTypeRef,
-    pub selected_scan_compare_type: ScanCompareType,
     pub view_state: ElementScannerViewState,
-    pub current_scan_value: DisplayValue,
-    pub max_scan_value: DisplayValue,
+    pub scan_values_and_constraints: Vec<ElementScannerValueViewData>,
 }
 
 impl ElementScannerViewData {
     pub fn new() -> Self {
         Self {
             selected_data_type: DataTypeRef::new(DataTypeI32::get_data_type_id()),
-            selected_scan_compare_type: ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
             view_state: ElementScannerViewState::NoResults,
-            current_scan_value: DisplayValue::new(String::new(), DisplayValueType::Decimal, ContainerType::None),
-            max_scan_value: DisplayValue::new(String::new(), DisplayValueType::Decimal, ContainerType::None),
+            scan_values_and_constraints: vec![ElementScannerValueViewData::new()],
         }
     }
 
@@ -118,17 +115,20 @@ impl ElementScannerViewData {
                 }
             }
         };
-        let data_type_ids = vec![
-            element_scanner_view_data
-                .selected_data_type
-                .get_data_type_id()
-                .to_string(),
-        ];
-        let anonymous_value = AnonymousValue::new(&element_scanner_view_data.current_scan_value);
+        let data_type_refs = vec![element_scanner_view_data.selected_data_type.clone()];
+        let scan_constraints = element_scanner_view_data
+            .scan_values_and_constraints
+            .iter()
+            .map(|scan_value_and_constraint| {
+                ScanConstraint::new(
+                    scan_value_and_constraint.selected_scan_compare_type,
+                    Some(AnonymousValue::new(&scan_value_and_constraint.current_scan_value)),
+                )
+            })
+            .collect();
         let element_scan_request = ElementScanRequest {
-            scan_value: Some(anonymous_value),
-            data_type_ids: data_type_ids,
-            compare_type: element_scanner_view_data.selected_scan_compare_type.clone(),
+            scan_constraints,
+            data_type_refs,
         };
 
         drop(element_scanner_view_data);

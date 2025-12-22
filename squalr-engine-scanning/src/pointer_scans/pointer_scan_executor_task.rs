@@ -1,8 +1,9 @@
 use crate::scanners::element_scan_executor_task::ElementScanExecutorTask;
 use crate::scanners::value_collector_task::ValueCollectorTask;
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_api::conversions::conversions::Conversions;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
+use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
@@ -11,12 +12,10 @@ use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::Sca
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
-use squalr_engine_api::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;
 use squalr_engine_api::structures::scanning::parameters::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
-use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -80,8 +79,10 @@ impl PointerScanExecutorTask {
         ValueCollectorTask::start_task(process_info.clone(), heaps_snapshot.clone(), with_logging).wait_for_completion();
 
         // Find valid pointers. JIRA: Binary search kernel?
+        /*
         let pointer_scan_minimum_address = ElementScanValue::new(DataTypeU64::get_value_from_primitive(0), MemoryAlignment::Alignment4);
         let element_scan_parameters = ElementScanParameters::new(
+            Vec::new(),
             ScanCompareType::Immediate(ScanCompareTypeImmediate::GreaterThan),
             vec![pointer_scan_minimum_address],
             FloatingPointTolerance::default(),
@@ -199,6 +200,6 @@ impl PointerScanExecutorTask {
             log::info!("Results: {} bytes", Conversions::value_to_metric_size(byte_count));
             log::info!("Scan complete in: {:?}", duration);
             log::info!("Total scan time: {:?}", total_duration);
-        }
+        }*/
     }
 }

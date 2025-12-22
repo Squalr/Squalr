@@ -1,11 +1,11 @@
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::data_value::DataValue;
+use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::memory::normalized_region::NormalizedRegion;
 use crate::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
-use crate::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -173,27 +173,27 @@ impl SnapshotRegion {
         !self.previous_values.is_empty()
     }
 
-    // JIRA: Okay great, what about struct scans and whatnot.
     pub fn initialize_scan_results(
         &mut self,
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
-        data_values_and_alignments: &Vec<ElementScanValue>,
+        data_type_refs: &Vec<DataTypeRef>,
+        memory_alignment: MemoryAlignment,
     ) {
         if self.scan_results.get_filter_collections().len() > 0 {
             return;
         }
 
-        let snapshot_region_filter_collections = data_values_and_alignments
+        let snapshot_region_filter_collections = data_type_refs
             .iter()
-            .map(|data_value_and_alignment| {
+            .map(|data_type_ref| {
                 SnapshotRegionFilterCollection::new(
                     symbol_registry,
                     vec![vec![SnapshotRegionFilter::new(
                         self.get_base_address(),
                         self.get_region_size(),
                     )]],
-                    data_value_and_alignment.get_data_type_ref().clone(),
-                    data_value_and_alignment.get_memory_alignment(),
+                    data_type_ref.clone(),
+                    memory_alignment,
                 )
             })
             .collect();

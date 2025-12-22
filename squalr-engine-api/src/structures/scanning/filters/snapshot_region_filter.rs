@@ -12,6 +12,7 @@ use std::{
 
 /// Defines a range of filtered memory within a snapshot region. These filters are created by
 /// scans to narrow down on a set of desired addresses within the parent snapshot region.
+#[derive(Clone)]
 pub struct SnapshotRegionFilter {
     filter_range: NormalizedRegion,
 }

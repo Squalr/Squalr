@@ -7,9 +7,6 @@ use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use crate::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use crate::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
-use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
-use crate::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
-use crate::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::MappedScanType;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParametersScalar;
 use crate::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
@@ -21,7 +18,8 @@ use std::sync::RwLock;
 /// Represents processed scan parameters derived from user provided scan parameters.
 #[derive(Debug, Clone)]
 pub struct MappedScanParameters {
-    data_value_and_alignment: ElementScanValue,
+    data_value: DataValue,
+    memory_alignment: MemoryAlignment,
     scan_compare_type: ScanCompareType,
     floating_point_tolerance: FloatingPointTolerance,
     vectorization_size: VectorizationSize,
@@ -33,15 +31,16 @@ impl MappedScanParameters {
     /// Creates optimized scan paramaters for a given snapshot region filter, given user provided scan parameters.
     /// Internally, the user parameters are processed into more optimal parameters that help select the most optimal scan implementation.
     pub fn new(
-        snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
-        element_scan_parameters: &ElementScanParameters,
+        data_value: DataValue,
+        memory_alignment: MemoryAlignment,
+        scan_compare_type: ScanCompareType,
+        floating_point_tolerance: FloatingPointTolerance,
     ) -> Self {
-        let data_type_ref = snapshot_region_filter_collection.get_data_type_ref();
-
         Self {
-            data_value_and_alignment: element_scan_parameters.get_data_value_and_alignment_for_data_type(data_type_ref),
-            scan_compare_type: element_scan_parameters.get_compare_type(),
-            floating_point_tolerance: element_scan_parameters.get_floating_point_tolerance(),
+            data_value,
+            memory_alignment,
+            scan_compare_type,
+            floating_point_tolerance,
             vectorization_size: VectorizationSize::default(),
             periodicity: 0,
             mapped_scan_type: MappedScanType::Scalar(ScanParametersScalar::SingleElement),
@@ -49,11 +48,11 @@ impl MappedScanParameters {
     }
 
     pub fn get_data_value(&self) -> &DataValue {
-        &self.data_value_and_alignment.get_data_value()
+        &self.data_value
     }
 
     pub fn get_data_value_mut(&mut self) -> &mut DataValue {
-        self.data_value_and_alignment.get_data_value_mut()
+        &mut self.data_value
     }
 
     pub fn get_data_type_ref(&self) -> &DataTypeRef {
@@ -61,7 +60,7 @@ impl MappedScanParameters {
     }
 
     pub fn get_memory_alignment(&self) -> MemoryAlignment {
-        self.data_value_and_alignment.get_memory_alignment()
+        self.memory_alignment
     }
 
     pub fn get_compare_type(&self) -> &ScanCompareType {

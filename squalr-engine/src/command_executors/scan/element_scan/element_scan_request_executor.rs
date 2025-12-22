@@ -3,10 +3,8 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::element_scan::element_scan_request::ElementScanRequest;
 use squalr_engine_api::commands::scan::element_scan::element_scan_response::ElementScanResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
-use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
-use squalr_engine_api::structures::scanning::parameters::element_scan::element_scan_value::ElementScanValue;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_scanning::scanners::element_scan_executor_task::ElementScanExecutorTask;
 use std::sync::Arc;
@@ -34,27 +32,11 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
                     return ElementScanResponse { trackable_task_handle: None };
                 }
             };
-            let data_values_and_alignments = self
-                .data_type_ids
-                .iter()
-                .filter_map(|data_type_id| match &self.scan_value {
-                    Some(anonymous_value) => {
-                        let data_type_ref = DataTypeRef::new(data_type_id);
 
-                        match symbol_registry_guard.deanonymize_value(&data_type_ref, anonymous_value.get_value()) {
-                            Ok(data_value) => Some(ElementScanValue::new(data_value, alignment)),
-                            Err(error) => {
-                                log::error!("Error mapping data value: {}", error);
-                                None
-                            }
-                        }
-                    }
-                    None => None,
-                })
-                .collect();
             let scan_parameters = ElementScanParameters::new(
-                self.compare_type.to_owned(),
-                data_values_and_alignments,
+                self.data_type_refs.to_owned(),
+                alignment,
+                self.scan_constraints.to_owned(),
                 ScanSettingsConfig::get_floating_point_tolerance(),
                 ScanSettingsConfig::get_memory_read_mode(),
                 ScanSettingsConfig::get_is_single_threaded_scan(),

@@ -8,6 +8,7 @@ use crate::scanners::vector::scanner_vector_overlapping::ScannerVectorOverlappin
 use crate::scanners::vector::scanner_vector_overlapping_bytewise_periodic::ScannerVectorOverlappingBytewisePeriodic;
 use crate::scanners::vector::scanner_vector_overlapping_bytewise_staggered::ScannerVectorOverlappingBytewiseStaggered;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
+use rayon::iter::ParallelIterator;
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
@@ -19,7 +20,6 @@ use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_typ
 };
 use squalr_engine_api::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
-use rayon::iter::ParallelIterator;
 use std::cmp;
 use std::sync::{Arc, RwLock};
 
@@ -36,6 +36,21 @@ impl ElementScanDispatcher {
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         element_scan_parameters: &ElementScanParameters,
     ) -> SnapshotRegionFilterCollection {
+        let symbol_registry_guard = match symbol_registry.read() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
+
+                return SnapshotRegionFilterCollection::new(
+                    symbol_registry,
+                    vec![],
+                    snapshot_region_filter_collection.get_data_type_ref().clone(),
+                    snapshot_region_filter_collection.get_memory_alignment(),
+                );
+            }
+        };
+
+        /*
         if !element_scan_parameters.is_valid_for_data_type(snapshot_region_filter_collection.get_data_type_ref()) {
             log::error!("Error in provided scan parameters, unable to start scan!");
             return SnapshotRegionFilterCollection::new(
@@ -44,19 +59,10 @@ impl ElementScanDispatcher {
                 snapshot_region_filter_collection.get_data_type_ref().clone(),
                 snapshot_region_filter_collection.get_memory_alignment(),
             );
-        }
+        }*/
 
         // The main body of the scan routine performed on a given filter.
-        let snapshot_region_scanner = |snapshot_region_filter: &SnapshotRegionFilter| {
-            // Map the user scan parameters into an optimized form for improved scanning efficiency.
-            let mapped_scan_parameters = ElementScanExecutionPlanner::map(
-                element_scan_rule_registry,
-                symbol_registry,
-                snapshot_region_filter,
-                snapshot_region_filter_collection,
-                &element_scan_parameters,
-            );
-
+        let parametrized_snapshot_region_scanner = |snapshot_region_filter: &SnapshotRegionFilter, mapped_scan_parameters: &MappedScanParameters| {
             // Execute the scanner that corresponds to the mapped parameters.
             let scanner_instance = Self::aquire_scanner_instance(&mapped_scan_parameters);
             let filters = scanner_instance.scan_region(symbol_registry, snapshot_region, snapshot_region_filter, &mapped_scan_parameters);
@@ -73,7 +79,38 @@ impl ElementScanDispatcher {
                 );
             }
 
-            if filters.len() > 0 { Some(filters) } else { None }
+            filters
+        };
+
+        // The orchestrator that allows multiple scan parameters to combine when scanning a single snapshot region.
+        // Currently, this assumes only AND operations are supported, ie value >= 2000 && value <= 5000.
+        // This works by simply running constraints sequentially to produce filters.
+        let snapshot_region_scanner = |snapshot_region_filter: &SnapshotRegionFilter| {
+            // Map the user scan parameters into an optimized form for improved scanning efficiency.
+            let mapped_scan_parameters_vec = ElementScanExecutionPlanner::map(
+                element_scan_rule_registry,
+                symbol_registry,
+                snapshot_region_filter,
+                snapshot_region_filter_collection,
+                element_scan_parameters,
+            );
+
+            if mapped_scan_parameters_vec.is_empty() {
+                return None;
+            }
+
+            // Start with the input filter as the initial set.
+            let mut scan_result_filters: Vec<SnapshotRegionFilter> = vec![snapshot_region_filter.clone()];
+
+            for mapped_scan_parameters in mapped_scan_parameters_vec {
+                // Iteratively apply each mapped scan parameters in order to update our filters.
+                scan_result_filters = scan_result_filters
+                    .iter()
+                    .flat_map(|filter| parametrized_snapshot_region_scanner(filter, &mapped_scan_parameters))
+                    .collect();
+            }
+
+            if !scan_result_filters.is_empty() { Some(scan_result_filters) } else { None }
         };
 
         // Run the scan either single-threaded or parallel based on settings. Single-thread is not advised unless debugging.

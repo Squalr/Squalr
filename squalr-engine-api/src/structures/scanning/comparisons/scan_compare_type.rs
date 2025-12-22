@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{self};
 use std::str::FromStr;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ScanCompareType {
     Immediate(ScanCompareTypeImmediate),
     Relative(ScanCompareTypeRelative),
