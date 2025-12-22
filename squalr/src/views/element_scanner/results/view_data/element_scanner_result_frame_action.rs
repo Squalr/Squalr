@@ -4,7 +4,7 @@ pub enum ElementScannerResultFrameAction {
     SetSelectionStart(Option<i32>),
     SetSelectionEnd(Option<i32>),
     FreezeIndex(i32, bool),
-    FreezeSelection,
+    ToggleFreezeSelection(bool),
     AddSelection,
     DeleteSelection,
     CommitValueToSelection,

@@ -26,7 +26,7 @@ impl<'lifetime> ScanCompareTypeSelectorView<'lifetime> {
         Self {
             app_context,
             active_scan_compare_type,
-            width: 224.0,
+            width: 232.0,
             height: 28.0,
         }
     }

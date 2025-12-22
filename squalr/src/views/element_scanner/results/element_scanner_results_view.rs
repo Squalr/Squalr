@@ -352,9 +352,25 @@ impl Widget for ElementScannerResultsView {
                         is_frozen,
                     );
                 }
-                ElementScannerResultFrameAction::FreezeSelection => {}
-                ElementScannerResultFrameAction::AddSelection => {}
-                ElementScannerResultFrameAction::DeleteSelection => {}
+                ElementScannerResultFrameAction::ToggleFreezeSelection(is_frozen) => {
+                    ElementScannerResultsViewData::toggle_selected_scan_results_frozen(
+                        self.element_scanner_results_view_data.clone(),
+                        self.app_context.engine_execution_context.clone(),
+                        is_frozen,
+                    );
+                }
+                ElementScannerResultFrameAction::AddSelection => {
+                    ElementScannerResultsViewData::add_scan_results_to_project(
+                        self.element_scanner_results_view_data.clone(),
+                        self.app_context.engine_execution_context.clone(),
+                    );
+                }
+                ElementScannerResultFrameAction::DeleteSelection => {
+                    ElementScannerResultsViewData::delete_selected_scan_results(
+                        self.element_scanner_results_view_data.clone(),
+                        self.app_context.engine_execution_context.clone(),
+                    );
+                }
                 ElementScannerResultFrameAction::CommitValueToSelection => {}
             }
         }

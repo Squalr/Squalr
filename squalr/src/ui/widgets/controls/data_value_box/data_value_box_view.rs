@@ -46,7 +46,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
             is_value_owned,
             preview_text,
             id,
-            width: 192.0,
+            width: 212.0,
             height: 28.0,
 
             // Themed layout defaults

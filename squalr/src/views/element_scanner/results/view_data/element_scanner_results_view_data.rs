@@ -399,7 +399,7 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
-        let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data, engine_execution_context.clone());
+        let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data);
 
         if !scan_result_refs.is_empty() {
             let engine_execution_context = &engine_execution_context;
@@ -413,7 +413,7 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
-        let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data, engine_execution_context.clone());
+        let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data);
 
         if !scan_result_refs.is_empty() {
             let engine_execution_context = &engine_execution_context;
@@ -430,11 +430,7 @@ impl ElementScannerResultsViewData {
         is_frozen: bool,
     ) {
         let local_scan_result_indices_vec = (local_scan_result_index..=local_scan_result_index).collect::<Vec<_>>();
-        let scan_result_refs = Self::collect_scan_result_refs_by_indicies(
-            element_scanner_results_view_data,
-            engine_execution_context.clone(),
-            &&local_scan_result_indices_vec,
-        );
+        let scan_result_refs = Self::collect_scan_result_refs_by_indicies(element_scanner_results_view_data, &&local_scan_result_indices_vec);
 
         if !scan_result_refs.is_empty() {
             let engine_execution_context = &engine_execution_context;
@@ -447,22 +443,19 @@ impl ElementScannerResultsViewData {
     pub fn toggle_selected_scan_results_frozen(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
+        is_frozen: bool,
     ) {
-        /*
-        let scan_results = self.collect_selected_scan_result_bases();
+        let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data.clone());
 
-        if !scan_results.is_empty() {
+        if !scan_result_refs.is_empty() {
             let engine_execution_context = &engine_execution_context;
-            let scan_results_freeze_request = ScanResultsFreezeRequest { scan_results, is_frozen };
+            let scan_results_freeze_request = ScanResultsFreezeRequest { scan_result_refs, is_frozen };
 
             scan_results_freeze_request.send(engine_execution_context, |_response| {});
-        }*/
+        }
     }
 
-    fn collect_selected_scan_result_refs(
-        element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Vec<ScanResultRef> {
+    fn collect_selected_scan_result_refs(element_scanner_results_view_data: Dependency<Self>) -> Vec<ScanResultRef> {
         Self::collect_selected_scan_results(element_scanner_results_view_data)
             .into_iter()
             .map(|scan_result| scan_result.get_base_result().get_scan_result_ref().clone())
@@ -471,22 +464,11 @@ impl ElementScannerResultsViewData {
 
     fn collect_scan_result_refs_by_indicies(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
         local_scan_result_indices: &[i32],
     ) -> Vec<ScanResultRef> {
-        Self::collect_scan_result_bases_by_indicies(element_scanner_results_view_data, engine_execution_context, local_scan_result_indices)
+        Self::collect_scan_result_bases_by_indicies(element_scanner_results_view_data, local_scan_result_indices)
             .into_iter()
             .map(|scan_result| scan_result.get_scan_result_ref().clone())
-            .collect()
-    }
-
-    fn collect_selected_scan_result_bases(
-        element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
-    ) -> Vec<ScanResultBase> {
-        Self::collect_selected_scan_results(element_scanner_results_view_data)
-            .into_iter()
-            .map(|scan_result| scan_result.get_base_result().clone())
             .collect()
     }
 
@@ -536,7 +518,6 @@ impl ElementScannerResultsViewData {
 
     fn collect_scan_result_bases_by_indicies(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
         local_scan_result_indices: &[i32],
     ) -> Vec<ScanResultBase> {
         let element_scanner_results_view_data = match element_scanner_results_view_data.read() {

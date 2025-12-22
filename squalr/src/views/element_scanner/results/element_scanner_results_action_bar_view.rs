@@ -110,7 +110,22 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
         // Toolbar buttons.
         toolbar_user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
             user_interface.add_space(8.0);
-            user_interface.add(Checkbox::new_from_theme(theme).with_check_state(self.selection_freeze_checkstate));
+            if user_interface
+                .add(Checkbox::new_from_theme(theme).with_check_state(self.selection_freeze_checkstate))
+                .clicked()
+            {
+                match self.selection_freeze_checkstate {
+                    CheckState::False => {
+                        *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::ToggleFreezeSelection(true);
+                    }
+                    CheckState::Mixed => {
+                        *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::ToggleFreezeSelection(false);
+                    }
+                    CheckState::True => {
+                        *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::ToggleFreezeSelection(false);
+                    }
+                }
+            }
 
             let y_center = allocated_size_rectangle.center().y - button_size.y * 0.5;
             let add_selection_response = user_interface.put(

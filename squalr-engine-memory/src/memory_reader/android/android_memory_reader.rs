@@ -19,24 +19,25 @@ impl AndroidMemoryReader {
         address: u64,
         len: usize,
     ) -> std::io::Result<Vec<u8>> {
-        // Construct the path to the process's mem file
-        let mem_path = format!("/proc/{}/mem", process_info.process_id);
+        // Construct the path to the process's mem file.
+        let process_memory_path = format!("/proc/{}/mem", process_info.process_id);
 
-        // Open the file in read-only mode
-        let mut file = OpenOptions::new().read(true).open(&mem_path)?;
+        // Open the file in read-only mode.
+        let mut process_memory_file = OpenOptions::new().read(true).open(&process_memory_path)?;
 
-        // Seek to the desired offset
-        file.seek(SeekFrom::Start(address))?;
+        // Seek to the desired offset in the process memory.
+        process_memory_file.seek(SeekFrom::Start(address))?;
 
-        // Read data into our buffer; handle partial reads if needed
-        let mut buf = vec![0u8; len];
+        // Read data into our buffer.
+        let mut buffer = vec![0u8; len];
         let mut bytes_read = 0;
+
         while bytes_read < len {
-            match file.read(&mut buf[bytes_read..])? {
+            match process_memory_file.read(&mut buffer[bytes_read..])? {
                 0 => {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::UnexpectedEof,
-                        format!("EOF while reading process memory at address {:#x} in {}", address, mem_path),
+                        format!("EOF while reading process memory at address {:#x} in {}", address, process_memory_path),
                     ));
                 }
                 n => bytes_read += n,
