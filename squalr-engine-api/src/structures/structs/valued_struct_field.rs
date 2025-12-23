@@ -35,11 +35,11 @@ impl ValuedStructField {
         field_node: ValuedStructFieldNode,
         is_read_only: bool,
     ) -> Self {
-        let DATA_TYPE_REGISTRY = SymbolRegistry::new();
+        let symbol_registry = SymbolRegistry::get_instance();
 
         let icon_id = match &field_node {
-            ValuedStructFieldNode::Value(data_value) => DATA_TYPE_REGISTRY.get_icon_id(data_value.get_data_type_ref()),
-            ValuedStructFieldNode::Array(data_value) => DATA_TYPE_REGISTRY.get_icon_id(data_value.get_data_type_ref()),
+            ValuedStructFieldNode::Value(data_value) => symbol_registry.get_icon_id(data_value.get_data_type_ref()),
+            ValuedStructFieldNode::Array(data_value) => symbol_registry.get_icon_id(data_value.get_data_type_ref()),
             _ => "".to_string(),
         };
 

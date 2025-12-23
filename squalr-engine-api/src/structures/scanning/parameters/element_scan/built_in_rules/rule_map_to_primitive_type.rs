@@ -12,14 +12,15 @@ use crate::structures::scanning::{
     filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
     parameters::{element_scan::element_scan_parameters::ElementScanParameters, mapped::mapped_scan_parameters::MappedScanParameters},
 };
+use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 
-pub struct MapToPrimitiveType {}
+pub struct RuleMapToPrimitiveType {}
 
-impl MapToPrimitiveType {
+impl RuleMapToPrimitiveType {
     pub const RULE_ID: &str = "map_to_primitive_type";
 }
 
-impl ElementScanMappingRule for MapToPrimitiveType {
+impl ElementScanMappingRule for RuleMapToPrimitiveType {
     fn get_id(&self) -> &str {
         &Self::RULE_ID
     }
@@ -27,6 +28,7 @@ impl ElementScanMappingRule for MapToPrimitiveType {
     fn map_parameters(
         &self,
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
+        _snapshot_region: &SnapshotRegion,
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         _snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,

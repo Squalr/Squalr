@@ -11,14 +11,15 @@ use crate::structures::scanning::{
     filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
     parameters::{element_scan::element_scan_parameters::ElementScanParameters, mapped::mapped_scan_parameters::MappedScanParameters},
 };
+use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 
-pub struct MapScanType {}
+pub struct RuleMapScanType {}
 
-impl MapScanType {
+impl RuleMapScanType {
     pub const RULE_ID: &str = "map_scan_type";
 }
 
-impl ElementScanMappingRule for MapScanType {
+impl ElementScanMappingRule for RuleMapScanType {
     fn get_id(&self) -> &str {
         &Self::RULE_ID
     }
@@ -26,11 +27,26 @@ impl ElementScanMappingRule for MapScanType {
     fn map_parameters(
         &self,
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
+        snapshot_region: &SnapshotRegion,
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,
         mapped_parameters: &mut MappedScanParameters,
     ) {
+        let is_valid_for_snapshot_region = if snapshot_region.has_current_values() {
+            match mapped_parameters.get_compare_type() {
+                ScanCompareType::Immediate(_) => true,
+                ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => snapshot_region.has_previous_values(),
+            }
+        } else {
+            false
+        };
+
+        if !is_valid_for_snapshot_region {
+            mapped_parameters.set_mapped_scan_type(MappedScanType::Invalid());
+            return;
+        }
+
         // Rather than using the snapshot_region_filter.get_region_size() directly, we try to be smart about ensuring
         // There is enough space to actually read a full vector of elements.
         // For example, if scanning for i32, 1-byte aligned, a single region of 64 bytes is not actually very helpful.
@@ -68,7 +84,7 @@ impl ElementScanMappingRule for MapScanType {
         };
 
         if data_type_size_bytes > memory_alignment_size {
-            // Check if we can leverage periodicity, which is calculated in the `MapPeriodicScans` rule.
+            // Check if we can leverage periodicity, which is calculated in the `RuleMapPeriodicScans` rule.
             // See that particular rule for additional information on the concept of periodicity.
             match mapped_parameters.get_periodicity() {
                 1 => {

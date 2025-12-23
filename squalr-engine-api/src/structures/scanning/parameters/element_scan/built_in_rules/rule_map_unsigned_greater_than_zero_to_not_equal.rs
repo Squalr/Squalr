@@ -7,16 +7,17 @@ use crate::structures::scanning::{
     filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
     parameters::{element_scan::element_scan_parameters::ElementScanParameters, mapped::mapped_scan_parameters::MappedScanParameters},
 };
+use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 
 /// Defines a mapping rule that converts > 0 scans for unsigned non-floating-point values into != 0.
 /// This optimization allows for better vectorization, resulting in faster scans.
-pub struct MapUnsignedGreaterThanZeroToNotEqual {}
+pub struct RuleMapUnsignedGreaterThanZeroToNotEqual {}
 
-impl MapUnsignedGreaterThanZeroToNotEqual {
+impl RuleMapUnsignedGreaterThanZeroToNotEqual {
     pub const RULE_ID: &str = "map_unsigned_greater_than_zero_to_not_equal";
 }
 
-impl ElementScanMappingRule for MapUnsignedGreaterThanZeroToNotEqual {
+impl ElementScanMappingRule for RuleMapUnsignedGreaterThanZeroToNotEqual {
     fn get_id(&self) -> &str {
         &Self::RULE_ID
     }
@@ -24,6 +25,7 @@ impl ElementScanMappingRule for MapUnsignedGreaterThanZeroToNotEqual {
     fn map_parameters(
         &self,
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
+        _snapshot_region: &SnapshotRegion,
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         _snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,

@@ -8,7 +8,6 @@ use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType
 use crate::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use crate::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::MappedScanType;
-use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParametersScalar;
 use std::simd::LaneCount;
 use std::simd::SupportedLaneCount;
 use std::sync::Arc;
@@ -40,7 +39,7 @@ impl MappedScanParameters {
             scan_compare_type,
             floating_point_tolerance,
             periodicity: 0,
-            mapped_scan_type: MappedScanType::Scalar(ScanParametersScalar::SingleElement),
+            mapped_scan_type: MappedScanType::Invalid(),
         }
     }
 

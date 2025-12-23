@@ -31,8 +31,8 @@ impl DataValue {
         data_type_ref: DataTypeRef,
         value_bytes: Vec<u8>,
     ) -> Self {
-        let DATA_TYPE_REGISTRY = SymbolRegistry::new();
-        let display_values = DATA_TYPE_REGISTRY.create_display_values(&data_type_ref, &value_bytes);
+        let symbol_registry = SymbolRegistry::get_instance();
+        let display_values = symbol_registry.create_display_values(&data_type_ref, &value_bytes);
 
         Self {
             data_type_ref,
@@ -54,8 +54,8 @@ impl DataValue {
             self.value_bytes = value_bytes.to_vec();
         }
 
-        let DATA_TYPE_REGISTRY = SymbolRegistry::new();
-        self.display_values = DATA_TYPE_REGISTRY.create_display_values(&self.data_type_ref, &value_bytes);
+        let symbol_registry = SymbolRegistry::get_instance();
+        self.display_values = symbol_registry.create_display_values(&self.data_type_ref, &value_bytes);
     }
 
     pub fn get_data_type_ref(&self) -> &DataTypeRef {
@@ -68,8 +68,8 @@ impl DataValue {
     ) {
         self.data_type_ref = data_type_ref;
 
-        let DATA_TYPE_REGISTRY = SymbolRegistry::new();
-        self.display_values = DATA_TYPE_REGISTRY.create_display_values(&self.data_type_ref, &self.value_bytes);
+        let symbol_registry = SymbolRegistry::get_instance();
+        self.display_values = symbol_registry.create_display_values(&self.data_type_ref, &self.value_bytes);
     }
 
     pub fn get_data_type_id(&self) -> &str {

@@ -24,6 +24,7 @@ pub enum ScanParametersByteArray {
 /// These transform user input to ensure that the scan is performed as efficiently as possible.
 #[derive(Debug, Clone)]
 pub enum MappedScanType {
+    Invalid(),
     Scalar(ScanParametersScalar),
     Vector(ScanParametersVector, VectorizationSize),
     ByteArray(ScanParametersByteArray),

@@ -6,43 +6,16 @@ use squalr_engine_api::structures::scanning::{
     filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
     parameters::{element_scan::element_scan_parameters::ElementScanParameters, mapped::mapped_scan_parameters::MappedScanParameters},
 };
+use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::sync::{Arc, RwLock};
 
 pub struct ElementScanExecutionPlanner {}
 
 impl ElementScanExecutionPlanner {
-    /*
-    pub fn is_valid_for_snapshot_region(
-        &self,
-        snapshot_region: &SnapshotRegion,
-    ) -> bool {
-        if snapshot_region.has_current_values() {
-            match self.get_compare_type() {
-                ScanCompareType::Immediate(_) => return true,
-                ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => snapshot_region.has_previous_values(),
-            }
-        } else {
-            false
-        }
-    }
-
-    pub fn is_valid_for_data_type(
-        &self,
-        data_type_ref: &DataTypeRef,
-    ) -> bool {
-        for data_value_and_alignment in &self.element_scan_values {
-            if data_value_and_alignment.get_data_value().get_data_type_ref() == data_type_ref {
-                return true;
-            }
-        }
-
-        false
-    }
-    */
-
     pub fn map_scan_constraint(
         element_scan_rule_registry: &Arc<RwLock<ElementScanRuleRegistry>>,
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
+        snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         element_scan_parameters: &ElementScanParameters,
@@ -85,6 +58,7 @@ impl ElementScanExecutionPlanner {
         for (_id, rule) in element_scan_rule_registry_guard.get_registry().iter() {
             rule.map_parameters(
                 symbol_registry,
+                snapshot_region,
                 snapshot_region_filter_collection,
                 snapshot_region_filter,
                 element_scan_parameters,

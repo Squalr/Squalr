@@ -1,7 +1,7 @@
 use crate::structures::scanning::{
     parameters::element_scan::built_in_rules::{
-        map_periodic_scans::MapPeriodicScans, map_scan_type::MapScanType, map_to_primitive_type::MapToPrimitiveType,
-        map_unsigned_greater_than_zero_to_not_equal::MapUnsignedGreaterThanZeroToNotEqual,
+        rule_map_periodic_scans::RuleMapPeriodicScans, rule_map_scan_type::RuleMapScanType, rule_map_to_primitive_type::RuleMapToPrimitiveType,
+        rule_map_unsigned_greater_than_zero_to_not_equal::RuleMapUnsignedGreaterThanZeroToNotEqual,
     },
     rules::element_scan_mapping_rule::ElementScanMappingRule,
 };
@@ -26,10 +26,10 @@ impl ElementScanRuleRegistry {
         let mut registry: HashMap<String, Arc<dyn ElementScanMappingRule>> = HashMap::new();
 
         let built_in_project_item_types: Vec<Arc<dyn ElementScanMappingRule>> = vec![
-            Arc::new(MapToPrimitiveType {}),
-            Arc::new(MapPeriodicScans {}),
-            Arc::new(MapScanType {}),
-            Arc::new(MapUnsignedGreaterThanZeroToNotEqual {}),
+            Arc::new(RuleMapToPrimitiveType {}),
+            Arc::new(RuleMapPeriodicScans {}),
+            Arc::new(RuleMapScanType {}),
+            Arc::new(RuleMapUnsignedGreaterThanZeroToNotEqual {}),
         ];
 
         for built_in_project_item_type in built_in_project_item_types.into_iter() {

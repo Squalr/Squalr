@@ -29,6 +29,7 @@ use crate::structures::{
         parameters::mapped::mapped_scan_parameters::MappedScanParameters,
     },
 };
+use std::sync::Once;
 use std::{
     collections::HashMap,
     simd::{LaneCount, Simd, SupportedLaneCount},
@@ -43,6 +44,22 @@ pub struct SymbolRegistry {
 }
 
 impl SymbolRegistry {
+    // JIRA: Deprecate this. Needs to support mutability, mirroring from client to server for non-standalone builds, etc.
+    pub fn get_instance() -> &'static SymbolRegistry {
+        static mut INSTANCE: Option<SymbolRegistry> = None;
+        static ONCE: Once = Once::new();
+
+        unsafe {
+            ONCE.call_once(|| {
+                let instance = SymbolRegistry::new();
+                INSTANCE = Some(instance);
+            });
+
+            #[allow(static_mut_refs)]
+            INSTANCE.as_ref().unwrap_unchecked()
+        }
+    }
+
     pub fn new() -> Self {
         let (symbolic_struct_registry, data_type_registry) = Self::create_built_in_registries();
 

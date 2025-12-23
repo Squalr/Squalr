@@ -2,6 +2,7 @@ use crate::execution_planner::element_scan::element_scan_execution_planner::Elem
 use crate::scanners::scalar::scanner_scalar_byte_array_booyer_moore::ScannerScalarByteArrayBooyerMoore;
 use crate::scanners::scalar::scanner_scalar_iterative::ScannerScalarIterative;
 use crate::scanners::scalar::scanner_scalar_single_element::ScannerScalarSingleElement;
+use crate::scanners::scanner_null::ScannerNull;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::vector::scanner_vector_aligned::ScannerVectorAligned;
 use crate::scanners::vector::scanner_vector_overlapping::ScannerVectorOverlapping;
@@ -94,6 +95,7 @@ impl ElementScanDispatcher {
             let mapped_scan_parameters = ElementScanExecutionPlanner::map_scan_constraint(
                 element_scan_rule_registry,
                 symbol_registry,
+                snapshot_region,
                 snapshot_region_filter,
                 snapshot_region_filter_collection,
                 element_scan_parameters,
@@ -155,6 +157,7 @@ impl ElementScanDispatcher {
     fn aquire_scanner_instance(mapped_scan_parameters: &MappedScanParameters) -> &'static dyn Scanner {
         // Execute the scanner that corresponds to the mapped parameters.
         match mapped_scan_parameters.get_mapped_scan_type() {
+            MappedScanType::Invalid() => &ScannerNull {},
             MappedScanType::Scalar(scan_parameters_scalar) => match scan_parameters_scalar {
                 ScanParametersScalar::SingleElement => &ScannerScalarSingleElement {},
                 ScanParametersScalar::ScalarIterative => &ScannerScalarIterative {},
