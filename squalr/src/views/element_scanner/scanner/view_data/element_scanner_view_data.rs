@@ -13,8 +13,11 @@ use squalr_engine_api::{
     engine::engine_execution_context::EngineExecutionContext,
     structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
-        data_values::anonymous_value::AnonymousValue,
-        scanning::scan_constraint::ScanConstraint,
+        data_values::{anonymous_value::AnonymousValue, display_value::DisplayValue},
+        scanning::{
+            comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
+            scan_constraint::ScanConstraint,
+        },
     },
 };
 use std::sync::Arc;
@@ -26,6 +29,8 @@ pub struct ElementScannerViewData {
 }
 
 impl ElementScannerViewData {
+    const MAX_CONSTRAINTS: usize = 5;
+
     pub fn new() -> Self {
         Self {
             selected_data_type: DataTypeRef::new(DataTypeI32::get_data_type_id()),
@@ -154,5 +159,54 @@ impl ElementScannerViewData {
                 }
             }
         });
+    }
+
+    pub fn add_constraint(element_scanner_view_data: Dependency<Self>) {
+        let mut element_scanner_view_data = match element_scanner_view_data.write() {
+            Ok(element_scanner_view_data) => element_scanner_view_data,
+            Err(error) => {
+                log::error!("Failed to write element scanner view state: {}", error);
+                return;
+            }
+        };
+
+        if element_scanner_view_data.scan_values_and_constraints.len() >= Self::MAX_CONSTRAINTS {
+            return;
+        }
+
+        // If creating the 2nd constraint, <= is the most common constraint, so default to that for a better UX.
+        if element_scanner_view_data.scan_values_and_constraints.len() == 1 {
+            element_scanner_view_data
+                .scan_values_and_constraints
+                .push(ElementScannerValueViewData {
+                    selected_scan_compare_type: ScanCompareType::Immediate(ScanCompareTypeImmediate::LessThanOrEqual),
+                    current_scan_value: DisplayValue::default(),
+                });
+        } else {
+            element_scanner_view_data
+                .scan_values_and_constraints
+                .push(ElementScannerValueViewData::new());
+        }
+    }
+
+    pub fn remove_constraint(
+        element_scanner_view_data: Dependency<Self>,
+        index: usize,
+    ) {
+        let mut element_scanner_view_data = match element_scanner_view_data.write() {
+            Ok(element_scanner_view_data) => element_scanner_view_data,
+            Err(error) => {
+                log::error!("Failed to write element scanner view state: {}", error);
+                return;
+            }
+        };
+
+        if index <= 0 {
+            return;
+        }
+
+        element_scanner_view_data
+            .scan_values_and_constraints
+            .remove(index);
     }
 }

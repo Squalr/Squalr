@@ -9,7 +9,6 @@ use crate::structures::scanning::comparisons::scan_function_scalar::ScanFunction
 use crate::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::MappedScanType;
 use crate::structures::scanning::parameters::mapped::mapped_scan_type::ScanParametersScalar;
-use crate::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
 use std::simd::LaneCount;
 use std::simd::SupportedLaneCount;
 use std::sync::Arc;
@@ -22,7 +21,6 @@ pub struct MappedScanParameters {
     memory_alignment: MemoryAlignment,
     scan_compare_type: ScanCompareType,
     floating_point_tolerance: FloatingPointTolerance,
-    vectorization_size: VectorizationSize,
     periodicity: u64,
     mapped_scan_type: MappedScanType,
 }
@@ -41,7 +39,6 @@ impl MappedScanParameters {
             memory_alignment,
             scan_compare_type,
             floating_point_tolerance,
-            vectorization_size: VectorizationSize::default(),
             periodicity: 0,
             mapped_scan_type: MappedScanType::Scalar(ScanParametersScalar::SingleElement),
         }
@@ -76,17 +73,6 @@ impl MappedScanParameters {
 
     pub fn get_floating_point_tolerance(&self) -> FloatingPointTolerance {
         self.floating_point_tolerance
-    }
-
-    pub fn get_vectorization_size(&self) -> &VectorizationSize {
-        &self.vectorization_size
-    }
-
-    pub fn set_vectorization_size(
-        &mut self,
-        vectorization_size: VectorizationSize,
-    ) {
-        self.vectorization_size = vectorization_size;
     }
 
     pub fn get_periodicity(&self) -> u64 {

@@ -7,6 +7,6 @@ pub enum VectorizationSize {
 
 impl Default for VectorizationSize {
     fn default() -> Self {
-        Self::Vector16
+        Self::Vector32
     }
 }

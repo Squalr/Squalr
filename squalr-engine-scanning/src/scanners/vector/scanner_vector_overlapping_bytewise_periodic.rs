@@ -9,10 +9,10 @@ use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_imme
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
-use std::ptr;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 use std::sync::{Arc, RwLock};
+use std::{ptr, vec};
 
 pub struct ScannerVectorOverlappingBytewisePeriodic<const N: usize>
 where
@@ -91,11 +91,12 @@ where
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type_ref = mapped_scan_parameters.get_data_type_ref();
         let data_type_size = symbol_registry_guard.get_unit_size_in_bytes(data_type_ref);
+        let memory_alignment_size = mapped_scan_parameters.get_memory_alignment() as u64;
 
-        let vector_size_in_bytes = N as u64;
-        let iterations = region_size / vector_size_in_bytes as u64;
-        let remainder_bytes = region_size % vector_size_in_bytes as u64;
-        let remainder_ptr_offset = (iterations.saturating_sub(1) * vector_size_in_bytes) as usize;
+        let vectorization_plan = VectorGenerics::plan_vector_scan::<N>(region_size, data_type_size, memory_alignment_size);
+        let remainder_bytes = vectorization_plan.get_remainder_bytes();
+        let remainder_ptr_offset = vectorization_plan.get_remainder_ptr_offset();
+        let vectorizable_iterations = vectorization_plan.get_vectorizable_iterations();
 
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
@@ -139,8 +140,8 @@ where
                 let compare_func = load_nth_byte_vec(&scan_immedate, 0);
 
                 // Compare as many full vectors as we can.
-                for index in 0..iterations {
-                    let current_values_pointer = unsafe { current_values_pointer.add((index * vector_size_in_bytes) as usize) };
+                for index in 0..vectorization_plan.get_vectorizable_iterations() {
+                    let current_values_pointer = unsafe { current_values_pointer.add((index * vectorization_plan.vector_size_in_bytes) as usize) };
                     let compare_result = compare_func(current_values_pointer);
 
                     Self::encode_results(&compare_result, &mut run_length_encoder, data_type_size, true_mask, false_mask);
@@ -148,7 +149,7 @@ where
 
                 // Handle remainder elements.
                 if remainder_bytes > 0 {
-                    let current_values_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset) };
+                    let current_values_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset as usize) };
                     let compare_result = compare_func(current_values_pointer);
 
                     Self::encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_bytes);
@@ -160,8 +161,8 @@ where
                 let compare_func_byte_1 = load_nth_byte_vec(&scan_immedate, 1);
 
                 // Compare as many full vectors as we can.
-                for index in 0..iterations {
-                    let current_values_pointer = unsafe { current_values_pointer.add((index * vector_size_in_bytes) as usize) };
+                for index in 0..vectorizable_iterations {
+                    let current_values_pointer = unsafe { current_values_pointer.add((index * vectorization_plan.vector_size_in_bytes) as usize) };
                     let compare_results_0 = compare_func_byte_0(current_values_pointer);
                     let compare_results_1 = compare_func_byte_1(current_values_pointer);
                     let compare_result = compare_results_0 | compare_results_1;
@@ -171,8 +172,8 @@ where
 
                 // Handle remainder elements.
                 if remainder_bytes > 0 {
-                    let compare_results_0 = unsafe { compare_func_byte_0(current_values_pointer.add(remainder_ptr_offset)) };
-                    let compare_results_1 = unsafe { compare_func_byte_1(current_values_pointer.add(remainder_ptr_offset)) };
+                    let compare_results_0 = unsafe { compare_func_byte_0(current_values_pointer.add(remainder_ptr_offset as usize)) };
+                    let compare_results_1 = unsafe { compare_func_byte_1(current_values_pointer.add(remainder_ptr_offset as usize)) };
                     let compare_result = compare_results_0 | compare_results_1;
 
                     Self::encode_remainder_results(&compare_result, &mut run_length_encoder, data_type_size, remainder_bytes);
@@ -186,8 +187,8 @@ where
                 let compare_func_byte_3 = load_nth_byte_vec(&scan_immedate, 3);
 
                 // Compare as many full vectors as we can.
-                for index in 0..iterations {
-                    let current_values_pointer = unsafe { current_values_pointer.add((index * vector_size_in_bytes) as usize) };
+                for index in 0..vectorizable_iterations {
+                    let current_values_pointer = unsafe { current_values_pointer.add((index * vectorization_plan.vector_size_in_bytes) as usize) };
                     let compare_results_0 = compare_func_byte_0(current_values_pointer);
                     let compare_results_1 = compare_func_byte_1(current_values_pointer);
                     let compare_results_2 = compare_func_byte_2(current_values_pointer);
@@ -199,7 +200,7 @@ where
 
                 // Handle remainder elements.
                 if remainder_bytes > 0 {
-                    let remainder_value_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset) };
+                    let remainder_value_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset as usize) };
                     let compare_results_0 = compare_func_byte_0(remainder_value_pointer);
                     let compare_results_1 = compare_func_byte_1(remainder_value_pointer);
                     let compare_results_2 = compare_func_byte_2(remainder_value_pointer);
@@ -221,8 +222,8 @@ where
                 let compare_func_byte_7 = load_nth_byte_vec(&scan_immedate, 7);
 
                 // Compare as many full vectors as we can.
-                for index in 0..iterations {
-                    let current_values_pointer = unsafe { current_values_pointer.add((index * vector_size_in_bytes) as usize) };
+                for index in 0..vectorizable_iterations {
+                    let current_values_pointer = unsafe { current_values_pointer.add((index * vectorization_plan.vector_size_in_bytes) as usize) };
                     let compare_results_0 = compare_func_byte_0(current_values_pointer);
                     let compare_results_1 = compare_func_byte_1(current_values_pointer);
                     let compare_results_2 = compare_func_byte_2(current_values_pointer);
@@ -245,7 +246,7 @@ where
 
                 // Handle remainder elements.
                 if remainder_bytes > 0 {
-                    let remainder_value_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset) };
+                    let remainder_value_pointer = unsafe { current_values_pointer.add(remainder_ptr_offset as usize) };
                     let compare_results_0 = compare_func_byte_0(remainder_value_pointer);
                     let compare_results_1 = compare_func_byte_1(remainder_value_pointer);
                     let compare_results_2 = compare_func_byte_2(remainder_value_pointer);

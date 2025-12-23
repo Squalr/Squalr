@@ -23,16 +23,6 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
         {
             let snapshot = engine_privileged_state.get_snapshot();
             let alignment = ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1);
-            let symbol_registry = engine_privileged_state.get_symbol_registry();
-            let symbol_registry_guard = match symbol_registry.read() {
-                Ok(registry) => registry,
-                Err(error) => {
-                    log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                    return ElementScanResponse { trackable_task_handle: None };
-                }
-            };
-
             let scan_parameters = ElementScanParameters::new(
                 self.data_type_refs.to_owned(),
                 alignment,

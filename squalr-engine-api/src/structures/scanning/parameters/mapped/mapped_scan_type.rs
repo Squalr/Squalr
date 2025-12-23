@@ -1,3 +1,5 @@
+use crate::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
+
 #[derive(Debug, Clone)]
 pub enum ScanParametersScalar {
     SingleElement,
@@ -23,6 +25,6 @@ pub enum ScanParametersByteArray {
 #[derive(Debug, Clone)]
 pub enum MappedScanType {
     Scalar(ScanParametersScalar),
-    Vector(ScanParametersVector),
+    Vector(ScanParametersVector, VectorizationSize),
     ByteArray(ScanParametersByteArray),
 }

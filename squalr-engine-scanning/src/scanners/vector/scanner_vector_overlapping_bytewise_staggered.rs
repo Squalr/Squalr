@@ -106,14 +106,12 @@ where
         let memory_alignment = mapped_scan_parameters.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
 
-        let vector_size_in_bytes = N;
-        let vector_underflow = data_type_size as usize;
-        let vector_compare_size = vector_size_in_bytes.saturating_sub(vector_underflow) as u64;
-        let element_count = snapshot_region_filter.get_element_count(symbol_registry, data_type_ref, memory_alignment);
-        let vectorizable_iterations = region_size / vector_compare_size; // JIRA: Memory alignment!
-        let remainder_bytes = region_size % vector_compare_size;
-        let remainder_element_count: u64 = (remainder_bytes / memory_alignment_size).saturating_sub(data_type_size.saturating_sub(1));
-        let vectorizable_element_count = element_count.saturating_sub(remainder_element_count);
+        let vectorization_plan = VectorGenerics::plan_vector_scan::<N>(region_size, data_type_size, memory_alignment_size);
+        let vectorizable_iterations = vectorization_plan.get_vectorizable_iterations();
+        let vectorizable_element_count = vectorization_plan.get_vectorizable_element_count();
+        let vector_compare_size = vectorization_plan
+            .vector_size_in_bytes
+            .saturating_sub(data_type_size) as u64;
 
         let scan_immedate = mapped_scan_parameters.get_data_value();
         let scan_compare_type_immediate = match mapped_scan_parameters.get_compare_type() {
@@ -243,10 +241,9 @@ where
         }
 
         // Handle remainder elements.
-        if let Some(compare_func) =
-            symbol_registry_guard.get_scalar_compare_func_immediate(data_type_ref, &scan_compare_type_immediate, mapped_scan_parameters)
+        if let Some(compare_func) = symbol_registry_guard.get_scalar_compare_func_immediate(data_type_ref, &scan_compare_type_immediate, mapped_scan_parameters)
         {
-            for index in vectorizable_element_count..element_count {
+            for index in vectorizable_element_count..vectorization_plan.element_count {
                 let current_value_pointer = unsafe { current_values_pointer.add(index as usize * memory_alignment_size as usize) };
                 let compare_result = compare_func(current_value_pointer);
 

@@ -2,6 +2,8 @@ use std::simd::SimdElement;
 use std::simd::{LaneCount, Simd, SupportedLaneCount, cmp::SimdPartialEq};
 use std::{mem, ptr};
 
+use crate::structures::data_types::generics::vectorization_plan::VectorizationPlan;
+
 pub struct VectorGenerics {}
 
 impl VectorGenerics {
@@ -122,5 +124,30 @@ impl VectorGenerics {
         }
 
         rotated
+    }
+
+    /// Creates a vectorization plan that determines how many full hardware vectors can iterate over the given region.
+    pub fn plan_vector_scan<const N: usize>(
+        region_size: u64,
+        data_type_size_bytes: u64,
+        element_stride_bytes: u64,
+    ) -> VectorizationPlan {
+        let vector_size_in_bytes = N as u64;
+        let stride = element_stride_bytes.max(1);
+
+        // Same semantics as your get_element_count():
+        let trailing_bytes = data_type_size_bytes.saturating_sub(stride);
+        let valid_bytes = region_size.saturating_sub(trailing_bytes);
+        let element_count = valid_bytes / stride;
+
+        let elements_per_vector = vector_size_in_bytes / stride;
+
+        VectorizationPlan {
+            vector_size_in_bytes,
+            element_stride_bytes: stride,
+            valid_bytes,
+            element_count,
+            elements_per_vector,
+        }
     }
 }

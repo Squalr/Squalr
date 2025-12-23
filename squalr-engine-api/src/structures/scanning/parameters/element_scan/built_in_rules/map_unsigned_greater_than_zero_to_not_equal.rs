@@ -8,6 +8,8 @@ use crate::structures::scanning::{
     parameters::{element_scan::element_scan_parameters::ElementScanParameters, mapped::mapped_scan_parameters::MappedScanParameters},
 };
 
+/// Defines a mapping rule that converts > 0 scans for unsigned non-floating-point values into != 0.
+/// This optimization allows for better vectorization, resulting in faster scans.
 pub struct MapUnsignedGreaterThanZeroToNotEqual {}
 
 impl MapUnsignedGreaterThanZeroToNotEqual {

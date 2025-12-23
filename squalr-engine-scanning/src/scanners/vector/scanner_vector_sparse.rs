@@ -1,6 +1,7 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
+use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
@@ -121,6 +122,7 @@ where
         let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_values_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
+        let region_size = snapshot_region_filter.get_region_size();
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
         let data_type_ref = mapped_scan_parameters.get_data_type_ref();
@@ -129,11 +131,9 @@ where
         let memory_alignment_size = memory_alignment as u64;
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment_size);
 
-        let vector_size_in_bytes = N as u64;
-        let element_count = snapshot_region_filter.get_element_count(symbol_registry, data_type_ref, memory_alignment);
-        let elements_per_vector = vector_size_in_bytes / memory_alignment_size;
-        let vectorizable_iterations = element_count / elements_per_vector;
-        let vector_element_count = vectorizable_iterations * elements_per_vector;
+        let vectorization_plan = VectorGenerics::plan_vector_scan::<N>(region_size, data_type_size, memory_alignment_size);
+        let vectorizable_iterations = vectorization_plan.get_vectorizable_iterations();
+        let vector_element_count = vectorization_plan.get_vectorizable_element_count();
 
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Self::get_sparse_mask(memory_alignment);
@@ -147,7 +147,7 @@ where
                 ScanFunctionVector::Immediate(compare_func) => {
                     // Compare as many full vectors as we can.
                     for index in 0..vectorizable_iterations {
-                        let current_values_pointer = unsafe { current_values_pointer.add((index * vector_size_in_bytes) as usize) };
+                        let current_values_pointer = unsafe { current_values_pointer.add((index * vectorization_plan.vector_size_in_bytes) as usize) };
                         let compare_result = compare_func(current_values_pointer);
 
                         Self::encode_results(&compare_result, &mut run_length_encoder, memory_alignment_size, true_mask, false_mask);
@@ -156,8 +156,8 @@ where
                 ScanFunctionVector::RelativeOrDelta(compare_func) => {
                     // Compare as many full vectors as we can.
                     for index in 0..vectorizable_iterations {
-                        let current_values_pointer = unsafe { current_values_pointer.add((index * vector_size_in_bytes) as usize) };
-                        let previous_values_pointer = unsafe { previous_values_pointer.add((index * vector_size_in_bytes) as usize) };
+                        let current_values_pointer = unsafe { current_values_pointer.add((index * vectorization_plan.vector_size_in_bytes) as usize) };
+                        let previous_values_pointer = unsafe { previous_values_pointer.add((index * vectorization_plan.vector_size_in_bytes) as usize) };
                         let compare_result = compare_func(current_values_pointer, previous_values_pointer);
 
                         Self::encode_results(&compare_result, &mut run_length_encoder, memory_alignment_size, true_mask, false_mask);
@@ -170,7 +170,7 @@ where
             match scalar_compare_func {
                 ScanFunctionScalar::Immediate(compare_func) => {
                     // Handle remainder elements (reverting to scalar comparisons.)
-                    for index in vector_element_count..element_count {
+                    for index in vector_element_count..vectorization_plan.element_count {
                         let current_value_pointer = unsafe { current_values_pointer.add((index * memory_alignment_size) as usize) };
                         let compare_result = compare_func(current_value_pointer);
 
@@ -183,7 +183,7 @@ where
                 }
                 ScanFunctionScalar::RelativeOrDelta(compare_func) => {
                     // Handle remainder elements (reverting to scalar comparisons.)
-                    for index in vector_element_count..element_count {
+                    for index in vector_element_count..vectorization_plan.element_count {
                         let current_value_pointer = unsafe { current_values_pointer.add((index * memory_alignment_size) as usize) };
                         let previous_value_pointer = unsafe { previous_values_pointer.add((index * memory_alignment_size) as usize) };
                         let compare_result = compare_func(current_value_pointer, previous_value_pointer);

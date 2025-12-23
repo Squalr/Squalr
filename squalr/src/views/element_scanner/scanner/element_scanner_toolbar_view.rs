@@ -33,8 +33,21 @@ impl ElementScannerToolbarView {
         instance
     }
 
+    pub fn get_top_row_height(&self) -> f32 {
+        34.0
+    }
+
+    pub fn get_constraint_row_height(&self) -> f32 {
+        34.0
+    }
+
     pub fn get_height(&self) -> f32 {
-        68.0
+        let item_count = match self.element_scanner_view_data.read() {
+            Ok(element_scanner_view_data) => element_scanner_view_data.scan_values_and_constraints.len(),
+            Err(_) => 1,
+        };
+
+        self.get_constraint_row_height() * (item_count as f32) + self.get_top_row_height()
     }
 }
 
@@ -44,10 +57,11 @@ impl Widget for ElementScannerToolbarView {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let height = self.get_height();
-        let row_height = height * 0.5;
+        let total_height = self.get_height();
+        let top_row_height = self.get_top_row_height();
+        let constraint_row_height = self.get_constraint_row_height();
 
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), height), Sense::hover());
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), total_height), Sense::hover());
 
         // Background.
         user_interface
@@ -77,7 +91,7 @@ impl Widget for ElementScannerToolbarView {
         let mut remove_scan_constraint_index = 0;
 
         // Top row.
-        toolbar_user_interface.allocate_ui(vec2(toolbar_user_interface.available_width(), row_height), |user_interface| {
+        toolbar_user_interface.allocate_ui(vec2(toolbar_user_interface.available_width(), top_row_height), |user_interface| {
             user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
                 // New scan.
                 let button_new_scan = user_interface.add_sized(
@@ -133,7 +147,7 @@ impl Widget for ElementScannerToolbarView {
         for index in 0..element_scanner_view_data.scan_values_and_constraints.len() {
             let scan_values_and_constraint = &mut element_scanner_view_data.scan_values_and_constraints[index];
 
-            toolbar_user_interface.allocate_ui(vec2(toolbar_user_interface.available_width(), row_height), |user_interface| {
+            toolbar_user_interface.allocate_ui(vec2(toolbar_user_interface.available_width(), constraint_row_height), |user_interface| {
                 user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
                     // Scan compare type selector.
                     user_interface.add_space(8.0);
@@ -157,7 +171,7 @@ impl Widget for ElementScannerToolbarView {
                                 false,
                                 true,
                                 "Enter a scan value...",
-                                &format!("data_value_box_scan_value_index_{}", 0),
+                                &format!("data_value_box_scan_value_index_{}", index),
                             ));
                         }
                     }
@@ -181,7 +195,11 @@ impl Widget for ElementScannerToolbarView {
                                 .background_color(Color32::TRANSPARENT)
                                 .tooltip_text("Add new scan constraint."),
                         );
-                        IconDraw::draw(user_interface, remove_scan_constraint_button.rect, &theme.icon_library.icon_handle_common_add);
+                        IconDraw::draw(
+                            user_interface,
+                            remove_scan_constraint_button.rect,
+                            &theme.icon_library.icon_handle_common_delete,
+                        );
 
                         if remove_scan_constraint_button.clicked() {
                             remove_scan_constraint_index = index;
@@ -200,9 +218,9 @@ impl Widget for ElementScannerToolbarView {
         } else if should_start_scan {
             ElementScannerViewData::start_scan(self.element_scanner_view_data.clone(), self.app_context.engine_execution_context.clone());
         } else if should_add_new_scan_constraint {
-            //
+            ElementScannerViewData::add_constraint(self.element_scanner_view_data.clone());
         } else if remove_scan_constraint_index > 0 {
-            //
+            ElementScannerViewData::remove_constraint(self.element_scanner_view_data.clone(), remove_scan_constraint_index);
         }
 
         response
