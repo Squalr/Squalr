@@ -44,6 +44,17 @@ impl ElementScanMappingRule for RuleMapScanType {
 
         if !is_valid_for_snapshot_region {
             mapped_parameters.set_mapped_scan_type(MappedScanType::Invalid());
+
+            return;
+        }
+
+        let region_size = snapshot_region_filter.get_region_size();
+
+        // Early check as to whether we are smaller than the smallest possible vector.
+        // Saves some computation to check this now, as this is a very frequent case.
+        if region_size < 16 {
+            mapped_parameters.set_mapped_scan_type(MappedScanType::Scalar(ScanParametersScalar::ScalarIterative));
+
             return;
         }
 
@@ -64,17 +75,13 @@ impl ElementScanMappingRule for RuleMapScanType {
         let data_type_size_bytes = symbol_registry_guard.get_unit_size_in_bytes(data_type_ref);
         let is_floating_point = symbol_registry_guard.is_floating_point(data_type_ref);
         let memory_alignment_size = mapped_parameters.get_memory_alignment() as u64;
-        let region_size = snapshot_region_filter.get_region_size();
-        let vectorization_plan_64 = VectorGenerics::plan_vector_scan::<64>(region_size, data_type_size_bytes, memory_alignment_size);
-        let vectorization_plan_32 = VectorGenerics::plan_vector_scan::<32>(region_size, data_type_size_bytes, memory_alignment_size);
-        let vectorization_plan_16 = VectorGenerics::plan_vector_scan::<16>(region_size, data_type_size_bytes, memory_alignment_size);
 
         // Decide whether to use a scalar or SIMD scan based on filter region size.
-        let vectorization_size = if vectorization_plan_64.is_valid() {
+        let vectorization_size = if VectorGenerics::plan_vector_scan::<64>(region_size, data_type_size_bytes, memory_alignment_size).is_valid() {
             VectorizationSize::Vector64
-        } else if vectorization_plan_32.is_valid() {
+        } else if VectorGenerics::plan_vector_scan::<32>(region_size, data_type_size_bytes, memory_alignment_size).is_valid() {
             VectorizationSize::Vector32
-        } else if vectorization_plan_16.is_valid() {
+        } else if VectorGenerics::plan_vector_scan::<16>(region_size, data_type_size_bytes, memory_alignment_size).is_valid() {
             VectorizationSize::Vector16
         } else {
             // The filter cannot fit into a vector! Revert to scalar scan.
