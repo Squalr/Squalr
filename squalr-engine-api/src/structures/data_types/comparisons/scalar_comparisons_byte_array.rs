@@ -1,5 +1,5 @@
 use crate::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
-use crate::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
+use crate::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
 use num_traits::{WrappingAdd, WrappingSub};
 use std::cmp::Ordering;
 use std::ops::{BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr};
@@ -11,7 +11,7 @@ use std::ops::{BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr};
 pub struct ScalarComparisonsByteArray {}
 
 impl ScalarComparisonsByteArray {
-    pub fn get_compare_equal(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_equal(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
@@ -22,7 +22,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_not_equal(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_not_equal(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
@@ -33,7 +33,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_greater_than(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_greater_than(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
@@ -47,7 +47,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_greater_than_or_equal(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_greater_than_or_equal(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
@@ -59,7 +59,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_less_than(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_less_than(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
@@ -71,7 +71,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_less_than_or_equal(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_less_than_or_equal(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnImmediate> {
         let immediate_values = scan_parameters.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
@@ -83,7 +83,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_changed(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_changed(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnRelative> {
         let len = scan_parameters.get_data_value().get_size_in_bytes() as usize;
 
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
@@ -93,7 +93,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_unchanged(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_unchanged(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnRelative> {
         let len = scan_parameters.get_data_value().get_size_in_bytes() as usize;
 
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
@@ -104,7 +104,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_increased(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_increased(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnRelative> {
         let len = scan_parameters.get_data_value().get_size_in_bytes() as usize;
 
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
@@ -118,7 +118,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_decreased(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_decreased(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnRelative> {
         let len = scan_parameters.get_data_value().get_size_in_bytes() as usize;
 
         Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
@@ -132,7 +132,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_increased_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_increased_by(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -149,7 +149,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_decreased_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_decreased_by(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -166,7 +166,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_multiplied_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_multiplied_by(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -183,7 +183,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_divided_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_divided_by(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -204,7 +204,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_modulo_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_modulo_by(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -225,7 +225,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_shift_left_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_shift_left_by(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -242,7 +242,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_shift_right_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_shift_right_by(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -259,7 +259,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_logical_and_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_logical_and_by(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -276,7 +276,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_logical_or_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_logical_or_by(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
@@ -293,7 +293,7 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_logical_xor_by(scan_parameters: &MappedScanParameters) -> Option<ScalarCompareFnDelta> {
+    pub fn get_compare_logical_xor_by(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnDelta> {
         let immediate_values = scan_parameters.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();

@@ -6,8 +6,8 @@ use squalr_engine_api::structures::data_types::generics::vector_generics::Vector
 use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
+use squalr_engine_api::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
-use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
@@ -74,7 +74,7 @@ where
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        mapped_scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &OptimizedScanConstraint,
     ) -> Vec<SnapshotRegionFilter> {
         let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,

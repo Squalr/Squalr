@@ -1,5 +1,3 @@
-use std::sync::{Arc, RwLock};
-
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
 use crate::structures::data_types::built_in_types::u16be::data_type_u16be::DataTypeU16be;
@@ -7,12 +5,14 @@ use crate::structures::data_types::built_in_types::u32be::data_type_u32be::DataT
 use crate::structures::data_types::built_in_types::u64be::data_type_u64be::DataTypeU64be;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
+use crate::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
 use crate::structures::scanning::rules::element_scan_mapping_rule::ElementScanMappingRule;
 use crate::structures::scanning::{
     filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
-    parameters::{element_scan::element_scan_parameters::ElementScanParameters, mapped::mapped_scan_parameters::MappedScanParameters},
+    parameters::element_scan::element_scan_parameters::ElementScanParameters,
 };
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
+use std::sync::{Arc, RwLock};
 
 pub struct RuleMapToPrimitiveType {}
 
@@ -32,7 +32,7 @@ impl ElementScanMappingRule for RuleMapToPrimitiveType {
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         _snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,
-        mapped_parameters: &mut MappedScanParameters,
+        mapped_parameters: &mut OptimizedScanConstraint,
     ) {
         let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,

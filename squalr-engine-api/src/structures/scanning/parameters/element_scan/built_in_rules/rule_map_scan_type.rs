@@ -1,17 +1,17 @@
-use std::sync::{Arc, RwLock};
-
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::generics::vector_generics::VectorGenerics;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
-use crate::structures::scanning::parameters::mapped::mapped_scan_type::{MappedScanType, ScanParametersByteArray, ScanParametersScalar, ScanParametersVector};
-use crate::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
+use crate::structures::scanning::constraints::mapped_scan_type::{MappedScanType, ScanParametersByteArray, ScanParametersScalar, ScanParametersVector};
+use crate::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
+use crate::structures::scanning::constraints::vectorization_size::VectorizationSize;
 use crate::structures::scanning::rules::element_scan_mapping_rule::ElementScanMappingRule;
 use crate::structures::scanning::{
     filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
-    parameters::{element_scan::element_scan_parameters::ElementScanParameters, mapped::mapped_scan_parameters::MappedScanParameters},
+    parameters::element_scan::element_scan_parameters::ElementScanParameters,
 };
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
+use std::sync::{Arc, RwLock};
 
 pub struct RuleMapScanType {}
 
@@ -31,7 +31,7 @@ impl ElementScanMappingRule for RuleMapScanType {
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,
-        mapped_parameters: &mut MappedScanParameters,
+        mapped_parameters: &mut OptimizedScanConstraint,
     ) {
         let is_valid_for_snapshot_region = if snapshot_region.has_current_values() {
             match mapped_parameters.get_compare_type() {

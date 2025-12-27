@@ -99,7 +99,7 @@ impl ElementScanExecutorTask {
             // Creates initial results if none exist yet.
             snapshot_region.initialize_scan_results(
                 &symbol_registry,
-                element_scan_parameters.get_data_types(),
+                element_scan_parameters.get_data_type_refs(),
                 element_scan_parameters.get_memory_alignment(),
             );
 

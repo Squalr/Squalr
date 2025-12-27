@@ -1,15 +1,15 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
+use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use crate::structures::scanning::memory_read_mode::MemoryReadMode;
-use crate::structures::scanning::scan_constraint::ScanConstraint;
 
 /// Represents the scan arguments for an element-wise scan.
 #[derive(Debug, Clone)]
 pub struct ElementScanParameters {
+    scan_constraints: Vec<ScanConstraint>,
     data_types: Vec<DataTypeRef>,
     memory_alignment: MemoryAlignment,
-    scan_constraints: Vec<ScanConstraint>,
     floating_point_tolerance: FloatingPointTolerance,
     memory_read_mode: MemoryReadMode,
     is_single_thread_scan: bool,
@@ -21,18 +21,18 @@ pub struct ElementScanParameters {
 
 impl ElementScanParameters {
     pub fn new(
+        scan_constraints: Vec<ScanConstraint>,
         data_types: Vec<DataTypeRef>,
         memory_alignment: MemoryAlignment,
-        scan_constraints: Vec<ScanConstraint>,
         floating_point_tolerance: FloatingPointTolerance,
         memory_read_mode: MemoryReadMode,
         is_single_thread_scan: bool,
         debug_perform_validation_scan: bool,
     ) -> Self {
         Self {
+            scan_constraints,
             data_types,
             memory_alignment,
-            scan_constraints,
             floating_point_tolerance,
             memory_read_mode,
             is_single_thread_scan,
@@ -40,16 +40,16 @@ impl ElementScanParameters {
         }
     }
 
-    pub fn get_data_types(&self) -> &Vec<DataTypeRef> {
+    pub fn get_scan_constraints(&self) -> &Vec<ScanConstraint> {
+        &self.scan_constraints
+    }
+
+    pub fn get_data_type_refs(&self) -> &Vec<DataTypeRef> {
         &self.data_types
     }
 
     pub fn get_memory_alignment(&self) -> MemoryAlignment {
         self.memory_alignment
-    }
-
-    pub fn get_scan_constraints(&self) -> &Vec<ScanConstraint> {
-        &self.scan_constraints
     }
 
     pub fn get_floating_point_tolerance(&self) -> FloatingPointTolerance {

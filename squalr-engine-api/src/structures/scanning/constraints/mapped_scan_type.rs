@@ -1,4 +1,4 @@
-use crate::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
+use crate::structures::scanning::constraints::vectorization_size::VectorizationSize;
 
 #[derive(Debug, Clone)]
 pub enum ScanParametersScalar {

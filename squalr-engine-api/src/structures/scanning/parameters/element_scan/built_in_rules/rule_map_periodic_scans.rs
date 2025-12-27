@@ -1,15 +1,15 @@
-use std::sync::{Arc, RwLock};
-
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::data_value::DataValue;
+use crate::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
 use crate::structures::scanning::rules::element_scan_mapping_rule::ElementScanMappingRule;
 use crate::structures::scanning::{
     comparisons::scan_compare_type::ScanCompareType,
     filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
-    parameters::{element_scan::element_scan_parameters::ElementScanParameters, mapped::mapped_scan_parameters::MappedScanParameters},
+    parameters::element_scan::element_scan_parameters::ElementScanParameters,
 };
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
+use std::sync::{Arc, RwLock};
 
 pub struct RuleMapPeriodicScans {}
 
@@ -79,7 +79,7 @@ impl ElementScanMappingRule for RuleMapPeriodicScans {
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         _snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,
-        mapped_parameters: &mut MappedScanParameters,
+        mapped_parameters: &mut OptimizedScanConstraint,
     ) {
         if let Some(periodicity) = Self::calculate_periodicity(symbol_registry, mapped_parameters.get_data_value(), &mapped_parameters.get_compare_type()) {
             mapped_parameters.set_periodicity(periodicity);

@@ -1,3 +1,4 @@
+use crate::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
 use crate::structures::structs::container_type::ContainerType;
 use crate::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use crate::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
@@ -19,14 +20,11 @@ use crate::structures::{
         anonymous_value::AnonymousValue, anonymous_value_container::AnonymousValueContainer, data_value::DataValue, display_value_type::DisplayValueType,
         display_values::DisplayValues,
     },
-    scanning::{
-        comparisons::{
-            scan_compare_type_delta::ScanCompareTypeDelta,
-            scan_compare_type_immediate::ScanCompareTypeImmediate,
-            scan_compare_type_relative::ScanCompareTypeRelative,
-            scan_function_scalar::{ScalarCompareFnImmediate, ScalarCompareFnRelative},
-        },
-        parameters::mapped::mapped_scan_parameters::MappedScanParameters,
+    scanning::comparisons::{
+        scan_compare_type_delta::ScanCompareTypeDelta,
+        scan_compare_type_immediate::ScanCompareTypeImmediate,
+        scan_compare_type_relative::ScanCompareTypeRelative,
+        scan_function_scalar::{ScalarCompareFnImmediate, ScalarCompareFnRelative},
     },
 };
 use std::sync::Once;
@@ -244,7 +242,7 @@ impl SymbolRegistry {
         &self,
         data_type_ref: &DataTypeRef,
         scan_compare_type: &ScanCompareTypeImmediate,
-        mapped_scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &OptimizedScanConstraint,
     ) -> Option<ScalarCompareFnImmediate> {
         match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
@@ -263,7 +261,7 @@ impl SymbolRegistry {
         &self,
         data_type_ref: &DataTypeRef,
         scan_compare_type: &ScanCompareTypeRelative,
-        mapped_scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &OptimizedScanConstraint,
     ) -> Option<ScalarCompareFnRelative> {
         match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
@@ -280,7 +278,7 @@ impl SymbolRegistry {
         &self,
         data_type_ref: &DataTypeRef,
         scan_compare_type: &ScanCompareTypeDelta,
-        mapped_scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &OptimizedScanConstraint,
     ) -> Option<ScalarCompareFnRelative> {
         match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
@@ -303,7 +301,7 @@ impl SymbolRegistry {
         &self,
         data_type_ref: &DataTypeRef,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        mapped_scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &OptimizedScanConstraint,
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
@@ -320,7 +318,7 @@ impl SymbolRegistry {
         &self,
         data_type_ref: &DataTypeRef,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        mapped_scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &OptimizedScanConstraint,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
@@ -337,7 +335,7 @@ impl SymbolRegistry {
         &self,
         data_type_ref: &DataTypeRef,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        mapped_scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &OptimizedScanConstraint,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,

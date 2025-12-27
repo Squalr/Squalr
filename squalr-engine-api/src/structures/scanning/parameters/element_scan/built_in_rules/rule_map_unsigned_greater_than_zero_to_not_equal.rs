@@ -1,13 +1,13 @@
-use std::sync::{Arc, RwLock};
-
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
+use crate::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
 use crate::structures::scanning::rules::element_scan_mapping_rule::ElementScanMappingRule;
 use crate::structures::scanning::{
     comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
     filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
-    parameters::{element_scan::element_scan_parameters::ElementScanParameters, mapped::mapped_scan_parameters::MappedScanParameters},
+    parameters::element_scan::element_scan_parameters::ElementScanParameters,
 };
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
+use std::sync::{Arc, RwLock};
 
 /// Defines a mapping rule that converts > 0 scans for unsigned non-floating-point values into != 0.
 /// This optimization allows for better vectorization, resulting in faster scans.
@@ -29,7 +29,7 @@ impl ElementScanMappingRule for RuleMapUnsignedGreaterThanZeroToNotEqual {
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         _snapshot_region_filter: &SnapshotRegionFilter,
         _original_scan_parameters: &ElementScanParameters,
-        mapped_parameters: &mut MappedScanParameters,
+        mapped_parameters: &mut OptimizedScanConstraint,
     ) {
         let data_type_ref = mapped_parameters.get_data_value().get_data_type_ref();
         let symbol_registry_guard = match symbol_registry.read() {

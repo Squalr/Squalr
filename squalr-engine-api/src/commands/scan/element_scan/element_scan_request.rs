@@ -2,7 +2,7 @@ use crate::commands::engine_command_request::EngineCommandRequest;
 use crate::commands::scan::element_scan::element_scan_response::ElementScanResponse;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
-use crate::structures::scanning::scan_constraint::ScanConstraint;
+use crate::structures::scanning::constraints::anonymous_scan_constraint::AnonymousScanConstraint;
 use crate::{commands::engine_command::EngineCommand, structures::data_types::data_type_ref::DataTypeRef};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
@@ -10,7 +10,7 @@ use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ElementScanRequest {
     #[structopt(short = "c", long)]
-    pub scan_constraints: Vec<ScanConstraint>,
+    pub scan_constraints: Vec<AnonymousScanConstraint>,
     #[structopt(short = "d", long)]
     pub data_type_refs: Vec<DataTypeRef>,
 }

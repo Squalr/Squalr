@@ -1,8 +1,8 @@
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
-use squalr_engine_api::structures::scanning::{
-    filters::snapshot_region_filter::SnapshotRegionFilter, parameters::mapped::mapped_scan_parameters::MappedScanParameters,
-};
+use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_api::{
+    registries::symbols::symbol_registry::SymbolRegistry, structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint,
+};
 use std::sync::{Arc, RwLock};
 
 pub trait Scanner: Send + Sync {
@@ -12,6 +12,6 @@ pub trait Scanner: Send + Sync {
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        mapped_scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &OptimizedScanConstraint,
     ) -> Vec<SnapshotRegionFilter>;
 }

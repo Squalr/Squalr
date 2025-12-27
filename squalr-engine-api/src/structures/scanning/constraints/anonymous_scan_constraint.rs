@@ -1,28 +1,56 @@
+use crate::registries::symbols::symbol_registry::SymbolRegistry;
+use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
+use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
+/// Represents a scan constraint containing a compare type and an anonymous value.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ScanConstraint {
-    pub compare_type: ScanCompareType,
-    pub value: Option<AnonymousValue>,
+pub struct AnonymousScanConstraint {
+    compare_type: ScanCompareType,
+    anonymous_value: Option<AnonymousValue>,
 }
 
-impl ScanConstraint {
+impl AnonymousScanConstraint {
     pub fn new(
         compare_type: ScanCompareType,
-        value: Option<AnonymousValue>,
+        anonymous_value: Option<AnonymousValue>,
     ) -> Self {
-        Self { compare_type, value }
+        Self { compare_type, anonymous_value }
+    }
+
+    pub fn get_compare_type(&self) -> ScanCompareType {
+        self.compare_type
+    }
+
+    pub fn get_anonymous_value(&self) -> &Option<AnonymousValue> {
+        &self.anonymous_value
+    }
+
+    pub fn deanonymize_constraint(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<ScanConstraint> {
+        let symbol_registry = SymbolRegistry::get_instance();
+
+        if let Some(anonymous_value) = &self.anonymous_value {
+            match symbol_registry.deanonymize_value(&data_type_ref, &anonymous_value.get_value()) {
+                Ok(data_value) => return Some(ScanConstraint::new(self.compare_type, data_value)),
+                Err(error) => log::error!("Unable to parse value in anonymous constraint: {}", error),
+            }
+        }
+
+        None
     }
 }
 
-impl FromStr for ScanConstraint {
+impl FromStr for AnonymousScanConstraint {
     type Err = ParseScanConstraintError;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
@@ -55,7 +83,7 @@ impl FromStr for ScanConstraint {
                     continue; // Skip to next prefix instead of err, but actually in logic, we err only if no match at end.
                 }
 
-                let value = if rest.is_empty() {
+                let anonymous_value = if rest.is_empty() {
                     None
                 } else {
                     match rest.parse::<AnonymousValue>() {
@@ -67,11 +95,11 @@ impl FromStr for ScanConstraint {
                     }
                 };
 
-                if needs_value && value.is_none() {
+                if needs_value && anonymous_value.is_none() {
                     continue;
                 }
 
-                return Ok(ScanConstraint { compare_type, value });
+                return Ok(AnonymousScanConstraint { compare_type, anonymous_value });
             }
         }
 

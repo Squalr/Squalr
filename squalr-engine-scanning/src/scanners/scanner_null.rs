@@ -1,8 +1,9 @@
 use crate::scanners::snapshot_scanner::Scanner;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
-use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_api::{
+    registries::symbols::symbol_registry::SymbolRegistry, structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint,
+};
 use std::sync::{Arc, RwLock};
 
 /// A scanner that does nothing.
@@ -19,7 +20,7 @@ impl Scanner for ScannerNull {
         _symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         _snapshot_region: &SnapshotRegion,
         _snapshot_region_filter: &SnapshotRegionFilter,
-        _mapped_scan_parameters: &MappedScanParameters,
+        _mapped_scan_parameters: &OptimizedScanConstraint,
     ) -> Vec<SnapshotRegionFilter> {
         Vec::new()
     }

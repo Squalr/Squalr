@@ -7,7 +7,7 @@ use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use crate::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use crate::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
-use crate::structures::scanning::parameters::mapped::mapped_scan_type::MappedScanType;
+use crate::structures::scanning::constraints::mapped_scan_type::MappedScanType;
 use std::simd::LaneCount;
 use std::simd::SupportedLaneCount;
 use std::sync::Arc;
@@ -15,7 +15,7 @@ use std::sync::RwLock;
 
 /// Represents processed scan parameters derived from user provided scan parameters.
 #[derive(Debug, Clone)]
-pub struct MappedScanParameters {
+pub struct OptimizedScanConstraint {
     data_value: DataValue,
     memory_alignment: MemoryAlignment,
     scan_compare_type: ScanCompareType,
@@ -24,7 +24,7 @@ pub struct MappedScanParameters {
     mapped_scan_type: MappedScanType,
 }
 
-impl MappedScanParameters {
+impl OptimizedScanConstraint {
     /// Creates optimized scan paramaters for a given snapshot region filter, given user provided scan parameters.
     /// Internally, the user parameters are processed into more optimal parameters that help select the most optimal scan implementation.
     pub fn new(

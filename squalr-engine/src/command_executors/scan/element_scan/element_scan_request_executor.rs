@@ -22,11 +22,25 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
             .get_opened_process()
         {
             let snapshot = engine_privileged_state.get_snapshot();
+            let element_scan_rule_registry = engine_privileged_state.get_element_scan_rule_registry();
+            let symbol_registry = engine_privileged_state.get_symbol_registry();
             let alignment = ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1);
+            let mut scan_constraints = Vec::new();
+
+            // Deanonymize all scan constraints against all data types.
+            // For example, an immediate comparison of >= 23 could end up being a byte, float, etc.
+            for anonymous_scan_constraint in &self.scan_constraints {
+                for data_type_ref in &self.data_type_refs {
+                    if let Some(scan_constraint) = anonymous_scan_constraint.deanonymize_constraint(data_type_ref) {
+                        scan_constraints.push(scan_constraint);
+                    }
+                }
+            }
+
             let scan_parameters = ElementScanParameters::new(
+                scan_constraints,
                 self.data_type_refs.to_owned(),
                 alignment,
-                self.scan_constraints.to_owned(),
                 ScanSettingsConfig::get_floating_point_tolerance(),
                 ScanSettingsConfig::get_memory_read_mode(),
                 ScanSettingsConfig::get_is_single_threaded_scan(),
@@ -34,8 +48,6 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
             );
 
             // Start the task to perform the scan.
-            let element_scan_rule_registry = engine_privileged_state.get_element_scan_rule_registry();
-            let symbol_registry = engine_privileged_state.get_symbol_registry();
             let task = ElementScanExecutorTask::start_task(process_info, snapshot, element_scan_rule_registry, symbol_registry, scan_parameters, true);
             let task_handle = task.get_task_handle();
             let engine_privileged_state = engine_privileged_state.clone();

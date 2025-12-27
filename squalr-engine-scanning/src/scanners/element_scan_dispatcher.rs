@@ -11,16 +11,15 @@ use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
-use squalr_engine_api::structures::data_values::data_value::DataValue;
+use squalr_engine_api::structures::scanning::constraints::mapped_scan_type::{
+    MappedScanType, ScanParametersByteArray, ScanParametersScalar, ScanParametersVector,
+};
+use squalr_engine_api::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
+use squalr_engine_api::structures::scanning::constraints::scan_constraint::ScanConstraint;
+use squalr_engine_api::structures::scanning::constraints::vectorization_size::VectorizationSize;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use squalr_engine_api::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
-use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
-use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_type::{
-    MappedScanType, ScanParametersByteArray, ScanParametersScalar, ScanParametersVector,
-};
-use squalr_engine_api::structures::scanning::parameters::mapped::vectorization_size::VectorizationSize;
-use squalr_engine_api::structures::scanning::scan_constraint::ScanConstraint;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::cmp;
 use std::sync::{Arc, RwLock};
@@ -39,8 +38,7 @@ impl ElementScanDispatcher {
         element_scan_parameters: &ElementScanParameters,
     ) -> SnapshotRegionFilterCollection {
         // Run the scan either single-threaded or parallel based on settings. Single-thread is not advised unless debugging.
-        let single_thread_scan = element_scan_parameters.get_is_single_thread_scan();
-        let result_snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>> = if single_thread_scan {
+        let result_snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>> = if element_scan_parameters.get_is_single_thread_scan() {
             snapshot_region_filter_collection
                 .iter()
                 .filter_map(|snapshot_region_filter| {
@@ -69,6 +67,7 @@ impl ElementScanDispatcher {
                 })
                 .collect()
         };
+
         SnapshotRegionFilterCollection::new(
             symbol_registry,
             result_snapshot_region_filters,
@@ -92,7 +91,7 @@ impl ElementScanDispatcher {
 
         // Helper function to map the given element scan parameters to optimized mapped parameters for the given filter.
         let process_constraint = |snapshot_region_filter: &SnapshotRegionFilter, scan_constraint: &ScanConstraint| {
-            let mapped_scan_parameters = Self::map_scan_constraint(
+            let optimized_scan_constraint = Self::optimize_scan_constraint(
                 element_scan_rule_registry,
                 symbol_registry,
                 snapshot_region,
@@ -101,9 +100,15 @@ impl ElementScanDispatcher {
                 element_scan_parameters,
                 scan_constraint,
             );
-            mapped_scan_parameters
-                .map(|mapped| {
-                    Self::perform_scan_for_snapshot_filter(snapshot_region_filter, &mapped, snapshot_region, symbol_registry, element_scan_parameters)
+            optimized_scan_constraint
+                .map(|optimized_scan_constraint| {
+                    Self::perform_scan_for_snapshot_filter(
+                        snapshot_region_filter,
+                        &optimized_scan_constraint,
+                        snapshot_region,
+                        symbol_registry,
+                        element_scan_parameters,
+                    )
                 })
                 .unwrap_or_default()
                 .into_iter()
@@ -131,14 +136,14 @@ impl ElementScanDispatcher {
 
     fn perform_scan_for_snapshot_filter(
         snapshot_region_filter: &SnapshotRegionFilter,
-        mapped_scan_parameters: &MappedScanParameters,
+        optimized_scan_constraint: &OptimizedScanConstraint,
         snapshot_region: &SnapshotRegion,
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         element_scan_parameters: &ElementScanParameters,
     ) -> Vec<SnapshotRegionFilter> {
         // Execute the scanner that corresponds to the mapped parameters.
-        let scanner_instance = Self::aquire_scanner_instance(mapped_scan_parameters);
-        let scan_result_filters = scanner_instance.scan_region(symbol_registry, snapshot_region, snapshot_region_filter, mapped_scan_parameters);
+        let scanner_instance = Self::aquire_scanner_instance(optimized_scan_constraint);
+        let scan_result_filters = scanner_instance.scan_region(symbol_registry, snapshot_region, snapshot_region_filter, optimized_scan_constraint);
 
         // If the debug flag is provided, perform a scalar scan to ensure that our specialized scanner has the same results.
         if element_scan_parameters.get_debug_perform_validation_scan() {
@@ -148,15 +153,15 @@ impl ElementScanDispatcher {
                 &scan_result_filters,
                 snapshot_region,
                 snapshot_region_filter,
-                mapped_scan_parameters,
+                optimized_scan_constraint,
             );
         }
         scan_result_filters
     }
 
-    fn aquire_scanner_instance(mapped_scan_parameters: &MappedScanParameters) -> &'static dyn Scanner {
+    fn aquire_scanner_instance(optimized_scan_constraint: &OptimizedScanConstraint) -> &'static dyn Scanner {
         // Execute the scanner that corresponds to the mapped parameters.
-        match mapped_scan_parameters.get_mapped_scan_type() {
+        match optimized_scan_constraint.get_mapped_scan_type() {
             MappedScanType::Invalid() => &ScannerNull {},
             MappedScanType::Scalar(scan_parameters_scalar) => match scan_parameters_scalar {
                 ScanParametersScalar::SingleElement => &ScannerScalarSingleElement {},
@@ -203,7 +208,7 @@ impl ElementScanDispatcher {
         }
     }
 
-    pub fn map_scan_constraint(
+    pub fn optimize_scan_constraint(
         element_scan_rule_registry: &Arc<RwLock<ElementScanRuleRegistry>>,
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
@@ -211,15 +216,7 @@ impl ElementScanDispatcher {
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         element_scan_parameters: &ElementScanParameters,
         scan_constraint: &ScanConstraint,
-    ) -> Option<MappedScanParameters> {
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return None;
-            }
-        };
+    ) -> Option<OptimizedScanConstraint> {
         let element_scan_rule_registry_guard = match element_scan_rule_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
@@ -227,18 +224,11 @@ impl ElementScanDispatcher {
                 return None;
             }
         };
-        let data_type_ref = snapshot_region_filter_collection.get_data_type_ref();
-        let data_value = match &scan_constraint.value {
-            Some(anonymous_value) => symbol_registry_guard
-                .deanonymize_value(data_type_ref, anonymous_value.get_value())
-                .ok()?,
-            None => DataValue::new(data_type_ref.clone(), Vec::new()),
-        };
 
-        let mut mapped_scan_parameters = MappedScanParameters::new(
-            data_value,
+        let mut optimized_scan_constraint = OptimizedScanConstraint::new(
+            scan_constraint.get_data_value().clone(),
             element_scan_parameters.get_memory_alignment(),
-            scan_constraint.compare_type,
+            scan_constraint.get_compare_type(),
             element_scan_parameters.get_floating_point_tolerance(),
         );
 
@@ -250,11 +240,11 @@ impl ElementScanDispatcher {
                 snapshot_region_filter_collection,
                 snapshot_region_filter,
                 element_scan_parameters,
-                &mut mapped_scan_parameters,
+                &mut optimized_scan_constraint,
             );
         }
 
-        Some(mapped_scan_parameters)
+        Some(optimized_scan_constraint)
     }
 
     /// Performs a second scan over the provided snapshot region filter to ensure that the results of a specialized scan match
@@ -265,10 +255,10 @@ impl ElementScanDispatcher {
         comparison_filters: &Vec<SnapshotRegionFilter>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        mapped_scan_parameters: &MappedScanParameters,
+        optimized_scan_constraint: &OptimizedScanConstraint,
     ) {
         let debug_scanner_instance = &ScannerScalarIterative {};
-        let debug_filters = debug_scanner_instance.scan_region(symbol_registry, snapshot_region, snapshot_region_filter, mapped_scan_parameters);
+        let debug_filters = debug_scanner_instance.scan_region(symbol_registry, snapshot_region, snapshot_region_filter, optimized_scan_constraint);
         let has_length_match = debug_filters.len() == comparison_filters.len();
 
         if !has_length_match {

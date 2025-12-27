@@ -1,8 +1,8 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
+use squalr_engine_api::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
-use squalr_engine_api::structures::scanning::parameters::mapped::mapped_scan_parameters::MappedScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::sync::{Arc, RwLock};
 
@@ -19,7 +19,7 @@ impl Scanner for ScannerScalarSingleElement {
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        mapped_scan_parameters: &MappedScanParameters,
+        mapped_scan_parameters: &OptimizedScanConstraint,
     ) -> Vec<SnapshotRegionFilter> {
         let mut compare_result = false;
 

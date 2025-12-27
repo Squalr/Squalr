@@ -16,7 +16,7 @@ use squalr_engine_api::{
         data_values::{anonymous_value::AnonymousValue, display_value::DisplayValue},
         scanning::{
             comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
-            scan_constraint::ScanConstraint,
+            constraints::anonymous_scan_constraint::AnonymousScanConstraint,
         },
     },
 };
@@ -125,7 +125,7 @@ impl ElementScannerViewData {
             .scan_values_and_constraints
             .iter()
             .map(|scan_value_and_constraint| {
-                ScanConstraint::new(
+                AnonymousScanConstraint::new(
                     scan_value_and_constraint.selected_scan_compare_type,
                     Some(AnonymousValue::new(&scan_value_and_constraint.current_scan_value)),
                 )
