@@ -9,7 +9,6 @@ use squalr_engine_api::structures::scanning::plans::element_scan::snapshot_filte
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
-use std::sync::{Arc, RwLock};
 
 pub struct ScannerVectorAligned<const N: usize>
 where
@@ -70,7 +69,6 @@ where
     /// A run-length encoding algorithm is used to generate new sub-regions as the scan progresses.
     fn scan_region(
         &self,
-        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
@@ -106,7 +104,7 @@ where
         debug_assert!(data_type_size == memory_alignment_size);
         debug_assert!(memory_alignment_size == 1 || memory_alignment_size == 2 || memory_alignment_size == 4 || memory_alignment_size == 8);
 
-        if let Some(vector_compare_func) = snapshot_filter_element_scan_plan.get_scan_function_vector(symbol_registry) {
+        if let Some(vector_compare_func) = snapshot_filter_element_scan_plan.get_scan_function_vector() {
             match vector_compare_func {
                 ScanFunctionVector::Immediate(compare_func) => {
                     // Compare as many full vectors as we can.

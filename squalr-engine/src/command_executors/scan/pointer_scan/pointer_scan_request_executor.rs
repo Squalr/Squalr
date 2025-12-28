@@ -47,17 +47,7 @@ impl EngineCommandRequestExecutor for PointerScanRequest {
             );
 
             // Start the task to perform the scan.
-            let element_scan_rule_registry = engine_privileged_state.get_element_scan_rule_registry();
-            let symbol_registry = engine_privileged_state.get_symbol_registry();
-            let task = PointerScanExecutorTask::start_task(
-                process_info,
-                snapshot.clone(),
-                snapshot.clone(),
-                element_scan_rule_registry,
-                symbol_registry,
-                scan_parameters,
-                true,
-            );
+            let task = PointerScanExecutorTask::start_task(process_info, snapshot.clone(), snapshot.clone(), scan_parameters, true);
             let task_handle = task.get_task_handle();
             let engine_privileged_state = engine_privileged_state.clone();
             let progress_receiver = task.subscribe_to_progress_updates();

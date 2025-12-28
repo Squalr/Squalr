@@ -10,7 +10,6 @@ use crate::scanners::vector::scanner_vector_overlapping_bytewise_staggered::Scan
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
@@ -23,7 +22,6 @@ use squalr_engine_api::structures::scanning::plans::plan_types::planned_scan_typ
 use squalr_engine_api::structures::scanning::plans::plan_types::planned_scan_vectorization_size::PlannedScanVectorizationSize;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::cmp;
-use std::sync::{Arc, RwLock};
 
 pub struct ElementScanDispatcher {}
 
@@ -32,8 +30,6 @@ pub struct ElementScanDispatcher {}
 impl ElementScanDispatcher {
     /// Performs a scan over a provided filter collection, returning a new filter collection with the results.
     pub fn dispatch_scan(
-        element_scan_rule_registry: &Arc<RwLock<ElementScanRuleRegistry>>,
-        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         element_scan_plan: &ElementScanPlan,
@@ -47,8 +43,6 @@ impl ElementScanDispatcher {
                         snapshot_region_filter_collection,
                         snapshot_region_filter,
                         snapshot_region,
-                        element_scan_rule_registry,
-                        symbol_registry,
                         element_scan_plan,
                     )
                 })
@@ -61,8 +55,6 @@ impl ElementScanDispatcher {
                         snapshot_region_filter_collection,
                         snapshot_region_filter,
                         snapshot_region,
-                        element_scan_rule_registry,
-                        symbol_registry,
                         element_scan_plan,
                     )
                 })
@@ -70,7 +62,6 @@ impl ElementScanDispatcher {
         };
 
         SnapshotRegionFilterCollection::new(
-            symbol_registry,
             result_snapshot_region_filters,
             snapshot_region_filter_collection.get_data_type_ref().clone(),
             snapshot_region_filter_collection.get_memory_alignment(),
@@ -84,8 +75,6 @@ impl ElementScanDispatcher {
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_region: &SnapshotRegion,
-        element_scan_rule_registry: &Arc<RwLock<ElementScanRuleRegistry>>,
-        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         element_scan_plan: &ElementScanPlan,
     ) -> Option<Vec<SnapshotRegionFilter>> {
         let scan_constraints = match element_scan_plan
@@ -121,7 +110,6 @@ impl ElementScanDispatcher {
                 .iter()
             {
                 scan_filter_rule.map_parameters(
-                    symbol_registry,
                     snapshot_region,
                     snapshot_region_filter_collection,
                     snapshot_region_filter,
@@ -134,7 +122,6 @@ impl ElementScanDispatcher {
                 snapshot_region_filter,
                 &snapshot_filter_element_scan_plan,
                 snapshot_region,
-                symbol_registry,
                 element_scan_plan,
                 scan_constraints,
             )
@@ -165,19 +152,17 @@ impl ElementScanDispatcher {
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
         snapshot_region: &SnapshotRegion,
-        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         element_scan_plan: &ElementScanPlan,
         scan_constraints: &Vec<ScanConstraint>,
     ) -> Vec<SnapshotRegionFilter> {
         // Execute the scanner that corresponds to the mapped parameters.
         let scanner_instance = Self::aquire_scanner_instance(snapshot_filter_element_scan_plan);
-        let scan_result_filters = scanner_instance.scan_region(symbol_registry, snapshot_region, snapshot_region_filter, snapshot_filter_element_scan_plan);
+        let scan_result_filters = scanner_instance.scan_region(snapshot_region, snapshot_region_filter, snapshot_filter_element_scan_plan);
 
         // If the debug flag is provided, perform a scalar scan to ensure that our specialized scanner has the same results.
         if element_scan_plan.get_debug_perform_validation_scan() {
             Self::perform_debug_scan(
                 scanner_instance,
-                symbol_registry,
                 &scan_result_filters,
                 snapshot_region,
                 snapshot_region_filter,
@@ -240,14 +225,13 @@ impl ElementScanDispatcher {
     /// the results of the scalar scan. This is a way to unit test complex scanner implementations on real world data.
     fn perform_debug_scan(
         scanner_instance: &dyn Scanner,
-        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         comparison_filters: &Vec<SnapshotRegionFilter>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) {
         let debug_scanner_instance = &ScannerScalarIterative {};
-        let debug_filters = debug_scanner_instance.scan_region(symbol_registry, snapshot_region, snapshot_region_filter, snapshot_filter_element_scan_plan);
+        let debug_filters = debug_scanner_instance.scan_region(snapshot_region, snapshot_region_filter, snapshot_filter_element_scan_plan);
         let has_length_match = debug_filters.len() == comparison_filters.len();
 
         if !has_length_match {

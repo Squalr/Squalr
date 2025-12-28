@@ -2,6 +2,7 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_response::ScanResultsFreezeResponse;
+use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
@@ -16,15 +17,7 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let symbol_registry = engine_privileged_state.get_symbol_registry();
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return ScanResultsFreezeResponse::default();
-            }
-        };
+        let symbol_registry = SymbolRegistry::get_instance();
         let snapshot = engine_privileged_state.get_snapshot();
         let snapshot_guard = match snapshot.read() {
             Ok(snapshot) => snapshot,
@@ -55,7 +48,7 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
         };
 
         for scan_result_ref in &self.scan_result_refs {
-            if let Some(scan_result) = snapshot_guard.get_scan_result(&symbol_registry, scan_result_ref.get_scan_result_index()) {
+            if let Some(scan_result) = snapshot_guard.get_scan_result(scan_result_ref.get_scan_result_index()) {
                 let address = scan_result.get_address();
                 let mut module_name = String::default();
                 let mut module_offset = scan_result.get_address();
@@ -75,7 +68,7 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
                     {
                         let data_type_ref = scan_result.get_data_type_ref();
 
-                        if let Some(mut data_value) = symbol_registry_guard.get_default_value(data_type_ref) {
+                        if let Some(mut data_value) = symbol_registry.get_default_value(data_type_ref) {
                             if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
                                 freeze_list_registry_guard.set_address_frozen(pointer, data_value.get_value_bytes().to_vec());
                             }

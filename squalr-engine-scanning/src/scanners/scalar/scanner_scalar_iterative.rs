@@ -7,7 +7,6 @@ use squalr_engine_api::{
     registries::symbols::symbol_registry::SymbolRegistry,
     structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan,
 };
-use std::sync::{Arc, RwLock};
 
 pub struct ScannerScalarIterative {}
 
@@ -24,7 +23,6 @@ impl Scanner for ScannerScalarIterative {
     /// is used to generate new sub-regions as the scan progresses.
     fn scan_region(
         &self,
-        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
@@ -44,7 +42,7 @@ impl Scanner for ScannerScalarIterative {
         let data_type_ref = snapshot_filter_element_scan_plan.get_data_type_ref();
         let data_type_size = SymbolRegistry::get_instance().get_unit_size_in_bytes(data_type_ref);
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment_size);
-        let element_count = snapshot_region_filter.get_element_count(symbol_registry, data_type_ref, memory_alignment);
+        let element_count = snapshot_region_filter.get_element_count(data_type_ref, memory_alignment);
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);

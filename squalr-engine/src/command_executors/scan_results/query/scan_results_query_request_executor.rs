@@ -2,6 +2,7 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_response::ScanResultsQueryResponse;
+use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
@@ -18,15 +19,7 @@ impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let symbol_registry = engine_privileged_state.get_symbol_registry();
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return ScanResultsQueryResponse::default();
-            }
-        };
+        let symbol_registry = SymbolRegistry::get_instance();
         let results_page_size = ScanSettingsConfig::get_results_page_size() as u64;
         let mut scan_results_list = vec![];
         let mut last_page_index = 0;
@@ -55,8 +48,7 @@ impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
                 .min(result_count);
 
             for result_index in index_of_first_page_entry..index_of_last_page_entry {
-                let symbol_registry = engine_privileged_state.get_symbol_registry();
-                let scan_result_base = match snapshot.get_scan_result(&symbol_registry, result_index) {
+                let scan_result_base = match snapshot.get_scan_result(result_index) {
                     None => break,
                     Some(scan_result_base) => scan_result_base,
                 };
@@ -91,7 +83,7 @@ impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
                 };
 
                 let recently_read_display_values = if let Some(data_value) = recently_read_value.as_ref() {
-                    Some(symbol_registry_guard.create_display_values(data_value.get_data_type_ref(), data_value.get_value_bytes()))
+                    Some(symbol_registry.create_display_values(data_value.get_data_type_ref(), data_value.get_value_bytes()))
                 } else {
                     None
                 };

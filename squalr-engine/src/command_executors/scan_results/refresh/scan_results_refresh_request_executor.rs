@@ -2,6 +2,7 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_response::ScanResultsRefreshResponse;
+use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
@@ -17,15 +18,7 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let symbol_registry = engine_privileged_state.get_symbol_registry();
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return ScanResultsRefreshResponse::default();
-            }
-        };
+        let symbol_registry = SymbolRegistry::get_instance();
         let snapshot = engine_privileged_state.get_snapshot();
         let snapshot_guard = match snapshot.read() {
             Ok(snapshot) => snapshot,
@@ -49,7 +42,7 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
 
         // Wrap each ScanResultBase with a full ScanResult that includes current values and module information.
         for scan_result_ref in self.scan_result_refs.clone().into_iter() {
-            if let Some(scan_result) = snapshot_guard.get_scan_result(&symbol_registry, scan_result_ref.get_scan_result_index()) {
+            if let Some(scan_result) = snapshot_guard.get_scan_result(scan_result_ref.get_scan_result_index()) {
                 let mut recently_read_value = None;
                 let mut module_name = String::default();
                 let address = scan_result.get_address();
@@ -81,7 +74,7 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
                 };
 
                 let recently_read_display_values = if let Some(data_value) = recently_read_value.as_ref() {
-                    Some(symbol_registry_guard.create_display_values(data_value.get_data_type_ref(), data_value.get_value_bytes()))
+                    Some(symbol_registry.create_display_values(data_value.get_data_type_ref(), data_value.get_value_bytes()))
                 } else {
                     None
                 };

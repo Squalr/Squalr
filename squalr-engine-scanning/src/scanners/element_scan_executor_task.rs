@@ -27,8 +27,6 @@ impl ElementScanExecutorTask {
     pub fn start_task(
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
-        symbol_registry: Arc<RwLock<SymbolRegistry>>,
         element_scan_plan: ElementScanPlan,
         with_logging: bool,
     ) -> Arc<TrackableTask> {
@@ -36,15 +34,7 @@ impl ElementScanExecutorTask {
         let task_clone = task.clone();
 
         thread::spawn(move || {
-            Self::scan_task(
-                &task_clone,
-                process_info,
-                snapshot,
-                element_scan_rule_registry,
-                symbol_registry,
-                element_scan_plan,
-                with_logging,
-            );
+            Self::scan_task(&task_clone, process_info, snapshot, element_scan_plan, with_logging);
 
             task_clone.complete();
         });
@@ -56,8 +46,6 @@ impl ElementScanExecutorTask {
         trackable_task: &Arc<TrackableTask>,
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
-        element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
-        symbol_registry: Arc<RwLock<SymbolRegistry>>,
         element_scan_plan: ElementScanPlan,
         with_logging: bool,
     ) {
@@ -97,11 +85,7 @@ impl ElementScanExecutorTask {
             }
 
             // Creates initial results if none exist yet.
-            snapshot_region.initialize_scan_results(
-                &symbol_registry,
-                element_scan_plan.get_data_type_refs_iterator(),
-                element_scan_plan.get_memory_alignment(),
-            );
+            snapshot_region.initialize_scan_results(element_scan_plan.get_data_type_refs_iterator(), element_scan_plan.get_memory_alignment());
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
             if element_scan_plan.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
@@ -117,13 +101,7 @@ impl ElementScanExecutorTask {
 
             // Create a function to dispatch our element scan to the best scanner implementation for the current region.
             let element_scan_dispatcher = |snapshot_region_filter_collection| {
-                ElementScanDispatcher::dispatch_scan(
-                    &element_scan_rule_registry,
-                    &symbol_registry,
-                    snapshot_region,
-                    snapshot_region_filter_collection,
-                    &element_scan_plan,
-                )
+                ElementScanDispatcher::dispatch_scan(snapshot_region, snapshot_region_filter_collection, &element_scan_plan)
             };
 
             // Again, select the parallel or sequential iterator to iterate over each data type in the scan. Generally there is only 1, but multi-type scans are supported.

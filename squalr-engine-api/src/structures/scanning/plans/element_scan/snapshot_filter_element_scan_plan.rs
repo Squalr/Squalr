@@ -1,17 +1,13 @@
-use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::data_types::generics::vector_comparer::VectorComparer;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use crate::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use crate::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use crate::structures::scanning::plans::plan_types::planned_scan_type::PlannedScanType;
-use std::simd::LaneCount;
-use std::simd::SupportedLaneCount;
-use std::sync::Arc;
-use std::sync::RwLock;
+use crate::{registries::symbols::symbol_registry::SymbolRegistry, structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar};
+use std::simd::{LaneCount, SupportedLaneCount};
 
 /// Represents processed scan parameters derived from user provided scan parameters.
 pub struct SnapshotFilterElementScanPlan<'lifetime> {
@@ -127,10 +123,7 @@ impl<'lifetime> SnapshotFilterElementScanPlan<'lifetime> {
         &self.scan_function_scalar
     }
 
-    pub fn get_scan_function_vector<const N: usize>(
-        &self,
-        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
-    ) -> Option<ScanFunctionVector<N>>
+    pub fn get_scan_function_vector<const N: usize>(&self) -> Option<ScanFunctionVector<N>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {

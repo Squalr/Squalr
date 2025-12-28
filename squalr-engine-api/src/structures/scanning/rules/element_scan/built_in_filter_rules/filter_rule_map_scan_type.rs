@@ -14,7 +14,6 @@ use crate::structures::scanning::{
     },
 };
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
-use std::sync::{Arc, RwLock};
 
 pub struct RuleMapScanType {}
 
@@ -29,7 +28,6 @@ impl ElementScanFilterRule for RuleMapScanType {
 
     fn map_parameters(
         &self,
-        _symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,

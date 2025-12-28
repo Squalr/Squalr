@@ -24,8 +24,6 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
             .get_opened_process()
         {
             let snapshot = engine_privileged_state.get_snapshot();
-            let element_scan_rule_registry = engine_privileged_state.get_element_scan_rule_registry();
-            let symbol_registry = engine_privileged_state.get_symbol_registry();
             let alignment = ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1);
 
             // Deanonymize all scan constraints against all data types.
@@ -62,7 +60,7 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
             );
 
             // Start the task to perform the scan.
-            let task = ElementScanExecutorTask::start_task(process_info, snapshot, element_scan_rule_registry, symbol_registry, element_scan_plan, true);
+            let task = ElementScanExecutorTask::start_task(process_info, snapshot, element_scan_plan, true);
             let task_handle = task.get_task_handle();
             let engine_privileged_state = engine_privileged_state.clone();
             let progress_receiver = task.subscribe_to_progress_updates();

@@ -2,7 +2,6 @@ use crate::command_executors::engine_request_executor::EngineCommandRequestExecu
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan_results::add_to_project::scan_results_add_to_project_request::ScanResultsAddToProjectRequest;
 use squalr_engine_api::commands::scan_results::add_to_project::scan_results_add_to_project_response::ScanResultsAddToProjectResponse;
-use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
 use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
 use std::sync::Arc;
@@ -14,15 +13,6 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
-        let symbol_registry = engine_privileged_state.get_registries().get_symbol_registry();
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return ScanResultsAddToProjectResponse::default();
-            }
-        };
         let snapshot = engine_privileged_state.get_snapshot();
         let snapshot_guard = match snapshot.read() {
             Ok(snapshot) => snapshot,
@@ -47,7 +37,7 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
             Ok(mut opened_project) => {
                 if let Some(project) = opened_project.as_mut() {
                     for scan_result_ref in &self.scan_result_refs {
-                        if let Some(scan_result) = snapshot_guard.get_scan_result(&symbol_registry, scan_result_ref.get_scan_result_index()) {
+                        if let Some(scan_result) = snapshot_guard.get_scan_result(scan_result_ref.get_scan_result_index()) {
                             let data_type_ref = scan_result.get_data_type_ref();
                             /*
                             if let Some(data_value) = symbol_registry_guard.get_default_value(data_type_ref) {

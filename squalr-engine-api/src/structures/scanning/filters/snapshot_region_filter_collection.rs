@@ -1,8 +1,6 @@
-use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, scanning::filters::snapshot_region_filter::SnapshotRegionFilter};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::sync::{Arc, RwLock};
 
 /// A custom type that defines a set of filters (scan results) discovered by scanners.
 pub struct SnapshotRegionFilterCollection {
@@ -23,7 +21,6 @@ impl SnapshotRegionFilterCollection {
     /// Creates a new collection of filters over a snapshot region,
     /// representing regions of memory with the specified data type and alignment.
     pub fn new(
-        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         mut snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
         data_type_ref: DataTypeRef,
         memory_alignment: MemoryAlignment,
@@ -46,7 +43,7 @@ impl SnapshotRegionFilterCollection {
         let number_of_results = snapshot_region_filters
             .iter()
             .flatten()
-            .map(|filter| filter.get_element_count(symbol_registry, &data_type_ref, memory_alignment))
+            .map(|filter| filter.get_element_count(&data_type_ref, memory_alignment))
             .sum();
 
         Self {

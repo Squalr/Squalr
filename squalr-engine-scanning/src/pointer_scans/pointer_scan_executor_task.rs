@@ -31,8 +31,6 @@ impl PointerScanExecutorTask {
         process_info: OpenedProcessInfo,
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
-        element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
-        symbol_registry: Arc<RwLock<SymbolRegistry>>,
         pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
     ) -> Arc<TrackableTask> {
@@ -45,8 +43,6 @@ impl PointerScanExecutorTask {
                 process_info,
                 statics_snapshot,
                 heaps_snapshot,
-                element_scan_rule_registry,
-                symbol_registry,
                 pointer_scan_parameters,
                 with_logging,
             );
@@ -62,8 +58,6 @@ impl PointerScanExecutorTask {
         process_info: OpenedProcessInfo,
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
-        element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
-        symbol_registry: Arc<RwLock<SymbolRegistry>>,
         pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
     ) {

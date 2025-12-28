@@ -11,7 +11,6 @@ use squalr_engine_api::structures::scanning::plans::element_scan::snapshot_filte
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::simd::cmp::SimdPartialEq;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
-use std::sync::{Arc, RwLock};
 use std::{ptr, vec};
 
 pub struct ScannerVectorOverlappingBytewisePeriodic<const N: usize>
@@ -71,7 +70,6 @@ where
 
     fn scan_region(
         &self,
-        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,

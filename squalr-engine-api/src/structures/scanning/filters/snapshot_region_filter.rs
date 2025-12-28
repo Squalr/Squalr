@@ -5,10 +5,7 @@ use crate::{
         memory::{memory_alignment::MemoryAlignment, normalized_region::NormalizedRegion},
     },
 };
-use std::{
-    cmp::max,
-    sync::{Arc, RwLock},
-};
+use std::cmp::max;
 
 /// Defines a range of filtered memory within a snapshot region. These filters are created by
 /// scans to narrow down on a set of desired addresses within the parent snapshot region.
@@ -61,18 +58,10 @@ impl SnapshotRegionFilter {
     /// Gets the number of elements contained by this filter for the given data type and alignment.
     pub fn get_element_count(
         &self,
-        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         data_type_ref: &DataTypeRef,
         memory_alignment: MemoryAlignment,
     ) -> u64 {
-        let data_type_size_bytes = match symbol_registry.read() {
-            Ok(registry) => registry.get_unit_size_in_bytes(data_type_ref),
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return 0;
-            }
-        };
+        let data_type_size_bytes = SymbolRegistry::get_instance().get_unit_size_in_bytes(data_type_ref);
         let misalignment = self.get_misaligned_starting_byte_count(memory_alignment);
         let memory_alignment: u64 = max(memory_alignment as u64, 1);
         let trailing_bytes = data_type_size_bytes.saturating_sub(memory_alignment);

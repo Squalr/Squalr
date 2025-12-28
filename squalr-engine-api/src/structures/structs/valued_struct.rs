@@ -30,7 +30,7 @@ impl ValuedStruct {
 
     pub fn get_symbolic_struct(
         &self,
-        symbolic_struct_registry: &SymbolRegistry,
+        symbol_registry: &SymbolRegistry,
     ) -> Result<SymbolicStructDefinition, String> {
         Err("Struct symbol definition is not registered!".to_string())
     }
