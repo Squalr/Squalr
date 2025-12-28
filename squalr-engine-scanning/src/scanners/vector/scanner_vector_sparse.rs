@@ -167,7 +167,7 @@ where
             }
         }
 
-        if let Some(scalar_compare_func) = snapshot_filter_element_scan_plan.get_scan_function_scalar(symbol_registry) {
+        if let Some(scalar_compare_func) = snapshot_filter_element_scan_plan.get_scan_function_scalar() {
             match scalar_compare_func {
                 ScanFunctionScalar::Immediate(compare_func) => {
                     // Handle remainder elements (reverting to scalar comparisons.)

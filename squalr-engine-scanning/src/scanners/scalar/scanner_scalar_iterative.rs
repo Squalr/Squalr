@@ -49,7 +49,7 @@ impl Scanner for ScannerScalarIterative {
         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
 
-        if let Some(scalar_compare_func) = snapshot_filter_element_scan_plan.get_scan_function_scalar(symbol_registry) {
+        if let Some(scalar_compare_func) = snapshot_filter_element_scan_plan.get_scan_function_scalar() {
             match scalar_compare_func {
                 ScanFunctionScalar::Immediate(compare_func) => {
                     for index in 0..element_count {

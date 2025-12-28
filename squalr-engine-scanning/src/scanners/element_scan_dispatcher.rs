@@ -99,28 +99,45 @@ impl ElementScanDispatcher {
 
         // Helper function to map the given element scan parameters to optimized mapped parameters for the given filter.
         let process_constraint = |snapshot_region_filter: &SnapshotRegionFilter, scan_constraint: &ScanConstraint| {
-            let optimized_scan_constraint = Self::optimize_scan_constraint(
-                element_scan_rule_registry,
-                symbol_registry,
-                snapshot_region,
-                snapshot_region_filter,
-                snapshot_region_filter_collection,
-                element_scan_plan,
-                scan_constraint,
+            /*
+            let element_scan_rule_registry_guard = match element_scan_rule_registry.read() {
+                Ok(registry) => registry,
+                Err(error) => {
+                    log::error!("Failed to acquire read lock on ElementScanRuleRegistry: {}", error);
+                    return None;
+                }
+            };*/
+
+            let mut snapshot_filter_element_scan_plan = SnapshotFilterElementScanPlan::new(
+                scan_constraint.get_data_value(),
+                element_scan_plan.get_memory_alignment(),
+                scan_constraint.get_scan_compare_type(),
+                element_scan_plan.get_floating_point_tolerance(),
             );
-            optimized_scan_constraint
-                .map(|optimized_scan_constraint| {
-                    Self::dispatch_scan_for_snapshot_filter(
-                        snapshot_region_filter,
-                        &optimized_scan_constraint,
-                        snapshot_region,
-                        symbol_registry,
-                        element_scan_plan,
-                        scan_constraints,
-                    )
-                })
-                .unwrap_or_default()
-                .into_iter()
+
+            // Apply all scan rules to the mapped parameters.
+            for (_id, scan_filter_rule) in ElementScanRuleRegistry::get_instance()
+                .get_scan_filter_rule_registry()
+                .iter()
+            {
+                scan_filter_rule.map_parameters(
+                    symbol_registry,
+                    snapshot_region,
+                    snapshot_region_filter_collection,
+                    snapshot_region_filter,
+                    scan_constraint,
+                    &mut snapshot_filter_element_scan_plan,
+                );
+            }
+
+            Self::dispatch_scan_for_snapshot_filter(
+                snapshot_region_filter,
+                &snapshot_filter_element_scan_plan,
+                snapshot_region,
+                symbol_registry,
+                element_scan_plan,
+                scan_constraints,
+            )
         };
 
         // Perform each scan sequentially over the current result filters.
@@ -146,15 +163,15 @@ impl ElementScanDispatcher {
 
     fn dispatch_scan_for_snapshot_filter(
         snapshot_region_filter: &SnapshotRegionFilter,
-        optimized_scan_constraint: &SnapshotFilterElementScanPlan,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
         snapshot_region: &SnapshotRegion,
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         element_scan_plan: &ElementScanPlan,
         scan_constraints: &Vec<ScanConstraint>,
     ) -> Vec<SnapshotRegionFilter> {
         // Execute the scanner that corresponds to the mapped parameters.
-        let scanner_instance = Self::aquire_scanner_instance(optimized_scan_constraint);
-        let scan_result_filters = scanner_instance.scan_region(symbol_registry, snapshot_region, snapshot_region_filter, optimized_scan_constraint);
+        let scanner_instance = Self::aquire_scanner_instance(snapshot_filter_element_scan_plan);
+        let scan_result_filters = scanner_instance.scan_region(symbol_registry, snapshot_region, snapshot_region_filter, snapshot_filter_element_scan_plan);
 
         // If the debug flag is provided, perform a scalar scan to ensure that our specialized scanner has the same results.
         if element_scan_plan.get_debug_perform_validation_scan() {
@@ -164,15 +181,15 @@ impl ElementScanDispatcher {
                 &scan_result_filters,
                 snapshot_region,
                 snapshot_region_filter,
-                optimized_scan_constraint,
+                snapshot_filter_element_scan_plan,
             );
         }
         scan_result_filters
     }
 
-    fn aquire_scanner_instance(optimized_scan_constraint: &SnapshotFilterElementScanPlan) -> &'static dyn Scanner {
+    fn aquire_scanner_instance(snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan) -> &'static dyn Scanner {
         // Execute the scanner that corresponds to the mapped parameters.
-        match optimized_scan_constraint.get_planned_scan_type() {
+        match snapshot_filter_element_scan_plan.get_planned_scan_type() {
             PlannedScanType::Invalid() => &ScannerNull {},
             PlannedScanType::Scalar(scan_parameters_scalar) => match scan_parameters_scalar {
                 PlannedScanTypeScalar::SingleElement => &ScannerScalarSingleElement {},
@@ -219,49 +236,6 @@ impl ElementScanDispatcher {
         }
     }
 
-    pub fn optimize_scan_constraint(
-        element_scan_rule_registry: &Arc<RwLock<ElementScanRuleRegistry>>,
-        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
-        snapshot_region: &SnapshotRegion,
-        snapshot_region_filter: &SnapshotRegionFilter,
-        snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
-        element_scan_plan: &ElementScanPlan,
-        scan_constraint: &ScanConstraint,
-    ) -> Option<SnapshotFilterElementScanPlan> {
-        /*
-        let element_scan_rule_registry_guard = match element_scan_rule_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on ElementScanRuleRegistry: {}", error);
-                return None;
-            }
-        };*/
-
-        let mut optimized_scan_constraint = SnapshotFilterElementScanPlan::new(
-            scan_constraint.get_data_value().clone(),
-            element_scan_plan.get_memory_alignment(),
-            scan_constraint.get_scan_compare_type(),
-            element_scan_plan.get_floating_point_tolerance(),
-        );
-
-        // Apply all scan rules to the mapped parameters.
-        for (_id, scan_filter_rule) in ElementScanRuleRegistry::get_instance()
-            .get_scan_filter_rule_registry()
-            .iter()
-        {
-            scan_filter_rule.map_parameters(
-                symbol_registry,
-                snapshot_region,
-                snapshot_region_filter_collection,
-                snapshot_region_filter,
-                scan_constraint,
-                &mut optimized_scan_constraint,
-            );
-        }
-
-        Some(optimized_scan_constraint)
-    }
-
     /// Performs a second scan over the provided snapshot region filter to ensure that the results of a specialized scan match
     /// the results of the scalar scan. This is a way to unit test complex scanner implementations on real world data.
     fn perform_debug_scan(
@@ -270,10 +244,10 @@ impl ElementScanDispatcher {
         comparison_filters: &Vec<SnapshotRegionFilter>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        optimized_scan_constraint: &SnapshotFilterElementScanPlan,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) {
         let debug_scanner_instance = &ScannerScalarIterative {};
-        let debug_filters = debug_scanner_instance.scan_region(symbol_registry, snapshot_region, snapshot_region_filter, optimized_scan_constraint);
+        let debug_filters = debug_scanner_instance.scan_region(symbol_registry, snapshot_region, snapshot_region_filter, snapshot_filter_element_scan_plan);
         let has_length_match = debug_filters.len() == comparison_filters.len();
 
         if !has_length_match {

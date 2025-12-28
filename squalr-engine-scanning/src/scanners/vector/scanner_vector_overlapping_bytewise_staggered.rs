@@ -242,9 +242,8 @@ where
         }
 
         // Handle remainder elements.
-        /*
         if let Some(compare_func) =
-            SymbolRegistry::get_instance().get_scalar_compare_func_immediate(data_type_ref, &scan_compare_type_immediate, snapshot_filter_element_scan_plan)
+            SymbolRegistry::get_instance().get_scalar_compare_func_immediate(&scan_compare_type_immediate, snapshot_filter_element_scan_plan)
         {
             for index in vectorizable_element_count..vectorization_plan.element_count {
                 let current_value_pointer = unsafe { current_values_pointer.add(index as usize * memory_alignment_size as usize) };
@@ -256,7 +255,7 @@ where
                     run_length_encoder.finalize_current_encode_with_padding(memory_alignment_size, data_type_size_padding);
                 }
             }
-        }*/
+        }
 
         run_length_encoder.finalize_current_encode_with_padding(0, data_type_size_padding);
         run_length_encoder.take_result_regions()

@@ -14,71 +14,68 @@ use std::sync::Arc;
 use std::sync::RwLock;
 
 /// Represents processed scan parameters derived from user provided scan parameters.
-pub struct SnapshotFilterElementScanPlan {
-    data_value: DataValue,
+pub struct SnapshotFilterElementScanPlan<'lifetime> {
+    data_value: &'lifetime DataValue,
     memory_alignment: MemoryAlignment,
     scan_compare_type: ScanCompareType,
     floating_point_tolerance: FloatingPointTolerance,
     periodicity: u64,
     planned_scan_type: PlannedScanType,
-    scan_function: Option<ScanFunctionScalar>,
+    scan_function_scalar: Option<ScanFunctionScalar>,
 }
 
-impl SnapshotFilterElementScanPlan {
+impl<'lifetime> SnapshotFilterElementScanPlan<'lifetime> {
     /// Creates optimized scan paramaters for a given snapshot region filter, given user provided scan parameters.
     /// Internally, the user parameters are processed into more optimal parameters that help select the most optimal scan implementation.
     pub fn new(
-        data_value: DataValue,
+        data_value: &'lifetime DataValue,
         memory_alignment: MemoryAlignment,
         scan_compare_type: ScanCompareType,
         floating_point_tolerance: FloatingPointTolerance,
     ) -> Self {
         let symbol_registry = SymbolRegistry::get_instance();
-        let scan_function = None;
-        /* match scan_compare_type {
-            ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                if let Some(compare_func) =
-                    symbol_registry.get_scalar_compare_func_immediate(data_value.get_data_type_ref(), &scan_compare_type_immediate, &self)
-                {
-                    Some(ScanFunctionScalar::Immediate(compare_func))
-                } else {
-                    None
-                }
-            }
-            ScanCompareType::Relative(scan_compare_type_relative) => {
-                if let Some(compare_func) = symbol_registry.get_scalar_compare_func_relative(data_value.get_data_type_ref(), &scan_compare_type_relative, &self)
-                {
-                    Some(ScanFunctionScalar::RelativeOrDelta(compare_func))
-                } else {
-                    None
-                }
-            }
-            ScanCompareType::Delta(scan_compare_type_delta) => {
-                if let Some(compare_func) = symbol_registry.get_scalar_compare_func_delta(data_value.get_data_type_ref(), &scan_compare_type_delta, &self) {
-                    Some(ScanFunctionScalar::RelativeOrDelta(compare_func))
-                } else {
-                    None
-                }
-            }
-        }; */
 
-        Self {
+        let mut instance = Self {
             data_value,
             memory_alignment,
             scan_compare_type,
             floating_point_tolerance,
             periodicity: 0,
             planned_scan_type: PlannedScanType::Invalid(),
-            scan_function,
-        }
+            scan_function_scalar: None,
+        };
+
+        let scan_function_scalar = match scan_compare_type {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => {
+                if let Some(compare_func) = symbol_registry.get_scalar_compare_func_immediate(&scan_compare_type_immediate, &instance) {
+                    Some(ScanFunctionScalar::Immediate(compare_func))
+                } else {
+                    None
+                }
+            }
+            ScanCompareType::Relative(scan_compare_type_relative) => {
+                if let Some(compare_func) = symbol_registry.get_scalar_compare_func_relative(&scan_compare_type_relative, &instance) {
+                    Some(ScanFunctionScalar::RelativeOrDelta(compare_func))
+                } else {
+                    None
+                }
+            }
+            ScanCompareType::Delta(scan_compare_type_delta) => {
+                if let Some(compare_func) = symbol_registry.get_scalar_compare_func_delta(&scan_compare_type_delta, &instance) {
+                    Some(ScanFunctionScalar::RelativeOrDelta(compare_func))
+                } else {
+                    None
+                }
+            }
+        };
+
+        instance.scan_function_scalar = scan_function_scalar;
+
+        instance
     }
 
     pub fn get_data_value(&self) -> &DataValue {
         &self.data_value
-    }
-
-    pub fn get_data_value_mut(&mut self) -> &mut DataValue {
-        &mut self.data_value
     }
 
     pub fn get_data_type_ref(&self) -> &DataTypeRef {
@@ -126,21 +123,8 @@ impl SnapshotFilterElementScanPlan {
         self.planned_scan_type = planned_scan_type;
     }
 
-    pub fn get_scan_function_scalar(
-        &self,
-        symbol_registry: &Arc<RwLock<SymbolRegistry>>,
-    ) -> Option<ScanFunctionScalar> {
-        /*
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return None;
-            }
-        };*/
-
-        None
+    pub fn get_scan_function_scalar(&self) -> &Option<ScanFunctionScalar> {
+        &self.scan_function_scalar
     }
 
     pub fn get_scan_function_vector<const N: usize>(
@@ -161,24 +145,23 @@ impl SnapshotFilterElementScanPlan {
         };*/
         let symbol_registry = SymbolRegistry::get_instance();
 
-        /*
         match self.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                if let Some(compare_func) = symbol_registry.get_vector_compare_func_immediate(self.get_data_type_ref(), &scan_compare_type_immediate, &self) {
+                if let Some(compare_func) = symbol_registry.get_vector_compare_func_immediate(&scan_compare_type_immediate, &self) {
                     return Some(ScanFunctionVector::Immediate(compare_func));
                 }
             }
             ScanCompareType::Relative(scan_compare_type_relative) => {
-                if let Some(compare_func) = symbol_registry.get_vector_compare_func_relative(self.get_data_type_ref(), &scan_compare_type_relative, &self) {
+                if let Some(compare_func) = symbol_registry.get_vector_compare_func_relative(&scan_compare_type_relative, &self) {
                     return Some(ScanFunctionVector::RelativeOrDelta(compare_func));
                 }
             }
             ScanCompareType::Delta(scan_compare_type_delta) => {
-                if let Some(compare_func) = symbol_registry.get_vector_compare_func_delta(self.get_data_type_ref(), &scan_compare_type_delta, &self) {
+                if let Some(compare_func) = symbol_registry.get_vector_compare_func_delta(&scan_compare_type_delta, &self) {
                     return Some(ScanFunctionVector::RelativeOrDelta(compare_func));
                 }
             }
-        }*/
+        }
 
         None
     }
