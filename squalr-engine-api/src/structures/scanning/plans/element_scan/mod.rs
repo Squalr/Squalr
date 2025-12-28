@@ -1,3 +1,2 @@
-pub mod element_scan_parameters;
-pub mod element_scan_parameters_collection;
+pub mod element_scan_plan;
 pub mod snapshot_filter_element_scan_plan;

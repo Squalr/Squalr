@@ -1,6 +1,6 @@
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::generics::vector_generics::VectorGenerics;
-use crate::structures::scanning::plans::element_scan::element_scan_parameters::ElementScanParameters;
+use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use crate::structures::scanning::rules::element_scan_filter_rule::ElementScanFilterRule;
 use crate::structures::scanning::{
     comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
@@ -33,7 +33,7 @@ impl ElementScanFilterRule for RuleMapScanType {
         snapshot_region: &SnapshotRegion,
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
-        _original_scan_parameters: &ElementScanParameters,
+        _scan_constraint: &ScanConstraint,
         snapshot_filter_element_scan_plan: &mut SnapshotFilterElementScanPlan,
     ) {
         let is_valid_for_snapshot_region = if snapshot_region.has_current_values() {

@@ -1,6 +1,6 @@
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::scanning::comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate};
-use crate::structures::scanning::plans::element_scan::element_scan_parameters::ElementScanParameters;
+use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use crate::structures::scanning::rules::element_scan_parameters_rule::ElementScanParametersRule;
 
 /// Defines a mapping rule that converts > 0 scans for unsigned non-floating-point values into != 0.
@@ -19,9 +19,9 @@ impl ElementScanParametersRule for RuleMapUnsignedGreaterThanZeroToNotEqual {
     fn map_parameters(
         &self,
         symbol_registry: &SymbolRegistry,
-        element_scan_parameters: &mut ElementScanParameters,
+        scan_constraints: &mut Vec<ScanConstraint>,
     ) {
-        for scan_constraint in element_scan_parameters.get_scan_constraints_mut() {
+        for scan_constraint in scan_constraints {
             let data_type_ref = scan_constraint.get_data_value().get_data_type_ref();
             let is_signed = symbol_registry.is_signed(data_type_ref);
             let is_floating_point = symbol_registry.is_floating_point(data_type_ref);

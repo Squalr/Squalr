@@ -2,8 +2,9 @@ use crate::{
     registries::symbols::symbol_registry::SymbolRegistry,
     structures::{
         scanning::{
+            constraints::scan_constraint::ScanConstraint,
             filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
-            plans::element_scan::{element_scan_parameters::ElementScanParameters, snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan},
+            plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan,
         },
         snapshots::snapshot_region::SnapshotRegion,
     },
@@ -18,7 +19,7 @@ pub trait ElementScanFilterRule: Send + Sync {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
-        element_scan_parameters: &ElementScanParameters,
+        scan_constraint: &ScanConstraint,
         snapshot_filter_element_scan_plan: &mut SnapshotFilterElementScanPlan,
     );
 }

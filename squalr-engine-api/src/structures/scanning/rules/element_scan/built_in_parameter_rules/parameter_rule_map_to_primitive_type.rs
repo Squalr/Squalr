@@ -5,7 +5,7 @@ use crate::structures::data_types::built_in_types::u32be::data_type_u32be::DataT
 use crate::structures::data_types::built_in_types::u64be::data_type_u64be::DataTypeU64be;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use crate::structures::scanning::plans::element_scan::element_scan_parameters::ElementScanParameters;
+use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use crate::structures::scanning::rules::element_scan_parameters_rule::ElementScanParametersRule;
 
 pub struct RuleMapToPrimitiveType {}
@@ -22,9 +22,9 @@ impl ElementScanParametersRule for RuleMapToPrimitiveType {
     fn map_parameters(
         &self,
         symbol_registry: &SymbolRegistry,
-        element_scan_parameters: &mut ElementScanParameters,
+        scan_constraints: &mut Vec<ScanConstraint>,
     ) {
-        for scan_constraint in element_scan_parameters.get_scan_constraints_mut() {
+        for scan_constraint in scan_constraints {
             let data_value = scan_constraint.get_data_value();
             let data_type_ref = data_value.get_data_type_ref();
 

@@ -8,7 +8,7 @@ use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
-use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_parameters_collection::ElementScanParametersCollection;
+use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_plan::ElementScanPlan;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
@@ -29,7 +29,7 @@ impl ElementScanExecutorTask {
         snapshot: Arc<RwLock<Snapshot>>,
         element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
         symbol_registry: Arc<RwLock<SymbolRegistry>>,
-        element_scan_parameters_collection: ElementScanParametersCollection,
+        element_scan_plan: ElementScanPlan,
         with_logging: bool,
     ) -> Arc<TrackableTask> {
         let task = TrackableTask::create(TASK_NAME.to_string(), None);
@@ -42,7 +42,7 @@ impl ElementScanExecutorTask {
                 snapshot,
                 element_scan_rule_registry,
                 symbol_registry,
-                element_scan_parameters_collection,
+                element_scan_plan,
                 with_logging,
             );
 
@@ -58,14 +58,14 @@ impl ElementScanExecutorTask {
         snapshot: Arc<RwLock<Snapshot>>,
         element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
         symbol_registry: Arc<RwLock<SymbolRegistry>>,
-        element_scan_parameters_collection: ElementScanParametersCollection,
+        element_scan_plan: ElementScanPlan,
         with_logging: bool,
     ) {
         let total_start_time = Instant::now();
 
         // If the parameter is set, first collect values before the scan.
         // This is slower overall than interleaving the reads, but better for capturing values that may soon change.
-        if element_scan_parameters_collection.get_memory_read_mode() == MemoryReadMode::ReadBeforeScan {
+        if element_scan_plan.get_memory_read_mode() == MemoryReadMode::ReadBeforeScan {
             ValueCollectorTask::start_task(process_info.clone(), snapshot.clone(), with_logging).wait_for_completion();
         }
 
@@ -99,18 +99,18 @@ impl ElementScanExecutorTask {
             // Creates initial results if none exist yet.
             snapshot_region.initialize_scan_results(
                 &symbol_registry,
-                element_scan_parameters_collection.get_data_type_refs_iterator(),
-                element_scan_parameters_collection.get_memory_alignment(),
+                element_scan_plan.get_data_type_refs_iterator(),
+                element_scan_plan.get_memory_alignment(),
             );
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
-            if element_scan_parameters_collection.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
+            if element_scan_plan.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
                 let _ = snapshot_region.read_all_memory(&process_info);
             }
 
             /*
             // JIRA: Fixme? Early exit gains?
-            if !element_scan_parameters_collection.is_valid_for_snapshot_region(snapshot_region) {
+            if !element_scan_plan.is_valid_for_snapshot_region(snapshot_region) {
                 processed_region_count.fetch_add(1, Ordering::SeqCst);
                 return;
             }*/
@@ -122,13 +122,13 @@ impl ElementScanExecutorTask {
                     &symbol_registry,
                     snapshot_region,
                     snapshot_region_filter_collection,
-                    &element_scan_parameters_collection,
+                    &element_scan_plan,
                 )
             };
 
             // Again, select the parallel or sequential iterator to iterate over each data type in the scan. Generally there is only 1, but multi-type scans are supported.
             let scan_results_collection = snapshot_region.get_scan_results().get_filter_collections();
-            let single_thread_scan = element_scan_parameters_collection.get_is_single_thread_scan() || scan_results_collection.len() == 1;
+            let single_thread_scan = element_scan_plan.get_is_single_thread_scan() || scan_results_collection.len() == 1;
             let scan_results = SnapshotRegionScanResults::new(if single_thread_scan {
                 scan_results_collection
                     .iter()
@@ -153,7 +153,7 @@ impl ElementScanExecutorTask {
         };
 
         // Select either the parallel or sequential iterator. Single-thread is not advised unless debugging.
-        let single_thread_scan = element_scan_parameters_collection.get_is_single_thread_scan() || snapshot_regions.len() == 1;
+        let single_thread_scan = element_scan_plan.get_is_single_thread_scan() || snapshot_regions.len() == 1;
         if single_thread_scan {
             snapshot_regions.iter_mut().for_each(snapshot_iterator);
         } else {

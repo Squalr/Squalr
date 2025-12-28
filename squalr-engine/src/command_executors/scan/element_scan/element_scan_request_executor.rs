@@ -6,8 +6,7 @@ use squalr_engine_api::events::scan_results::updated::scan_results_updated_event
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
-use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_parameters::ElementScanParameters;
-use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_parameters_collection::ElementScanParametersCollection;
+use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_plan::ElementScanPlan;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_scanning::scanners::element_scan_executor_task::ElementScanExecutorTask;
 use std::sync::Arc;
@@ -31,32 +30,30 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
 
             // Deanonymize all scan constraints against all data types.
             // For example, an immediate comparison of >= 23 could end up being a byte, float, etc.
-            let element_scan_parameters_by_data_type = self
+            let scan_constraints_by_data_type = self
                 .data_type_refs
                 .iter()
                 .map(|data_type_ref| {
-                    let scan_constraints = self
+                    let mut scan_constraints = self
                         .scan_constraints
                         .iter()
                         .filter_map(|anonymous_scan_constraint| anonymous_scan_constraint.deanonymize_constraint(data_type_ref))
                         .collect();
-                    // Create scan parameters from the deanonymized constraints.
-                    let mut element_scan_parameters = ElementScanParameters::new(scan_constraints);
 
-                    // Optimize the scan parameters by running them through each parameter rule sequentially.
+                    // Optimize the scan constraints by running them through each parameter rule sequentially.
                     for (_id, scan_parameter_rule) in ElementScanRuleRegistry::get_instance()
                         .get_scan_parameters_rule_registry()
                         .iter()
                     {
-                        scan_parameter_rule.map_parameters(SymbolRegistry::get_instance(), &mut element_scan_parameters);
+                        scan_parameter_rule.map_parameters(SymbolRegistry::get_instance(), &mut scan_constraints);
                     }
 
-                    (data_type_ref.clone(), element_scan_parameters)
+                    (data_type_ref.clone(), scan_constraints)
                 })
                 .collect();
 
-            let element_scan_parameters_collection = ElementScanParametersCollection::new(
-                element_scan_parameters_by_data_type,
+            let element_scan_plan = ElementScanPlan::new(
+                scan_constraints_by_data_type,
                 alignment,
                 ScanSettingsConfig::get_floating_point_tolerance(),
                 ScanSettingsConfig::get_memory_read_mode(),
@@ -65,14 +62,7 @@ impl EngineCommandRequestExecutor for ElementScanRequest {
             );
 
             // Start the task to perform the scan.
-            let task = ElementScanExecutorTask::start_task(
-                process_info,
-                snapshot,
-                element_scan_rule_registry,
-                symbol_registry,
-                element_scan_parameters_collection,
-                true,
-            );
+            let task = ElementScanExecutorTask::start_task(process_info, snapshot, element_scan_rule_registry, symbol_registry, element_scan_plan, true);
             let task_handle = task.get_task_handle();
             let engine_privileged_state = engine_privileged_state.clone();
             let progress_receiver = task.subscribe_to_progress_updates();

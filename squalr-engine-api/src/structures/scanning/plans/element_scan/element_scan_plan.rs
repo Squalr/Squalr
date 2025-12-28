@@ -1,14 +1,14 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
+use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use crate::structures::scanning::memory_read_mode::MemoryReadMode;
-use crate::structures::scanning::plans::element_scan::element_scan_parameters::ElementScanParameters;
 use std::collections::HashMap;
 
-/// Represents the scan arguments for a collection of element-wise scans across varied data types and constraints.
+/// Represents parameters that can be optimized by rules to efficiently execute an element scan.
 #[derive(Debug, Clone)]
-pub struct ElementScanParametersCollection {
-    element_scan_parameters_by_data_type: HashMap<DataTypeRef, ElementScanParameters>,
+pub struct ElementScanPlan {
+    scan_constraints_by_data_type: HashMap<DataTypeRef, Vec<ScanConstraint>>,
     memory_alignment: MemoryAlignment,
     floating_point_tolerance: FloatingPointTolerance,
     memory_read_mode: MemoryReadMode,
@@ -19,9 +19,9 @@ pub struct ElementScanParametersCollection {
     debug_perform_validation_scan: bool,
 }
 
-impl ElementScanParametersCollection {
+impl ElementScanPlan {
     pub fn new(
-        element_scan_parameters_by_data_type: HashMap<DataTypeRef, ElementScanParameters>,
+        scan_constraints_by_data_type: HashMap<DataTypeRef, Vec<ScanConstraint>>,
         memory_alignment: MemoryAlignment,
         floating_point_tolerance: FloatingPointTolerance,
         memory_read_mode: MemoryReadMode,
@@ -29,7 +29,7 @@ impl ElementScanParametersCollection {
         debug_perform_validation_scan: bool,
     ) -> Self {
         Self {
-            element_scan_parameters_by_data_type,
+            scan_constraints_by_data_type,
             memory_alignment,
             floating_point_tolerance,
             memory_read_mode,
@@ -38,12 +38,12 @@ impl ElementScanParametersCollection {
         }
     }
 
-    pub fn get_element_scan_parameters_by_data_type(&self) -> &HashMap<DataTypeRef, ElementScanParameters> {
-        &self.element_scan_parameters_by_data_type
+    pub fn get_scan_constraints_by_data_type(&self) -> &HashMap<DataTypeRef, Vec<ScanConstraint>> {
+        &self.scan_constraints_by_data_type
     }
 
     pub fn get_data_type_refs_iterator(&self) -> impl Iterator<Item = &DataTypeRef> + '_ {
-        self.element_scan_parameters_by_data_type.keys()
+        self.scan_constraints_by_data_type.keys()
     }
 
     pub fn get_memory_alignment(&self) -> MemoryAlignment {
