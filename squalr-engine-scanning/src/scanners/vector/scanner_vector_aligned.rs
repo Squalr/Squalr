@@ -1,7 +1,7 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
+use squalr_engine_api::structures::data_types::generics::vector_function::GetVectorFunction;
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
@@ -12,11 +12,11 @@ use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorAligned<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N>, {}
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>, {}
 
 impl<const N: usize> ScannerVectorAligned<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
 {
     fn encode_results(
         compare_result: &Simd<u8, N>,
@@ -59,7 +59,7 @@ where
 /// In other words, this scan efficiently handles searching for values where the data type size is exactly equal to the memory alignment.
 impl<const N: usize> Scanner for ScannerVectorAligned<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
 {
     fn get_scanner_name(&self) -> &'static str {
         &"Vector (Aligned)"
@@ -73,23 +73,13 @@ where
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Vec<SnapshotRegionFilter> {
-        /*
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return vec![];
-            }
-        };*/
         let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type_ref = snapshot_filter_element_scan_plan.get_data_type_ref();
-        let data_type_size = SymbolRegistry::get_instance().get_unit_size_in_bytes(data_type_ref);
+        let data_type_size = snapshot_filter_element_scan_plan.get_unit_size_in_bytes();
         let memory_alignment_size = snapshot_filter_element_scan_plan.get_memory_alignment() as u64;
 
         let vectorization_plan = VectorGenerics::plan_vector_scan::<N>(region_size, data_type_size, memory_alignment_size);

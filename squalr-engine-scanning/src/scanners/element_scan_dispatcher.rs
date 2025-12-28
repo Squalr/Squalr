@@ -10,7 +10,7 @@ use crate::scanners::vector::scanner_vector_overlapping_bytewise_staggered::Scan
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
-use squalr_engine_api::structures::scanning::constraints::scan_constraint::ScanConstraint;
+use squalr_engine_api::structures::scanning::constraints::scan_constraint_finalized::ScanConstraintFinalized;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
 use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_plan::ElementScanPlan;
@@ -87,20 +87,10 @@ impl ElementScanDispatcher {
         let mut scan_result_filters = vec![snapshot_region_filter.clone()];
 
         // Helper function to map the given element scan parameters to optimized mapped parameters for the given filter.
-        let process_constraint = |snapshot_region_filter: &SnapshotRegionFilter, scan_constraint: &ScanConstraint| {
-            /*
-            let element_scan_rule_registry_guard = match element_scan_rule_registry.read() {
-                Ok(registry) => registry,
-                Err(error) => {
-                    log::error!("Failed to acquire read lock on ElementScanRuleRegistry: {}", error);
-                    return None;
-                }
-            };*/
-
+        let process_constraint = |snapshot_region_filter: &SnapshotRegionFilter, scan_constraint_finalized: &ScanConstraintFinalized| {
             let mut snapshot_filter_element_scan_plan = SnapshotFilterElementScanPlan::new(
-                scan_constraint.get_data_value(),
+                scan_constraint_finalized,
                 element_scan_plan.get_memory_alignment(),
-                scan_constraint.get_scan_compare_type(),
                 element_scan_plan.get_floating_point_tolerance(),
             );
 
@@ -113,18 +103,12 @@ impl ElementScanDispatcher {
                     snapshot_region,
                     snapshot_region_filter_collection,
                     snapshot_region_filter,
-                    scan_constraint,
+                    scan_constraint_finalized,
                     &mut snapshot_filter_element_scan_plan,
                 );
             }
 
-            Self::dispatch_scan_for_snapshot_filter(
-                snapshot_region_filter,
-                &snapshot_filter_element_scan_plan,
-                snapshot_region,
-                element_scan_plan,
-                scan_constraints,
-            )
+            Self::dispatch_scan_for_snapshot_filter(snapshot_region_filter, &snapshot_filter_element_scan_plan, snapshot_region, element_scan_plan)
         };
 
         // Perform each scan sequentially over the current result filters.
@@ -153,7 +137,6 @@ impl ElementScanDispatcher {
         snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
         snapshot_region: &SnapshotRegion,
         element_scan_plan: &ElementScanPlan,
-        scan_constraints: &Vec<ScanConstraint>,
     ) -> Vec<SnapshotRegionFilter> {
         // Execute the scanner that corresponds to the mapped parameters.
         let scanner_instance = Self::aquire_scanner_instance(snapshot_filter_element_scan_plan);

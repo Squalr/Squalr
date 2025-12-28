@@ -18,9 +18,10 @@ impl ElementScanParametersRule for RuleMapUnsignedGreaterThanZeroToNotEqual {
 
     fn map_parameters(
         &self,
-        symbol_registry: &SymbolRegistry,
         scan_constraints: &mut Vec<ScanConstraint>,
     ) {
+        let symbol_registry = SymbolRegistry::get_instance();
+
         for scan_constraint in scan_constraints {
             let data_type_ref = scan_constraint.get_data_value().get_data_type_ref();
             let is_signed = symbol_registry.is_signed(data_type_ref);

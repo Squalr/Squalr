@@ -1,8 +1,9 @@
 use crate::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
-use crate::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
+use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use num_traits::{WrappingAdd, WrappingSub};
 use std::cmp::Ordering;
 use std::ops::{BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr};
+use std::sync::Arc;
 
 /// Scalar comparison functions for comparing byte arrays. Note that these functions operate on single array values.
 /// For performance-critical scans, specialized algorithms are implemented elsewhere.
@@ -11,34 +12,34 @@ use std::ops::{BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr};
 pub struct ScalarComparisonsByteArray {}
 
 impl ScalarComparisonsByteArray {
-    pub fn get_compare_equal(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnImmediate> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_equal(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnImmediate> {
+        let immediate_values = scan_constraint.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
 
-        Some(Box::new(move |current_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             current_values == immediate_values
         }))
     }
 
-    pub fn get_compare_not_equal(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnImmediate> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_not_equal(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnImmediate> {
+        let immediate_values = scan_constraint.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
 
-        Some(Box::new(move |current_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             current_values != immediate_values
         }))
     }
 
-    pub fn get_compare_greater_than(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnImmediate> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_greater_than(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnImmediate> {
+        let immediate_values = scan_constraint.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
 
-        Some(Box::new(move |current_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             current_values
                 .iter()
@@ -47,56 +48,56 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_greater_than_or_equal(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnImmediate> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_greater_than_or_equal(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnImmediate> {
+        let immediate_values = scan_constraint.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
 
-        Some(Box::new(move |current_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
 
             current_values.cmp(&immediate_values) == Ordering::Greater || current_values == immediate_values
         }))
     }
 
-    pub fn get_compare_less_than(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnImmediate> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_less_than(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnImmediate> {
+        let immediate_values = scan_constraint.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
 
-        Some(Box::new(move |current_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
 
             current_values.cmp(&immediate_values) == Ordering::Less
         }))
     }
 
-    pub fn get_compare_less_than_or_equal(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnImmediate> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_less_than_or_equal(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnImmediate> {
+        let immediate_values = scan_constraint.get_data_value();
         let immediate_values = immediate_values.get_value_bytes().clone();
         let len = immediate_values.len();
 
-        Some(Box::new(move |current_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
 
             current_values.cmp(&immediate_values) == Ordering::Less || current_values == immediate_values
         }))
     }
 
-    pub fn get_compare_changed(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnRelative> {
-        let len = scan_parameters.get_data_value().get_size_in_bytes() as usize;
+    pub fn get_compare_changed(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnRelative> {
+        let len = scan_constraint.get_data_value().get_size_in_bytes() as usize;
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
             current_values != previous_values
         }))
     }
 
-    pub fn get_compare_unchanged(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnRelative> {
-        let len = scan_parameters.get_data_value().get_size_in_bytes() as usize;
+    pub fn get_compare_unchanged(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnRelative> {
+        let len = scan_constraint.get_data_value().get_size_in_bytes() as usize;
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 
@@ -104,10 +105,10 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_increased(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnRelative> {
-        let len = scan_parameters.get_data_value().get_size_in_bytes() as usize;
+    pub fn get_compare_increased(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnRelative> {
+        let len = scan_constraint.get_data_value().get_size_in_bytes() as usize;
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 
@@ -118,10 +119,10 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_decreased(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnRelative> {
-        let len = scan_parameters.get_data_value().get_size_in_bytes() as usize;
+    pub fn get_compare_decreased(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnRelative> {
+        let len = scan_constraint.get_data_value().get_size_in_bytes() as usize;
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 
@@ -132,12 +133,12 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_increased_by(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnDelta> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_increased_by(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_constraint.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 
@@ -149,12 +150,12 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_decreased_by(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnDelta> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_decreased_by(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_constraint.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 
@@ -166,12 +167,12 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_multiplied_by(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnDelta> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_multiplied_by(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_constraint.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 
@@ -183,8 +184,8 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_divided_by(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnDelta> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_divided_by(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_constraint.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
 
@@ -192,7 +193,7 @@ impl ScalarComparisonsByteArray {
             return None;
         }
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 
@@ -204,8 +205,8 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_modulo_by(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnDelta> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_modulo_by(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_constraint.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
 
@@ -213,7 +214,7 @@ impl ScalarComparisonsByteArray {
             return None;
         }
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 
@@ -225,12 +226,12 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_shift_left_by(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnDelta> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_shift_left_by(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_constraint.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 
@@ -242,12 +243,12 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_shift_right_by(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnDelta> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_shift_right_by(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_constraint.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 
@@ -259,12 +260,12 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_logical_and_by(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnDelta> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_logical_and_by(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_constraint.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 
@@ -276,12 +277,12 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_logical_or_by(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnDelta> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_logical_or_by(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_constraint.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 
@@ -293,12 +294,12 @@ impl ScalarComparisonsByteArray {
         }))
     }
 
-    pub fn get_compare_logical_xor_by(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnDelta> {
-        let immediate_values = scan_parameters.get_data_value();
+    pub fn get_compare_logical_xor_by(scan_constraint: &ScanConstraint) -> Option<ScalarCompareFnDelta> {
+        let immediate_values = scan_constraint.get_data_value();
         let delta_values = immediate_values.get_value_bytes().clone();
         let len = delta_values.len();
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             let current_values = std::slice::from_raw_parts(current_values_ptr, len);
             let previous_values = std::slice::from_raw_parts(previous_values_ptr, len);
 

@@ -1,5 +1,6 @@
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
+use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
@@ -39,12 +40,13 @@ impl AnonymousScanConstraint {
     pub fn deanonymize_constraint(
         &self,
         data_type_ref: &DataTypeRef,
+        floating_point_tolerance: FloatingPointTolerance,
     ) -> Option<ScanConstraint> {
         let symbol_registry = SymbolRegistry::get_instance();
 
         if let Some(anonymous_value) = &self.anonymous_value {
             match symbol_registry.deanonymize_value(&data_type_ref, &anonymous_value.get_value()) {
-                Ok(data_value) => return Some(ScanConstraint::new(self.scan_compare_type, data_value, symbol_registry)),
+                Ok(data_value) => return Some(ScanConstraint::new(self.scan_compare_type, data_value, floating_point_tolerance)),
                 Err(error) => log::error!("Unable to parse value in anonymous constraint: {}", error),
             }
         }

@@ -1,6 +1,6 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
+use squalr_engine_api::structures::data_types::generics::vector_function::GetVectorFunction;
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
@@ -13,11 +13,11 @@ use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorSparse<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N>, {}
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>, {}
 
 impl<const N: usize> ScannerVectorSparse<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
 {
     // This mask automatically captures all in-between elements. For example, scanning for Byte 0 with an alignment of 2-bytes
     // against <0, 24, 0, 43> would all return true, due to this mask of <0, 255, 0, 255>. Scan results will automatically skip
@@ -95,7 +95,7 @@ where
 /// In other words, this scan efficiently handles searching for values where the data type size is smaller than the memory alignment.
 impl<const N: usize> Scanner for ScannerVectorSparse<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
+    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
 {
     fn get_scanner_name(&self) -> &'static str {
         &"Vector Sparse"
@@ -109,23 +109,13 @@ where
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Vec<SnapshotRegionFilter> {
-        /*
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return vec![];
-            }
-        };*/
         let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_values_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
 
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
-        let data_type_ref = snapshot_filter_element_scan_plan.get_data_type_ref();
-        let data_type_size = SymbolRegistry::get_instance().get_unit_size_in_bytes(data_type_ref);
+        let data_type_size = snapshot_filter_element_scan_plan.get_unit_size_in_bytes();
         let memory_alignment = snapshot_filter_element_scan_plan.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment_size);

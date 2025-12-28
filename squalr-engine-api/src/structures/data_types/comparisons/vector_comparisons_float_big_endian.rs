@@ -1,11 +1,13 @@
 use crate::structures::data_types::generics::vector_generics::VectorGenerics;
-use crate::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
+use crate::structures::scanning::comparisons::scan_function_vector::{VectorCompareFnDelta, VectorCompareFnImmediate, VectorCompareFnRelative};
+use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use num_traits::Float;
 use std::ops::{Add, Div, Mul, Rem, Sub};
 use std::ptr;
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
 use std::simd::num::{SimdFloat, SimdUint};
 use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
+use std::sync::Arc;
 
 pub trait ReadFloatBigEndian: Sized + SimdElement {
     fn read_float_be(value_ptr: *const u8) -> Self;
@@ -44,20 +46,20 @@ impl ReadFloatBigEndian for f64 {
 pub struct VectorComparisonsFloatBigEndian {}
 
 impl VectorComparisonsFloatBigEndian {
-    pub fn get_vector_compare_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + 'static>(
-        scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + Send + Sync + 'static>(
+        scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat + SimdPartialOrd + Sub<Output = Simd<PrimitiveType, E>>,
     {
-        let immediate_value = scan_parameters.get_data_value();
-        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
+        let immediate_value = scan_constraint.get_data_value();
+        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_constraint.get_floating_point_tolerance().get_value());
         let immediate_value_ptr = immediate_value.as_ptr();
         let immediate_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(immediate_value_ptr));
 
-        Some(Box::new(move |current_values_ptr| {
+        Some(Arc::new(move |current_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
 
             // Equality between the current and immediate value is determined by being within the given tolerance.
@@ -65,20 +67,20 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_not_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + 'static>(
-        scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_not_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + Send + Sync + 'static>(
+        scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat + SimdPartialOrd + Sub<Output = Simd<PrimitiveType, E>>,
     {
-        let immediate_value = scan_parameters.get_data_value();
-        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
+        let immediate_value = scan_constraint.get_data_value();
+        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_constraint.get_floating_point_tolerance().get_value());
         let immediate_value_ptr = immediate_value.as_ptr();
         let immediate_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(immediate_value_ptr));
 
-        Some(Box::new(move |current_values_ptr| {
+        Some(Arc::new(move |current_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
 
             // Equality between the current and immediate value is determined by being within the given tolerance.
@@ -86,19 +88,19 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_greater_than<const N: usize, const E: usize, PrimitiveType: SimdElement + ReadFloatBigEndian + 'static>(
-        scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_greater_than<const N: usize, const E: usize, PrimitiveType: SimdElement + ReadFloatBigEndian + Send + Sync + 'static>(
+        scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
-        let immediate_value = scan_parameters.get_data_value();
+        let immediate_value = scan_constraint.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
         let immediate_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(immediate_value_ptr));
 
-        Some(Box::new(move |current_values_ptr| {
+        Some(Arc::new(move |current_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
 
             // No checks tolerance required.
@@ -106,19 +108,19 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_greater_than_or_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + ReadFloatBigEndian + 'static>(
-        scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_greater_than_or_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + ReadFloatBigEndian + Send + Sync + 'static>(
+        scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
-        let immediate_value = scan_parameters.get_data_value();
+        let immediate_value = scan_constraint.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
         let immediate_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(immediate_value_ptr));
 
-        Some(Box::new(move |current_values_ptr| {
+        Some(Arc::new(move |current_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
 
             // No checks tolerance required.
@@ -126,19 +128,19 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_less_than<const N: usize, const E: usize, PrimitiveType: SimdElement + ReadFloatBigEndian + 'static>(
-        scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_less_than<const N: usize, const E: usize, PrimitiveType: SimdElement + ReadFloatBigEndian + Send + Sync + 'static>(
+        scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
-        let immediate_value = scan_parameters.get_data_value();
+        let immediate_value = scan_constraint.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
         let immediate_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(immediate_value_ptr));
 
-        Some(Box::new(move |current_values_ptr| {
+        Some(Arc::new(move |current_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
 
             // No checks tolerance required.
@@ -146,19 +148,19 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_less_than_or_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + ReadFloatBigEndian + 'static>(
-        scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_less_than_or_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + ReadFloatBigEndian + Send + Sync + 'static>(
+        scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
-        let immediate_value = scan_parameters.get_data_value();
+        let immediate_value = scan_constraint.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
         let immediate_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(immediate_value_ptr));
 
-        Some(Box::new(move |current_values_ptr| {
+        Some(Arc::new(move |current_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
 
             // No checks tolerance required.
@@ -166,15 +168,15 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_changed<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_changed<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnRelative<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq,
     {
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             // Optimization: no endian byte swap required.
             let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; E]));
             let previous_values = Simd::from_array(ptr::read_unaligned(previous_values_ptr as *const [PrimitiveType; E]));
@@ -184,15 +186,15 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_unchanged<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_unchanged<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnRelative<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq,
     {
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| unsafe {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| unsafe {
             // Optimization: no endian byte swap required.
             let current_values = Simd::from_array(ptr::read_unaligned(current_values_ptr as *const [PrimitiveType; E]));
             let previous_values = Simd::from_array(ptr::read_unaligned(previous_values_ptr as *const [PrimitiveType; E]));
@@ -202,15 +204,15 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_increased<const N: usize, const E: usize, PrimitiveType: SimdElement + ReadFloatBigEndian + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_increased<const N: usize, const E: usize, PrimitiveType: SimdElement + ReadFloatBigEndian + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnRelative<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
             let previous_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(previous_values_ptr);
 
@@ -219,15 +221,15 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_decreased<const N: usize, const E: usize, PrimitiveType: SimdElement + ReadFloatBigEndian + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_decreased<const N: usize, const E: usize, PrimitiveType: SimdElement + ReadFloatBigEndian + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnRelative<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
             let previous_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(previous_values_ptr);
 
@@ -236,9 +238,9 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_increased_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + 'static>(
-        scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_increased_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + Send + Sync + 'static>(
+        scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -247,12 +249,12 @@ impl VectorComparisonsFloatBigEndian {
             + Add<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>
             + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
-        let immediate_value = scan_parameters.get_data_value();
-        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
+        let immediate_value = scan_constraint.get_data_value();
+        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_constraint.get_floating_point_tolerance().get_value());
         let delta_value_ptr = immediate_value.as_ptr();
         let delta_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(delta_value_ptr));
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
             let previous_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(previous_values_ptr);
             let target_values = previous_values.add(delta_value);
@@ -262,20 +264,20 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_decreased_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + 'static>(
-        scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_decreased_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + Send + Sync + 'static>(
+        scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat + SimdPartialOrd + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
-        let immediate_value = scan_parameters.get_data_value();
-        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
+        let immediate_value = scan_constraint.get_data_value();
+        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_constraint.get_floating_point_tolerance().get_value());
         let delta_value_ptr = immediate_value.as_ptr();
         let delta_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(delta_value_ptr));
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
             let previous_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(previous_values_ptr);
             let target_values = previous_values.sub(delta_value);
@@ -285,9 +287,9 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_multiplied_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + 'static>(
-        scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_multiplied_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + Send + Sync + 'static>(
+        scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -296,12 +298,12 @@ impl VectorComparisonsFloatBigEndian {
             + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>
             + Mul<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
-        let immediate_value = scan_parameters.get_data_value();
-        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
+        let immediate_value = scan_constraint.get_data_value();
+        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_constraint.get_floating_point_tolerance().get_value());
         let delta_value_ptr = immediate_value.as_ptr();
         let delta_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(delta_value_ptr));
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
             let previous_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(previous_values_ptr);
             let target_values = previous_values.mul(delta_value);
@@ -311,9 +313,9 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_divided_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + 'static>(
-        scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_divided_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + Send + Sync + 'static>(
+        scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -322,12 +324,12 @@ impl VectorComparisonsFloatBigEndian {
             + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>
             + Div<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
-        let immediate_value = scan_parameters.get_data_value();
-        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
+        let immediate_value = scan_constraint.get_data_value();
+        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_constraint.get_floating_point_tolerance().get_value());
         let delta_value_ptr = immediate_value.as_ptr();
         let delta_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(delta_value_ptr));
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
             let previous_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(previous_values_ptr);
             let target_values = previous_values.div(delta_value);
@@ -337,9 +339,9 @@ impl VectorComparisonsFloatBigEndian {
         }))
     }
 
-    pub fn get_vector_compare_modulo_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + 'static>(
-        scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_modulo_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Float + ReadFloatBigEndian + Send + Sync + 'static>(
+        scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -348,12 +350,12 @@ impl VectorComparisonsFloatBigEndian {
             + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>
             + Rem<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
-        let immediate_value = scan_parameters.get_data_value();
-        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_parameters.get_floating_point_tolerance().get_value());
+        let immediate_value = scan_constraint.get_data_value();
+        let tolerance: Simd<PrimitiveType, E> = Simd::splat(scan_constraint.get_floating_point_tolerance().get_value());
         let delta_value_ptr = immediate_value.as_ptr();
         let delta_value: Simd<PrimitiveType, E> = Simd::splat(ReadFloatBigEndian::read_float_be(delta_value_ptr));
 
-        Some(Box::new(move |current_values_ptr, previous_values_ptr| {
+        Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
             let current_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(current_values_ptr);
             let previous_values: Simd<PrimitiveType, E> = ReadFloatBigEndian::read_float_vector_be(previous_values_ptr);
             let target_values = previous_values.rem(delta_value);

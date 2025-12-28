@@ -1,6 +1,6 @@
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::generics::vector_generics::VectorGenerics;
-use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
+use crate::structures::scanning::constraints::scan_constraint_finalized::ScanConstraintFinalized;
 use crate::structures::scanning::rules::element_scan_filter_rule::ElementScanFilterRule;
 use crate::structures::scanning::{
     comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
@@ -31,7 +31,7 @@ impl ElementScanFilterRule for RuleMapScanType {
         snapshot_region: &SnapshotRegion,
         _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
-        _scan_constraint: &ScanConstraint,
+        _scan_constraint_finalized: &ScanConstraintFinalized,
         snapshot_filter_element_scan_plan: &mut SnapshotFilterElementScanPlan,
     ) {
         let is_valid_for_snapshot_region = if snapshot_region.has_current_values() {
@@ -64,14 +64,6 @@ impl ElementScanFilterRule for RuleMapScanType {
         // For example, if scanning for i32, 1-byte aligned, a single region of 64 bytes is not actually very helpful.
         // This is because we would actually want to overlap based on alignment, and thus would need at least 67 bytes.
         // This is derived from scanning for four i32 values at alignments 0, 1, 2, and 3.
-        /*let symbol_registry_guard = match symbol_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return;
-            }
-        };*/
         let symbol_registry = SymbolRegistry::get_instance();
         let data_type_ref = snapshot_filter_element_scan_plan.get_data_type_ref();
         let data_type_size_bytes = symbol_registry.get_unit_size_in_bytes(data_type_ref);

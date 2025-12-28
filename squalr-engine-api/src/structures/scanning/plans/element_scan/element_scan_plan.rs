@@ -1,14 +1,13 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
-use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
+use crate::structures::scanning::constraints::scan_constraint_finalized::ScanConstraintFinalized;
 use crate::structures::scanning::memory_read_mode::MemoryReadMode;
 use std::collections::HashMap;
 
 /// Represents parameters that can be optimized by rules to efficiently execute an element scan.
-#[derive(Debug, Clone)]
 pub struct ElementScanPlan {
-    scan_constraints_by_data_type: HashMap<DataTypeRef, Vec<ScanConstraint>>,
+    scan_constraints_by_data_type: HashMap<DataTypeRef, Vec<ScanConstraintFinalized>>,
     memory_alignment: MemoryAlignment,
     floating_point_tolerance: FloatingPointTolerance,
     memory_read_mode: MemoryReadMode,
@@ -21,7 +20,7 @@ pub struct ElementScanPlan {
 
 impl ElementScanPlan {
     pub fn new(
-        scan_constraints_by_data_type: HashMap<DataTypeRef, Vec<ScanConstraint>>,
+        scan_constraints_by_data_type: HashMap<DataTypeRef, Vec<ScanConstraintFinalized>>,
         memory_alignment: MemoryAlignment,
         floating_point_tolerance: FloatingPointTolerance,
         memory_read_mode: MemoryReadMode,
@@ -38,7 +37,7 @@ impl ElementScanPlan {
         }
     }
 
-    pub fn get_scan_constraints_by_data_type(&self) -> &HashMap<DataTypeRef, Vec<ScanConstraint>> {
+    pub fn get_scan_constraints_by_data_type(&self) -> &HashMap<DataTypeRef, Vec<ScanConstraintFinalized>> {
         &self.scan_constraints_by_data_type
     }
 

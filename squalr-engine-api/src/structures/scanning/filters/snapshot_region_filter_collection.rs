@@ -1,3 +1,4 @@
+use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, scanning::filters::snapshot_region_filter::SnapshotRegionFilter};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -40,10 +41,11 @@ impl SnapshotRegionFilterCollection {
                 .unwrap_or(u64::MAX)
         });
 
+        let data_type_size = SymbolRegistry::get_instance().get_unit_size_in_bytes(&data_type_ref);
         let number_of_results = snapshot_region_filters
             .iter()
             .flatten()
-            .map(|filter| filter.get_element_count(&data_type_ref, memory_alignment))
+            .map(|filter| filter.get_element_count(data_type_size, memory_alignment))
             .sum();
 
         Self {

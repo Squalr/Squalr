@@ -1,4 +1,6 @@
-use crate::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
+use crate::structures::data_types::generics::vector_function::GetVectorFunction;
+use crate::structures::scanning::comparisons::scan_function_vector::{VectorCompareFnDelta, VectorCompareFnImmediate, VectorCompareFnRelative};
+use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use crate::structures::structs::container_type::ContainerType;
 use crate::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use crate::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
@@ -30,7 +32,7 @@ use crate::structures::{
 use std::sync::Once;
 use std::{
     collections::HashMap,
-    simd::{LaneCount, Simd, SupportedLaneCount},
+    simd::{LaneCount, SupportedLaneCount},
     sync::Arc,
 };
 
@@ -241,20 +243,16 @@ impl SymbolRegistry {
     pub fn get_scalar_compare_func_immediate(
         &self,
         scan_compare_type: &ScanCompareTypeImmediate,
-        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
+        scan_constraint: &ScanConstraint,
     ) -> Option<ScalarCompareFnImmediate> {
-        match self.get_data_type(
-            snapshot_filter_element_scan_plan
-                .get_data_value()
-                .get_data_type_id(),
-        ) {
+        match self.get_data_type(scan_constraint.get_data_value().get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
-                ScanCompareTypeImmediate::Equal => data_type.get_compare_equal(snapshot_filter_element_scan_plan),
-                ScanCompareTypeImmediate::NotEqual => data_type.get_compare_not_equal(snapshot_filter_element_scan_plan),
-                ScanCompareTypeImmediate::GreaterThan => data_type.get_compare_greater_than(snapshot_filter_element_scan_plan),
-                ScanCompareTypeImmediate::GreaterThanOrEqual => data_type.get_compare_greater_than_or_equal(snapshot_filter_element_scan_plan),
-                ScanCompareTypeImmediate::LessThan => data_type.get_compare_less_than(snapshot_filter_element_scan_plan),
-                ScanCompareTypeImmediate::LessThanOrEqual => data_type.get_compare_less_than_or_equal(snapshot_filter_element_scan_plan),
+                ScanCompareTypeImmediate::Equal => data_type.get_compare_equal(scan_constraint),
+                ScanCompareTypeImmediate::NotEqual => data_type.get_compare_not_equal(scan_constraint),
+                ScanCompareTypeImmediate::GreaterThan => data_type.get_compare_greater_than(scan_constraint),
+                ScanCompareTypeImmediate::GreaterThanOrEqual => data_type.get_compare_greater_than_or_equal(scan_constraint),
+                ScanCompareTypeImmediate::LessThan => data_type.get_compare_less_than(scan_constraint),
+                ScanCompareTypeImmediate::LessThanOrEqual => data_type.get_compare_less_than_or_equal(scan_constraint),
             },
             None => None,
         }
@@ -263,18 +261,14 @@ impl SymbolRegistry {
     pub fn get_scalar_compare_func_relative(
         &self,
         scan_compare_type: &ScanCompareTypeRelative,
-        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
+        scan_constraint: &ScanConstraint,
     ) -> Option<ScalarCompareFnRelative> {
-        match self.get_data_type(
-            snapshot_filter_element_scan_plan
-                .get_data_value()
-                .get_data_type_id(),
-        ) {
+        match self.get_data_type(scan_constraint.get_data_value().get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
-                ScanCompareTypeRelative::Changed => data_type.get_compare_changed(snapshot_filter_element_scan_plan),
-                ScanCompareTypeRelative::Unchanged => data_type.get_compare_unchanged(snapshot_filter_element_scan_plan),
-                ScanCompareTypeRelative::Increased => data_type.get_compare_increased(snapshot_filter_element_scan_plan),
-                ScanCompareTypeRelative::Decreased => data_type.get_compare_decreased(snapshot_filter_element_scan_plan),
+                ScanCompareTypeRelative::Changed => data_type.get_compare_changed(scan_constraint),
+                ScanCompareTypeRelative::Unchanged => data_type.get_compare_unchanged(scan_constraint),
+                ScanCompareTypeRelative::Increased => data_type.get_compare_increased(scan_constraint),
+                ScanCompareTypeRelative::Decreased => data_type.get_compare_decreased(scan_constraint),
             },
             None => None,
         }
@@ -283,24 +277,20 @@ impl SymbolRegistry {
     pub fn get_scalar_compare_func_delta(
         &self,
         scan_compare_type: &ScanCompareTypeDelta,
-        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
+        scan_constraint: &ScanConstraint,
     ) -> Option<ScalarCompareFnRelative> {
-        match self.get_data_type(
-            snapshot_filter_element_scan_plan
-                .get_data_value()
-                .get_data_type_id(),
-        ) {
+        match self.get_data_type(scan_constraint.get_data_value().get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
-                ScanCompareTypeDelta::IncreasedByX => data_type.get_compare_increased_by(snapshot_filter_element_scan_plan),
-                ScanCompareTypeDelta::DecreasedByX => data_type.get_compare_decreased_by(snapshot_filter_element_scan_plan),
-                ScanCompareTypeDelta::MultipliedByX => data_type.get_compare_multiplied_by(snapshot_filter_element_scan_plan),
-                ScanCompareTypeDelta::DividedByX => data_type.get_compare_divided_by(snapshot_filter_element_scan_plan),
-                ScanCompareTypeDelta::ModuloByX => data_type.get_compare_modulo_by(snapshot_filter_element_scan_plan),
-                ScanCompareTypeDelta::ShiftLeftByX => data_type.get_compare_shift_left_by(snapshot_filter_element_scan_plan),
-                ScanCompareTypeDelta::ShiftRightByX => data_type.get_compare_shift_right_by(snapshot_filter_element_scan_plan),
-                ScanCompareTypeDelta::LogicalAndByX => data_type.get_compare_logical_and_by(snapshot_filter_element_scan_plan),
-                ScanCompareTypeDelta::LogicalOrByX => data_type.get_compare_logical_or_by(snapshot_filter_element_scan_plan),
-                ScanCompareTypeDelta::LogicalXorByX => data_type.get_compare_logical_xor_by(snapshot_filter_element_scan_plan),
+                ScanCompareTypeDelta::IncreasedByX => data_type.get_compare_increased_by(scan_constraint),
+                ScanCompareTypeDelta::DecreasedByX => data_type.get_compare_decreased_by(scan_constraint),
+                ScanCompareTypeDelta::MultipliedByX => data_type.get_compare_multiplied_by(scan_constraint),
+                ScanCompareTypeDelta::DividedByX => data_type.get_compare_divided_by(scan_constraint),
+                ScanCompareTypeDelta::ModuloByX => data_type.get_compare_modulo_by(scan_constraint),
+                ScanCompareTypeDelta::ShiftLeftByX => data_type.get_compare_shift_left_by(scan_constraint),
+                ScanCompareTypeDelta::ShiftRightByX => data_type.get_compare_shift_right_by(scan_constraint),
+                ScanCompareTypeDelta::LogicalAndByX => data_type.get_compare_logical_and_by(scan_constraint),
+                ScanCompareTypeDelta::LogicalOrByX => data_type.get_compare_logical_or_by(scan_constraint),
+                ScanCompareTypeDelta::LogicalXorByX => data_type.get_compare_logical_xor_by(scan_constraint),
             },
             None => None,
         }
@@ -309,21 +299,15 @@ impl SymbolRegistry {
     pub fn get_vector_compare_func_immediate<const N: usize>(
         &self,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+        scan_constraint: &ScanConstraint,
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
+        LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
     {
-        match self.get_data_type(
-            snapshot_filter_element_scan_plan
-                .get_data_value()
-                .get_data_type_id(),
-        ) {
-            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(
-                &data_type,
-                &scan_compare_type_immediate,
-                snapshot_filter_element_scan_plan,
-            ),
+        match self.get_data_type(scan_constraint.get_data_value().get_data_type_id()) {
+            Some(data_type) => {
+                <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(&data_type, &scan_compare_type_immediate, scan_constraint)
+            }
             None => None,
         }
     }
@@ -331,21 +315,13 @@ impl SymbolRegistry {
     pub fn get_vector_compare_func_relative<const N: usize>(
         &self,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+        scan_constraint: &ScanConstraint,
+    ) -> Option<VectorCompareFnRelative<N>>
     where
-        LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
+        LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
     {
-        match self.get_data_type(
-            snapshot_filter_element_scan_plan
-                .get_data_value()
-                .get_data_type_id(),
-        ) {
-            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_relative(
-                &data_type,
-                &scan_compare_type_relative,
-                snapshot_filter_element_scan_plan,
-            ),
+        match self.get_data_type(scan_constraint.get_data_value().get_data_type_id()) {
+            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_relative(&data_type, &scan_compare_type_relative, scan_constraint),
             None => None,
         }
     }
@@ -353,19 +329,14 @@ impl SymbolRegistry {
     pub fn get_vector_compare_func_delta<const N: usize>(
         &self,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+
+        scan_constraint: &ScanConstraint,
+    ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
+        LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
     {
-        match self.get_data_type(
-            snapshot_filter_element_scan_plan
-                .get_data_value()
-                .get_data_type_id(),
-        ) {
-            Some(data_type) => {
-                <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_delta(&data_type, &scan_compare_type_delta, snapshot_filter_element_scan_plan)
-            }
+        match self.get_data_type(scan_constraint.get_data_value().get_data_type_id()) {
+            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_delta(&data_type, &scan_compare_type_delta, scan_constraint),
             None => None,
         }
     }

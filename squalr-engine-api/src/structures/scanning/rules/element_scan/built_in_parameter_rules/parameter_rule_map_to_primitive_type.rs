@@ -21,9 +21,10 @@ impl ElementScanParametersRule for RuleMapToPrimitiveType {
 
     fn map_parameters(
         &self,
-        symbol_registry: &SymbolRegistry,
         scan_constraints: &mut Vec<ScanConstraint>,
     ) {
+        let symbol_registry = SymbolRegistry::get_instance();
+
         for scan_constraint in scan_constraints {
             let data_value = scan_constraint.get_data_value();
             let data_type_ref = data_value.get_data_type_ref();
@@ -59,10 +60,10 @@ impl ElementScanParametersRule for RuleMapToPrimitiveType {
             // If applicable, try to reinterpret array of byte scans as a primitive type of the same size.
             // These are much more efficient than array of byte scans, so for scans of these sizes performance will be improved greatly.
             match data_type_size {
-                8 => scan_constraint.set_data_type_in_place(DataTypeRef::new(DataTypeU64be::get_data_type_id()), symbol_registry),
-                4 => scan_constraint.set_data_type_in_place(DataTypeRef::new(DataTypeU32be::get_data_type_id()), symbol_registry),
-                2 => scan_constraint.set_data_type_in_place(DataTypeRef::new(DataTypeU16be::get_data_type_id()), symbol_registry),
-                1 => scan_constraint.set_data_type_in_place(DataTypeRef::new(DataTypeU8::get_data_type_id()), symbol_registry),
+                8 => scan_constraint.set_data_type_in_place(DataTypeRef::new(DataTypeU64be::get_data_type_id())),
+                4 => scan_constraint.set_data_type_in_place(DataTypeRef::new(DataTypeU32be::get_data_type_id())),
+                2 => scan_constraint.set_data_type_in_place(DataTypeRef::new(DataTypeU16be::get_data_type_id())),
+                1 => scan_constraint.set_data_type_in_place(DataTypeRef::new(DataTypeU8::get_data_type_id())),
                 _ => {}
             }
         }

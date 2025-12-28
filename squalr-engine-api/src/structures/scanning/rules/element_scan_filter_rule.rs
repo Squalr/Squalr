@@ -1,6 +1,6 @@
 use crate::structures::{
     scanning::{
-        constraints::scan_constraint::ScanConstraint,
+        constraints::scan_constraint_finalized::ScanConstraintFinalized,
         filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
         plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan,
     },
@@ -14,7 +14,7 @@ pub trait ElementScanFilterRule: Send + Sync {
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
-        scan_constraint: &ScanConstraint,
+        scan_constraint_finalized: &ScanConstraintFinalized,
         snapshot_filter_element_scan_plan: &mut SnapshotFilterElementScanPlan,
     );
 }

@@ -73,7 +73,8 @@ impl SnapshotRegionScanResults {
             let collection = &self.snapshot_region_filter_collections[collection_index];
             let memory_alignment = collection.get_memory_alignment();
             let data_type_ref = collection.get_data_type_ref();
-            let result_count = filter.get_element_count(data_type_ref, memory_alignment);
+            let data_type_size = SymbolRegistry::get_instance().get_unit_size_in_bytes(&data_type_ref);
+            let result_count = filter.get_element_count(data_type_size, memory_alignment);
             let symbol_registry = SymbolRegistry::get_instance();
 
             if adjusted_scan_result_index < result_count {

@@ -1,4 +1,5 @@
-use crate::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
+use crate::structures::scanning::comparisons::scan_function_vector::{VectorCompareFnDelta, VectorCompareFnImmediate, VectorCompareFnRelative};
+use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Mul, Rem, Shl, Shr, Sub};
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
 use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
@@ -7,9 +8,9 @@ pub struct VectorComparisonsByteArray {}
 
 /// Deliberately not implemented. Vector based byte array comparisons are implemented elsewhere in specialized scan routines.
 impl VectorComparisonsByteArray {
-    pub fn get_vector_compare_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + PartialEq + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + PartialEq + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -18,9 +19,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_not_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_not_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -29,9 +30,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_greater_than<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_greater_than<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -40,9 +41,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_greater_than_or_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_greater_than_or_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -51,9 +52,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_less_than<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_less_than<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -62,9 +63,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_less_than_or_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_less_than_or_equal<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnImmediate<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -73,9 +74,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_changed<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        __scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_changed<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        __scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnRelative<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -84,9 +85,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_unchanged<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        __scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_unchanged<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        __scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnRelative<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -95,9 +96,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_increased<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        __scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_increased<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        __scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnRelative<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -106,9 +107,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_decreased<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        __scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_decreased<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        __scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnRelative<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -117,9 +118,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_increased_by<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_increased_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -128,9 +129,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_decreased_by<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_decreased_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -139,9 +140,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_multiplied_by<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_multiplied_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -150,9 +151,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_divided_by<const N: usize, const E: usize, PrimitiveType: SimdElement + PartialEq + Default + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_divided_by<const N: usize, const E: usize, PrimitiveType: SimdElement + PartialEq + Default + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -161,9 +162,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_modulo_by<const N: usize, const E: usize, PrimitiveType: SimdElement + PartialEq + Default + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_modulo_by<const N: usize, const E: usize, PrimitiveType: SimdElement + PartialEq + Default + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -172,9 +173,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_shift_left_by<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_shift_left_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -183,9 +184,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_shift_right_by<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_shift_right_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -194,9 +195,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_logical_and_by<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_logical_and_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -205,9 +206,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_logical_or_by<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_logical_or_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
@@ -216,9 +217,9 @@ impl VectorComparisonsByteArray {
         None
     }
 
-    pub fn get_vector_compare_logical_xor_by<const N: usize, const E: usize, PrimitiveType: SimdElement + 'static>(
-        _scan_parameters: &SnapshotFilterElementScanPlan
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    pub fn get_vector_compare_logical_xor_by<const N: usize, const E: usize, PrimitiveType: SimdElement + Send + Sync + 'static>(
+        _scan_constraint: &ScanConstraint
+    ) -> Option<VectorCompareFnDelta<N>>
     where
         LaneCount<N>: SupportedLaneCount,
         LaneCount<E>: SupportedLaneCount,
