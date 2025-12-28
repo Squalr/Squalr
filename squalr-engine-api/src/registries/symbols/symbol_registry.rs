@@ -1,4 +1,5 @@
-use crate::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
+use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
+use crate::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 use crate::structures::structs::container_type::ContainerType;
 use crate::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use crate::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
@@ -240,108 +241,127 @@ impl SymbolRegistry {
 
     pub fn get_scalar_compare_func_immediate(
         &self,
-        data_type_ref: &DataTypeRef,
         scan_compare_type: &ScanCompareTypeImmediate,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        data_value: &DataValue,
+        floating_point_tolerance: FloatingPointTolerance,
     ) -> Option<ScalarCompareFnImmediate> {
-        match self.get_data_type(data_type_ref.get_data_type_id()) {
+        /*
+        match self.get_data_type(data_value.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
-                ScanCompareTypeImmediate::Equal => data_type.get_compare_equal(mapped_scan_parameters),
-                ScanCompareTypeImmediate::NotEqual => data_type.get_compare_not_equal(mapped_scan_parameters),
-                ScanCompareTypeImmediate::GreaterThan => data_type.get_compare_greater_than(mapped_scan_parameters),
-                ScanCompareTypeImmediate::GreaterThanOrEqual => data_type.get_compare_greater_than_or_equal(mapped_scan_parameters),
-                ScanCompareTypeImmediate::LessThan => data_type.get_compare_less_than(mapped_scan_parameters),
-                ScanCompareTypeImmediate::LessThanOrEqual => data_type.get_compare_less_than_or_equal(mapped_scan_parameters),
+                ScanCompareTypeImmediate::Equal => data_type.get_compare_equal(data_value, floating_point_tolerance),
+                ScanCompareTypeImmediate::NotEqual => data_type.get_compare_not_equal(data_value, floating_point_tolerance),
+                ScanCompareTypeImmediate::GreaterThan => data_type.get_compare_greater_than(data_value, floating_point_tolerance),
+                ScanCompareTypeImmediate::GreaterThanOrEqual => data_type.get_compare_greater_than_or_equal(data_value, floating_point_tolerance),
+                ScanCompareTypeImmediate::LessThan => data_type.get_compare_less_than(data_value, floating_point_tolerance),
+                ScanCompareTypeImmediate::LessThanOrEqual => data_type.get_compare_less_than_or_equal(data_value, floating_point_tolerance),
             },
             None => None,
-        }
+        }*/
+        None
     }
 
     pub fn get_scalar_compare_func_relative(
         &self,
-        data_type_ref: &DataTypeRef,
         scan_compare_type: &ScanCompareTypeRelative,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        data_value: &DataValue,
+        floating_point_tolerance: FloatingPointTolerance,
     ) -> Option<ScalarCompareFnRelative> {
-        match self.get_data_type(data_type_ref.get_data_type_id()) {
+        /*
+        match self.get_data_type(data_value.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
-                ScanCompareTypeRelative::Changed => data_type.get_compare_changed(mapped_scan_parameters),
-                ScanCompareTypeRelative::Unchanged => data_type.get_compare_unchanged(mapped_scan_parameters),
-                ScanCompareTypeRelative::Increased => data_type.get_compare_increased(mapped_scan_parameters),
-                ScanCompareTypeRelative::Decreased => data_type.get_compare_decreased(mapped_scan_parameters),
+                ScanCompareTypeRelative::Changed => data_type.get_compare_changed(data_value, floating_point_tolerance),
+                ScanCompareTypeRelative::Unchanged => data_type.get_compare_unchanged(data_value, floating_point_tolerance),
+                ScanCompareTypeRelative::Increased => data_type.get_compare_increased(data_value, floating_point_tolerance),
+                ScanCompareTypeRelative::Decreased => data_type.get_compare_decreased(data_value, floating_point_tolerance),
             },
             None => None,
-        }
+        }*/
+        None
     }
 
     pub fn get_scalar_compare_func_delta(
         &self,
-        data_type_ref: &DataTypeRef,
         scan_compare_type: &ScanCompareTypeDelta,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        data_value: &DataValue,
+        floating_point_tolerance: FloatingPointTolerance,
     ) -> Option<ScalarCompareFnRelative> {
-        match self.get_data_type(data_type_ref.get_data_type_id()) {
+        /*
+        match self.get_data_type(data_value.get_data_type_id()) {
             Some(data_type) => match scan_compare_type {
-                ScanCompareTypeDelta::IncreasedByX => data_type.get_compare_increased_by(mapped_scan_parameters),
-                ScanCompareTypeDelta::DecreasedByX => data_type.get_compare_decreased_by(mapped_scan_parameters),
-                ScanCompareTypeDelta::MultipliedByX => data_type.get_compare_multiplied_by(mapped_scan_parameters),
-                ScanCompareTypeDelta::DividedByX => data_type.get_compare_divided_by(mapped_scan_parameters),
-                ScanCompareTypeDelta::ModuloByX => data_type.get_compare_modulo_by(mapped_scan_parameters),
-                ScanCompareTypeDelta::ShiftLeftByX => data_type.get_compare_shift_left_by(mapped_scan_parameters),
-                ScanCompareTypeDelta::ShiftRightByX => data_type.get_compare_shift_right_by(mapped_scan_parameters),
-                ScanCompareTypeDelta::LogicalAndByX => data_type.get_compare_logical_and_by(mapped_scan_parameters),
-                ScanCompareTypeDelta::LogicalOrByX => data_type.get_compare_logical_or_by(mapped_scan_parameters),
-                ScanCompareTypeDelta::LogicalXorByX => data_type.get_compare_logical_xor_by(mapped_scan_parameters),
+                ScanCompareTypeDelta::IncreasedByX => data_type.get_compare_increased_by(data_value, floating_point_tolerance),
+                ScanCompareTypeDelta::DecreasedByX => data_type.get_compare_decreased_by(data_value, floating_point_tolerance),
+                ScanCompareTypeDelta::MultipliedByX => data_type.get_compare_multiplied_by(data_value, floating_point_tolerance),
+                ScanCompareTypeDelta::DividedByX => data_type.get_compare_divided_by(data_value, floating_point_tolerance),
+                ScanCompareTypeDelta::ModuloByX => data_type.get_compare_modulo_by(data_value, floating_point_tolerance),
+                ScanCompareTypeDelta::ShiftLeftByX => data_type.get_compare_shift_left_by(data_value, floating_point_tolerance),
+                ScanCompareTypeDelta::ShiftRightByX => data_type.get_compare_shift_right_by(data_value, floating_point_tolerance),
+                ScanCompareTypeDelta::LogicalAndByX => data_type.get_compare_logical_and_by(data_value, floating_point_tolerance),
+                ScanCompareTypeDelta::LogicalOrByX => data_type.get_compare_logical_or_by(data_value, floating_point_tolerance),
+                ScanCompareTypeDelta::LogicalXorByX => data_type.get_compare_logical_xor_by(data_value, floating_point_tolerance),
             },
             None => None,
         }
+        */
+        None
     }
 
     pub fn get_vector_compare_func_immediate<const N: usize>(
         &self,
-        data_type_ref: &DataTypeRef,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        data_value: &DataValue,
+        floating_point_tolerance: FloatingPointTolerance,
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
-        match self.get_data_type(data_type_ref.get_data_type_id()) {
-            Some(data_type) => {
-                <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(&data_type, &scan_compare_type_immediate, mapped_scan_parameters)
-            }
+        /*
+        match self.get_data_type(data_value.get_data_type_id()) {
+            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(
+                &data_type,
+                &scan_compare_type_immediate,
+                data_value,
+                floating_point_tolerance,
+            ),
             None => None,
-        }
+        }*/
+        None
     }
 
     pub fn get_vector_compare_func_relative<const N: usize>(
         &self,
-        data_type_ref: &DataTypeRef,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        data_value: &DataValue,
+        floating_point_tolerance: FloatingPointTolerance,
+    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
+    where
+        LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
+    {
+        /*
+        match self.get_data_type(data_value.get_data_type_id()) {
+            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_relative(
+                &data_type,
+                &scan_compare_type_relative,
+                data_value,
+                floating_point_tolerance,
+            ),
+            None => None,
+        }*/
+        None
+    }
+
+    pub fn get_vector_compare_func_delta<const N: usize>(
+        &self,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
+        data_type_ref: &DataTypeRef,
+        scan_compare_type_delta: &ScanCompareTypeDelta,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
         match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => {
-                <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_relative(&data_type, &scan_compare_type_relative, mapped_scan_parameters)
+                <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_delta(&data_type, &scan_compare_type_delta, snapshot_filter_element_scan_plan)
             }
-            None => None,
-        }
-    }
-
-    pub fn get_vector_compare_func_delta<const N: usize>(
-        &self,
-        data_type_ref: &DataTypeRef,
-        scan_compare_type_delta: &ScanCompareTypeDelta,
-        mapped_scan_parameters: &OptimizedScanConstraint,
-    ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>
-    where
-        LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
-    {
-        match self.get_data_type(data_type_ref.get_data_type_id()) {
-            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_delta(&data_type, &scan_compare_type_delta, mapped_scan_parameters),
             None => None,
         }
     }

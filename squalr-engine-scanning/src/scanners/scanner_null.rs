@@ -2,7 +2,8 @@ use crate::scanners::snapshot_scanner::Scanner;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::{
-    registries::symbols::symbol_registry::SymbolRegistry, structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint,
+    registries::symbols::symbol_registry::SymbolRegistry,
+    structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan,
 };
 use std::sync::{Arc, RwLock};
 
@@ -20,7 +21,7 @@ impl Scanner for ScannerNull {
         _symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         _snapshot_region: &SnapshotRegion,
         _snapshot_region_filter: &SnapshotRegionFilter,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Vec<SnapshotRegionFilter> {
         Vec::new()
     }

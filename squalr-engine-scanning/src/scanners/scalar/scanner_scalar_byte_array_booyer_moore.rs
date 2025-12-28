@@ -1,12 +1,13 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::boyer_moore_table::BoyerMooreTable;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
-use squalr_engine_api::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
+use squalr_engine_api::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_api::{
+    registries::symbols::symbol_registry::SymbolRegistry, structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate,
+};
 use std::sync::{Arc, RwLock};
 
 pub struct ScannerScalarByteArrayBooyerMoore {}
@@ -28,11 +29,11 @@ impl Scanner for ScannerScalarByteArrayBooyerMoore {
         _symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Vec<SnapshotRegionFilter> {
-        let data_value = match mapped_scan_parameters.get_compare_type() {
+        let data_value = match snapshot_filter_element_scan_plan.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => match scan_compare_type_immediate {
-                ScanCompareTypeImmediate::Equal => mapped_scan_parameters.get_data_value(),
+                ScanCompareTypeImmediate::Equal => snapshot_filter_element_scan_plan.get_data_value(),
                 _ => {
                     log::error!("Unsupported immediate scan constraint. Only equality is supported for array of byte scans.");
                     return vec![];
@@ -51,7 +52,7 @@ impl Scanner for ScannerScalarByteArrayBooyerMoore {
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
-        let memory_alignment_size = mapped_scan_parameters.get_memory_alignment() as u64;
+        let memory_alignment_size = snapshot_filter_element_scan_plan.get_memory_alignment() as u64;
 
         let scan_pattern = data_value.get_value_bytes();
         let pattern_length = scan_pattern.len() as u64;

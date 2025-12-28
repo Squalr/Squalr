@@ -2,16 +2,15 @@ use crate::{
     registries::symbols::symbol_registry::SymbolRegistry,
     structures::{
         scanning::{
-            constraints::optimized_scan_constraint::OptimizedScanConstraint,
             filters::{snapshot_region_filter::SnapshotRegionFilter, snapshot_region_filter_collection::SnapshotRegionFilterCollection},
-            parameters::element_scan::element_scan_parameters::ElementScanParameters,
+            plans::element_scan::{element_scan_parameters::ElementScanParameters, snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan},
         },
         snapshots::snapshot_region::SnapshotRegion,
     },
 };
 use std::sync::{Arc, RwLock};
 
-pub trait ElementScanMappingRule: Send + Sync {
+pub trait ElementScanFilterRule: Send + Sync {
     fn get_id(&self) -> &str;
     fn map_parameters(
         &self,
@@ -20,6 +19,6 @@ pub trait ElementScanMappingRule: Send + Sync {
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
         element_scan_parameters: &ElementScanParameters,
-        mapped_scan_parameters: &mut OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &mut SnapshotFilterElementScanPlan,
     );
 }

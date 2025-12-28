@@ -1,10 +1,12 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
-use squalr_engine_api::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
+use squalr_engine_api::{
+    registries::symbols::symbol_registry::SymbolRegistry,
+    structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan,
+};
 use std::sync::{Arc, RwLock};
 
 pub struct ScannerScalarIterative {}
@@ -25,8 +27,9 @@ impl Scanner for ScannerScalarIterative {
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Vec<SnapshotRegionFilter> {
+        /*
         let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
@@ -34,19 +37,19 @@ impl Scanner for ScannerScalarIterative {
 
                 return vec![];
             }
-        };
+        };*/
         let base_address = snapshot_region_filter.get_base_address();
-        let memory_alignment = mapped_scan_parameters.get_memory_alignment();
+        let memory_alignment = snapshot_filter_element_scan_plan.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
-        let data_type_ref = mapped_scan_parameters.get_data_type_ref();
-        let data_type_size = symbol_registry_guard.get_unit_size_in_bytes(data_type_ref);
+        let data_type_ref = snapshot_filter_element_scan_plan.get_data_type_ref();
+        let data_type_size = SymbolRegistry::get_instance().get_unit_size_in_bytes(data_type_ref);
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment_size);
         let element_count = snapshot_region_filter.get_element_count(symbol_registry, data_type_ref, memory_alignment);
         let current_value_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let previous_value_pointer = snapshot_region.get_previous_values_filter_pointer(&snapshot_region_filter);
         let mut run_length_encoder = SnapshotRegionFilterRunLengthEncoder::new(base_address);
 
-        if let Some(scalar_compare_func) = mapped_scan_parameters.get_scan_function_scalar(symbol_registry) {
+        if let Some(scalar_compare_func) = snapshot_filter_element_scan_plan.get_scan_function_scalar(symbol_registry) {
             match scalar_compare_func {
                 ScanFunctionScalar::Immediate(compare_func) => {
                     for index in 0..element_count {

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{self, Debug},
+    hash::{Hash, Hasher},
     str::FromStr,
 };
 
@@ -22,6 +23,15 @@ impl DataTypeRef {
 
     pub fn get_data_type_id(&self) -> &str {
         &self.data_type_id
+    }
+}
+
+impl Hash for DataTypeRef {
+    fn hash<H: Hasher>(
+        &self,
+        state: &mut H,
+    ) {
+        self.data_type_id.hash(state);
     }
 }
 

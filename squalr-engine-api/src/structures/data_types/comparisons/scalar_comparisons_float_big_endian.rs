@@ -1,5 +1,5 @@
 use crate::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
-use crate::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
+use crate::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 use num_traits::Float;
 use std::ops::{Add, Sub};
 use std::ptr;
@@ -24,7 +24,7 @@ pub struct ScalarComparisonsFloatBigEndian {}
 
 impl ScalarComparisonsFloatBigEndian {
     pub fn get_compare_equal<PrimitiveType: PartialEq + Float + Sub<Output = PrimitiveType> + ReadFloatBigEndian + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_value = scan_parameters.get_data_value();
         // Note: The typical integer optimization of leaving the values unswapped does not work for floating points, so we must swap as normal.
@@ -41,7 +41,7 @@ impl ScalarComparisonsFloatBigEndian {
     }
 
     pub fn get_compare_not_equal<PrimitiveType: PartialEq + Float + Sub<Output = PrimitiveType> + ReadFloatBigEndian + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnImmediate> {
         // Note: The typical integer optimization of leaving the values unswapped does not work for floating points, so we must swap as normal.
         let immediate_value = scan_parameters.get_data_value();
@@ -58,7 +58,7 @@ impl ScalarComparisonsFloatBigEndian {
     }
 
     pub fn get_compare_greater_than<PrimitiveType: PartialOrd + ReadFloatBigEndian + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_value = scan_parameters.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
@@ -73,7 +73,7 @@ impl ScalarComparisonsFloatBigEndian {
     }
 
     pub fn get_compare_greater_than_or_equal<PrimitiveType: PartialOrd + ReadFloatBigEndian + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_value = scan_parameters.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
@@ -88,7 +88,7 @@ impl ScalarComparisonsFloatBigEndian {
     }
 
     pub fn get_compare_less_than<PrimitiveType: PartialOrd + ReadFloatBigEndian + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_value = scan_parameters.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
@@ -103,7 +103,7 @@ impl ScalarComparisonsFloatBigEndian {
     }
 
     pub fn get_compare_less_than_or_equal<PrimitiveType: PartialOrd + ReadFloatBigEndian + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_value = scan_parameters.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
@@ -118,7 +118,7 @@ impl ScalarComparisonsFloatBigEndian {
     }
 
     pub fn get_compare_changed<PrimitiveType: PartialEq + ReadFloatBigEndian + 'static>(
-        _scan_parameters: &OptimizedScanConstraint
+        _scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnRelative> {
         Some(Box::new(move |current_value_ptr, previous_value_ptr| unsafe {
             // Optimization: no endian byte swaps required for current or previous values.
@@ -131,7 +131,7 @@ impl ScalarComparisonsFloatBigEndian {
     }
 
     pub fn get_compare_unchanged<PrimitiveType: PartialEq + ReadFloatBigEndian + 'static>(
-        _scan_parameters: &OptimizedScanConstraint
+        _scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnRelative> {
         Some(Box::new(move |current_value_ptr, previous_value_ptr| unsafe {
             // Optimization: no endian byte swaps required for current or previous values.
@@ -144,7 +144,7 @@ impl ScalarComparisonsFloatBigEndian {
     }
 
     pub fn get_compare_increased<PrimitiveType: PartialOrd + ReadFloatBigEndian + 'static>(
-        _scan_parameters: &OptimizedScanConstraint
+        _scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnRelative> {
         Some(Box::new(move |current_value_ptr, previous_value_ptr| {
             let current_value: PrimitiveType = ReadFloatBigEndian::read_float_be(current_value_ptr);
@@ -156,7 +156,7 @@ impl ScalarComparisonsFloatBigEndian {
     }
 
     pub fn get_compare_decreased<PrimitiveType: PartialOrd + ReadFloatBigEndian + 'static>(
-        _scan_parameters: &OptimizedScanConstraint
+        _scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnRelative> {
         Some(Box::new(move |current_value_ptr, previous_value_ptr| {
             let current_value: PrimitiveType = ReadFloatBigEndian::read_float_be(current_value_ptr);
@@ -170,7 +170,7 @@ impl ScalarComparisonsFloatBigEndian {
     pub fn get_compare_increased_by<
         PrimitiveType: Copy + PartialEq + Float + Add<Output = PrimitiveType> + Sub<Output = PrimitiveType> + ReadFloatBigEndian + 'static,
     >(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         // Note: The typical integer optimization of leaving the values unswapped does not work for floating points, so we must swap as normal.
@@ -191,7 +191,7 @@ impl ScalarComparisonsFloatBigEndian {
     pub fn get_compare_decreased_by<
         PrimitiveType: Copy + PartialEq + Float + Add<Output = PrimitiveType> + Sub<Output = PrimitiveType> + ReadFloatBigEndian + 'static,
     >(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         // Note: The typical integer optimization of leaving the values unswapped does not work for floating points, so we must swap as normal.
@@ -212,7 +212,7 @@ impl ScalarComparisonsFloatBigEndian {
     pub fn get_compare_multiplied_by<
         PrimitiveType: Copy + PartialEq + Float + Add<Output = PrimitiveType> + Sub<Output = PrimitiveType> + ReadFloatBigEndian + 'static,
     >(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         // Note: The typical integer optimization of leaving the values unswapped does not work for floating points, so we must swap as normal.
@@ -233,7 +233,7 @@ impl ScalarComparisonsFloatBigEndian {
     pub fn get_compare_divided_by<
         PrimitiveType: Copy + PartialEq + Float + Add<Output = PrimitiveType> + Sub<Output = PrimitiveType> + ReadFloatBigEndian + 'static,
     >(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         // Note: The typical integer optimization of leaving the values unswapped does not work for floating points, so we must swap as normal.
@@ -254,7 +254,7 @@ impl ScalarComparisonsFloatBigEndian {
     pub fn get_compare_modulo_by<
         PrimitiveType: Copy + PartialEq + Float + Add<Output = PrimitiveType> + Sub<Output = PrimitiveType> + ReadFloatBigEndian + 'static,
     >(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         // Note: The typical integer optimization of leaving the values unswapped does not work for floating points, so we must swap as normal.

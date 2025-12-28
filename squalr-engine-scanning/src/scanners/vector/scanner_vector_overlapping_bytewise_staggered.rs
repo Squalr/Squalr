@@ -6,8 +6,8 @@ use squalr_engine_api::structures::data_types::generics::vector_generics::Vector
 use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
-use squalr_engine_api::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
+use squalr_engine_api::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::ptr;
 use std::simd::cmp::SimdPartialEq;
@@ -82,8 +82,9 @@ where
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter: &SnapshotRegionFilter,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Vec<SnapshotRegionFilter> {
+        /*
         let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
@@ -91,7 +92,7 @@ where
 
                 return vec![];
             }
-        };
+        };*/
         let current_values_pointer = snapshot_region.get_current_values_filter_pointer(&snapshot_region_filter);
         let base_address = snapshot_region_filter.get_base_address();
         let region_size = snapshot_region_filter.get_region_size();
@@ -100,10 +101,10 @@ where
         let false_mask = Simd::<u8, N>::splat(0x00);
         let true_mask = Simd::<u8, N>::splat(0xFF);
 
-        let data_type_ref = mapped_scan_parameters.get_data_type_ref();
-        let data_type_size = symbol_registry_guard.get_unit_size_in_bytes(data_type_ref);
-        let data_type_size_padding = data_type_size.saturating_sub(mapped_scan_parameters.get_memory_alignment() as u64);
-        let memory_alignment = mapped_scan_parameters.get_memory_alignment();
+        let data_type_ref = snapshot_filter_element_scan_plan.get_data_type_ref();
+        let data_type_size = SymbolRegistry::get_instance().get_unit_size_in_bytes(data_type_ref);
+        let data_type_size_padding = data_type_size.saturating_sub(snapshot_filter_element_scan_plan.get_memory_alignment() as u64);
+        let memory_alignment = snapshot_filter_element_scan_plan.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
 
         let vectorization_plan = VectorGenerics::plan_vector_scan::<N>(region_size, data_type_size, memory_alignment_size);
@@ -113,8 +114,8 @@ where
             .vector_size_in_bytes
             .saturating_sub(data_type_size) as u64;
 
-        let scan_immedate = mapped_scan_parameters.get_data_value();
-        let scan_compare_type_immediate = match mapped_scan_parameters.get_compare_type() {
+        let scan_immedate = snapshot_filter_element_scan_plan.get_data_value();
+        let scan_compare_type_immediate = match snapshot_filter_element_scan_plan.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => scan_compare_type_immediate,
             _ => {
                 log::error!("Invalid scan compare type provided to bytewise staggered scan.");
@@ -241,7 +242,9 @@ where
         }
 
         // Handle remainder elements.
-        if let Some(compare_func) = symbol_registry_guard.get_scalar_compare_func_immediate(data_type_ref, &scan_compare_type_immediate, mapped_scan_parameters)
+        /*
+        if let Some(compare_func) =
+            SymbolRegistry::get_instance().get_scalar_compare_func_immediate(data_type_ref, &scan_compare_type_immediate, snapshot_filter_element_scan_plan)
         {
             for index in vectorizable_element_count..vectorization_plan.element_count {
                 let current_value_pointer = unsafe { current_values_pointer.add(index as usize * memory_alignment_size as usize) };
@@ -253,7 +256,7 @@ where
                     run_length_encoder.finalize_current_encode_with_padding(memory_alignment_size, data_type_size_padding);
                 }
             }
-        }
+        }*/
 
         run_length_encoder.finalize_current_encode_with_padding(0, data_type_size_padding);
         run_length_encoder.take_result_regions()

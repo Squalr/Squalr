@@ -7,24 +7,24 @@ use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use crate::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use crate::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
-use crate::structures::scanning::constraints::mapped_scan_type::MappedScanType;
+use crate::structures::scanning::plans::plan_types::planned_scan_type::PlannedScanType;
 use std::simd::LaneCount;
 use std::simd::SupportedLaneCount;
 use std::sync::Arc;
 use std::sync::RwLock;
 
 /// Represents processed scan parameters derived from user provided scan parameters.
-#[derive(Debug, Clone)]
-pub struct OptimizedScanConstraint {
+pub struct SnapshotFilterElementScanPlan {
     data_value: DataValue,
     memory_alignment: MemoryAlignment,
     scan_compare_type: ScanCompareType,
     floating_point_tolerance: FloatingPointTolerance,
     periodicity: u64,
-    mapped_scan_type: MappedScanType,
+    planned_scan_type: PlannedScanType,
+    scan_function: Option<ScanFunctionScalar>,
 }
 
-impl OptimizedScanConstraint {
+impl SnapshotFilterElementScanPlan {
     /// Creates optimized scan paramaters for a given snapshot region filter, given user provided scan parameters.
     /// Internally, the user parameters are processed into more optimal parameters that help select the most optimal scan implementation.
     pub fn new(
@@ -33,13 +33,43 @@ impl OptimizedScanConstraint {
         scan_compare_type: ScanCompareType,
         floating_point_tolerance: FloatingPointTolerance,
     ) -> Self {
+        let symbol_registry = SymbolRegistry::get_instance();
+        let scan_function = None;
+        /* match scan_compare_type {
+            ScanCompareType::Immediate(scan_compare_type_immediate) => {
+                if let Some(compare_func) =
+                    symbol_registry.get_scalar_compare_func_immediate(data_value.get_data_type_ref(), &scan_compare_type_immediate, &self)
+                {
+                    Some(ScanFunctionScalar::Immediate(compare_func))
+                } else {
+                    None
+                }
+            }
+            ScanCompareType::Relative(scan_compare_type_relative) => {
+                if let Some(compare_func) = symbol_registry.get_scalar_compare_func_relative(data_value.get_data_type_ref(), &scan_compare_type_relative, &self)
+                {
+                    Some(ScanFunctionScalar::RelativeOrDelta(compare_func))
+                } else {
+                    None
+                }
+            }
+            ScanCompareType::Delta(scan_compare_type_delta) => {
+                if let Some(compare_func) = symbol_registry.get_scalar_compare_func_delta(data_value.get_data_type_ref(), &scan_compare_type_delta, &self) {
+                    Some(ScanFunctionScalar::RelativeOrDelta(compare_func))
+                } else {
+                    None
+                }
+            }
+        }; */
+
         Self {
             data_value,
             memory_alignment,
             scan_compare_type,
             floating_point_tolerance,
             periodicity: 0,
-            mapped_scan_type: MappedScanType::Invalid(),
+            planned_scan_type: PlannedScanType::Invalid(),
+            scan_function,
         }
     }
 
@@ -85,21 +115,22 @@ impl OptimizedScanConstraint {
         self.periodicity = periodicity;
     }
 
-    pub fn get_mapped_scan_type(&self) -> &MappedScanType {
-        &self.mapped_scan_type
+    pub fn get_planned_scan_type(&self) -> &PlannedScanType {
+        &self.planned_scan_type
     }
 
-    pub fn set_mapped_scan_type(
+    pub fn set_planned_scan_type(
         &mut self,
-        mapped_scan_type: MappedScanType,
+        planned_scan_type: PlannedScanType,
     ) {
-        self.mapped_scan_type = mapped_scan_type;
+        self.planned_scan_type = planned_scan_type;
     }
 
     pub fn get_scan_function_scalar(
         &self,
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
     ) -> Option<ScanFunctionScalar> {
+        /*
         let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
@@ -107,28 +138,7 @@ impl OptimizedScanConstraint {
 
                 return None;
             }
-        };
-
-        match self.get_compare_type() {
-            ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                if let Some(compare_func) =
-                    symbol_registry_guard.get_scalar_compare_func_immediate(self.get_data_type_ref(), &scan_compare_type_immediate, &self)
-                {
-                    return Some(ScanFunctionScalar::Immediate(compare_func));
-                }
-            }
-            ScanCompareType::Relative(scan_compare_type_relative) => {
-                if let Some(compare_func) = symbol_registry_guard.get_scalar_compare_func_relative(self.get_data_type_ref(), &scan_compare_type_relative, &self)
-                {
-                    return Some(ScanFunctionScalar::RelativeOrDelta(compare_func));
-                }
-            }
-            ScanCompareType::Delta(scan_compare_type_delta) => {
-                if let Some(compare_func) = symbol_registry_guard.get_scalar_compare_func_delta(self.get_data_type_ref(), &scan_compare_type_delta, &self) {
-                    return Some(ScanFunctionScalar::RelativeOrDelta(compare_func));
-                }
-            }
-        }
+        };*/
 
         None
     }
@@ -140,6 +150,7 @@ impl OptimizedScanConstraint {
     where
         LaneCount<N>: SupportedLaneCount + VectorComparer<N>,
     {
+        /*
         let symbol_registry_guard = match symbol_registry.read() {
             Ok(registry) => registry,
             Err(error) => {
@@ -147,28 +158,27 @@ impl OptimizedScanConstraint {
 
                 return None;
             }
-        };
+        };*/
+        let symbol_registry = SymbolRegistry::get_instance();
 
+        /*
         match self.get_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                if let Some(compare_func) =
-                    symbol_registry_guard.get_vector_compare_func_immediate(self.get_data_type_ref(), &scan_compare_type_immediate, &self)
-                {
+                if let Some(compare_func) = symbol_registry.get_vector_compare_func_immediate(self.get_data_type_ref(), &scan_compare_type_immediate, &self) {
                     return Some(ScanFunctionVector::Immediate(compare_func));
                 }
             }
             ScanCompareType::Relative(scan_compare_type_relative) => {
-                if let Some(compare_func) = symbol_registry_guard.get_vector_compare_func_relative(self.get_data_type_ref(), &scan_compare_type_relative, &self)
-                {
+                if let Some(compare_func) = symbol_registry.get_vector_compare_func_relative(self.get_data_type_ref(), &scan_compare_type_relative, &self) {
                     return Some(ScanFunctionVector::RelativeOrDelta(compare_func));
                 }
             }
             ScanCompareType::Delta(scan_compare_type_delta) => {
-                if let Some(compare_func) = symbol_registry_guard.get_vector_compare_func_delta(self.get_data_type_ref(), &scan_compare_type_delta, &self) {
+                if let Some(compare_func) = symbol_registry.get_vector_compare_func_delta(self.get_data_type_ref(), &scan_compare_type_delta, &self) {
                     return Some(ScanFunctionVector::RelativeOrDelta(compare_func));
                 }
             }
-        }
+        }*/
 
         None
     }

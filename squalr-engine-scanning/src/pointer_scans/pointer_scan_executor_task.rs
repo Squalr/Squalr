@@ -11,8 +11,7 @@ use squalr_engine_api::structures::processes::opened_process_info::OpenedProcess
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
-use squalr_engine_api::structures::scanning::parameters::element_scan::element_scan_parameters::ElementScanParameters;
-use squalr_engine_api::structures::scanning::parameters::pointer_scan::pointer_scan_parameters::PointerScanParameters;
+use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;

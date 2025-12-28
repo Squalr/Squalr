@@ -1,5 +1,5 @@
 use crate::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
-use crate::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
+use crate::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 use num_traits::{PrimInt, WrappingAdd, WrappingMul, WrappingSub};
 use std::ops::{BitAnd, BitOr, BitXor, Div, Rem, Shl, Shr};
 use std::ptr;
@@ -7,7 +7,7 @@ use std::ptr;
 pub struct ScalarComparisonsIntegerBigEndian {}
 
 impl ScalarComparisonsIntegerBigEndian {
-    pub fn get_compare_equal<PrimitiveType: PartialEq + 'static>(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_equal<PrimitiveType: PartialEq + 'static>(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnImmediate> {
         // Optimization: no endian byte swap required for immediate or current values.
         let immediate_value = scan_parameters.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
@@ -20,7 +20,7 @@ impl ScalarComparisonsIntegerBigEndian {
         }))
     }
 
-    pub fn get_compare_not_equal<PrimitiveType: PartialEq + 'static>(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_not_equal<PrimitiveType: PartialEq + 'static>(scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnImmediate> {
         // Optimization: no endian byte swap required for immediate or current values.
         let immediate_value = scan_parameters.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
@@ -34,7 +34,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_greater_than<PrimitiveType: PartialOrd + PrimInt + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_value = scan_parameters.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
@@ -48,7 +48,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_greater_than_or_equal<PrimitiveType: PartialOrd + PrimInt + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_value = scan_parameters.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
@@ -61,7 +61,9 @@ impl ScalarComparisonsIntegerBigEndian {
         }))
     }
 
-    pub fn get_compare_less_than<PrimitiveType: PartialOrd + PrimInt + 'static>(scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnImmediate> {
+    pub fn get_compare_less_than<PrimitiveType: PartialOrd + PrimInt + 'static>(
+        scan_parameters: &SnapshotFilterElementScanPlan
+    ) -> Option<ScalarCompareFnImmediate> {
         let immediate_value = scan_parameters.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
         let immediate_value = PrimitiveType::swap_bytes(unsafe { ptr::read_unaligned(immediate_value_ptr as *const PrimitiveType) });
@@ -75,7 +77,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_less_than_or_equal<PrimitiveType: PartialOrd + PrimInt + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnImmediate> {
         let immediate_value = scan_parameters.get_data_value();
         let immediate_value_ptr = immediate_value.as_ptr();
@@ -89,7 +91,7 @@ impl ScalarComparisonsIntegerBigEndian {
         }))
     }
 
-    pub fn get_compare_changed<PrimitiveType: PartialEq + 'static>(_scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_changed<PrimitiveType: PartialEq + 'static>(_scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnRelative> {
         Some(Box::new(move |current_value_ptr, previous_value_ptr| {
             let current_value = unsafe { ptr::read_unaligned(current_value_ptr as *const PrimitiveType) };
             let previous_value = unsafe { ptr::read_unaligned(previous_value_ptr as *const PrimitiveType) };
@@ -98,7 +100,7 @@ impl ScalarComparisonsIntegerBigEndian {
         }))
     }
 
-    pub fn get_compare_unchanged<PrimitiveType: PartialEq + 'static>(_scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_unchanged<PrimitiveType: PartialEq + 'static>(_scan_parameters: &SnapshotFilterElementScanPlan) -> Option<ScalarCompareFnRelative> {
         Some(Box::new(move |current_value_ptr, previous_value_ptr| {
             let current_value = unsafe { ptr::read_unaligned(current_value_ptr as *const PrimitiveType) };
             let previous_value = unsafe { ptr::read_unaligned(previous_value_ptr as *const PrimitiveType) };
@@ -107,7 +109,9 @@ impl ScalarComparisonsIntegerBigEndian {
         }))
     }
 
-    pub fn get_compare_increased<PrimitiveType: PartialOrd + PrimInt + 'static>(_scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_increased<PrimitiveType: PartialOrd + PrimInt + 'static>(
+        _scan_parameters: &SnapshotFilterElementScanPlan
+    ) -> Option<ScalarCompareFnRelative> {
         Some(Box::new(move |current_value_ptr, previous_value_ptr| {
             let current_value = PrimitiveType::swap_bytes(unsafe { ptr::read_unaligned(current_value_ptr as *const PrimitiveType) });
             let previous_value = PrimitiveType::swap_bytes(unsafe { ptr::read_unaligned(previous_value_ptr as *const PrimitiveType) });
@@ -116,7 +120,9 @@ impl ScalarComparisonsIntegerBigEndian {
         }))
     }
 
-    pub fn get_compare_decreased<PrimitiveType: PartialOrd + PrimInt + 'static>(_scan_parameters: &OptimizedScanConstraint) -> Option<ScalarCompareFnRelative> {
+    pub fn get_compare_decreased<PrimitiveType: PartialOrd + PrimInt + 'static>(
+        _scan_parameters: &SnapshotFilterElementScanPlan
+    ) -> Option<ScalarCompareFnRelative> {
         Some(Box::new(move |current_value_ptr, previous_value_ptr| {
             let current_value = PrimitiveType::swap_bytes(unsafe { ptr::read_unaligned(current_value_ptr as *const PrimitiveType) });
             let previous_value = PrimitiveType::swap_bytes(unsafe { ptr::read_unaligned(previous_value_ptr as *const PrimitiveType) });
@@ -126,7 +132,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_increased_by<PrimitiveType: Copy + PartialEq + PrimInt + WrappingAdd<Output = PrimitiveType> + WrappingAdd + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         let delta_value_ptr = immediate_value.as_ptr();
@@ -142,7 +148,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_decreased_by<PrimitiveType: Copy + PartialEq + PrimInt + WrappingSub<Output = PrimitiveType> + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         let delta_value_ptr = immediate_value.as_ptr();
@@ -158,7 +164,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_multiplied_by<PrimitiveType: Copy + PartialEq + PrimInt + WrappingMul<Output = PrimitiveType> + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         let delta_value_ptr = immediate_value.as_ptr();
@@ -174,7 +180,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_divided_by<PrimitiveType: Copy + PartialEq + PrimInt + Div<Output = PrimitiveType> + Default + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         let delta_value_ptr = immediate_value.as_ptr();
@@ -195,7 +201,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_modulo_by<PrimitiveType: Copy + PartialEq + PrimInt + Rem<Output = PrimitiveType> + Default + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         let delta_value_ptr = immediate_value.as_ptr();
@@ -216,7 +222,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_shift_left_by<PrimitiveType: Copy + PartialEq + PrimInt + Shl<Output = PrimitiveType> + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         let delta_value_ptr = immediate_value.as_ptr();
@@ -232,7 +238,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_shift_right_by<PrimitiveType: Copy + PartialEq + PrimInt + Shr<Output = PrimitiveType> + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         let delta_value_ptr = immediate_value.as_ptr();
@@ -248,7 +254,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_logical_and_by<PrimitiveType: Copy + PartialEq + PrimInt + BitAnd<Output = PrimitiveType> + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         let delta_value_ptr = immediate_value.as_ptr();
@@ -264,7 +270,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_logical_or_by<PrimitiveType: Copy + PartialEq + PrimInt + BitOr<Output = PrimitiveType> + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         let delta_value_ptr = immediate_value.as_ptr();
@@ -280,7 +286,7 @@ impl ScalarComparisonsIntegerBigEndian {
     }
 
     pub fn get_compare_logical_xor_by<PrimitiveType: Copy + PartialEq + PrimInt + BitXor<Output = PrimitiveType> + 'static>(
-        scan_parameters: &OptimizedScanConstraint
+        scan_parameters: &SnapshotFilterElementScanPlan
     ) -> Option<ScalarCompareFnDelta> {
         let immediate_value = scan_parameters.get_data_value();
         let delta_value_ptr = immediate_value.as_ptr();

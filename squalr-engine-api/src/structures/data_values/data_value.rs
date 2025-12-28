@@ -62,7 +62,8 @@ impl DataValue {
         &self.data_type_ref
     }
 
-    pub fn set_data_type(
+    /// Updates the data type in place without updating the value bytes.
+    pub fn set_data_type_in_place(
         &mut self,
         data_type_ref: DataTypeRef,
     ) {

@@ -6,7 +6,7 @@ use crate::structures::scanning::comparisons::scan_function_vector::{
     VectorCompareFnDelta16, VectorCompareFnDelta32, VectorCompareFnDelta64, VectorCompareFnImmediate16, VectorCompareFnImmediate32, VectorCompareFnImmediate64,
     VectorCompareFnRelative16, VectorCompareFnRelative32, VectorCompareFnRelative64,
 };
-use crate::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
+use crate::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 use std::simd::{LaneCount, Simd, SupportedLaneCount};
 use std::sync::Arc;
 
@@ -21,19 +21,19 @@ where
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>;
 
     fn get_vector_compare_func_relative(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>;
 
     fn get_vector_compare_func_delta(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>;
 }
 
@@ -41,25 +41,25 @@ impl VectorComparer<64> for LaneCount<64> {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorCompareWrapper64::get_vector_compare_func_immediate(data_type, scan_compare_type_immediate, mapped_scan_parameters)
+        VectorCompareWrapper64::get_vector_compare_func_immediate(data_type, scan_compare_type_immediate, snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_func_relative(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative64> {
-        VectorCompareWrapper64::get_vector_compare_func_relative(data_type, scan_compare_type_relative, mapped_scan_parameters)
+        VectorCompareWrapper64::get_vector_compare_func_relative(data_type, scan_compare_type_relative, snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_func_delta(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta64> {
-        VectorCompareWrapper64::get_vector_compare_func_delta(data_type, scan_compare_type_delta, mapped_scan_parameters)
+        VectorCompareWrapper64::get_vector_compare_func_delta(data_type, scan_compare_type_delta, snapshot_filter_element_scan_plan)
     }
 }
 
@@ -67,25 +67,25 @@ impl VectorComparer<32> for LaneCount<32> {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorCompareWrapper32::get_vector_compare_func_immediate(data_type, scan_compare_type_immediate, mapped_scan_parameters)
+        VectorCompareWrapper32::get_vector_compare_func_immediate(data_type, scan_compare_type_immediate, snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_func_relative(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative32> {
-        VectorCompareWrapper32::get_vector_compare_func_relative(data_type, scan_compare_type_relative, mapped_scan_parameters)
+        VectorCompareWrapper32::get_vector_compare_func_relative(data_type, scan_compare_type_relative, snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_func_delta(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta32> {
-        VectorCompareWrapper32::get_vector_compare_func_delta(data_type, scan_compare_type_delta, mapped_scan_parameters)
+        VectorCompareWrapper32::get_vector_compare_func_delta(data_type, scan_compare_type_delta, snapshot_filter_element_scan_plan)
     }
 }
 
@@ -93,25 +93,25 @@ impl VectorComparer<16> for LaneCount<16> {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorCompareWrapper16::get_vector_compare_func_immediate(data_type, scan_compare_type_immediate, mapped_scan_parameters)
+        VectorCompareWrapper16::get_vector_compare_func_immediate(data_type, scan_compare_type_immediate, snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_func_relative(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative16> {
-        VectorCompareWrapper16::get_vector_compare_func_relative(data_type, scan_compare_type_relative, mapped_scan_parameters)
+        VectorCompareWrapper16::get_vector_compare_func_relative(data_type, scan_compare_type_relative, snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_func_delta(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta16> {
-        VectorCompareWrapper16::get_vector_compare_func_delta(data_type, scan_compare_type_delta, mapped_scan_parameters)
+        VectorCompareWrapper16::get_vector_compare_func_delta(data_type, scan_compare_type_delta, snapshot_filter_element_scan_plan)
     }
 }
 
@@ -122,19 +122,19 @@ where
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         compare_type_immediate: &ScanCompareTypeImmediate,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<Box<dyn Fn(*const u8) -> Simd<u8, N>>>;
 
     fn get_vector_compare_func_relative(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>;
 
     fn get_vector_compare_func_delta(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<Box<dyn Fn(*const u8, *const u8) -> Simd<u8, N>>>;
 }
 struct VectorCompareWrapper64 {}
@@ -143,25 +143,25 @@ impl VectorCompareWrapper<64> for VectorCompareWrapper64 {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate64> {
-        data_type.get_vector_compare_func_immediate_64(scan_compare_type_immediate, mapped_scan_parameters)
+        data_type.get_vector_compare_func_immediate_64(scan_compare_type_immediate, snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_func_relative(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative64> {
-        data_type.get_vector_compare_func_relative_64(scan_compare_type_relative, mapped_scan_parameters)
+        data_type.get_vector_compare_func_relative_64(scan_compare_type_relative, snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_func_delta(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta64> {
-        data_type.get_vector_compare_func_delta_64(scan_compare_type_delta, mapped_scan_parameters)
+        data_type.get_vector_compare_func_delta_64(scan_compare_type_delta, snapshot_filter_element_scan_plan)
     }
 }
 
@@ -171,25 +171,25 @@ impl VectorCompareWrapper<32> for VectorCompareWrapper32 {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate32> {
-        data_type.get_vector_compare_func_immediate_32(scan_compare_type_immediate, mapped_scan_parameters)
+        data_type.get_vector_compare_func_immediate_32(scan_compare_type_immediate, snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_func_relative(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative32> {
-        data_type.get_vector_compare_func_relative_32(scan_compare_type_relative, mapped_scan_parameters)
+        data_type.get_vector_compare_func_relative_32(scan_compare_type_relative, snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_func_delta(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta32> {
-        data_type.get_vector_compare_func_delta_32(scan_compare_type_delta, mapped_scan_parameters)
+        data_type.get_vector_compare_func_delta_32(scan_compare_type_delta, snapshot_filter_element_scan_plan)
     }
 }
 
@@ -199,24 +199,24 @@ impl VectorCompareWrapper<16> for VectorCompareWrapper16 {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate16> {
-        data_type.get_vector_compare_func_immediate_16(scan_compare_type_immediate, mapped_scan_parameters)
+        data_type.get_vector_compare_func_immediate_16(scan_compare_type_immediate, snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_func_relative(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_relative: &ScanCompareTypeRelative,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative16> {
-        data_type.get_vector_compare_func_relative_16(scan_compare_type_relative, mapped_scan_parameters)
+        data_type.get_vector_compare_func_relative_16(scan_compare_type_relative, snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_func_delta(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_delta: &ScanCompareTypeDelta,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta16> {
-        data_type.get_vector_compare_func_delta_16(scan_compare_type_delta, mapped_scan_parameters)
+        data_type.get_vector_compare_func_delta_16(scan_compare_type_delta, snapshot_filter_element_scan_plan)
     }
 }

@@ -5,7 +5,7 @@ use crate::structures::scanning::comparisons::scan_function_vector::{
     VectorCompareFnDelta16, VectorCompareFnDelta32, VectorCompareFnDelta64, VectorCompareFnImmediate16, VectorCompareFnImmediate32, VectorCompareFnImmediate64,
     VectorCompareFnRelative16, VectorCompareFnRelative32, VectorCompareFnRelative64,
 };
-use crate::structures::scanning::constraints::optimized_scan_constraint::OptimizedScanConstraint;
+use crate::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 
 type PrimitiveType = f32;
 
@@ -21,420 +21,432 @@ const ELEMENT_COUNT_16: usize = BYTE_COUNT_64 / size_of::<PrimitiveType>();
 impl VectorComparable for DataTypeF32 {
     fn get_vector_compare_equal_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorComparisonsFloat::get_vector_compare_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_equal_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorComparisonsFloat::get_vector_compare_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_equal_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorComparisonsFloat::get_vector_compare_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_not_equal_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorComparisonsFloat::get_vector_compare_not_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_not_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_not_equal_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorComparisonsFloat::get_vector_compare_not_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_not_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_not_equal_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorComparisonsFloat::get_vector_compare_not_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_not_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_greater_than_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorComparisonsFloat::get_vector_compare_greater_than::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_greater_than::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_greater_than_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorComparisonsFloat::get_vector_compare_greater_than::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_greater_than::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_greater_than_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorComparisonsFloat::get_vector_compare_greater_than::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_greater_than::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_greater_than_or_equal_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorComparisonsFloat::get_vector_compare_greater_than_or_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_greater_than_or_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            snapshot_filter_element_scan_plan,
+        )
     }
 
     fn get_vector_compare_greater_than_or_equal_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorComparisonsFloat::get_vector_compare_greater_than_or_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_greater_than_or_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            snapshot_filter_element_scan_plan,
+        )
     }
 
     fn get_vector_compare_greater_than_or_equal_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorComparisonsFloat::get_vector_compare_greater_than_or_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_greater_than_or_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            snapshot_filter_element_scan_plan,
+        )
     }
 
     fn get_vector_compare_less_than_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorComparisonsFloat::get_vector_compare_less_than::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_less_than::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_less_than_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorComparisonsFloat::get_vector_compare_less_than::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_less_than::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_less_than_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorComparisonsFloat::get_vector_compare_less_than::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_less_than::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_less_than_or_equal_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate64> {
-        VectorComparisonsFloat::get_vector_compare_less_than_or_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_less_than_or_equal::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(
+            snapshot_filter_element_scan_plan,
+        )
     }
 
     fn get_vector_compare_less_than_or_equal_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate32> {
-        VectorComparisonsFloat::get_vector_compare_less_than_or_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_less_than_or_equal::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(
+            snapshot_filter_element_scan_plan,
+        )
     }
 
     fn get_vector_compare_less_than_or_equal_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnImmediate16> {
-        VectorComparisonsFloat::get_vector_compare_less_than_or_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_less_than_or_equal::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(
+            snapshot_filter_element_scan_plan,
+        )
     }
 
     fn get_vector_compare_changed_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative64> {
-        VectorComparisonsFloat::get_vector_compare_changed::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_changed::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_changed_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative32> {
-        VectorComparisonsFloat::get_vector_compare_changed::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_changed::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_changed_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative16> {
-        VectorComparisonsFloat::get_vector_compare_changed::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_changed::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_unchanged_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative64> {
-        VectorComparisonsFloat::get_vector_compare_unchanged::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_unchanged::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_unchanged_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative32> {
-        VectorComparisonsFloat::get_vector_compare_unchanged::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_unchanged::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_unchanged_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative16> {
-        VectorComparisonsFloat::get_vector_compare_unchanged::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_unchanged::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_increased_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative64> {
-        VectorComparisonsFloat::get_vector_compare_increased::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_increased::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_increased_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative32> {
-        VectorComparisonsFloat::get_vector_compare_increased::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_increased::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_increased_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative16> {
-        VectorComparisonsFloat::get_vector_compare_increased::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_increased::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_decreased_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative64> {
-        VectorComparisonsFloat::get_vector_compare_decreased::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_decreased::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_decreased_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative32> {
-        VectorComparisonsFloat::get_vector_compare_decreased::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_decreased::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_decreased_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnRelative16> {
-        VectorComparisonsFloat::get_vector_compare_decreased::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_decreased::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_increased_by_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta64> {
-        VectorComparisonsFloat::get_vector_compare_increased_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_increased_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_increased_by_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta32> {
-        VectorComparisonsFloat::get_vector_compare_increased_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_increased_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_increased_by_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta16> {
-        VectorComparisonsFloat::get_vector_compare_increased_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_increased_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_decreased_by_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta64> {
-        VectorComparisonsFloat::get_vector_compare_decreased_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_decreased_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_decreased_by_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta32> {
-        VectorComparisonsFloat::get_vector_compare_decreased_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_decreased_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_decreased_by_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta16> {
-        VectorComparisonsFloat::get_vector_compare_decreased_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_decreased_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_multiplied_by_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta64> {
-        VectorComparisonsFloat::get_vector_compare_multiplied_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_multiplied_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_multiplied_by_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta32> {
-        VectorComparisonsFloat::get_vector_compare_multiplied_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_multiplied_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_multiplied_by_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta16> {
-        VectorComparisonsFloat::get_vector_compare_multiplied_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_multiplied_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_divided_by_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta64> {
-        VectorComparisonsFloat::get_vector_compare_divided_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_divided_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_divided_by_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta32> {
-        VectorComparisonsFloat::get_vector_compare_divided_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_divided_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_divided_by_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta16> {
-        VectorComparisonsFloat::get_vector_compare_divided_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_divided_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_modulo_by_64(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta64> {
-        VectorComparisonsFloat::get_vector_compare_modulo_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_modulo_by::<{ BYTE_COUNT_64 }, { ELEMENT_COUNT_64 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_modulo_by_32(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta32> {
-        VectorComparisonsFloat::get_vector_compare_modulo_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_modulo_by::<{ BYTE_COUNT_32 }, { ELEMENT_COUNT_32 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_modulo_by_16(
         &self,
-        mapped_scan_parameters: &OptimizedScanConstraint,
+        snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta16> {
-        VectorComparisonsFloat::get_vector_compare_modulo_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(mapped_scan_parameters)
+        VectorComparisonsFloat::get_vector_compare_modulo_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(snapshot_filter_element_scan_plan)
     }
 
     fn get_vector_compare_shift_left_by_64(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta64> {
         None
     }
 
     fn get_vector_compare_shift_left_by_32(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta32> {
         None
     }
 
     fn get_vector_compare_shift_left_by_16(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta16> {
         None
     }
 
     fn get_vector_compare_shift_right_by_64(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta64> {
         None
     }
 
     fn get_vector_compare_shift_right_by_32(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta32> {
         None
     }
 
     fn get_vector_compare_shift_right_by_16(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta16> {
         None
     }
 
     fn get_vector_compare_logical_and_by_64(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta64> {
         None
     }
 
     fn get_vector_compare_logical_and_by_32(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta32> {
         None
     }
 
     fn get_vector_compare_logical_and_by_16(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta16> {
         None
     }
 
     fn get_vector_compare_logical_or_by_64(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta64> {
         None
     }
 
     fn get_vector_compare_logical_or_by_32(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta32> {
         None
     }
 
     fn get_vector_compare_logical_or_by_16(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta16> {
         None
     }
 
     fn get_vector_compare_logical_xor_by_64(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta64> {
         None
     }
 
     fn get_vector_compare_logical_xor_by_32(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta32> {
         None
     }
 
     fn get_vector_compare_logical_xor_by_16(
         &self,
-        _mapped_scan_parameters: &OptimizedScanConstraint,
+        _snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Option<VectorCompareFnDelta16> {
         None
     }

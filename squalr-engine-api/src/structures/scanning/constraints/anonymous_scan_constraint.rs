@@ -13,20 +13,23 @@ use std::str::FromStr;
 /// Represents a scan constraint containing a compare type and an anonymous value.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AnonymousScanConstraint {
-    compare_type: ScanCompareType,
+    scan_compare_type: ScanCompareType,
     anonymous_value: Option<AnonymousValue>,
 }
 
 impl AnonymousScanConstraint {
     pub fn new(
-        compare_type: ScanCompareType,
+        scan_compare_type: ScanCompareType,
         anonymous_value: Option<AnonymousValue>,
     ) -> Self {
-        Self { compare_type, anonymous_value }
+        Self {
+            scan_compare_type,
+            anonymous_value,
+        }
     }
 
-    pub fn get_compare_type(&self) -> ScanCompareType {
-        self.compare_type
+    pub fn get_scan_compare_type(&self) -> ScanCompareType {
+        self.scan_compare_type
     }
 
     pub fn get_anonymous_value(&self) -> &Option<AnonymousValue> {
@@ -41,7 +44,7 @@ impl AnonymousScanConstraint {
 
         if let Some(anonymous_value) = &self.anonymous_value {
             match symbol_registry.deanonymize_value(&data_type_ref, &anonymous_value.get_value()) {
-                Ok(data_value) => return Some(ScanConstraint::new(self.compare_type, data_value)),
+                Ok(data_value) => return Some(ScanConstraint::new(self.scan_compare_type, data_value, symbol_registry)),
                 Err(error) => log::error!("Unable to parse value in anonymous constraint: {}", error),
             }
         }
@@ -75,7 +78,7 @@ impl FromStr for AnonymousScanConstraint {
 
         let string = string.trim();
 
-        for (prefix, compare_type, needs_value) in prefixes {
+        for (prefix, scan_compare_type, needs_value) in prefixes {
             if string.starts_with(prefix) {
                 let rest = &string[prefix.len()..].trim();
 
@@ -99,7 +102,10 @@ impl FromStr for AnonymousScanConstraint {
                     continue;
                 }
 
-                return Ok(AnonymousScanConstraint { compare_type, anonymous_value });
+                return Ok(AnonymousScanConstraint {
+                    scan_compare_type,
+                    anonymous_value,
+                });
             }
         }
 

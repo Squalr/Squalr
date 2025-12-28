@@ -173,18 +173,17 @@ impl SnapshotRegion {
         !self.previous_values.is_empty()
     }
 
-    pub fn initialize_scan_results(
+    pub fn initialize_scan_results<'lifetime>(
         &mut self,
         symbol_registry: &Arc<RwLock<SymbolRegistry>>,
-        data_type_refs: &Vec<DataTypeRef>,
+        data_type_refs_iterator: impl Iterator<Item = &'lifetime DataTypeRef>,
         memory_alignment: MemoryAlignment,
     ) {
         if self.scan_results.get_filter_collections().len() > 0 {
             return;
         }
 
-        let snapshot_region_filter_collections = data_type_refs
-            .iter()
+        let snapshot_region_filter_collections = data_type_refs_iterator
             .map(|data_type_ref| {
                 SnapshotRegionFilterCollection::new(
                     symbol_registry,
