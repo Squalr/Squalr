@@ -4,7 +4,7 @@ use std::fmt;
 
 #[derive(Copy, Clone, Deserialize, Serialize)]
 pub struct GeneralSettings {
-    pub engine_request_delay: u64,
+    pub engine_request_delay_ms: u64,
 }
 
 impl fmt::Debug for GeneralSettings {
@@ -21,6 +21,6 @@ impl fmt::Debug for GeneralSettings {
 
 impl Default for GeneralSettings {
     fn default() -> Self {
-        Self { engine_request_delay: 0 }
+        Self { engine_request_delay_ms: 0 }
     }
 }

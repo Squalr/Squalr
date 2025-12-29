@@ -14,11 +14,11 @@ pub struct ScanSettingsSetRequest {
     #[structopt(short = "psize", long)]
     pub results_page_size: Option<u32>,
     #[structopt(short = "r_read_interval", long)]
-    pub results_read_interval: Option<u64>,
+    pub results_read_interval_ms: Option<u64>,
     #[structopt(short = "p_read_interval", long)]
-    pub project_read_interval: Option<u64>,
+    pub project_read_interval_ms: Option<u64>,
     #[structopt(short = "f_interval", long)]
-    pub freeze_interval: Option<u64>,
+    pub freeze_interval_ms: Option<u64>,
     #[structopt(short = "m_align", long)]
     pub memory_alignment: Option<MemoryAlignment>,
     #[structopt(short = "m_read", long)]
@@ -26,9 +26,9 @@ pub struct ScanSettingsSetRequest {
     #[structopt(short = "f_tol", long)]
     pub floating_point_tolerance: Option<FloatingPointTolerance>,
     #[structopt(short = "st", long)]
-    pub is_single_threaded_scan: bool,
+    pub is_single_threaded_scan: Option<bool>,
     #[structopt(short = "dbg", long)]
-    pub debug_perform_validation_scan: bool,
+    pub debug_perform_validation_scan: Option<bool>,
 }
 
 impl EngineCommandRequest for ScanSettingsSetRequest {

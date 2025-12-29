@@ -4,7 +4,10 @@ use crate::{
 };
 use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
 use squalr_engine_api::{
-    commands::{engine_command_request::EngineCommandRequest, settings::memory::list::memory_settings_list_request::MemorySettingsListRequest},
+    commands::{
+        engine_command_request::EngineCommandRequest,
+        settings::memory::{list::memory_settings_list_request::MemorySettingsListRequest, set::memory_settings_set_request::MemorySettingsSetRequest},
+    },
     structures::settings::memory_settings::MemorySettings,
 };
 use std::sync::{Arc, RwLock};
@@ -67,6 +70,13 @@ impl Widget for SettingsTabMemoryView {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
                                             cached_memory_settings.required_write = !cached_memory_settings.required_write;
                                         }
+
+                                        let memory_settings_set_request = MemorySettingsSetRequest {
+                                            required_write: Some(cached_memory_settings.required_write),
+                                            ..MemorySettingsSetRequest::default()
+                                        };
+
+                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -85,6 +95,13 @@ impl Widget for SettingsTabMemoryView {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
                                             cached_memory_settings.required_execute = !cached_memory_settings.required_execute;
                                         }
+
+                                        let memory_settings_set_request = MemorySettingsSetRequest {
+                                            required_execute: Some(cached_memory_settings.required_execute),
+                                            ..MemorySettingsSetRequest::default()
+                                        };
+
+                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -103,6 +120,13 @@ impl Widget for SettingsTabMemoryView {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
                                             cached_memory_settings.required_copy_on_write = !cached_memory_settings.required_copy_on_write;
                                         }
+
+                                        let memory_settings_set_request = MemorySettingsSetRequest {
+                                            required_copy_on_write: Some(cached_memory_settings.required_copy_on_write),
+                                            ..MemorySettingsSetRequest::default()
+                                        };
+
+                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -128,6 +152,13 @@ impl Widget for SettingsTabMemoryView {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
                                             cached_memory_settings.excluded_write = !cached_memory_settings.excluded_write;
                                         }
+
+                                        let memory_settings_set_request = MemorySettingsSetRequest {
+                                            excluded_write: Some(cached_memory_settings.excluded_write),
+                                            ..MemorySettingsSetRequest::default()
+                                        };
+
+                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -146,6 +177,13 @@ impl Widget for SettingsTabMemoryView {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
                                             cached_memory_settings.excluded_execute = !cached_memory_settings.excluded_execute;
                                         }
+
+                                        let memory_settings_set_request = MemorySettingsSetRequest {
+                                            excluded_execute: Some(cached_memory_settings.excluded_execute),
+                                            ..MemorySettingsSetRequest::default()
+                                        };
+
+                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -164,6 +202,13 @@ impl Widget for SettingsTabMemoryView {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
                                             cached_memory_settings.excluded_copy_on_write = !cached_memory_settings.excluded_copy_on_write;
                                         }
+
+                                        let memory_settings_set_request = MemorySettingsSetRequest {
+                                            excluded_copy_on_write: Some(cached_memory_settings.excluded_copy_on_write),
+                                            ..MemorySettingsSetRequest::default()
+                                        };
+
+                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -192,6 +237,13 @@ impl Widget for SettingsTabMemoryView {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
                                             cached_memory_settings.memory_type_none = !cached_memory_settings.memory_type_none;
                                         }
+
+                                        let memory_settings_set_request = MemorySettingsSetRequest {
+                                            memory_type_none: Some(cached_memory_settings.memory_type_none),
+                                            ..MemorySettingsSetRequest::default()
+                                        };
+
+                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -210,6 +262,13 @@ impl Widget for SettingsTabMemoryView {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
                                             cached_memory_settings.memory_type_image = !cached_memory_settings.memory_type_image;
                                         }
+
+                                        let memory_settings_set_request = MemorySettingsSetRequest {
+                                            memory_type_image: Some(cached_memory_settings.memory_type_image),
+                                            ..MemorySettingsSetRequest::default()
+                                        };
+
+                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -228,6 +287,13 @@ impl Widget for SettingsTabMemoryView {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
                                             cached_memory_settings.memory_type_private = !cached_memory_settings.memory_type_private;
                                         }
+
+                                        let memory_settings_set_request = MemorySettingsSetRequest {
+                                            memory_type_private: Some(cached_memory_settings.memory_type_private),
+                                            ..MemorySettingsSetRequest::default()
+                                        };
+
+                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -246,6 +312,13 @@ impl Widget for SettingsTabMemoryView {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
                                             cached_memory_settings.memory_type_mapped = !cached_memory_settings.memory_type_mapped;
                                         }
+
+                                        let memory_settings_set_request = MemorySettingsSetRequest {
+                                            memory_type_mapped: Some(cached_memory_settings.memory_type_mapped),
+                                            ..MemorySettingsSetRequest::default()
+                                        };
+
+                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -273,6 +346,13 @@ impl Widget for SettingsTabMemoryView {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
                                             cached_memory_settings.only_query_usermode = !cached_memory_settings.only_query_usermode;
                                         }
+
+                                        let memory_settings_set_request = MemorySettingsSetRequest {
+                                            only_query_usermode: Some(cached_memory_settings.only_query_usermode),
+                                            ..MemorySettingsSetRequest::default()
+                                        };
+
+                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -291,6 +371,13 @@ impl Widget for SettingsTabMemoryView {
                                         if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
                                             cached_memory_settings.only_query_usermode = !cached_memory_settings.only_query_usermode;
                                         }
+
+                                        let memory_settings_set_request = MemorySettingsSetRequest {
+                                            only_query_usermode: Some(cached_memory_settings.only_query_usermode),
+                                            ..MemorySettingsSetRequest::default()
+                                        };
+
+                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -306,9 +393,7 @@ impl Widget for SettingsTabMemoryView {
                                         .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_memory_settings.only_query_usermode))
                                         .clicked()
                                     {
-                                        if let Ok(mut cached_memory_settings) = self.cached_memory_settings.write() {
-                                            cached_memory_settings.only_query_usermode = !cached_memory_settings.only_query_usermode;
-                                        }
+                                        // JIRA: Implement me
                                     }
 
                                     user_interface.add_space(8.0);

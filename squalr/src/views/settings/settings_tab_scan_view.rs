@@ -5,7 +5,10 @@ use crate::{
 use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
 use epaint::vec2;
 use squalr_engine_api::{
-    commands::{engine_command_request::EngineCommandRequest, settings::scan::list::scan_settings_list_request::ScanSettingsListRequest},
+    commands::{
+        engine_command_request::EngineCommandRequest,
+        settings::scan::{list::scan_settings_list_request::ScanSettingsListRequest, set::scan_settings_set_request::ScanSettingsSetRequest},
+    },
     structures::settings::scan_settings::ScanSettings,
 };
 use std::sync::{Arc, RwLock};
@@ -69,6 +72,13 @@ impl Widget for SettingsTabScanView {
                                 if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
                                     cached_scan_settings.results_page_size = value as u32;
                                 }
+
+                                let scan_settings_set_request = ScanSettingsSetRequest {
+                                    results_page_size: Some(cached_scan_settings.results_page_size),
+                                    ..ScanSettingsSetRequest::default()
+                                };
+
+                                scan_settings_set_request.send(&self.app_context.engine_execution_context, move |scan_settings_set_response| {});
                             }
 
                             user_interface.add_space(8.0);
@@ -108,6 +118,13 @@ impl Widget for SettingsTabScanView {
                                 if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
                                     cached_scan_settings.freeze_interval_ms = value as u64;
                                 }
+
+                                let scan_settings_set_request = ScanSettingsSetRequest {
+                                    freeze_interval_ms: Some(cached_scan_settings.freeze_interval_ms),
+                                    ..ScanSettingsSetRequest::default()
+                                };
+
+                                scan_settings_set_request.send(&self.app_context.engine_execution_context, move |scan_settings_set_response| {});
                             }
 
                             user_interface.add_space(8.0);
@@ -140,6 +157,13 @@ impl Widget for SettingsTabScanView {
                             if user_interface.add(slider).changed() {
                                 if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
                                     cached_scan_settings.project_read_interval_ms = value as u64;
+
+                                    let scan_settings_set_request = ScanSettingsSetRequest {
+                                        project_read_interval_ms: Some(cached_scan_settings.project_read_interval_ms),
+                                        ..ScanSettingsSetRequest::default()
+                                    };
+
+                                    scan_settings_set_request.send(&self.app_context.engine_execution_context, move |scan_settings_set_response| {});
                                 }
                             }
 
@@ -173,6 +197,13 @@ impl Widget for SettingsTabScanView {
                             if user_interface.add(slider).changed() {
                                 if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
                                     cached_scan_settings.results_read_interval_ms = value as u64;
+
+                                    let scan_settings_set_request = ScanSettingsSetRequest {
+                                        results_read_interval_ms: Some(cached_scan_settings.results_read_interval_ms),
+                                        ..ScanSettingsSetRequest::default()
+                                    };
+
+                                    scan_settings_set_request.send(&self.app_context.engine_execution_context, move |scan_settings_set_response| {});
                                 }
                             }
 
@@ -225,6 +256,13 @@ impl Widget for SettingsTabScanView {
                             {
                                 if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
                                     cached_scan_settings.is_single_threaded_scan = !cached_scan_settings.is_single_threaded_scan;
+
+                                    let scan_settings_set_request = ScanSettingsSetRequest {
+                                        is_single_threaded_scan: Some(cached_scan_settings.is_single_threaded_scan),
+                                        ..ScanSettingsSetRequest::default()
+                                    };
+
+                                    scan_settings_set_request.send(&self.app_context.engine_execution_context, move |scan_settings_set_response| {});
                                 }
                             }
 
@@ -244,6 +282,13 @@ impl Widget for SettingsTabScanView {
                             {
                                 if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
                                     cached_scan_settings.debug_perform_validation_scan = !cached_scan_settings.debug_perform_validation_scan;
+
+                                    let scan_settings_set_request = ScanSettingsSetRequest {
+                                        debug_perform_validation_scan: Some(cached_scan_settings.debug_perform_validation_scan),
+                                        ..ScanSettingsSetRequest::default()
+                                    };
+
+                                    scan_settings_set_request.send(&self.app_context.engine_execution_context, move |scan_settings_set_response| {});
                                 }
                             }
 

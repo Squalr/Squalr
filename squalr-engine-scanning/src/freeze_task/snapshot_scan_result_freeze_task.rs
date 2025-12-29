@@ -32,7 +32,7 @@ impl SnapshotScanResultFreezeTask {
                 }
                 Self::collect_values_task(&process_info, &freeze_list_registry);
 
-                thread::sleep(Duration::from_millis(ScanSettingsConfig::get_results_read_interval()));
+                thread::sleep(Duration::from_millis(ScanSettingsConfig::get_results_read_interval_ms()));
             }
 
             task_clone.complete();

@@ -1,8 +1,8 @@
+use serde_json::to_string_pretty;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
-use serde_json::to_string_pretty;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Once;
@@ -82,7 +82,7 @@ impl ScanSettingsConfig {
         Self::save_config();
     }
 
-    pub fn get_results_read_interval() -> u64 {
+    pub fn get_results_read_interval_ms() -> u64 {
         if let Ok(config) = Self::get_instance().config.read() {
             config.results_read_interval_ms
         } else {
@@ -90,7 +90,7 @@ impl ScanSettingsConfig {
         }
     }
 
-    pub fn set_results_read_interval(value: u64) {
+    pub fn set_results_read_interval_ms(value: u64) {
         if let Ok(mut config) = Self::get_instance().config.write() {
             config.results_read_interval_ms = value;
         }
@@ -98,7 +98,7 @@ impl ScanSettingsConfig {
         Self::save_config();
     }
 
-    pub fn get_project_read_interval() -> u64 {
+    pub fn get_project_read_interval_ms() -> u64 {
         if let Ok(config) = Self::get_instance().config.read() {
             config.project_read_interval_ms
         } else {
@@ -106,7 +106,7 @@ impl ScanSettingsConfig {
         }
     }
 
-    pub fn set_project_read_interval(value: u64) {
+    pub fn set_project_read_interval_ms(value: u64) {
         if let Ok(mut config) = Self::get_instance().config.write() {
             config.project_read_interval_ms = value;
         }
@@ -114,7 +114,7 @@ impl ScanSettingsConfig {
         Self::save_config();
     }
 
-    pub fn get_freeze_interval() -> u64 {
+    pub fn get_freeze_interval_ms() -> u64 {
         if let Ok(config) = Self::get_instance().config.read() {
             config.freeze_interval_ms
         } else {
@@ -122,7 +122,7 @@ impl ScanSettingsConfig {
         }
     }
 
-    pub fn set_freeze_interval(value: u64) {
+    pub fn set_freeze_interval_ms(value: u64) {
         if let Ok(mut config) = Self::get_instance().config.write() {
             config.freeze_interval_ms = value;
         }
@@ -186,11 +186,27 @@ impl ScanSettingsConfig {
         }
     }
 
+    pub fn set_is_single_threaded_scan(value: bool) {
+        if let Ok(mut config) = Self::get_instance().config.write() {
+            config.is_single_threaded_scan = value;
+        }
+
+        Self::save_config();
+    }
+
     pub fn get_debug_perform_validation_scan() -> bool {
         if let Ok(config) = Self::get_instance().config.read() {
             config.debug_perform_validation_scan
         } else {
             ScanSettings::default().debug_perform_validation_scan
         }
+    }
+
+    pub fn set_debug_perform_validation_scan(value: bool) {
+        if let Ok(mut config) = Self::get_instance().config.write() {
+            config.debug_perform_validation_scan = value;
+        }
+
+        Self::save_config();
     }
 }
