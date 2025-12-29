@@ -10,6 +10,7 @@ impl EngineCommandExecutor for SettingsCommand {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandExecutor>::ResponseType {
         match self {
+            SettingsCommand::General { general_settings_command } => general_settings_command.execute(engine_privileged_state),
             SettingsCommand::Memory { memory_settings_command } => memory_settings_command.execute(engine_privileged_state),
             SettingsCommand::Scan { scan_settings_command } => scan_settings_command.execute(engine_privileged_state),
         }

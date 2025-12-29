@@ -1,5 +1,6 @@
 use crate::engine_bindings::engine_ingress::ExecutableCommand;
 use crate::engine_privileged_state::EnginePrivilegedState;
+use crate::general_settings_config::GeneralSettingsConfig;
 use crossbeam_channel::Receiver;
 use squalr_engine_api::commands::engine_command::EngineCommand;
 use squalr_engine_api::commands::engine_command_response::EngineCommandResponse;
@@ -34,11 +35,26 @@ impl EngineApiUnprivilegedBindings for StandaloneEngineApiUnprivilegedBindings {
         command: EngineCommand,
         callback: Box<dyn FnOnce(EngineCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), String> {
-        if let Some(engine_privileged_state) = &self.engine_privileged_state {
-            callback(command.execute(engine_privileged_state));
-        }
+        let engine_request_delay = GeneralSettingsConfig::get_engine_request_delay();
 
-        Ok(())
+        if let Some(engine_privileged_state) = &self.engine_privileged_state {
+            // Execute the request either immediately, or on an artificial delay if a debug request delay is set.
+            if engine_request_delay <= 0 {
+                callback(command.execute(&engine_privileged_state));
+            } else {
+                let engine_privileged_state = engine_privileged_state.clone();
+
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(engine_request_delay as u64));
+                    let response = command.execute(&engine_privileged_state);
+                    callback(response);
+                });
+            }
+
+            Ok(())
+        } else {
+            Err("No privileged state available for command execution.".to_string())
+        }
     }
 
     /// Requests to listen to all engine events.

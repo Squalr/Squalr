@@ -1,0 +1,25 @@
+use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
+use crate::engine_privileged_state::EnginePrivilegedState;
+use crate::general_settings_config::GeneralSettingsConfig;
+use squalr_engine_api::commands::settings::general::list::general_settings_list_request::GeneralSettingsListRequest;
+use squalr_engine_api::commands::settings::general::list::general_settings_list_response::GeneralSettingsListResponse;
+use std::sync::Arc;
+
+impl EngineCommandRequestExecutor for GeneralSettingsListRequest {
+    type ResponseType = GeneralSettingsListResponse;
+
+    fn execute(
+        &self,
+        _engine_privileged_state: &Arc<EnginePrivilegedState>,
+    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+        if let Ok(general_settings) = GeneralSettingsConfig::get_full_config().read() {
+            GeneralSettingsListResponse {
+                general_settings: Ok(general_settings.clone()),
+            }
+        } else {
+            GeneralSettingsListResponse {
+                general_settings: Err("Failed to read settings".to_string()),
+            }
+        }
+    }
+}
