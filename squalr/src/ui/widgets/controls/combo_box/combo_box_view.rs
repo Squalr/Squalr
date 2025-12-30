@@ -182,10 +182,9 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         // Draw popup content
         let popup_pos = pos2(allocated_size_rectangle.min.x, allocated_size_rectangle.max.y + 2.0);
         let popup_id_area = Id::new(("combo_popup_area", user_interface.id().value(), self.label));
-        let mut popup_rectangle: Option<Rect> = None;
         let mut should_close = false;
 
-        Area::new(popup_id_area)
+        let area_response = Area::new(popup_id_area)
             .order(Order::Foreground)
             .fixed_pos(popup_pos)
             .show(user_interface.ctx(), |popup_user_interface| {
@@ -202,9 +201,10 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
                             (self.add_contents)(inner_user_interface, &mut should_close);
                         });
-                        popup_rectangle = Some(popup_user_interface.min_rect());
                     });
             });
+
+        let popup_rectangle = area_response.response.rect;
 
         let clicked_outside = user_interface.input(|input_state| {
             if !input_state.pointer.any_click() {
@@ -216,7 +216,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
                 .interact_pos()
                 .unwrap_or(allocated_size_rectangle.center());
             let outside_header = !allocated_size_rectangle.contains(click_position);
-            let outside_popup = popup_rectangle.map_or(true, |popup_rectangle| !popup_rectangle.contains(click_position));
+            let outside_popup = !popup_rectangle.contains(click_position);
 
             outside_header && outside_popup
         });

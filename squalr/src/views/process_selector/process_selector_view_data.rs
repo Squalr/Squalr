@@ -21,6 +21,8 @@ pub struct ProcessSelectorViewData {
     pub windowed_process_list: Vec<ProcessInfo>,
     pub full_process_list: Vec<ProcessInfo>,
     pub icon_cache: RwLock<HashMap<u32, TextureHandle>>,
+    pub is_awaiting_windowed_process_list: bool,
+    pub is_awaiting_full_process_list: bool,
 }
 
 impl ProcessSelectorViewData {
@@ -31,6 +33,8 @@ impl ProcessSelectorViewData {
             windowed_process_list: Vec::new(),
             full_process_list: Vec::new(),
             icon_cache: RwLock::new(HashMap::new()),
+            is_awaiting_windowed_process_list: false,
+            is_awaiting_full_process_list: false,
         }
     }
 
@@ -47,6 +51,21 @@ impl ProcessSelectorViewData {
         };
         let engine_execution_context = engine_execution_context.clone();
 
+        // Early exit if already awaiting response. Clear windowed list if querying up to date info.
+        match process_selector_view_data.write() {
+            Ok(mut process_selector_view_data) => {
+                if process_selector_view_data.is_awaiting_windowed_process_list {
+                    return;
+                }
+
+                process_selector_view_data.is_awaiting_windowed_process_list = true;
+            }
+            Err(error) => {
+                log::error!("Failed to access process selector view data for clearing windowed process list: {}", error);
+                return;
+            }
+        };
+
         list_windowed_processes_request.send(&engine_execution_context, move |process_list_response| {
             let mut process_selector_view_data = match process_selector_view_data.write() {
                 Ok(process_selector_view_data) => process_selector_view_data,
@@ -56,6 +75,7 @@ impl ProcessSelectorViewData {
                 }
             };
 
+            process_selector_view_data.is_awaiting_windowed_process_list = false;
             process_selector_view_data.set_windowed_process_list(process_list_response.processes);
         });
     }
@@ -73,15 +93,31 @@ impl ProcessSelectorViewData {
         };
         let engine_execution_context = engine_execution_context.clone();
 
+        // Early exit if already awaiting response. Clear full list if querying up to date info.
+        match process_selector_view_data.write() {
+            Ok(mut process_selector_view_data) => {
+                if process_selector_view_data.is_awaiting_full_process_list {
+                    return;
+                }
+
+                process_selector_view_data.is_awaiting_full_process_list = true;
+            }
+            Err(error) => {
+                log::error!("Failed to access process selector view data for clearing full process list: {}", error);
+                return;
+            }
+        };
+
         list_windowed_processes_request.send(&engine_execution_context, move |process_list_response| {
             let mut process_selector_view_data = match process_selector_view_data.write() {
                 Ok(process_selector_view_data) => process_selector_view_data,
                 Err(error) => {
-                    log::error!("Failed to access process selector view data for updating windowed process list: {}", error);
+                    log::error!("Failed to access process selector view data for updating full process list: {}", error);
                     return;
                 }
             };
 
+            process_selector_view_data.is_awaiting_full_process_list = false;
             process_selector_view_data.set_full_process_list(process_list_response.processes);
         });
     }
