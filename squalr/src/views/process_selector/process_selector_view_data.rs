@@ -1,5 +1,5 @@
 use crate::app_context::AppContext;
-use eframe::egui::{Context, TextureOptions};
+use eframe::egui::TextureOptions;
 use epaint::{ColorImage, TextureHandle};
 use squalr_engine_api::{
     commands::{
@@ -23,6 +23,7 @@ pub struct ProcessSelectorViewData {
     pub icon_cache: RwLock<HashMap<u32, TextureHandle>>,
     pub is_awaiting_windowed_process_list: bool,
     pub is_awaiting_full_process_list: bool,
+    pub is_opening_process: bool,
 }
 
 impl ProcessSelectorViewData {
@@ -35,6 +36,7 @@ impl ProcessSelectorViewData {
             icon_cache: RwLock::new(HashMap::new()),
             is_awaiting_windowed_process_list: false,
             is_awaiting_full_process_list: false,
+            is_opening_process: false,
         }
     }
 
@@ -135,51 +137,60 @@ impl ProcessSelectorViewData {
                 match_case: false,
             };
 
+            match process_selector_view_data.write() {
+                Ok(mut process_selector_view_data) => {
+                    if process_selector_view_data.is_opening_process {
+                        return;
+                    }
+
+                    process_selector_view_data.is_opening_process = true;
+                }
+                Err(error) => {
+                    log::error!("Failed to access process selector view data for opening process: {}", error);
+                    return;
+                }
+            };
+
             process_open_request.send(&engine_execution_context, move |process_open_response| {
-                Self::update_cached_opened_process(process_selector_view_data, app_context, process_open_response.opened_process_info)
+                Self::set_opened_process_info(process_selector_view_data, &app_context, process_open_response.opened_process_info)
             });
         } else {
-            Self::update_cached_opened_process(process_selector_view_data, app_context, None)
+            Self::set_opened_process_info(process_selector_view_data, &app_context, None)
         }
     }
 
-    pub fn update_cached_opened_process(
+    pub fn set_opened_process_info(
         process_selector_view_data: Dependency<ProcessSelectorViewData>,
-        app_context: Arc<AppContext>,
-        process_info: Option<OpenedProcessInfo>,
+        app_context: &Arc<AppContext>,
+        opened_process: Option<OpenedProcessInfo>,
     ) {
         let mut process_selector_view_data = match process_selector_view_data.write() {
             Ok(process_selector_view_data) => process_selector_view_data,
-            Err(_error) => return,
+            Err(error) => {
+                log::error!("Failed to access process selector view data for opening process: {}", error);
+                return;
+            }
         };
+        process_selector_view_data.is_opening_process = false;
+        process_selector_view_data.opened_process = opened_process;
 
-        process_selector_view_data.set_opened_process(&app_context.context, process_info);
-    }
-
-    pub fn set_opened_process(
-        &mut self,
-        context: &Context,
-        opened_process: Option<OpenedProcessInfo>,
-    ) {
-        self.opened_process = opened_process;
-
-        match &self.opened_process {
+        match &process_selector_view_data.opened_process {
             Some(opened_proces) => match opened_proces.get_icon() {
                 Some(icon) => {
                     let process_id = opened_proces.get_process_id_raw();
-                    let texture_handle = self.get_or_create_icon(context, process_id, icon);
+                    let texture_handle = process_selector_view_data.get_or_create_icon(app_context, process_id, icon);
 
-                    self.cached_icon = texture_handle;
+                    process_selector_view_data.cached_icon = texture_handle;
                 }
-                None => self.cached_icon = None,
+                None => process_selector_view_data.cached_icon = None,
             },
-            None => self.cached_icon = None,
+            None => process_selector_view_data.cached_icon = None,
         }
     }
 
     pub fn get_or_create_icon(
         &self,
-        context: &Context,
+        app_context: &Arc<AppContext>,
         process_id: u32,
         icon: &ProcessIcon,
     ) -> Option<TextureHandle> {
@@ -196,7 +207,7 @@ impl ProcessSelectorViewData {
         }
 
         let size = [icon.get_width() as usize, icon.get_height() as usize];
-        let texture = context.load_texture(
+        let texture = app_context.context.load_texture(
             &format!("process_icon_{process_id}"),
             ColorImage::from_rgba_unmultiplied(size, icon.get_bytes_rgba()),
             TextureOptions::default(),

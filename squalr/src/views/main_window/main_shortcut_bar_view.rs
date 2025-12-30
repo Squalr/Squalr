@@ -35,11 +35,7 @@ impl MainShortcutBarView {
         let engine_execution_context = self.app_context.engine_execution_context.clone();
 
         engine_execution_context.listen_for_engine_event::<ProcessChangedEvent>(move |process_changed_event| {
-            ProcessSelectorViewData::update_cached_opened_process(
-                process_selector_view_data.clone(),
-                app_context.clone(),
-                process_changed_event.process_info.clone(),
-            );
+            ProcessSelectorViewData::set_opened_process_info(process_selector_view_data.clone(), &app_context, process_changed_event.process_info.clone());
         });
     }
 }
@@ -79,7 +75,13 @@ impl Widget for MainShortcutBarView {
 
         let name_display = match &process_selector_view_data.opened_process {
             Some(opened_proces) => opened_proces.get_name(),
-            None => "Select a process...",
+            None => {
+                if process_selector_view_data.is_opening_process {
+                    "Opening process..."
+                } else {
+                    "Select a process..."
+                }
+            }
         };
 
         let process_select_combo_box = ComboBoxView::new(
@@ -107,7 +109,7 @@ impl Widget for MainShortcutBarView {
                 if !process_selector_view_data.is_awaiting_windowed_process_list {
                     for windowed_process in &process_selector_view_data.windowed_process_list {
                         let icon = match windowed_process.get_icon() {
-                            Some(icon) => process_selector_view_data.get_or_create_icon(&self.app_context.context, windowed_process.get_process_id_raw(), icon),
+                            Some(icon) => process_selector_view_data.get_or_create_icon(&self.app_context, windowed_process.get_process_id_raw(), icon),
                             None => None,
                         };
 

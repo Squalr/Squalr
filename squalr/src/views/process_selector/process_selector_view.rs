@@ -5,7 +5,6 @@ use crate::{
     },
 };
 use eframe::egui::{Align, Direction, Layout, Response, ScrollArea, Spinner, Ui, Widget};
-use epaint::{Color32, vec2};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 
@@ -57,7 +56,7 @@ impl Widget for ProcessSelectorView {
 
                             for process in &process_selector_view_data.full_process_list {
                                 let icon = match process.get_icon() {
-                                    Some(icon) => process_selector_view_data.get_or_create_icon(&self.app_context.context, process.get_process_id_raw(), icon),
+                                    Some(icon) => process_selector_view_data.get_or_create_icon(&self.app_context, process.get_process_id_raw(), icon),
                                     None => None,
                                 };
 
