@@ -55,27 +55,21 @@ impl ProcessSelectorViewData {
         let engine_execution_context = app_context.engine_execution_context.clone();
 
         // Early exit if already awaiting response. Clear windowed list if querying up to date info.
-        match process_selector_view_data.write() {
-            Ok(mut process_selector_view_data) => {
+        match process_selector_view_data.write("Process selector view data refresh windowed process list") {
+            Some(mut process_selector_view_data) => {
                 if process_selector_view_data.is_awaiting_windowed_process_list {
                     return;
                 }
 
                 process_selector_view_data.is_awaiting_windowed_process_list = true;
             }
-            Err(error) => {
-                log::error!("Failed to access process selector view data for clearing windowed process list: {}", error);
-                return;
-            }
+            None => return,
         };
 
         list_windowed_processes_request.send(&engine_execution_context, move |process_list_response| {
-            let mut process_selector_view_data = match process_selector_view_data.write() {
-                Ok(process_selector_view_data) => process_selector_view_data,
-                Err(error) => {
-                    log::error!("Failed to access process selector view data for updating windowed process list: {}", error);
-                    return;
-                }
+            let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data refresh windowed process list response") {
+                Some(process_selector_view_data) => process_selector_view_data,
+                None => return,
             };
 
             process_selector_view_data.is_awaiting_windowed_process_list = false;
@@ -98,27 +92,21 @@ impl ProcessSelectorViewData {
         let engine_execution_context = app_context.engine_execution_context.clone();
 
         // Early exit if already awaiting response. Clear full list if querying up to date info.
-        match process_selector_view_data.write() {
-            Ok(mut process_selector_view_data) => {
+        match process_selector_view_data.write("Process selector view data refresh full process list") {
+            Some(mut process_selector_view_data) => {
                 if process_selector_view_data.is_awaiting_full_process_list {
                     return;
                 }
 
                 process_selector_view_data.is_awaiting_full_process_list = true;
             }
-            Err(error) => {
-                log::error!("Failed to access process selector view data for clearing full process list: {}", error);
-                return;
-            }
+            None => return,
         };
 
         list_windowed_processes_request.send(&engine_execution_context, move |process_list_response| {
-            let mut process_selector_view_data = match process_selector_view_data.write() {
-                Ok(process_selector_view_data) => process_selector_view_data,
-                Err(error) => {
-                    log::error!("Failed to access process selector view data for updating full process list: {}", error);
-                    return;
-                }
+            let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data refresh full process list response") {
+                Some(process_selector_view_data) => process_selector_view_data,
+                None => return,
             };
 
             process_selector_view_data.is_awaiting_full_process_list = false;
@@ -140,18 +128,15 @@ impl ProcessSelectorViewData {
                 match_case: false,
             };
 
-            match process_selector_view_data.write() {
-                Ok(mut process_selector_view_data) => {
+            match process_selector_view_data.write("Process selector view data select process") {
+                Some(mut process_selector_view_data) => {
                     if process_selector_view_data.is_opening_process {
                         return;
                     }
 
                     process_selector_view_data.is_opening_process = true;
                 }
-                Err(error) => {
-                    log::error!("Failed to access process selector view data for opening process: {}", error);
-                    return;
-                }
+                None => return,
             };
 
             process_open_request.send(&engine_execution_context, move |process_open_response| {
@@ -167,13 +152,11 @@ impl ProcessSelectorViewData {
         app_context: &Arc<AppContext>,
         opened_process: Option<OpenedProcessInfo>,
     ) {
-        let mut process_selector_view_data = match process_selector_view_data.write() {
-            Ok(process_selector_view_data) => process_selector_view_data,
-            Err(error) => {
-                log::error!("Failed to access process selector view data for opening process: {}", error);
-                return;
-            }
+        let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data set opened process info") {
+            Some(process_selector_view_data) => process_selector_view_data,
+            None => return,
         };
+
         process_selector_view_data.is_opening_process = false;
         process_selector_view_data.opened_process = opened_process;
 

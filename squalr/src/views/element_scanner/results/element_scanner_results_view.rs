@@ -70,15 +70,15 @@ impl Widget for ElementScannerResultsView {
                     response
                 };
 
-                let (mut value_splitter_ratio, mut previous_value_splitter_ratio) = match self.element_scanner_results_view_data.read() {
-                    Ok(element_scanner_results_view_data) => (
+                let (mut value_splitter_ratio, mut previous_value_splitter_ratio) = match self
+                    .element_scanner_results_view_data
+                    .read("Element scanner results view")
+                {
+                    Some(element_scanner_results_view_data) => (
                         element_scanner_results_view_data.value_splitter_ratio,
                         element_scanner_results_view_data.previous_value_splitter_ratio,
                     ),
-                    Err(error) => {
-                        log::error!("Failed to acquire read lock for element scan results view data: {}", error);
-                        return;
-                    }
+                    None => return,
                 };
 
                 // Draw the header.
@@ -195,19 +195,19 @@ impl Widget for ElementScannerResultsView {
                     .max_height(content_height)
                     .auto_shrink([false, false])
                     .show(&mut user_interface, |user_interface| {
-                        let element_scanner_results_view_data = match self.element_scanner_results_view_data.read() {
-                            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-                            Err(error) => {
-                                log::error!("Failed to acquire read lock for element scan results view data: {}", error);
-                                return;
-                            }
+                        let element_scanner_results_view_data = match self
+                            .element_scanner_results_view_data
+                            .read("Element scanner results view element scanner results view data")
+                        {
+                            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+                            None => return,
                         };
-                        let element_scanner_view_data = match self.element_scanner_view_data.read() {
-                            Ok(element_scanner_view_data) => element_scanner_view_data,
-                            Err(error) => {
-                                log::error!("Failed to acquire read lock for element scan results view data: {}", error);
-                                return;
-                            }
+                        let element_scanner_view_data = match self
+                            .element_scanner_view_data
+                            .read("Element scanner results view element scanner view data")
+                        {
+                            Some(element_scanner_view_data) => element_scanner_view_data,
+                            None => return,
                         };
 
                         user_interface.spacing_mut().menu_margin = Margin::ZERO;
@@ -346,7 +346,10 @@ impl Widget for ElementScannerResultsView {
             .response;
 
         if new_value_splitter_ratio.is_some() || new_previous_value_splitter_ratio.is_some() {
-            if let Ok(mut element_scanner_results_view_data) = self.element_scanner_results_view_data.write() {
+            if let Some(mut element_scanner_results_view_data) = self
+                .element_scanner_results_view_data
+                .write("Element scanner results view")
+            {
                 if let Some(new_value_splitter_ratio) = new_value_splitter_ratio {
                     element_scanner_results_view_data.value_splitter_ratio = new_value_splitter_ratio;
                 }

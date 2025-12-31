@@ -38,14 +38,12 @@ impl Widget for ProcessSelectorView {
         let theme = self.app_context.theme.clone();
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |mut user_interface| {
-                user_interface.add(self.process_selector_toolbar_view.clone());
-
-                let process_selector_view_data = match self.process_selector_view_data.read() {
-                    Ok(process_selector_view_data) => process_selector_view_data,
-                    Err(_error) => {
-                        return;
-                    }
+                let process_selector_view_data = match self.process_selector_view_data.read("Process selector view") {
+                    Some(process_selector_view_data) => process_selector_view_data,
+                    None => return,
                 };
+
+                user_interface.add(self.process_selector_toolbar_view.clone());
 
                 if !process_selector_view_data.is_awaiting_full_process_list {
                     ScrollArea::vertical()

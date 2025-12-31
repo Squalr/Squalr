@@ -57,12 +57,12 @@ impl Widget for ElementScannerFooterView {
             vec2(allocated_size_rectangle.width(), row_height),
         );
 
-        let element_scanner_view_data = match self.element_scanner_results_view_data.read() {
-            Ok(element_scanner_view_data) => element_scanner_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire element scanner view data: {}", error);
-                return response;
-            }
+        let element_scanner_view_data = match self
+            .element_scanner_results_view_data
+            .read("Element scanner footer view element scanner view data")
+        {
+            Some(element_scanner_view_data) => element_scanner_view_data,
+            None => return response,
         };
 
         let border_width = 1.0;

@@ -42,9 +42,12 @@ impl ElementScannerToolbarView {
     }
 
     pub fn get_height(&self) -> f32 {
-        let item_count = match self.element_scanner_view_data.read() {
-            Ok(element_scanner_view_data) => element_scanner_view_data.scan_values_and_constraints.len(),
-            Err(_) => 1,
+        let item_count = match self
+            .element_scanner_view_data
+            .read("Element scanner toolbar view get height")
+        {
+            Some(element_scanner_view_data) => element_scanner_view_data.scan_values_and_constraints.len(),
+            None => 1,
         };
 
         self.get_constraint_row_height() * (item_count as f32) + self.get_top_row_height()
@@ -75,12 +78,12 @@ impl Widget for ElementScannerToolbarView {
 
         let mut toolbar_user_interface = user_interface.new_child(builder);
 
-        let mut element_scanner_view_data = match self.element_scanner_view_data.write() {
-            Ok(data) => data,
-            Err(error) => {
-                log::error!("Failed to acquire element scanner view data: {}", error);
-                return response;
-            }
+        let mut element_scanner_view_data = match self
+            .element_scanner_view_data
+            .write("Element scanner toolbar view")
+        {
+            Some(data) => data,
+            None => return response,
         };
 
         let button_size = vec2(36.0, 28.0);

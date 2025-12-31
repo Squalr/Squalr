@@ -113,13 +113,9 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
-        let cached_last_page_index = match element_scanner_results_view_data.read() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data.cached_last_page_index,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
-
-                return;
-            }
+        let cached_last_page_index = match element_scanner_results_view_data.read("Element scanner results navigation last") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data.cached_last_page_index,
+            None => return,
         };
         let cached_last_page_index = cached_last_page_index;
         let new_page_index = cached_last_page_index;
@@ -132,13 +128,9 @@ impl ElementScannerResultsViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
-        let element_scanner_results_view_data = match element_scanner_results_view_data.read() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
-
-                return;
-            }
+        let element_scanner_results_view_data = match element_scanner_results_view_data.read("Element scanner results navigation previous") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return,
         };
         let new_page_index = Self::load_current_page_index(&element_scanner_results_view_data).saturating_sub(1);
 
@@ -152,13 +144,9 @@ impl ElementScannerResultsViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
-        let element_scanner_results_view_data = match element_scanner_results_view_data.read() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
-
-                return;
-            }
+        let element_scanner_results_view_data = match element_scanner_results_view_data.read("Element scanner results navigation next") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return,
         };
         let new_page_index = Self::load_current_page_index(&element_scanner_results_view_data).saturating_add(1);
 
@@ -174,13 +162,9 @@ impl ElementScannerResultsViewData {
         anonymous_value: AnonymousValue,
     ) {
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
-        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire write lock on element scanner results view data: {}", error);
-
-                return;
-            }
+        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set selected scan results") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return,
         };
         let scan_result_refs = element_scanner_results_view_data
             .current_scan_results
@@ -197,13 +181,9 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data.is_setting_property = true;
 
         scan_results_set_property_request.send(&engine_execution_context, move |scan_results_set_property_response| {
-            let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write() {
-                Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-                Err(error) => {
-                    log::error!("Failed to acquire write lock on element scanner results view data: {}", error);
-
-                    return;
-                }
+            let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write("Set selected scan results response") {
+                Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+                None => return,
             };
 
             element_scanner_results_view_data.is_setting_property = false;
@@ -228,7 +208,7 @@ impl ElementScannerResultsViewData {
         play_sound: bool,
     ) {
         if element_scanner_results_view_data
-            .read()
+            .read("Query scan results")
             .map(|element_scanner_results_view_data| element_scanner_results_view_data.is_querying_scan_results)
             .unwrap_or(false)
         {
@@ -236,13 +216,9 @@ impl ElementScannerResultsViewData {
         }
 
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
-        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
-
-                return;
-            }
+        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Query scan results") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return,
         };
         let page_index = Self::load_current_page_index_write(&element_scanner_results_view_data);
         let scan_results_query_request = ScanResultsQueryRequest { page_index };
@@ -254,7 +230,7 @@ impl ElementScannerResultsViewData {
             let byte_size_in_metric = Conversions::value_to_metric_size(scan_results_query_response.total_size_in_bytes);
             let result_count = scan_results_query_response.result_count;
 
-            if let Ok(mut element_scanner_results_view_data) = element_scanner_results_view_data_clone.write() {
+            if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data_clone.write("Query scan results response") {
                 element_scanner_results_view_data.is_querying_scan_results = false;
                 element_scanner_results_view_data.cached_last_page_index = scan_results_query_response.last_page_index;
                 element_scanner_results_view_data.result_count = result_count;
@@ -278,7 +254,7 @@ impl ElementScannerResultsViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
         if element_scanner_results_view_data
-            .read()
+            .read("Refresh scan results")
             .map(|element_scanner_results_view_data| {
                 element_scanner_results_view_data.is_querying_scan_results || element_scanner_results_view_data.is_refreshing_scan_results
             })
@@ -288,13 +264,9 @@ impl ElementScannerResultsViewData {
         }
 
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
-        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
-
-                return;
-            }
+        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Refresh scan results") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return,
         };
         let engine_execution_context = &engine_execution_context;
 
@@ -312,13 +284,9 @@ impl ElementScannerResultsViewData {
         drop(element_scanner_results_view_data);
 
         scan_results_refresh_request.send(engine_execution_context, move |scan_results_refresh_response| {
-            let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write() {
-                Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-                Err(error) => {
-                    log::error!("Failed to acquire write lock on element scanner results view data: {}", error);
-
-                    return;
-                }
+            let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write("Refresh scan results response") {
+                Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+                None => return,
             };
 
             // Update UI with refreshed, full scan result values.
@@ -333,7 +301,7 @@ impl ElementScannerResultsViewData {
         new_page_index: u64,
     ) {
         if element_scanner_results_view_data
-            .read()
+            .read("Set page index")
             .map(|element_scanner_results_view_data| element_scanner_results_view_data.is_querying_scan_results)
             .unwrap_or(false)
         {
@@ -341,13 +309,9 @@ impl ElementScannerResultsViewData {
         }
 
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
-        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire write lock on element scanner results view data: {}", error);
-
-                return;
-            }
+        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set page index") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return,
         };
         let new_page_index = new_page_index.clamp(0, element_scanner_results_view_data.cached_last_page_index);
 
@@ -389,13 +353,9 @@ impl ElementScannerResultsViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
         scan_result_collection_start_index: Option<i32>,
     ) {
-        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire write lock on element scanner results view data: {}", error);
-
-                return;
-            }
+        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set scan result selection start") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return,
         };
         element_scanner_results_view_data.selection_index_start = scan_result_collection_start_index;
         element_scanner_results_view_data.selection_index_end = None;
@@ -421,13 +381,9 @@ impl ElementScannerResultsViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
         scan_result_collection_end_index: Option<i32>,
     ) {
-        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire write lock on element scanner results view data: {}", error);
-
-                return;
-            }
+        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set scan result selection end") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return,
         };
         element_scanner_results_view_data.selection_index_end = scan_result_collection_end_index;
 
@@ -525,13 +481,9 @@ impl ElementScannerResultsViewData {
     }
 
     fn collect_selected_scan_results(element_scanner_results_view_data: Dependency<Self>) -> Vec<ScanResult> {
-        let element_scanner_results_view_data = match element_scanner_results_view_data.read() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
-
-                return Vec::new();
-            }
+        let element_scanner_results_view_data = match element_scanner_results_view_data.read("Collect selected scan results") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return Vec::new(),
         };
 
         // Pull out the optional bounds.
@@ -572,13 +524,9 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data: Dependency<Self>,
         local_scan_result_indices: &[i32],
     ) -> Vec<ScanResultBase> {
-        let element_scanner_results_view_data = match element_scanner_results_view_data.read() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
-
-                return Vec::new();
-            }
+        let element_scanner_results_view_data = match element_scanner_results_view_data.read("Collect scan result bases") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return Vec::new(),
         };
         let scan_results = local_scan_result_indices
             .iter()

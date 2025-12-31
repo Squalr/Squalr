@@ -45,12 +45,9 @@ impl ElementScannerViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
         let element_scanner_view_data_view_state = {
-            match element_scanner_view_data.read() {
-                Ok(element_scanner_view_data) => element_scanner_view_data.view_state,
-                Err(error) => {
-                    log::error!("Failed to acquire UI state lock to reset scan: {}", error);
-                    return;
-                }
+            match element_scanner_view_data.read("Element scanner view data reset scan") {
+                Some(element_scanner_view_data) => element_scanner_view_data.view_state,
+                None => return,
             }
         };
 
@@ -65,13 +62,11 @@ impl ElementScannerViewData {
 
         scan_reset_request.send(&engine_execution_context, move |scan_reset_response| {
             if scan_reset_response.success {
-                match element_scanner_view_data.write() {
-                    Ok(mut element_scanner_view_data) => {
+                match element_scanner_view_data.write("Element scanner view data reset scan response") {
+                    Some(mut element_scanner_view_data) => {
                         element_scanner_view_data.view_state = ElementScannerViewState::NoResults;
                     }
-                    Err(error) => {
-                        log::error!("Failed to write element scanner view state: {}", error);
-                    }
+                    None => {}
                 }
             }
         });
@@ -88,12 +83,9 @@ impl ElementScannerViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
         let element_scanner_view_data_view_state = {
-            match element_scanner_view_data.read() {
-                Ok(element_scanner_view_data) => element_scanner_view_data.view_state,
-                Err(error) => {
-                    log::error!("Failed to acquire UI state lock to start scan: {}", error);
-                    return;
-                }
+            match element_scanner_view_data.read("Element scanner view data start scan") {
+                Some(element_scanner_view_data) => element_scanner_view_data.view_state,
+                None => return,
             }
         };
 
@@ -130,12 +122,9 @@ impl ElementScannerViewData {
     ) {
         let element_scanner_view_data_clone = element_scanner_view_data.clone();
         let mut element_scanner_view_data = {
-            match element_scanner_view_data.write() {
-                Ok(element_scanner_view_data) => element_scanner_view_data,
-                Err(error) => {
-                    log::error!("Failed to acquire UI state lock to start scan: {}", error);
-                    return;
-                }
+            match element_scanner_view_data.write("Element scanner view data start next scan") {
+                Some(element_scanner_view_data) => element_scanner_view_data,
+                None => return,
             }
         };
         let data_type_refs = vec![element_scanner_view_data.selected_data_type.clone()];
@@ -162,24 +151,19 @@ impl ElementScannerViewData {
             // JIRA: We actually need to wait for the task to complete, which can be tricky with our request/response architecture.
             // For now we just set it immediately to avoid being stuck in in progress state.
             // JIRA: Use scan_execute_response.trackable_task_handle;
-            match element_scanner_view_data_clone.write() {
-                Ok(mut element_scanner_view_data) => {
+            match element_scanner_view_data_clone.write("Element scanner view data start next scan response") {
+                Some(mut element_scanner_view_data) => {
                     element_scanner_view_data.view_state = ElementScannerViewState::HasResults;
                 }
-                Err(error) => {
-                    log::error!("Failed to write element scanner view state: {}", error);
-                }
+                None => {}
             }
         });
     }
 
     pub fn add_constraint(element_scanner_view_data: Dependency<Self>) {
-        let mut element_scanner_view_data = match element_scanner_view_data.write() {
-            Ok(element_scanner_view_data) => element_scanner_view_data,
-            Err(error) => {
-                log::error!("Failed to write element scanner view state: {}", error);
-                return;
-            }
+        let mut element_scanner_view_data = match element_scanner_view_data.write("Element scanner view data add constraint") {
+            Some(element_scanner_view_data) => element_scanner_view_data,
+            None => return,
         };
 
         if element_scanner_view_data.scan_values_and_constraints.len() >= Self::MAX_CONSTRAINTS {
@@ -205,12 +189,9 @@ impl ElementScannerViewData {
         element_scanner_view_data: Dependency<Self>,
         index: usize,
     ) {
-        let mut element_scanner_view_data = match element_scanner_view_data.write() {
-            Ok(element_scanner_view_data) => element_scanner_view_data,
-            Err(error) => {
-                log::error!("Failed to write element scanner view state: {}", error);
-                return;
-            }
+        let mut element_scanner_view_data = match element_scanner_view_data.write("Element scanner view data remove constraint") {
+            Some(element_scanner_view_data) => element_scanner_view_data,
+            None => return,
         };
 
         if index <= 0 {

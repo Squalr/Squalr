@@ -41,15 +41,30 @@ impl<T: Clone + Send + Sync + 'static> Dependency<T> {
     }
 
     /// Acquire a read guard.
-    pub fn read(&self) -> Result<Guard<Arc<T>>> {
-        let shared_lock = self.get_shared_lock()?;
-
-        Ok(shared_lock.load())
+    pub fn read(
+        &self,
+        error_context: &'static str,
+    ) -> Option<Guard<Arc<T>>> {
+        match self.get_shared_lock() {
+            Ok(shared_lock) => Some(shared_lock.load()),
+            Err(error) => {
+                log::error!("Failed to acquire read on dependency: {}, context: {}", error, error_context);
+                None
+            }
+        }
     }
 
     /// Acquire a write guard.
-    pub fn write(&self) -> Result<WriteGuard<'_, T>> {
-        let shared = self.get_shared_lock()?;
-        Ok(WriteGuard::new(shared))
+    pub fn write(
+        &self,
+        error_context: &'static str,
+    ) -> Option<WriteGuard<'_, T>> {
+        match self.get_shared_lock() {
+            Ok(shared_lock) => Some(WriteGuard::new(shared_lock)),
+            Err(error) => {
+                log::error!("Failed to acquire write on dependency: {}, context: {}", error, error_context);
+                None
+            }
+        }
     }
 }

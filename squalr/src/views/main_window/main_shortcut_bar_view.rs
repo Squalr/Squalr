@@ -49,11 +49,9 @@ impl Widget for MainShortcutBarView {
         let theme = &self.app_context.theme;
         let combo_box_width = 224.0;
         let process_dropdown_list_width = 256.0;
-        let process_selector_view_data = match self.process_selector_view_data.read() {
-            Ok(process_selector_view_data) => process_selector_view_data,
-            Err(_error) => {
-                return response;
-            }
+        let process_selector_view_data = match self.process_selector_view_data.read("Main shortcut bar view") {
+            Some(process_selector_view_data) => process_selector_view_data,
+            None => return response,
         };
 
         // Draw background.

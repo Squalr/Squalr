@@ -11,9 +11,9 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ElementScannerView {
-    app_context: Arc<AppContext>,
-    element_scanner_view_data: Dependency<ElementScannerViewData>,
-    element_scanner_results_view_data: Dependency<ElementScannerResultsViewData>,
+    _app_context: Arc<AppContext>,
+    _element_scanner_view_data: Dependency<ElementScannerViewData>,
+    _element_scanner_results_view_data: Dependency<ElementScannerResultsViewData>,
     element_scanner_toolbar_view: ElementScannerToolbarView,
     element_scanner_results_view: ElementScannerResultsView,
     element_scanner_footer_view: ElementScannerFooterView,
@@ -32,9 +32,9 @@ impl ElementScannerView {
         let element_scanner_footer_view = ElementScannerFooterView::new(app_context.clone());
 
         Self {
-            app_context,
-            element_scanner_view_data,
-            element_scanner_results_view_data,
+            _app_context: app_context,
+            _element_scanner_view_data: element_scanner_view_data,
+            _element_scanner_results_view_data: element_scanner_results_view_data,
             element_scanner_toolbar_view,
             element_scanner_results_view,
             element_scanner_footer_view,

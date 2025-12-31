@@ -79,19 +79,19 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
 
         let mut toolbar_user_interface = user_interface.new_child(builder);
 
-        let mut element_scanner_results_view_data = match self.element_scanner_results_view_data.write() {
-            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire element scanner results view data: {}", error);
-                return response;
-            }
+        let mut element_scanner_results_view_data = match self
+            .element_scanner_results_view_data
+            .write("Element scanner results action bar element scanner results view data")
+        {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return response,
         };
-        let element_scanner_view_data = match self.element_scanner_view_data.read() {
-            Ok(element_scanner_view_data) => element_scanner_view_data,
-            Err(error) => {
-                log::error!("Failed to acquire element scanner view data: {}", error);
-                return response;
-            }
+        let element_scanner_view_data = match self
+            .element_scanner_view_data
+            .read("Element scanner results action bar element scanner view data")
+        {
+            Some(element_scanner_view_data) => element_scanner_view_data,
+            None => return response,
         };
 
         // Background.
