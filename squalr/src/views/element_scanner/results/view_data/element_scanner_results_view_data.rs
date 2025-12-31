@@ -1,7 +1,9 @@
+use arc_swap::Guard;
 use squalr_engine_api::commands::scan_results::add_to_project::scan_results_add_to_project_request::ScanResultsAddToProjectRequest;
 use squalr_engine_api::commands::scan_results::delete::scan_results_delete_request::ScanResultsDeleteRequest;
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
+use squalr_engine_api::dependency_injection::write_guard::WriteGuard;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_values::display_value::DisplayValue;
 use squalr_engine_api::structures::data_values::display_value_type::DisplayValueType;
@@ -21,9 +23,10 @@ use squalr_engine_api::{
     structures::{data_values::anonymous_value::AnonymousValue, scan_results::scan_result::ScanResult},
 };
 use std::cmp::{self};
-use std::sync::{Arc, RwLockReadGuard};
+use std::sync::Arc;
 use std::{thread, time::Duration};
 
+#[derive(Clone)]
 pub struct ElementScannerResultsViewData {
     // audio_player: AudioPlayer,
     pub value_splitter_ratio: f32,
@@ -36,6 +39,8 @@ pub struct ElementScannerResultsViewData {
     pub result_count: u64,
     pub stats_string: String,
     pub edit_value: DisplayValue,
+    pub is_querying_scan_results: bool,
+    pub is_refreshing_scan_results: bool,
 }
 
 impl ElementScannerResultsViewData {
@@ -54,6 +59,8 @@ impl ElementScannerResultsViewData {
             result_count: 0,
             stats_string: String::new(),
             edit_value: DisplayValue::new(String::new(), DisplayValueType::Decimal, ContainerType::None),
+            is_querying_scan_results: false,
+            is_refreshing_scan_results: false,
         }
     }
 
@@ -181,7 +188,13 @@ impl ElementScannerResultsViewData {
         });
     }
 
-    fn load_current_page_index(element_scanner_results_view_data: &RwLockReadGuard<'_, ElementScannerResultsViewData>) -> u64 {
+    fn load_current_page_index(element_scanner_results_view_data: &Guard<Arc<ElementScannerResultsViewData>>) -> u64 {
+        element_scanner_results_view_data
+            .current_page_index
+            .clamp(0, element_scanner_results_view_data.cached_last_page_index)
+    }
+
+    fn load_current_page_index_write(element_scanner_results_view_data: &WriteGuard<'_, ElementScannerResultsViewData>) -> u64 {
         element_scanner_results_view_data
             .current_page_index
             .clamp(0, element_scanner_results_view_data.cached_last_page_index)
@@ -192,8 +205,9 @@ impl ElementScannerResultsViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
         play_sound: bool,
     ) {
+        let engine_execution_context_clone = engine_execution_context.clone();
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
-        let element_scanner_results_view_data = match element_scanner_results_view_data.read() {
+        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
             Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
             Err(error) => {
                 log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
@@ -201,31 +215,23 @@ impl ElementScannerResultsViewData {
                 return;
             }
         };
-        let engine_execution_context_clone = engine_execution_context.clone();
-        let page_index = Self::load_current_page_index(&element_scanner_results_view_data);
+        let page_index = Self::load_current_page_index_write(&element_scanner_results_view_data);
         let scan_results_query_request = ScanResultsQueryRequest { page_index };
 
-        drop(element_scanner_results_view_data);
+        element_scanner_results_view_data.is_querying_scan_results = true;
 
         scan_results_query_request.send(&engine_execution_context, move |scan_results_query_response| {
-            let element_scanner_results_view_data_clone_clone = element_scanner_results_view_data_clone.clone();
-            let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write() {
-                Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-                Err(error) => {
-                    log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
-
-                    return;
-                }
-            };
-
             // let audio_player = &self.audio_player;
             let byte_size_in_metric = Conversions::value_to_metric_size(scan_results_query_response.total_size_in_bytes);
             let result_count = scan_results_query_response.result_count;
 
-            element_scanner_results_view_data.cached_last_page_index = scan_results_query_response.last_page_index;
-            element_scanner_results_view_data.result_count = result_count;
-            element_scanner_results_view_data.stats_string = format!("{} (Count: {})", byte_size_in_metric, result_count);
-            element_scanner_results_view_data.current_scan_results = scan_results_query_response.scan_results;
+            if let Ok(mut element_scanner_results_view_data) = element_scanner_results_view_data_clone.write() {
+                element_scanner_results_view_data.is_querying_scan_results = false;
+                element_scanner_results_view_data.cached_last_page_index = scan_results_query_response.last_page_index;
+                element_scanner_results_view_data.result_count = result_count;
+                element_scanner_results_view_data.stats_string = format!("{} (Count: {})", byte_size_in_metric, result_count);
+                element_scanner_results_view_data.current_scan_results = scan_results_query_response.scan_results;
+            }
 
             if play_sound {
                 if result_count > 0 {
@@ -235,9 +241,7 @@ impl ElementScannerResultsViewData {
                 }
             }
 
-            drop(element_scanner_results_view_data);
-
-            Self::refresh_scan_results(element_scanner_results_view_data_clone_clone, engine_execution_context_clone);
+            Self::refresh_scan_results(element_scanner_results_view_data_clone, engine_execution_context_clone);
         });
     }
 
@@ -247,7 +251,7 @@ impl ElementScannerResultsViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
-        let element_scanner_results_view_data = match element_scanner_results_view_data.read() {
+        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
             Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
             Err(error) => {
                 log::error!("Failed to acquire read lock on element scanner results view data: {}", error);
@@ -256,6 +260,8 @@ impl ElementScannerResultsViewData {
             }
         };
         let engine_execution_context = &engine_execution_context;
+
+        element_scanner_results_view_data.is_refreshing_scan_results = true;
 
         // Fire a request to get all scan result data needed for display.
         let scan_results_refresh_request = ScanResultsRefreshRequest {
@@ -279,6 +285,7 @@ impl ElementScannerResultsViewData {
             };
 
             // Update UI with refreshed, full scan result values.
+            element_scanner_results_view_data.is_refreshing_scan_results = false;
             element_scanner_results_view_data.current_scan_results = scan_results_refresh_response.scan_results;
         });
     }

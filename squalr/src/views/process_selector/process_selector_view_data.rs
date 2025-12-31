@@ -6,21 +6,21 @@ use squalr_engine_api::{
         engine_command_request::EngineCommandRequest,
         process::{list::process_list_request::ProcessListRequest, open::process_open_request::ProcessOpenRequest},
     },
-    dependency_injection::dependency::Dependency,
-    engine::engine_execution_context::EngineExecutionContext,
+    dependency_injection::{dependency::Dependency, write_guard::WriteGuard},
     structures::processes::{opened_process_info::OpenedProcessInfo, process_icon::ProcessIcon, process_info::ProcessInfo},
 };
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 
+#[derive(Clone)]
 pub struct ProcessSelectorViewData {
     pub opened_process: Option<OpenedProcessInfo>,
     pub cached_icon: Option<TextureHandle>,
     pub windowed_process_list: Vec<ProcessInfo>,
     pub full_process_list: Vec<ProcessInfo>,
-    pub icon_cache: RwLock<HashMap<u32, TextureHandle>>,
+    pub icon_cache: HashMap<u32, TextureHandle>,
     pub is_awaiting_windowed_process_list: bool,
     pub is_awaiting_full_process_list: bool,
     pub is_opening_process: bool,
@@ -33,7 +33,7 @@ impl ProcessSelectorViewData {
             cached_icon: None,
             windowed_process_list: Vec::new(),
             full_process_list: Vec::new(),
-            icon_cache: RwLock::new(HashMap::new()),
+            icon_cache: HashMap::new(),
             is_awaiting_windowed_process_list: false,
             is_awaiting_full_process_list: false,
             is_opening_process: false,
@@ -42,7 +42,7 @@ impl ProcessSelectorViewData {
 
     pub fn refresh_windowed_process_list(
         process_selector_view_data: Dependency<ProcessSelectorViewData>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        app_context: Arc<AppContext>,
     ) {
         let list_windowed_processes_request = ProcessListRequest {
             require_windowed: true,
@@ -51,7 +51,8 @@ impl ProcessSelectorViewData {
             limit: None,
             fetch_icons: true,
         };
-        let engine_execution_context = engine_execution_context.clone();
+
+        let engine_execution_context = app_context.engine_execution_context.clone();
 
         // Early exit if already awaiting response. Clear windowed list if querying up to date info.
         match process_selector_view_data.write() {
@@ -78,13 +79,13 @@ impl ProcessSelectorViewData {
             };
 
             process_selector_view_data.is_awaiting_windowed_process_list = false;
-            process_selector_view_data.set_windowed_process_list(process_list_response.processes);
+            ProcessSelectorViewData::set_windowed_process_list(&mut process_selector_view_data, &app_context, process_list_response.processes);
         });
     }
 
     pub fn refresh_full_process_list(
         process_selector_view_data: Dependency<ProcessSelectorViewData>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        app_context: Arc<AppContext>,
     ) {
         let list_windowed_processes_request = ProcessListRequest {
             require_windowed: false,
@@ -93,7 +94,8 @@ impl ProcessSelectorViewData {
             limit: None,
             fetch_icons: true,
         };
-        let engine_execution_context = engine_execution_context.clone();
+
+        let engine_execution_context = app_context.engine_execution_context.clone();
 
         // Early exit if already awaiting response. Clear full list if querying up to date info.
         match process_selector_view_data.write() {
@@ -120,7 +122,8 @@ impl ProcessSelectorViewData {
             };
 
             process_selector_view_data.is_awaiting_full_process_list = false;
-            process_selector_view_data.set_full_process_list(process_list_response.processes);
+
+            Self::set_full_process_list(&mut process_selector_view_data, &app_context, process_list_response.processes);
         });
     }
 
@@ -174,36 +177,34 @@ impl ProcessSelectorViewData {
         process_selector_view_data.is_opening_process = false;
         process_selector_view_data.opened_process = opened_process;
 
-        match &process_selector_view_data.opened_process {
+        let icon_data = match &process_selector_view_data.opened_process {
             Some(opened_proces) => match opened_proces.get_icon() {
                 Some(icon) => {
                     let process_id = opened_proces.get_process_id_raw();
-                    let texture_handle = process_selector_view_data.get_or_create_icon(app_context, process_id, icon);
-
-                    process_selector_view_data.cached_icon = texture_handle;
+                    Some((process_id, icon.clone()))
                 }
-                None => process_selector_view_data.cached_icon = None,
+                None => None,
             },
-            None => process_selector_view_data.cached_icon = None,
+            None => None,
+        };
+
+        if let Some((process_id, icon)) = icon_data {
+            let texture_handle = process_selector_view_data.get_icon(app_context, process_id, &icon);
+
+            process_selector_view_data.cached_icon = texture_handle;
+        } else {
+            process_selector_view_data.cached_icon = None;
         }
     }
 
-    pub fn get_or_create_icon(
-        &self,
+    pub fn create_and_cache_icon(
+        process_selector_view_data: &mut WriteGuard<'_, ProcessSelectorViewData>,
         app_context: &Arc<AppContext>,
         process_id: u32,
         icon: &ProcessIcon,
-    ) -> Option<TextureHandle> {
-        let mut icon_cache = match self.icon_cache.write() {
-            Ok(icon_cache) => icon_cache,
-            Err(error) => {
-                log::error!("Failed to acquire icon cache lock: {}", error);
-                return None;
-            }
-        };
-
-        if icon_cache.contains_key(&process_id) {
-            return icon_cache.get(&process_id).cloned();
+    ) {
+        if process_selector_view_data.icon_cache.contains_key(&process_id) {
+            return;
         }
 
         let size = [icon.get_width() as usize, icon.get_height() as usize];
@@ -213,45 +214,82 @@ impl ProcessSelectorViewData {
             TextureOptions::default(),
         );
 
-        icon_cache.insert(process_id, texture.clone());
+        process_selector_view_data
+            .icon_cache
+            .insert(process_id, texture);
+    }
+
+    pub fn get_icon(
+        &self,
+        app_context: &Arc<AppContext>,
+        process_id: u32,
+        icon: &ProcessIcon,
+    ) -> Option<TextureHandle> {
+        if self.icon_cache.contains_key(&process_id) {
+            return self.icon_cache.get(&process_id).cloned();
+        }
+
+        let size = [icon.get_width() as usize, icon.get_height() as usize];
+        let texture = app_context.context.load_texture(
+            &format!("process_icon_{process_id}"),
+            ColorImage::from_rgba_unmultiplied(size, icon.get_bytes_rgba()),
+            TextureOptions::default(),
+        );
 
         Some(texture)
     }
 
     pub fn set_windowed_process_list(
-        &mut self,
+        process_selector_view_data: &mut WriteGuard<'_, ProcessSelectorViewData>,
+        app_context: &Arc<AppContext>,
         new_list: Vec<ProcessInfo>,
     ) {
-        let removed = self.diff_pids(&self.windowed_process_list, &new_list);
+        let removed = Self::diff_pids(&process_selector_view_data.windowed_process_list, &new_list);
 
-        self.windowed_process_list = new_list;
+        // Cache icons for the new list up front.
+        for process in &new_list {
+            let pid = process.get_process_id_raw();
+            if let Some(icon) = process.get_icon() {
+                Self::create_and_cache_icon(process_selector_view_data, app_context, pid, &icon);
+            }
+        }
+
+        process_selector_view_data.windowed_process_list = new_list;
 
         // Remove icons for processes no longer present.
-        self.remove_from_cache(&removed);
+        Self::remove_from_cache(process_selector_view_data, &removed);
 
         // If current opened process was removed, clear it.
-        if let Some(opened) = &self.opened_process {
+        if let Some(opened) = &process_selector_view_data.opened_process {
             if removed.contains(&opened.get_process_id_raw()) {
-                self.cached_icon = None;
+                process_selector_view_data.cached_icon = None;
             }
         }
     }
 
     pub fn set_full_process_list(
-        &mut self,
+        process_selector_view_data: &mut WriteGuard<'_, ProcessSelectorViewData>,
+        app_context: &Arc<AppContext>,
         new_list: Vec<ProcessInfo>,
     ) {
-        let removed = self.diff_pids(&self.full_process_list, &new_list);
+        let removed = Self::diff_pids(&process_selector_view_data.full_process_list, &new_list);
 
-        self.full_process_list = new_list;
+        // Cache icons for the new list up front.
+        for process in &new_list {
+            let pid = process.get_process_id_raw();
+            if let Some(icon) = process.get_icon() {
+                Self::create_and_cache_icon(process_selector_view_data, app_context, pid, &icon);
+            }
+        }
+
+        process_selector_view_data.full_process_list = new_list;
 
         // Remove icons for processes no longer present.
-        self.remove_from_cache(&removed);
+        Self::remove_from_cache(process_selector_view_data, &removed);
     }
 
     /// Computes process ID deltas between old/new PID sets.
     fn diff_pids(
-        &self,
         old: &[ProcessInfo],
         new: &[ProcessInfo],
     ) -> HashSet<u32> {
@@ -270,17 +308,11 @@ impl ProcessSelectorViewData {
 
     /// Removes cached icons for removed processes.
     fn remove_from_cache(
-        &self,
+        process_selector_view_data: &mut WriteGuard<'_, ProcessSelectorViewData>,
         removed: &HashSet<u32>,
     ) {
-        let mut icon_cache = match self.icon_cache.write() {
-            Ok(icon_cache) => icon_cache,
-            Err(error) => {
-                log::error!("Failed to lock icon cache: {}", error);
-                return;
-            }
-        };
-
-        icon_cache.retain(|process_id, _| !removed.contains(process_id));
+        process_selector_view_data
+            .icon_cache
+            .retain(|process_id, _| !removed.contains(process_id));
     }
 }

@@ -55,7 +55,7 @@ impl Widget for ProcessSelectorToolbarView {
             IconDraw::draw(user_interface, button_refresh.rect, &theme.icon_library.icon_handle_navigation_refresh);
 
             if button_refresh.clicked() {
-                ProcessSelectorViewData::refresh_full_process_list(self.process_selector_view_data.clone(), self.app_context.engine_execution_context.clone());
+                ProcessSelectorViewData::refresh_full_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
             }
         });
 

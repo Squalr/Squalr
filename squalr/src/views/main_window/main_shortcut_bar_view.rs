@@ -109,7 +109,7 @@ impl Widget for MainShortcutBarView {
                 if !process_selector_view_data.is_awaiting_windowed_process_list {
                     for windowed_process in &process_selector_view_data.windowed_process_list {
                         let icon = match windowed_process.get_icon() {
-                            Some(icon) => process_selector_view_data.get_or_create_icon(&self.app_context, windowed_process.get_process_id_raw(), icon),
+                            Some(icon) => process_selector_view_data.get_icon(&self.app_context, windowed_process.get_process_id_raw(), icon),
                             None => None,
                         };
 
@@ -152,7 +152,7 @@ impl Widget for MainShortcutBarView {
             // Refresh the process list on first click.
             // JIRA: Set an atomic flag maybe on the process view data such that we can show a loading indicator?
             // Could throw in an artificial delay to simulate how this would behave over a network (GUI -> network -> shell).
-            ProcessSelectorViewData::refresh_windowed_process_list(self.process_selector_view_data.clone(), self.app_context.engine_execution_context.clone());
+            ProcessSelectorViewData::refresh_windowed_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
         } else if let Some(process_id) = process_to_open {
             // Drop the read lock to free up the data for write lock access.
             drop(process_selector_view_data);

@@ -1,6 +1,7 @@
 use crate::dependency_injection::dep_tuple::DepTuple;
 use crate::dependency_injection::dependency::Dependency;
 use anyhow::{Result, anyhow};
+use arc_swap::ArcSwap;
 use std::any::{Any, type_name};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
@@ -27,14 +28,16 @@ impl DependencyContainer {
         instance: T,
     ) -> Dependency<T>
     where
-        T: Send + Sync + 'static,
+        T: Clone + Send + Sync + 'static,
     {
         let key = type_name::<T>().to_string();
 
         // Store ready callbacks.
         let ready_callbacks = match self.inner.write() {
             Ok(mut container) => {
-                container.services.insert(key, Arc::new(RwLock::new(instance)));
+                container
+                    .services
+                    .insert(key, Arc::new(ArcSwap::new(Arc::new(instance))));
                 container.collect_ready_callbacks()
             }
             Err(error) => {
@@ -53,31 +56,28 @@ impl DependencyContainer {
         self.get_dependency()
     }
 
-    pub fn get_existing<T>(&self) -> Result<Arc<RwLock<T>>>
+    pub fn get_existing<T>(&self) -> Result<Arc<ArcSwap<T>>>
     where
         T: Send + Sync + 'static,
     {
         let key = type_name::<T>();
-
         let container = self
             .inner
             .read()
-            .map_err(|e| anyhow!("Failed to lock container: {e}"))?;
-
+            .map_err(|error| anyhow!("Failed to lock container: {error}"))?;
         let svc = container
             .services
             .get(key)
             .ok_or_else(|| anyhow!("Dependency not found: {}", key))?;
 
-        // Clone arc and downcast RWLock's inside type
+        // Clone arc and downcast ArcSwap's inner type.
         let arc_any = Arc::clone(svc);
-
-        Arc::downcast::<RwLock<T>>(arc_any).map_err(|_| anyhow!("Type mismatch for dependency {}", key))
+        Arc::downcast::<ArcSwap<T>>(arc_any).map_err(|_| anyhow!("Type mismatch for dependency {}", key))
     }
 
     pub fn get_dependency<T>(&self) -> Dependency<T>
     where
-        T: Send + Sync + 'static,
+        T: Clone + Send + Sync + 'static,
     {
         Dependency::new(self.clone())
     }

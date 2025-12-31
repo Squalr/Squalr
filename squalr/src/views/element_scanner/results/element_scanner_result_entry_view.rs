@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 pub struct ElementScannerResultEntryView<'lifetime> {
     app_context: Arc<AppContext>,
-    scan_result: &'lifetime mut ScanResult,
+    scan_result: &'lifetime ScanResult,
     index: usize,
     is_selected: bool,
     element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
@@ -22,7 +22,7 @@ pub struct ElementScannerResultEntryView<'lifetime> {
 impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
-        scan_result: &'lifetime mut ScanResult,
+        scan_result: &'lifetime ScanResult,
         index: usize,
         is_selected: bool,
         element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
@@ -111,7 +111,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             .place(checkbox_rectangle, Checkbox::new_from_theme(theme).with_check_state_bool(is_frozen))
             .clicked()
         {
-            self.scan_result.set_is_frozen_client_only(!is_frozen);
+            // self.scan_result.set_is_frozen_client_only(!is_frozen);
             *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::FreezeIndex(self.index as i32, !is_frozen);
         }
 

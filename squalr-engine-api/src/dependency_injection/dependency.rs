@@ -1,15 +1,18 @@
 use crate::dependency_injection::dependency_container::DependencyContainer;
+use crate::dependency_injection::write_guard::WriteGuard;
 use anyhow::Result;
 use anyhow::anyhow;
-use std::sync::{Arc, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use arc_swap::ArcSwap;
+use arc_swap::Guard;
+use std::sync::{Arc, OnceLock};
 
-/// A clone-safe wrapper for injected and read-write locked dependencies.
-pub struct Dependency<T: Send + Sync + 'static> {
+/// A clone-safe wrapper for injected and lock-free dependencies. Requires clonable types to achieve lock-free.
+pub struct Dependency<T: Clone + Send + Sync + 'static> {
     container: DependencyContainer,
-    instance: Arc<OnceLock<Result<Arc<RwLock<T>>>>>,
+    instance: Arc<OnceLock<Result<Arc<ArcSwap<T>>>>>,
 }
 
-impl<T: Send + Sync + 'static> Clone for Dependency<T> {
+impl<T: Clone + Send + Sync + 'static> Clone for Dependency<T> {
     fn clone(&self) -> Self {
         Self {
             container: self.container.clone(),
@@ -18,7 +21,7 @@ impl<T: Send + Sync + 'static> Clone for Dependency<T> {
     }
 }
 
-impl<T: Send + Sync + 'static> Dependency<T> {
+impl<T: Clone + Send + Sync + 'static> Dependency<T> {
     pub fn new(container: DependencyContainer) -> Self {
         Self {
             container,
@@ -28,7 +31,7 @@ impl<T: Send + Sync + 'static> Dependency<T> {
 
     /// Get the Arc<RwLock<T>> that lives inside OnceLock
     /// This reference lives as long as &self, so guard lifetimes work.
-    fn get_shared_lock(&self) -> Result<&Arc<RwLock<T>>> {
+    fn get_shared_lock(&self) -> Result<&ArcSwap<T>> {
         let slot = self.instance.get_or_init(|| self.container.get_existing::<T>());
 
         match slot {
@@ -37,21 +40,16 @@ impl<T: Send + Sync + 'static> Dependency<T> {
         }
     }
 
-    /// Acquire a read guard
-    pub fn read(&self) -> Result<RwLockReadGuard<'_, T>> {
+    /// Acquire a read guard.
+    pub fn read(&self) -> Result<Guard<Arc<T>>> {
         let shared_lock = self.get_shared_lock()?;
 
-        shared_lock
-            .read()
-            .map_err(|error| anyhow!("RwLock read poisoned: {error}"))
+        Ok(shared_lock.load())
     }
 
-    /// Acquire a write guard
-    pub fn write(&self) -> Result<RwLockWriteGuard<'_, T>> {
-        let shared_lock = self.get_shared_lock()?;
-
-        shared_lock
-            .write()
-            .map_err(|error| anyhow!("RwLock write poisoned: {error}"))
+    /// Acquire a write guard.
+    pub fn write(&self) -> Result<WriteGuard<'_, T>> {
+        let shared = self.get_shared_lock()?;
+        Ok(WriteGuard::new(shared))
     }
 }

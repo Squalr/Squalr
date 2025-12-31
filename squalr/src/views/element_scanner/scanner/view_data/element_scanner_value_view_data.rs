@@ -4,6 +4,7 @@ use squalr_engine_api::structures::{
     structs::container_type::ContainerType,
 };
 
+#[derive(Clone)]
 pub struct ElementScannerValueViewData {
     pub selected_scan_compare_type: ScanCompareType,
     pub current_scan_value: DisplayValue,

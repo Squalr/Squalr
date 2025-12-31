@@ -56,7 +56,7 @@ impl Widget for ProcessSelectorView {
 
                             for process in &process_selector_view_data.full_process_list {
                                 let icon = match process.get_icon() {
-                                    Some(icon) => process_selector_view_data.get_or_create_icon(&self.app_context, process.get_process_id_raw(), icon),
+                                    Some(icon) => process_selector_view_data.get_icon(&self.app_context, process.get_process_id_raw(), icon),
                                     None => None,
                                 };
 

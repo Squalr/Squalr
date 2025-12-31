@@ -22,6 +22,7 @@ use squalr_engine_api::{
 };
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct ElementScannerViewData {
     pub selected_data_type: DataTypeRef,
     pub view_state: ElementScannerViewState,

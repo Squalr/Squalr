@@ -60,16 +60,16 @@ impl Widget for ElementScannerResultsView {
                     response
                 };
 
-                let mut element_scanner_results_view_data = match self.element_scanner_results_view_data.write() {
-                    Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
+                let (mut value_splitter_ratio, mut previous_value_splitter_ratio) = match self.element_scanner_results_view_data.read() {
+                    Ok(element_scanner_results_view_data) => (
+                        element_scanner_results_view_data.value_splitter_ratio,
+                        element_scanner_results_view_data.previous_value_splitter_ratio,
+                    ),
                     Err(error) => {
                         log::error!("Failed to acquire read lock for element scan results view data: {}", error);
                         return;
                     }
                 };
-
-                let mut value_splitter_ratio = element_scanner_results_view_data.value_splitter_ratio;
-                let mut previous_value_splitter_ratio = element_scanner_results_view_data.previous_value_splitter_ratio;
 
                 // Draw the header.
                 let header_height = 32.0;
@@ -191,6 +191,14 @@ impl Widget for ElementScannerResultsView {
                         user_interface.spacing_mut().item_spacing = Vec2::ZERO;
 
                         user_interface.with_layout(Layout::top_down(Align::Min), |user_interface| {
+                            let element_scanner_results_view_data = match self.element_scanner_results_view_data.read() {
+                                Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
+                                Err(error) => {
+                                    log::error!("Failed to acquire read lock for element scan results view data: {}", error);
+                                    return;
+                                }
+                            };
+
                             // Draw rows, capture min/max Y.
                             for index in 0..element_scanner_results_view_data.current_scan_results.len() {
                                 let is_selected = {
@@ -208,7 +216,7 @@ impl Widget for ElementScannerResultsView {
                                     }
                                 };
 
-                                let mut scan_result = &mut element_scanner_results_view_data.current_scan_results[index];
+                                let scan_result = &element_scanner_results_view_data.current_scan_results[index];
 
                                 // Update the cumulative check state based on whether this scan result is frozen.
                                 if is_selected {
@@ -229,7 +237,7 @@ impl Widget for ElementScannerResultsView {
 
                                 let entry_widget = ElementScannerResultEntryView::new(
                                     self.app_context.clone(),
-                                    &mut scan_result,
+                                    &scan_result,
                                     index,
                                     is_selected,
                                     &mut element_sanner_result_frame_action,
@@ -251,9 +259,6 @@ impl Widget for ElementScannerResultsView {
                             }
                         });
                     });
-
-                // Free the lock such that the action bar can grab it.
-                drop(element_scanner_results_view_data);
 
                 // Draw the footer.
                 user_interface.add(ElementScannerResultsActionBarView::new(
@@ -310,20 +315,14 @@ impl Widget for ElementScannerResultsView {
             .response;
 
         if new_value_splitter_ratio.is_some() || new_previous_value_splitter_ratio.is_some() {
-            let mut element_scanner_results_view_data = match self.element_scanner_results_view_data.write() {
-                Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-                Err(error) => {
-                    log::error!("Failed to acquire write lock for element scan results view data: {}", error);
-                    return response;
+            if let Ok(mut element_scanner_results_view_data) = self.element_scanner_results_view_data.write() {
+                if let Some(new_value_splitter_ratio) = new_value_splitter_ratio {
+                    element_scanner_results_view_data.value_splitter_ratio = new_value_splitter_ratio;
                 }
-            };
 
-            if let Some(new_value_splitter_ratio) = new_value_splitter_ratio {
-                element_scanner_results_view_data.value_splitter_ratio = new_value_splitter_ratio;
-            }
-
-            if let Some(new_previous_value_splitter_ratio) = new_previous_value_splitter_ratio {
-                element_scanner_results_view_data.previous_value_splitter_ratio = new_previous_value_splitter_ratio;
+                if let Some(new_previous_value_splitter_ratio) = new_previous_value_splitter_ratio {
+                    element_scanner_results_view_data.previous_value_splitter_ratio = new_previous_value_splitter_ratio;
+                }
             }
         }
 
