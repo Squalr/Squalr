@@ -41,6 +41,7 @@ pub struct ElementScannerResultsViewData {
     pub edit_value: DisplayValue,
     pub is_querying_scan_results: bool,
     pub is_refreshing_scan_results: bool,
+    pub is_setting_property: bool,
 }
 
 impl ElementScannerResultsViewData {
@@ -61,6 +62,7 @@ impl ElementScannerResultsViewData {
             edit_value: DisplayValue::new(String::new(), DisplayValueType::Decimal, ContainerType::None),
             is_querying_scan_results: false,
             is_refreshing_scan_results: false,
+            is_setting_property: false,
         }
     }
 
@@ -166,12 +168,21 @@ impl ElementScannerResultsViewData {
     }
 
     pub fn set_selected_scan_results_value(
-        &self,
+        element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
         field_namespace: String,
         anonymous_value: AnonymousValue,
     ) {
-        let scan_result_refs = self
+        let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
+        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
+            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
+            Err(error) => {
+                log::error!("Failed to acquire write lock on element scanner results view data: {}", error);
+
+                return;
+            }
+        };
+        let scan_result_refs = element_scanner_results_view_data
             .current_scan_results
             .iter()
             .map(|scan_result| scan_result.get_base_result().get_scan_result_ref().clone())
@@ -183,8 +194,19 @@ impl ElementScannerResultsViewData {
             anonymous_value,
         };
 
+        element_scanner_results_view_data.is_setting_property = true;
+
         scan_results_set_property_request.send(&engine_execution_context, move |scan_results_set_property_response| {
-            // JIRA: TODO
+            let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write() {
+                Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
+                Err(error) => {
+                    log::error!("Failed to acquire write lock on element scanner results view data: {}", error);
+
+                    return;
+                }
+            };
+
+            element_scanner_results_view_data.is_setting_property = false;
         });
     }
 
@@ -205,7 +227,14 @@ impl ElementScannerResultsViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
         play_sound: bool,
     ) {
-        let engine_execution_context_clone = engine_execution_context.clone();
+        if element_scanner_results_view_data
+            .read()
+            .map(|element_scanner_results_view_data| element_scanner_results_view_data.is_querying_scan_results)
+            .unwrap_or(false)
+        {
+            return;
+        }
+
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
             Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
@@ -240,8 +269,6 @@ impl ElementScannerResultsViewData {
                     // audio_player.play_sound(SoundType::Warn);
                 }
             }
-
-            Self::refresh_scan_results(element_scanner_results_view_data_clone, engine_execution_context_clone);
         });
     }
 
@@ -250,6 +277,16 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
+        if element_scanner_results_view_data
+            .read()
+            .map(|element_scanner_results_view_data| {
+                element_scanner_results_view_data.is_querying_scan_results || element_scanner_results_view_data.is_refreshing_scan_results
+            })
+            .unwrap_or(false)
+        {
+            return;
+        }
+
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
             Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
@@ -295,6 +332,14 @@ impl ElementScannerResultsViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
         new_page_index: u64,
     ) {
+        if element_scanner_results_view_data
+            .read()
+            .map(|element_scanner_results_view_data| element_scanner_results_view_data.is_querying_scan_results)
+            .unwrap_or(false)
+        {
+            return;
+        }
+
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write() {
             Ok(element_scanner_results_view_data) => element_scanner_results_view_data,

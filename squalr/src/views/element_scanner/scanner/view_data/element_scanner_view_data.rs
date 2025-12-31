@@ -13,7 +13,7 @@ use squalr_engine_api::{
     engine::engine_execution_context::EngineExecutionContext,
     structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
-        data_values::{anonymous_value::AnonymousValue, display_value::DisplayValue},
+        data_values::anonymous_value::AnonymousValue,
         scanning::{
             comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
             constraints::anonymous_scan_constraint::AnonymousScanConstraint,
@@ -44,6 +44,23 @@ impl ElementScannerViewData {
         element_scanner_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
+        let element_scanner_view_data_view_state = {
+            match element_scanner_view_data.read() {
+                Ok(element_scanner_view_data) => element_scanner_view_data.view_state,
+                Err(error) => {
+                    log::error!("Failed to acquire UI state lock to reset scan: {}", error);
+                    return;
+                }
+            }
+        };
+
+        match element_scanner_view_data_view_state {
+            ElementScannerViewState::ScanInProgress => {
+                return;
+            }
+            ElementScannerViewState::NoResults | ElementScannerViewState::HasResults => {}
+        }
+
         let scan_reset_request = ScanResetRequest {};
 
         scan_reset_request.send(&engine_execution_context, move |scan_reset_response| {
@@ -112,8 +129,8 @@ impl ElementScannerViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
     ) {
         let element_scanner_view_data_clone = element_scanner_view_data.clone();
-        let element_scanner_view_data = {
-            match element_scanner_view_data.read() {
+        let mut element_scanner_view_data = {
+            match element_scanner_view_data.write() {
                 Ok(element_scanner_view_data) => element_scanner_view_data,
                 Err(error) => {
                     log::error!("Failed to acquire UI state lock to start scan: {}", error);
@@ -137,17 +154,11 @@ impl ElementScannerViewData {
             data_type_refs,
         };
 
+        element_scanner_view_data.view_state = ElementScannerViewState::ScanInProgress;
+
         drop(element_scanner_view_data);
 
         element_scan_request.send(&engine_execution_context, move |scan_execute_response| {
-            match element_scanner_view_data_clone.write() {
-                Ok(mut element_scanner_view_data) => {
-                    element_scanner_view_data.view_state = ElementScannerViewState::ScanInProgress;
-                }
-                Err(error) => {
-                    log::error!("Failed to write element scanner view state: {}", error);
-                }
-            }
             // JIRA: We actually need to wait for the task to complete, which can be tricky with our request/response architecture.
             // For now we just set it immediately to avoid being stuck in in progress state.
             // JIRA: Use scan_execute_response.trackable_task_handle;
@@ -181,7 +192,7 @@ impl ElementScannerViewData {
                 .scan_values_and_constraints
                 .push(ElementScannerValueViewData {
                     selected_scan_compare_type: ScanCompareType::Immediate(ScanCompareTypeImmediate::LessThanOrEqual),
-                    current_scan_value: DisplayValue::default(),
+                    ..ElementScannerValueViewData::new()
                 });
         } else {
             element_scanner_view_data

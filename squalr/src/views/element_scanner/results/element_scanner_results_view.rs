@@ -1,13 +1,18 @@
 use crate::{
     app_context::AppContext,
     ui::{draw::icon_draw::IconDraw, widgets::controls::check_state::CheckState},
-    views::element_scanner::results::{
-        element_scanner_result_entry_view::ElementScannerResultEntryView,
-        element_scanner_results_action_bar_view::ElementScannerResultsActionBarView,
-        view_data::{element_scanner_result_frame_action::ElementScannerResultFrameAction, element_scanner_results_view_data::ElementScannerResultsViewData},
+    views::element_scanner::{
+        results::{
+            element_scanner_result_entry_view::ElementScannerResultEntryView,
+            element_scanner_results_action_bar_view::ElementScannerResultsActionBarView,
+            view_data::{
+                element_scanner_result_frame_action::ElementScannerResultFrameAction, element_scanner_results_view_data::ElementScannerResultsViewData,
+            },
+        },
+        scanner::{element_scanner_view_state::ElementScannerViewState, view_data::element_scanner_view_data::ElementScannerViewData},
     },
 };
-use eframe::egui::{Align, Align2, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
+use eframe::egui::{Align, Align2, CursorIcon, Direction, Layout, Response, ScrollArea, Sense, Spinner, Ui, Widget};
 use epaint::{Margin, Rect, Vec2, pos2, vec2};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
@@ -15,11 +20,15 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct ElementScannerResultsView {
     app_context: Arc<AppContext>,
+    element_scanner_view_data: Dependency<ElementScannerViewData>,
     element_scanner_results_view_data: Dependency<ElementScannerResultsViewData>,
 }
 
 impl ElementScannerResultsView {
     pub fn new(app_context: Arc<AppContext>) -> Self {
+        let element_scanner_view_data = app_context
+            .dependency_container
+            .register(ElementScannerViewData::new());
         let element_scanner_results_view_data = app_context
             .dependency_container
             .register(ElementScannerResultsViewData::new());
@@ -28,6 +37,7 @@ impl ElementScannerResultsView {
 
         Self {
             app_context,
+            element_scanner_view_data,
             element_scanner_results_view_data,
         }
     }
@@ -185,20 +195,41 @@ impl Widget for ElementScannerResultsView {
                     .max_height(content_height)
                     .auto_shrink([false, false])
                     .show(&mut user_interface, |user_interface| {
+                        let element_scanner_results_view_data = match self.element_scanner_results_view_data.read() {
+                            Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
+                            Err(error) => {
+                                log::error!("Failed to acquire read lock for element scan results view data: {}", error);
+                                return;
+                            }
+                        };
+                        let element_scanner_view_data = match self.element_scanner_view_data.read() {
+                            Ok(element_scanner_view_data) => element_scanner_view_data,
+                            Err(error) => {
+                                log::error!("Failed to acquire read lock for element scan results view data: {}", error);
+                                return;
+                            }
+                        };
+
                         user_interface.spacing_mut().menu_margin = Margin::ZERO;
                         user_interface.spacing_mut().window_margin = Margin::ZERO;
                         user_interface.spacing_mut().menu_spacing = 0.0;
                         user_interface.spacing_mut().item_spacing = Vec2::ZERO;
 
-                        user_interface.with_layout(Layout::top_down(Align::Min), |user_interface| {
-                            let element_scanner_results_view_data = match self.element_scanner_results_view_data.read() {
-                                Ok(element_scanner_results_view_data) => element_scanner_results_view_data,
-                                Err(error) => {
-                                    log::error!("Failed to acquire read lock for element scan results view data: {}", error);
-                                    return;
-                                }
-                            };
+                        if element_scanner_view_data.view_state == ElementScannerViewState::ScanInProgress
+                            || element_scanner_results_view_data.is_querying_scan_results
+                        {
+                            user_interface.allocate_ui_with_layout(
+                                vec2(user_interface.available_width(), 32.0),
+                                Layout::centered_and_justified(Direction::LeftToRight),
+                                |user_interface| {
+                                    user_interface.add(Spinner::new().color(theme.foreground));
+                                },
+                            );
 
+                            return;
+                        }
+
+                        user_interface.with_layout(Layout::top_down(Align::Min), |user_interface| {
                             // Draw rows, capture min/max Y.
                             for index in 0..element_scanner_results_view_data.current_scan_results.len() {
                                 let is_selected = {
