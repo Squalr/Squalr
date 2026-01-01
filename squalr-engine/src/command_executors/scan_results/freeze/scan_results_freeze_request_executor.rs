@@ -47,8 +47,12 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
             vec![]
         };
 
+        let mut failed_freeze_toggle_scan_result_refs = Vec::new();
+
         for scan_result_ref in &self.scan_result_refs {
-            if let Some(scan_result) = snapshot_guard.get_scan_result(scan_result_ref.get_scan_result_index()) {
+            let scan_result_index = scan_result_ref.get_scan_result_global_index();
+
+            if let Some(scan_result) = snapshot_guard.get_scan_result(scan_result_index) {
                 let address = scan_result.get_address();
                 let mut module_name = String::default();
                 let mut module_offset = scan_result.get_address();
@@ -71,15 +75,21 @@ impl EngineCommandRequestExecutor for ScanResultsFreezeRequest {
                         if let Some(mut data_value) = symbol_registry.get_default_value(data_type_ref) {
                             if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
                                 freeze_list_registry_guard.set_address_frozen(pointer, data_value.get_value_bytes().to_vec());
+                                continue;
                             }
                         }
                     }
                 } else {
                     freeze_list_registry_guard.set_address_unfrozen(&pointer);
+                    continue;
                 }
             }
+
+            failed_freeze_toggle_scan_result_refs.push(scan_result_ref.clone());
         }
 
-        ScanResultsFreezeResponse {}
+        ScanResultsFreezeResponse {
+            failed_freeze_toggle_scan_result_refs,
+        }
     }
 }

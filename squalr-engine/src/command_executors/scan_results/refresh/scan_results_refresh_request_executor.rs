@@ -42,7 +42,7 @@ impl EngineCommandRequestExecutor for ScanResultsRefreshRequest {
 
         // Wrap each ScanResultBase with a full ScanResult that includes current values and module information.
         for scan_result_ref in self.scan_result_refs.clone().into_iter() {
-            if let Some(scan_result) = snapshot_guard.get_scan_result(scan_result_ref.get_scan_result_index()) {
+            if let Some(scan_result) = snapshot_guard.get_scan_result(scan_result_ref.get_scan_result_global_index()) {
                 let mut recently_read_value = None;
                 let mut module_name = String::default();
                 let address = scan_result.get_address();

@@ -22,7 +22,6 @@ use squalr_engine_api::{
     events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent,
     structures::{data_values::anonymous_value::AnonymousValue, scan_results::scan_result::ScanResult},
 };
-use std::cmp::{self};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::{thread, time::Duration};
@@ -42,7 +41,8 @@ pub struct ElementScannerResultsViewData {
     pub edit_value: DisplayValue,
     pub is_querying_scan_results: bool,
     pub is_refreshing_scan_results: bool,
-    pub is_setting_property: bool,
+    pub is_setting_properties: bool,
+    pub is_freezing_entries: bool,
 }
 
 impl ElementScannerResultsViewData {
@@ -63,7 +63,8 @@ impl ElementScannerResultsViewData {
             edit_value: DisplayValue::new(String::new(), DisplayValueType::Decimal, ContainerType::None),
             is_querying_scan_results: false,
             is_refreshing_scan_results: false,
-            is_setting_property: false,
+            is_setting_properties: false,
+            is_freezing_entries: false,
         }
     }
 
@@ -179,7 +180,7 @@ impl ElementScannerResultsViewData {
             anonymous_value,
         };
 
-        element_scanner_results_view_data.is_setting_property = true;
+        element_scanner_results_view_data.is_setting_properties = true;
 
         scan_results_set_property_request.send(&engine_execution_context, move |scan_results_set_property_response| {
             let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write("Set selected scan results response") {
@@ -187,7 +188,7 @@ impl ElementScannerResultsViewData {
                 None => return,
             };
 
-            element_scanner_results_view_data.is_setting_property = false;
+            element_scanner_results_view_data.is_setting_properties = false;
         });
     }
 
@@ -438,12 +439,17 @@ impl ElementScannerResultsViewData {
         local_scan_result_index: i32,
         is_frozen: bool,
     ) {
+        let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
         let local_scan_result_indices_vec = (local_scan_result_index..=local_scan_result_index).collect::<Vec<_>>();
         let scan_result_refs = Self::collect_scan_result_refs_by_indicies(element_scanner_results_view_data.clone(), &&local_scan_result_indices_vec);
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Element scanner results view data: set scan result frozen") {
             Some(element_scanner_results_view_data) => element_scanner_results_view_data,
             None => return,
         };
+
+        if element_scanner_results_view_data.is_freezing_entries {
+            return;
+        }
 
         if let Some(scan_result) = element_scanner_results_view_data
             .current_scan_results
@@ -454,11 +460,37 @@ impl ElementScannerResultsViewData {
             log::warn!("Failed to find scan result to apply client side freeze at index: {}", local_scan_result_index)
         }
 
+        element_scanner_results_view_data.is_freezing_entries = true;
+
         if !scan_result_refs.is_empty() {
             let engine_execution_context = &engine_execution_context;
             let scan_results_freeze_request = ScanResultsFreezeRequest { scan_result_refs, is_frozen };
 
-            scan_results_freeze_request.send(engine_execution_context, |scan_results_freeze_response| {});
+            scan_results_freeze_request.send(engine_execution_context, move |scan_results_freeze_response| {
+                let mut element_scanner_results_view_data =
+                    match element_scanner_results_view_data_clone.write("Element scanner results view data: set scan result frozen response") {
+                        Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+                        None => return,
+                    };
+
+                // Revert failures by mapping global -> local, and revert to previous state.
+                for failed_scan_result_ref in scan_results_freeze_response.failed_freeze_toggle_scan_result_refs {
+                    let global_index = failed_scan_result_ref.get_scan_result_global_index();
+
+                    if let Some(local_index) = Self::find_local_index_by_global_index(&element_scanner_results_view_data, global_index) {
+                        if let Some(scan_result) = element_scanner_results_view_data
+                            .current_scan_results
+                            .get_mut(local_index)
+                        {
+                            scan_result.set_is_frozen_client_only(!is_frozen);
+                        }
+                    } else {
+                        log::warn!("Failed to find scan result to revert client side freeze (global index: {})", global_index);
+                    }
+                }
+
+                element_scanner_results_view_data.is_freezing_entries = false;
+            });
         }
     }
 
@@ -467,6 +499,7 @@ impl ElementScannerResultsViewData {
         engine_execution_context: Arc<EngineExecutionContext>,
         is_frozen: bool,
     ) {
+        let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
         let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data.clone());
         let mut element_scanner_results_view_data =
             match element_scanner_results_view_data.write("Element scanner results view data: set selected scan results frozen") {
@@ -474,15 +507,45 @@ impl ElementScannerResultsViewData {
                 None => return,
             };
 
+        if element_scanner_results_view_data.is_freezing_entries {
+            return;
+        }
+
         Self::for_each_selected_scan_result(&mut element_scanner_results_view_data, |scan_result| {
             scan_result.set_is_frozen_client_only(is_frozen);
         });
+
+        element_scanner_results_view_data.is_freezing_entries = true;
 
         if !scan_result_refs.is_empty() {
             let engine_execution_context = &engine_execution_context;
             let scan_results_freeze_request = ScanResultsFreezeRequest { scan_result_refs, is_frozen };
 
-            scan_results_freeze_request.send(engine_execution_context, |scan_results_freeze_response| {});
+            scan_results_freeze_request.send(engine_execution_context, move |scan_results_freeze_response| {
+                let mut element_scanner_results_view_data =
+                    match element_scanner_results_view_data_clone.write("Element scanner results view data: set selected scan results frozen response") {
+                        Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+                        None => return,
+                    };
+
+                // Revert failures by mapping global -> local, and revert to previous state.
+                for failed_scan_result_ref in scan_results_freeze_response.failed_freeze_toggle_scan_result_refs {
+                    let global_index = failed_scan_result_ref.get_scan_result_global_index();
+
+                    if let Some(local_index) = Self::find_local_index_by_global_index(&element_scanner_results_view_data, global_index) {
+                        if let Some(scan_result) = element_scanner_results_view_data
+                            .current_scan_results
+                            .get_mut(local_index)
+                        {
+                            scan_result.set_is_frozen_client_only(!is_frozen);
+                        }
+                    } else {
+                        log::warn!("Failed to find scan result to revert client side freeze (global index: {})", global_index);
+                    }
+                }
+
+                element_scanner_results_view_data.is_freezing_entries = false;
+            });
         }
     }
 
@@ -565,5 +628,21 @@ impl ElementScannerResultsViewData {
             .collect();
 
         scan_results
+    }
+
+    fn find_local_index_by_global_index(
+        element_scanner_results_view_data: &ElementScannerResultsViewData,
+        global_index: u64,
+    ) -> Option<usize> {
+        element_scanner_results_view_data
+            .current_scan_results
+            .iter()
+            .position(|scan_result| {
+                scan_result
+                    .get_base_result()
+                    .get_scan_result_ref()
+                    .get_scan_result_global_index()
+                    == global_index
+            })
     }
 }

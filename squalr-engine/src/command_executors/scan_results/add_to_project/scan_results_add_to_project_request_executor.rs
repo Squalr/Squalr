@@ -37,7 +37,7 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
             Ok(mut opened_project) => {
                 if let Some(project) = opened_project.as_mut() {
                     for scan_result_ref in &self.scan_result_refs {
-                        if let Some(scan_result) = snapshot_guard.get_scan_result(scan_result_ref.get_scan_result_index()) {
+                        if let Some(scan_result) = snapshot_guard.get_scan_result(scan_result_ref.get_scan_result_global_index()) {
                             let data_type_ref = scan_result.get_data_type_ref();
                             /*
                             if let Some(data_value) = symbol_registry_guard.get_default_value(data_type_ref) {

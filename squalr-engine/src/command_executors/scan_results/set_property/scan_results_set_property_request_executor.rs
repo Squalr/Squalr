@@ -32,7 +32,7 @@ impl EngineCommandRequestExecutor for ScanResultsSetPropertyRequest {
         match self.field_namespace.as_str() {
             ScanResult::PROPERTY_NAME_VALUE => {
                 for scan_result_ref in &self.scan_result_refs {
-                    if let Some(scan_result) = snapshot_guard.get_scan_result(scan_result_ref.get_scan_result_index()) {
+                    if let Some(scan_result) = snapshot_guard.get_scan_result(scan_result_ref.get_scan_result_global_index()) {
                         if let Ok(data_value) = symbol_registry.deanonymize_value(scan_result.get_data_type_ref(), self.anonymous_value.get_value()) {
                             let value_bytes = data_value.get_value_bytes();
                             let address = scan_result.get_address();
