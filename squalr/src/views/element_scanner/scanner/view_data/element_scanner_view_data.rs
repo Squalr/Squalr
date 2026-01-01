@@ -36,7 +36,7 @@ impl ElementScannerViewData {
         Self {
             selected_data_type: DataTypeRef::new(DataTypeI32::get_data_type_id()),
             view_state: ElementScannerViewState::NoResults,
-            scan_values_and_constraints: vec![ElementScannerValueViewData::new()],
+            scan_values_and_constraints: vec![ElementScannerValueViewData::new(Self::create_menu_id(0))],
         }
     }
 
@@ -166,22 +166,24 @@ impl ElementScannerViewData {
             None => return,
         };
 
-        if element_scanner_view_data.scan_values_and_constraints.len() >= Self::MAX_CONSTRAINTS {
+        let next_index = element_scanner_view_data.scan_values_and_constraints.len();
+
+        if next_index >= Self::MAX_CONSTRAINTS {
             return;
         }
 
         // If creating the 2nd constraint, <= is the most common constraint, so default to that for a better UX.
-        if element_scanner_view_data.scan_values_and_constraints.len() == 1 {
+        if next_index == 1 {
             element_scanner_view_data
                 .scan_values_and_constraints
                 .push(ElementScannerValueViewData {
                     selected_scan_compare_type: ScanCompareType::Immediate(ScanCompareTypeImmediate::LessThanOrEqual),
-                    ..ElementScannerValueViewData::new()
+                    ..ElementScannerValueViewData::new(Self::create_menu_id(next_index))
                 });
         } else {
             element_scanner_view_data
                 .scan_values_and_constraints
-                .push(ElementScannerValueViewData::new());
+                .push(ElementScannerValueViewData::new(Self::create_menu_id(next_index)));
         }
     }
 
@@ -201,5 +203,9 @@ impl ElementScannerViewData {
         element_scanner_view_data
             .scan_values_and_constraints
             .remove(index);
+    }
+
+    fn create_menu_id(index: usize) -> String {
+        format!("element_scanner_data_type_selector_{}", index)
     }
 }

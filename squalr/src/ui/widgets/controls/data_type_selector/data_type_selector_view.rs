@@ -19,6 +19,7 @@ use std::sync::Arc;
 pub struct DataTypeSelectorView<'lifetime> {
     app_context: Arc<AppContext>,
     active_data_type: &'lifetime mut DataTypeRef,
+    menu_id: &'lifetime str,
     width: f32,
     height: f32,
 }
@@ -27,10 +28,12 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         active_data_type: &'lifetime mut DataTypeRef,
+        menu_id: &'lifetime str,
     ) -> Self {
         Self {
             app_context,
             active_data_type,
+            menu_id,
             width: 160.0,
             height: 28.0,
         }
@@ -80,6 +83,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let combo_box = ComboBoxView::new(
             self.app_context.clone(),
             DataTypeToStringConverter::convert_data_type_to_string(data_type_id),
+            self.menu_id,
             Some(icon),
             |popup_user_interface: &mut Ui, should_close: &mut bool| {
                 popup_user_interface.vertical(|user_interface| {

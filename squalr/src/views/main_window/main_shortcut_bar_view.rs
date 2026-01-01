@@ -85,6 +85,7 @@ impl Widget for MainShortcutBarView {
         let process_select_combo_box = ComboBoxView::new(
             self.app_context.clone(),
             name_display,
+            "main_shortcut_bar_process_select",
             process_selector_view_data.cached_icon.clone(),
             |user_interface: &mut Ui, should_close: &mut bool| {
                 if process_selector_view_data.opened_process.is_some() {

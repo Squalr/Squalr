@@ -36,6 +36,10 @@ impl<'lifetime> ToolbarMenuItemView<'lifetime> {
         self.width = width;
         self
     }
+
+    pub fn get_item_id(&self) -> &str {
+        &self.item_id
+    }
 }
 
 impl<'a> Widget for ToolbarMenuItemView<'a> {

@@ -8,13 +8,15 @@ use squalr_engine_api::structures::{
 pub struct ElementScannerValueViewData {
     pub selected_scan_compare_type: ScanCompareType,
     pub current_scan_value: DisplayValue,
+    pub menu_id: String,
 }
 
 impl ElementScannerValueViewData {
-    pub fn new() -> Self {
+    pub fn new(menu_id: String) -> Self {
         Self {
             selected_scan_compare_type: ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
             current_scan_value: DisplayValue::new(String::new(), DisplayValueType::Decimal, ContainerType::None),
+            menu_id,
         }
     }
 }

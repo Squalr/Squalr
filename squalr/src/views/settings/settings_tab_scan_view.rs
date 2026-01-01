@@ -237,6 +237,7 @@ impl Widget for SettingsTabScanView {
                             user_interface.add(ComboBoxView::new(
                                 self.app_context.clone(),
                                 "x-byte aligned",
+                                "settings_tab_scan_alignment",
                                 None,
                                 |user_interface: &mut Ui, should_close: &mut bool| {
                                     //

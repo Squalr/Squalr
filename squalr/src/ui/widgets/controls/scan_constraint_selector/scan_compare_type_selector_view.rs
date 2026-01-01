@@ -14,6 +14,7 @@ use std::sync::Arc;
 pub struct ScanCompareTypeSelectorView<'lifetime> {
     app_context: Arc<AppContext>,
     active_scan_compare_type: &'lifetime mut ScanCompareType,
+    menu_id: &'lifetime str,
     width: f32,
     height: f32,
 }
@@ -22,10 +23,12 @@ impl<'lifetime> ScanCompareTypeSelectorView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         active_scan_compare_type: &'lifetime mut ScanCompareType,
+        item_id: &'lifetime str,
     ) -> Self {
         Self {
             app_context,
             active_scan_compare_type,
+            menu_id: item_id,
             width: 232.0,
             height: 28.0,
         }
@@ -110,6 +113,7 @@ impl<'lifetime> Widget for ScanCompareTypeSelectorView<'lifetime> {
         let combo_box = ComboBoxView::new(
             self.app_context.clone(),
             ScanCompareTypeToStringConverter::convert_scan_compare_type_to_string(&self.active_scan_compare_type),
+            self.menu_id,
             Some(selected_icon),
             |popup_user_interface: &mut Ui, should_close: &mut bool| {
                 popup_user_interface.vertical(|user_interface| {

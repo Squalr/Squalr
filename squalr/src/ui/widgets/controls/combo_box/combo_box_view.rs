@@ -8,6 +8,7 @@ use std::sync::Arc;
 pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
     app_context: Arc<AppContext>,
     label: &'lifetime str,
+    menu_id: &'lifetime str,
     icon: Option<TextureHandle>,
     add_contents: F,
     width: f32,
@@ -23,12 +24,14 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
     pub fn new(
         app_context: Arc<AppContext>,
         label: &'lifetime str,
+        menu_id: &'lifetime str,
         icon: Option<TextureHandle>,
         add_contents: F,
     ) -> Self {
         Self {
             app_context,
             label,
+            menu_id,
             icon,
             add_contents,
             width: 192.0,
@@ -162,7 +165,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         );
 
         // Popup logic
-        let popup_id = Id::new(("combo_popup", user_interface.id().value(), self.label));
+        let popup_id = Id::new((self.menu_id, user_interface.id().value(), self.label));
         let mut open = user_interface.memory(|memory| memory.data.get_temp::<bool>(popup_id).unwrap_or(false));
 
         if response.clicked() {

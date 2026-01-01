@@ -114,6 +114,7 @@ impl Widget for ElementScannerToolbarView {
                 user_interface.add(DataTypeSelectorView::new(
                     self.app_context.clone(),
                     &mut element_scanner_view_data.selected_data_type,
+                    "element_scanner_data_type_selector",
                 ));
 
                 // Collect values.
@@ -157,6 +158,7 @@ impl Widget for ElementScannerToolbarView {
                     user_interface.add(ScanCompareTypeSelectorView::new(
                         self.app_context.clone(),
                         &mut scan_values_and_constraint.selected_scan_compare_type,
+                        &scan_values_and_constraint.menu_id,
                     ));
                     // Scan value (primary).
                     match &scan_values_and_constraint.selected_scan_compare_type {
