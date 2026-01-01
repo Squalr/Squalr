@@ -23,6 +23,7 @@ use squalr_engine_api::{
     structures::{data_values::anonymous_value::AnonymousValue, scan_results::scan_result::ScanResult},
 };
 use std::cmp::{self};
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::{thread, time::Duration};
 
@@ -438,13 +439,26 @@ impl ElementScannerResultsViewData {
         is_frozen: bool,
     ) {
         let local_scan_result_indices_vec = (local_scan_result_index..=local_scan_result_index).collect::<Vec<_>>();
-        let scan_result_refs = Self::collect_scan_result_refs_by_indicies(element_scanner_results_view_data, &&local_scan_result_indices_vec);
+        let scan_result_refs = Self::collect_scan_result_refs_by_indicies(element_scanner_results_view_data.clone(), &&local_scan_result_indices_vec);
+        let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Element scanner results view data: set scan result frozen") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return,
+        };
+
+        if let Some(scan_result) = element_scanner_results_view_data
+            .current_scan_results
+            .get_mut(local_scan_result_index as usize)
+        {
+            scan_result.set_is_frozen_client_only(is_frozen);
+        } else {
+            log::warn!("Failed to find scan result to apply client side freeze at index: {}", local_scan_result_index)
+        }
 
         if !scan_result_refs.is_empty() {
             let engine_execution_context = &engine_execution_context;
             let scan_results_freeze_request = ScanResultsFreezeRequest { scan_result_refs, is_frozen };
 
-            scan_results_freeze_request.send(engine_execution_context, |_response| {});
+            scan_results_freeze_request.send(engine_execution_context, |scan_results_freeze_response| {});
         }
     }
 
@@ -454,18 +468,70 @@ impl ElementScannerResultsViewData {
         is_frozen: bool,
     ) {
         let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data.clone());
+        let mut element_scanner_results_view_data =
+            match element_scanner_results_view_data.write("Element scanner results view data: set selected scan results frozen") {
+                Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+                None => return,
+            };
+
+        Self::for_each_selected_scan_result(&mut element_scanner_results_view_data, |scan_result| {
+            scan_result.set_is_frozen_client_only(is_frozen);
+        });
 
         if !scan_result_refs.is_empty() {
             let engine_execution_context = &engine_execution_context;
             let scan_results_freeze_request = ScanResultsFreezeRequest { scan_result_refs, is_frozen };
 
-            scan_results_freeze_request.send(engine_execution_context, |_response| {});
+            scan_results_freeze_request.send(engine_execution_context, |scan_results_freeze_response| {});
+        }
+    }
+
+    fn get_selected_results_range(element_scanner_results_view_data: &ElementScannerResultsViewData) -> Option<RangeInclusive<usize>> {
+        let start = element_scanner_results_view_data
+            .selection_index_start
+            .or(element_scanner_results_view_data.selection_index_end)?;
+        let end = element_scanner_results_view_data
+            .selection_index_end
+            .or(element_scanner_results_view_data.selection_index_start)?;
+        let (range_low, range_high) = (start.min(end), start.max(end));
+
+        Some(range_low.max(0) as usize..=range_high.max(0) as usize)
+    }
+
+    fn for_each_selected_scan_result(
+        element_scanner_results_view_data: &mut ElementScannerResultsViewData,
+        mut callback: impl FnMut(&mut ScanResult),
+    ) {
+        let Some(range) = Self::get_selected_results_range(element_scanner_results_view_data) else {
+            return;
+        };
+
+        for index in range {
+            if let Some(scan_result) = element_scanner_results_view_data
+                .current_scan_results
+                .get_mut(index)
+            {
+                callback(scan_result);
+            }
         }
     }
 
     fn collect_selected_scan_result_refs(element_scanner_results_view_data: Dependency<Self>) -> Vec<ScanResultRef> {
-        Self::collect_selected_scan_results(element_scanner_results_view_data)
-            .into_iter()
+        let element_scanner_results_view_data = match element_scanner_results_view_data.read("Collect selected scan result refs") {
+            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+            None => return Vec::new(),
+        };
+
+        let Some(range) = Self::get_selected_results_range(&element_scanner_results_view_data) else {
+            return Vec::new();
+        };
+
+        range
+            .filter_map(|index| {
+                element_scanner_results_view_data
+                    .current_scan_results
+                    .get(index)
+            })
             .map(|scan_result| scan_result.get_base_result().get_scan_result_ref().clone())
             .collect()
     }
@@ -477,46 +543,6 @@ impl ElementScannerResultsViewData {
         Self::collect_scan_result_bases_by_indicies(element_scanner_results_view_data, local_scan_result_indices)
             .into_iter()
             .map(|scan_result| scan_result.get_scan_result_ref().clone())
-            .collect()
-    }
-
-    fn collect_selected_scan_results(element_scanner_results_view_data: Dependency<Self>) -> Vec<ScanResult> {
-        let element_scanner_results_view_data = match element_scanner_results_view_data.read("Collect selected scan results") {
-            Some(element_scanner_results_view_data) => element_scanner_results_view_data,
-            None => return Vec::new(),
-        };
-
-        // Pull out the optional bounds.
-        let mut initial_selection_index_start = element_scanner_results_view_data.selection_index_start;
-        let mut initial_selection_index_end = element_scanner_results_view_data.selection_index_end;
-
-        // If either start or end is invalid, set the start and end to the same value (single selection).
-        match (initial_selection_index_start, initial_selection_index_end) {
-            (Some(start), None) => {
-                initial_selection_index_end = Some(start);
-            }
-            (None, Some(end)) => {
-                initial_selection_index_start = Some(end);
-            }
-            _ => {}
-        }
-
-        // If both are invalid, return empty.
-        let (Some(start), Some(end)) = (initial_selection_index_start, initial_selection_index_end) else {
-            return vec![];
-        };
-
-        let selection_index_start = cmp::min(start, end);
-        let selection_index_end = cmp::max(start, end);
-        let local_scan_result_indices = selection_index_start..=selection_index_end;
-
-        local_scan_result_indices
-            .filter_map(|index| {
-                element_scanner_results_view_data
-                    .current_scan_results
-                    .get(index as usize)
-                    .cloned()
-            })
             .collect()
     }
 
