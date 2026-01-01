@@ -66,11 +66,11 @@ Squalr has two components, a privileged interface, and an unprivileged core. Thi
 
 This allows us to create several different modes, such as a unified GUI/CLI/TUI build, an MPC shell, and a potential remote host to control a remote shell or MPC endpoint.
 
-| Platform | GUI | CLI | TUI |  MCP | Remote (Host) | Remote (Shell) |
-|----------|-----|-----|-----|-----|
-| Desktop | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Android | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| iPhone | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Platform   | GUI   | CLI   | TUI   | MCP    | Remote (Host)   | Remote (Shell)   |
+| ---------- | ----- | ----- | ----- | ------ | --------------- | ---------------- |
+| Desktop    | ✅    | ✅    | ✅    | ✅     | ✅              | ✅               |
+| Android    | ✅    | ✅    | ✅    | ✅     | ❌              | ✅               |
+| iPhone     | ✅    | ✅    | ✅    | ✅     | ❌              | ✅               |
 
 ### Architecture Glossary
 - A **snapshot** is a full query of all virtual memory regions in an internal process. This is generally done in two passes, once to determine the virtual page addresses and sizes, and another pass to collect the values.

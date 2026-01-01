@@ -1,7 +1,8 @@
-use crate::process_info::ProcessIcon;
-use crate::process_info::{OpenedProcessInfo, ProcessInfo};
-use crate::process_query::process_queryer::ProcessQueryOptions;
+use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
+use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use std::sync::{Arc, RwLock};
 use sysinfo::{Pid, System};
 
@@ -24,6 +25,14 @@ impl LinuxProcessQuery {
 }
 
 impl ProcessQueryer for LinuxProcessQuery {
+    fn start_monitoring() -> Result<(), String> {
+        Err("Not implemented".into())
+    }
+
+    fn stop_monitoring() -> Result<(), String> {
+        Err("Not implemented".into())
+    }
+
     fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
         Err("Not implemented".into())
     }
@@ -32,10 +41,7 @@ impl ProcessQueryer for LinuxProcessQuery {
         Err("Not implemented".into())
     }
 
-    fn get_processes(
-        options: ProcessQueryOptions,
-        system: Arc<RwLock<System>>,
-    ) -> Vec<ProcessInfo> {
+    fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
         vec![]
     }
 }

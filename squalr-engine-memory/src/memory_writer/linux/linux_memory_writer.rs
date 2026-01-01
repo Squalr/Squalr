@@ -1,5 +1,5 @@
 use crate::memory_writer::memory_writer_trait::IMemoryWriter;
-use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use std::os::raw::c_void;
 use std::ptr::null_mut;
 
@@ -20,22 +20,12 @@ impl LinuxMemoryWriter {
 }
 
 impl IMemoryWriter for LinuxMemoryWriter {
-    fn write(
-        &self,
-        process_handle: u64,
-        address: u64,
-        value: &dyn ToBytes,
-    ) -> bool {
-        let bytes = value.to_bytes();
-        Self::write_memory(process_handle, address, &bytes)
-    }
-
     fn write_bytes(
         &self,
-        process_handle: u64,
+        process_info: &OpenedProcessInfo,
         address: u64,
         values: &[u8],
     ) -> bool {
-        Self::write_memory(process_handle, address, values)
+        Self::write_memory(process_info.get_handle(), address, values)
     }
 }
