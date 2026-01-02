@@ -32,42 +32,6 @@ impl ProjectManager {
         instance
     }
 
-    /// Sets the project to which we are currently attached.
-    pub fn set_opened_project(
-        &self,
-        project_info: Project,
-    ) {
-        match self.opened_project.write() {
-            Ok(mut project) => {
-                log::info!("Opened project: {}", project_info.get_name());
-                *project = Some(project_info);
-            }
-            Err(error) => {
-                log::error!("Error opening project: {}", error);
-                return;
-            }
-        }
-
-        self.notify_project_items_changed();
-    }
-
-    /// Closes the currently opened project.
-    pub fn close_opened_project(&self) {
-        match self.opened_project.write() {
-            Ok(mut project) => {
-                *project = None;
-
-                log::info!("Project closed.");
-            }
-            Err(error) => {
-                log::error!("Error closing project: {}", error);
-                return;
-            }
-        }
-
-        self.notify_project_items_changed();
-    }
-
     /// Dispatches an engine event indicating that the project items have changed.
     pub fn notify_project_items_changed(&self) {
         if let Ok(project) = self.opened_project.read() {

@@ -14,6 +14,7 @@ impl EngineCommandRequestExecutor for ProjectCreateRequest {
         &self,
         _engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+        /*
         // If a path is provided, use this directly. Otherwise, try to use the project settings relative name to construct the path.
         // If no path nor project name is provided, we will just make an empty project with a default name.
         let project_path = if let Some(path) = &self.project_path {
@@ -32,7 +33,7 @@ impl EngineCommandRequestExecutor for ProjectCreateRequest {
             }
         };
 
-        match Project::create_new_project(&project_path) {
+        match Project::operation_create_project(&project_path) {
             Ok(project) => {
                 let project_info = project.get_project_info().clone();
 
@@ -45,6 +46,8 @@ impl EngineCommandRequestExecutor for ProjectCreateRequest {
 
                 ProjectCreateResponse { created_project_info: None }
             }
-        }
+        }*/
+
+        ProjectCreateResponse { created_project_info: None }
     }
 }

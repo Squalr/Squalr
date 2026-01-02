@@ -2,11 +2,8 @@ use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
+use squalr_engine_api::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_api::{
-    registries::symbols::symbol_registry::SymbolRegistry,
-    structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan,
-};
 
 pub struct ScannerScalarIterative {}
 
@@ -27,19 +24,9 @@ impl Scanner for ScannerScalarIterative {
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_filter_element_scan_plan: &SnapshotFilterElementScanPlan,
     ) -> Vec<SnapshotRegionFilter> {
-        /*
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return vec![];
-            }
-        };*/
         let base_address = snapshot_region_filter.get_base_address();
         let memory_alignment = snapshot_filter_element_scan_plan.get_memory_alignment();
         let memory_alignment_size = memory_alignment as u64;
-        let data_type_ref = snapshot_filter_element_scan_plan.get_data_type_ref();
         let data_type_size = snapshot_filter_element_scan_plan.get_unit_size_in_bytes();
         let data_type_size_padding = data_type_size.saturating_sub(memory_alignment_size);
         let element_count = snapshot_region_filter.get_element_count(data_type_size, memory_alignment);

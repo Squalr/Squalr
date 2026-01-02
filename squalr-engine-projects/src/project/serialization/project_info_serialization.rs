@@ -24,14 +24,6 @@ struct ProjectInfoStub {
 }
 
 impl SerializableProjectFile for ProjectInfo {
-    fn load_from_path(project_file_path: &Path) -> anyhow::Result<Self> {
-        let project_dir = project_file_path.parent().unwrap_or_else(|| project_file_path);
-        let file = File::open(project_file_path)?;
-        let result: ProjectInfoStub = serde_json::from_reader(file)?;
-
-        Ok(ProjectInfo::new(project_dir.to_path_buf(), result.project_icon_rgba, result.project_manifest))
-    }
-
     fn save_to_path(
         &mut self,
         directory: &Path,
@@ -57,5 +49,13 @@ impl SerializableProjectFile for ProjectInfo {
         }
 
         Ok(())
+    }
+
+    fn load_from_path(project_file_path: &Path) -> anyhow::Result<Self> {
+        let project_dir = project_file_path.parent().unwrap_or_else(|| project_file_path);
+        let file = File::open(project_file_path)?;
+        let result: ProjectInfoStub = serde_json::from_reader(file)?;
+
+        Ok(ProjectInfo::new(project_dir.to_path_buf(), result.project_icon_rgba, result.project_manifest))
     }
 }

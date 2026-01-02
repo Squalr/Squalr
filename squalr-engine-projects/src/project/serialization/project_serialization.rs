@@ -1,30 +1,74 @@
 use crate::project::{project::Project, serialization::serializable_project_file::SerializableProjectFile};
-use squalr_engine_api::structures::projects::{project_info::ProjectInfo, project_items::project_item::ProjectItem};
-use std::path::Path;
+use squalr_engine_api::structures::projects::{
+    project_info::ProjectInfo,
+    project_items::{built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_item::ProjectItem, project_item_ref::ProjectItemRef},
+};
+use std::{collections::HashMap, path::Path};
 
 impl SerializableProjectFile for Project {
-    fn load_from_path(directory: &Path) -> anyhow::Result<Self> {
-        let project_info = ProjectInfo::load_from_path(&directory.join(Project::PROJECT_FILE))?;
-        let project_root = ProjectItem::load_from_path(&directory.join(Project::PROJECT_DIR))?;
-
-        // Ok(Project::new(project_info, project_root))
-        Err(anyhow::anyhow!("load_from_path disabled for now"))
-    }
-
     fn save_to_path(
         &mut self,
         directory: &Path,
         save_even_if_unchanged: bool,
-    ) -> anyhow::Result<()> {
-        // Save the main project file.
+    ) -> Result<(), anyhow::Error> {
+        // Save the main project info file.
         self.get_project_info_mut()
             .save_to_path(directory, save_even_if_unchanged)?;
 
-        // Recursively save all project items.
-        /*
-        self.get_project_tree_mut()
-            .save_to_path(&directory.join(Project::PROJECT_DIR), save_even_if_unchanged)?;
-        */
+        // Save all project items.
+        for project_item_pair in self.get_project_items_mut() {
+            let project_item_ref = project_item_pair.0;
+            let project_item = project_item_pair.1;
+
+            if let Err(error) = project_item.save_to_path(project_item_ref.get_project_item_path(), save_even_if_unchanged) {
+                log::error!("Failed to serialize project item: {}", error)
+            }
+        }
+
         Ok(())
+    }
+
+    fn load_from_path(directory: &Path) -> anyhow::Result<Self> {
+        let extension = Project::PROJECT_ITEM_EXTENSION;
+        let project_info = ProjectInfo::load_from_path(&directory.join(Project::PROJECT_FILE))?;
+        let mut project_items = HashMap::new();
+        let project_root_path = directory.join(Project::PROJECT_DIR);
+        let project_root_ref = ProjectItemRef::new(project_root_path.clone());
+        let project_root = ProjectItemTypeDirectory::new_project_item(&project_root_ref);
+
+        project_items.insert(project_root_ref.clone(), project_root);
+
+        fn load_recursive(
+            path: &Path,
+            project_items: &mut HashMap<ProjectItemRef, ProjectItem>,
+            extension: &str,
+        ) -> anyhow::Result<()> {
+            for entry in std::fs::read_dir(path)? {
+                let entry = entry?;
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    let dir_ref = ProjectItemRef::new(entry_path.clone());
+                    let dir_item = ProjectItemTypeDirectory::new_project_item(&dir_ref);
+
+                    project_items.insert(dir_ref.clone(), dir_item);
+
+                    load_recursive(&entry_path, project_items, extension)?;
+                } else if let Some(ext) = entry_path.extension() {
+                    if ext == extension {
+                        let item_ref = ProjectItemRef::new(entry_path.clone());
+                        let project_item = ProjectItem::load_from_path(&entry_path)?;
+
+                        project_items.insert(item_ref, project_item);
+                    } else {
+                        log::debug!("Skipping non-project item during deserialization: {:?}", entry_path)
+                    }
+                }
+            }
+            Ok(())
+        }
+
+        load_recursive(&project_root_path, &mut project_items, extension)?;
+
+        Ok(Project::new(project_info, project_items, project_root_ref))
     }
 }
