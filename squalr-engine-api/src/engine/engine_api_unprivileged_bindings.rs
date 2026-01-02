@@ -3,9 +3,11 @@ use crate::{
         privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse, unprivileged_command::UnprivilegedCommand,
         unprivileged_command_response::UnprivilegedCommandResponse,
     },
+    engine::engine_unprivileged_state::EngineUnprivilegedState,
     events::engine_event::EngineEvent,
 };
 use crossbeam_channel::Receiver;
+use std::sync::Arc;
 
 /// Defines the functionality that is invoked from a GUI, CLI, etc. and handled by the engine (gui -> engine).
 pub trait EngineApiUnprivilegedBindings: Send + Sync {
@@ -20,6 +22,7 @@ pub trait EngineApiUnprivilegedBindings: Send + Sync {
     fn dispatch_unprivileged_command(
         &self,
         engine_command: UnprivilegedCommand,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), String>;
 

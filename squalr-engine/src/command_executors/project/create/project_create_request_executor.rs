@@ -1,17 +1,18 @@
+use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project::create::project_create_request::ProjectCreateRequest;
 use squalr_engine_api::commands::project::create::project_create_response::ProjectCreateResponse;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
+use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
 use squalr_engine_api::utils::file_system::file_system_utils::FileSystemUtils;
 use squalr_engine_projects::settings::project_settings_config::ProjectSettingsConfig;
-
-use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
     type ResponseType = ProjectCreateResponse;
 
     fn execute(
         &self,
-        engine_api_unprivileged_bindings: &dyn EngineApiUnprivilegedBindings,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         /*
         // If a path is provided, use this directly. Otherwise, try to use the project settings relative name to construct the path.

@@ -1,18 +1,19 @@
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project::list::project_list_request::ProjectListRequest;
 use squalr_engine_api::commands::project::list::project_list_response::ProjectListResponse;
-use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
+use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use squalr_engine_projects::settings::project_settings_config::ProjectSettingsConfig;
+use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectListRequest {
     type ResponseType = ProjectListResponse;
 
     fn execute(
         &self,
-        engine_api_unprivileged_bindings: &dyn EngineApiUnprivilegedBindings,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         let projects_root = ProjectSettingsConfig::get_projects_root();
         let mut projects_info = vec![];

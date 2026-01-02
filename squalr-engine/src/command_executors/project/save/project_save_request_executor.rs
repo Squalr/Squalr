@@ -1,7 +1,7 @@
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::project::save::project_save_response::ProjectSaveResponse;
-use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
+use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::sync::Arc;
 
@@ -10,7 +10,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSaveRequest {
 
     fn execute(
         &self,
-        engine_api_unprivileged_bindings: &dyn EngineApiUnprivilegedBindings,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         /*
         if let Ok(project) = engine_privileged_state

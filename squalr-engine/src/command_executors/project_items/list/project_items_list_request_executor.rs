@@ -1,14 +1,15 @@
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
 use squalr_engine_api::commands::project_items::list::project_items_list_response::ProjectItemsListResponse;
-use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
+use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
+use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
     type ResponseType = ProjectItemsListResponse;
 
     fn execute(
         &self,
-        engine_api_privileged_bindings: &dyn EngineApiUnprivilegedBindings,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         /*
         match engine_privileged_state

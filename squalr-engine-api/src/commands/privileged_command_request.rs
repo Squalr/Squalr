@@ -13,13 +13,13 @@ pub trait PrivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
 
     fn send<F>(
         &self,
-        execution_context: &Arc<EngineUnprivilegedState>,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         callback: F,
     ) where
         F: FnOnce(<Self as PrivilegedCommandRequest>::ResponseType) + Clone + Send + Sync + 'static,
         <Self as PrivilegedCommandRequest>::ResponseType: TypedPrivilegedCommandResponse,
     {
-        match execution_context.get_bindings().read() {
+        match engine_unprivileged_state.get_bindings().read() {
             Ok(engine_bindings) => {
                 self.send_unprivileged(&*engine_bindings, callback);
             }

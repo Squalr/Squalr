@@ -18,7 +18,7 @@ use std::{
 /// Exposes the ability to send commands to the engine, and handle events from the engine.
 pub struct EngineUnprivilegedState {
     /// The bindings that allow sending commands to the engine.
-    engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>>,
+    engine_api_unprivileged_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>>,
 
     /// All event listeners that are listening for particular engine events.
     event_listeners: Arc<RwLock<HashMap<TypeId, Vec<Box<dyn Fn(&dyn Any) + Send + Sync>>>>>,
@@ -31,16 +31,16 @@ pub struct EngineUnprivilegedState {
 }
 
 impl EngineUnprivilegedState {
-    pub fn new(engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>>) -> Arc<Self> {
+    pub fn new(engine_api_unprivileged_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>>) -> Arc<Self> {
         let project_manager = Arc::new(ProjectManager::new());
-        let execution_context = Arc::new(EngineUnprivilegedState {
-            engine_bindings,
+        let engine_unprivileged_state = Arc::new(EngineUnprivilegedState {
+            engine_api_unprivileged_bindings,
             event_listeners: Arc::new(RwLock::new(HashMap::new())),
             file_system_logger: Arc::new(LogDispatcher::new()),
             project_manager,
         });
 
-        execution_context
+        engine_unprivileged_state
     }
 
     pub fn initialize(&self) {
@@ -48,7 +48,7 @@ impl EngineUnprivilegedState {
     }
 
     pub fn get_bindings(&self) -> &Arc<RwLock<dyn EngineApiUnprivilegedBindings>> {
-        &self.engine_bindings
+        &self.engine_api_unprivileged_bindings
     }
 
     /// Gets the file system logger that routes log events to the log file.
@@ -93,7 +93,7 @@ impl EngineUnprivilegedState {
     ) where
         F: FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static,
     {
-        match self.engine_bindings.read() {
+        match self.engine_api_unprivileged_bindings.read() {
             Ok(engine_bindings) => {
                 if let Err(error) = engine_bindings.dispatch_privileged_command(engine_command, Box::new(callback)) {
                     log::error!("Error dispatching engine command: {}", error);
@@ -106,7 +106,7 @@ impl EngineUnprivilegedState {
     }
     /// Starts listening for all engine events, and routes specific events to any listeners for that event type.
     fn start_event_dispatcher(&self) {
-        let event_receiver = match self.engine_bindings.read() {
+        let event_receiver = match self.engine_api_unprivileged_bindings.read() {
             Ok(bindings) => match bindings.subscribe_to_engine_events() {
                 Ok(receiver) => receiver,
                 Err(error) => {

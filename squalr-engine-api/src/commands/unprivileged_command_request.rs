@@ -21,7 +21,7 @@ pub trait UnprivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
     {
         match execution_context.get_bindings().read() {
             Ok(engine_bindings) => {
-                self.send_unprivileged(&*engine_bindings, callback);
+                self.send_unprivileged(&*engine_bindings, execution_context, callback);
             }
             Err(error) => log::error!("Error getting engine execution context bindings: {}", error),
         };
@@ -30,6 +30,7 @@ pub trait UnprivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
     fn send_unprivileged<F>(
         &self,
         engine_bindings: &dyn EngineApiUnprivilegedBindings,
+        execution_context: &Arc<EngineUnprivilegedState>,
         callback: F,
     ) where
         F: FnOnce(<Self as UnprivilegedCommandRequest>::ResponseType) + Clone + Send + Sync + 'static,
@@ -39,6 +40,7 @@ pub trait UnprivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
 
         if let Err(error) = engine_bindings.dispatch_unprivileged_command(
             command,
+            execution_context,
             Box::new(move |engine_response| {
                 if let Ok(response) = <Self as UnprivilegedCommandRequest>::ResponseType::from_engine_response(engine_response) {
                     callback(response);
