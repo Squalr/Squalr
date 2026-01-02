@@ -12,6 +12,7 @@ impl EngineCommandRequestExecutor for ProjectSaveRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+        /*
         if let Ok(project) = engine_privileged_state
             .get_project_manager()
             .get_opened_project()
@@ -41,7 +42,7 @@ impl EngineCommandRequestExecutor for ProjectSaveRequest {
                     }
                 }
             }
-        }
+        }*/
 
         ProjectSaveResponse { success: false }
     }

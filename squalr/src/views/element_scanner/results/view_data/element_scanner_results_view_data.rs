@@ -283,6 +283,7 @@ impl ElementScannerResultsViewData {
                 .collect(),
         };
 
+        // Drop to commit the write.
         drop(element_scanner_results_view_data);
 
         scan_results_refresh_request.send(engine_execution_context, move |scan_results_refresh_response| {
@@ -328,6 +329,7 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data.selection_index_start = None;
         element_scanner_results_view_data.selection_index_end = None;
 
+        // Drop to commit the write.
         drop(element_scanner_results_view_data);
 
         // Refresh scan results with the new page index. // JIRA: Should happen in the loop technically, but we need to make the MVVM bindings deadlock resistant.

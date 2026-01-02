@@ -12,6 +12,7 @@ impl EngineCommandRequestExecutor for ProjectItemsActivateRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+        /*
         match engine_privileged_state
             .get_project_manager()
             .get_opened_project()
@@ -40,7 +41,7 @@ impl EngineCommandRequestExecutor for ProjectItemsActivateRequest {
             Err(error) => {
                 log::error!("Error acquiring project manager: {}", error)
             }
-        }
+        }*/
 
         ProjectItemsActivateResponse {}
     }

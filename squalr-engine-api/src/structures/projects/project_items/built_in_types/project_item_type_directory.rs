@@ -5,7 +5,6 @@ use crate::structures::projects::project_items::project_item_ref::ProjectItemRef
 use crate::structures::projects::project_items::project_item_type_ref::ProjectItemTypeRef;
 use crate::structures::projects::project_items::{project_item::ProjectItem, project_item_type::ProjectItemType};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize)]
@@ -55,9 +54,9 @@ impl ProjectItemType for ProjectItemTypeDirectory {
 }
 
 impl ProjectItemTypeDirectory {
-    pub fn new_project_item(directory: &Path) -> ProjectItem {
-        let directory_type = ProjectItemTypeRef::new(Self::PROJECT_ITEM_TYPE_ID.to_string());
+    pub fn new_project_item(project_item_ref: &ProjectItemRef) -> ProjectItem {
+        let project_item_type_ref = ProjectItemTypeRef::new(Self::PROJECT_ITEM_TYPE_ID.to_string());
 
-        ProjectItem::new(directory.to_path_buf(), directory_type)
+        ProjectItem::new(project_item_type_ref, &project_item_ref.get_file_or_directory_name())
     }
 }

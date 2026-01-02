@@ -7,13 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize)]
-pub struct ProjectItemTypePointer {
-    /*
-    module_name: String,
-    module_offset: u64,
-    pointer_offsets: Vec<i32>,
-    */
-}
+pub struct ProjectItemTypePointer {}
 
 impl ProjectItemTypePointer {
     pub const PROJECT_ITEM_TYPE_ID: &str = "pointer";
@@ -41,4 +35,13 @@ impl ProjectItemType for ProjectItemTypePointer {
         project_item: &ProjectItemRef,
     ) {
     }
+}
+
+impl ProjectItemTypePointer {
+    // JIRA: Make properties for these.
+    /*
+    module_name: String,
+    module_offset: u64,
+    pointer_offsets: Vec<i32>,
+    */
 }

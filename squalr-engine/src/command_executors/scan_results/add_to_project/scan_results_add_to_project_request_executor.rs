@@ -22,6 +22,7 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
                 return ScanResultsAddToProjectResponse::default();
             }
         };
+        /*
         let project_manager = engine_privileged_state.get_project_manager();
         let mut project_changed = false;
         let modules = if let Some(opened_process_info) = engine_privileged_state
@@ -79,7 +80,7 @@ impl EngineCommandRequestExecutor for ScanResultsAddToProjectRequest {
 
         if project_changed {
             project_manager.notify_project_items_changed();
-        }
+        }*/
 
         ScanResultsAddToProjectResponse::default()
     }

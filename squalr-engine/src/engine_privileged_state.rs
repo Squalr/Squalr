@@ -13,16 +13,11 @@ use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_processes::process::process_manager::ProcessManager;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
-use squalr_engine_projects::project::project_manager::ProjectManager;
-use squalr_engine_projects::project::update_task::project_update_task::ProjectUpdateTask;
 use squalr_engine_scanning::freeze_task::snapshot_scan_result_freeze_task::SnapshotScanResultFreezeTask;
 use std::sync::{Arc, RwLock};
 
 /// Tracks critical engine state for internal use. This includes executing engine tasks, commands, and events.
 pub struct EnginePrivilegedState {
-    /// The manager for the opened project and projects list.
-    project_manager: ProjectManager,
-
     /// The manager for the process to which Squalr is attached, and detecting if that process dies.
     process_manager: ProcessManager,
 
@@ -58,22 +53,14 @@ impl EnginePrivilegedState {
 
         let event_emitter = Self::create_event_emitter(engine_bindings.clone());
         let process_manager = ProcessManager::new(event_emitter.clone());
-        let project_manager = ProjectManager::new(event_emitter);
         let task_manager = TrackableTaskManager::new();
         let snapshot = Arc::new(RwLock::new(Snapshot::new()));
         let registries = Arc::new(Registries::new());
 
         SnapshotScanResultFreezeTask::start_task(process_manager.get_opened_process_ref(), registries.get_freeze_list_registry().clone());
-        ProjectUpdateTask::start_task(
-            engine_bindings.clone(),
-            project_manager.get_opened_project(),
-            process_manager.get_opened_process_ref(),
-            registries.clone(),
-        );
 
         let engine_privileged_state = Arc::new(EnginePrivilegedState {
             process_manager,
-            project_manager,
             task_manager,
             snapshot,
             engine_bindings,
@@ -113,11 +100,6 @@ impl EnginePrivilegedState {
         }
 
         engine_privileged_state
-    }
-
-    /// Gets the project manager for this session.
-    pub fn get_project_manager(&self) -> &ProjectManager {
-        &self.project_manager
     }
 
     /// Gets the process manager for this session.

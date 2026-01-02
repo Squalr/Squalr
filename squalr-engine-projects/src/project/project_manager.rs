@@ -3,17 +3,7 @@ use notify::{
     Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
     event::{CreateKind, ModifyKind, RemoveKind, RenameMode},
 };
-use squalr_engine_api::events::project_items::changed::project_items_changed_event::ProjectItemsChangedEvent;
-use squalr_engine_api::{
-    events::{
-        engine_event::{EngineEvent, EngineEventRequest},
-        project::{
-            closed::project_closed_event::ProjectClosedEvent, created::project_created_event::ProjectCreatedEvent,
-            deleted::project_deleted_event::ProjectDeletedEvent,
-        },
-    },
-    structures::projects::{project_info::ProjectInfo, project_manifest::ProjectManifest},
-};
+use squalr_engine_api::structures::projects::{project_info::ProjectInfo, project_manifest::ProjectManifest};
 use std::{
     path::PathBuf,
     sync::{
@@ -25,15 +15,13 @@ use std::{
 
 pub struct ProjectManager {
     opened_project: Arc<RwLock<Option<Project>>>,
-    event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>,
     watcher: Option<RecommendedWatcher>,
 }
 
 impl ProjectManager {
-    pub fn new(event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>) -> Self {
+    pub fn new() -> Self {
         let mut instance = ProjectManager {
             opened_project: Arc::new(RwLock::new(None)),
-            event_emitter,
             watcher: None,
         };
 
@@ -70,8 +58,6 @@ impl ProjectManager {
                 *project = None;
 
                 log::info!("Project closed.");
-
-                (self.event_emitter)(ProjectClosedEvent {}.to_engine_event());
             }
             Err(error) => {
                 log::error!("Error closing project: {}", error);
@@ -110,7 +96,6 @@ impl ProjectManager {
         let (tx, rx): (Sender<Result<Event, notify::Error>>, Receiver<Result<Event, notify::Error>>) = mpsc::channel();
         let projects_root: PathBuf = ProjectSettingsConfig::get_projects_root();
         let mut watcher = notify::recommended_watcher(tx)?;
-        let event_emitter = self.event_emitter.clone();
 
         // Watch only the top-level directory (not recursive) for project changes.
         watcher.watch(&projects_root, RecursiveMode::NonRecursive)?;
@@ -127,12 +112,7 @@ impl ProjectManager {
                             CreateKind::File => {}
                             _ => {
                                 for path in paths {
-                                    (event_emitter)(
-                                        ProjectCreatedEvent {
-                                            project_info: Self::create_project_info(&path),
-                                        }
-                                        .to_engine_event(),
-                                    );
+                                    Self::create_project_info(&path);
                                 }
                             }
                         },
@@ -141,39 +121,19 @@ impl ProjectManager {
                                 RenameMode::From => {
                                     // There should only be one path, but handle this gracefully anyhow.
                                     for path in paths {
-                                        (event_emitter)(
-                                            ProjectDeletedEvent {
-                                                project_info: Self::create_project_info(&path),
-                                            }
-                                            .to_engine_event(),
-                                        );
+                                        Self::create_project_info(&path);
                                     }
                                 }
                                 RenameMode::To => {
                                     // There should only be one path, but handle this gracefully anyhow.
                                     for path in paths {
-                                        (event_emitter)(
-                                            ProjectCreatedEvent {
-                                                project_info: Self::create_project_info(&path),
-                                            }
-                                            .to_engine_event(),
-                                        );
+                                        Self::create_project_info(&path);
                                     }
                                 }
                                 RenameMode::Both => {
                                     if paths.len() == 2 {
-                                        (event_emitter)(
-                                            ProjectDeletedEvent {
-                                                project_info: Self::create_project_info(&paths[0]),
-                                            }
-                                            .to_engine_event(),
-                                        );
-                                        (event_emitter)(
-                                            ProjectCreatedEvent {
-                                                project_info: Self::create_project_info(&paths[1]),
-                                            }
-                                            .to_engine_event(),
-                                        );
+                                        Self::create_project_info(&paths[0]);
+                                        Self::create_project_info(&paths[1]);
                                     } else {
                                         log::warn!("Unsupported file rename operation detected in projects folder. Projects list may be out of sync!");
                                     }
@@ -188,12 +148,7 @@ impl ProjectManager {
                             RemoveKind::File => {}
                             _ => {
                                 for path in paths {
-                                    (event_emitter)(
-                                        ProjectDeletedEvent {
-                                            project_info: Self::create_project_info(&path),
-                                        }
-                                        .to_engine_event(),
-                                    );
+                                    Self::create_project_info(&path);
                                 }
                             }
                         },

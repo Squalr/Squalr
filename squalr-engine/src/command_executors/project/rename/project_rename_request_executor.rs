@@ -20,6 +20,7 @@ impl EngineCommandRequestExecutor for ProjectRenameRequest {
             return ProjectRenameResponse { renamed_project_info: None };
         };
 
+        /*
         let project_manager = engine_privileged_state.get_project_manager();
         let is_renaming_opened_project = match project_manager.get_opened_project().read() {
             Ok(current_project) => match current_project.as_ref() {
@@ -52,7 +53,7 @@ impl EngineCommandRequestExecutor for ProjectRenameRequest {
                 }
             }
         }
-
+        */
         ProjectRenameResponse { renamed_project_info: None }
     }
 }

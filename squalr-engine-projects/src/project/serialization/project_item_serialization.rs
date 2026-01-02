@@ -26,7 +26,7 @@ impl SerializableProjectFile for ProjectItem {
 
                     directory_item.append_child(result);
                 }
-            }*/
+            } */
 
             // Ok(directory_item)
             Err(anyhow::anyhow!("Temp disabled: {:?}", directory))

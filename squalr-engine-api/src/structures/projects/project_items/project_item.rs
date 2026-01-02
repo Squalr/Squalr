@@ -7,15 +7,11 @@ use crate::structures::{
     structs::{valued_struct::ValuedStruct, valued_struct_field::ValuedStructFieldNode},
 };
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 /// Represents a unique reference to a project item in an opened project.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectItem {
-    /// The unique path to this project item.
-    path: PathBuf,
-
     // The type of this project item.
     item_type: ProjectItemTypeRef,
 
@@ -23,9 +19,11 @@ pub struct ProjectItem {
     properties: ValuedStruct,
 
     /// A value indicating whether this item has been activated / enabled.
+    #[serde(skip)]
     is_activated: bool,
 
     /// A value indicating whether this project item has unsaved changes.
+    #[serde(skip)]
     has_unsaved_changes: bool,
 
     #[serde(skip)]
@@ -38,11 +36,10 @@ impl ProjectItem {
     pub const PROPERTY_DESCRIPTION: &str = "description";
 
     pub fn new(
-        path: PathBuf,
         item_type: ProjectItemTypeRef,
+        name: &str,
     ) -> Self {
         let mut project_item = Self {
-            path,
             item_type,
             properties: ValuedStruct::new_anonymous(vec![]),
             is_activated: false,
@@ -50,31 +47,9 @@ impl ProjectItem {
             current_display_value: String::new(),
         };
 
-        let name = project_item
-            .path
-            .file_name()
-            .and_then(|os_str| os_str.to_str())
-            .unwrap_or("")
-            .to_owned();
-        project_item.set_field_name(&name);
+        project_item.set_field_name(name);
 
         project_item
-    }
-
-    pub fn get_file_or_directory_name(&self) -> String {
-        self.path
-            .file_name()
-            .and_then(|os_str| os_str.to_str())
-            .unwrap_or("")
-            .to_string()
-    }
-
-    pub fn get_ref(&self) -> ProjectItemRef {
-        ProjectItemRef::new(self.path.as_os_str().to_string_lossy().to_string())
-    }
-
-    pub fn get_path(&self) -> &PathBuf {
-        &self.path
     }
 
     pub fn get_item_type(&self) -> &ProjectItemTypeRef {
@@ -110,6 +85,7 @@ impl ProjectItem {
 
     pub fn set_activated(
         &mut self,
+        project_item_ref: &ProjectItemRef,
         engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         registries: &Registries,
         is_activated: bool,
@@ -118,7 +94,7 @@ impl ProjectItem {
 
         if let Ok(project_item_type_registry) = registries.get_project_item_type_registry().read() {
             if let Some(project_item_type) = project_item_type_registry.get(self.item_type.get_project_item_type_id()) {
-                project_item_type.on_activated_changed(engine_bindings, registries, &self.get_ref());
+                project_item_type.on_activated_changed(engine_bindings, registries, project_item_ref);
             }
         }
     }

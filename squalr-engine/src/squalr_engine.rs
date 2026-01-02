@@ -10,16 +10,21 @@ use squalr_engine_api::dependency_injection::dependency_container::DependencyCon
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_architecture::vectors::Vectors;
+use squalr_engine_projects::project::project_manager::ProjectManager;
 use std::sync::{Arc, RwLock};
 
 /// Orchestrates commands and responses to and from the engine.
 pub struct SqualrEngine {
-    // The global instance for all engine state, such as snapshots, scan results, running tasks, etc.
+    /// The global instance for all engine state, such as snapshots, scan results, running tasks, etc.
     engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
 
-    // Execution context that wraps privileged state behind a publically usable API.
+    /// Execution context that abstracts privileged state behind a publically usable API.
     engine_execution_context: Option<Arc<EngineExecutionContext>>,
 
+    /// Project manager for organizing and manipulating projects.
+    project_manager: Option<Arc<ProjectManager>>,
+
+    /// Dependency injection manager.
     dependency_container: DependencyContainer,
 }
 
@@ -27,6 +32,7 @@ impl SqualrEngine {
     pub fn new(engine_mode: EngineMode) -> anyhow::Result<Self> {
         let mut engine_privileged_state = None;
         let mut engine_execution_context = None;
+        let mut project_manager = None;
 
         match engine_mode {
             EngineMode::Standalone => {
@@ -45,18 +51,17 @@ impl SqualrEngine {
         };
 
         match engine_mode {
-            EngineMode::Standalone => {
+            EngineMode::Standalone | EngineMode::UnprivilegedHost => {
                 engine_execution_context = Some(EngineExecutionContext::new(engine_bindings));
+                project_manager = Some(Arc::new(ProjectManager::new()));
             }
             EngineMode::PrivilegedShell => {}
-            EngineMode::UnprivilegedHost => {
-                engine_execution_context = Some(EngineExecutionContext::new(engine_bindings));
-            }
         }
 
         let squalr_engine = SqualrEngine {
             engine_privileged_state,
             engine_execution_context,
+            project_manager,
             dependency_container: DependencyContainer::new(),
         };
 
@@ -80,14 +85,22 @@ impl SqualrEngine {
         AppUpdater::run_update(ProgressTracker::new());
     }
 
+    /// Gets the engine execution context to allow for API access to the engine privileged state.
     pub fn get_engine_execution_context(&self) -> &Option<Arc<EngineExecutionContext>> {
         &self.engine_execution_context
     }
 
+    /// Gets the privileged state for this session. May not be present for non-standalone builds.
     pub fn get_engine_privileged_state(&self) -> &Option<Arc<EnginePrivilegedState>> {
         &self.engine_privileged_state
     }
 
+    /// Gets the project manager for this session.
+    pub fn get_project_manager(&self) -> &Option<Arc<ProjectManager>> {
+        &self.project_manager
+    }
+
+    /// Gets the dependency injection manager.
     pub fn get_dependency_container(&mut self) -> &DependencyContainer {
         &self.dependency_container
     }

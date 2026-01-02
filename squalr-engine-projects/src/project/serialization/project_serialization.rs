@@ -22,7 +22,7 @@ impl SerializableProjectFile for Project {
 
         // Recursively save all project items.
         /*
-        self.get_project_root_mut()
+        self.get_project_tree_mut()
             .save_to_path(&directory.join(Project::PROJECT_DIR), save_even_if_unchanged)?;
         */
         Ok(())

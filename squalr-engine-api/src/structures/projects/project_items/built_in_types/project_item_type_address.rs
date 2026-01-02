@@ -1,8 +1,5 @@
-use crate::commands::engine_command_request::EngineCommandRequest;
-use crate::commands::memory::read::memory_read_request::MemoryReadRequest;
 use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use crate::registries::registries::Registries;
-use crate::structures::memory::pointer::Pointer;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
@@ -13,8 +10,6 @@ use crate::structures::{
     structs::valued_struct_field::ValuedStructFieldNode,
 };
 use serde::{Deserialize, Serialize};
-use std::ops::Deref;
-use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize)]
@@ -96,14 +91,14 @@ impl ProjectItemTypeAddress {
     pub const PROPERTY_FREEZE_DISPLAY_VALUE: &str = "freeze_display_value";
 
     pub fn new_project_item(
-        path: &Path,
+        name: &str,
         address: u64,
         module: &str,
         description: &str,
         freeze_value: DataValue,
     ) -> ProjectItem {
-        let directory_type = ProjectItemTypeRef::new(Self::PROJECT_ITEM_TYPE_ID.to_string());
-        let mut project_item = ProjectItem::new(path.to_path_buf(), directory_type);
+        let project_item_type_ref = ProjectItemTypeRef::new(Self::PROJECT_ITEM_TYPE_ID.to_string());
+        let mut project_item = ProjectItem::new(project_item_type_ref, name);
 
         project_item.set_field_description(description);
         Self::set_field_module(&mut project_item, module);
