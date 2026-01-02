@@ -1,14 +1,14 @@
-use crate::{command_executors::engine_command_executor::EngineCommandExecutor, engine_privileged_state::EnginePrivilegedState};
-use squalr_engine_api::commands::{engine_command_response::EngineCommandResponse, settings::settings_command::SettingsCommand};
+use crate::{command_executors::privileged_command_executor::PrivilegedCommandExecutor, engine_privileged_state::EnginePrivilegedState};
+use squalr_engine_api::commands::{privileged_command_response::PrivilegedCommandResponse, settings::settings_command::SettingsCommand};
 use std::sync::Arc;
 
-impl EngineCommandExecutor for SettingsCommand {
-    type ResponseType = EngineCommandResponse;
+impl PrivilegedCommandExecutor for SettingsCommand {
+    type ResponseType = PrivilegedCommandResponse;
 
     fn execute(
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandExecutor>::ResponseType {
+    ) -> <Self as PrivilegedCommandExecutor>::ResponseType {
         match self {
             SettingsCommand::General { general_settings_command } => general_settings_command.execute(engine_privileged_state),
             SettingsCommand::Memory { memory_settings_command } => memory_settings_command.execute(engine_privileged_state),

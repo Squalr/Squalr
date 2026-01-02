@@ -11,16 +11,16 @@ use crate::response_handlers::project::handle_project_response;
 use crate::response_handlers::scan::handle_scan_response;
 use crate::response_handlers::scan_results::handle_scan_results_response;
 use crate::response_handlers::settings::handle_settings_response;
-use squalr_engine_api::commands::engine_command_response::EngineCommandResponse;
+use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
 
-pub fn handle_engine_response(response: EngineCommandResponse) {
+pub fn handle_engine_response(response: PrivilegedCommandResponse) {
     match response {
-        EngineCommandResponse::Scan(response) => handle_scan_response(response),
-        EngineCommandResponse::Memory(response) => handle_memory_response(response),
-        EngineCommandResponse::Process(response) => handle_process_response(response),
-        EngineCommandResponse::Results(response) => handle_scan_results_response(response),
-        EngineCommandResponse::Project(response) => handle_project_response(response),
-        EngineCommandResponse::Scan(response) => handle_scan_response(response),
-        EngineCommandResponse::Settings(response) => handle_settings_response(response),
+        PrivilegedCommandResponse::Scan(response) => handle_scan_response(response),
+        PrivilegedCommandResponse::Memory(response) => handle_memory_response(response),
+        PrivilegedCommandResponse::Process(response) => handle_process_response(response),
+        PrivilegedCommandResponse::Results(response) => handle_scan_results_response(response),
+        PrivilegedCommandResponse::Project(response) => handle_project_response(response),
+        PrivilegedCommandResponse::Scan(response) => handle_scan_response(response),
+        PrivilegedCommandResponse::Settings(response) => handle_settings_response(response),
     }
 }

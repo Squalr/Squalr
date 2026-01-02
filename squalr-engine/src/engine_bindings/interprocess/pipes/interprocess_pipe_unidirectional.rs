@@ -1,14 +1,12 @@
+use interprocess::local_socket::ListenerOptions;
+use interprocess::local_socket::Name;
 use interprocess::local_socket::prelude::LocalSocketStream;
 use interprocess::local_socket::traits::ListenerExt;
 use interprocess::local_socket::traits::Stream;
-use interprocess::local_socket::ListenerOptions;
-use interprocess::local_socket::Name;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::fs;
+use serde::de::DeserializeOwned;
 use std::io::Read;
 use std::io::Write;
-use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
@@ -71,6 +69,9 @@ impl InterprocessPipeUnidirectional {
         // On Unix-like non-Android systems, remove any leftover socket file
         #[cfg(all(not(windows), not(target_os = "android")))]
         {
+            use std::fs;
+            use std::path::Path;
+
             if Path::new(ipc_socket_path).exists() {
                 fs::remove_file(ipc_socket_path).map_err(|e| e.to_string());
             }
@@ -212,6 +213,7 @@ impl InterprocessPipeUnidirectional {
                 // Finally read the remaining data (total_len - request_id size).
                 let data_len = total_len as usize - size_of::<Uuid>();
                 let mut data_buf = vec![0u8; data_len];
+
                 stream
                     .read_exact(&mut data_buf)
                     .map_err(|error| format!("Read data error: {}", error))?;

@@ -1,19 +1,17 @@
-use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
-use crate::engine_privileged_state::EnginePrivilegedState;
+use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project::rename::project_rename_request::ProjectRenameRequest;
 use squalr_engine_api::commands::project::rename::project_rename_response::ProjectRenameResponse;
-use squalr_engine_projects::project::project::Project;
+use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::fs;
-use std::sync::Arc;
 
-impl EngineCommandRequestExecutor for ProjectRenameRequest {
+impl UnprivilegedCommandRequestExecutor for ProjectRenameRequest {
     type ResponseType = ProjectRenameResponse;
 
     fn execute(
         &self,
-        engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+        engine_api_unprivileged_bindings: &dyn EngineApiUnprivilegedBindings,
+    ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         let project_path = &self.project_path;
         let Some(parent_path) = project_path.parent() else {
             log::error!("Error getting parent directory of project for project rename operation.");

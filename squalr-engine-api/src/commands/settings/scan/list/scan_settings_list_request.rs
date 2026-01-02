@@ -2,18 +2,18 @@ use crate::commands::settings::scan::list::scan_settings_list_response::ScanSett
 use crate::commands::settings::scan::scan_settings_command::ScanSettingsCommand;
 use crate::commands::settings::scan::scan_settings_response::ScanSettingsResponse;
 use crate::commands::settings::settings_command::SettingsCommand;
-use crate::commands::{engine_command::EngineCommand, engine_command_request::EngineCommandRequest};
+use crate::commands::{privileged_command::PrivilegedCommand, privileged_command_request::PrivilegedCommandRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ScanSettingsListRequest {}
 
-impl EngineCommandRequest for ScanSettingsListRequest {
+impl PrivilegedCommandRequest for ScanSettingsListRequest {
     type ResponseType = ScanSettingsListResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Settings(SettingsCommand::Scan {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Settings(SettingsCommand::Scan {
             scan_settings_command: ScanSettingsCommand::List {
                 scan_settings_list_request: self.clone(),
             },

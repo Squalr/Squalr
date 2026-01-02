@@ -1,5 +1,5 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::scan_results::query::scan_results_query_response::ScanResultsQueryResponse;
 use crate::commands::scan_results::scan_results_command::ScanResultsCommand;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
@@ -14,11 +14,11 @@ pub struct ScanResultsQueryRequest {
     pub page_index: u64,
 }
 
-impl EngineCommandRequest for ScanResultsQueryRequest {
+impl PrivilegedCommandRequest for ScanResultsQueryRequest {
     type ResponseType = ScanResultsQueryResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Results(ScanResultsCommand::Query {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Results(ScanResultsCommand::Query {
             results_query_request: self.clone(),
         })
     }

@@ -1,9 +1,12 @@
-use crate::engine_bindings::engine_ingress::ExecutableCommand;
+use crate::engine_bindings::executable_command_privileged::ExecutableCommandPrivileged;
+use crate::engine_bindings::executable_command_unprivileged::ExecutableCommandUnprivleged;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crate::general_settings_config::GeneralSettingsConfig;
 use crossbeam_channel::Receiver;
-use squalr_engine_api::commands::engine_command::EngineCommand;
-use squalr_engine_api::commands::engine_command_response::EngineCommandResponse;
+use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
+use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
+use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
+use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use std::sync::Arc;
@@ -29,24 +32,24 @@ impl StandaloneEngineApiUnprivilegedBindings {
 }
 
 impl EngineApiUnprivilegedBindings for StandaloneEngineApiUnprivilegedBindings {
-    /// Dispatches an engine command to the engine to handle.
-    fn dispatch_command(
+    /// Dispatches an unprivileged command to be immediately handled on the client side.
+    fn dispatch_privileged_command(
         &self,
-        command: EngineCommand,
-        callback: Box<dyn FnOnce(EngineCommandResponse) + Send + Sync + 'static>,
+        privileged_command: PrivilegedCommand,
+        callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), String> {
         let engine_request_delay = GeneralSettingsConfig::get_engine_request_delay_ms();
 
         if let Some(engine_privileged_state) = &self.engine_privileged_state {
             // Execute the request either immediately, or on an artificial delay if a debug request delay is set.
             if engine_request_delay <= 0 {
-                callback(command.execute(&engine_privileged_state));
+                callback(privileged_command.execute(&engine_privileged_state));
             } else {
                 let engine_privileged_state = engine_privileged_state.clone();
 
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_millis(engine_request_delay as u64));
-                    let response = command.execute(&engine_privileged_state);
+                    let response = privileged_command.execute(&engine_privileged_state);
                     callback(response);
                 });
             }
@@ -55,6 +58,19 @@ impl EngineApiUnprivilegedBindings for StandaloneEngineApiUnprivilegedBindings {
         } else {
             Err("No privileged state available for command execution.".to_string())
         }
+    }
+
+    /// Dispatches an unprivileged command to be immediately handled on the client side.
+    fn dispatch_unprivileged_command(
+        &self,
+        unprivileged_command: UnprivilegedCommand,
+        callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> Result<(), String> {
+        let response = unprivileged_command.execute(self);
+
+        callback(response);
+
+        Ok(())
     }
 
     /// Requests to listen to all engine events.

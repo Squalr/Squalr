@@ -1,17 +1,17 @@
-use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
-use crate::engine_privileged_state::EnginePrivilegedState;
+use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::project::save::project_save_response::ProjectSaveResponse;
+use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::sync::Arc;
 
-impl EngineCommandRequestExecutor for ProjectSaveRequest {
+impl UnprivilegedCommandRequestExecutor for ProjectSaveRequest {
     type ResponseType = ProjectSaveResponse;
 
     fn execute(
         &self,
-        engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+        engine_api_unprivileged_bindings: &dyn EngineApiUnprivilegedBindings,
+    ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         /*
         if let Ok(project) = engine_privileged_state
             .get_project_manager()

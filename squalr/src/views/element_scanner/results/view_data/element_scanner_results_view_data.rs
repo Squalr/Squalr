@@ -4,7 +4,7 @@ use squalr_engine_api::commands::scan_results::delete::scan_results_delete_reque
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::dependency_injection::write_guard::WriteGuard;
-use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
 use squalr_engine_api::structures::data_values::display_value::DisplayValue;
 use squalr_engine_api::structures::data_values::display_value_type::DisplayValueType;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
@@ -12,7 +12,7 @@ use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use squalr_engine_api::structures::structs::container_type::ContainerType;
 use squalr_engine_api::{
     commands::{
-        engine_command_request::EngineCommandRequest,
+        privileged_command_request::PrivilegedCommandRequest,
         scan_results::{
             query::scan_results_query_request::ScanResultsQueryRequest, refresh::scan_results_refresh_request::ScanResultsRefreshRequest,
             set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest,
@@ -70,32 +70,32 @@ impl ElementScannerResultsViewData {
 
     pub fn poll_scan_results(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
-        let engine_execution_context_clone = engine_execution_context.clone();
+        let engine_unprivileged_state_clone = engine_unprivileged_state.clone();
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
 
         // Requery all scan results if they update.
         {
-            engine_execution_context.listen_for_engine_event::<ScanResultsUpdatedEvent>(move |scan_results_updated_event| {
+            engine_unprivileged_state.listen_for_engine_event::<ScanResultsUpdatedEvent>(move |scan_results_updated_event| {
                 let element_scanner_results_view_data = element_scanner_results_view_data_clone.clone();
-                let engine_execution_context = engine_execution_context_clone.clone();
+                let engine_unprivileged_state = engine_unprivileged_state_clone.clone();
                 let play_sound = !scan_results_updated_event.is_new_scan;
 
-                Self::query_scan_results(element_scanner_results_view_data, engine_execution_context, play_sound);
+                Self::query_scan_results(element_scanner_results_view_data, engine_unprivileged_state, play_sound);
             });
         }
 
-        let engine_execution_context_clone = engine_execution_context.clone();
+        let engine_unprivileged_state_clone = engine_unprivileged_state.clone();
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
 
         // Refresh scan values on a loop. JIRA: This should be coming from settings. We can probably cache, and have some mechanism for getting latest val.
         thread::spawn(move || {
             loop {
                 let element_scanner_results_view_data = element_scanner_results_view_data_clone.clone();
-                let engine_execution_context = engine_execution_context_clone.clone();
+                let engine_unprivileged_state = engine_unprivileged_state_clone.clone();
 
-                Self::refresh_scan_results(element_scanner_results_view_data, engine_execution_context);
+                Self::refresh_scan_results(element_scanner_results_view_data, engine_unprivileged_state);
 
                 thread::sleep(Duration::from_millis(100));
             }
@@ -104,16 +104,16 @@ impl ElementScannerResultsViewData {
 
     pub fn navigate_first_page(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
         let new_page_index = 0;
 
-        Self::set_page_index(element_scanner_results_view_data, engine_execution_context, new_page_index);
+        Self::set_page_index(element_scanner_results_view_data, engine_unprivileged_state, new_page_index);
     }
 
     pub fn navigate_last_page(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
         let cached_last_page_index = match element_scanner_results_view_data.read("Element scanner results navigation last") {
             Some(element_scanner_results_view_data) => element_scanner_results_view_data.cached_last_page_index,
@@ -122,12 +122,12 @@ impl ElementScannerResultsViewData {
         let cached_last_page_index = cached_last_page_index;
         let new_page_index = cached_last_page_index;
 
-        Self::set_page_index(element_scanner_results_view_data, engine_execution_context, new_page_index);
+        Self::set_page_index(element_scanner_results_view_data, engine_unprivileged_state, new_page_index);
     }
 
     pub fn navigate_previous_page(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
         let element_scanner_results_view_data = match element_scanner_results_view_data.read("Element scanner results navigation previous") {
@@ -138,12 +138,12 @@ impl ElementScannerResultsViewData {
 
         drop(element_scanner_results_view_data);
 
-        Self::set_page_index(element_scanner_results_view_data_clone, engine_execution_context, new_page_index);
+        Self::set_page_index(element_scanner_results_view_data_clone, engine_unprivileged_state, new_page_index);
     }
 
     pub fn navigate_next_page(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
         let element_scanner_results_view_data = match element_scanner_results_view_data.read("Element scanner results navigation next") {
@@ -154,12 +154,12 @@ impl ElementScannerResultsViewData {
 
         drop(element_scanner_results_view_data);
 
-        Self::set_page_index(element_scanner_results_view_data_clone, engine_execution_context, new_page_index);
+        Self::set_page_index(element_scanner_results_view_data_clone, engine_unprivileged_state, new_page_index);
     }
 
     pub fn set_selected_scan_results_value(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         field_namespace: &str,
         anonymous_value: AnonymousValue,
     ) {
@@ -182,7 +182,7 @@ impl ElementScannerResultsViewData {
 
         element_scanner_results_view_data.is_setting_properties = true;
 
-        scan_results_set_property_request.send(&engine_execution_context, move |scan_results_set_property_response| {
+        scan_results_set_property_request.send(&engine_unprivileged_state, move |scan_results_set_property_response| {
             let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write("Set selected scan results response") {
                 Some(element_scanner_results_view_data) => element_scanner_results_view_data,
                 None => return,
@@ -206,7 +206,7 @@ impl ElementScannerResultsViewData {
 
     fn query_scan_results(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         play_sound: bool,
     ) {
         if element_scanner_results_view_data
@@ -227,7 +227,7 @@ impl ElementScannerResultsViewData {
 
         element_scanner_results_view_data.is_querying_scan_results = true;
 
-        scan_results_query_request.send(&engine_execution_context, move |scan_results_query_response| {
+        scan_results_query_request.send(&engine_unprivileged_state, move |scan_results_query_response| {
             // let audio_player = &self.audio_player;
             let byte_size_in_metric = Conversions::value_to_metric_size(scan_results_query_response.total_size_in_bytes);
             let result_count = scan_results_query_response.result_count;
@@ -253,7 +253,7 @@ impl ElementScannerResultsViewData {
     /// Fetches up-to-date values and module information for the current scan results, then updates the UI.
     fn refresh_scan_results(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
         if element_scanner_results_view_data
             .read("Refresh scan results")
@@ -270,7 +270,7 @@ impl ElementScannerResultsViewData {
             Some(element_scanner_results_view_data) => element_scanner_results_view_data,
             None => return,
         };
-        let engine_execution_context = &engine_execution_context;
+        let engine_unprivileged_state = &engine_unprivileged_state;
 
         element_scanner_results_view_data.is_refreshing_scan_results = true;
 
@@ -286,7 +286,7 @@ impl ElementScannerResultsViewData {
         // Drop to commit the write.
         drop(element_scanner_results_view_data);
 
-        scan_results_refresh_request.send(engine_execution_context, move |scan_results_refresh_response| {
+        scan_results_refresh_request.send(engine_unprivileged_state, move |scan_results_refresh_response| {
             let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write("Refresh scan results response") {
                 Some(element_scanner_results_view_data) => element_scanner_results_view_data,
                 None => return,
@@ -300,7 +300,7 @@ impl ElementScannerResultsViewData {
 
     fn set_page_index(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         new_page_index: u64,
     ) {
         if element_scanner_results_view_data
@@ -333,12 +333,12 @@ impl ElementScannerResultsViewData {
         drop(element_scanner_results_view_data);
 
         // Refresh scan results with the new page index. // JIRA: Should happen in the loop technically, but we need to make the MVVM bindings deadlock resistant.
-        Self::query_scan_results(element_scanner_results_view_data_clone, engine_execution_context, false);
+        Self::query_scan_results(element_scanner_results_view_data_clone, engine_unprivileged_state, false);
     }
 
     pub fn set_page_index_string(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         new_page_index_text: &str,
     ) {
         // Extract numeric part from new_page_index_text and parse it to u64, defaulting to 0.
@@ -349,12 +349,12 @@ impl ElementScannerResultsViewData {
             .parse::<u64>()
             .unwrap_or(0);
 
-        Self::set_page_index(element_scanner_results_view_data, engine_execution_context, new_page_index);
+        Self::set_page_index(element_scanner_results_view_data, engine_unprivileged_state, new_page_index);
     }
 
     pub fn set_scan_result_selection_start(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         scan_result_collection_start_index: Option<i32>,
     ) {
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set scan result selection start") {
@@ -382,7 +382,7 @@ impl ElementScannerResultsViewData {
 
     pub fn set_scan_result_selection_end(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         scan_result_collection_end_index: Option<i32>,
     ) {
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set scan result selection end") {
@@ -409,35 +409,35 @@ impl ElementScannerResultsViewData {
 
     pub fn add_scan_results_to_project(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
         let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data);
 
         if !scan_result_refs.is_empty() {
-            let engine_execution_context = &engine_execution_context;
+            let engine_unprivileged_state = &engine_unprivileged_state;
             let scan_results_add_to_project_request = ScanResultsAddToProjectRequest { scan_result_refs };
 
-            scan_results_add_to_project_request.send(engine_execution_context, |_response| {});
+            scan_results_add_to_project_request.send(engine_unprivileged_state, |_response| {});
         }
     }
 
     pub fn delete_selected_scan_results(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
         let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data);
 
         if !scan_result_refs.is_empty() {
-            let engine_execution_context = &engine_execution_context;
+            let engine_unprivileged_state = &engine_unprivileged_state;
             let scan_results_delete_request = ScanResultsDeleteRequest { scan_result_refs };
 
-            scan_results_delete_request.send(engine_execution_context, |_response| {});
+            scan_results_delete_request.send(engine_unprivileged_state, |_response| {});
         }
     }
 
     pub fn set_scan_result_frozen(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         local_scan_result_index: i32,
         is_frozen: bool,
     ) {
@@ -465,10 +465,10 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data.is_freezing_entries = true;
 
         if !scan_result_refs.is_empty() {
-            let engine_execution_context = &engine_execution_context;
+            let engine_unprivileged_state = &engine_unprivileged_state;
             let scan_results_freeze_request = ScanResultsFreezeRequest { scan_result_refs, is_frozen };
 
-            scan_results_freeze_request.send(engine_execution_context, move |scan_results_freeze_response| {
+            scan_results_freeze_request.send(engine_unprivileged_state, move |scan_results_freeze_response| {
                 let mut element_scanner_results_view_data =
                     match element_scanner_results_view_data_clone.write("Element scanner results view data: set scan result frozen response") {
                         Some(element_scanner_results_view_data) => element_scanner_results_view_data,
@@ -498,7 +498,7 @@ impl ElementScannerResultsViewData {
 
     pub fn toggle_selected_scan_results_frozen(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         is_frozen: bool,
     ) {
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
@@ -520,10 +520,10 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data.is_freezing_entries = true;
 
         if !scan_result_refs.is_empty() {
-            let engine_execution_context = &engine_execution_context;
+            let engine_unprivileged_state = &engine_unprivileged_state;
             let scan_results_freeze_request = ScanResultsFreezeRequest { scan_result_refs, is_frozen };
 
-            scan_results_freeze_request.send(engine_execution_context, move |scan_results_freeze_response| {
+            scan_results_freeze_request.send(engine_unprivileged_state, move |scan_results_freeze_response| {
                 let mut element_scanner_results_view_data =
                     match element_scanner_results_view_data_clone.write("Element scanner results view data: set selected scan results frozen response") {
                         Some(element_scanner_results_view_data) => element_scanner_results_view_data,

@@ -1,20 +1,20 @@
-use crate::commands::engine_command_response::EngineCommandResponse;
-use crate::commands::engine_command_response::TypedEngineCommandResponse;
+use crate::commands::privileged_command_response::PrivilegedCommandResponse;
+use crate::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ScanResultsSetPropertyResponse {}
 
-impl TypedEngineCommandResponse for ScanResultsSetPropertyResponse {
-    fn to_engine_response(&self) -> EngineCommandResponse {
-        EngineCommandResponse::Results(ScanResultsResponse::SetProperty {
+impl TypedPrivilegedCommandResponse for ScanResultsSetPropertyResponse {
+    fn to_engine_response(&self) -> PrivilegedCommandResponse {
+        PrivilegedCommandResponse::Results(ScanResultsResponse::SetProperty {
             scan_results_set_property_response: self.clone(),
         })
     }
 
-    fn from_engine_response(response: EngineCommandResponse) -> Result<Self, EngineCommandResponse> {
-        if let EngineCommandResponse::Results(ScanResultsResponse::SetProperty {
+    fn from_engine_response(response: PrivilegedCommandResponse) -> Result<Self, PrivilegedCommandResponse> {
+        if let PrivilegedCommandResponse::Results(ScanResultsResponse::SetProperty {
             scan_results_set_property_response,
         }) = response
         {

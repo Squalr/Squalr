@@ -1,11 +1,11 @@
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::settings::scan::scan_settings_command::ScanSettingsCommand;
 use crate::commands::settings::scan::scan_settings_response::ScanSettingsResponse;
 use crate::commands::settings::scan::set::scan_settings_set_response::ScanSettingsSetResponse;
 use crate::commands::settings::settings_command::SettingsCommand;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::scanning::memory_read_mode::MemoryReadMode;
-use crate::{commands::engine_command::EngineCommand, structures::memory::memory_alignment::MemoryAlignment};
+use crate::{commands::privileged_command::PrivilegedCommand, structures::memory::memory_alignment::MemoryAlignment};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -31,11 +31,11 @@ pub struct ScanSettingsSetRequest {
     pub debug_perform_validation_scan: Option<bool>,
 }
 
-impl EngineCommandRequest for ScanSettingsSetRequest {
+impl PrivilegedCommandRequest for ScanSettingsSetRequest {
     type ResponseType = ScanSettingsSetResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Settings(SettingsCommand::Scan {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Settings(SettingsCommand::Scan {
             scan_settings_command: ScanSettingsCommand::Set {
                 scan_settings_set_request: self.clone(),
             },

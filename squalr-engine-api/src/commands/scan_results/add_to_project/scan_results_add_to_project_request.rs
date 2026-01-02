@@ -1,5 +1,5 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::scan_results::add_to_project::scan_results_add_to_project_response::ScanResultsAddToProjectResponse;
 use crate::commands::scan_results::scan_results_command::ScanResultsCommand;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
@@ -13,11 +13,11 @@ pub struct ScanResultsAddToProjectRequest {
     pub scan_result_refs: Vec<ScanResultRef>,
 }
 
-impl EngineCommandRequest for ScanResultsAddToProjectRequest {
+impl PrivilegedCommandRequest for ScanResultsAddToProjectRequest {
     type ResponseType = ScanResultsAddToProjectResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Results(ScanResultsCommand::AddToProject {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Results(ScanResultsCommand::AddToProject {
             results_add_to_project_request: self.clone(),
         })
     }

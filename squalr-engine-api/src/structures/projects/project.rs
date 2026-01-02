@@ -1,5 +1,4 @@
-use serde::{Deserialize, Serialize};
-use squalr_engine_api::structures::{
+use crate::structures::{
     processes::process_icon::ProcessIcon,
     projects::{
         project_info::ProjectInfo,
@@ -7,6 +6,7 @@ use squalr_engine_api::structures::{
         project_manifest::ProjectManifest,
     },
 };
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Represents a full project in memory that can be serialized to the filesystem as distinct files, or exported as a single file.

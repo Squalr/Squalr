@@ -1,8 +1,7 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
-use crate::commands::project::open::project_open_response::ProjectOpenResponse;
 use crate::commands::project::project_command::ProjectCommand;
 use crate::commands::project::project_response::ProjectResponse;
+use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
+use crate::commands::{project::open::project_open_response::ProjectOpenResponse, unprivileged_command::UnprivilegedCommand};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -16,11 +15,11 @@ pub struct ProjectOpenRequest {
     pub project_name: Option<String>,
 }
 
-impl EngineCommandRequest for ProjectOpenRequest {
+impl UnprivilegedCommandRequest for ProjectOpenRequest {
     type ResponseType = ProjectOpenResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Project(ProjectCommand::Open {
+    fn to_engine_command(&self) -> UnprivilegedCommand {
+        UnprivilegedCommand::Project(ProjectCommand::Open {
             project_open_request: self.clone(),
         })
     }

@@ -1,17 +1,17 @@
-use crate::command_executors::engine_command_executor::EngineCommandExecutor;
-use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
+use crate::command_executors::privileged_command_executor::PrivilegedCommandExecutor;
+use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
-use squalr_engine_api::commands::engine_command_response::{EngineCommandResponse, TypedEngineCommandResponse};
+use squalr_engine_api::commands::privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse};
 use squalr_engine_api::commands::process::process_command::ProcessCommand;
 use std::sync::Arc;
 
-impl EngineCommandExecutor for ProcessCommand {
-    type ResponseType = EngineCommandResponse;
+impl PrivilegedCommandExecutor for ProcessCommand {
+    type ResponseType = PrivilegedCommandResponse;
 
     fn execute(
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandExecutor>::ResponseType {
+    ) -> <Self as PrivilegedCommandExecutor>::ResponseType {
         match self {
             ProcessCommand::Open { process_open_request } => process_open_request
                 .execute(engine_privileged_state)

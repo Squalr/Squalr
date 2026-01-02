@@ -1,5 +1,5 @@
-use crate::project::project_manager::ProjectManager;
 use anyhow::anyhow;
+use squalr_engine_api::structures::projects::project_manager::ProjectManager;
 
 impl ProjectManager {
     /// Closes the currently opened project.

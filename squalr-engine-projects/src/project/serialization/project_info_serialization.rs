@@ -1,8 +1,8 @@
-use crate::project::{project::Project, serialization::serializable_project_file::SerializableProjectFile};
+use crate::project::serialization::serializable_project_file::SerializableProjectFile;
 use serde::{Deserialize, Serialize};
 use squalr_engine_api::structures::{
     processes::process_icon::ProcessIcon,
-    projects::{project_info::ProjectInfo, project_manifest::ProjectManifest},
+    projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest},
 };
 use std::{
     fs::{File, OpenOptions},

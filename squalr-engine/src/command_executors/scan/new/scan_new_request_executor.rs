@@ -1,4 +1,4 @@
-use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
+use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::new::scan_new_response::ScanNewResponse;
@@ -8,13 +8,13 @@ use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::page_retrieval_mode::PageRetrievalMode;
 use std::sync::Arc;
 
-impl EngineCommandRequestExecutor for ScanNewRequest {
+impl PrivilegedCommandRequestExecutor for ScanNewRequest {
     type ResponseType = ScanNewResponse;
 
     fn execute(
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         let freeze_list_registry = engine_privileged_state.get_freeze_list_registry();
         let mut freeze_list_registry_guard = match freeze_list_registry.write() {
             Ok(registry) => registry,

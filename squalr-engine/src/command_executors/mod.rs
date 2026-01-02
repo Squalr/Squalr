@@ -1,6 +1,6 @@
-pub mod engine_command_executor;
-pub mod engine_request_executor;
 pub mod memory;
+pub mod privileged_command_executor;
+pub mod privileged_request_executor;
 pub mod process;
 pub mod project;
 pub mod project_items;
@@ -8,3 +8,5 @@ pub mod scan;
 pub mod scan_results;
 pub mod settings;
 pub mod trackable_tasks;
+pub mod unprivileged_command_executor;
+pub mod unprivileged_request_executor;

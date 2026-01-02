@@ -1,17 +1,17 @@
-use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
+use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::reset::scan_reset_request::ScanResetRequest;
 use squalr_engine_api::commands::scan::reset::scan_reset_response::ScanResetResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use std::sync::Arc;
 
-impl EngineCommandRequestExecutor for ScanResetRequest {
+impl PrivilegedCommandRequestExecutor for ScanResetRequest {
     type ResponseType = ScanResetResponse;
 
     fn execute(
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         let snapshot = engine_privileged_state.get_snapshot();
         let freeze_list_registry = engine_privileged_state.get_freeze_list_registry();
         let mut freeze_list_registry_guard = match freeze_list_registry.write() {

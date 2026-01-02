@@ -1,19 +1,18 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
-use crate::commands::project::project_command::ProjectCommand;
 use crate::commands::project::project_response::ProjectResponse;
 use crate::commands::project::save::project_save_response::ProjectSaveResponse;
+use crate::commands::unprivileged_command::UnprivilegedCommand;
+use crate::commands::{project::project_command::ProjectCommand, unprivileged_command_request::UnprivilegedCommandRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProjectSaveRequest {}
 
-impl EngineCommandRequest for ProjectSaveRequest {
+impl UnprivilegedCommandRequest for ProjectSaveRequest {
     type ResponseType = ProjectSaveResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Project(ProjectCommand::Save {
+    fn to_engine_command(&self) -> UnprivilegedCommand {
+        UnprivilegedCommand::Project(ProjectCommand::Save {
             project_save_request: self.clone(),
         })
     }

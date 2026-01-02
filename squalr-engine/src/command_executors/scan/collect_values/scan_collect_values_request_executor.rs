@@ -1,4 +1,4 @@
-use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
+use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest;
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_response::ScanCollectValuesResponse;
@@ -7,13 +7,13 @@ use squalr_engine_scanning::scanners::value_collector_task::ValueCollectorTask;
 use std::sync::Arc;
 use std::thread;
 
-impl EngineCommandRequestExecutor for ScanCollectValuesRequest {
+impl PrivilegedCommandRequestExecutor for ScanCollectValuesRequest {
     type ResponseType = ScanCollectValuesResponse;
 
     fn execute(
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         if let Some(process_info) = engine_privileged_state
             .get_process_manager()
             .get_opened_process()

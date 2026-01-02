@@ -1,9 +1,9 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_response::EngineCommandResponse;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_response::PrivilegedCommandResponse;
 use crate::events::engine_event::EngineEvent;
 use crossbeam_channel::Receiver;
 
-/// Defines functionality that can be invoked by the engine for the GUI or CLI to handle.
+/// Defines functionality that can be invoked by the engine for the GUI or CLI to handle (engine -> gui).
 pub trait EngineApiPrivilegedBindings: Send + Sync {
     /// Emits an event from the engine, sending it to all listeners that are currently subscribed.
     fn emit_event(
@@ -12,10 +12,10 @@ pub trait EngineApiPrivilegedBindings: Send + Sync {
     ) -> Result<(), String>;
 
     /// Dispatches an engine command to the engine to handle.
-    fn dispatch_command(
+    fn dispatch_internal_command(
         &self,
-        engine_command: EngineCommand,
-        callback: Box<dyn FnOnce(EngineCommandResponse) + Send + Sync + 'static>,
+        engine_command: PrivilegedCommand,
+        callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), String>;
 
     /// Requests to listen to all engine events.

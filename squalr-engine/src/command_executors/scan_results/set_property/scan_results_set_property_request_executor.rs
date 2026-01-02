@@ -1,4 +1,4 @@
-use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
+use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
@@ -11,13 +11,13 @@ use squalr_engine_memory::memory_writer::MemoryWriter;
 use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
 use std::sync::Arc;
 
-impl EngineCommandRequestExecutor for ScanResultsSetPropertyRequest {
+impl PrivilegedCommandRequestExecutor for ScanResultsSetPropertyRequest {
     type ResponseType = ScanResultsSetPropertyResponse;
 
     fn execute(
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         let snapshot = engine_privileged_state.get_snapshot();
         let snapshot_guard = match snapshot.read() {
             Ok(snapshot) => snapshot,

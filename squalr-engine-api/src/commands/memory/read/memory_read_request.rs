@@ -1,5 +1,5 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::memory::memory_command::MemoryCommand;
 use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -22,11 +22,11 @@ pub struct MemoryReadRequest {
     pub symbolic_struct_definition: SymbolicStructDefinition,
 }
 
-impl EngineCommandRequest for MemoryReadRequest {
+impl PrivilegedCommandRequest for MemoryReadRequest {
     type ResponseType = MemoryReadResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Memory(MemoryCommand::Read {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Memory(MemoryCommand::Read {
             memory_read_request: self.clone(),
         })
     }

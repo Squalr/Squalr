@@ -1,8 +1,7 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
-use crate::commands::project::export::project_export_response::ProjectExportResponse;
 use crate::commands::project::project_command::ProjectCommand;
 use crate::commands::project::project_response::ProjectResponse;
+use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
+use crate::commands::{project::export::project_export_response::ProjectExportResponse, unprivileged_command::UnprivilegedCommand};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -19,11 +18,11 @@ pub struct ProjectExportRequest {
     pub open_export_folder: bool,
 }
 
-impl EngineCommandRequest for ProjectExportRequest {
+impl UnprivilegedCommandRequest for ProjectExportRequest {
     type ResponseType = ProjectExportResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Project(ProjectCommand::Export {
+    fn to_engine_command(&self) -> UnprivilegedCommand {
+        UnprivilegedCommand::Project(ProjectCommand::Export {
             project_export_request: self.clone(),
         })
     }

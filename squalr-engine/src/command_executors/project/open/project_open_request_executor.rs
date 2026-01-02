@@ -1,19 +1,17 @@
-use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
-use crate::engine_privileged_state::EnginePrivilegedState;
+use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project::open::project_open_request::ProjectOpenRequest;
 use squalr_engine_api::commands::project::open::project_open_response::ProjectOpenResponse;
-use squalr_engine_projects::project::project::Project;
+use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use squalr_engine_projects::settings::project_settings_config::ProjectSettingsConfig;
-use std::sync::Arc;
 
-impl EngineCommandRequestExecutor for ProjectOpenRequest {
+impl UnprivilegedCommandRequestExecutor for ProjectOpenRequest {
     type ResponseType = ProjectOpenResponse;
 
     fn execute(
         &self,
-        engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+        engine_api_unprivileged_bindings: &dyn EngineApiUnprivilegedBindings,
+    ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         // If a path is provided, use this directly. Otherwise, try to use the project settings relative name to construct the path.
         let project_path = if let Some(path) = &self.project_path {
             path.into()

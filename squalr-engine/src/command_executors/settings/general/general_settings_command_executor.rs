@@ -1,18 +1,20 @@
 use crate::{
-    command_executors::{engine_command_executor::EngineCommandExecutor, engine_request_executor::EngineCommandRequestExecutor},
+    command_executors::{privileged_command_executor::PrivilegedCommandExecutor, privileged_request_executor::PrivilegedCommandRequestExecutor},
     engine_privileged_state::EnginePrivilegedState,
 };
-use squalr_engine_api::commands::engine_command_response::TypedEngineCommandResponse;
-use squalr_engine_api::commands::{engine_command_response::EngineCommandResponse, settings::general::general_settings_command::GeneralSettingsCommand};
+use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
+use squalr_engine_api::commands::{
+    privileged_command_response::PrivilegedCommandResponse, settings::general::general_settings_command::GeneralSettingsCommand,
+};
 use std::sync::Arc;
 
-impl EngineCommandExecutor for GeneralSettingsCommand {
-    type ResponseType = EngineCommandResponse;
+impl PrivilegedCommandExecutor for GeneralSettingsCommand {
+    type ResponseType = PrivilegedCommandResponse;
 
     fn execute(
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandExecutor>::ResponseType {
+    ) -> <Self as PrivilegedCommandExecutor>::ResponseType {
         match self {
             GeneralSettingsCommand::List { general_settings_list_request } => general_settings_list_request
                 .execute(engine_privileged_state)

@@ -1,5 +1,5 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::scan::struct_scan::struct_scan_response::StructScanResponse;
@@ -18,11 +18,11 @@ pub struct StructScanRequest {
     pub compare_type: ScanCompareType,
 }
 
-impl EngineCommandRequest for StructScanRequest {
+impl PrivilegedCommandRequest for StructScanRequest {
     type ResponseType = StructScanResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Scan(ScanCommand::StructScan {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Scan(ScanCommand::StructScan {
             struct_scan_request: self.clone(),
         })
     }

@@ -1,15 +1,15 @@
-use crate::{command_executors::engine_request_executor::EngineCommandRequestExecutor, engine_privileged_state::EnginePrivilegedState};
+use crate::{command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor, engine_privileged_state::EnginePrivilegedState};
 use squalr_engine_api::commands::process::close::{process_close_request::ProcessCloseRequest, process_close_response::ProcessCloseResponse};
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use std::sync::Arc;
 
-impl EngineCommandRequestExecutor for ProcessCloseRequest {
+impl PrivilegedCommandRequestExecutor for ProcessCloseRequest {
     type ResponseType = ProcessCloseResponse;
 
     fn execute(
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         if let Some(process_info) = engine_privileged_state
             .get_process_manager()
             .get_opened_process()

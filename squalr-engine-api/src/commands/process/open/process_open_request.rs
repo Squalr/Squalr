@@ -1,5 +1,5 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::process::open::process_open_response::ProcessOpenResponse;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
@@ -16,11 +16,11 @@ pub struct ProcessOpenRequest {
     pub match_case: bool,
 }
 
-impl EngineCommandRequest for ProcessOpenRequest {
+impl PrivilegedCommandRequest for ProcessOpenRequest {
     type ResponseType = ProcessOpenResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Process(ProcessCommand::Open {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Process(ProcessCommand::Open {
             process_open_request: self.clone(),
         })
     }

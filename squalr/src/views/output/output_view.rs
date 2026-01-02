@@ -23,7 +23,7 @@ impl Widget for OutputView {
         // Process any new logs for display.
         let log_history = self
             .app_context
-            .engine_execution_context
+            .engine_unprivileged_state
             .get_logger()
             .get_log_history();
 

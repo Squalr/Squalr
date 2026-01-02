@@ -1,4 +1,4 @@
-use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
+use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_request::ScanResultsQueryRequest;
 use squalr_engine_api::commands::scan_results::query::scan_results_query_response::ScanResultsQueryResponse;
@@ -12,13 +12,13 @@ use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use std::sync::Arc;
 
-impl EngineCommandRequestExecutor for ScanResultsQueryRequest {
+impl PrivilegedCommandRequestExecutor for ScanResultsQueryRequest {
     type ResponseType = ScanResultsQueryResponse;
 
     fn execute(
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         let symbol_registry = SymbolRegistry::get_instance();
         let results_page_size = ScanSettingsConfig::get_results_page_size() as u64;
         let mut scan_results_list = vec![];

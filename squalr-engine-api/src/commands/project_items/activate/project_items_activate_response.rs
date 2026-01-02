@@ -1,20 +1,19 @@
-use crate::commands::engine_command_response::EngineCommandResponse;
-use crate::commands::engine_command_response::TypedEngineCommandResponse;
-use crate::commands::project_items::project_items_response::ProjectItemsResponse;
+use crate::commands::unprivileged_command_response::UnprivilegedCommandResponse;
+use crate::commands::{project_items::project_items_response::ProjectItemsResponse, unprivileged_command_response::TypedUnprivilegedCommandResponse};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectItemsActivateResponse {}
 
-impl TypedEngineCommandResponse for ProjectItemsActivateResponse {
-    fn to_engine_response(&self) -> EngineCommandResponse {
-        EngineCommandResponse::ProjectItems(ProjectItemsResponse::Activate {
+impl TypedUnprivilegedCommandResponse for ProjectItemsActivateResponse {
+    fn to_engine_response(&self) -> UnprivilegedCommandResponse {
+        UnprivilegedCommandResponse::ProjectItems(ProjectItemsResponse::Activate {
             project_items_activate_response: self.clone(),
         })
     }
 
-    fn from_engine_response(response: EngineCommandResponse) -> Result<Self, EngineCommandResponse> {
-        if let EngineCommandResponse::ProjectItems(ProjectItemsResponse::Activate {
+    fn from_engine_response(response: UnprivilegedCommandResponse) -> Result<Self, UnprivilegedCommandResponse> {
+        if let UnprivilegedCommandResponse::ProjectItems(ProjectItemsResponse::Activate {
             project_items_activate_response,
         }) = response
         {

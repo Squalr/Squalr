@@ -3,7 +3,7 @@ use eframe::egui::TextureOptions;
 use epaint::{ColorImage, TextureHandle};
 use squalr_engine_api::{
     commands::{
-        engine_command_request::EngineCommandRequest,
+        privileged_command_request::PrivilegedCommandRequest,
         process::{list::process_list_request::ProcessListRequest, open::process_open_request::ProcessOpenRequest},
     },
     dependency_injection::{dependency::Dependency, write_guard::WriteGuard},
@@ -52,7 +52,7 @@ impl ProcessSelectorViewData {
             fetch_icons: true,
         };
 
-        let engine_execution_context = app_context.engine_execution_context.clone();
+        let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
 
         // Early exit if already awaiting response. Clear windowed list if querying up to date info.
         match process_selector_view_data.write("Process selector view data refresh windowed process list") {
@@ -66,7 +66,7 @@ impl ProcessSelectorViewData {
             None => return,
         };
 
-        list_windowed_processes_request.send(&engine_execution_context, move |process_list_response| {
+        list_windowed_processes_request.send(&engine_unprivileged_state, move |process_list_response| {
             let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data refresh windowed process list response") {
                 Some(process_selector_view_data) => process_selector_view_data,
                 None => return,
@@ -89,7 +89,7 @@ impl ProcessSelectorViewData {
             fetch_icons: true,
         };
 
-        let engine_execution_context = app_context.engine_execution_context.clone();
+        let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
 
         // Early exit if already awaiting response. Clear full list if querying up to date info.
         match process_selector_view_data.write("Process selector view data refresh full process list") {
@@ -103,7 +103,7 @@ impl ProcessSelectorViewData {
             None => return,
         };
 
-        list_windowed_processes_request.send(&engine_execution_context, move |process_list_response| {
+        list_windowed_processes_request.send(&engine_unprivileged_state, move |process_list_response| {
             let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data refresh full process list response") {
                 Some(process_selector_view_data) => process_selector_view_data,
                 None => return,
@@ -121,7 +121,7 @@ impl ProcessSelectorViewData {
         process_id: Option<u32>,
     ) {
         if process_id.is_some() {
-            let engine_execution_context = app_context.engine_execution_context.clone();
+            let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
             let process_open_request = ProcessOpenRequest {
                 process_id,
                 search_name: None,
@@ -139,7 +139,7 @@ impl ProcessSelectorViewData {
                 None => return,
             };
 
-            process_open_request.send(&engine_execution_context, move |process_open_response| {
+            process_open_request.send(&engine_unprivileged_state, move |process_open_response| {
                 Self::set_opened_process_info(process_selector_view_data, &app_context, process_open_response.opened_process_info)
             });
         } else {

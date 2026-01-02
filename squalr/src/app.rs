@@ -4,7 +4,7 @@ use crate::views::main_window::main_window_view::MainWindowView;
 use crate::{app_context::AppContext, ui::theme::Theme};
 use eframe::egui::{CentralPanel, Context, Frame, Visuals};
 use epaint::{CornerRadius, Rgba, vec2};
-use squalr_engine_api::{dependency_injection::dependency_container::DependencyContainer, engine::engine_execution_context::EngineExecutionContext};
+use squalr_engine_api::{dependency_injection::dependency_container::DependencyContainer, engine::engine_unprivileged_state::EngineUnprivilegedState};
 use std::sync::RwLock;
 use std::{rc::Rc, sync::Arc};
 
@@ -18,7 +18,7 @@ pub struct App {
 impl App {
     pub fn new(
         context: &Context,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         dependency_container: &DependencyContainer,
         app_title: String,
     ) -> Self {
@@ -26,7 +26,7 @@ impl App {
         // Create built in docked windows.
         let main_dock_root = DockableWindowSettings::get_dock_layout_settings();
         let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));
-        let app_context = Arc::new(AppContext::new(context.clone(), theme, docking_manager, engine_execution_context));
+        let app_context = Arc::new(AppContext::new(context.clone(), theme, docking_manager, engine_unprivileged_state));
         let corner_radius = CornerRadius::same(8);
         let main_window_view = MainWindowView::new(app_context.clone(), Rc::new(app_title), corner_radius);
 

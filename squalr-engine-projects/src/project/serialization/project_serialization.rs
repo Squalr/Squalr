@@ -1,5 +1,6 @@
-use crate::project::{project::Project, serialization::serializable_project_file::SerializableProjectFile};
+use crate::project::serialization::serializable_project_file::SerializableProjectFile;
 use squalr_engine_api::structures::projects::{
+    project::Project,
     project_info::ProjectInfo,
     project_items::{built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_item::ProjectItem, project_item_ref::ProjectItemRef},
 };

@@ -1,8 +1,9 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
-use crate::commands::project_items::activate::project_items_activate_response::ProjectItemsActivateResponse;
 use crate::commands::project_items::project_items_command::ProjectItemsCommand;
 use crate::commands::project_items::project_items_response::ProjectItemsResponse;
+use crate::commands::unprivileged_command::UnprivilegedCommand;
+use crate::commands::{
+    project_items::activate::project_items_activate_response::ProjectItemsActivateResponse, unprivileged_command_request::UnprivilegedCommandRequest,
+};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -14,11 +15,11 @@ pub struct ProjectItemsActivateRequest {
     pub is_activated: bool,
 }
 
-impl EngineCommandRequest for ProjectItemsActivateRequest {
+impl UnprivilegedCommandRequest for ProjectItemsActivateRequest {
     type ResponseType = ProjectItemsActivateResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::ProjectItems(ProjectItemsCommand::Activate {
+    fn to_engine_command(&self) -> UnprivilegedCommand {
+        UnprivilegedCommand::ProjectItems(ProjectItemsCommand::Activate {
             project_items_activate_request: self.clone(),
         })
     }

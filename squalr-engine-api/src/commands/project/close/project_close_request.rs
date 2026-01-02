@@ -1,19 +1,18 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
-use crate::commands::project::close::project_close_response::ProjectCloseResponse;
 use crate::commands::project::project_command::ProjectCommand;
 use crate::commands::project::project_response::ProjectResponse;
+use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
+use crate::commands::{project::close::project_close_response::ProjectCloseResponse, unprivileged_command::UnprivilegedCommand};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProjectCloseRequest {}
 
-impl EngineCommandRequest for ProjectCloseRequest {
+impl UnprivilegedCommandRequest for ProjectCloseRequest {
     type ResponseType = ProjectCloseResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Project(ProjectCommand::Close {
+    fn to_engine_command(&self) -> UnprivilegedCommand {
+        UnprivilegedCommand::Project(ProjectCommand::Close {
             project_close_request: self.clone(),
         })
     }

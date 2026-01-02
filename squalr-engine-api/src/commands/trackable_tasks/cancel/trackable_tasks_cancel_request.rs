@@ -1,5 +1,5 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::trackable_tasks::cancel::trackable_tasks_cancel_response::TrackableTasksCancelResponse;
 use crate::commands::trackable_tasks::trackable_tasks_command::TrackableTasksCommand;
 use crate::commands::trackable_tasks::trackable_tasks_response::TrackableTasksResponse;
@@ -12,11 +12,11 @@ pub struct TrackableTasksCancelRequest {
     pub task_id: String,
 }
 
-impl EngineCommandRequest for TrackableTasksCancelRequest {
+impl PrivilegedCommandRequest for TrackableTasksCancelRequest {
     type ResponseType = TrackableTasksCancelResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::TrackableTasks(TrackableTasksCommand::Cancel {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::TrackableTasks(TrackableTasksCommand::Cancel {
             trackable_tasks_cancel_request: self.clone(),
         })
     }

@@ -1,9 +1,9 @@
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::scan::element_scan::element_scan_response::ElementScanResponse;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::structures::scanning::constraints::anonymous_scan_constraint::AnonymousScanConstraint;
-use crate::{commands::engine_command::EngineCommand, structures::data_types::data_type_ref::DataTypeRef};
+use crate::{commands::privileged_command::PrivilegedCommand, structures::data_types::data_type_ref::DataTypeRef};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -15,11 +15,11 @@ pub struct ElementScanRequest {
     pub data_type_refs: Vec<DataTypeRef>,
 }
 
-impl EngineCommandRequest for ElementScanRequest {
+impl PrivilegedCommandRequest for ElementScanRequest {
     type ResponseType = ElementScanResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Scan(ScanCommand::ElementScan {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Scan(ScanCommand::ElementScan {
             element_scan_request: self.clone(),
         })
     }

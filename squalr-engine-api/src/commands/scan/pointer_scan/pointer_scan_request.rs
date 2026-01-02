@@ -1,9 +1,9 @@
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::scan::pointer_scan::pointer_scan_response::PointerScanResponse;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::structures::data_values::anonymous_value::AnonymousValue;
-use crate::{commands::engine_command::EngineCommand, structures::data_types::data_type_ref::DataTypeRef};
+use crate::{commands::privileged_command::PrivilegedCommand, structures::data_types::data_type_ref::DataTypeRef};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -19,11 +19,11 @@ pub struct PointerScanRequest {
     pub offset_size: u64,
 }
 
-impl EngineCommandRequest for PointerScanRequest {
+impl PrivilegedCommandRequest for PointerScanRequest {
     type ResponseType = PointerScanResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Scan(ScanCommand::PointerScan {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Scan(ScanCommand::PointerScan {
             pointer_scan_request: self.clone(),
         })
     }

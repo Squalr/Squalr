@@ -1,6 +1,5 @@
 use crate::response_handlers::handle_engine_response;
-use squalr_engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::commands::engine_command::EngineCommand;
+use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use std::io;
 use std::io::Write;
 use std::sync::Arc;
@@ -10,7 +9,7 @@ pub struct Cli {}
 
 /// Implements a command line listener polls for text input commands to control the engine.
 impl Cli {
-    pub fn run_loop(engine_execution_context: &Arc<EngineExecutionContext>) {
+    pub fn run_loop(engine_unprivileged_state: &Arc<EngineUnprivilegedState>) {
         let stdin = io::stdin();
         let mut stdout = io::stdout();
 
@@ -26,7 +25,7 @@ impl Cli {
                 break;
             }
 
-            if !Self::handle_input(engine_execution_context, input.trim()) {
+            if !Self::handle_input(engine_unprivileged_state, input.trim()) {
                 break;
             }
         }
@@ -47,7 +46,7 @@ impl Cli {
     }
 
     fn handle_input(
-        engine_execution_context: &Arc<EngineExecutionContext>,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         input: &str,
     ) -> bool {
         if input.eq_ignore_ascii_case("exit") || input.eq_ignore_ascii_case("close") || input.eq_ignore_ascii_case("quit") {
@@ -70,7 +69,7 @@ impl Cli {
         // We could structopt(flatten) our commands to avoid this, but then this creates even stranger command conflict issues.
         cli_command.insert(0, cli_command[0].clone());
 
-        let engine_command = match EngineCommand::from_iter_safe(&cli_command) {
+        let engine_command = match PrivilegedCommand::from_iter_safe(&cli_command) {
             Ok(engine_command) => engine_command,
             Err(error) => {
                 log::error!("Error parsing engine command: {}", error);
@@ -78,7 +77,7 @@ impl Cli {
             }
         };
 
-        engine_execution_context.dispatch_command(engine_command, |engine_command| {
+        engine_unprivileged_state.dispatch_privileged_command(engine_command, |engine_command| {
             handle_engine_response(engine_command);
         });
 

@@ -6,7 +6,7 @@ use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
 use epaint::vec2;
 use squalr_engine_api::{
     commands::{
-        engine_command_request::EngineCommandRequest,
+        privileged_command_request::PrivilegedCommandRequest,
         settings::general::{list::general_settings_list_request::GeneralSettingsListRequest, set::general_settings_set_request::GeneralSettingsSetRequest},
     },
     structures::settings::general_settings::GeneralSettings,
@@ -35,7 +35,7 @@ impl SettingsTabGeneralView {
         let general_settings_list_request = GeneralSettingsListRequest {};
         let cached_general_settings = self.cached_general_settings.clone();
 
-        general_settings_list_request.send(&self.app_context.engine_execution_context, move |scan_results_query_response| {
+        general_settings_list_request.send(&self.app_context.engine_unprivileged_state, move |scan_results_query_response| {
             if let Ok(general_settings) = scan_results_query_response.general_settings {
                 if let Ok(mut cached_general_settings) = cached_general_settings.write() {
                     *cached_general_settings = general_settings;
@@ -78,7 +78,7 @@ impl Widget for SettingsTabGeneralView {
                                     ..GeneralSettingsSetRequest::default()
                                 };
 
-                                general_settings_set_request.send(&self.app_context.engine_execution_context, move |general_settings_set_response| {});
+                                general_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |general_settings_set_response| {});
                             }
 
                             user_interface.add_space(8.0);

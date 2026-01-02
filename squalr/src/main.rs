@@ -48,10 +48,10 @@ pub fn main() {
         APP_NAME,
         native_options,
         Box::new(|creation_context| {
-            if let Some(engine_execution_context) = squalr_engine.get_engine_execution_context() {
+            if let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state() {
                 let app = App::new(
                     &creation_context.egui_ctx,
-                    engine_execution_context.clone(),
+                    engine_unprivileged_state.clone(),
                     squalr_engine.get_dependency_container(),
                     APP_NAME.to_string(),
                 );

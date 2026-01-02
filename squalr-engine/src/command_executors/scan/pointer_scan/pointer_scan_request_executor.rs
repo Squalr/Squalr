@@ -1,4 +1,4 @@
-use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
+use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::pointer_scan::pointer_scan_request::PointerScanRequest;
 use squalr_engine_api::commands::scan::pointer_scan::pointer_scan_response::PointerScanResponse;
@@ -9,13 +9,13 @@ use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use std::sync::Arc;
 use std::thread;
 
-impl EngineCommandRequestExecutor for PointerScanRequest {
+impl PrivilegedCommandRequestExecutor for PointerScanRequest {
     type ResponseType = PointerScanResponse;
 
     fn execute(
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         if let Some(process_info) = engine_privileged_state
             .get_process_manager()
             .get_opened_process()

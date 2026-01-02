@@ -1,5 +1,5 @@
-use crate::commands::engine_command_response::EngineCommandResponse;
-use crate::commands::engine_command_response::TypedEngineCommandResponse;
+use crate::commands::privileged_command_response::PrivilegedCommandResponse;
+use crate::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
 use crate::structures::scan_results::scan_result::ScanResult;
 use serde::{Deserialize, Serialize};
@@ -14,15 +14,15 @@ pub struct ScanResultsListResponse {
     pub total_size_in_bytes: u64,
 }
 
-impl TypedEngineCommandResponse for ScanResultsListResponse {
-    fn to_engine_response(&self) -> EngineCommandResponse {
-        EngineCommandResponse::Results(ScanResultsResponse::List {
+impl TypedPrivilegedCommandResponse for ScanResultsListResponse {
+    fn to_engine_response(&self) -> PrivilegedCommandResponse {
+        PrivilegedCommandResponse::Results(ScanResultsResponse::List {
             scan_results_list_response: self.clone(),
         })
     }
 
-    fn from_engine_response(response: EngineCommandResponse) -> Result<Self, EngineCommandResponse> {
-        if let EngineCommandResponse::Results(ScanResultsResponse::List { scan_results_list_response }) = response {
+    fn from_engine_response(response: PrivilegedCommandResponse) -> Result<Self, PrivilegedCommandResponse> {
+        if let PrivilegedCommandResponse::Results(ScanResultsResponse::List { scan_results_list_response }) = response {
             Ok(scan_results_list_response)
         } else {
             Err(response)

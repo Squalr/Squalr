@@ -32,9 +32,9 @@ impl MainShortcutBarView {
     fn listen_for_process_change(&self) {
         let app_context = self.app_context.clone();
         let process_selector_view_data = self.process_selector_view_data.clone();
-        let engine_execution_context = self.app_context.engine_execution_context.clone();
+        let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
 
-        engine_execution_context.listen_for_engine_event::<ProcessChangedEvent>(move |process_changed_event| {
+        engine_unprivileged_state.listen_for_engine_event::<ProcessChangedEvent>(move |process_changed_event| {
             ProcessSelectorViewData::set_opened_process_info(process_selector_view_data.clone(), &app_context, process_changed_event.process_info.clone());
         });
     }

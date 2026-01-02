@@ -217,11 +217,11 @@ impl Widget for ElementScannerToolbarView {
         drop(element_scanner_view_data);
 
         if should_perform_new_scan {
-            ElementScannerViewData::reset_scan(self.element_scanner_view_data.clone(), self.app_context.engine_execution_context.clone());
+            ElementScannerViewData::reset_scan(self.element_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         } else if should_collect_values {
-            ElementScannerViewData::collect_values(self.app_context.engine_execution_context.clone());
+            ElementScannerViewData::collect_values(self.app_context.engine_unprivileged_state.clone());
         } else if should_start_scan {
-            ElementScannerViewData::start_scan(self.element_scanner_view_data.clone(), self.app_context.engine_execution_context.clone());
+            ElementScannerViewData::start_scan(self.element_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         } else if should_add_new_scan_constraint {
             ElementScannerViewData::add_constraint(self.element_scanner_view_data.clone());
         } else if remove_scan_constraint_index > 0 {

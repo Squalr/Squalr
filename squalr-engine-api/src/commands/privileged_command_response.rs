@@ -9,7 +9,7 @@ use crate::commands::trackable_tasks::trackable_tasks_response::TrackableTasksRe
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum EngineCommandResponse {
+pub enum PrivilegedCommandResponse {
     Memory(MemoryResponse),
     Process(ProcessResponse),
     Results(ScanResultsResponse),
@@ -20,7 +20,7 @@ pub enum EngineCommandResponse {
     TrackableTasks(TrackableTasksResponse),
 }
 
-pub trait TypedEngineCommandResponse: Sized {
-    fn to_engine_response(&self) -> EngineCommandResponse;
-    fn from_engine_response(response: EngineCommandResponse) -> Result<Self, EngineCommandResponse>;
+pub trait TypedPrivilegedCommandResponse: Sized {
+    fn to_engine_response(&self) -> PrivilegedCommandResponse;
+    fn from_engine_response(response: PrivilegedCommandResponse) -> Result<Self, PrivilegedCommandResponse>;
 }

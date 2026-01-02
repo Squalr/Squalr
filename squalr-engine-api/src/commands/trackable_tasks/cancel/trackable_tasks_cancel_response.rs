@@ -1,20 +1,20 @@
-use crate::commands::engine_command_response::EngineCommandResponse;
-use crate::commands::engine_command_response::TypedEngineCommandResponse;
+use crate::commands::privileged_command_response::PrivilegedCommandResponse;
+use crate::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use crate::commands::trackable_tasks::trackable_tasks_response::TrackableTasksResponse;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TrackableTasksCancelResponse {}
 
-impl TypedEngineCommandResponse for TrackableTasksCancelResponse {
-    fn to_engine_response(&self) -> EngineCommandResponse {
-        EngineCommandResponse::TrackableTasks(TrackableTasksResponse::Cancel {
+impl TypedPrivilegedCommandResponse for TrackableTasksCancelResponse {
+    fn to_engine_response(&self) -> PrivilegedCommandResponse {
+        PrivilegedCommandResponse::TrackableTasks(TrackableTasksResponse::Cancel {
             trackable_tasks_cancel_response: self.clone(),
         })
     }
 
-    fn from_engine_response(response: EngineCommandResponse) -> Result<Self, EngineCommandResponse> {
-        if let EngineCommandResponse::TrackableTasks(TrackableTasksResponse::Cancel {
+    fn from_engine_response(response: PrivilegedCommandResponse) -> Result<Self, PrivilegedCommandResponse> {
+        if let PrivilegedCommandResponse::TrackableTasks(TrackableTasksResponse::Cancel {
             trackable_tasks_cancel_response,
         }) = response
         {

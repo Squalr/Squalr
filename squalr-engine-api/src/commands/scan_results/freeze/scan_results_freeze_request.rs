@@ -1,5 +1,5 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::scan_results::freeze::scan_results_freeze_response::ScanResultsFreezeResponse;
 use crate::commands::scan_results::scan_results_command::ScanResultsCommand;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
@@ -15,11 +15,11 @@ pub struct ScanResultsFreezeRequest {
     pub is_frozen: bool,
 }
 
-impl EngineCommandRequest for ScanResultsFreezeRequest {
+impl PrivilegedCommandRequest for ScanResultsFreezeRequest {
     type ResponseType = ScanResultsFreezeResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Results(ScanResultsCommand::Freeze {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Results(ScanResultsCommand::Freeze {
             results_freeze_request: self.clone(),
         })
     }

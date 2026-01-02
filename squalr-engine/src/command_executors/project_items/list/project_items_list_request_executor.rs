@@ -1,16 +1,15 @@
-use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
-use crate::engine_privileged_state::EnginePrivilegedState;
+use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
 use squalr_engine_api::commands::project_items::list::project_items_list_response::ProjectItemsListResponse;
-use std::sync::Arc;
+use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 
-impl EngineCommandRequestExecutor for ProjectItemsListRequest {
+impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
     type ResponseType = ProjectItemsListResponse;
 
     fn execute(
         &self,
-        engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+        engine_api_privileged_bindings: &dyn EngineApiUnprivilegedBindings,
+    ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         /*
         match engine_privileged_state
             .get_project_manager()

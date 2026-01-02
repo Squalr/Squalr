@@ -5,7 +5,7 @@ use crate::{
 use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
 use squalr_engine_api::{
     commands::{
-        engine_command_request::EngineCommandRequest,
+        privileged_command_request::PrivilegedCommandRequest,
         settings::memory::{list::memory_settings_list_request::MemorySettingsListRequest, set::memory_settings_set_request::MemorySettingsSetRequest},
     },
     structures::settings::memory_settings::MemorySettings,
@@ -34,7 +34,7 @@ impl SettingsTabMemoryView {
         let memory_settings_list_request = MemorySettingsListRequest {};
         let cached_memory_settings = self.cached_memory_settings.clone();
 
-        memory_settings_list_request.send(&self.app_context.engine_execution_context, move |scan_results_query_response| {
+        memory_settings_list_request.send(&self.app_context.engine_unprivileged_state, move |scan_results_query_response| {
             if let Ok(memory_settings) = scan_results_query_response.memory_settings {
                 if let Ok(mut cached_memory_settings) = cached_memory_settings.write() {
                     *cached_memory_settings = memory_settings;
@@ -76,7 +76,7 @@ impl Widget for SettingsTabMemoryView {
                                             ..MemorySettingsSetRequest::default()
                                         };
 
-                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
+                                        memory_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -101,7 +101,7 @@ impl Widget for SettingsTabMemoryView {
                                             ..MemorySettingsSetRequest::default()
                                         };
 
-                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
+                                        memory_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -126,7 +126,7 @@ impl Widget for SettingsTabMemoryView {
                                             ..MemorySettingsSetRequest::default()
                                         };
 
-                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
+                                        memory_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -158,7 +158,7 @@ impl Widget for SettingsTabMemoryView {
                                             ..MemorySettingsSetRequest::default()
                                         };
 
-                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
+                                        memory_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -183,7 +183,7 @@ impl Widget for SettingsTabMemoryView {
                                             ..MemorySettingsSetRequest::default()
                                         };
 
-                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
+                                        memory_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -208,7 +208,7 @@ impl Widget for SettingsTabMemoryView {
                                             ..MemorySettingsSetRequest::default()
                                         };
 
-                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
+                                        memory_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -243,7 +243,7 @@ impl Widget for SettingsTabMemoryView {
                                             ..MemorySettingsSetRequest::default()
                                         };
 
-                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
+                                        memory_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -268,7 +268,7 @@ impl Widget for SettingsTabMemoryView {
                                             ..MemorySettingsSetRequest::default()
                                         };
 
-                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
+                                        memory_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -293,7 +293,7 @@ impl Widget for SettingsTabMemoryView {
                                             ..MemorySettingsSetRequest::default()
                                         };
 
-                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
+                                        memory_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -318,7 +318,7 @@ impl Widget for SettingsTabMemoryView {
                                             ..MemorySettingsSetRequest::default()
                                         };
 
-                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
+                                        memory_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -352,7 +352,7 @@ impl Widget for SettingsTabMemoryView {
                                             ..MemorySettingsSetRequest::default()
                                         };
 
-                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
+                                        memory_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);
@@ -377,7 +377,7 @@ impl Widget for SettingsTabMemoryView {
                                             ..MemorySettingsSetRequest::default()
                                         };
 
-                                        memory_settings_set_request.send(&self.app_context.engine_execution_context, move |memory_settings_set_response| {});
+                                        memory_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
                                     }
 
                                     user_interface.add_space(8.0);

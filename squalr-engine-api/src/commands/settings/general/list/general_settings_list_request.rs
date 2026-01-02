@@ -2,18 +2,18 @@ use crate::commands::settings::general::general_settings_command::GeneralSetting
 use crate::commands::settings::general::general_settings_response::GeneralSettingsResponse;
 use crate::commands::settings::general::list::general_settings_list_response::GeneralSettingsListResponse;
 use crate::commands::settings::settings_command::SettingsCommand;
-use crate::commands::{engine_command::EngineCommand, engine_command_request::EngineCommandRequest};
+use crate::commands::{privileged_command::PrivilegedCommand, privileged_command_request::PrivilegedCommandRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct GeneralSettingsListRequest {}
 
-impl EngineCommandRequest for GeneralSettingsListRequest {
+impl PrivilegedCommandRequest for GeneralSettingsListRequest {
     type ResponseType = GeneralSettingsListResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Settings(SettingsCommand::General {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Settings(SettingsCommand::General {
             general_settings_command: GeneralSettingsCommand::List {
                 general_settings_list_request: self.clone(),
             },

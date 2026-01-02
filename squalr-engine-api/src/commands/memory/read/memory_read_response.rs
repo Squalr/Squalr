@@ -1,5 +1,5 @@
-use crate::commands::engine_command_response::EngineCommandResponse;
-use crate::commands::engine_command_response::TypedEngineCommandResponse;
+use crate::commands::privileged_command_response::PrivilegedCommandResponse;
+use crate::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use crate::commands::memory::memory_response::MemoryResponse;
 use crate::structures::structs::valued_struct::ValuedStruct;
 use serde::{Deserialize, Serialize};
@@ -11,15 +11,15 @@ pub struct MemoryReadResponse {
     pub success: bool,
 }
 
-impl TypedEngineCommandResponse for MemoryReadResponse {
-    fn to_engine_response(&self) -> EngineCommandResponse {
-        EngineCommandResponse::Memory(MemoryResponse::Read {
+impl TypedPrivilegedCommandResponse for MemoryReadResponse {
+    fn to_engine_response(&self) -> PrivilegedCommandResponse {
+        PrivilegedCommandResponse::Memory(MemoryResponse::Read {
             memory_read_response: self.clone(),
         })
     }
 
-    fn from_engine_response(response: EngineCommandResponse) -> Result<Self, EngineCommandResponse> {
-        if let EngineCommandResponse::Memory(MemoryResponse::Read { memory_read_response }) = response {
+    fn from_engine_response(response: PrivilegedCommandResponse) -> Result<Self, PrivilegedCommandResponse> {
+        if let PrivilegedCommandResponse::Memory(MemoryResponse::Read { memory_read_response }) = response {
             Ok(memory_read_response)
         } else {
             Err(response)

@@ -3,14 +3,14 @@ use crate::views::element_scanner::scanner::{
 };
 use squalr_engine_api::{
     commands::{
-        engine_command_request::EngineCommandRequest,
+        privileged_command_request::PrivilegedCommandRequest,
         scan::{
             collect_values::scan_collect_values_request::ScanCollectValuesRequest, element_scan::element_scan_request::ElementScanRequest,
             new::scan_new_request::ScanNewRequest, reset::scan_reset_request::ScanResetRequest,
         },
     },
     dependency_injection::dependency::Dependency,
-    engine::engine_execution_context::EngineExecutionContext,
+    engine::engine_unprivileged_state::EngineUnprivilegedState,
     structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
         data_values::anonymous_value::AnonymousValue,
@@ -42,7 +42,7 @@ impl ElementScannerViewData {
 
     pub fn reset_scan(
         element_scanner_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
         let element_scanner_view_data_view_state = {
             match element_scanner_view_data.read("Element scanner view data reset scan") {
@@ -60,7 +60,7 @@ impl ElementScannerViewData {
 
         let scan_reset_request = ScanResetRequest {};
 
-        scan_reset_request.send(&engine_execution_context, move |scan_reset_response| {
+        scan_reset_request.send(&engine_unprivileged_state, move |scan_reset_response| {
             if scan_reset_response.success {
                 match element_scanner_view_data.write("Element scanner view data reset scan response") {
                     Some(mut element_scanner_view_data) => {
@@ -72,15 +72,15 @@ impl ElementScannerViewData {
         });
     }
 
-    pub fn collect_values(engine_execution_context: Arc<EngineExecutionContext>) {
+    pub fn collect_values(engine_unprivileged_state: Arc<EngineUnprivilegedState>) {
         let collect_values_request = ScanCollectValuesRequest {};
 
-        collect_values_request.send(&engine_execution_context, |_scan_collect_values_response| {});
+        collect_values_request.send(&engine_unprivileged_state, |_scan_collect_values_response| {});
     }
 
     pub fn start_scan(
         element_scanner_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
         let element_scanner_view_data_view_state = {
             match element_scanner_view_data.read("Element scanner view data start scan") {
@@ -91,10 +91,10 @@ impl ElementScannerViewData {
 
         match element_scanner_view_data_view_state {
             ElementScannerViewState::HasResults => {
-                Self::start_next_scan(element_scanner_view_data, engine_execution_context);
+                Self::start_next_scan(element_scanner_view_data, engine_unprivileged_state);
             }
             ElementScannerViewState::NoResults => {
-                Self::new_scan(element_scanner_view_data, engine_execution_context);
+                Self::new_scan(element_scanner_view_data, engine_unprivileged_state);
             }
             ElementScannerViewState::ScanInProgress => {
                 log::error!("Cannot start a new scan while a scan is in progress.");
@@ -104,21 +104,21 @@ impl ElementScannerViewData {
 
     fn new_scan(
         element_scanner_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
-        let engine_execution_context_clone = engine_execution_context.clone();
+        let engine_unprivileged_state_clone = engine_unprivileged_state.clone();
         let element_scanner_view_data = element_scanner_view_data.clone();
         let scan_new_request = ScanNewRequest {};
 
         // Start a new scan, and recurse to start the scan once the new scan is made.
-        scan_new_request.send(&engine_execution_context, move |_scan_new_response| {
-            Self::start_next_scan(element_scanner_view_data, engine_execution_context_clone);
+        scan_new_request.send(&engine_unprivileged_state, move |_scan_new_response| {
+            Self::start_next_scan(element_scanner_view_data, engine_unprivileged_state_clone);
         });
     }
 
     fn start_next_scan(
         element_scanner_view_data: Dependency<Self>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
         let element_scanner_view_data_clone = element_scanner_view_data.clone();
         let mut element_scanner_view_data = {
@@ -147,7 +147,7 @@ impl ElementScannerViewData {
 
         drop(element_scanner_view_data);
 
-        element_scan_request.send(&engine_execution_context, move |scan_execute_response| {
+        element_scan_request.send(&engine_unprivileged_state, move |scan_execute_response| {
             // JIRA: We actually need to wait for the task to complete, which can be tricky with our request/response architecture.
             // For now we just set it immediately to avoid being stuck in in progress state.
             // JIRA: Use scan_execute_response.trackable_task_handle;

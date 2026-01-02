@@ -1,18 +1,18 @@
 use crate::{
-    command_executors::{engine_command_executor::EngineCommandExecutor, engine_request_executor::EngineCommandRequestExecutor},
+    command_executors::{privileged_command_executor::PrivilegedCommandExecutor, privileged_request_executor::PrivilegedCommandRequestExecutor},
     engine_privileged_state::EnginePrivilegedState,
 };
-use squalr_engine_api::commands::engine_command_response::TypedEngineCommandResponse;
-use squalr_engine_api::commands::{engine_command_response::EngineCommandResponse, settings::scan::scan_settings_command::ScanSettingsCommand};
+use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
+use squalr_engine_api::commands::{privileged_command_response::PrivilegedCommandResponse, settings::scan::scan_settings_command::ScanSettingsCommand};
 use std::sync::Arc;
 
-impl EngineCommandExecutor for ScanSettingsCommand {
-    type ResponseType = EngineCommandResponse;
+impl PrivilegedCommandExecutor for ScanSettingsCommand {
+    type ResponseType = PrivilegedCommandResponse;
 
     fn execute(
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandExecutor>::ResponseType {
+    ) -> <Self as PrivilegedCommandExecutor>::ResponseType {
         match self {
             ScanSettingsCommand::List { scan_settings_list_request } => scan_settings_list_request
                 .execute(engine_privileged_state)

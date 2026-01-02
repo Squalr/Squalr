@@ -1,9 +1,12 @@
 use crate::engine_bindings::engine_egress::EngineEgress;
+use crate::engine_bindings::executable_command_unprivileged::ExecutableCommandUnprivleged;
 use crate::engine_bindings::interprocess::pipes::interprocess_pipe_bidirectional::InterprocessPipeBidirectional;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
-use squalr_engine_api::commands::engine_command::EngineCommand;
-use squalr_engine_api::commands::engine_command_response::EngineCommandResponse;
+use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
+use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
+use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
+use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use std::collections::HashMap;
@@ -24,18 +27,18 @@ pub struct InterprocessEngineApiUnprivilegedBindings {
     ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
 
     /// A map of outgoing requests that are awaiting an engine response.
-    request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(EngineCommandResponse) + Send + Sync>>>>,
+    request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>>>>,
 
     /// The list of subscribers to which we send engine events, after having received them from the engine.
     event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
 }
 
 impl EngineApiUnprivilegedBindings for InterprocessEngineApiUnprivilegedBindings {
-    /// Dispatches an engine command to the engine to handle.
-    fn dispatch_command(
+    /// Dispatches an unprivileged command to be immediately handled on the client side.
+    fn dispatch_privileged_command(
         &self,
-        command: EngineCommand,
-        callback: Box<dyn FnOnce(EngineCommandResponse) + Send + Sync + 'static>,
+        privileged_command: PrivilegedCommand,
+        callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), String> {
         let request_id = Uuid::new_v4();
 
@@ -45,7 +48,7 @@ impl EngineApiUnprivilegedBindings for InterprocessEngineApiUnprivilegedBindings
 
         if let Ok(ipc_connection) = self.ipc_connection.read() {
             if let Some(ipc_connection) = ipc_connection.as_ref() {
-                if let Err(error) = ipc_connection.send(command, request_id) {
+                if let Err(error) = ipc_connection.send(privileged_command, request_id) {
                     return Err(error.to_string());
                 } else {
                     return Ok(());
@@ -54,6 +57,19 @@ impl EngineApiUnprivilegedBindings for InterprocessEngineApiUnprivilegedBindings
         }
 
         Err("Failed to dispatch command.".to_string())
+    }
+
+    /// Dispatches an unprivileged command to be immediately handled on the client side.
+    fn dispatch_unprivileged_command(
+        &self,
+        unprivileged_command: UnprivilegedCommand,
+        callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> Result<(), String> {
+        let response = unprivileged_command.execute(self);
+
+        callback(response);
+
+        Ok(())
     }
 
     /// Requests to listen to all engine events.
@@ -100,8 +116,8 @@ impl InterprocessEngineApiUnprivilegedBindings {
     }
 
     fn handle_engine_response(
-        request_handles: &Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(EngineCommandResponse) + Send + Sync>>>>,
-        engine_response: EngineCommandResponse,
+        request_handles: &Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>>>>,
+        engine_response: PrivilegedCommandResponse,
         request_id: Uuid,
     ) {
         if let Ok(mut request_handles) = request_handles.lock() {
@@ -125,7 +141,7 @@ impl InterprocessEngineApiUnprivilegedBindings {
     }
 
     fn listen_for_shell_responses(
-        request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(EngineCommandResponse) + Send + Sync>>>>,
+        request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>>>>,
         event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
         ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
     ) {
@@ -138,7 +154,7 @@ impl InterprocessEngineApiUnprivilegedBindings {
                     if let Some(ipc_connection) = ipc_connection.as_ref() {
                         match ipc_connection.receive::<EngineEgress>() {
                             Ok((interprocess_egress, request_id)) => match interprocess_egress {
-                                EngineEgress::EngineCommandResponse(engine_response) => {
+                                EngineEgress::PrivilegedCommandResponse(engine_response) => {
                                     Self::handle_engine_response(&request_handles, engine_response, request_id)
                                 }
                                 EngineEgress::EngineEvent(engine_event) => Self::handle_engine_event(&event_senders, engine_event),

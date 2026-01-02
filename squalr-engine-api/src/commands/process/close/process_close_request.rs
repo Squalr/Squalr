@@ -1,5 +1,5 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::process::close::process_close_response::ProcessCloseResponse;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
@@ -9,11 +9,11 @@ use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProcessCloseRequest {}
 
-impl EngineCommandRequest for ProcessCloseRequest {
+impl PrivilegedCommandRequest for ProcessCloseRequest {
     type ResponseType = ProcessCloseResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Process(ProcessCommand::Close {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Process(ProcessCommand::Close {
             process_close_request: self.clone(),
         })
     }

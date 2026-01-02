@@ -33,7 +33,7 @@ impl ElementScannerResultsView {
             .dependency_container
             .register(ElementScannerResultsViewData::new());
 
-        ElementScannerResultsViewData::poll_scan_results(element_scanner_results_view_data.clone(), app_context.engine_execution_context.clone());
+        ElementScannerResultsViewData::poll_scan_results(element_scanner_results_view_data.clone(), app_context.engine_unprivileged_state.clone());
 
         Self {
             app_context,
@@ -366,21 +366,21 @@ impl Widget for ElementScannerResultsView {
                 ElementScannerResultFrameAction::SetSelectionStart(index) => {
                     ElementScannerResultsViewData::set_scan_result_selection_start(
                         self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_execution_context.clone(),
+                        self.app_context.engine_unprivileged_state.clone(),
                         index,
                     );
                 }
                 ElementScannerResultFrameAction::SetSelectionEnd(index) => {
                     ElementScannerResultsViewData::set_scan_result_selection_end(
                         self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_execution_context.clone(),
+                        self.app_context.engine_unprivileged_state.clone(),
                         index,
                     );
                 }
                 ElementScannerResultFrameAction::FreezeIndex(index, is_frozen) => {
                     ElementScannerResultsViewData::set_scan_result_frozen(
                         self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_execution_context.clone(),
+                        self.app_context.engine_unprivileged_state.clone(),
                         index,
                         is_frozen,
                     );
@@ -388,26 +388,26 @@ impl Widget for ElementScannerResultsView {
                 ElementScannerResultFrameAction::ToggleFreezeSelection(is_frozen) => {
                     ElementScannerResultsViewData::toggle_selected_scan_results_frozen(
                         self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_execution_context.clone(),
+                        self.app_context.engine_unprivileged_state.clone(),
                         is_frozen,
                     );
                 }
                 ElementScannerResultFrameAction::AddSelection => {
                     ElementScannerResultsViewData::add_scan_results_to_project(
                         self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_execution_context.clone(),
+                        self.app_context.engine_unprivileged_state.clone(),
                     );
                 }
                 ElementScannerResultFrameAction::DeleteSelection => {
                     ElementScannerResultsViewData::delete_selected_scan_results(
                         self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_execution_context.clone(),
+                        self.app_context.engine_unprivileged_state.clone(),
                     );
                 }
                 ElementScannerResultFrameAction::CommitValueToSelection(edit_value) => {
                     ElementScannerResultsViewData::set_selected_scan_results_value(
                         self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_execution_context.clone(),
+                        self.app_context.engine_unprivileged_state.clone(),
                         ScanResult::PROPERTY_NAME_VALUE,
                         edit_value,
                     );

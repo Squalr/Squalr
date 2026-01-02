@@ -1,5 +1,5 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::process::list::process_list_response::ProcessListResponse;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
@@ -20,11 +20,11 @@ pub struct ProcessListRequest {
     pub fetch_icons: bool,
 }
 
-impl EngineCommandRequest for ProcessListRequest {
+impl PrivilegedCommandRequest for ProcessListRequest {
     type ResponseType = ProcessListResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Process(ProcessCommand::List {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Process(ProcessCommand::List {
             process_list_request: self.clone(),
         })
     }

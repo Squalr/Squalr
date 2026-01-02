@@ -208,27 +208,27 @@ impl Widget for ElementScannerFooterView {
         if should_navigate_first_page {
             ElementScannerResultsViewData::navigate_first_page(
                 self.element_scanner_results_view_data.clone(),
-                self.app_context.engine_execution_context.clone(),
+                self.app_context.engine_unprivileged_state.clone(),
             );
         } else if should_navigate_previous_page {
             ElementScannerResultsViewData::navigate_previous_page(
                 self.element_scanner_results_view_data.clone(),
-                self.app_context.engine_execution_context.clone(),
+                self.app_context.engine_unprivileged_state.clone(),
             );
         } else if should_navigate_next_page {
             ElementScannerResultsViewData::navigate_next_page(
                 self.element_scanner_results_view_data.clone(),
-                self.app_context.engine_execution_context.clone(),
+                self.app_context.engine_unprivileged_state.clone(),
             );
         } else if should_navigate_last_page {
             ElementScannerResultsViewData::navigate_last_page(
                 self.element_scanner_results_view_data.clone(),
-                self.app_context.engine_execution_context.clone(),
+                self.app_context.engine_unprivileged_state.clone(),
             );
         } else if page_number_edit_response.changed() {
             ElementScannerResultsViewData::set_page_index_string(
                 self.element_scanner_results_view_data.clone(),
-                self.app_context.engine_execution_context.clone(),
+                self.app_context.engine_unprivileged_state.clone(),
                 &text_value,
             );
         }

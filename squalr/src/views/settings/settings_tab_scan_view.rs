@@ -6,7 +6,7 @@ use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
 use epaint::vec2;
 use squalr_engine_api::{
     commands::{
-        engine_command_request::EngineCommandRequest,
+        privileged_command_request::PrivilegedCommandRequest,
         settings::scan::{list::scan_settings_list_request::ScanSettingsListRequest, set::scan_settings_set_request::ScanSettingsSetRequest},
     },
     structures::settings::scan_settings::ScanSettings,
@@ -35,7 +35,7 @@ impl SettingsTabScanView {
         let scan_settings_list_request = ScanSettingsListRequest {};
         let cached_scan_settings = self.cached_scan_settings.clone();
 
-        scan_settings_list_request.send(&self.app_context.engine_execution_context, move |scan_results_query_response| {
+        scan_settings_list_request.send(&self.app_context.engine_unprivileged_state, move |scan_results_query_response| {
             if let Ok(scan_settings) = scan_results_query_response.scan_settings {
                 if let Ok(mut cached_scan_settings) = cached_scan_settings.write() {
                     *cached_scan_settings = scan_settings;
@@ -78,7 +78,7 @@ impl Widget for SettingsTabScanView {
                                     ..ScanSettingsSetRequest::default()
                                 };
 
-                                scan_settings_set_request.send(&self.app_context.engine_execution_context, move |scan_settings_set_response| {});
+                                scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
                             }
 
                             user_interface.add_space(8.0);
@@ -124,7 +124,7 @@ impl Widget for SettingsTabScanView {
                                     ..ScanSettingsSetRequest::default()
                                 };
 
-                                scan_settings_set_request.send(&self.app_context.engine_execution_context, move |scan_settings_set_response| {});
+                                scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
                             }
 
                             user_interface.add_space(8.0);
@@ -163,7 +163,7 @@ impl Widget for SettingsTabScanView {
                                         ..ScanSettingsSetRequest::default()
                                     };
 
-                                    scan_settings_set_request.send(&self.app_context.engine_execution_context, move |scan_settings_set_response| {});
+                                    scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
                                 }
                             }
 
@@ -203,7 +203,7 @@ impl Widget for SettingsTabScanView {
                                         ..ScanSettingsSetRequest::default()
                                     };
 
-                                    scan_settings_set_request.send(&self.app_context.engine_execution_context, move |scan_settings_set_response| {});
+                                    scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
                                 }
                             }
 
@@ -263,7 +263,7 @@ impl Widget for SettingsTabScanView {
                                         ..ScanSettingsSetRequest::default()
                                     };
 
-                                    scan_settings_set_request.send(&self.app_context.engine_execution_context, move |scan_settings_set_response| {});
+                                    scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
                                 }
                             }
 
@@ -289,7 +289,7 @@ impl Widget for SettingsTabScanView {
                                         ..ScanSettingsSetRequest::default()
                                     };
 
-                                    scan_settings_set_request.send(&self.app_context.engine_execution_context, move |scan_settings_set_response| {});
+                                    scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
                                 }
                             }
 

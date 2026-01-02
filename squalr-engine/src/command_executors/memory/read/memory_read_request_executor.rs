@@ -1,4 +1,4 @@
-use crate::command_executors::engine_request_executor::EngineCommandRequestExecutor;
+use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -10,13 +10,13 @@ use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use std::sync::Arc;
 
-impl EngineCommandRequestExecutor for MemoryReadRequest {
+impl PrivilegedCommandRequestExecutor for MemoryReadRequest {
     type ResponseType = MemoryReadResponse;
 
     fn execute(
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) -> <Self as EngineCommandRequestExecutor>::ResponseType {
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         if let Some(process_info) = engine_privileged_state
             .get_process_manager()
             .get_opened_process()

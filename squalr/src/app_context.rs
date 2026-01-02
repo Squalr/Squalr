@@ -1,6 +1,6 @@
 use crate::{models::docking::docking_manager::DockingManager, ui::theme::Theme};
 use eframe::egui::Context;
-use squalr_engine_api::{dependency_injection::dependency_container::DependencyContainer, engine::engine_execution_context::EngineExecutionContext};
+use squalr_engine_api::{dependency_injection::dependency_container::DependencyContainer, engine::engine_unprivileged_state::EngineUnprivilegedState};
 use std::sync::{Arc, RwLock};
 
 /// Contains commonly used state shared between most widgets.
@@ -9,7 +9,7 @@ pub struct AppContext {
     pub context: Context,
     pub theme: Arc<Theme>,
     pub docking_manager: Arc<RwLock<DockingManager>>,
-    pub engine_execution_context: Arc<EngineExecutionContext>,
+    pub engine_unprivileged_state: Arc<EngineUnprivilegedState>,
 
     /// Allows for registering and listening for dependencies.
     pub dependency_container: Arc<DependencyContainer>,
@@ -20,7 +20,7 @@ impl AppContext {
         context: Context,
         theme: Arc<Theme>,
         docking_manager: Arc<RwLock<DockingManager>>,
-        engine_execution_context: Arc<EngineExecutionContext>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) -> Self {
         let dependency_container = Arc::new(DependencyContainer::new());
 
@@ -28,7 +28,7 @@ impl AppContext {
             context,
             theme,
             docking_manager,
-            engine_execution_context,
+            engine_unprivileged_state,
             dependency_container,
         }
     }

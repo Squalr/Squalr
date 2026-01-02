@@ -2,18 +2,18 @@ use crate::commands::settings::memory::list::memory_settings_list_response::Memo
 use crate::commands::settings::memory::memory_settings_command::MemorySettingsCommand;
 use crate::commands::settings::memory::memory_settings_response::MemorySettingsResponse;
 use crate::commands::settings::settings_command::SettingsCommand;
-use crate::commands::{engine_command::EngineCommand, engine_command_request::EngineCommandRequest};
+use crate::commands::{privileged_command::PrivilegedCommand, privileged_command_request::PrivilegedCommandRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct MemorySettingsListRequest {}
 
-impl EngineCommandRequest for MemorySettingsListRequest {
+impl PrivilegedCommandRequest for MemorySettingsListRequest {
     type ResponseType = MemorySettingsListResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Settings(SettingsCommand::Memory {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Settings(SettingsCommand::Memory {
             memory_settings_command: MemorySettingsCommand::List {
                 memory_settings_list_request: self.clone(),
             },

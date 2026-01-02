@@ -1,0 +1,51 @@
+use crate::{
+    commands::{unprivileged_command::UnprivilegedCommand, unprivileged_command_response::TypedUnprivilegedCommandResponse},
+    engine::{engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings, engine_unprivileged_state::EngineUnprivilegedState},
+};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use std::sync::Arc;
+
+pub trait UnprivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
+    type ResponseType;
+
+    fn to_engine_command(&self) -> UnprivilegedCommand;
+
+    fn send<F>(
+        &self,
+        execution_context: &Arc<EngineUnprivilegedState>,
+        callback: F,
+    ) where
+        F: FnOnce(<Self as UnprivilegedCommandRequest>::ResponseType) + Clone + Send + Sync + 'static,
+        <Self as UnprivilegedCommandRequest>::ResponseType: TypedUnprivilegedCommandResponse,
+    {
+        match execution_context.get_bindings().read() {
+            Ok(engine_bindings) => {
+                self.send_unprivileged(&*engine_bindings, callback);
+            }
+            Err(error) => log::error!("Error getting engine execution context bindings: {}", error),
+        };
+    }
+
+    fn send_unprivileged<F>(
+        &self,
+        engine_bindings: &dyn EngineApiUnprivilegedBindings,
+        callback: F,
+    ) where
+        F: FnOnce(<Self as UnprivilegedCommandRequest>::ResponseType) + Clone + Send + Sync + 'static,
+        <Self as UnprivilegedCommandRequest>::ResponseType: TypedUnprivilegedCommandResponse,
+    {
+        let command = self.to_engine_command();
+
+        if let Err(error) = engine_bindings.dispatch_unprivileged_command(
+            command,
+            Box::new(move |engine_response| {
+                if let Ok(response) = <Self as UnprivilegedCommandRequest>::ResponseType::from_engine_response(engine_response) {
+                    callback(response);
+                }
+            }),
+        ) {
+            log::error!("Error dispatching command: {}", error);
+        }
+    }
+}

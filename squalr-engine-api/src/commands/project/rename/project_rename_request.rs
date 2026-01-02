@@ -1,11 +1,9 @@
-use std::path::PathBuf;
-
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
-use crate::commands::project::project_command::ProjectCommand;
 use crate::commands::project::project_response::ProjectResponse;
 use crate::commands::project::rename::project_rename_response::ProjectRenameResponse;
+use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
+use crate::commands::{project::project_command::ProjectCommand, unprivileged_command::UnprivilegedCommand};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
@@ -17,11 +15,11 @@ pub struct ProjectRenameRequest {
     pub new_project_name: String,
 }
 
-impl EngineCommandRequest for ProjectRenameRequest {
+impl UnprivilegedCommandRequest for ProjectRenameRequest {
     type ResponseType = ProjectRenameResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Project(ProjectCommand::Rename {
+    fn to_engine_command(&self) -> UnprivilegedCommand {
+        UnprivilegedCommand::Project(ProjectCommand::Rename {
             project_rename_request: self.clone(),
         })
     }

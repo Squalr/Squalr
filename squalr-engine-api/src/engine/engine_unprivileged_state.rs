@@ -1,4 +1,4 @@
-use crate::commands::{engine_command::EngineCommand, engine_command_response::EngineCommandResponse};
+use crate::commands::{privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse};
 use crate::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use crate::engine::logging::log_dispatcher::LogDispatcher;
 use crate::events::engine_event::EngineEvent;
@@ -8,6 +8,7 @@ use crate::events::project::project_event::ProjectEvent;
 use crate::events::project_items::project_items_event::ProjectItemsEvent;
 use crate::events::scan_results::scan_results_event::ScanResultsEvent;
 use crate::events::trackable_task::trackable_task_event::TrackableTaskEvent;
+use crate::structures::projects::project_manager::ProjectManager;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -15,7 +16,7 @@ use std::{
 };
 
 /// Exposes the ability to send commands to the engine, and handle events from the engine.
-pub struct EngineExecutionContext {
+pub struct EngineUnprivilegedState {
     /// The bindings that allow sending commands to the engine.
     engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>>,
 
@@ -24,14 +25,19 @@ pub struct EngineExecutionContext {
 
     // Routes logs to the file system, as well as any optional subscribers to log events, such as output in the GUI.
     file_system_logger: Arc<LogDispatcher>,
+
+    /// Project manager for organizing and manipulating projects.
+    project_manager: Arc<ProjectManager>,
 }
 
-impl EngineExecutionContext {
+impl EngineUnprivilegedState {
     pub fn new(engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>>) -> Arc<Self> {
-        let execution_context = Arc::new(EngineExecutionContext {
+        let project_manager = Arc::new(ProjectManager::new());
+        let execution_context = Arc::new(EngineUnprivilegedState {
             engine_bindings,
             event_listeners: Arc::new(RwLock::new(HashMap::new())),
             file_system_logger: Arc::new(LogDispatcher::new()),
+            project_manager,
         });
 
         execution_context
@@ -72,19 +78,24 @@ impl EngineExecutionContext {
         }
     }
 
+    /// Gets the project manager for this session.
+    pub fn get_project_manager(&self) -> &Arc<ProjectManager> {
+        &self.project_manager
+    }
+
     /// Dispatches a command to the engine. Direct usage is generally not advised unless you know what you are doing.
     /// Instead, create `{Command}Request` instances and call `.send()` directly on them.
     /// This is only made public to support direct usage by CLIs and other features that may need direct access.
     pub fn dispatch_command<F>(
         self: &Arc<Self>,
-        engine_command: EngineCommand,
+        engine_command: PrivilegedCommand,
         callback: F,
     ) where
-        F: FnOnce(EngineCommandResponse) + Send + Sync + 'static,
+        F: FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static,
     {
         match self.engine_bindings.read() {
             Ok(engine_bindings) => {
-                if let Err(error) = engine_bindings.dispatch_command(engine_command, Box::new(callback)) {
+                if let Err(error) = engine_bindings.dispatch_privileged_command(engine_command, Box::new(callback)) {
                     log::error!("Error dispatching engine command: {}", error);
                 }
             }

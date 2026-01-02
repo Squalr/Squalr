@@ -2,7 +2,7 @@ use crate::commands::settings::memory::memory_settings_command::MemorySettingsCo
 use crate::commands::settings::memory::memory_settings_response::MemorySettingsResponse;
 use crate::commands::settings::memory::set::memory_settings_set_response::MemorySettingsSetResponse;
 use crate::commands::settings::settings_command::SettingsCommand;
-use crate::commands::{engine_command::EngineCommand, engine_command_request::EngineCommandRequest};
+use crate::commands::{privileged_command::PrivilegedCommand, privileged_command_request::PrivilegedCommandRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -36,11 +36,11 @@ pub struct MemorySettingsSetRequest {
     pub only_query_usermode: Option<bool>,
 }
 
-impl EngineCommandRequest for MemorySettingsSetRequest {
+impl PrivilegedCommandRequest for MemorySettingsSetRequest {
     type ResponseType = MemorySettingsSetResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Settings(SettingsCommand::Memory {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Settings(SettingsCommand::Memory {
             memory_settings_command: MemorySettingsCommand::Set {
                 memory_settings_set_request: self.clone(),
             },

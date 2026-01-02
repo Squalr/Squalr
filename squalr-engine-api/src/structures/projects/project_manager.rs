@@ -1,9 +1,8 @@
-use crate::{project::project::Project, settings::project_settings_config::ProjectSettingsConfig};
+use crate::structures::projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest};
 use notify::{
     Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
     event::{CreateKind, ModifyKind, RemoveKind, RenameMode},
 };
-use squalr_engine_api::structures::projects::{project_info::ProjectInfo, project_manifest::ProjectManifest};
 use std::{
     path::PathBuf,
     sync::{
@@ -58,7 +57,7 @@ impl ProjectManager {
         self.watcher = None;
 
         let (tx, rx): (Sender<Result<Event, notify::Error>>, Receiver<Result<Event, notify::Error>>) = mpsc::channel();
-        let projects_root: PathBuf = ProjectSettingsConfig::get_projects_root();
+        let projects_root: PathBuf = PathBuf::new(); // ProjectSettingsConfig::get_projects_root();
         let mut watcher = notify::recommended_watcher(tx)?;
 
         // Watch only the top-level directory (not recursive) for project changes.

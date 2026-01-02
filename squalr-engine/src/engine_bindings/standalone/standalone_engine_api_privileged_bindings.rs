@@ -1,7 +1,7 @@
-use crate::{engine_bindings::engine_ingress::ExecutableCommand, engine_privileged_state::EnginePrivilegedState};
+use crate::{engine_bindings::executable_command_privileged::ExecutableCommandPrivileged, engine_privileged_state::EnginePrivilegedState};
 use crossbeam_channel::{Receiver, Sender};
-use squalr_engine_api::commands::engine_command::EngineCommand;
-use squalr_engine_api::commands::engine_command_response::EngineCommandResponse;
+use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
+use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use std::sync::{Arc, RwLock};
@@ -30,14 +30,14 @@ impl EngineApiPrivilegedBindings for StandalonePrivilegedEngine {
         Ok(())
     }
 
-    fn dispatch_command(
+    fn dispatch_internal_command(
         &self,
-        engine_command: EngineCommand,
-        callback: Box<dyn FnOnce(EngineCommandResponse) + Send + Sync + 'static>,
+        privileged_command: PrivilegedCommand,
+        callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), String> {
         // For standalone builds, we can instantly execute the command and return the response.
         if let Some(engine_privileged_state) = &self.engine_privileged_state {
-            let response = engine_command.execute(&engine_privileged_state);
+            let response = privileged_command.execute(&engine_privileged_state);
 
             callback(response);
 

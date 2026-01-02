@@ -1,5 +1,5 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::memory::memory_command::MemoryCommand;
 use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::memory::write::memory_write_response::MemoryWriteResponse;
@@ -20,11 +20,11 @@ pub struct MemoryWriteRequest {
     pub value: Vec<u8>,
 }
 
-impl EngineCommandRequest for MemoryWriteRequest {
+impl PrivilegedCommandRequest for MemoryWriteRequest {
     type ResponseType = MemoryWriteResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Memory(MemoryCommand::Write {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Memory(MemoryCommand::Write {
             memory_write_request: self.clone(),
         })
     }

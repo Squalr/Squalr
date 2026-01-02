@@ -1,12 +1,12 @@
 use crate::engine_bindings::engine_egress::EngineEgress;
 use crate::engine_bindings::engine_ingress::EngineIngress;
-use crate::engine_bindings::engine_ingress::ExecutableCommand;
+use crate::engine_bindings::executable_command_privileged::ExecutableCommandPrivileged;
 use crate::engine_bindings::interprocess::pipes::interprocess_pipe_bidirectional::InterprocessPipeBidirectional;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
-use squalr_engine_api::commands::engine_command::EngineCommand;
-use squalr_engine_api::commands::engine_command_response::EngineCommandResponse;
+use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
+use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use std::collections::HashMap;
@@ -23,7 +23,7 @@ pub struct InterprocessEngineApiPrivilegedBindings {
     ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
 
     /// A map of outgoing requests that are awaiting an engine response.
-    request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(EngineCommandResponse) + Send + Sync>>>>,
+    request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>>>>,
 
     /// The list of subscribers to which we send engine events.
     event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
@@ -47,10 +47,10 @@ impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
         Self::dispatch_response(self.ipc_connection.clone(), EngineEgress::EngineEvent(engine_event), Uuid::nil())
     }
 
-    fn dispatch_command(
+    fn dispatch_internal_command(
         &self,
-        engine_command: EngineCommand,
-        callback: Box<dyn FnOnce(EngineCommandResponse) + Send + Sync + 'static>,
+        engine_command: PrivilegedCommand,
+        callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), String> {
         let request_id = Uuid::new_v4();
 
@@ -59,7 +59,7 @@ impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
         }
 
         if let Some(engine_privileged_state) = &self.engine_privileged_state {
-            let interprocess_response = EngineEgress::EngineCommandResponse(engine_command.execute(&engine_privileged_state));
+            let interprocess_response = EngineEgress::PrivilegedCommandResponse(engine_command.execute(&engine_privileged_state));
 
             Self::dispatch_response(self.ipc_connection.clone(), interprocess_response, request_id)
         } else {
@@ -137,8 +137,8 @@ impl InterprocessEngineApiPrivilegedBindings {
                     if let Some(ipc_connection_pipe) = ipc_connection_guard.as_ref() {
                         match ipc_connection_pipe.receive::<EngineIngress>() {
                             Ok((interprocess_command, request_id)) => match interprocess_command {
-                                EngineIngress::EngineCommand(engine_command) => {
-                                    let interprocess_response = EngineEgress::EngineCommandResponse(engine_command.execute(&engine_privileged_state));
+                                EngineIngress::PrivilegedCommand(engine_command) => {
+                                    let interprocess_response = EngineEgress::PrivilegedCommandResponse(engine_command.execute(&engine_privileged_state));
                                     let _ = Self::dispatch_response(ipc_connection.clone(), interprocess_response, request_id);
                                 }
                             },

@@ -1,10 +1,10 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_response::EngineCommandResponse;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_response::PrivilegedCommandResponse;
 use crate::commands::settings::memory::memory_settings_response::MemorySettingsResponse;
 use crate::commands::settings::memory::set::memory_settings_set_request::MemorySettingsSetRequest;
 use crate::commands::settings::settings_command::SettingsCommand;
 use crate::commands::settings::settings_response::SettingsResponse;
-use crate::commands::{engine_command_request::EngineCommandRequest, settings::memory::list::memory_settings_list_request::MemorySettingsListRequest};
+use crate::commands::{privileged_command_request::PrivilegedCommandRequest, settings::memory::list::memory_settings_list_request::MemorySettingsListRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -20,18 +20,18 @@ pub enum MemorySettingsCommand {
     },
 }
 
-impl EngineCommandRequest for MemorySettingsCommand {
+impl PrivilegedCommandRequest for MemorySettingsCommand {
     type ResponseType = MemorySettingsResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Settings(SettingsCommand::Memory {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Settings(SettingsCommand::Memory {
             memory_settings_command: self.clone(),
         })
     }
 }
 
-impl From<MemorySettingsResponse> for EngineCommandResponse {
+impl From<MemorySettingsResponse> for PrivilegedCommandResponse {
     fn from(memory_settings_response: MemorySettingsResponse) -> Self {
-        EngineCommandResponse::Settings(SettingsResponse::Memory { memory_settings_response })
+        PrivilegedCommandResponse::Settings(SettingsResponse::Memory { memory_settings_response })
     }
 }

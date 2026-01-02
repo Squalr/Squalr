@@ -19,7 +19,7 @@ fn main() {
     squalr_engine.initialize();
 
     if engine_mode == EngineMode::Standalone {
-        let engine_execution_context = squalr_engine.get_engine_execution_context().as_ref().unwrap();
+        let engine_unprivileged_state = squalr_engine.get_engine_unprivileged_state().as_ref().unwrap();
     } else if engine_mode == EngineMode::PrivilegedShell {
         log::info!("TUI running as a privileged IPC shell.");
     } else {

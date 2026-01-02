@@ -1,5 +1,5 @@
-use crate::commands::engine_command::EngineCommand;
-use crate::commands::engine_command_request::EngineCommandRequest;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::settings::general::general_settings_command::GeneralSettingsCommand;
 use crate::commands::settings::general::general_settings_response::GeneralSettingsResponse;
 use crate::commands::settings::general::set::general_settings_set_response::GeneralSettingsSetResponse;
@@ -13,11 +13,11 @@ pub struct GeneralSettingsSetRequest {
     pub engine_request_delay: Option<u64>,
 }
 
-impl EngineCommandRequest for GeneralSettingsSetRequest {
+impl PrivilegedCommandRequest for GeneralSettingsSetRequest {
     type ResponseType = GeneralSettingsSetResponse;
 
-    fn to_engine_command(&self) -> EngineCommand {
-        EngineCommand::Settings(SettingsCommand::General {
+    fn to_engine_command(&self) -> PrivilegedCommand {
+        PrivilegedCommand::Settings(SettingsCommand::General {
             general_settings_command: GeneralSettingsCommand::Set {
                 general_settings_set_request: self.clone(),
             },
