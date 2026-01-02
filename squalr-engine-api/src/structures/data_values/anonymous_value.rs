@@ -7,7 +7,7 @@ use std::fmt;
 use std::str::FromStr;
 
 /// Represents a value as a string that can potentially be converted to an explicit type later.
-/// This is particularly useful when scannining for a value such as `0`, which is valid across
+/// This is particularly useful when scannining for a value such as 0, which is valid across
 /// many data types. This is helpful for supporting values passed via command line / GUI.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AnonymousValue {

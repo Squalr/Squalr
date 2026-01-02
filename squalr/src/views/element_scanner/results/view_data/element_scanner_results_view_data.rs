@@ -160,7 +160,7 @@ impl ElementScannerResultsViewData {
     pub fn set_selected_scan_results_value(
         element_scanner_results_view_data: Dependency<Self>,
         engine_execution_context: Arc<EngineExecutionContext>,
-        field_namespace: String,
+        field_namespace: &str,
         anonymous_value: AnonymousValue,
     ) {
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
@@ -176,7 +176,7 @@ impl ElementScannerResultsViewData {
 
         let scan_results_set_property_request = ScanResultsSetPropertyRequest {
             scan_result_refs,
-            field_namespace,
+            field_namespace: field_namespace.to_string(),
             anonymous_value,
         };
 

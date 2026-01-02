@@ -14,7 +14,7 @@ use crate::{
 };
 use eframe::egui::{Align, Align2, CursorIcon, Direction, Layout, Response, ScrollArea, Sense, Spinner, Ui, Widget};
 use epaint::{Margin, Rect, Vec2, pos2, vec2};
-use squalr_engine_api::dependency_injection::dependency::Dependency;
+use squalr_engine_api::{dependency_injection::dependency::Dependency, structures::scan_results::scan_result::ScanResult};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -404,7 +404,14 @@ impl Widget for ElementScannerResultsView {
                         self.app_context.engine_execution_context.clone(),
                     );
                 }
-                ElementScannerResultFrameAction::CommitValueToSelection => {}
+                ElementScannerResultFrameAction::CommitValueToSelection(edit_value) => {
+                    ElementScannerResultsViewData::set_selected_scan_results_value(
+                        self.element_scanner_results_view_data.clone(),
+                        self.app_context.engine_execution_context.clone(),
+                        ScanResult::PROPERTY_NAME_VALUE,
+                        edit_value,
+                    );
+                }
             }
         }
 

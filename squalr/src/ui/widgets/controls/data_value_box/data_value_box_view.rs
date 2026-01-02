@@ -29,6 +29,8 @@ pub struct DataValueBoxView<'lifetime> {
 }
 
 impl<'lifetime> DataValueBoxView<'lifetime> {
+    const MIN_POPUP_WIDTH: f32 = 212.0;
+
     pub fn new(
         app_context: Arc<AppContext>,
         display_value: &'lifetime mut DisplayValue,
@@ -242,7 +244,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                         popup_user_interface.spacing_mut().window_margin = Margin::ZERO;
                         popup_user_interface.spacing_mut().menu_spacing = 0.0;
                         popup_user_interface.spacing_mut().item_spacing = Vec2::ZERO;
-                        popup_user_interface.set_min_width(self.width);
+                        popup_user_interface.set_min_width(Self::MIN_POPUP_WIDTH);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
                             let display_value_types = symbol_registry.get_supported_display_value_types(&self.validation_data_type);
 
@@ -254,7 +256,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                                         display_value_type,
                                         false,
                                         self.is_value_owned,
-                                        self.width,
+                                        self.width.max(Self::MIN_POPUP_WIDTH),
                                     ))
                                     .clicked()
                                 {
