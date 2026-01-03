@@ -11,15 +11,15 @@ impl UnprivilegedCommandRequestExecutor for ProjectCloseRequest {
         &self,
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
-        /*
-        let project_manger = engine_api_unprivileged_bindings.get_project_manager();
-        let opened_project = self.get_opened_project();
-        let mut project = opened_project
-            .write()
-            .map_err(|e| anyhow!("Failed to acquire write lock on opened project: {}", e))?;
+        let project_manager = engine_unprivileged_state.get_project_manager();
+        let opened_project = project_manager.get_opened_project();
 
-        *project = None;*/
+        if let Ok(mut opened_project) = opened_project.write() {
+            *opened_project = None;
 
-        ProjectCloseResponse {}
+            ProjectCloseResponse { success: true }
+        } else {
+            ProjectCloseResponse { success: false }
+        }
     }
 }

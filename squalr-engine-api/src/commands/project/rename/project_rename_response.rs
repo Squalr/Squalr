@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectRenameResponse {
-    pub renamed_project_info: Option<ProjectInfo>,
+    pub success: bool,
 }
 
 impl TypedUnprivilegedCommandResponse for ProjectRenameResponse {

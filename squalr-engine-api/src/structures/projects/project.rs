@@ -71,6 +71,10 @@ impl Project {
         &mut self.project_items
     }
 
+    pub fn get_project_root(&self) -> Option<&ProjectItem> {
+        self.project_items.get(&self.project_root_ref)
+    }
+
     pub fn get_project_root_mut(&mut self) -> Option<&mut ProjectItem> {
         self.project_items.get_mut(&self.project_root_ref)
     }

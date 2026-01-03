@@ -1,15 +1,12 @@
-use crate::{
-    commands::{
-        project::project_response::ProjectResponse,
-        unprivileged_command_response::{TypedUnprivilegedCommandResponse, UnprivilegedCommandResponse},
-    },
-    structures::projects::project_info::ProjectInfo,
+use crate::commands::{
+    project::project_response::ProjectResponse,
+    unprivileged_command_response::{TypedUnprivilegedCommandResponse, UnprivilegedCommandResponse},
 };
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectCreateResponse {
-    pub created_project_info: Option<ProjectInfo>,
+    pub success: bool,
 }
 
 impl TypedUnprivilegedCommandResponse for ProjectCreateResponse {

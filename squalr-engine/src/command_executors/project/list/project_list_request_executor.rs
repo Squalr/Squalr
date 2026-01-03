@@ -13,7 +13,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectListRequest {
 
     fn execute(
         &self,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        _engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         let projects_root = ProjectSettingsConfig::get_projects_root();
         let mut projects_info = vec![];
@@ -26,8 +26,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectListRequest {
                             let entry_path = entry.path();
 
                             if entry_path.is_dir() {
-                                if let Ok(project_info) = ProjectInfo::load_from_path(&entry_path.join(Project::PROJECT_FILE)) {
-                                    projects_info.push(project_info);
+                                let project_file = entry_path.join(Project::PROJECT_FILE);
+
+                                if project_file.exists() {
+                                    if let Ok(project_info) = ProjectInfo::load_from_path(&entry_path.join(Project::PROJECT_FILE)) {
+                                        projects_info.push(project_info);
+                                    }
                                 }
                             }
                         }

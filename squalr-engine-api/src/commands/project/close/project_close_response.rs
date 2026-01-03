@@ -5,7 +5,9 @@ use crate::commands::{
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct ProjectCloseResponse {}
+pub struct ProjectCloseResponse {
+    pub success: bool,
+}
 
 impl TypedUnprivilegedCommandResponse for ProjectCloseResponse {
     fn to_engine_response(&self) -> UnprivilegedCommandResponse {
