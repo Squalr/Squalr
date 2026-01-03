@@ -6,8 +6,8 @@ use crate::{
     },
     views::project_explorer::project_selector::view_data::project_selector_frame_action::ProjectSelectorFrameAction,
 };
-use eframe::egui::{Align, Align2, Layout, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
-use epaint::{Color32, CornerRadius};
+use eframe::egui::{Align, Align2, Layout, Rect, Response, Sense, TextureHandle, Ui, UiBuilder, Widget, pos2, vec2};
+use epaint::{Color32, CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use std::sync::Arc;
 
@@ -15,6 +15,7 @@ pub struct ProjectEntryView<'lifetime> {
     app_context: Arc<AppContext>,
     project_info: &'lifetime ProjectInfo,
     icon: Option<TextureHandle>,
+    is_selected: bool,
     project_selector_frame_action: &'lifetime mut ProjectSelectorFrameAction,
 }
 
@@ -23,18 +24,20 @@ impl<'lifetime> ProjectEntryView<'lifetime> {
         app_context: Arc<AppContext>,
         project_info: &'lifetime ProjectInfo,
         icon: Option<TextureHandle>,
+        is_selected: bool,
         project_selector_frame_action: &'lifetime mut ProjectSelectorFrameAction,
     ) -> Self {
         Self {
             app_context: app_context,
             project_info,
             icon,
+            is_selected,
             project_selector_frame_action,
         }
     }
 }
 
-impl<'a> Widget for ProjectEntryView<'a> {
+impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
     fn ui(
         self,
         user_interface: &mut Ui,
@@ -44,6 +47,21 @@ impl<'a> Widget for ProjectEntryView<'a> {
         let text_left_padding = 4.0;
         let row_height = 28.0;
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, row_height), Sense::click());
+
+        if self.is_selected {
+            // Draw the background.
+            user_interface
+                .painter()
+                .rect_filled(allocated_size_rectangle, CornerRadius::ZERO, theme.selected_background);
+
+            // Draw the border.
+            user_interface.painter().rect_stroke(
+                allocated_size_rectangle,
+                CornerRadius::ZERO,
+                Stroke::new(1.0, theme.selected_border),
+                StrokeKind::Inside,
+            );
+        }
 
         // Background and state overlay.
         StateLayer {
@@ -61,6 +79,10 @@ impl<'a> Widget for ProjectEntryView<'a> {
             border_color_focused: theme.background_control_secondary_dark,
         }
         .ui(user_interface);
+
+        if response.clicked() {
+            *self.project_selector_frame_action = ProjectSelectorFrameAction::SelectProject(self.project_info.get_project_file_path().to_path_buf());
+        }
 
         // Draw icon and label inside layout.
         let icon_pos_x = allocated_size_rectangle.min.x;
@@ -80,20 +102,29 @@ impl<'a> Widget for ProjectEntryView<'a> {
             theme.foreground,
         );
 
-        user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
-            let button_size = vec2(36.0, 28.0);
+        let button_size = vec2(36.0, 28.0);
+        let button_rectangle = Rect::from_min_size(
+            pos2(allocated_size_rectangle.max.x - button_size.x, allocated_size_rectangle.min.y),
+            button_size,
+        );
 
-            // Open project.
-            let button_refresh = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
-            IconDraw::draw(user_interface, button_refresh.rect, &theme.icon_library.icon_handle_navigation_refresh);
+        user_interface.scope_builder(
+            UiBuilder::new()
+                .max_rect(button_rectangle)
+                .layout(Layout::left_to_right(Align::Center)),
+            |user_interface| {
+                // Open project.
+                let button_open = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
+                IconDraw::draw(user_interface, button_open.rect, &theme.icon_library.icon_handle_file_system_open_folder);
 
-            if button_refresh.clicked() {
-                *self.project_selector_frame_action = ProjectSelectorFrameAction::OpenProject(
-                    self.project_info.get_project_directory().unwrap_or_default(),
-                    self.project_info.get_name().to_string(),
-                );
-            }
-        });
+                if button_open.clicked() {
+                    *self.project_selector_frame_action = ProjectSelectorFrameAction::OpenProject(
+                        self.project_info.get_project_directory().unwrap_or_default(),
+                        self.project_info.get_name().to_string(),
+                    );
+                }
+            },
+        );
 
         response
     }

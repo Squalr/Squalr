@@ -15,10 +15,10 @@ pub struct ProjectExplorerView {
 
 impl ProjectExplorerView {
     pub fn new(app_context: Arc<AppContext>) -> Self {
-        let project_selector_view = ProjectSelectorView::new(app_context.clone());
         let project_selector_view_data = app_context
             .dependency_container
             .register(ProjectSelectorViewData::new());
+        let project_selector_view = ProjectSelectorView::new(app_context.clone());
 
         Self {
             app_context,

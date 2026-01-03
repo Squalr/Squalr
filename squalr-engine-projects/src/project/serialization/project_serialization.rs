@@ -20,9 +20,12 @@ impl SerializableProjectFile for Project {
         for project_item_pair in self.get_project_items_mut() {
             let project_item_ref = project_item_pair.0;
             let project_item = project_item_pair.1;
+            let project_item_path = project_item_ref.get_project_item_path();
 
-            if let Err(error) = project_item.save_to_path(project_item_ref.get_project_item_path(), save_even_if_unchanged) {
-                log::error!("Failed to serialize project item: {}", error)
+            if project_item_path.is_file() {
+                if let Err(error) = project_item.save_to_path(project_item_path, save_even_if_unchanged) {
+                    log::error!("Failed to serialize project item: {}", error)
+                }
             }
         }
 

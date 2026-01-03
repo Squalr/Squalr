@@ -101,7 +101,7 @@ impl Widget for ElementScannerToolbarView {
                     button_size,
                     Button::new_from_theme(theme)
                         .background_color(Color32::TRANSPARENT)
-                        .tooltip_text("New scan."),
+                        .with_tooltip_text("New scan."),
                 );
                 IconDraw::draw(user_interface, button_new_scan.rect, &theme.icon_library.icon_handle_scan_new);
 
@@ -122,7 +122,7 @@ impl Widget for ElementScannerToolbarView {
                     button_size,
                     Button::new_from_theme(theme)
                         .background_color(Color32::TRANSPARENT)
-                        .tooltip_text("Collect values."),
+                        .with_tooltip_text("Collect values."),
                 );
                 IconDraw::draw(user_interface, button_collect_values.rect, &theme.icon_library.icon_handle_scan_collect_values);
 
@@ -135,7 +135,7 @@ impl Widget for ElementScannerToolbarView {
                     button_size,
                     Button::new_from_theme(theme)
                         .background_color(Color32::TRANSPARENT)
-                        .tooltip_text("Start scan."),
+                        .with_tooltip_text("Start scan."),
                 );
                 IconDraw::draw(user_interface, button_start_scan.rect, &theme.icon_library.icon_handle_navigation_right_arrow);
 
@@ -186,7 +186,7 @@ impl Widget for ElementScannerToolbarView {
                             button_size,
                             Button::new_from_theme(theme)
                                 .background_color(Color32::TRANSPARENT)
-                                .tooltip_text("Add new scan constraint."),
+                                .with_tooltip_text("Add new scan constraint."),
                         );
                         IconDraw::draw(user_interface, add_new_scan_constraint_button.rect, &theme.icon_library.icon_handle_common_add);
 
@@ -198,7 +198,7 @@ impl Widget for ElementScannerToolbarView {
                             button_size,
                             Button::new_from_theme(theme)
                                 .background_color(Color32::TRANSPARENT)
-                                .tooltip_text("Add new scan constraint."),
+                                .with_tooltip_text("Add new scan constraint."),
                         );
                         IconDraw::draw(
                             user_interface,

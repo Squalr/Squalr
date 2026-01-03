@@ -132,7 +132,7 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
                 Rect::from_min_size(pos2(self.address_splitter_position_x, y_center), button_size),
                 Button::new_from_theme(theme)
                     .background_color(Color32::TRANSPARENT)
-                    .tooltip_text("Add selection to project."),
+                    .with_tooltip_text("Add selection to project."),
             );
 
             IconDraw::draw(user_interface, add_selection_response.rect, &theme.icon_library.icon_handle_common_add);
@@ -145,7 +145,7 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
                 button_size,
                 Button::new_from_theme(theme)
                     .background_color(Color32::TRANSPARENT)
-                    .tooltip_text("Delete selection from results."),
+                    .with_tooltip_text("Delete selection from results."),
             );
 
             IconDraw::draw(user_interface, delete_selection_response.rect, &theme.icon_library.icon_handle_common_delete);
@@ -178,7 +178,7 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
                 button_size,
                 Button::new_from_theme(theme)
                     .background_color(Color32::TRANSPARENT)
-                    .tooltip_text("Commit value to selected scan results."),
+                    .with_tooltip_text("Commit value to selected scan results."),
             );
 
             IconDraw::draw(user_interface, commit_value_response.rect, &theme.icon_library.icon_handle_common_check_mark);

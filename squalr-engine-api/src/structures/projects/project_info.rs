@@ -28,9 +28,10 @@ impl ProjectInfo {
         project_manifest: ProjectManifest,
     ) -> Self {
         let project_name = project_file_path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
+            .parent()
+            .and_then(|parent_path| parent_path.file_name())
+            .and_then(|parent_path| parent_path.to_str())
+            .unwrap_or("<Unknown project name>")
             .to_string();
 
         Self {

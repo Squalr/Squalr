@@ -20,19 +20,8 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
 
     fn execute(
         &self,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        _engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
-        let project_manager = engine_unprivileged_state.get_project_manager();
-        let opened_project = project_manager.get_opened_project();
-        let mut opened_project = match opened_project.write() {
-            Ok(opened_project) => opened_project,
-            Err(error) => {
-                log::error!("Failed to acquire opened project lock for writing: {}", error);
-
-                return ProjectCreateResponse { success: false };
-            }
-        };
-
         // If a path is provided, use this directly. Otherwise, try to use the project settings relative name to construct the path.
         // If no path nor project name is provided, we will just make an empty project with a default name.
         let project_path = if let Some(project_path) = &self.project_path {
@@ -88,8 +77,6 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
 
             return ProjectCreateResponse { success: false };
         }
-
-        *opened_project = Some(new_project);
 
         ProjectCreateResponse { success: true }
     }

@@ -42,7 +42,7 @@ impl<'lifetime> Button<'lifetime> {
         self
     }
 
-    pub fn tooltip_text(
+    pub fn with_tooltip_text(
         mut self,
         tooltip: &'lifetime str,
     ) -> Self {

@@ -24,6 +24,9 @@ impl ProjectSelectorView {
             .get_dependency::<ProjectSelectorViewData>();
         let project_selector_toolbar_view = ProjectSelectorToolbarView::new(app_context.clone());
 
+        // Perform an initial refresh on boot to load the project list.
+        ProjectSelectorViewData::refresh_project_list(project_selector_view_data.clone(), app_context.clone());
+
         Self {
             app_context,
             project_selector_toolbar_view,
@@ -52,6 +55,11 @@ impl Widget for ProjectSelectorView {
                         self.app_context.clone(),
                         project_entry,
                         None,
+                        project_selector_view_data
+                            .selected_project_path
+                            .as_ref()
+                            .map(|selected_project_path| selected_project_path == project_entry.get_project_file_path())
+                            .unwrap_or(false),
                         &mut project_selector_frame_action,
                     ));
                 }
@@ -60,6 +68,9 @@ impl Widget for ProjectSelectorView {
 
         match project_selector_frame_action {
             ProjectSelectorFrameAction::None => {}
+            ProjectSelectorFrameAction::SelectProject(project_path) => {
+                ProjectSelectorViewData::select_project(self.project_selector_view_data.clone(), project_path);
+            }
             ProjectSelectorFrameAction::OpenProject(project_path, project_name) => {
                 ProjectSelectorViewData::open_project(self.app_context.clone(), project_path, project_name);
             }

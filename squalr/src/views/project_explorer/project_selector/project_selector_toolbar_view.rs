@@ -50,12 +50,43 @@ impl Widget for ProjectSelectorToolbarView {
         toolbar_user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
             let button_size = vec2(36.0, 28.0);
 
-            // Refresh.
-            let button_refresh = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
+            // Refresh projects.
+            let button_refresh = user_interface.add_sized(
+                button_size,
+                Button::new_from_theme(&theme)
+                    .with_tooltip_text("Refresh project list.")
+                    .background_color(Color32::TRANSPARENT),
+            );
             IconDraw::draw(user_interface, button_refresh.rect, &theme.icon_library.icon_handle_navigation_refresh);
 
             if button_refresh.clicked() {
                 ProjectSelectorViewData::refresh_project_list(self.project_selector_view_data.clone(), self.app_context.clone());
+            }
+
+            // Browse for project.
+            let button_create = user_interface.add_sized(
+                button_size,
+                Button::new_from_theme(&theme)
+                    .with_tooltip_text("Browse to open a project folder.")
+                    .background_color(Color32::TRANSPARENT),
+            );
+            IconDraw::draw(user_interface, button_create.rect, &theme.icon_library.icon_handle_file_system_browse_folder);
+
+            if button_create.clicked() {
+                ProjectSelectorViewData::browse_for_project(self.project_selector_view_data.clone(), self.app_context.clone());
+            }
+
+            // Create project.
+            let button_create = user_interface.add_sized(
+                button_size,
+                Button::new_from_theme(&theme)
+                    .with_tooltip_text("Create new project.")
+                    .background_color(Color32::TRANSPARENT),
+            );
+            IconDraw::draw(user_interface, button_create.rect, &theme.icon_library.icon_handle_common_add);
+
+            if button_create.clicked() {
+                ProjectSelectorViewData::create_new_project(self.project_selector_view_data.clone(), self.app_context.clone());
             }
         });
 

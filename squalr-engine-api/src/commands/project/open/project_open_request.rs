@@ -8,6 +8,9 @@ use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProjectOpenRequest {
+    #[structopt(short = "b", long)]
+    pub open_file_browser: bool,
+
     #[structopt(short = "p", long)]
     pub project_directory_path: Option<PathBuf>,
 

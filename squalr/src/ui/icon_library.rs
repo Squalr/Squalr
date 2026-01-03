@@ -105,6 +105,12 @@ static ICON_SCAN_RELATIVE_DECREASED: &[u8] = include_bytes!("../../images/app/sc
 static ICON_SCAN_RELATIVE_INCREASED: &[u8] = include_bytes!("../../images/app/scans/scan_relative_increased.png");
 static ICON_SCAN_RELATIVE_UNCHANGED: &[u8] = include_bytes!("../../images/app/scans/scan_relative_unchanged.png");
 
+// File system.
+static ICON_FILE_SYSTEM_MERGE_FOLDERS: &[u8] = include_bytes!("../../images/file_system/merge_folders.png");
+static ICON_FILE_SYSTEM_OPEN_FOLDER: &[u8] = include_bytes!("../../images/file_system/open_folder.png");
+static ICON_FILE_SYSTEM_BROWSE_FOLDER: &[u8] = include_bytes!("../../images/file_system/browse_folder.png");
+static ICON_FILE_SYSTEM_SAVE: &[u8] = include_bytes!("../../images/file_system/save.png");
+
 pub struct IconLibrary {
     // App.
     pub icon_handle_logo: TextureHandle,
@@ -209,6 +215,12 @@ pub struct IconLibrary {
     pub icon_handle_scan_relative_decreased: TextureHandle,
     pub icon_handle_scan_relative_increased: TextureHandle,
     pub icon_handle_scan_relative_unchanged: TextureHandle,
+
+    // File system.
+    pub icon_handle_file_system_merge_folders: TextureHandle,
+    pub icon_handle_file_system_open_folder: TextureHandle,
+    pub icon_handle_file_system_browse_folder: TextureHandle,
+    pub icon_handle_file_system_save: TextureHandle,
 }
 
 impl IconLibrary {
@@ -317,6 +329,12 @@ impl IconLibrary {
         let icon_handle_scan_relative_increased = Self::load_icon(context, ICON_SCAN_RELATIVE_INCREASED);
         let icon_handle_scan_relative_unchanged = Self::load_icon(context, ICON_SCAN_RELATIVE_UNCHANGED);
 
+        // File system.
+        let icon_handle_file_system_merge_folders = Self::load_icon(context, ICON_FILE_SYSTEM_MERGE_FOLDERS);
+        let icon_handle_file_system_open_folder = Self::load_icon(context, ICON_FILE_SYSTEM_OPEN_FOLDER);
+        let icon_handle_file_system_browse_folder = Self::load_icon(context, ICON_FILE_SYSTEM_BROWSE_FOLDER);
+        let icon_handle_file_system_save = Self::load_icon(context, ICON_FILE_SYSTEM_SAVE);
+
         Self {
             // App.
             icon_handle_logo,
@@ -421,6 +439,12 @@ impl IconLibrary {
             icon_handle_scan_relative_decreased,
             icon_handle_scan_relative_increased,
             icon_handle_scan_relative_unchanged,
+
+            // File system.
+            icon_handle_file_system_merge_folders,
+            icon_handle_file_system_open_folder,
+            icon_handle_file_system_browse_folder,
+            icon_handle_file_system_save,
         }
     }
 

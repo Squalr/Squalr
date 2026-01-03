@@ -117,7 +117,7 @@ impl Widget for ElementScannerFooterView {
             first_page_button_rectangle,
             Button::new_from_theme(&theme)
                 .background_color(Color32::TRANSPARENT)
-                .tooltip_text("First page."),
+                .with_tooltip_text("First page."),
         );
 
         IconDraw::draw(
@@ -138,7 +138,7 @@ impl Widget for ElementScannerFooterView {
             previous_page_button_rectangle,
             Button::new_from_theme(&theme)
                 .background_color(Color32::TRANSPARENT)
-                .tooltip_text("Previous page."),
+                .with_tooltip_text("Previous page."),
         );
 
         IconDraw::draw(
@@ -158,7 +158,7 @@ impl Widget for ElementScannerFooterView {
             next_page_button_rectangle,
             Button::new_from_theme(&theme)
                 .background_color(Color32::TRANSPARENT)
-                .tooltip_text("Next page."),
+                .with_tooltip_text("Next page."),
         );
 
         IconDraw::draw(
@@ -178,7 +178,7 @@ impl Widget for ElementScannerFooterView {
             last_page_button_rectangle,
             Button::new_from_theme(&theme)
                 .background_color(Color32::TRANSPARENT)
-                .tooltip_text("Last page."),
+                .with_tooltip_text("Last page."),
         );
 
         IconDraw::draw(
