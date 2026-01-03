@@ -9,7 +9,7 @@ use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProjectOpenRequest {
     #[structopt(short = "p", long)]
-    pub project_path: Option<PathBuf>,
+    pub project_directory_path: Option<PathBuf>,
 
     #[structopt(short = "n", long)]
     pub project_name: Option<String>,

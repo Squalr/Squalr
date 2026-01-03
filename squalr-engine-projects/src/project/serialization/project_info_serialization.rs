@@ -52,10 +52,13 @@ impl SerializableProjectFile for ProjectInfo {
     }
 
     fn load_from_path(project_file_path: &Path) -> anyhow::Result<Self> {
-        let project_dir = project_file_path.parent().unwrap_or_else(|| project_file_path);
-        let file = File::open(project_file_path)?;
-        let result: ProjectInfoStub = serde_json::from_reader(file)?;
+        let project_file = File::open(project_file_path)?;
+        let project_info_stub: ProjectInfoStub = serde_json::from_reader(project_file)?;
 
-        Ok(ProjectInfo::new(project_dir.to_path_buf(), result.project_icon_rgba, result.project_manifest))
+        Ok(ProjectInfo::new(
+            project_file_path.to_path_buf(),
+            project_info_stub.project_icon_rgba,
+            project_info_stub.project_manifest,
+        ))
     }
 }

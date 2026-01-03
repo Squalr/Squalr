@@ -35,10 +35,17 @@ impl UnprivilegedCommandRequestExecutor for ProjectSaveRequest {
             opened_project.set_project_icon(Some(process_icon.clone()));
         }*/
 
-        let project_path = opened_project.get_project_info().get_path().to_owned();
+        let project_directory_path = match opened_project.get_project_info().get_project_directory() {
+            Some(project_directory_path) => project_directory_path,
+            None => {
+                log::error!("Failed to locate opened project folder, cannot save project!");
+
+                return ProjectSaveResponse { success: false };
+            }
+        };
 
         // Persist the project to disk.
-        match opened_project.save_to_path(&project_path, false) {
+        match opened_project.save_to_path(&project_directory_path, false) {
             Ok(()) => {
                 return ProjectSaveResponse { success: true };
             }

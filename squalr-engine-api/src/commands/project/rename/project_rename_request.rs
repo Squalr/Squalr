@@ -9,7 +9,7 @@ use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProjectRenameRequest {
     #[structopt(short = "p", long)]
-    pub project_path: PathBuf,
+    pub project_file_path: PathBuf,
 
     #[structopt(short = "n", long)]
     pub new_project_name: String,

@@ -29,22 +29,19 @@ impl SerializableProjectFile for Project {
         Ok(())
     }
 
-    fn load_from_path(directory: &Path) -> anyhow::Result<Self> {
-        let extension = Project::PROJECT_ITEM_EXTENSION;
-        let project_info = ProjectInfo::load_from_path(&directory.join(Project::PROJECT_FILE))?;
+    fn load_from_path(project_directory_path: &Path) -> anyhow::Result<Self> {
+        let project_info = ProjectInfo::load_from_path(&project_directory_path.join(Project::PROJECT_FILE))?;
         let mut project_items = HashMap::new();
-        let project_root_path = directory.join(Project::PROJECT_DIR);
-        let project_root_ref = ProjectItemRef::new(project_root_path.clone());
+        let project_root_ref = ProjectItemRef::new(project_directory_path.to_path_buf());
         let project_root = ProjectItemTypeDirectory::new_project_item(&project_root_ref);
 
         project_items.insert(project_root_ref.clone(), project_root);
 
         fn load_recursive(
-            path: &Path,
+            current_path: &Path,
             project_items: &mut HashMap<ProjectItemRef, ProjectItem>,
-            extension: &str,
         ) -> anyhow::Result<()> {
-            for entry in std::fs::read_dir(path)? {
+            for entry in std::fs::read_dir(current_path)? {
                 let entry = entry?;
                 let entry_path = entry.path();
                 if entry_path.is_dir() {
@@ -53,9 +50,9 @@ impl SerializableProjectFile for Project {
 
                     project_items.insert(dir_ref.clone(), dir_item);
 
-                    load_recursive(&entry_path, project_items, extension)?;
-                } else if let Some(ext) = entry_path.extension() {
-                    if ext == extension {
+                    load_recursive(&entry_path, project_items)?;
+                } else if let Some(extension) = entry_path.extension() {
+                    if extension == Project::PROJECT_ITEM_EXTENSION {
                         let item_ref = ProjectItemRef::new(entry_path.clone());
                         let project_item = ProjectItem::load_from_path(&entry_path)?;
 
@@ -65,10 +62,11 @@ impl SerializableProjectFile for Project {
                     }
                 }
             }
+
             Ok(())
         }
 
-        load_recursive(&project_root_path, &mut project_items, extension)?;
+        load_recursive(&project_directory_path, &mut project_items)?;
 
         Ok(Project::new(project_info, project_items, project_root_ref))
     }

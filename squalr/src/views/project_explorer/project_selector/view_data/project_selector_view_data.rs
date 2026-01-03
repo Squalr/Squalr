@@ -1,10 +1,13 @@
 use crate::app_context::AppContext;
 use squalr_engine_api::{
-    commands::{project::list::project_list_request::ProjectListRequest, unprivileged_command_request::UnprivilegedCommandRequest},
+    commands::{
+        project::{list::project_list_request::ProjectListRequest, open::project_open_request::ProjectOpenRequest},
+        unprivileged_command_request::UnprivilegedCommandRequest,
+    },
     dependency_injection::dependency::Dependency,
     structures::projects::project_info::ProjectInfo,
 };
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 #[derive(Clone)]
 pub struct ProjectSelectorViewData {
@@ -29,6 +32,25 @@ impl ProjectSelectorViewData {
             };
 
             project_selector_view_data.project_list = project_list_response.projects_info;
+        });
+    }
+
+    pub fn open_project(
+        app_context: Arc<AppContext>,
+        project_path: PathBuf,
+        project_name: String,
+    ) {
+        let project_open_request = ProjectOpenRequest {
+            project_directory_path: Some(project_path),
+            project_name: None,
+        };
+
+        project_open_request.send(&app_context.engine_unprivileged_state, move |project_list_response| {
+            if !project_list_response.success {
+                log::error!("Failed to open project!");
+            } else {
+                log::info!("Opened project: {}", project_name)
+            }
         });
     }
 }

@@ -28,8 +28,14 @@ impl UnprivilegedCommandRequestExecutor for ProjectExportRequest {
                 return ProjectExportResponse { success: false };
             }
         };
-
-        let export_path = opened_project.get_project_info().get_path().join("export");
+        let project_folder = match opened_project.get_project_info().get_project_directory() {
+            Some(project_folder) => project_folder,
+            None => {
+                log::error!("Cannot export project, failed to locate project folder.");
+                return ProjectExportResponse { success: false };
+            }
+        };
+        let export_path = project_folder.join("export");
         let project_name = opened_project.get_name();
         let export_file_path = export_path.join(format!("{}.json", project_name));
 

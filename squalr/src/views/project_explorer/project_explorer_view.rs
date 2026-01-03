@@ -37,21 +37,18 @@ impl Widget for ProjectExplorerView {
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 let project_manager = self.app_context.engine_unprivileged_state.get_project_manager();
                 let opened_project = project_manager.get_opened_project();
-                let opened_project = match opened_project.read() {
-                    Ok(opened_project) => opened_project,
+                let has_opened_project = match opened_project.read() {
+                    Ok(opened_project) => opened_project.is_some(),
                     Err(error) => {
                         log::error!("Failed to acquire opened project lock: {}", error);
                         return;
                     }
                 };
 
-                match opened_project.as_ref() {
-                    Some(opened_project) => {
-                        //
-                    }
-                    None => {
-                        user_interface.add(self.project_selector_view.clone());
-                    }
+                if has_opened_project {
+                    //
+                } else {
+                    user_interface.add(self.project_selector_view.clone());
                 }
             })
             .response;

@@ -26,7 +26,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectRenameRequest {
         };
         let is_renaming_opened_project = match project_manager.get_opened_project().read() {
             Ok(current_project) => match current_project.as_ref() {
-                Some(current_project) => *current_project.get_project_info().get_path() == self.project_path,
+                Some(current_project) => *current_project.get_project_info().get_project_file_path() == self.project_file_path,
                 None => false,
             },
             Err(error) => {
@@ -35,18 +35,18 @@ impl UnprivilegedCommandRequestExecutor for ProjectRenameRequest {
                 return ProjectRenameResponse { success: false };
             }
         };
-        let parent_path = match self.project_path.parent() {
+        let project_directory_path = match self.project_file_path.parent() {
             Some(parent) => parent.to_path_buf(),
             None => {
-                log::error!("Failed to get parent path for project path: {:?}", self.project_path);
+                log::error!("Failed to get parent path for project path: {:?}", self.project_file_path);
 
                 return ProjectRenameResponse { success: false };
             }
         };
 
-        let new_project_path = parent_path.join(&self.new_project_name);
+        let new_project_path = project_directory_path.join(&self.new_project_name);
 
-        if let Err(error) = fs::rename(self.project_path.to_path_buf(), &new_project_path) {
+        if let Err(error) = fs::rename(self.project_file_path.to_path_buf(), &new_project_path) {
             log::error!("Failed to rename project: {}", error);
 
             return ProjectRenameResponse { success: false };

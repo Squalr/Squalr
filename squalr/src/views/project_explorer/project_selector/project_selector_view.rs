@@ -1,8 +1,9 @@
 use crate::{
     app_context::AppContext,
     views::project_explorer::project_selector::{
-        project_entry_view::ProjectEntryView, project_selector_toolbar_view::ProjectSelectorToolbarView,
-        view_data::project_selector_view_data::ProjectSelectorViewData,
+        project_entry_view::ProjectEntryView,
+        project_selector_toolbar_view::ProjectSelectorToolbarView,
+        view_data::{project_selector_frame_action::ProjectSelectorFrameAction, project_selector_view_data::ProjectSelectorViewData},
     },
 };
 use eframe::egui::{Align, Layout, Response, Ui, Widget};
@@ -36,6 +37,7 @@ impl Widget for ProjectSelectorView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        let mut project_selector_frame_action = ProjectSelectorFrameAction::None;
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 let project_selector_view_data = match self.project_selector_view_data.read("Project selector view") {
@@ -46,10 +48,22 @@ impl Widget for ProjectSelectorView {
                 user_interface.add(self.project_selector_toolbar_view);
 
                 for project_entry in &project_selector_view_data.project_list {
-                    user_interface.add(ProjectEntryView::new(self.app_context.clone(), project_entry.get_name(), None));
+                    user_interface.add(ProjectEntryView::new(
+                        self.app_context.clone(),
+                        project_entry,
+                        None,
+                        &mut project_selector_frame_action,
+                    ));
                 }
             })
             .response;
+
+        match project_selector_frame_action {
+            ProjectSelectorFrameAction::None => {}
+            ProjectSelectorFrameAction::OpenProject(project_path, project_name) => {
+                ProjectSelectorViewData::open_project(self.app_context.clone(), project_path, project_name);
+            }
+        }
 
         response
     }

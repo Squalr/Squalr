@@ -26,22 +26,22 @@ impl UnprivilegedCommandRequestExecutor for ProjectOpenRequest {
         };
 
         // If a path is provided, use this directly. Otherwise, try to use the project settings relative name to construct the path.
-        let project_path = if let Some(path) = &self.project_path {
-            path.into()
+        let project_directory_path = if let Some(project_directory_path) = &self.project_directory_path {
+            project_directory_path.into()
         } else {
             let name = self.project_name.as_deref().unwrap_or_default();
 
             ProjectSettingsConfig::get_projects_root().join(name)
         };
 
-        match Project::load_from_path(&project_path) {
+        match Project::load_from_path(&project_directory_path) {
             Ok(project) => {
                 *opened_project = Some(project);
 
                 ProjectOpenResponse { success: true }
             }
             Err(error) => {
-                log::error!("Failed to open project: {}", error);
+                log::error!("Failed to open project from path:{:?}, error: {}", project_directory_path, error);
 
                 ProjectOpenResponse { success: false }
             }
