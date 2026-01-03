@@ -226,7 +226,7 @@ impl MainWindowView {
         user_interface: &mut Ui,
         rect: Rect,
         id: &str,
-        dir: ResizeDirection,
+        resize_direction: ResizeDirection,
     ) {
         use eframe::egui::CursorIcon;
 
@@ -234,7 +234,7 @@ impl MainWindowView {
         let drag_started = response.drag_started();
 
         // Show the appropriate cursor when hovering
-        match dir {
+        match resize_direction {
             ResizeDirection::North | ResizeDirection::South => {
                 response.on_hover_cursor(CursorIcon::ResizeVertical);
             }
@@ -250,7 +250,7 @@ impl MainWindowView {
         }
 
         if drag_started {
-            context.send_viewport_cmd(ViewportCommand::BeginResize(dir));
+            context.send_viewport_cmd(ViewportCommand::BeginResize(resize_direction));
         }
     }
 }

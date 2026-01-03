@@ -1,7 +1,8 @@
 use crate::{
     app_context::AppContext,
     views::process_selector::{
-        process_entry_view::ProcessEntryView, process_selector_toolbar_view::ProcessSelectorToolbarView, process_selector_view_data::ProcessSelectorViewData,
+        process_entry_view::ProcessEntryView, process_selector_toolbar_view::ProcessSelectorToolbarView,
+        view_data::process_selector_view_data::ProcessSelectorViewData,
     },
 };
 use eframe::egui::{Align, Direction, Layout, Response, ScrollArea, Spinner, Ui, Widget};

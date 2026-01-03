@@ -86,16 +86,17 @@ impl EngineUnprivilegedState {
     /// Dispatches a command to the engine. Direct usage is generally not advised unless you know what you are doing.
     /// Instead, create `{Command}Request` instances and call `.send()` directly on them.
     /// This is only made public to support direct usage by CLIs and other features that may need direct access.
+    /// JIRA: Is this even being used anymore?
     pub fn dispatch_command<F>(
         self: &Arc<Self>,
-        engine_command: PrivilegedCommand,
+        privileged_command: PrivilegedCommand,
         callback: F,
     ) where
         F: FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static,
     {
         match self.engine_api_unprivileged_bindings.read() {
             Ok(engine_bindings) => {
-                if let Err(error) = engine_bindings.dispatch_privileged_command(engine_command, Box::new(callback)) {
+                if let Err(error) = engine_bindings.dispatch_privileged_command(privileged_command, Box::new(callback)) {
                     log::error!("Error dispatching engine command: {}", error);
                 }
             }

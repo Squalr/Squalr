@@ -1,7 +1,7 @@
 use crate::{
     app_context::AppContext,
     ui::widgets::controls::combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
-    views::process_selector::process_selector_view_data::ProcessSelectorViewData,
+    views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
 };
 use eframe::egui::{Align, Direction, Layout, Response, Sense, Spinner, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, vec2};
