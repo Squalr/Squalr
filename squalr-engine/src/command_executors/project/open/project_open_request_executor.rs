@@ -36,7 +36,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectOpenRequest {
             }
         }
 
-        // Tri-option logic: browser selected path > direct path > constructed from name
+        // Prioritize open options in the following order: file browser selected path > direct path > constructed from name.
         let project_directory_path = if let Some(path) = selected_path {
             path
         } else if let Some(project_directory_path) = &self.project_directory_path {

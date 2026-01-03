@@ -47,19 +47,29 @@ impl Widget for ProjectSelectorView {
                     Some(project_selector_view_data) => project_selector_view_data,
                     None => return,
                 };
+                let rename_project_text = project_selector_view_data.rename_project_text.clone();
 
                 user_interface.add(self.project_selector_toolbar_view);
 
                 for project_entry in &project_selector_view_data.project_list {
+                    let is_renaming = project_selector_view_data
+                        .renaming_project_file_path
+                        .as_ref()
+                        .map(|renaming_project_file_path| renaming_project_file_path == project_entry.get_project_file_path())
+                        .unwrap_or(false);
+                    let is_selected = project_selector_view_data
+                        .selected_project_file_path
+                        .as_ref()
+                        .map(|selected_project_file_path| selected_project_file_path == project_entry.get_project_file_path())
+                        .unwrap_or(false);
+
                     user_interface.add(ProjectEntryView::new(
                         self.app_context.clone(),
                         project_entry,
                         None,
-                        project_selector_view_data
-                            .selected_project_path
-                            .as_ref()
-                            .map(|selected_project_path| selected_project_path == project_entry.get_project_file_path())
-                            .unwrap_or(false),
+                        is_selected,
+                        is_renaming,
+                        &rename_project_text,
                         &mut project_selector_frame_action,
                     ));
                 }
@@ -68,11 +78,30 @@ impl Widget for ProjectSelectorView {
 
         match project_selector_frame_action {
             ProjectSelectorFrameAction::None => {}
-            ProjectSelectorFrameAction::SelectProject(project_path) => {
-                ProjectSelectorViewData::select_project(self.project_selector_view_data.clone(), project_path);
+            ProjectSelectorFrameAction::SelectProject(project_file_path) => {
+                ProjectSelectorViewData::select_project(self.project_selector_view_data.clone(), project_file_path);
             }
-            ProjectSelectorFrameAction::OpenProject(project_path, project_name) => {
-                ProjectSelectorViewData::open_project(self.app_context.clone(), project_path, project_name);
+            ProjectSelectorFrameAction::StartRenamingProject(project_directory_path, project_name) => {
+                ProjectSelectorViewData::start_renaming_project(self.project_selector_view_data.clone(), project_directory_path, project_name);
+            }
+            ProjectSelectorFrameAction::CancelRenamingProject() => {
+                ProjectSelectorViewData::cancel_renaming_project(self.project_selector_view_data.clone());
+            }
+            ProjectSelectorFrameAction::CommitRename(project_file_path, new_project_name) => {
+                ProjectSelectorViewData::rename_project(
+                    self.project_selector_view_data.clone(),
+                    self.app_context.clone(),
+                    project_file_path,
+                    new_project_name,
+                );
+            }
+            ProjectSelectorFrameAction::OpenProject(project_directory_path, project_name) => {
+                ProjectSelectorViewData::open_project(
+                    self.project_selector_view_data.clone(),
+                    self.app_context.clone(),
+                    project_directory_path,
+                    project_name,
+                );
             }
         }
 

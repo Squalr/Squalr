@@ -1,6 +1,9 @@
 use crate::{
     app_context::AppContext,
-    views::project_explorer::project_selector::{project_selector_view::ProjectSelectorView, view_data::project_selector_view_data::ProjectSelectorViewData},
+    views::project_explorer::{
+        project_hierarchy::{project_hierarchy_view::ProjectHierarchyView, view_data::project_hierarchy_view_data::ProjectHierarchyViewData},
+        project_selector::{project_selector_view::ProjectSelectorView, view_data::project_selector_view_data::ProjectSelectorViewData},
+    },
 };
 use eframe::egui::{Align, Layout, Response, Ui, Widget};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -10,7 +13,9 @@ use std::sync::Arc;
 pub struct ProjectExplorerView {
     app_context: Arc<AppContext>,
     project_selector_view: ProjectSelectorView,
+    project_hierarchy_view: ProjectHierarchyView,
     _project_selector_view_data: Dependency<ProjectSelectorViewData>,
+    _project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
 }
 
 impl ProjectExplorerView {
@@ -18,12 +23,18 @@ impl ProjectExplorerView {
         let project_selector_view_data = app_context
             .dependency_container
             .register(ProjectSelectorViewData::new());
+        let project_hierarchy_view_data = app_context
+            .dependency_container
+            .register(ProjectHierarchyViewData::new());
         let project_selector_view = ProjectSelectorView::new(app_context.clone());
+        let project_hierarchy_view = ProjectHierarchyView::new(app_context.clone());
 
         Self {
             app_context,
             project_selector_view,
+            project_hierarchy_view,
             _project_selector_view_data: project_selector_view_data,
+            _project_hierarchy_view_data: project_hierarchy_view_data,
         }
     }
 }
@@ -46,7 +57,7 @@ impl Widget for ProjectExplorerView {
                 };
 
                 if has_opened_project {
-                    //
+                    user_interface.add(self.project_hierarchy_view.clone());
                 } else {
                     user_interface.add(self.project_selector_view.clone());
                 }

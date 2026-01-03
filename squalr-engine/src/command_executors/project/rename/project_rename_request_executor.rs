@@ -24,16 +24,9 @@ impl UnprivilegedCommandRequestExecutor for ProjectRenameRequest {
                 return ProjectRenameResponse { success: false };
             }
         };
-        let is_renaming_opened_project = match project_manager.get_opened_project().read() {
-            Ok(current_project) => match current_project.as_ref() {
-                Some(current_project) => *current_project.get_project_info().get_project_file_path() == self.project_file_path,
-                None => false,
-            },
-            Err(error) => {
-                log::error!("Failed to check if renaming current project, aborting: {}", error);
-
-                return ProjectRenameResponse { success: false };
-            }
+        let is_renaming_opened_project = match opened_project.as_ref() {
+            Some(opened_project) => *opened_project.get_project_info().get_project_file_path() == self.project_file_path,
+            None => false,
         };
         let project_directory_path = match self.project_file_path.parent() {
             Some(parent) => parent.to_path_buf(),

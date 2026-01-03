@@ -4,5 +4,8 @@ use std::path::PathBuf;
 pub enum ProjectSelectorFrameAction {
     None,
     SelectProject(PathBuf),
+    CancelRenamingProject(),
+    StartRenamingProject(PathBuf, String),
+    CommitRename(PathBuf, String),
     OpenProject(PathBuf, String),
 }
