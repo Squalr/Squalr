@@ -8,13 +8,13 @@ Join us on our [Discord Channel](https://discord.gg/Pq2msTx)
 
 **Squalr** is a highly performant dynamic analysis reverse-engineering tool written in Rust.
 
-First and foremost, Squalr is a memory scanner. Squalr achieves fast scans through multi-threading combined with SIMD instructions, allowing it to rip through Gigabytes of data in seconds. While all CPUs are supported, for maximum performance your CPU needs support for SSE, AVX, or AVX-512.
+First and foremost, Squalr is a lightning fast memory scanner, allowing the user to search for and modify running process memory. Fast scans are achieved through multi-threading combined with SIMD, allowing it to rip through multiple GBs of data in seconds. While all CPUs are supported, for maximum performance your CPU needs support for SSE, AVX, or AVX-512.
 
-We believe that dynamic analysis should be a first-class citizen. A living program has substantially more information to leverage than just a binary. The long term ambition is not to compete with static tools directly, but instead unlock incredibly productive workflows that could only come from a dynamic world.
+Dynamic analysis is a first-class citizen in Squalr, unlike most reverse-engineering tools. This allows for workflows that simply are not possible otherwise by analyzing how a program behaves over time.
 
 -----------------------
 
-Squalr is a spiritual successor to Squalr. Looking for the old C# repo? See [Squalr-Sharp](https://github.com/Squalr/Squalr-Sharp). Note that Squalr is no longer maintained, as Squalr has become the focus.
+Squalr is a spiritual successor to Squalr-Sharp. Looking for the old C# repo? See [Squalr-Sharp](https://github.com/Squalr/Squalr-Sharp). Note that Squalr-Sharp is no longer maintained, as Squalr has become the focus.
 
 This project is unaffiliated with any employers of our team members, past, present, or future.
 
@@ -23,16 +23,18 @@ This project is unaffiliated with any employers of our team members, past, prese
 ## Development Philosophy
 Systems level work demands a systems level language. Rust was chosen because it eliminates entire classes of bugs and is perfectly suited to the job.
 
-Slint was chosen for the GUI since it gives us the benefits of a markup language, while still compiling to native for maximum performance and UX.
+After evaluating several front-end frameworks, we settled on egui. Egui gives us small binary sizes, native speeds, cross-platform, and ease of accessing application data for display.
 
 Medium term, Squalr aims to be extensible with a modern plugin system. No more unzipping plugins to esoteric locations and manually upgrading them each release. This means an actual marketplace, including plenty of free and easy to install plugins. While not there yet, Squalr is being developed knowing that developers will want to be able to extend the type system, project system, register custom tools, and register middleware to support scanning emulator memory or other niche use cases.
 
+Additionally, we will soon want to support scripting. We have not yet decided on a language. While most people instantly jump to Lua or Python, these languages lack robust data types, which results in awkward work-arounds. Consequentially, it is unclear what we intend to use instead, or if there are viable alternatives at all.
+
 Eventually Squalr will eventually compete on the static front, but not initially. For now, Squalr is deliberately not building out an ASM to C++ decompiler, a code graph, nor a debugger.
 
-Some long term ambitions are to integrate:
+Long term, we do wish to integrate into the AI landscape, in a manner that actually delivers value to users. These are a few ideas that we intend to try:
 - Plaintext hacking. Just tell the agent what you want to hack over a normal conversation, and have it dispatch low-level commands to do the heavy lifting. This can be very effective in domains like video game reverse-engineering.
 - Automated data symbol discovery. By analyzing how values change over snapshots in time, analyzing screenshots, etc., we believe that agents can help you build a full map of all data and functions in a process.
-- Low-latency AI. We want developers to be able to make bots that can take in screen data, memory data, and run this in a rapid enough loop to do everything from play games, to navigate desktop software, without exessive delays.
+- Low-latency local models. We want developers to be able to make bots that can take in screen data, memory data, and run this in a rapid enough loop to do everything from play games, to navigate desktop software, without exessive delays.
 
 ## Features
 
@@ -43,10 +45,12 @@ Some long term ambitions are to integrate:
 - [ ] TUI build (tech stack TBD).
 
 ### Developer-Facing Features
+- [ ] Command/event hooks
 - [ ] Plugin system: Data Types
 - [ ] Plugin system: Middleware (Filters for emu support, filter down virtual memory through custom logic)
 - [ ] Plugin system: Virtual Modules (custom defined static bases -- could be threadstack, special emulator memory regions, etc)
 - [ ] Plugin system: Project item types
+- [ ] Scripting system (exact language TBD)
 - [ ] MCP APIs for LLM integrations (Needs architecting work)
 
 ### User-Facing Features
@@ -73,10 +77,10 @@ This allows us to create several different modes, such as a unified GUI/CLI/TUI 
 | iPhone     | ✅    | ✅    | ✅    | ✅     | ❌              | ✅               |
 
 ### Architecture Glossary
-- A **snapshot** is a full query of all virtual memory regions in an internal process. This is generally done in two passes, once to determine the virtual page addresses and sizes, and another pass to collect the values.
-- An **snapshot region** represents 1-n adjacent virtual memory regions in an external process. Adjacent virtual memory pages are considered part of the same snapshot region.
-- An **snapshot filter** represents a window into a snapshot region, and are created by scan implementations. These can be considered as an efficient collection of scan results.
-- An **scan result** is the value obtained when indexing into a snapshot region through a snapshot filter.
+- A **snapshot** is a full query of all virtual memory regions in an internal process. This is created in two passes, once to determine the virtual page addresses and sizes, and another pass to collect the values.
+- An **snapshot region** represents a continuous range of virtual memory regions. For example, virtual memory pages of 0x1000-0x2000, 0x2000-0x3000, merge to become a single snapshot region of 0x1000-0x3000, with some internal bookkeeping to track the merges. The merging is important to allow easy scanning across virtual pages (ie scanning for an array of bytes that may span multiple virtual pages). More info on this in the `Snapshot System` section.
+- An **snapshot filter** represents a window into a snapshot region, and are created by scan implementations. These can be considered as an compact collection of scan results represented as a range.
+- An **scan result** is the value obtained when indexing into a snapshot region through a snapshot filter. These are fairly expensive to produce since it requires some seeking logic and deserialization of bytes, so these are created on-demand by CLI/GUI displays.
 - An **element** an abstract concept similar to a scan result, but more generally just refers to an arbitrary value within a filter. While this does not exist as a concrete type, this is commonly used in the code conceptually. Elements are best illustrated by example: if scanning for a 1-byte value over a 2000 byte region of memory, with an alignment of 2-bytes, we expect to find 1000 elements. Now, if our value is 4-bytes, this changes the element count to 997. This is because the 4-byte value cannot read outside of the region bounds!
 
 ### Snapshot System
@@ -88,7 +92,7 @@ The only complexity is that if one of the read memory calls fail, we need to the
 
 Additionally, we use a "red black" system for snapshot results. The first two times we take a snapshot, we have to allocate memory, but for subsequent snapshots we can simply reuse existing arrays.
 
-A potential optimization is deciding when to shard these snapshots. Currently, if our filters have an element at the beginning of a snapshot region, and an element at the end, we still capture all in between elements when we go to read memory. This is rare in practice and a bit premature to solve now, so it is left as is.
+A potential optimization is deciding when to shard snapshot regions. Currently, if we had a 1GB snapshot region, but only 2 filters: one at the beginning and one at the end end, we would still read all the memory between these filters on subsequent scans. This is rare in practice and a bit premature to solve now, so it is left as is.
 
 ### Scan Filter System
 Scan results are discovered through the concepts of filters. This is a clever way to support many simultaneous scans, of various data types. Once we have a snapshot, we can then interpret the bytes in many different ways. For example, we can scan for the value 1 as an i8, i16, i32, i64, u8, u16, u32, u64, f32, and f64! We just create a new set of filters for each data type. This is also extremely parallelizable, especially when coupled with SIMD friendly scans.
