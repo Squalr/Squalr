@@ -24,8 +24,8 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         // If a path is provided, use this directly. Otherwise, try to use the project settings relative name to construct the path.
         // If no path nor project name is provided, we will just make an empty project with a default name.
-        let project_path = if let Some(project_path) = &self.project_path {
-            project_path.into()
+        let project_directory_path = if let Some(project_directory_path) = &self.project_directory_path {
+            project_directory_path.into()
         } else if let Some(project_name) = self.project_name.as_deref() {
             ProjectSettingsConfig::get_projects_root().join(project_name)
         } else {
@@ -41,8 +41,8 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
             }
         };
 
-        if project_path.exists() {
-            match project_path.read_dir() {
+        if project_directory_path.exists() {
+            match project_directory_path.read_dir() {
                 Ok(mut read_dir) => {
                     if read_dir.next().is_some() {
                         log::error!("Cannot create project: directory already contains files");
@@ -58,13 +58,13 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
             }
         }
 
-        if let Err(error) = fs::create_dir_all(project_path.to_path_buf()) {
+        if let Err(error) = fs::create_dir_all(project_directory_path.to_path_buf()) {
             log::error!("Failed to create new project directory: {}", error);
 
             return ProjectCreateResponse { success: false };
         }
 
-        let project_info = ProjectInfo::new(project_path.to_path_buf(), None, ProjectManifest::default());
+        let project_info = ProjectInfo::new(project_directory_path.to_path_buf(), None, ProjectManifest::default());
         let project_root_ref = ProjectItemRef::new(PathBuf::new());
         let mut project_items = HashMap::new();
 
@@ -72,7 +72,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
 
         let mut new_project = Project::new(project_info, project_items, project_root_ref);
 
-        if let Err(error) = new_project.save_to_path(&project_path, true) {
+        if let Err(error) = new_project.save_to_path(&project_directory_path, true) {
             log::error!("Failed to save initial new project directory: {}", error);
 
             return ProjectCreateResponse { success: false };

@@ -1,5 +1,6 @@
 pub mod close;
 pub mod create;
+pub mod delete;
 pub mod export;
 pub mod list;
 pub mod open;

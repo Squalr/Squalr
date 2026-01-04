@@ -2,8 +2,9 @@ use crate::app_context::AppContext;
 use squalr_engine_api::{
     commands::{
         project::{
-            create::project_create_request::ProjectCreateRequest, list::project_list_request::ProjectListRequest,
-            open::project_open_request::ProjectOpenRequest, rename::project_rename_request::ProjectRenameRequest,
+            create::project_create_request::ProjectCreateRequest, delete::project_delete_request::ProjectDeleteRequest,
+            list::project_list_request::ProjectListRequest, open::project_open_request::ProjectOpenRequest,
+            rename::project_rename_request::ProjectRenameRequest,
         },
         unprivileged_command_request::UnprivilegedCommandRequest,
     },
@@ -76,7 +77,7 @@ impl ProjectSelectorViewData {
     ) {
         let app_context_clone = app_context.clone();
         let project_create_request = ProjectCreateRequest {
-            project_path: None,
+            project_directory_path: None,
             project_name: None,
         };
 
@@ -143,6 +144,7 @@ impl ProjectSelectorViewData {
             project_selector_view_data.renaming_project_file_path = None;
         }
 
+        let app_context_clone = app_context.clone();
         let project_rename_request = ProjectRenameRequest {
             project_file_path,
             new_project_name: new_project_name.clone(),
@@ -152,11 +154,11 @@ impl ProjectSelectorViewData {
             if !project_rename_response.success {
                 log::error!("Failed to rename project!");
             } else {
-                log::info!("Renamed project to: {}", new_project_name)
+                log::info!("Renamed project to: {}", new_project_name);
+
+                Self::refresh_project_list(project_selector_view_data, app_context_clone);
             }
         });
-
-        Self::refresh_project_list(project_selector_view_data, app_context);
     }
 
     pub fn open_project(
@@ -175,9 +177,9 @@ impl ProjectSelectorViewData {
             if !project_open_response.success {
                 log::error!("Failed to open project!");
             } else {
-                Self::cancel_renaming_project(project_selector_view_data);
+                log::info!("Opened project: {}", project_name);
 
-                log::info!("Opened project: {}", project_name)
+                Self::cancel_renaming_project(project_selector_view_data);
             }
         });
     }
@@ -188,21 +190,21 @@ impl ProjectSelectorViewData {
         project_directory_path: PathBuf,
         project_name: String,
     ) {
-        /*
+        let app_context_clone = app_context.clone();
         let project_delete_request = ProjectDeleteRequest {
-            open_file_browser: false,
             project_directory_path: Some(project_directory_path),
             project_name: None,
         };
 
         project_delete_request.send(&app_context.engine_unprivileged_state, move |project_delete_response| {
             if !project_delete_response.success {
-                log::error!("Failed to open project!");
+                log::error!("Failed to delete project!");
             } else {
-                Self::cancel_renaming_project(project_selector_view_data);
+                log::info!("Deleted project: {}", project_name);
 
-                log::info!("Opened project: {}", project_name)
+                Self::cancel_renaming_project(project_selector_view_data.clone());
+                Self::refresh_project_list(project_selector_view_data, app_context_clone);
             }
-        });*/
+        });
     }
 }

@@ -238,7 +238,7 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
 
                 if response_delete.clicked() {
                     *self.project_selector_frame_action = ProjectSelectorFrameAction::DeleteProject(
-                        self.project_info.get_project_file_path().to_path_buf(),
+                        self.project_info.get_project_directory().unwrap_or_default(),
                         self.project_info.get_name().to_string(),
                     );
                 }

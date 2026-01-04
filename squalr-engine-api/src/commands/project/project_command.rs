@@ -1,10 +1,10 @@
-use crate::commands::project::close::project_close_request::ProjectCloseRequest;
 use crate::commands::project::create::project_create_request::ProjectCreateRequest;
 use crate::commands::project::export::project_export_request::ProjectExportRequest;
 use crate::commands::project::list::project_list_request::ProjectListRequest;
 use crate::commands::project::open::project_open_request::ProjectOpenRequest;
 use crate::commands::project::rename::project_rename_request::ProjectRenameRequest;
 use crate::commands::project::save::project_save_request::ProjectSaveRequest;
+use crate::commands::project::{close::project_close_request::ProjectCloseRequest, delete::project_delete_request::ProjectDeleteRequest};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
@@ -14,6 +14,11 @@ pub enum ProjectCommand {
     Create {
         #[structopt(flatten)]
         project_create_request: ProjectCreateRequest,
+    },
+    /// Delete a project.
+    Delete {
+        #[structopt(flatten)]
+        project_delete_request: ProjectDeleteRequest,
     },
     /// Open a project.
     Open {
