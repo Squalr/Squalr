@@ -2,9 +2,9 @@ use crate::app_context::AppContext;
 use squalr_engine_api::{
     commands::{
         project::{
-            create::project_create_request::ProjectCreateRequest, delete::project_delete_request::ProjectDeleteRequest,
-            list::project_list_request::ProjectListRequest, open::project_open_request::ProjectOpenRequest,
-            rename::project_rename_request::ProjectRenameRequest,
+            close::project_close_request::ProjectCloseRequest, create::project_create_request::ProjectCreateRequest,
+            delete::project_delete_request::ProjectDeleteRequest, list::project_list_request::ProjectListRequest,
+            open::project_open_request::ProjectOpenRequest, rename::project_rename_request::ProjectRenameRequest,
         },
         unprivileged_command_request::UnprivilegedCommandRequest,
     },
@@ -180,6 +180,18 @@ impl ProjectSelectorViewData {
                 log::info!("Opened project: {}", project_name);
 
                 Self::cancel_renaming_project(project_selector_view_data);
+            }
+        });
+    }
+
+    pub fn close_current_project(app_context: Arc<AppContext>) {
+        let project_close_request = ProjectCloseRequest {};
+
+        project_close_request.send(&app_context.engine_unprivileged_state, move |project_list_response| {
+            if !project_list_response.success {
+                log::error!("Failed to close project!");
+            } else {
+                log::error!("Closed project.");
             }
         });
     }

@@ -1,7 +1,10 @@
 use crate::{
     app_context::AppContext,
     ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
-    views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
+    views::project_explorer::{
+        project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
+        project_selector::view_data::project_selector_view_data::ProjectSelectorViewData,
+    },
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, vec2};
@@ -60,7 +63,7 @@ impl Widget for ProjectHierarchyToolbarView {
             IconDraw::draw(user_interface, button_refresh.rect, &theme.icon_library.icon_handle_close);
 
             if button_refresh.clicked() {
-                ProjectHierarchyViewData::close_current_project(self.project_hierarchy_view_data.clone(), self.app_context.clone());
+                ProjectSelectorViewData::close_current_project(self.app_context.clone());
             }
         });
 

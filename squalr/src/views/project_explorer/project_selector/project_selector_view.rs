@@ -6,7 +6,7 @@ use crate::{
         view_data::{project_selector_frame_action::ProjectSelectorFrameAction, project_selector_view_data::ProjectSelectorViewData},
     },
 };
-use eframe::egui::{Align, Layout, Response, Ui, Widget};
+use eframe::egui::{Align, Layout, Response, ScrollArea, Ui, Widget};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 
@@ -42,7 +42,7 @@ impl Widget for ProjectSelectorView {
     ) -> Response {
         let mut project_selector_frame_action = ProjectSelectorFrameAction::None;
         let response = user_interface
-            .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
+            .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |mut user_interface| {
                 let project_selector_view_data = match self.project_selector_view_data.read("Project selector view") {
                     Some(project_selector_view_data) => project_selector_view_data,
                     None => return,
@@ -51,28 +51,33 @@ impl Widget for ProjectSelectorView {
 
                 user_interface.add(self.project_selector_toolbar_view);
 
-                for project_entry in &project_selector_view_data.project_list {
-                    let is_renaming = project_selector_view_data
-                        .renaming_project_file_path
-                        .as_ref()
-                        .map(|renaming_project_file_path| renaming_project_file_path == project_entry.get_project_file_path())
-                        .unwrap_or(false);
-                    let is_selected = project_selector_view_data
-                        .selected_project_file_path
-                        .as_ref()
-                        .map(|selected_project_file_path| selected_project_file_path == project_entry.get_project_file_path())
-                        .unwrap_or(false);
+                ScrollArea::vertical()
+                    .id_salt("project_selector")
+                    .auto_shrink([false, false])
+                    .show(&mut user_interface, |user_interface| {
+                        for project_entry in &project_selector_view_data.project_list {
+                            let is_renaming = project_selector_view_data
+                                .renaming_project_file_path
+                                .as_ref()
+                                .map(|renaming_project_file_path| renaming_project_file_path == project_entry.get_project_file_path())
+                                .unwrap_or(false);
+                            let is_selected = project_selector_view_data
+                                .selected_project_file_path
+                                .as_ref()
+                                .map(|selected_project_file_path| selected_project_file_path == project_entry.get_project_file_path())
+                                .unwrap_or(false);
 
-                    user_interface.add(ProjectEntryView::new(
-                        self.app_context.clone(),
-                        project_entry,
-                        None,
-                        is_selected,
-                        is_renaming,
-                        &rename_project_text,
-                        &mut project_selector_frame_action,
-                    ));
-                }
+                            user_interface.add(ProjectEntryView::new(
+                                self.app_context.clone(),
+                                project_entry,
+                                None,
+                                is_selected,
+                                is_renaming,
+                                &rename_project_text,
+                                &mut project_selector_frame_action,
+                            ));
+                        }
+                    });
             })
             .response;
 
