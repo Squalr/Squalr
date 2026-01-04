@@ -9,6 +9,7 @@ static ICON_MAXIMIZE: &[u8] = include_bytes!("../../images/app/maximize.png");
 
 // Common.
 static ICON_ADD: &[u8] = include_bytes!("../../images/app/common/add.png");
+static ICON_REMOVE: &[u8] = include_bytes!("../../images/app/common/remove.png");
 static ICON_CHECK_MARK: &[u8] = include_bytes!("../../images/app/common/check_mark.png");
 static ICON_DELETE: &[u8] = include_bytes!("../../images/app/common/delete.png");
 static ICON_EDIT: &[u8] = include_bytes!("../../images/app/common/edit.png");
@@ -120,6 +121,7 @@ pub struct IconLibrary {
 
     // Common.
     pub icon_handle_common_add: TextureHandle,
+    pub icon_handle_common_remove: TextureHandle,
     pub icon_handle_common_check_mark: TextureHandle,
     pub icon_handle_common_delete: TextureHandle,
     pub icon_handle_common_edit: TextureHandle,
@@ -233,6 +235,7 @@ impl IconLibrary {
 
         // Common.
         let icon_handle_common_add = Self::load_icon(context, ICON_ADD);
+        let icon_handle_common_remove = Self::load_icon(context, ICON_REMOVE);
         let icon_handle_common_check_mark = Self::load_icon(context, ICON_CHECK_MARK);
         let icon_handle_common_delete = Self::load_icon(context, ICON_DELETE);
         let icon_handle_common_edit = Self::load_icon(context, ICON_EDIT);
@@ -344,6 +347,7 @@ impl IconLibrary {
 
             // Common.
             icon_handle_common_add,
+            icon_handle_common_remove,
             icon_handle_common_check_mark,
             icon_handle_common_delete,
             icon_handle_common_edit,

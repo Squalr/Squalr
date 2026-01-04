@@ -20,7 +20,7 @@ pub struct ProjectSelectorViewData {
     pub project_list: Vec<ProjectInfo>,
     pub selected_project_file_path: Option<PathBuf>,
     pub renaming_project_file_path: Option<PathBuf>,
-    pub rename_project_text: Arc<RwLock<String>>,
+    pub rename_project_text: Arc<RwLock<(String, bool)>>,
 }
 
 impl ProjectSelectorViewData {
@@ -29,7 +29,7 @@ impl ProjectSelectorViewData {
             project_list: Vec::new(),
             selected_project_file_path: None,
             renaming_project_file_path: None,
-            rename_project_text: Arc::new(RwLock::new(String::new())),
+            rename_project_text: Arc::new(RwLock::new((String::new(), false))),
         }
     }
 
@@ -114,7 +114,7 @@ impl ProjectSelectorViewData {
 
         match project_selector_view_data.rename_project_text.write() {
             Ok(mut rename_project_text) => {
-                *rename_project_text = project_name;
+                *rename_project_text = (project_name, true);
             }
             Err(error) => {
                 log::error!("Failed to acquire project name text to initialize rename text: {}", error);
@@ -143,12 +143,12 @@ impl ProjectSelectorViewData {
             project_selector_view_data.renaming_project_file_path = None;
         }
 
-        let project_open_request = ProjectRenameRequest {
+        let project_rename_request = ProjectRenameRequest {
             project_file_path,
             new_project_name: new_project_name.clone(),
         };
 
-        project_open_request.send(&app_context.engine_unprivileged_state, move |project_rename_response| {
+        project_rename_request.send(&app_context.engine_unprivileged_state, move |project_rename_response| {
             if !project_rename_response.success {
                 log::error!("Failed to rename project!");
             } else {
@@ -171,8 +171,8 @@ impl ProjectSelectorViewData {
             project_name: None,
         };
 
-        project_open_request.send(&app_context.engine_unprivileged_state, move |project_list_response| {
-            if !project_list_response.success {
+        project_open_request.send(&app_context.engine_unprivileged_state, move |project_open_response| {
+            if !project_open_response.success {
                 log::error!("Failed to open project!");
             } else {
                 Self::cancel_renaming_project(project_selector_view_data);
@@ -180,5 +180,29 @@ impl ProjectSelectorViewData {
                 log::info!("Opened project: {}", project_name)
             }
         });
+    }
+
+    pub fn delete_project(
+        project_selector_view_data: Dependency<ProjectSelectorViewData>,
+        app_context: Arc<AppContext>,
+        project_directory_path: PathBuf,
+        project_name: String,
+    ) {
+        /*
+        let project_delete_request = ProjectDeleteRequest {
+            open_file_browser: false,
+            project_directory_path: Some(project_directory_path),
+            project_name: None,
+        };
+
+        project_delete_request.send(&app_context.engine_unprivileged_state, move |project_delete_response| {
+            if !project_delete_response.success {
+                log::error!("Failed to open project!");
+            } else {
+                Self::cancel_renaming_project(project_selector_view_data);
+
+                log::info!("Opened project: {}", project_name)
+            }
+        });*/
     }
 }

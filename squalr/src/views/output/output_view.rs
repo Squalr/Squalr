@@ -53,11 +53,11 @@ impl Widget for OutputView {
                                     Level::Trace => theme.background_control_success,
                                 };
 
-                                inner_user_interface.add(Label::new(
+                                inner_user_interface.label(
                                     RichText::new(&log_message.message)
                                         .color(color)
                                         .font(theme.font_library.font_noto_sans.font_normal.clone()),
-                                ));
+                                );
                             }
                         });
                 }

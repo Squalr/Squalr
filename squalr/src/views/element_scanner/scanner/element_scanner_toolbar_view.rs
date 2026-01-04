@@ -203,7 +203,7 @@ impl Widget for ElementScannerToolbarView {
                         IconDraw::draw(
                             user_interface,
                             remove_scan_constraint_button.rect,
-                            &theme.icon_library.icon_handle_common_delete,
+                            &theme.icon_library.icon_handle_common_remove,
                         );
 
                         if remove_scan_constraint_button.clicked() {

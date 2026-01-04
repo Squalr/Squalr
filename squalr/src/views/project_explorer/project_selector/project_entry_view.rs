@@ -6,7 +6,11 @@ use crate::{
     },
     views::project_explorer::project_selector::view_data::project_selector_frame_action::ProjectSelectorFrameAction,
 };
-use eframe::egui::{self, Align, Align2, Layout, Rect, Response, Sense, TextBuffer, TextureHandle, Ui, UiBuilder, Widget, pos2, vec2};
+use eframe::egui::{
+    Align, Key, Label, Layout, Response, RichText, Sense, TextEdit, TextureHandle, Ui, UiBuilder, Widget,
+    text::{CCursor, CCursorRange},
+    vec2,
+};
 use epaint::{Color32, CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use std::sync::{Arc, RwLock};
@@ -17,7 +21,7 @@ pub struct ProjectEntryView<'lifetime> {
     icon: Option<TextureHandle>,
     is_selected: bool,
     is_renaming: bool,
-    rename_project_text: &'lifetime Arc<RwLock<String>>,
+    rename_project_text: &'lifetime Arc<RwLock<(String, bool)>>,
     project_selector_frame_action: &'lifetime mut ProjectSelectorFrameAction,
 }
 
@@ -28,7 +32,7 @@ impl<'lifetime> ProjectEntryView<'lifetime> {
         icon: Option<TextureHandle>,
         is_selected: bool,
         is_renaming: bool,
-        rename_project_text: &'lifetime Arc<RwLock<String>>,
+        rename_project_text: &'lifetime Arc<RwLock<(String, bool)>>,
         project_selector_frame_action: &'lifetime mut ProjectSelectorFrameAction,
     ) -> Self {
         Self {
@@ -52,47 +56,30 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
         let icon_size = vec2(16.0, 16.0);
         let text_left_padding = 4.0;
         let row_height = 28.0;
-        let button_size = vec2(36.0, 28.0);
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, row_height), Sense::click());
-        let button_open_rect = Rect::from_min_size(allocated_size_rectangle.min, button_size);
+        let button_size = vec2(36.0, row_height);
+        let top_padding = 4.0;
+        let desired_height = top_padding + row_height;
+        let desired_size = vec2(user_interface.available_width(), desired_height);
+        let (available_size_id, available_size_rect) = user_interface.allocate_space(desired_size);
+        let response = user_interface.interact(available_size_rect, available_size_id, Sense::click());
 
-        user_interface.scope_builder(
-            UiBuilder::new()
-                .max_rect(button_open_rect)
-                .layout(Layout::left_to_right(Align::Center)),
-            |user_interface| {
-                // Open project.
-                let button_open = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
-
-                IconDraw::draw(user_interface, button_open.rect, &theme.icon_library.icon_handle_file_system_open_folder);
-                if button_open.clicked() {
-                    *self.project_selector_frame_action = ProjectSelectorFrameAction::OpenProject(
-                        self.project_info.get_project_directory().unwrap_or_default(),
-                        self.project_info.get_name().to_string(),
-                    );
-                }
-            },
-        );
-
+        // Draw selected background and border if applicable.
         if self.is_selected {
-            // Draw the background.
             user_interface
                 .painter()
-                .rect_filled(allocated_size_rectangle, CornerRadius::ZERO, theme.selected_background);
-
-            // Draw the border.
+                .rect_filled(available_size_rect, CornerRadius::ZERO, theme.selected_background);
             user_interface.painter().rect_stroke(
-                allocated_size_rectangle,
+                available_size_rect,
                 CornerRadius::ZERO,
                 Stroke::new(1.0, theme.selected_border),
                 StrokeKind::Inside,
             );
         }
 
-        // Background and state overlay.
+        // State overlay.
         StateLayer {
-            bounds_min: allocated_size_rectangle.min,
-            bounds_max: allocated_size_rectangle.max,
+            bounds_min: available_size_rect.min,
+            bounds_max: available_size_rect.max,
             enabled: true,
             pressed: response.is_pointer_button_down_on(),
             has_hover: response.hovered(),
@@ -106,6 +93,7 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
         }
         .ui(user_interface);
 
+        // Handle clicks and double-clicks on the overall area.
         if response.double_clicked() {
             *self.project_selector_frame_action = ProjectSelectorFrameAction::OpenProject(
                 self.project_info.get_project_directory().unwrap_or_default(),
@@ -115,90 +103,148 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
             *self.project_selector_frame_action = ProjectSelectorFrameAction::SelectProject(self.project_info.get_project_file_path().to_path_buf());
         }
 
-        // Draw icon and label inside layout.
-        let icon_pos_x = allocated_size_rectangle.min.x + button_size.x;
-        let icon_pos_y = allocated_size_rectangle.center().y - icon_size.y * 0.5;
-        let icon_rect = Rect::from_min_size(pos2(icon_pos_x, icon_pos_y), icon_size);
-        let text_pos = pos2(icon_rect.max.x + text_left_padding, allocated_size_rectangle.center().y);
+        // Add contents using a bounded UI scope.
+        let builder = UiBuilder::new().max_rect(available_size_rect);
 
-        if let Some(icon) = &self.icon {
-            IconDraw::draw_sized(user_interface, icon_rect.center(), icon_size, icon);
-        }
+        user_interface.scope_builder(builder, |user_interface| {
+            user_interface.add_space(top_padding);
+            user_interface.horizontal(|user_interface| {
+                user_interface.set_height(row_height);
 
-        if self.is_renaming {
-            let mut rename_project_text = match self.rename_project_text.write() {
-                Ok(rename_project_text) => rename_project_text,
-                Err(error) => {
-                    log::error!("Failed to acquire rename project text: {}", error);
-                    return response;
-                }
-            };
+                // Open project button.
+                let button_open = Button::new_from_theme(theme).background_color(Color32::TRANSPARENT);
+                let response_open = user_interface.add_sized(button_size, button_open);
 
-            let text_min_x = text_pos.x;
-            let text_max_x = allocated_size_rectangle.max.x - button_size.x;
-            let text_rect = Rect::from_min_max(
-                pos2(text_min_x, allocated_size_rectangle.min.y),
-                pos2(text_max_x, allocated_size_rectangle.max.y),
-            );
-            user_interface.scope_builder(
-                UiBuilder::new()
-                    .max_rect(text_rect)
-                    .layout(Layout::left_to_right(Align::Center)),
-                |user_interface| {
-                    let text_edit_response = user_interface.add(
-                        egui::TextEdit::singleline(&mut *rename_project_text)
-                            .font(theme.font_library.font_noto_sans.font_normal.clone())
-                            .background_color(theme.background_control)
-                            .text_color(theme.foreground),
+                IconDraw::draw(user_interface, response_open.rect, &theme.icon_library.icon_handle_file_system_open_folder);
+
+                if response_open.clicked() {
+                    *self.project_selector_frame_action = ProjectSelectorFrameAction::OpenProject(
+                        self.project_info.get_project_directory().unwrap_or_default(),
+                        self.project_info.get_name().to_string(),
                     );
-                    if text_edit_response.lost_focus() && user_interface.input(|input_state| input_state.key_pressed(egui::Key::Enter)) {
-                        *self.project_selector_frame_action =
-                            ProjectSelectorFrameAction::CommitRename(self.project_info.get_project_directory().unwrap_or_default(), rename_project_text.take());
-                    }
-                },
-            );
-        } else {
-            user_interface.painter().text(
-                text_pos,
-                Align2::LEFT_CENTER,
-                self.project_info.get_name(),
-                theme.font_library.font_noto_sans.font_normal.clone(),
-                theme.foreground,
-            );
-        }
+                }
 
-        let button_rectangle = Rect::from_min_size(
-            pos2(allocated_size_rectangle.max.x - button_size.x, allocated_size_rectangle.min.y),
-            button_size,
-        );
-
-        user_interface.scope_builder(
-            UiBuilder::new()
-                .max_rect(button_rectangle)
-                .layout(Layout::left_to_right(Align::Center)),
-            |user_interface| {
+                // Rename or cancel button.
                 if self.is_renaming {
-                    // Cancel rename project.
-                    let button_cancel_rename = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
-                    IconDraw::draw(user_interface, button_cancel_rename.rect, &theme.icon_library.icon_handle_navigation_cancel);
+                    let button_cancel_rename = Button::new_from_theme(theme).background_color(Color32::TRANSPARENT);
+                    let response_cancel = user_interface.add_sized(button_size, button_cancel_rename);
 
-                    if button_cancel_rename.clicked() {
+                    IconDraw::draw(user_interface, response_cancel.rect, &theme.icon_library.icon_handle_navigation_cancel);
+
+                    if response_cancel.clicked() {
                         *self.project_selector_frame_action = ProjectSelectorFrameAction::CancelRenamingProject();
                     }
-                } else {
-                    // Rename project.
-                    let button_rename = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
-                    IconDraw::draw(user_interface, button_rename.rect, &theme.icon_library.icon_handle_common_edit);
 
-                    if button_rename.clicked() {
+                    let button_commit_rename = Button::new_from_theme(theme).background_color(Color32::TRANSPARENT);
+                    let response_commit = user_interface.add_sized(button_size, button_commit_rename);
+
+                    IconDraw::draw(user_interface, response_commit.rect, &theme.icon_library.icon_handle_common_check_mark);
+
+                    if response_commit.clicked() {
+                        let mut rename_project_guard = match self.rename_project_text.write() {
+                            Ok(rename_project_text) => rename_project_text,
+                            Err(error) => {
+                                log::error!("Failed to acquire rename project text: {}", error);
+                                return;
+                            }
+                        };
+                        let rename_project_text = &mut rename_project_guard.0;
+
+                        *self.project_selector_frame_action = ProjectSelectorFrameAction::CommitRename(
+                            self.project_info.get_project_directory().unwrap_or_default(),
+                            std::mem::take(rename_project_text),
+                        );
+                    }
+                } else {
+                    let button_rename = Button::new_from_theme(theme).background_color(Color32::TRANSPARENT);
+                    let response_rename = user_interface.add_sized(button_size, button_rename);
+
+                    IconDraw::draw(user_interface, response_rename.rect, &theme.icon_library.icon_handle_common_edit);
+
+                    if response_rename.clicked() {
                         *self.project_selector_frame_action = ProjectSelectorFrameAction::StartRenamingProject(
                             self.project_info.get_project_file_path().to_path_buf(),
                             self.project_info.get_name().to_string(),
                         );
                     }
                 }
-            },
-        );
+
+                // Middle section: icon + text/label, filling up to delete button.
+                user_interface.allocate_ui_with_layout(
+                    vec2(user_interface.available_width() - button_size.x, row_height),
+                    Layout::left_to_right(Align::Center),
+                    |user_interface| {
+                        // Draw icon if present.
+                        if let Some(icon) = &self.icon {
+                            let (_allocated_rect, icon_resp) = user_interface.allocate_exact_size(icon_size, Sense::hover());
+                            IconDraw::draw_sized(user_interface, icon_resp.rect.center(), icon_size, icon);
+                        }
+                        user_interface.add_space(text_left_padding);
+
+                        if self.is_renaming {
+                            let mut rename_project_guard = match self.rename_project_text.write() {
+                                Ok(rename_project_text) => rename_project_text,
+                                Err(error) => {
+                                    log::error!("Failed to acquire rename project text: {}", error);
+                                    return;
+                                }
+                            };
+                            let (rename_project_text, should_highlight_text) = &mut *rename_project_guard;
+                            let text_edit = TextEdit::singleline(rename_project_text)
+                                .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                .background_color(theme.background_control)
+                                .text_color(theme.foreground)
+                                .desired_width(f32::INFINITY);
+                            let mut output = text_edit.show(user_interface);
+                            let text_edit_response = output.response;
+
+                            if *should_highlight_text {
+                                let len_chars = rename_project_text.chars().count();
+
+                                text_edit_response.request_focus();
+                                output
+                                    .state
+                                    .cursor
+                                    .set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(len_chars))));
+                                output.state.store(user_interface.ctx(), text_edit_response.id);
+                                *should_highlight_text = false;
+                            }
+
+                            if text_edit_response.lost_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+                                *self.project_selector_frame_action = ProjectSelectorFrameAction::CommitRename(
+                                    self.project_info.get_project_directory().unwrap_or_default(),
+                                    std::mem::take(rename_project_text),
+                                );
+                            }
+                        } else {
+                            user_interface.add(
+                                Label::new(
+                                    RichText::new(self.project_info.get_name())
+                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                        .color(theme.foreground),
+                                )
+                                .selectable(false),
+                            );
+                            user_interface.add_space(user_interface.available_width());
+                        }
+                    },
+                );
+
+                // Delete project button.
+                let button_delete = Button::new_from_theme(theme).background_color(Color32::TRANSPARENT);
+                let response_delete = user_interface.add_sized(button_size, button_delete);
+
+                IconDraw::draw(user_interface, response_delete.rect, &theme.icon_library.icon_handle_common_delete);
+
+                if response_delete.clicked() {
+                    *self.project_selector_frame_action = ProjectSelectorFrameAction::DeleteProject(
+                        self.project_info.get_project_file_path().to_path_buf(),
+                        self.project_info.get_name().to_string(),
+                    );
+                }
+            });
+        });
+
         response
     }
 }

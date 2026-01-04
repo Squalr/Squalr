@@ -8,4 +8,5 @@ pub enum ProjectSelectorFrameAction {
     StartRenamingProject(PathBuf, String),
     CommitRename(PathBuf, String),
     OpenProject(PathBuf, String),
+    DeleteProject(PathBuf, String),
 }

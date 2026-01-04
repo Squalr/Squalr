@@ -103,6 +103,14 @@ impl Widget for ProjectSelectorView {
                     project_name,
                 );
             }
+            ProjectSelectorFrameAction::DeleteProject(project_directory_path, project_name) => {
+                ProjectSelectorViewData::delete_project(
+                    self.project_selector_view_data.clone(),
+                    self.app_context.clone(),
+                    project_directory_path,
+                    project_name,
+                );
+            }
         }
 
         response
