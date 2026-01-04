@@ -9,7 +9,7 @@ use squalr_engine_api::{
         unprivileged_command_request::UnprivilegedCommandRequest,
     },
     dependency_injection::dependency::Dependency,
-    structures::projects::project_info::ProjectInfo,
+    structures::projects::{project::Project, project_info::ProjectInfo},
 };
 use std::{
     path::PathBuf,
@@ -19,6 +19,7 @@ use std::{
 #[derive(Clone)]
 pub struct ProjectSelectorViewData {
     pub project_list: Vec<ProjectInfo>,
+    pub context_menu_focus_file_path: Option<PathBuf>,
     pub selected_project_file_path: Option<PathBuf>,
     pub renaming_project_file_path: Option<PathBuf>,
     pub rename_project_text: Arc<RwLock<(String, bool)>>,
@@ -28,6 +29,7 @@ impl ProjectSelectorViewData {
     pub fn new() -> Self {
         Self {
             project_list: Vec::new(),
+            context_menu_focus_file_path: None,
             selected_project_file_path: None,
             renaming_project_file_path: None,
             rename_project_text: Arc::new(RwLock::new((String::new(), false))),
@@ -55,18 +57,19 @@ impl ProjectSelectorViewData {
         app_context: Arc<AppContext>,
     ) {
         let app_context_clone = app_context.clone();
-        let project_create_request = ProjectOpenRequest {
+        let project_open_request = ProjectOpenRequest {
             open_file_browser: true,
             project_directory_path: None,
             project_name: None,
         };
 
-        project_create_request.send(&app_context.engine_unprivileged_state, move |project_create_response| {
-            if !project_create_response.success {
+        project_open_request.send(&app_context.engine_unprivileged_state, move |project_open_response| {
+            if !project_open_response.success {
                 log::error!("Failed to create new project!")
             }
 
             Self::cancel_renaming_project(project_selector_view_data.clone());
+            Self::hide_context_menu(project_selector_view_data.clone());
             Self::refresh_project_list(project_selector_view_data, app_context_clone);
         });
     }
@@ -86,9 +89,42 @@ impl ProjectSelectorViewData {
                 log::error!("Failed to create new project!")
             }
 
-            Self::cancel_renaming_project(project_selector_view_data.clone());
-            Self::refresh_project_list(project_selector_view_data, app_context_clone);
+            let project_file_path = project_create_response
+                .new_project_path
+                .join(Project::PROJECT_FILE);
+            let project_name = project_create_response
+                .new_project_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+
+            Self::hide_context_menu(project_selector_view_data.clone());
+            Self::refresh_project_list(project_selector_view_data.clone(), app_context_clone);
+            Self::select_project(project_selector_view_data.clone(), project_file_path.clone());
+            Self::start_renaming_project(project_selector_view_data, project_file_path, project_name);
         });
+    }
+
+    pub fn show_context_menu(
+        project_selector_view_data: Dependency<ProjectSelectorViewData>,
+        project_file_path: PathBuf,
+    ) {
+        let mut project_selector_view_data = match project_selector_view_data.write("Project selector view data show context menu") {
+            Some(project_selector_view_data) => project_selector_view_data,
+            None => return,
+        };
+
+        project_selector_view_data.context_menu_focus_file_path = Some(project_file_path);
+    }
+
+    pub fn hide_context_menu(project_selector_view_data: Dependency<ProjectSelectorViewData>) {
+        let mut project_selector_view_data = match project_selector_view_data.write("Project selector view data hide context menu") {
+            Some(project_selector_view_data) => project_selector_view_data,
+            None => return,
+        };
+
+        project_selector_view_data.context_menu_focus_file_path = None;
     }
 
     pub fn select_project(
@@ -122,6 +158,7 @@ impl ProjectSelectorViewData {
             }
         };
 
+        project_selector_view_data.context_menu_focus_file_path = None;
         project_selector_view_data.renaming_project_file_path = Some(project_file_path);
     }
 
@@ -142,11 +179,20 @@ impl ProjectSelectorViewData {
     ) {
         if let Some(mut project_selector_view_data) = project_selector_view_data.write("Project selector view data start renaming project") {
             project_selector_view_data.renaming_project_file_path = None;
+            project_selector_view_data.context_menu_focus_file_path = None;
         }
 
+        let project_directory_path = match project_file_path.parent() {
+            Some(parent) => parent.to_path_buf(),
+            None => {
+                log::error!("Rename failed. Unable to get parent path for project path: {:?}", project_file_path);
+
+                return;
+            }
+        };
         let app_context_clone = app_context.clone();
         let project_rename_request = ProjectRenameRequest {
-            project_file_path,
+            project_directory_path,
             new_project_name: new_project_name.clone(),
         };
 
@@ -156,7 +202,13 @@ impl ProjectSelectorViewData {
             } else {
                 log::info!("Renamed project to: {}", new_project_name);
 
-                Self::refresh_project_list(project_selector_view_data, app_context_clone);
+                Self::refresh_project_list(project_selector_view_data.clone(), app_context_clone);
+                Self::select_project(
+                    project_selector_view_data,
+                    project_rename_response
+                        .new_project_path
+                        .join(Project::PROJECT_FILE),
+                );
             }
         });
     }
@@ -179,7 +231,8 @@ impl ProjectSelectorViewData {
             } else {
                 log::info!("Opened project: {}", project_name);
 
-                Self::cancel_renaming_project(project_selector_view_data);
+                Self::cancel_renaming_project(project_selector_view_data.clone());
+                Self::hide_context_menu(project_selector_view_data);
             }
         });
     }
@@ -215,6 +268,7 @@ impl ProjectSelectorViewData {
                 log::info!("Deleted project: {}", project_name);
 
                 Self::cancel_renaming_project(project_selector_view_data.clone());
+                Self::hide_context_menu(project_selector_view_data.clone());
                 Self::refresh_project_list(project_selector_view_data, app_context_clone);
             }
         });

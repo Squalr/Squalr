@@ -5,6 +5,7 @@ use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedStat
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectRenameRequest {
@@ -21,28 +22,39 @@ impl UnprivilegedCommandRequestExecutor for ProjectRenameRequest {
             Err(error) => {
                 log::error!("Failed to acquire opened project lock for writing: {}", error);
 
-                return ProjectRenameResponse { success: false };
+                return ProjectRenameResponse {
+                    success: false,
+                    new_project_path: PathBuf::default(),
+                };
             }
         };
         let is_renaming_opened_project = match opened_project.as_ref() {
-            Some(opened_project) => *opened_project.get_project_info().get_project_file_path() == self.project_file_path,
+            Some(opened_project) => {
+                *opened_project
+                    .get_project_info()
+                    .get_project_directory()
+                    .unwrap_or_default()
+                    == self.project_directory_path
+            }
             None => false,
         };
-        let project_directory_path = match self.project_file_path.parent() {
+        let all_projects_directory = match self.project_directory_path.parent() {
             Some(parent) => parent.to_path_buf(),
             None => {
-                log::error!("Failed to get parent path for project path: {:?}", self.project_file_path);
-
-                return ProjectRenameResponse { success: false };
+                return ProjectRenameResponse {
+                    success: false,
+                    new_project_path: PathBuf::default(),
+                };
             }
         };
+        let new_project_path = all_projects_directory.join(&self.new_project_name);
 
-        let new_project_path = project_directory_path.join(&self.new_project_name);
-
-        if let Err(error) = fs::rename(self.project_file_path.to_path_buf(), &new_project_path) {
+        if let Err(error) = fs::rename(&self.project_directory_path, &new_project_path) {
             log::error!("Failed to rename project: {}", error);
-
-            return ProjectRenameResponse { success: false };
+            return ProjectRenameResponse {
+                success: false,
+                new_project_path: PathBuf::default(),
+            };
         }
 
         // If we are renaming the current project, just do a full reload.
@@ -62,6 +74,9 @@ impl UnprivilegedCommandRequestExecutor for ProjectRenameRequest {
             }
         }
 
-        ProjectRenameResponse { success: true }
+        ProjectRenameResponse {
+            success: true,
+            new_project_path: new_project_path,
+        }
     }
 }

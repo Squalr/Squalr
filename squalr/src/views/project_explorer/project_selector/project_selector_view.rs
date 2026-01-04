@@ -66,11 +66,17 @@ impl Widget for ProjectSelectorView {
                                 .as_ref()
                                 .map(|selected_project_file_path| selected_project_file_path == project_entry.get_project_file_path())
                                 .unwrap_or(false);
+                            let is_context_menu_visible = project_selector_view_data
+                                .context_menu_focus_file_path
+                                .as_ref()
+                                .map(|context_menu_focus_file_path| context_menu_focus_file_path == project_entry.get_project_file_path())
+                                .unwrap_or(false);
 
                             user_interface.add(ProjectEntryView::new(
                                 self.app_context.clone(),
                                 project_entry,
                                 None,
+                                is_context_menu_visible,
                                 is_selected,
                                 is_renaming,
                                 &rename_project_text,
@@ -83,11 +89,17 @@ impl Widget for ProjectSelectorView {
 
         match project_selector_frame_action {
             ProjectSelectorFrameAction::None => {}
+            ProjectSelectorFrameAction::ShowContextMenu(project_file_path) => {
+                ProjectSelectorViewData::show_context_menu(self.project_selector_view_data.clone(), project_file_path);
+            }
+            ProjectSelectorFrameAction::HideContextMenu() => {
+                ProjectSelectorViewData::hide_context_menu(self.project_selector_view_data.clone());
+            }
             ProjectSelectorFrameAction::SelectProject(project_file_path) => {
                 ProjectSelectorViewData::select_project(self.project_selector_view_data.clone(), project_file_path);
             }
-            ProjectSelectorFrameAction::StartRenamingProject(project_directory_path, project_name) => {
-                ProjectSelectorViewData::start_renaming_project(self.project_selector_view_data.clone(), project_directory_path, project_name);
+            ProjectSelectorFrameAction::StartRenamingProject(project_file_path, project_name) => {
+                ProjectSelectorViewData::start_renaming_project(self.project_selector_view_data.clone(), project_file_path, project_name);
             }
             ProjectSelectorFrameAction::CancelRenamingProject() => {
                 ProjectSelectorViewData::cancel_renaming_project(self.project_selector_view_data.clone());

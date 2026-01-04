@@ -3,10 +3,12 @@ use crate::commands::{
     unprivileged_command_response::{TypedUnprivilegedCommandResponse, UnprivilegedCommandResponse},
 };
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectCreateResponse {
     pub success: bool,
+    pub new_project_path: PathBuf,
 }
 
 impl TypedUnprivilegedCommandResponse for ProjectCreateResponse {

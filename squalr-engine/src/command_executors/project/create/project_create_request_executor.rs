@@ -36,7 +36,10 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
                 Err(error) => {
                     log::error!("Failed to create a unique default project name: {}", error);
 
-                    return ProjectCreateResponse { success: false };
+                    return ProjectCreateResponse {
+                        success: false,
+                        new_project_path: PathBuf::default(),
+                    };
                 }
             }
         };
@@ -47,13 +50,19 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
                     if read_dir.next().is_some() {
                         log::error!("Cannot create project: directory already contains files");
 
-                        return ProjectCreateResponse { success: false };
+                        return ProjectCreateResponse {
+                            success: false,
+                            new_project_path: PathBuf::default(),
+                        };
                     }
                 }
                 Err(error) => {
                     log::error!("Failed to create project. Failed to check new project directory for existing files: {}", error);
 
-                    return ProjectCreateResponse { success: false };
+                    return ProjectCreateResponse {
+                        success: false,
+                        new_project_path: PathBuf::default(),
+                    };
                 }
             }
         }
@@ -61,7 +70,10 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
         if let Err(error) = fs::create_dir_all(project_directory_path.to_path_buf()) {
             log::error!("Failed to create new project directory: {}", error);
 
-            return ProjectCreateResponse { success: false };
+            return ProjectCreateResponse {
+                success: false,
+                new_project_path: PathBuf::default(),
+            };
         }
 
         let project_info = ProjectInfo::new(project_directory_path.to_path_buf(), None, ProjectManifest::default());
@@ -75,9 +87,15 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
         if let Err(error) = new_project.save_to_path(&project_directory_path, true) {
             log::error!("Failed to save initial new project directory: {}", error);
 
-            return ProjectCreateResponse { success: false };
+            return ProjectCreateResponse {
+                success: false,
+                new_project_path: PathBuf::default(),
+            };
         }
 
-        ProjectCreateResponse { success: true }
+        ProjectCreateResponse {
+            success: true,
+            new_project_path: project_directory_path,
+        }
     }
 }

@@ -2,6 +2,7 @@ pub mod button;
 pub mod check_state;
 pub mod checkbox;
 pub mod combo_box;
+pub mod context_menu;
 pub mod data_type_selector;
 pub mod data_value_box;
 pub mod groupbox;

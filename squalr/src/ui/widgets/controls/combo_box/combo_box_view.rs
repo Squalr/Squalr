@@ -17,6 +17,7 @@ pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
     icon_size: f32,
     label_spacing: f32,
     divider_width: f32,
+    border_width: f32,
     corner_radius: u8,
 }
 
@@ -36,12 +37,11 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
             add_contents,
             width: 192.0,
             height: 28.0,
-
-            // Themed layout defaults
             icon_padding_left: 8.0,
             icon_size: 16.0,
             label_spacing: 8.0,
             divider_width: 1.0,
+            border_width: 1.0,
             corner_radius: 0,
         }
     }
@@ -83,18 +83,17 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         let font_id = theme.font_library.font_noto_sans.font_normal.clone();
         let text_color = theme.foreground;
         let down_arrow = &theme.icon_library.icon_handle_navigation_down_arrow_small;
-
         let desired_size = vec2(self.width, self.height);
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::click());
 
-        // Precompute positions
+        // Precompute positions.
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
         let icon_y = allocated_size_rectangle.center().y - icon_size_vec.y * 0.5;
 
-        // Left-side icon (new)
+        // Left-side icon.
         let left_icon_pos = pos2(allocated_size_rectangle.min.x + self.icon_padding_left, icon_y);
 
-        // Text label
+        // Text label.
         let galley = user_interface
             .ctx()
             .fonts(|fonts| fonts.layout_no_wrap(self.label.to_owned(), font_id.clone(), text_color));
@@ -107,14 +106,13 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             },
             allocated_size_rectangle.center().y - galley.size().y * 0.5,
         );
-        let border_width = 1.0;
 
-        // Draw base background
+        // Draw base background.
         user_interface
             .painter()
             .rect_filled(allocated_size_rectangle, CornerRadius::same(self.corner_radius), theme.background_control);
 
-        // State overlay (hover/press)
+        // State overlay (hover/press).
         StateLayer {
             bounds_min: allocated_size_rectangle.min,
             bounds_max: allocated_size_rectangle.max,
@@ -123,7 +121,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             has_hover: response.hovered(),
             has_focus: response.has_focus(),
             corner_radius: CornerRadius::same(self.corner_radius),
-            border_width,
+            border_width: self.border_width,
             hover_color: theme.hover_tint,
             pressed_color: theme.pressed_tint,
             border_color: theme.submenu_border,
@@ -140,13 +138,13 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
                 Color32::WHITE,
             );
         }
-        // Draw text next to icon
+        // Draw text next to icon.
         user_interface.painter().galley(text_pos, galley, text_color);
 
-        // Divider bar before right arrow
+        // Divider bar before right arrow.
         let divider_x = allocated_size_rectangle.max.x - (self.icon_size + self.icon_padding_left * 2.0 + self.divider_width);
         let divider_rectangle = Rect::from_min_max(
-            pos2(divider_x, allocated_size_rectangle.min.y + border_width),
+            pos2(divider_x, allocated_size_rectangle.min.y + self.border_width),
             pos2(divider_x + self.divider_width, allocated_size_rectangle.max.y),
         );
 
@@ -154,7 +152,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             .painter()
             .rect_filled(divider_rectangle, 0.0, theme.submenu_border);
 
-        // Draw right arrow
+        // Draw right arrow.
         let right_arrow_pos = pos2(allocated_size_rectangle.max.x - self.icon_size - self.icon_padding_left, icon_y);
 
         user_interface.painter().image(
@@ -164,7 +162,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             Color32::WHITE,
         );
 
-        // Popup logic
+        // Popup logic.
         let popup_id = Id::new((self.menu_id, user_interface.id().value(), self.label));
         let mut open = user_interface.memory(|memory| memory.data.get_temp::<bool>(popup_id).unwrap_or(false));
 
@@ -182,7 +180,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             return response;
         }
 
-        // Draw popup content
+        // Draw popup content.
         let popup_pos = pos2(allocated_size_rectangle.min.x, allocated_size_rectangle.max.y + 2.0);
         let popup_id_area = Id::new(("combo_popup_area", user_interface.id().value(), self.label));
         let mut should_close = false;
