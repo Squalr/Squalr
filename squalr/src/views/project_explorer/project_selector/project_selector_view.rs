@@ -71,12 +71,14 @@ impl Widget for ProjectSelectorView {
                                 .as_ref()
                                 .map(|context_menu_focus_file_path| context_menu_focus_file_path == project_entry.get_project_file_path())
                                 .unwrap_or(false);
+                            let context_menu_position = project_selector_view_data.context_menu_position;
 
                             user_interface.add(ProjectEntryView::new(
                                 self.app_context.clone(),
                                 project_entry,
                                 None,
                                 is_context_menu_visible,
+                                &context_menu_position,
                                 is_selected,
                                 is_renaming,
                                 &rename_project_text,
@@ -89,8 +91,8 @@ impl Widget for ProjectSelectorView {
 
         match project_selector_frame_action {
             ProjectSelectorFrameAction::None => {}
-            ProjectSelectorFrameAction::ShowContextMenu(project_file_path) => {
-                ProjectSelectorViewData::show_context_menu(self.project_selector_view_data.clone(), project_file_path);
+            ProjectSelectorFrameAction::ShowContextMenu(project_file_path, position) => {
+                ProjectSelectorViewData::show_context_menu(self.project_selector_view_data.clone(), project_file_path, position);
             }
             ProjectSelectorFrameAction::HideContextMenu() => {
                 ProjectSelectorViewData::hide_context_menu(self.project_selector_view_data.clone());

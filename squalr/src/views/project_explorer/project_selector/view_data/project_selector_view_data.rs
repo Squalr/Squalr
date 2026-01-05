@@ -1,4 +1,5 @@
 use crate::app_context::AppContext;
+use epaint::Pos2;
 use squalr_engine_api::{
     commands::{
         project::{
@@ -20,6 +21,7 @@ use std::{
 pub struct ProjectSelectorViewData {
     pub project_list: Vec<ProjectInfo>,
     pub context_menu_focus_file_path: Option<PathBuf>,
+    pub context_menu_position: Option<Pos2>,
     pub selected_project_file_path: Option<PathBuf>,
     pub renaming_project_file_path: Option<PathBuf>,
     pub rename_project_text: Arc<RwLock<(String, bool)>>,
@@ -30,6 +32,7 @@ impl ProjectSelectorViewData {
         Self {
             project_list: Vec::new(),
             context_menu_focus_file_path: None,
+            context_menu_position: None,
             selected_project_file_path: None,
             renaming_project_file_path: None,
             rename_project_text: Arc::new(RwLock::new((String::new(), false))),
@@ -109,13 +112,16 @@ impl ProjectSelectorViewData {
     pub fn show_context_menu(
         project_selector_view_data: Dependency<ProjectSelectorViewData>,
         project_file_path: PathBuf,
+        position: Pos2,
     ) {
         let mut project_selector_view_data = match project_selector_view_data.write("Project selector view data show context menu") {
             Some(project_selector_view_data) => project_selector_view_data,
             None => return,
         };
 
+        project_selector_view_data.selected_project_file_path = Some(project_file_path.clone());
         project_selector_view_data.context_menu_focus_file_path = Some(project_file_path);
+        project_selector_view_data.context_menu_position = Some(position);
     }
 
     pub fn hide_context_menu(project_selector_view_data: Dependency<ProjectSelectorViewData>) {
@@ -125,6 +131,7 @@ impl ProjectSelectorViewData {
         };
 
         project_selector_view_data.context_menu_focus_file_path = None;
+        project_selector_view_data.context_menu_position = None;
     }
 
     pub fn select_project(
@@ -136,6 +143,8 @@ impl ProjectSelectorViewData {
             None => return,
         };
 
+        project_selector_view_data.context_menu_focus_file_path = None;
+        project_selector_view_data.context_menu_position = None;
         project_selector_view_data.selected_project_file_path = Some(project_file_path);
     }
 
@@ -159,6 +168,7 @@ impl ProjectSelectorViewData {
         };
 
         project_selector_view_data.context_menu_focus_file_path = None;
+        project_selector_view_data.context_menu_position = None;
         project_selector_view_data.renaming_project_file_path = Some(project_file_path);
     }
 
@@ -180,6 +190,7 @@ impl ProjectSelectorViewData {
         if let Some(mut project_selector_view_data) = project_selector_view_data.write("Project selector view data start renaming project") {
             project_selector_view_data.renaming_project_file_path = None;
             project_selector_view_data.context_menu_focus_file_path = None;
+            project_selector_view_data.context_menu_position = None;
         }
 
         let project_directory_path = match project_file_path.parent() {

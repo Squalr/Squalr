@@ -8,22 +8,13 @@ use std::sync::Arc;
 pub struct ContextMenu<'a, F: FnOnce(&mut Ui, &mut bool)> {
     app_context: Arc<AppContext>,
     menu_id: &'a str,
-
     /// Top-left position of the popup (caller decides).
     pos: epaint::Pos2,
-
     add_contents: F,
-
     width: f32,
     corner_radius: u8,
-
-    /// Behavior toggles
     close_on_escape: bool,
     close_on_click_outside: bool,
-
-    /// Optional extra padding beyond the popup rect for "inside" hit testing.
-    /// (Usually leave at ZERO.)
-    hit_padding: Vec2,
 }
 
 impl<'a, F: FnOnce(&mut Ui, &mut bool)> ContextMenu<'a, F> {
@@ -42,7 +33,6 @@ impl<'a, F: FnOnce(&mut Ui, &mut bool)> ContextMenu<'a, F> {
             corner_radius: 0,
             close_on_escape: true,
             close_on_click_outside: true,
-            hit_padding: Vec2::ZERO,
         }
     }
 
@@ -75,14 +65,6 @@ impl<'a, F: FnOnce(&mut Ui, &mut bool)> ContextMenu<'a, F> {
         enabled: bool,
     ) -> Self {
         self.close_on_click_outside = enabled;
-        self
-    }
-
-    pub fn hit_padding(
-        mut self,
-        padding: Vec2,
-    ) -> Self {
-        self.hit_padding = padding;
         self
     }
 
@@ -131,12 +113,7 @@ impl<'a, F: FnOnce(&mut Ui, &mut bool)> ContextMenu<'a, F> {
                     });
             });
 
-        let mut popup_rect = area_response.response.rect;
-
-        // Optional padding around popup rect for click-outside detection.
-        if self.hit_padding != Vec2::ZERO {
-            popup_rect = Rect::from_min_max(popup_rect.min - self.hit_padding, popup_rect.max + self.hit_padding);
-        }
+        let popup_rectangle = area_response.response.rect;
 
         // Close on click outside.
         if self.close_on_click_outside {
@@ -145,7 +122,7 @@ impl<'a, F: FnOnce(&mut Ui, &mut bool)> ContextMenu<'a, F> {
                     return false;
                 }
                 let click_pos = input.pointer.interact_pos().unwrap_or(self.pos);
-                !popup_rect.contains(click_pos)
+                !popup_rectangle.contains(click_pos)
             });
 
             if clicked_outside {
@@ -157,7 +134,7 @@ impl<'a, F: FnOnce(&mut Ui, &mut bool)> ContextMenu<'a, F> {
             *open = false;
             None
         } else {
-            Some(popup_rect)
+            Some(popup_rectangle)
         }
     }
 }

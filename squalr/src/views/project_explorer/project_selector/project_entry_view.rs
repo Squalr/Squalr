@@ -11,7 +11,7 @@ use eframe::egui::{
     text::{CCursor, CCursorRange},
     vec2,
 };
-use epaint::{Color32, CornerRadius, Stroke, StrokeKind};
+use epaint::{Color32, CornerRadius, Pos2, Stroke, StrokeKind};
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use std::sync::{Arc, RwLock};
 
@@ -20,6 +20,7 @@ pub struct ProjectEntryView<'lifetime> {
     project_info: &'lifetime ProjectInfo,
     icon: Option<TextureHandle>,
     is_context_menu_visible: bool,
+    context_menu_position: &'lifetime Option<Pos2>,
     is_selected: bool,
     is_renaming: bool,
     rename_project_text: &'lifetime Arc<RwLock<(String, bool)>>,
@@ -32,6 +33,7 @@ impl<'lifetime> ProjectEntryView<'lifetime> {
         project_info: &'lifetime ProjectInfo,
         icon: Option<TextureHandle>,
         is_context_menu_visible: bool,
+        context_menu_position: &'lifetime Option<Pos2>,
         is_selected: bool,
         is_renaming: bool,
         rename_project_text: &'lifetime Arc<RwLock<(String, bool)>>,
@@ -42,6 +44,7 @@ impl<'lifetime> ProjectEntryView<'lifetime> {
             project_info,
             icon,
             is_context_menu_visible,
+            context_menu_position,
             is_selected,
             is_renaming,
             rename_project_text,
@@ -63,7 +66,7 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
         let desired_size = vec2(user_interface.available_width(), row_height);
         let (available_size_id, available_size_rect) = user_interface.allocate_space(desired_size);
         let response = user_interface.interact(available_size_rect, available_size_id, Sense::click());
-        let dropdown_position = available_size_rect.min + vec2(0.0, row_height);
+        let default_context_menu_position = available_size_rect.min + vec2(0.0, row_height);
 
         // Draw selected background and border if applicable.
         if self.is_selected {
@@ -103,6 +106,19 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
             );
         } else if response.clicked() {
             *self.project_selector_frame_action = ProjectSelectorFrameAction::SelectProject(self.project_info.get_project_file_path().to_path_buf());
+        } else if response.secondary_clicked() {
+            // Only allow overriding other context menu actions.
+            match self.project_selector_frame_action {
+                ProjectSelectorFrameAction::None | ProjectSelectorFrameAction::HideContextMenu() | ProjectSelectorFrameAction::SelectProject(_) => {
+                    *self.project_selector_frame_action = ProjectSelectorFrameAction::ShowContextMenu(
+                        self.project_info.get_project_file_path().to_path_buf(),
+                        response
+                            .interact_pointer_pos()
+                            .unwrap_or(default_context_menu_position),
+                    );
+                }
+                _ => {}
+            }
         }
 
         // Add contents using a bounded UI scope.
@@ -122,7 +138,8 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
                 );
 
                 if response_show_context_menu.clicked() {
-                    *self.project_selector_frame_action = ProjectSelectorFrameAction::ShowContextMenu(self.project_info.get_project_file_path().to_path_buf());
+                    *self.project_selector_frame_action =
+                        ProjectSelectorFrameAction::ShowContextMenu(self.project_info.get_project_file_path().to_path_buf(), default_context_menu_position);
                 }
 
                 // Rename or cancel button.
@@ -222,9 +239,12 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
         });
 
         let mut open = self.is_context_menu_visible;
+        let context_menu_position = self
+            .context_menu_position
+            .unwrap_or(default_context_menu_position);
 
         if self.is_context_menu_visible {
-            ContextMenu::new(self.app_context.clone(), "file_ctx", dropdown_position, |user_interface, should_close| {
+            ContextMenu::new(self.app_context.clone(), "file_ctx", context_menu_position, |user_interface, should_close| {
                 user_interface.horizontal(|user_interface| {
                     user_interface.set_height(row_height);
                     // Close context menu button.
@@ -285,7 +305,11 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
         }
 
         if self.is_context_menu_visible && !open {
-            *self.project_selector_frame_action = ProjectSelectorFrameAction::HideContextMenu();
+            // Only accept the hide action if not already doing a show or select action.
+            match self.project_selector_frame_action {
+                ProjectSelectorFrameAction::SelectProject(_) | ProjectSelectorFrameAction::ShowContextMenu(_, _) => {}
+                _ => *self.project_selector_frame_action = ProjectSelectorFrameAction::HideContextMenu(),
+            }
         }
 
         response
