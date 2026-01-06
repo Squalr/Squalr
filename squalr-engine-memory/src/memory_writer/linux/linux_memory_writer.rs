@@ -1,7 +1,9 @@
 use crate::memory_writer::memory_writer_trait::IMemoryWriter;
+
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use std::os::raw::c_void;
-use std::ptr::null_mut;
+
+use std::fs::File;
+use std::io::{Seek, SeekFrom, Write};
 
 pub struct LinuxMemoryWriter;
 
@@ -10,12 +12,24 @@ impl LinuxMemoryWriter {
         LinuxMemoryWriter
     }
 
-    fn write_memory(
-        process_handle: u64,
+    fn write_proc_mem(
+        pid: u32,
         address: u64,
-        data: &[u8],
+        buffer: &[u8],
     ) -> bool {
-        false
+        let mut mem_file = match File::open(format!("/proc/{}/mem", pid)) {
+            Ok(f) => f,
+            Err(_) => return false
+        };
+
+        if let Err(_) = mem_file.seek(SeekFrom::Start(address)) {
+            return false;
+        }
+
+        match mem_file.write(buffer) {
+            Ok(_) => true
+            Err(_) => false
+        }
     }
 }
 
@@ -26,6 +40,6 @@ impl IMemoryWriter for LinuxMemoryWriter {
         address: u64,
         values: &[u8],
     ) -> bool {
-        Self::write_memory(process_info.get_handle(), address, values)
+        Self::write_proc_mem(process_info.get_process_id_raw(), address, values)
     }
 }

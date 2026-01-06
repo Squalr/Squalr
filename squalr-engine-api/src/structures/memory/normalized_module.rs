@@ -1,6 +1,7 @@
 use crate::structures::memory::normalized_region::NormalizedRegion;
 use std::hash::{Hash, Hasher};
 
+#[derive(Clone)]
 pub struct NormalizedModule {
     base_region: NormalizedRegion,
     module_name: String,
