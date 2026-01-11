@@ -90,15 +90,13 @@ impl ElementScannerResultsViewData {
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
 
         // Refresh scan values on a loop. JIRA: This should be coming from settings. We can probably cache, and have some mechanism for getting latest val.
-        thread::spawn(move || {
-            loop {
-                let element_scanner_results_view_data = element_scanner_results_view_data_clone.clone();
-                let engine_unprivileged_state = engine_unprivileged_state_clone.clone();
+        thread::spawn(move || loop {
+            let element_scanner_results_view_data = element_scanner_results_view_data_clone.clone();
+            let engine_unprivileged_state = engine_unprivileged_state_clone.clone();
 
-                Self::refresh_scan_results(element_scanner_results_view_data, engine_unprivileged_state);
+            Self::refresh_scan_results(element_scanner_results_view_data, engine_unprivileged_state);
 
-                thread::sleep(Duration::from_millis(100));
-            }
+            thread::sleep(Duration::from_millis(100));
         });
     }
 

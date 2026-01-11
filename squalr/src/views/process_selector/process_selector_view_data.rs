@@ -81,7 +81,7 @@ impl ProcessSelectorViewData {
         process_selector_view_data: Dependency<ProcessSelectorViewData>,
         app_context: Arc<AppContext>,
     ) {
-        let list_windowed_processes_request = ProcessListRequest {
+        let list_all_processes_request = ProcessListRequest {
             require_windowed: false,
             search_name: None,
             match_case: false,
@@ -103,7 +103,7 @@ impl ProcessSelectorViewData {
             None => return,
         };
 
-        list_windowed_processes_request.send(&engine_unprivileged_state, move |process_list_response| {
+        list_all_processes_request.send(&engine_unprivileged_state, move |process_list_response| {
             let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data refresh full process list response") {
                 Some(process_selector_view_data) => process_selector_view_data,
                 None => return,
