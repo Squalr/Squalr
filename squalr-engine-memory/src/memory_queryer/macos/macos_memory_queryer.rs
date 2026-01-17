@@ -4,16 +4,16 @@ use crate::memory_queryer::memory_type_enum::MemoryTypeEnum;
 use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
 use core::ffi::c_void;
 use core::mem::size_of;
+use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
-use squalr_engine_processes::process_info::Bitness;
-use squalr_engine_processes::process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 
-pub struct MacosMemoryQueryer;
+pub struct MacOsMemoryQueryer;
 
-impl MacosMemoryQueryer {
+impl MacOsMemoryQueryer {
     pub fn new() -> Self {
-        MacosMemoryQueryer
+        MacOsMemoryQueryer
     }
 
     fn get_protection_flags(
@@ -24,7 +24,7 @@ impl MacosMemoryQueryer {
     }
 }
 
-impl IMemoryQueryer for MacosMemoryQueryer {
+impl IMemoryQueryer for MacOsMemoryQueryer {
     fn get_virtual_pages(
         &self,
         process_info: &OpenedProcessInfo,
@@ -83,15 +83,15 @@ impl IMemoryQueryer for MacosMemoryQueryer {
 
     fn address_to_module(
         &self,
-        process_info: &OpenedProcessInfo,
         address: u64,
+        modules: &Vec<NormalizedModule>,
     ) -> Option<(String, u64)> {
-        0
+        None
     }
 
     fn resolve_module(
         &self,
-        process_info: &OpenedProcessInfo,
+        modules: &Vec<NormalizedModule>,
         identifier: &str,
     ) -> u64 {
         0

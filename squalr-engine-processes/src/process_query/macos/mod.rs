@@ -1,1 +1,1 @@
-pub mod linux_process_query;
+pub mod macos_process_query;

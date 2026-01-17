@@ -1,8 +1,6 @@
-use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::cmp;
-use std::sync::{Arc, RwLock};
 
 pub struct Snapshot {
     snapshot_regions: Vec<SnapshotRegion>,
