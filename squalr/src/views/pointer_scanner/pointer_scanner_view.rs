@@ -8,6 +8,8 @@ pub struct PointerScannerView {
 }
 
 impl PointerScannerView {
+    pub const WINDOW_ID: &'static str = "window_pointer_scanner";
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         Self { app_context }
     }

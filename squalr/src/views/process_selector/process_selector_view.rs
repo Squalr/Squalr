@@ -17,6 +17,8 @@ pub struct ProcessSelectorView {
 }
 
 impl ProcessSelectorView {
+    pub const WINDOW_ID: &'static str = "window_process_selector";
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let process_selector_view_data = app_context
             .dependency_container

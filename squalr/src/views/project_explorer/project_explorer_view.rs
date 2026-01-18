@@ -19,6 +19,8 @@ pub struct ProjectExplorerView {
 }
 
 impl ProjectExplorerView {
+    pub const WINDOW_ID: &'static str = "window_project_explorer";
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let project_selector_view_data = app_context
             .dependency_container

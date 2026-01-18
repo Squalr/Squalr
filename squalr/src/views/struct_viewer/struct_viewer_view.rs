@@ -8,6 +8,8 @@ pub struct StructViewerView {
 }
 
 impl StructViewerView {
+    pub const WINDOW_ID: &'static str = "window_struct_viewer";
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         Self { app_context }
     }

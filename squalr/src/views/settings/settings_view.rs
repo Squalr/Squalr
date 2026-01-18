@@ -25,6 +25,8 @@ pub struct SettingsView {
 }
 
 impl SettingsView {
+    pub const WINDOW_ID: &'static str = "window_settings";
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let tab_menu_data = TabMenuData {
             headers: vec!["General".to_string(), "Memory".to_string(), "Scan".to_string()].into(),

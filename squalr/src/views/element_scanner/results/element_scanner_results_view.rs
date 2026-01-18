@@ -25,6 +25,8 @@ pub struct ElementScannerResultsView {
 }
 
 impl ElementScannerResultsView {
+    pub const WINDOW_ID: &'static str = "window_element_scanner_results";
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let element_scanner_view_data = app_context
             .dependency_container

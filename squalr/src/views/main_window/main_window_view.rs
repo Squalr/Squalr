@@ -47,7 +47,7 @@ impl MainWindowView {
             dock_view_data.clone(),
             OutputView::new(app_context_for_output.clone()),
             Rc::new("Output".to_string()),
-            Rc::new("output".to_string()),
+            Rc::new("window_output".to_string()),
         );
 
         let app_context_for_settings = app_context.clone();
@@ -56,7 +56,7 @@ impl MainWindowView {
             dock_view_data.clone(),
             SettingsView::new(app_context_for_settings.clone()),
             Rc::new("Settings".to_string()),
-            Rc::new("settings".to_string()),
+            Rc::new("window_settings".to_string()),
         );
 
         let app_context_for_struct_viewer = app_context.clone();
@@ -65,7 +65,7 @@ impl MainWindowView {
             dock_view_data.clone(),
             StructViewerView::new(app_context_for_struct_viewer.clone()),
             Rc::new("Struct Viewer".to_string()),
-            Rc::new("struct_viewer".to_string()),
+            Rc::new("window_struct_viewer".to_string()),
         );
 
         let app_context_for_project_explorer = app_context.clone();
@@ -74,7 +74,7 @@ impl MainWindowView {
             dock_view_data.clone(),
             ProjectExplorerView::new(app_context_for_project_explorer.clone()),
             Rc::new("Project Explorer".to_string()),
-            Rc::new("project_explorer".to_string()),
+            Rc::new("window_project_explorer".to_string()),
         );
 
         let app_context_for_process_selector = app_context.clone();
@@ -83,7 +83,7 @@ impl MainWindowView {
             dock_view_data.clone(),
             ProcessSelectorView::new(app_context_for_process_selector.clone()),
             Rc::new("Process Selector".to_string()),
-            Rc::new("process_selector".to_string()),
+            Rc::new("window_process_selector".to_string()),
         );
 
         let app_context_for_element_scanner = app_context.clone();
@@ -92,7 +92,7 @@ impl MainWindowView {
             dock_view_data.clone(),
             ElementScannerView::new(app_context_for_element_scanner.clone()),
             Rc::new("Element Scanner".to_string()),
-            Rc::new("element_scanner".to_string()),
+            Rc::new("window_element_scanner".to_string()),
         );
 
         let app_context_for_pointer_scanner = app_context.clone();
@@ -101,7 +101,7 @@ impl MainWindowView {
             dock_view_data.clone(),
             PointerScannerView::new(app_context_for_pointer_scanner.clone()),
             Rc::new("Pointer Scanner".to_string()),
-            Rc::new("pointer_scanner".to_string()),
+            Rc::new("window_pointer_scanner".to_string()),
         );
 
         dock_view_data.set_windows(vec![

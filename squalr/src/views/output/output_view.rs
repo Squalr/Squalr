@@ -10,6 +10,8 @@ pub struct OutputView {
 }
 
 impl OutputView {
+    pub const WINDOW_ID: &'static str = "window_output";
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         Self { app_context }
     }
