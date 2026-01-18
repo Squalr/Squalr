@@ -156,7 +156,7 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
                                     self.app_context.clone(),
                                     &item.text,
                                     &item.id,
-                                    item.check_state.clone(),
+                                    &item.check_state,
                                     self.width,
                                 ));
 

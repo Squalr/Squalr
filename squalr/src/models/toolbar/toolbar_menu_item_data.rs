@@ -1,16 +1,15 @@
-#[derive(Clone)]
 pub struct ToolbarMenuItemData {
     pub id: String,
     pub text: String,
     pub has_separator: bool,
-    pub check_state: Option<bool>,
+    pub check_state: Option<Box<dyn Fn() -> Option<bool> + Send + Sync>>,
 }
 
 impl ToolbarMenuItemData {
     pub fn new(
         id: impl Into<String>,
         text: impl Into<String>,
-        check_state: Option<bool>,
+        check_state: Option<Box<dyn Fn() -> Option<bool> + Send + Sync>>,
     ) -> Self {
         Self {
             id: id.into(),

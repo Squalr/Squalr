@@ -8,7 +8,7 @@ pub struct ToolbarMenuItemView<'lifetime> {
     app_context: Arc<AppContext>,
     label: &'lifetime str,
     item_id: &'lifetime str,
-    check_state: Option<bool>,
+    check_state: &'lifetime Option<Box<dyn Fn() -> Option<bool> + Send + Sync>>,
     width: f32,
 }
 
@@ -17,7 +17,7 @@ impl<'lifetime> ToolbarMenuItemView<'lifetime> {
         app_context: Arc<AppContext>,
         label: &'lifetime str,
         item_id: &'lifetime str,
-        check_state: Option<bool>,
+        check_state: &'lifetime Option<Box<dyn Fn() -> Option<bool> + Send + Sync>>,
         width: f32,
     ) -> Self {
         Self {
@@ -72,44 +72,46 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
         .ui(user_interface);
 
         // Checkbox Overlay Drawing (manual, no layout allocation).
-        if let Some(is_checked) = self.check_state {
-            let checkbox_pos = pos2(
-                allocated_size_rectangle.min.x + icon_left_padding,
-                allocated_size_rectangle.center().y - icon_size.y * 0.5,
-            );
-            let checkbox_rect = Rect::from_min_size(checkbox_pos, icon_size);
-
-            // Draw checkbox background.
-            user_interface
-                .painter()
-                .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.background_control);
-            user_interface
-                .painter()
-                .rect_stroke(checkbox_rect, CornerRadius::ZERO, (1.0, theme.submenu_border), StrokeKind::Inside);
-
-            // Draw hover/pressed state.
-            if response.hovered() {
-                user_interface
-                    .painter()
-                    .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.hover_tint);
-            }
-            if response.is_pointer_button_down_on() {
-                user_interface
-                    .painter()
-                    .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.pressed_tint);
-            }
-
-            // Draw checkmark if checked.
-            if is_checked {
-                let icon = &theme.icon_library.icon_handle_common_check_mark;
-                let texture_size = icon.size_vec2();
-                let icon_position = checkbox_rect.center() - texture_size * 0.5;
-                user_interface.painter().image(
-                    icon.id(),
-                    Rect::from_min_size(icon_position, texture_size),
-                    Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-                    Color32::WHITE,
+        if let Some(check_state) = self.check_state {
+            if let Some(is_checked) = check_state() {
+                let checkbox_pos = pos2(
+                    allocated_size_rectangle.min.x + icon_left_padding,
+                    allocated_size_rectangle.center().y - icon_size.y * 0.5,
                 );
+                let checkbox_rect = Rect::from_min_size(checkbox_pos, icon_size);
+
+                // Draw checkbox background.
+                user_interface
+                    .painter()
+                    .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.background_control);
+                user_interface
+                    .painter()
+                    .rect_stroke(checkbox_rect, CornerRadius::ZERO, (1.0, theme.submenu_border), StrokeKind::Inside);
+
+                // Draw hover/pressed state.
+                if response.hovered() {
+                    user_interface
+                        .painter()
+                        .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.hover_tint);
+                }
+                if response.is_pointer_button_down_on() {
+                    user_interface
+                        .painter()
+                        .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.pressed_tint);
+                }
+
+                // Draw checkmark if checked.
+                if is_checked {
+                    let icon = &theme.icon_library.icon_handle_common_check_mark;
+                    let texture_size = icon.size_vec2();
+                    let icon_position = checkbox_rect.center() - texture_size * 0.5;
+                    user_interface.painter().image(
+                        icon.id(),
+                        Rect::from_min_size(icon_position, texture_size),
+                        Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                        Color32::WHITE,
+                    );
+                }
             }
         }
 

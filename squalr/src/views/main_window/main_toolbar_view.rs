@@ -12,12 +12,12 @@ use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
 use crate::{app_context::AppContext, models::docking::settings::dockable_window_settings::DockSettingsConfig};
 use eframe::egui::viewport::ViewportCommand;
 use eframe::egui::{Response, Ui, Widget};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
 pub struct MainToolbarView {
     app_context: Arc<AppContext>,
-    menu: ToolbarData,
+    menu_toolbar_data: Arc<RwLock<ToolbarData>>,
 }
 
 impl MainToolbarView {
@@ -27,6 +27,14 @@ impl MainToolbarView {
     pub const ACTION_ID_RESET_LAYOUT: &'static str = "layout_reset";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
+        let docking_manager_for_process_selector = app_context.docking_manager.clone();
+        let docking_manager_for_project_explorer = app_context.docking_manager.clone();
+        let docking_manager_for_struct_viewer = app_context.docking_manager.clone();
+        let docking_manager_for_output = app_context.docking_manager.clone();
+        let docking_manager_for_pointer_scanner = app_context.docking_manager.clone();
+        let docking_manager_for_element_scanner = app_context.docking_manager.clone();
+        let docking_manager_for_settings = app_context.docking_manager.clone();
+
         let menus = vec![
             ToolbarHeaderItemData {
                 header: "File".into(),
@@ -49,14 +57,98 @@ impl MainToolbarView {
             ToolbarHeaderItemData {
                 header: "Windows".into(),
                 items: vec![
-                    ToolbarMenuItemData::new(ProcessSelectorView::WINDOW_ID, "Process Selector", Some(false)),
-                    ToolbarMenuItemData::new(ProjectExplorerView::WINDOW_ID, "Project Explorer", Some(true)),
-                    ToolbarMenuItemData::new(StructViewerView::WINDOW_ID, "Struct Viewer", Some(true)),
-                    // ToolbarMenuItemData::new(MemoryViewerView::WINDOW_ID, "Memory Viewer", Some(false)),
-                    ToolbarMenuItemData::new(OutputView::WINDOW_ID, "Output", Some(true)),
-                    ToolbarMenuItemData::new(PointerScannerView::WINDOW_ID, "Pointer Scanner", Some(false)),
-                    ToolbarMenuItemData::new(ElementScannerView::WINDOW_ID, "Element Scanner", Some(true)),
-                    ToolbarMenuItemData::new(SettingsView::WINDOW_ID, "Settings", Some(true)),
+                    ToolbarMenuItemData::new(
+                        ProcessSelectorView::WINDOW_ID,
+                        "Process Selector",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_process_selector.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(ProcessSelectorView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
+                        ProjectExplorerView::WINDOW_ID,
+                        "Project Explorer",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_project_explorer.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(ProjectExplorerView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
+                        StructViewerView::WINDOW_ID,
+                        "Struct Viewer",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_struct_viewer.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(StructViewerView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    // ToolbarMenuItemData::new(MemoryViewerView::WINDOW_ID, "Memory Viewer", Some(move || false)),
+                    ToolbarMenuItemData::new(
+                        OutputView::WINDOW_ID,
+                        "Output",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_output.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(OutputView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
+                        PointerScannerView::WINDOW_ID,
+                        "Pointer Scanner",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_pointer_scanner.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(PointerScannerView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
+                        ElementScannerView::WINDOW_ID,
+                        "Element Scanner",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_element_scanner.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(ElementScannerView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
+                        SettingsView::WINDOW_ID,
+                        "Settings",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_settings.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(SettingsView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
                 ]
                 .into(),
             },
@@ -81,12 +173,15 @@ impl MainToolbarView {
         ]
         .into();
 
-        let menu = ToolbarData {
+        let menu_toolbar_data = Arc::new(RwLock::new(ToolbarData {
             active_menu: String::new(),
             menus,
-        };
+        }));
 
-        Self { app_context, menu }
+        Self {
+            app_context,
+            menu_toolbar_data,
+        }
     }
 }
 
@@ -131,8 +226,17 @@ impl Widget for MainToolbarView {
             _ => {}
         };
 
-        let bar = ToolbarView::new(self.app_context.clone(), &self.menu, callback);
+        match self.menu_toolbar_data.read() {
+            Ok(menu_toolbar_data) => {
+                let bar = ToolbarView::new(self.app_context.clone(), &menu_toolbar_data, callback);
 
-        user_interface.add(bar)
+                user_interface.add(bar)
+            }
+            Err(error) => {
+                log::error!("Failed to acquire main toolbar menu data lock: {}", error);
+
+                user_interface.response()
+            }
+        }
     }
 }
