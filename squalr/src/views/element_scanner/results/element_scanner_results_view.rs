@@ -1,15 +1,18 @@
 use crate::{
     app_context::AppContext,
     ui::{draw::icon_draw::IconDraw, widgets::controls::check_state::CheckState},
-    views::element_scanner::{
-        results::{
-            element_scanner_result_entry_view::ElementScannerResultEntryView,
-            element_scanner_results_action_bar_view::ElementScannerResultsActionBarView,
-            view_data::{
-                element_scanner_result_frame_action::ElementScannerResultFrameAction, element_scanner_results_view_data::ElementScannerResultsViewData,
+    views::{
+        element_scanner::{
+            results::{
+                element_scanner_result_entry_view::ElementScannerResultEntryView,
+                element_scanner_results_action_bar_view::ElementScannerResultsActionBarView,
+                view_data::{
+                    element_scanner_result_frame_action::ElementScannerResultFrameAction, element_scanner_results_view_data::ElementScannerResultsViewData,
+                },
             },
+            scanner::{element_scanner_view_state::ElementScannerViewState, view_data::element_scanner_view_data::ElementScannerViewData},
         },
-        scanner::{element_scanner_view_state::ElementScannerViewState, view_data::element_scanner_view_data::ElementScannerViewData},
+        struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
     },
 };
 use eframe::egui::{Align, Align2, CursorIcon, Direction, Layout, Response, ScrollArea, Sense, Spinner, Ui, Widget};
@@ -22,6 +25,7 @@ pub struct ElementScannerResultsView {
     app_context: Arc<AppContext>,
     element_scanner_view_data: Dependency<ElementScannerViewData>,
     element_scanner_results_view_data: Dependency<ElementScannerResultsViewData>,
+    struct_viewer_view_data: Dependency<StructViewerViewData>,
 }
 
 impl ElementScannerResultsView {
@@ -34,6 +38,9 @@ impl ElementScannerResultsView {
         let element_scanner_results_view_data = app_context
             .dependency_container
             .register(ElementScannerResultsViewData::new());
+        let struct_viewer_view_data = app_context
+            .dependency_container
+            .get_dependency::<StructViewerViewData>();
 
         ElementScannerResultsViewData::poll_scan_results(element_scanner_results_view_data.clone(), app_context.engine_unprivileged_state.clone());
 
@@ -41,6 +48,7 @@ impl ElementScannerResultsView {
             app_context,
             element_scanner_view_data,
             element_scanner_results_view_data,
+            struct_viewer_view_data,
         }
     }
 }

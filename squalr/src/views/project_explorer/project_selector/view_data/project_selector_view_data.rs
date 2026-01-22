@@ -255,7 +255,7 @@ impl ProjectSelectorViewData {
             if !project_list_response.success {
                 log::error!("Failed to close project!");
             } else {
-                log::error!("Closed project.");
+                log::info!("Closed project.");
             }
         });
     }

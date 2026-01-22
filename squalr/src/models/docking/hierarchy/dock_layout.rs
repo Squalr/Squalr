@@ -1,4 +1,4 @@
-use crate::models::docking::hierarchy::dock_node::DockNode;
+use crate::models::docking::{hierarchy::dock_node::DockNode, settings::dockable_window_settings::DockableWindowSettings};
 
 /// Represents a layout area to be filled by an owned root `DockNode`.
 #[derive(Debug)]
@@ -23,6 +23,7 @@ impl DockLayout {
         &mut self,
         new_root: DockNode,
     ) {
+        DockableWindowSettings::set_dock_layout_settings(&new_root);
         self.root_node = new_root;
     }
 

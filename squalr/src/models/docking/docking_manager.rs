@@ -16,7 +16,7 @@ impl DockingManager {
         }
     }
 
-    /// Replace the entire root node in the root_node.
+    /// Replace the entire root node in the root_node and saves the new root to disk.
     pub fn set_root(
         &mut self,
         new_root: DockNode,
