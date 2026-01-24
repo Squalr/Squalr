@@ -132,10 +132,12 @@ impl ValuedStruct {
         };
 
         first_struct.fields.retain(|field_a| {
-            valued_structs
-                .iter()
-                .skip(1)
-                .all(|vs| vs.fields.iter().any(|field_b| field_a == field_b))
+            valued_structs.iter().skip(1).all(|other_valued_struct| {
+                other_valued_struct
+                    .fields
+                    .iter()
+                    .any(|field_b| field_a == field_b)
+            })
         });
 
         ValuedStruct::new_anonymous(std::mem::take(&mut first_struct.fields))

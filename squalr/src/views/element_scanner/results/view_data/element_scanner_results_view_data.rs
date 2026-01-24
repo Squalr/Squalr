@@ -26,6 +26,8 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::{thread, time::Duration};
 
+use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
+
 #[derive(Clone)]
 pub struct ElementScannerResultsViewData {
     // audio_player: AudioPlayer,
@@ -354,57 +356,55 @@ impl ElementScannerResultsViewData {
 
     pub fn set_scan_result_selection_start(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
         scan_result_collection_start_index: Option<i32>,
     ) {
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set scan result selection start") {
             Some(element_scanner_results_view_data) => element_scanner_results_view_data,
             None => return,
         };
+        let mut valued_structs = Vec::new();
+
         element_scanner_results_view_data.selection_index_start = scan_result_collection_start_index;
         element_scanner_results_view_data.selection_index_end = None;
 
-        /*
-        let scan_results = Self::collect_selected_scan_results();
+        Self::for_each_selected_scan_result(&mut element_scanner_results_view_data, |scan_result| {
+            valued_structs.push(scan_result.as_valued_struct())
+        });
 
-        if !scan_results.is_empty() {
-            let struct_viewer_view_model = &self.struct_viewer_view_model;
-            struct_viewer_self.set_selected_structs(
-                StructViewerDomain::ScanResult,
-                scan_results
-                    .iter()
-                    .map(|scan_result| scan_result.as_property_struct())
-                    .collect(),
-            );
-
-        }*/
+        StructViewerViewData::focus_valued_structs(
+            struct_viewer_view_data,
+            valued_structs,
+            Box::new(|modified_field| {
+                //
+            }),
+        );
     }
 
     pub fn set_scan_result_selection_end(
         element_scanner_results_view_data: Dependency<Self>,
-        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
         scan_result_collection_end_index: Option<i32>,
     ) {
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set scan result selection end") {
             Some(element_scanner_results_view_data) => element_scanner_results_view_data,
             None => return,
         };
+        let mut valued_structs = Vec::new();
+
         element_scanner_results_view_data.selection_index_end = scan_result_collection_end_index;
 
-        /*
-        let scan_results = self.collect_selected_scan_results();
+        Self::for_each_selected_scan_result(&mut element_scanner_results_view_data, |scan_result| {
+            valued_structs.push(scan_result.as_valued_struct())
+        });
 
-        if !scan_results.is_empty() {
-            let struct_viewer_view_model = &self.struct_viewer_view_model;
-            struct_viewer_self.set_selected_structs(
-                StructViewerDomain::ScanResult,
-                scan_results
-                    .iter()
-                    .map(|scan_result| scan_result.as_property_struct())
-                    .collect(),
-            );
-
-        }*/
+        StructViewerViewData::focus_valued_structs(
+            struct_viewer_view_data,
+            valued_structs,
+            Box::new(|modified_field| {
+                //
+            }),
+        );
     }
 
     pub fn add_scan_results_to_project(

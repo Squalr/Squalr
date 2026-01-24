@@ -376,14 +376,14 @@ impl Widget for ElementScannerResultsView {
                 ElementScannerResultFrameAction::SetSelectionStart(index) => {
                     ElementScannerResultsViewData::set_scan_result_selection_start(
                         self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_unprivileged_state.clone(),
+                        self.struct_viewer_view_data.clone(),
                         index,
                     );
                 }
                 ElementScannerResultFrameAction::SetSelectionEnd(index) => {
                     ElementScannerResultsViewData::set_scan_result_selection_end(
                         self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_unprivileged_state.clone(),
+                        self.struct_viewer_view_data.clone(),
                         index,
                     );
                 }

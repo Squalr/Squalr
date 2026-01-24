@@ -44,7 +44,7 @@ impl ScanResult {
         }
     }
 
-    pub fn as_property_struct(&self) -> ValuedStruct {
+    pub fn as_valued_struct(&self) -> ValuedStruct {
         // The current value if available, otherwise fall back to a read only default string.
         let field_value = match self.valued_result.get_current_value() {
             Some(current_value) => current_value
