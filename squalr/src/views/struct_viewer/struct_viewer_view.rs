@@ -90,14 +90,14 @@ impl Widget for StructViewerView {
                                     &field,
                                     is_selected,
                                     &mut frame_action,
-                                    ICON_COLUMN_WIDTH,
-                                    value_splitter_x,
+                                    ICON_COLUMN_WIDTH + BAR_THICKNESS,
+                                    value_splitter_x + BAR_THICKNESS,
                                 ));
                             }
                         }
                     });
 
-                // Draw non-resizable icon divider
+                // Draw non-resizable icon/name divider.
                 let icon_divider_x = content_min_x + ICON_COLUMN_WIDTH;
                 let icon_divider_rect = Rect::from_min_max(
                     pos2(icon_divider_x - BAR_THICKNESS * 0.5, splitter_min_y),
@@ -108,7 +108,7 @@ impl Widget for StructViewerView {
                     .painter()
                     .rect_filled(icon_divider_rect, 0.0, theme.background_control);
 
-                // Resize: name splitter
+                // Draw the name/value divider.
                 let value_splitter_response = user_interface
                     .interact(value_splitter_rect, user_interface.id().with("value_splitter"), Sense::drag())
                     .on_hover_cursor(CursorIcon::ResizeHorizontal);
@@ -120,16 +120,16 @@ impl Widget for StructViewerView {
                 if value_splitter_response.dragged() {
                     let drag_delta = value_splitter_response.drag_delta();
                     let mut new_x = value_splitter_x + drag_delta.x;
-
                     let min_x = content_min_x + ICON_COLUMN_WIDTH + MINIMUM_COLUMN_PIXEL_WIDTH;
                     let max_x = content_min_x + content_width - MINIMUM_COLUMN_PIXEL_WIDTH;
+
                     new_x = new_x.clamp(min_x, max_x);
                     new_value_splitter_ratio = Some((new_x - content_min_x) / content_width);
                 }
             })
             .response;
 
-        // Commit splitter changes
+        // Commit splitter changes.
         if new_value_splitter_ratio.is_some() {
             if let Some(mut data) = self.struct_viewer_view_data.write("Struct viewer view") {
                 if let Some(ratio) = new_value_splitter_ratio {

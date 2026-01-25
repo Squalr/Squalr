@@ -1,6 +1,10 @@
 use crate::{
     app_context::AppContext,
-    ui::{converters::data_type_to_icon_converter::DataTypeToIconConverter, draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
+    ui::{
+        converters::data_type_to_icon_converter::DataTypeToIconConverter,
+        draw::icon_draw::IconDraw,
+        widgets::controls::{data_value_box::data_value_box_view::DataValueBoxView, state_layer::StateLayer},
+    },
     views::struct_viewer::view_data::struct_viewer_frame_action::StructViewerFrameAction,
 };
 use eframe::egui::{Align2, Response, Sense, Ui, Widget, vec2};
@@ -13,7 +17,7 @@ pub struct StructViewerEntryView<'lifetime> {
     valued_struct_field: &'lifetime ValuedStructField,
     is_selected: bool,
     struct_viewer_frame_action: &'lifetime mut StructViewerFrameAction,
-    icon_column_width: f32,
+    name_splitter_x: f32,
     value_splitter_x: f32,
 }
 
@@ -23,7 +27,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         valued_struct_field: &'lifetime ValuedStructField,
         is_selected: bool,
         struct_viewer_frame_action: &'lifetime mut StructViewerFrameAction,
-        icon_column_width: f32,
+        name_splitter_x: f32,
         value_splitter_x: f32,
     ) -> Self {
         Self {
@@ -31,7 +35,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
             valued_struct_field,
             is_selected,
             struct_viewer_frame_action,
-            icon_column_width,
+            name_splitter_x,
             value_splitter_x,
         }
     }
@@ -92,23 +96,26 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
         let row_min_x = available_size_rect.min.x;
         let row_max_x = available_size_rect.max.x;
-        let icon_min_x = row_min_x;
-        let icon_max_x = row_min_x + self.icon_column_width;
-        let name_min_x = icon_max_x;
-        let name_max_x = self.value_splitter_x.min(row_max_x);
+        let icon_position_x = row_min_x;
+        let name_position_x = row_min_x + self.name_splitter_x;
+        let value_position_x = self.value_splitter_x.min(row_max_x);
 
-        // Icon column.
-        let icon_rect = Rect::from_min_max(pos2(icon_min_x, available_size_rect.min.y), pos2(icon_max_x, available_size_rect.max.y));
-
-        // Draw icon
+        // Draw icon.
+        let icon_rect = Rect::from_min_max(
+            pos2(icon_position_x, available_size_rect.min.y),
+            pos2(name_position_x, available_size_rect.max.y),
+        );
         let icon_center = icon_rect.center();
         let icon = DataTypeToIconConverter::convert_data_type_to_icon(self.valued_struct_field.get_icon_id(), &theme.icon_library);
+
         IconDraw::draw_sized(user_interface, icon_center, icon_size, &icon);
 
-        // Value column.
-        let value_rect = Rect::from_min_max(pos2(name_min_x, available_size_rect.min.y), pos2(name_max_x, available_size_rect.max.y));
-
-        let text_pos = pos2(value_rect.min.x + text_left_padding, value_rect.center().y);
+        // Draw text.
+        let text_rectangle = Rect::from_min_max(
+            pos2(name_position_x, available_size_rect.min.y),
+            pos2(value_position_x, available_size_rect.max.y),
+        );
+        let text_pos = pos2(text_rectangle.min.x + text_left_padding, text_rectangle.center().y);
 
         user_interface.painter().text(
             text_pos,
@@ -117,6 +124,32 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
             theme.font_library.font_noto_sans.font_normal.clone(),
             theme.foreground,
         );
+
+        // Draw value.
+        /*
+        user_interface.put(
+            Rect::from_min_size(pos2(value_position_x, available_size_rect.min.y), vec2(row_max_x, available_size_rect.max.y)),
+
+            DataValueBoxView::new(
+                self.app_context.clone(),
+                &mut self
+                    .valued_struct_field
+                    .get_display_values()
+                    .unwrap()
+                    .get_default_display_value()
+                    .unwrap(),
+                &self
+                    .valued_struct_field
+                    .get_data_value()
+                    .unwrap()
+                    .get_data_type_ref(),
+                false,
+                true,
+                "Edit selected values...",
+                "data_value_box_edit_value",
+            )
+            .width(row_max_x - value_position_x),
+        );*/
 
         response
     }

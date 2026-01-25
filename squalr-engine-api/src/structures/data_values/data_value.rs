@@ -7,7 +7,7 @@ use crate::structures::data_values::display_value_type::DisplayValueType;
 use crate::structures::data_values::display_values::DisplayValues;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::structs::valued_struct::ValuedStruct;
-use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldNode};
+use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
 use crate::traits::from_string_privileged::FromStringPrivileged;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, mem, str::FromStr};
@@ -126,7 +126,7 @@ impl DataValue {
         &self,
         is_read_only: bool,
     ) -> ValuedStructField {
-        ValuedStructField::new(String::new(), ValuedStructFieldNode::Value(self.clone()), is_read_only)
+        ValuedStructField::new(String::new(), ValuedStructFieldData::Value(self.clone()), is_read_only)
     }
 
     pub fn to_named_valued_struct_field(
@@ -134,7 +134,7 @@ impl DataValue {
         name: String,
         is_read_only: bool,
     ) -> ValuedStructField {
-        ValuedStructField::new(name, ValuedStructFieldNode::Value(self.clone()), is_read_only)
+        ValuedStructField::new(name, ValuedStructFieldData::Value(self.clone()), is_read_only)
     }
 }
 

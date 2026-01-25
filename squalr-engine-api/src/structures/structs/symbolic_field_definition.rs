@@ -4,7 +4,7 @@ use crate::{
         data_types::data_type_ref::DataTypeRef,
         structs::{
             container_type::ContainerType,
-            valued_struct_field::{ValuedStructField, ValuedStructFieldNode},
+            valued_struct_field::{ValuedStructField, ValuedStructFieldData},
         },
     },
 };
@@ -41,15 +41,15 @@ impl SymbolicFieldDefinition {
                 return ValuedStructField::default();
             }
         };
-        let field_node = match self.container_type {
+        let field_data = match self.container_type {
             ContainerType::None => {
                 let default_value = symbol_registry_guard
                     .get_default_value(&self.data_type_ref)
                     .unwrap_or_default();
-                ValuedStructFieldNode::Value(default_value)
+                ValuedStructFieldData::Value(default_value)
             }
-            ContainerType::Pointer32 => ValuedStructFieldNode::Pointer32(0),
-            ContainerType::Pointer64 => ValuedStructFieldNode::Pointer64(0),
+            ContainerType::Pointer32 => ValuedStructFieldData::Pointer32(0),
+            ContainerType::Pointer64 => ValuedStructFieldData::Pointer64(0),
             ContainerType::Array(length) => {
                 let mut array_value = symbol_registry_guard
                     .get_default_value(&self.data_type_ref)
@@ -59,11 +59,11 @@ impl SymbolicFieldDefinition {
 
                 array_value.copy_from_bytes(&repeated_bytes);
 
-                ValuedStructFieldNode::Array(array_value)
+                ValuedStructFieldData::Array(array_value)
             }
         };
 
-        ValuedStructField::new(String::new(), field_node, is_read_only)
+        ValuedStructField::new(String::new(), field_data, is_read_only)
     }
 
     pub fn get_size_in_bytes(

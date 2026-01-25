@@ -86,6 +86,5 @@ impl StructViewerViewData {
     ) {
         self.struct_under_view = Arc::new(valued_struct);
         self.struct_field_modified_callback = Arc::new(valued_struct_field_edited_callback);
-        self.selected_field_name = Arc::new(None);
     }
 }

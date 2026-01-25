@@ -7,7 +7,7 @@ use crate::structures::{
     data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
     data_values::data_value::DataValue,
     projects::project_items::{project_item::ProjectItem, project_item_type::ProjectItemType, project_item_type_ref::ProjectItemTypeRef},
-    structs::valued_struct_field::ValuedStructFieldNode,
+    structs::valued_struct_field::ValuedStructFieldData,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
@@ -135,11 +135,11 @@ impl ProjectItemTypeAddress {
         address: u64,
     ) {
         let description_address = DataTypeU64::get_value_from_primitive(address);
-        let field_node = ValuedStructFieldNode::Value(description_address);
+        let field_data = ValuedStructFieldData::Value(description_address);
 
         project_item
             .get_properties_mut()
-            .set_field_node(Self::PROPERTY_ADDRESS, field_node, false);
+            .set_field_data(Self::PROPERTY_ADDRESS, field_data, false);
     }
 
     pub fn get_field_module(project_item: &mut ProjectItem) -> String {
@@ -160,11 +160,11 @@ impl ProjectItemTypeAddress {
         module: &str,
     ) {
         let module_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&module);
-        let field_node = ValuedStructFieldNode::Value(module_data_value);
+        let field_data = ValuedStructFieldData::Value(module_data_value);
 
         project_item
             .get_properties_mut()
-            .set_field_node(Self::PROPERTY_MODULE, field_node, false);
+            .set_field_data(Self::PROPERTY_MODULE, field_data, false);
     }
 
     pub fn get_field_freeze_display_value(project_item: &mut ProjectItem) -> String {
@@ -185,11 +185,11 @@ impl ProjectItemTypeAddress {
         display_value: &str,
     ) {
         let display_value_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&display_value);
-        let field_node = ValuedStructFieldNode::Value(display_value_data_value);
+        let field_data = ValuedStructFieldData::Value(display_value_data_value);
 
         project_item
             .get_properties_mut()
-            .set_field_node(Self::PROPERTY_FREEZE_DISPLAY_VALUE, field_node, true);
+            .set_field_data(Self::PROPERTY_FREEZE_DISPLAY_VALUE, field_data, true);
     }
 
     pub fn get_field_symbolic_struct_definition_reference(project_item: &mut ProjectItem) -> Option<SymbolicStructRef> {
@@ -210,10 +210,10 @@ impl ProjectItemTypeAddress {
         symbolic_struct_definition: &str,
     ) {
         let symbolic_struct_definition_data_value = DataTypeStringUtf8::get_value_from_primitive_string(symbolic_struct_definition);
-        let field_node = ValuedStructFieldNode::Value(symbolic_struct_definition_data_value);
+        let field_data = ValuedStructFieldData::Value(symbolic_struct_definition_data_value);
 
         project_item
             .get_properties_mut()
-            .set_field_node(Self::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE, field_node, false);
+            .set_field_data(Self::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE, field_data, false);
     }
 }

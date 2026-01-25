@@ -4,7 +4,7 @@ use crate::structures::projects::project_items::project_item_ref::ProjectItemRef
 use crate::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
     projects::project_items::project_item_type_ref::ProjectItemTypeRef,
-    structs::{valued_struct::ValuedStruct, valued_struct_field::ValuedStructFieldNode},
+    structs::{valued_struct::ValuedStruct, valued_struct_field::ValuedStructFieldData},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
@@ -121,10 +121,10 @@ impl ProjectItem {
         name: &str,
     ) {
         let name_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&name);
-        let field_node = ValuedStructFieldNode::Value(name_data_value);
+        let field_data = ValuedStructFieldData::Value(name_data_value);
 
         self.get_properties_mut()
-            .set_field_node(Self::PROPERTY_NAME, field_node, false);
+            .set_field_data(Self::PROPERTY_NAME, field_data, false);
     }
 
     pub fn get_field_icon_id(&self) -> String {
@@ -145,10 +145,10 @@ impl ProjectItem {
         icon_id: &str,
     ) {
         let icon_id_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&icon_id);
-        let field_node = ValuedStructFieldNode::Value(icon_id_data_value);
+        let field_data = ValuedStructFieldData::Value(icon_id_data_value);
 
         self.get_properties_mut()
-            .set_field_node(Self::PROPERTY_ICON_ID, field_node, false);
+            .set_field_data(Self::PROPERTY_ICON_ID, field_data, false);
     }
 
     pub fn get_field_description(&self) -> String {
@@ -169,9 +169,9 @@ impl ProjectItem {
         description: &str,
     ) {
         let description_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&description);
-        let field_node = ValuedStructFieldNode::Value(description_data_value);
+        let field_data = ValuedStructFieldData::Value(description_data_value);
 
         self.get_properties_mut()
-            .set_field_node(Self::PROPERTY_DESCRIPTION, field_node, false);
+            .set_field_data(Self::PROPERTY_DESCRIPTION, field_data, false);
     }
 }

@@ -2,7 +2,7 @@ use crate::registries::registries::Registries;
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use crate::structures::structs::valued_struct_field::ValuedStructField;
-use crate::structures::structs::{symbolic_struct_ref::SymbolicStructRef, valued_struct_field::ValuedStructFieldNode};
+use crate::structures::structs::{symbolic_struct_ref::SymbolicStructRef, valued_struct_field::ValuedStructFieldData};
 use crate::traits::from_string_privileged::FromStringPrivileged;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -58,6 +58,10 @@ impl ValuedStruct {
         &self.fields
     }
 
+    pub fn get_fields_mut(&mut self) -> &mut [ValuedStructField] {
+        &mut self.fields
+    }
+
     pub fn get_field(
         &self,
         field_name: &str,
@@ -74,10 +78,10 @@ impl ValuedStruct {
             .find(|field| field.get_name() == field_name)
     }
 
-    pub fn set_field_node(
+    pub fn set_field_data(
         &mut self,
         field_name: &str,
-        valued_field_node: ValuedStructFieldNode,
+        valued_field_data: ValuedStructFieldData,
         is_read_only: bool,
     ) {
         if let Some(field) = self
@@ -85,10 +89,10 @@ impl ValuedStruct {
             .iter_mut()
             .find(|field| field.get_name() == field_name)
         {
-            field.set_field_node(valued_field_node);
+            field.set_field_data(valued_field_data);
         } else {
             self.fields
-                .push(ValuedStructField::new(field_name.to_string(), valued_field_node, is_read_only));
+                .push(ValuedStructField::new(field_name.to_string(), valued_field_data, is_read_only));
         }
     }
 
